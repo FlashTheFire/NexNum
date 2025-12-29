@@ -80,76 +80,80 @@ export default function Hero() {
             <div className="absolute -top-20 -right-20 w-80 h-80 rounded-full border-2 border-[hsl(var(--neon-lime)/0.2)] opacity-50" />
             <div className="absolute -top-16 -right-16 w-72 h-72 rounded-full border border-[hsl(var(--neon-lime)/0.1)]" />
 
-            <div className="container mx-auto px-4 pt-12 pb-8 md:pt-28 md:pb-32 relative z-10">
-                <div className="flex flex-col lg:flex-row items-center gap-6 lg:gap-8">
-                    {/* Left side - Content with large negative space */}
-                    <div className="flex-1 text-center lg:text-left lg:pr-8 max-w-2xl">
+            <div className="container mx-auto px-4 pt-8 pb-8 md:pt-28 md:pb-32 relative z-10">
+                {/* Mobile layout: Headline ABOVE phone */}
+                <div className="lg:hidden text-center mb-6">
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5 }}
+                    >
+                        {/* Main headline - Mobile */}
+                        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight leading-[1.15]">
+                            <span className="text-white">Instant SMS</span>{" "}
+                            <span className="text-[hsl(var(--neon-lime))] neon-text-glow">Verification</span>
+                        </h1>
+                    </motion.div>
+                </div>
+
+                <div className="flex flex-col lg:flex-row items-center gap-4 lg:gap-8">
+                    {/* Left side - Content (DESKTOP ONLY) */}
+                    <div className="hidden lg:block flex-1 text-left lg:pr-8 max-w-2xl">
                         <motion.div
                             initial={{ opacity: 0, y: 30 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.6 }}
                         >
-                            {/* Status badge */}
+                            {/* Status badge - Desktop */}
                             <motion.div
                                 initial={{ opacity: 0, scale: 0.9 }}
                                 animate={{ opacity: 1, scale: 1 }}
                                 transition={{ duration: 0.5, delay: 0.1 }}
-                                className="inline-flex items-center px-3 py-1 rounded-full border border-[hsl(var(--neon-lime)/0.4)] bg-[hsl(var(--neon-lime)/0.08)] backdrop-blur-sm mb-4 md:mb-8 shadow-lg shadow-[hsl(var(--neon-lime)/0.1)]"
+                                className="inline-flex items-center px-4 py-2 rounded-full border border-[hsl(var(--neon-lime)/0.4)] bg-[hsl(var(--neon-lime)/0.08)] backdrop-blur-sm mb-8 shadow-lg shadow-[hsl(var(--neon-lime)/0.1)]"
                             >
                                 <span className="relative flex h-2 w-2 mr-3">
                                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[hsl(var(--neon-lime))] opacity-75"></span>
                                     <span className="relative inline-flex rounded-full h-2 w-2 bg-[hsl(var(--neon-lime))]"></span>
                                 </span>
-                                <span className="text-xs md:text-sm font-medium text-[hsl(var(--neon-lime))]">
+                                <span className="text-sm font-medium text-[hsl(var(--neon-lime))]">
                                     Trusted by 10,000+ users worldwide
                                 </span>
                             </motion.div>
 
-                            {/* Main headline */}
-                            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-extrabold tracking-tight mb-3 text-white leading-[1.1] md:leading-[1.05]">
-                                <span
-                                    className="inline-block"
-                                    style={{
-                                        textShadow: `
-                                            1px 1px 0 rgba(0,0,0,0.4),
-                                            2px 2px 0 rgba(0,0,0,0.3),
-                                            3px 3px 0 rgba(0,0,0,0.2),
-                                            4px 4px 0 rgba(0,0,0,0.1),
-                                            5px 5px 10px rgba(0,0,0,0.5)
-                                        `
-                                    }}
-                                >
+                            {/* Main headline - Desktop */}
+                            <h1 className="text-5xl lg:text-6xl xl:text-7xl font-extrabold tracking-tight mb-4 leading-[1.05]">
+                                <span className="inline-block text-white text-3d-effect">
                                     Instant SMS
-                                </span>{" "}
-                                <br className="hidden sm:block" />
+                                </span>
+                                <br />
                                 <span className="text-[hsl(var(--neon-lime))] neon-text-glow">
                                     Verification
                                 </span>
                             </h1>
 
-                            {/* Subheadline */}
-                            <p className="text-sm md:text-xl text-gray-400 mb-5 max-w-lg mx-auto lg:mx-0 leading-relaxed">
+                            {/* Subheadline - Desktop */}
+                            <p className="text-xl text-gray-400 mb-10 max-w-lg leading-relaxed">
                                 Get instant access to virtual phone numbers for seamless account verification.
                                 <span className="text-white/80 font-medium"> Privacy-first</span>, secure, and lightning fast.
                             </p>
 
-                            {/* CTA buttons - side by side on mobile */}
-                            <div className="flex flex-row items-center justify-center lg:justify-start gap-2 md:gap-4 mb-5 md:mb-10">
-                                <Link href="/register" className="w-full sm:w-auto">
+                            {/* CTA buttons - Desktop */}
+                            <div className="flex flex-row items-center gap-4 mb-10">
+                                <Link href="/register">
                                     <Button
                                         size="lg"
-                                        className="w-auto h-11 md:h-14 px-4 md:px-10 text-xs md:text-base font-bold bg-[hsl(var(--neon-lime))] text-black hover:bg-[hsl(var(--neon-lime-soft))] neon-glow transition-all duration-300 shadow-xl shadow-[hsl(var(--neon-lime)/0.25)]"
+                                        className="h-14 px-10 text-base font-bold bg-[hsl(var(--neon-lime))] text-black hover:bg-[hsl(var(--neon-lime-soft))] neon-glow transition-all duration-300 shadow-xl shadow-[hsl(var(--neon-lime)/0.25)]"
                                     >
-                                        Get Started Free <ArrowRight className="ml-2 h-4 w-4 md:h-5 md:w-5" />
+                                        Get Started Free <ArrowRight className="ml-2 h-5 w-5" />
                                     </Button>
                                 </Link>
                                 <Button
                                     variant="outline"
                                     size="lg"
-                                    className="w-auto h-11 md:h-14 px-3 md:px-6 text-xs md:text-base font-semibold border-white/20 text-white hover:bg-white/5 hover:border-white/30 group"
+                                    className="h-14 px-6 text-base font-semibold border-white/20 text-white hover:bg-white/5 hover:border-white/30 group"
                                 >
-                                    <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-[hsl(var(--neon-lime))] flex items-center justify-center mr-2 md:mr-3 group-hover:scale-110 transition-transform shadow-md">
-                                        <svg className="w-2.5 h-2.5 md:w-3.5 md:h-3.5 text-black ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+                                    <div className="w-8 h-8 rounded-full bg-[hsl(var(--neon-lime))] flex items-center justify-center mr-3 group-hover:scale-110 transition-transform shadow-md">
+                                        <svg className="w-3.5 h-3.5 text-black ml-0.5" fill="currentColor" viewBox="0 0 24 24">
                                             <path d="M8 5v14l11-7z" />
                                         </svg>
                                     </div>
@@ -157,8 +161,8 @@ export default function Hero() {
                                 </Button>
                             </div>
 
-                            {/* Trust indicators - compact row */}
-                            <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3 md:gap-6 text-xs md:text-sm">
+                            {/* Trust indicators - Desktop */}
+                            <div className="flex flex-wrap items-center gap-6 text-sm">
                                 <div className="flex items-center gap-2 text-gray-400">
                                     <div className="w-5 h-5 rounded-full bg-[hsl(var(--neon-lime)/0.15)] flex items-center justify-center">
                                         <CheckCircle2 className="h-3 w-3 text-[hsl(var(--neon-lime))]" />
@@ -182,7 +186,7 @@ export default function Hero() {
                     </div>
 
                     {/* Right side - Phone mockup with floating icons */}
-                    <div className="flex-1 relative w-full max-w-[340px] md:max-w-[400px] lg:max-w-[380px] xl:max-w-[420px] lg:ml-16 xl:ml-24">
+                    <div className="flex-1 relative w-full max-w-[300px] md:max-w-[400px] lg:max-w-[380px] xl:max-w-[420px] lg:ml-16 xl:ml-24">
                         {/* Neon lime halo behind phone - larger glow */}
                         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[110%] h-[85%] lg:w-[100%] lg:h-[75%] rounded-full bg-[hsl(var(--neon-lime)/0.18)] lg:bg-[hsl(var(--neon-lime)/0.15)] blur-[100px] lg:blur-[80px]" />
 
@@ -495,6 +499,56 @@ export default function Hero() {
                             </div>
                         </motion.div>
                     </div>
+                </div>
+
+                {/* Mobile layout: Content BELOW phone */}
+                <div className="lg:hidden text-center mt-10 px-4">
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5, delay: 0.2 }}
+                    >
+                        {/* CTA buttons - Mobile (side by side, equal size) */}
+                        <div className="grid grid-cols-2 gap-3 mb-5 max-w-sm mx-auto">
+                            <Link href="/register" className="w-full">
+                                <Button
+                                    size="lg"
+                                    className="w-full h-12 text-xs font-bold bg-[hsl(var(--neon-lime))] text-black hover:bg-[hsl(var(--neon-lime-soft))] neon-glow transition-all duration-300 shadow-xl shadow-[hsl(var(--neon-lime)/0.25)]"
+                                >
+                                    Get Started Free
+                                </Button>
+                            </Link>
+                            <Button
+                                variant="outline"
+                                size="lg"
+                                className="w-full h-12 text-xs font-semibold border-white/20 text-white hover:bg-white/5 hover:border-white/30"
+                            >
+                                Watch Demo
+                            </Button>
+                        </div>
+
+                        {/* Trust indicators - Mobile */}
+                        <div className="flex flex-wrap items-center justify-center gap-3 text-xs">
+                            <div className="flex items-center gap-1.5 text-gray-400">
+                                <div className="w-4 h-4 rounded-full bg-[hsl(var(--neon-lime)/0.15)] flex items-center justify-center">
+                                    <CheckCircle2 className="h-2.5 w-2.5 text-[hsl(var(--neon-lime))]" />
+                                </div>
+                                <span>Instant Activation</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-gray-400">
+                                <div className="w-4 h-4 rounded-full bg-[hsl(var(--neon-lime)/0.15)] flex items-center justify-center">
+                                    <CheckCircle2 className="h-2.5 w-2.5 text-[hsl(var(--neon-lime))]" />
+                                </div>
+                                <span>Crypto Accepted</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-gray-400">
+                                <div className="w-4 h-4 rounded-full bg-[hsl(var(--neon-lime)/0.15)] flex items-center justify-center">
+                                    <CheckCircle2 className="h-2.5 w-2.5 text-[hsl(var(--neon-lime))]" />
+                                </div>
+                                <span>50+ Countries</span>
+                            </div>
+                        </div>
+                    </motion.div>
                 </div>
             </div >
         </section >
