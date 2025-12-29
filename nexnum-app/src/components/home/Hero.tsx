@@ -107,7 +107,20 @@ export default function Hero() {
 
                             {/* Main headline */}
                             <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-extrabold tracking-tight mb-3 text-white leading-[1.1] md:leading-[1.05]">
-                                Instant SMS{" "}
+                                <span
+                                    className="inline-block"
+                                    style={{
+                                        textShadow: `
+                                            1px 1px 0 rgba(0,0,0,0.4),
+                                            2px 2px 0 rgba(0,0,0,0.3),
+                                            3px 3px 0 rgba(0,0,0,0.2),
+                                            4px 4px 0 rgba(0,0,0,0.1),
+                                            5px 5px 10px rgba(0,0,0,0.5)
+                                        `
+                                    }}
+                                >
+                                    Instant SMS
+                                </span>{" "}
                                 <br className="hidden sm:block" />
                                 <span className="text-[hsl(var(--neon-lime))] neon-text-glow">
                                     Verification
@@ -266,7 +279,7 @@ export default function Hero() {
                         >
                             {/* 3D Phone container */}
                             <div
-                                className="relative mx-auto"
+                                className="relative mx-auto w-[270px] h-[560px] md:w-[330px] md:h-[680px] lg:w-[310px] lg:h-[640px]"
                                 style={{
                                     transform: "rotateY(-8deg) rotateX(2deg)",
                                     transformStyle: "preserve-3d"
@@ -283,11 +296,11 @@ export default function Hero() {
 
                                 {/* Phone frame with 3D depth */}
                                 <div
-                                    className="relative rounded-[2.8rem] lg:rounded-[2.5rem] overflow-hidden mx-auto w-[270px] h-[560px] md:w-[330px] md:h-[680px] lg:w-[310px] lg:h-[640px]"
+                                    className="relative rounded-[2.8rem] lg:rounded-[2.5rem] overflow-hidden w-full h-full"
                                     style={{
                                         background: "linear-gradient(145deg, #2a2a30 0%, #1a1a1f 50%, #0f0f12 100%)",
                                         boxShadow: `
-                                            inset 2px 2px 2px rgba(255,255,255,0.1),
+                                            inset 2px 2px 2px rgba(48, 26, 88, 0.77),
                                             inset -2px -2px 2px rgba(0,0,0,0.4),
                                             -25px 25px 70px rgba(0,0,0,0.6),
                                             -15px 15px 40px rgba(0,0,0,0.5),
