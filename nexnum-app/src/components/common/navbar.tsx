@@ -1,308 +1,273 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import {
     Menu,
     X,
-    Phone,
-    ShoppingCart,
-    User,
     Wallet,
     LogOut,
     LayoutDashboard,
-    Sparkles,
-    Search
+    ShoppingCart,
+    User,
+    ChevronDown,
+    Zap,
+    Bell
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { ThemeToggle } from "@/components/common/theme-toggle"
 import { useGlobalStore } from "@/store"
+import { useAuthStore } from "@/stores/authStore"
 import { formatPrice, cn } from "@/lib/utils"
-
-const navLinks = [
-    { href: "/", label: "Home" },
-    { href: "/buy", label: "Smart Buy" },
-    { href: "/#pricing", label: "Pricing" },
-]
 
 export function Navbar() {
     const pathname = usePathname()
-    const { isAuthenticated, user, cart, logout } = useGlobalStore()
+    const { isAuthenticated, user, logout } = useAuthStore()
+    const { userProfile } = useGlobalStore()
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+    const [scrolled, setScrolled] = useState(false)
+    const [showNotifications, setShowNotifications] = useState(false)
 
-    const cartItemCount = cart.length
+    // Mock Notifications
+    const notifications = [
+        { id: 1, title: "Payment Successful", desc: "Added $50.00 to wallet", time: "2m ago", read: false },
+        { id: 2, title: "Number Expiring", desc: "+1 (555) 123-4567 expires soon", time: "2h ago", read: false },
+        { id: 3, title: "Welcome to NexNum", desc: "Get started with your first number", time: "1d ago", read: true },
+    ]
+
+    useEffect(() => {
+        const handleScroll = () => {
+            setScrolled(window.scrollY > 20)
+        }
+        window.addEventListener("scroll", handleScroll)
+        return () => window.removeEventListener("scroll", handleScroll)
+    }, [])
 
     return (
         <>
-            <header className="sticky top-0 z-50 w-full border-b border-border/50 bg-background/60 backdrop-blur-xl supports-[backdrop-filter]:bg-background/40">
-                <nav className="container mx-auto px-4">
-                    <div className="flex h-16 items-center justify-between">
-                        {/* Logo */}
-                        <Link href="/" className="flex items-center gap-2.5 shrink-0 group">
-                            <motion.div
-                                whileHover={{ scale: 1.1, rotate: 10 }}
-                                className="p-2 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/25"
-                            >
-                                <Phone className="h-4 w-4 text-white" />
-                            </motion.div>
-                            <span className="text-xl font-bold">
-                                <span className="gradient-text">Nex</span>Num
-                            </span>
+            <motion.nav
+                initial={{ y: -100 }}
+                animate={{ y: 0 }}
+                className={cn(
+                    "fixed top-0 left-0 right-0 z-50 transition-all duration-300",
+                    scrolled
+                        ? "bg-[#0a0a0c]/90 backdrop-blur-2xl border-b border-white/[0.06] shadow-2xl shadow-black/20"
+                        : "bg-transparent"
+                )}
+            >
+                <div className="container mx-auto px-4 lg:px-6">
+                    {/* User Provided Structure: h-16 lg:h-[72px] flex items-center justify-between */}
+                    <div className="h-16 lg:h-[72px] flex items-center justify-between">
+
+                        {/* 1. Logo Section (Exact Style) */}
+                        <Link href="/" className="flex items-center gap-3 group">
+                            <div className="relative">
+                                <div className="w-10 h-10 bg-gradient-to-br from-[hsl(var(--neon-lime))] to-[hsl(72,70%,40%)] rounded-xl flex items-center justify-center shadow-lg shadow-[hsl(var(--neon-lime)/0.25)] group-hover:shadow-[hsl(var(--neon-lime)/0.4)] transition-all duration-300 group-hover:scale-105 p-1.5">
+                                    <Image
+                                        alt="NexNum Logo"
+                                        loading="lazy"
+                                        width="28"
+                                        height="28"
+                                        decoding="async"
+                                        className="text-black invert-0"
+                                        style={{ color: "transparent", filter: "brightness(0)" }}
+                                        src="/logos/nexnum-logo.svg"
+                                    />
+                                </div>
+                                <div className="absolute inset-0 bg-[hsl(var(--neon-lime))] rounded-xl blur-xl opacity-20 group-hover:opacity-40 transition-opacity"></div>
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="font-bold text-xl tracking-tight text-white leading-none">
+                                    Nex<span className="text-[hsl(var(--neon-lime))]">Num</span>
+                                </span>
+                                <span className="text-[10px] text-gray-500 tracking-widest uppercase">Virtual Numbers</span>
+                            </div>
                         </Link>
 
-                        {/* Desktop Navigation */}
-                        <div className="hidden md:flex items-center gap-1">
-                            {navLinks.map((link) => (
-                                <Link key={link.href} href={link.href}>
-                                    <Button
-                                        variant="ghost"
-                                        className={cn(
-                                            "text-sm font-medium rounded-xl",
-                                            pathname === link.href && "bg-muted/50"
-                                        )}
-                                    >
+                        {/* 2. Center Navigation (Context Aware - Dashboard Links) */}
+                        <div className="hidden lg:flex items-center">
+                            <div className="flex items-center gap-1 px-2 py-1.5 rounded-full bg-white/[0.03] border border-white/[0.06]">
+                                {[
+                                    { href: "/dashboard", label: "Overview" },
+                                    { href: "/dashboard/vault", label: "My Numbers" },
+                                    { href: "/dashboard/wallet", label: "Wallet" },
+                                    { href: "/api-docs", label: "Developers", icon: ChevronDown }
+                                ].map((link) => (
+                                    <Link key={link.href} href={link.href} className={cn(
+                                        "px-4 py-2 text-sm font-medium rounded-full transition-all duration-200 flex items-center gap-1",
+                                        pathname === link.href ? "text-white bg-white/[0.06]" : "text-gray-400 hover:text-white hover:bg-white/[0.06]"
+                                    )}>
                                         {link.label}
-                                    </Button>
-                                </Link>
-                            ))}
+                                        {link.icon && <link.icon className="w-3 h-3" />}
+                                    </Link>
+                                ))}
+                            </div>
                         </div>
 
-                        {/* Desktop Actions */}
-                        <div className="hidden md:flex items-center gap-3">
-                            <ThemeToggle />
-
+                        {/* 3. Right Actions (User Profile / Auth) */}
+                        <div className="hidden lg:flex items-center gap-3">
                             {isAuthenticated ? (
                                 <>
-                                    {/* Wallet Pill */}
+                                    {/* Quick Wallet Info */}
                                     <Link href="/dashboard/wallet">
-                                        <div className="wallet-pill">
-                                            <Wallet className="h-4 w-4" />
-                                            <span>{formatPrice(user?.balance || 0)}</span>
-                                        </div>
+                                        <button className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 py-2 text-gray-300 hover:text-white hover:bg-white/[0.06] font-medium h-10 px-5 gap-2">
+                                            <Wallet className="h-4 w-4 text-[hsl(var(--neon-lime))]" />
+                                            <span className="font-mono">{formatPrice(userProfile?.balance || 0)}</span>
+                                        </button>
                                     </Link>
 
-                                    {/* Cart */}
-                                    <Link href="/buy">
-                                        <Button variant="ghost" size="icon" className="relative rounded-xl">
-                                            <ShoppingCart className="h-4 w-4" />
-                                            {cartItemCount > 0 && (
-                                                <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-emerald-500 text-[10px] font-bold text-white flex items-center justify-center shadow-lg shadow-emerald-500/30">
-                                                    {cartItemCount}
-                                                </span>
-                                            )}
-                                        </Button>
-                                    </Link>
-
-                                    {/* Dashboard */}
-                                    <Link href="/dashboard">
-                                        <Button variant="gradient" size="sm" className="gap-2 rounded-xl">
-                                            <LayoutDashboard className="h-4 w-4" />
-                                            Dashboard
-                                        </Button>
-                                    </Link>
+                                    {/* Profile / Logout Button (Styled as "Get Started" originally) */}
+                                    <button
+                                        onClick={() => logout()}
+                                        className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 py-2 bg-[hsl(var(--neon-lime))] text-black hover:bg-[hsl(72,100%,55%)] font-semibold h-10 px-6 shadow-lg shadow-[hsl(var(--neon-lime)/0.25)] hover:shadow-[hsl(var(--neon-lime)/0.4)] transition-all duration-300"
+                                    >
+                                        <span className="mr-1.5">{user?.name?.split(' ')[0]}</span>
+                                        <LogOut className="w-4 h-4" />
+                                    </button>
                                 </>
                             ) : (
                                 <>
                                     <Link href="/login">
-                                        <Button variant="ghost" size="sm" className="rounded-xl">Sign In</Button>
+                                        <button className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 py-2 text-gray-300 hover:text-white hover:bg-white/[0.06] font-medium h-10 px-5">
+                                            Log in
+                                        </button>
                                     </Link>
                                     <Link href="/register">
-                                        <Button variant="emerald" size="sm" className="gap-2 rounded-xl">
-                                            <Sparkles className="h-4 w-4" />
+                                        <button className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 py-2 bg-[hsl(var(--neon-lime))] text-black hover:bg-[hsl(72,100%,55%)] font-semibold h-10 px-6 shadow-lg shadow-[hsl(var(--neon-lime)/0.25)] hover:shadow-[hsl(var(--neon-lime)/0.4)] transition-all duration-300">
                                             Get Started
-                                        </Button>
+                                            <Zap className="w-4 h-4 ml-1.5" />
+                                        </button>
                                     </Link>
                                 </>
                             )}
                         </div>
 
-                        {/* Mobile Actions */}
-                        <div className="flex md:hidden items-center gap-2">
-                            {isAuthenticated && (
-                                <Link href="/dashboard">
-                                    <motion.div whileTap={{ scale: 0.9 }}>
-                                        <div className="relative group h-9 w-9 rounded-xl overflow-hidden p-[1px]">
-                                            <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500 via-purple-500 to-transparent opacity-50 group-hover:opacity-100 transition-opacity" />
-                                            <div className="relative h-full w-full bg-background/90 backdrop-blur-xl rounded-xl flex items-center justify-center border border-white/5">
-                                                <span className="font-bold text-sm bg-gradient-to-br from-indigo-400 to-purple-400 bg-clip-text text-transparent">
-                                                    {user?.name?.charAt(0).toUpperCase() || <User className="h-5 w-5 text-muted-foreground" />}
+                        {/* Mobile Actions (Notification + Menu) */}
+                        <div className="flex items-center gap-2 lg:hidden relative">
+                            <button
+                                onClick={() => setShowNotifications(!showNotifications)}
+                                className="inline-flex items-center justify-center whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:text-accent-foreground h-10 w-10 rounded-full bg-white/[0.05] hover:bg-white/[0.1] text-white relative"
+                            >
+                                <Bell className="h-5 w-5" />
+                                <span className="absolute top-2.5 right-2.5 w-2 h-2 rounded-full bg-[hsl(var(--neon-lime))]" />
+                            </button>
+
+                            <AnimatePresence>
+                                {showNotifications && (
+                                    <>
+                                        <div
+                                            className="fixed inset-0 z-40"
+                                            onClick={() => setShowNotifications(false)}
+                                        />
+                                        <motion.div
+                                            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                                            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                            transition={{ duration: 0.2 }}
+                                            className="absolute top-full right-0 mt-3 w-80 max-w-[90vw] bg-[#0f1115] border border-white/10 rounded-2xl shadow-xl shadow-black/50 overflow-hidden z-50 origin-top-right backdrop-blur-xl"
+                                        >
+                                            <div className="p-4 border-b border-white/5 flex items-center justify-between">
+                                                <span className="font-semibold text-sm">Notifications</span>
+                                                <span className="text-[10px] text-[hsl(var(--neon-lime))] bg-[hsl(var(--neon-lime)/0.1)] px-2 py-0.5 rounded-full font-medium">
+                                                    2 New
                                                 </span>
                                             </div>
-                                        </div>
-                                    </motion.div>
-                                </Link>
-                            )}
-
-                            <ThemeToggle />
-
-                            <motion.div whileTap={{ scale: 0.9 }}>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                                    className="relative group h-9 w-9 rounded-xl overflow-hidden p-[1px]"
-                                >
-                                    <div className="absolute inset-0 bg-gradient-to-tr from-white/20 via-white/10 to-transparent opacity-50 group-hover:opacity-100 transition-opacity" />
-                                    <div className="relative h-full w-full bg-background/90 backdrop-blur-xl rounded-xl flex items-center justify-center border border-white/5">
-                                        <div className="flex flex-col gap-[5px] items-end w-5">
-                                            <motion.span
-                                                animate={mobileMenuOpen ? { rotate: 45, y: 7 } : { rotate: 0, y: 0 }}
-                                                className="w-full h-0.5 bg-foreground rounded-full origin-center"
-                                            />
-                                            <motion.span
-                                                animate={mobileMenuOpen ? { opacity: 0, x: -10 } : { opacity: 1, x: 0 }}
-                                                className="w-[70%] h-0.5 bg-foreground rounded-full"
-                                            />
-                                            <motion.span
-                                                animate={mobileMenuOpen ? { rotate: -45, y: -7, width: "100%" } : { rotate: 0, y: 0, width: "50%" }}
-                                                className="w-[50%] h-0.5 bg-foreground rounded-full origin-center"
-                                            />
-                                        </div>
-                                    </div>
-                                </Button>
-                            </motion.div>
-                        </div>
-                    </div>
-                </nav>
-            </header>
-
-            {/* Mobile Menu */}
-            <AnimatePresence>
-                {mobileMenuOpen && (
-                    <motion.div
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        transition={{ duration: 0.2 }}
-                        className="fixed inset-0 top-16 z-40 md:hidden"
-                    >
-                        <div
-                            className="absolute inset-0 bg-background/95 backdrop-blur-xl"
-                            onClick={() => setMobileMenuOpen(false)}
-                        />
-                        <nav className="relative glass-premium border-b shadow-xl m-4 rounded-2xl overflow-hidden">
-                            <div className="p-4 space-y-1">
-                                {navLinks.map((link, i) => (
-                                    <motion.div
-                                        key={link.href}
-                                        initial={{ opacity: 0, x: -20 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        transition={{ delay: i * 0.05 }}
-                                    >
-                                        <Link
-                                            href={link.href}
-                                            onClick={() => setMobileMenuOpen(false)}
-                                        >
-                                            <Button
-                                                variant={pathname === link.href ? "secondary" : "ghost"}
-                                                className="w-full justify-start h-12 text-base rounded-xl"
-                                            >
-                                                {link.label}
-                                            </Button>
-                                        </Link>
-                                    </motion.div>
-                                ))}
-
-                                <div className="border-t border-border/50 my-3" />
-
-                                {isAuthenticated ? (
-                                    <>
-                                        <motion.div
-                                            initial={{ opacity: 0, x: -20 }}
-                                            animate={{ opacity: 1, x: 0 }}
-                                            transition={{ delay: 0.15 }}
-                                        >
-                                            <Link
-                                                href="/dashboard"
-                                                onClick={() => setMobileMenuOpen(false)}
-                                            >
-                                                <Button variant="ghost" className="w-full justify-start h-12 text-base gap-3 rounded-xl">
-                                                    <LayoutDashboard className="h-5 w-5" />
-                                                    Dashboard
-                                                </Button>
-                                            </Link>
-                                        </motion.div>
-
-                                        <motion.div
-                                            initial={{ opacity: 0, x: -20 }}
-                                            animate={{ opacity: 1, x: 0 }}
-                                            transition={{ delay: 0.2 }}
-                                        >
-                                            <Link
-                                                href="/buy"
-                                                onClick={() => setMobileMenuOpen(false)}
-                                            >
-                                                <Button variant="ghost" className="w-full justify-start h-12 text-base gap-3 rounded-xl">
-                                                    <ShoppingCart className="h-5 w-5" />
-                                                    Cart
-                                                    {cartItemCount > 0 && (
-                                                        <Badge className="ml-auto bg-emerald-500">{cartItemCount}</Badge>
-                                                    )}
-                                                </Button>
-                                            </Link>
-                                        </motion.div>
-
-                                        <motion.div
-                                            initial={{ opacity: 0, x: -20 }}
-                                            animate={{ opacity: 1, x: 0 }}
-                                            transition={{ delay: 0.25 }}
-                                        >
-                                            <Button
-                                                variant="ghost"
-                                                className="w-full justify-start h-12 text-base gap-3 text-destructive hover:text-destructive rounded-xl"
-                                                onClick={() => {
-                                                    logout()
-                                                    setMobileMenuOpen(false)
-                                                }}
-                                            >
-                                                <LogOut className="h-5 w-5" />
-                                                Sign Out
-                                            </Button>
-                                        </motion.div>
-                                    </>
-                                ) : (
-                                    <>
-                                        <motion.div
-                                            initial={{ opacity: 0, x: -20 }}
-                                            animate={{ opacity: 1, x: 0 }}
-                                            transition={{ delay: 0.15 }}
-                                        >
-                                            <Link
-                                                href="/login"
-                                                onClick={() => setMobileMenuOpen(false)}
-                                            >
-                                                <Button variant="ghost" className="w-full justify-start h-12 text-base gap-3 rounded-xl">
-                                                    <User className="h-5 w-5" />
-                                                    Sign In
-                                                </Button>
-                                            </Link>
-                                        </motion.div>
-
-                                        <motion.div
-                                            initial={{ opacity: 0, x: -20 }}
-                                            animate={{ opacity: 1, x: 0 }}
-                                            transition={{ delay: 0.2 }}
-                                        >
-                                            <Link
-                                                href="/register"
-                                                onClick={() => setMobileMenuOpen(false)}
-                                            >
-                                                <Button variant="emerald" className="w-full h-12 text-base mt-2 rounded-xl">
-                                                    <Sparkles className="h-5 w-5 mr-2" />
-                                                    Get Started Free
-                                                </Button>
-                                            </Link>
+                                            <div className="max-h-[300px] overflow-y-auto">
+                                                {notifications.map((n) => (
+                                                    <div key={n.id} className="p-3 border-b border-white/5 hover:bg-white/[0.02] transition-colors flex gap-3">
+                                                        <div className={`mt-1 h-2 w-2 rounded-full shrink-0 ${n.read ? 'bg-transparent' : 'bg-[hsl(var(--neon-lime))]'}`} />
+                                                        <div className="space-y-1">
+                                                            <p className={`text-xs ${n.read ? 'text-gray-400' : 'text-white font-medium'}`}>{n.title}</p>
+                                                            <p className="text-[11px] text-gray-500 leading-snug">{n.desc}</p>
+                                                            <p className="text-[10px] text-gray-600 mt-1">{n.time}</p>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div className="p-2 border-t border-white/5 bg-white/[0.02]">
+                                                <button className="w-full py-2 text-xs text-center text-gray-400 hover:text-white transition-colors">
+                                                    Mark all as read
+                                                </button>
+                                            </div>
                                         </motion.div>
                                     </>
                                 )}
+                            </AnimatePresence>
+
+                            <button
+                                className="p-2.5 text-gray-400 hover:text-white rounded-xl hover:bg-white/[0.06] transition-all"
+                                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                            >
+                                {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Mobile Menu Overlay */}
+                <AnimatePresence>
+                    {mobileMenuOpen && (
+                        <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="lg:hidden bg-[#0a0a0c]/98 backdrop-blur-2xl border-t border-white/[0.06] overflow-hidden relative"
+                        >
+                            {/* Mobile Menu Background Visuals */}
+                            <div className="absolute inset-0 bg-gradient-to-b from-[hsl(var(--neon-lime)/0.05)] to-transparent pointer-events-none" />
+                            <div className="absolute inset-0 opacity-[0.03] pointer-events-none"
+                                style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")` }}
+                            />
+
+                            <div className="p-4 space-y-4 container mx-auto relative z-10">
+                                {isAuthenticated && (
+                                    <motion.div
+                                        initial={{ opacity: 0, x: -20 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        transition={{ delay: 0.1 }}
+                                        className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.04] border border-white/[0.06]"
+                                    >
+                                        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-sm font-bold text-white shadow-lg shadow-indigo-500/20">
+                                            {user?.name?.charAt(0).toUpperCase()}
+                                        </div>
+                                        <div>
+                                            <p className="font-semibold text-white">{user?.name}</p>
+                                            <p className="text-xs text-gray-400">{user?.email}</p>
+                                        </div>
+                                    </motion.div>
+                                )}
+                                <div className="space-y-1">
+                                    {[
+                                        { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+                                        { href: "/dashboard/buy", label: "Smart Buy", icon: ShoppingCart },
+                                        { href: "/dashboard/wallet", label: "Wallet", icon: Wallet },
+                                        { href: "/dashboard/settings", label: "Settings", icon: User },
+                                    ].map((link, index) => (
+                                        <motion.div
+                                            key={link.href}
+                                            initial={{ opacity: 0, x: -20 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            transition={{ delay: 0.15 + index * 0.05 }}
+                                        >
+                                            <Link href={link.href} onClick={() => setMobileMenuOpen(false)}>
+                                                <div className="flex items-center gap-3 px-4 py-3.5 text-gray-300 hover:text-white hover:bg-white/[0.04] rounded-xl transition-all font-medium">
+                                                    <link.icon className="h-5 w-5 opacity-70" />
+                                                    <span>{link.label}</span>
+                                                </div>
+                                            </Link>
+                                        </motion.div>
+                                    ))}
+                                </div>
                             </div>
-                        </nav>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </motion.nav>
+            {/* Spacer to prevent layout shift */}
+            <div className="h-16 lg:h-[72px]" />
         </>
     )
 }

@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { useGlobalStore } from "@/store"
+import { useAuthStore } from "@/stores/authStore"
 import { cn } from "@/lib/utils"
 
 // Tab Configuration
@@ -42,7 +43,7 @@ const fadeInScale = {
 }
 
 export default function SettingsPage() {
-    const { user } = useGlobalStore()
+    const { user, updateUser } = useAuthStore()
     const [activeTab, setActiveTab] = useState("general")
     const [isLoading, setIsLoading] = useState(false)
 
@@ -55,6 +56,7 @@ export default function SettingsPage() {
         setIsLoading(true)
         setTimeout(() => {
             setIsLoading(false)
+            updateUser(name, email)
             toast.success("Settings Updated Successfully")
         }, 1500)
     }

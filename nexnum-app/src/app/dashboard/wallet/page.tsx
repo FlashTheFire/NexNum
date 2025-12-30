@@ -24,6 +24,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { useGlobalStore } from "@/store"
+import { useAuthStore } from "@/stores/authStore"
 import { formatPrice, formatRelativeTime, cn } from "@/lib/utils"
 
 // Animation Variants
@@ -53,11 +54,29 @@ const cardTilt: any = {
 const presets = [10, 25, 50, 100]
 
 export default function WalletPage() {
-    const { user, transactions, topUp } = useGlobalStore()
+    const { user } = useAuthStore()
+    const { userProfile, transactions, topUp } = useGlobalStore()
     const [amount, setAmount] = useState<string>("")
     const [isLoading, setIsLoading] = useState(false)
     const [selectedMethod, setSelectedMethod] = useState("upi")
     const [customFocused, setCustomFocused] = useState(false)
+
+    // Auto-complete payment simulation
+    useEffect(() => {
+        let timeout: NodeJS.Timeout
+        if (isLoading && amount) {
+            timeout = setTimeout(() => {
+                const value = parseFloat(amount)
+                if (!isNaN(value)) {
+                    topUp(value)
+                    toast.success(`Successfully added ${formatPrice(value)} to wallet`)
+                    setIsLoading(false)
+                    setAmount("")
+                }
+            }, 5000)
+        }
+        return () => clearTimeout(timeout)
+    }, [isLoading, amount, topUp])
 
     // Calculate simulated "Card Number" based on User ID for consistent personalization
     const userCardLast4 = user?.id ? user.id.slice(-4).toUpperCase() : "8888"
@@ -133,7 +152,7 @@ export default function WalletPage() {
                                         <div className="space-y-1">
                                             <p className="text-xs font-medium text-indigo-200 tracking-[0.2em]">CURRENT BALANCE</p>
                                             <h2 className="text-3xl md:text-4xl font-bold text-white tracking-tight drop-shadow-lg">
-                                                {formatPrice(user?.balance || 0)}
+                                                {formatPrice(userProfile?.balance || 0)}
                                             </h2>
                                         </div>
                                         <div className="h-10 w-10 md:h-12 md:w-12 rounded-xl bg-gradient-to-br from-white/20 to-white/5 backdrop-blur-md border border-white/20 flex items-center justify-center">

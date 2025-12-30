@@ -1,517 +1,392 @@
-import { useState, useEffect } from "react"
+"use client"
+
+import { useState, useRef } from "react"
 import Link from "next/link"
-import { motion, AnimatePresence } from "framer-motion"
+import { motion, useScroll, useTransform, useSpring } from "framer-motion"
 import {
     Wallet,
     Phone,
-    TrendingUp,
     ArrowRight,
     MessageSquare,
-    Plus,
-    Sparkles,
-    History,
-    Clock,
-    ChevronRight,
-    Zap,
-    Shield,
-    Copy,
-    Check,
-    Bell,
-    ArrowUpRight,
+    TrendingUp,
     CreditCard,
     Gift,
-    ShoppingCart
+    Sparkles,
+    ChevronRight,
+    Plus,
+    Copy,
+    Check,
+    Clock,
+    ShoppingCart,
+    Globe,
+    ShieldCheck,
+    Zap
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { BalanceRing } from "@/components/ui/balance-ring"
 import { useGlobalStore } from "@/store"
-import { formatPrice, formatRelativeTime } from "@/lib/utils"
+import { useAuthStore } from "@/stores/authStore"
+import { formatPrice } from "@/lib/utils"
 import { toast } from "sonner"
+import { DashboardBackground } from "./dashboard-background"
+import { PhoneMockup } from "./phone-mockup"
 import { NotificationsBtn } from "./shared"
 
-const fadeInUp = {
+// Animation Variants
+const fadeIn = {
     hidden: { opacity: 0, y: 20 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] as const } }
+    visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] } }
 }
 
-const staggerContainer = {
+const stagger = {
     hidden: { opacity: 0 },
-    visible: {
-        opacity: 1,
-        transition: { staggerChildren: 0.08 }
-    }
+    visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
 }
 
-const scaleIn = {
-    hidden: { opacity: 0, scale: 0.95 },
-    visible: { opacity: 1, scale: 1, transition: { duration: 0.4, type: "spring" as const, stiffness: 300 } }
-}
+// Premium "Tech" Logical Separator
+const TechSeparator = () => (
+    <div className="relative w-full py-4 flex items-center justify-center overflow-hidden">
+        {/* Central Line */}
+        <div className="absolute inset-x-0 h-px bg-gradient-to-r from-transparent via-white/[0.1] to-transparent" />
 
-const DesktopCardDecoration = ({ variant }: { variant: 'circles' | 'lines' | 'grid' | 'dots' }) => {
-    switch (variant) {
-        case 'circles':
-            return (
-                <svg className="absolute top-0 right-0 w-32 h-32 opacity-[0.06] pointer-events-none" viewBox="0 0 100 100">
-                    <circle cx="80" cy="20" r="20" fill="currentColor" />
-                    <circle cx="80" cy="20" r="30" stroke="currentColor" strokeWidth="1" fill="none" />
-                    <circle cx="40" cy="10" r="6" fill="currentColor" />
-                    <circle cx="10" cy="40" r="4" fill="currentColor" opacity="0.5" />
-                </svg>
-            )
-        case 'lines':
-            return (
-                <svg className="absolute bottom-0 left-0 w-full h-24 opacity-[0.05] pointer-events-none" viewBox="0 0 200 60">
-                    <path d="M0 60 L60 0 M20 60 L80 0 M40 60 L100 0 M60 60 L120 0" stroke="currentColor" strokeWidth="1.5" />
-                </svg>
-            )
-        case 'grid':
-            return (
-                <svg className="absolute top-4 right-4 w-24 h-24 opacity-[0.07] pointer-events-none" viewBox="0 0 40 40">
-                    <pattern id="desktop-grid" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse">
-                        <path d="M0 0h1v1H0z" fill="currentColor" />
-                    </pattern>
-                    <rect width="40" height="40" fill="url(#desktop-grid)" />
-                    <rect x="10" y="10" width="20" height="20" stroke="currentColor" strokeWidth="0.5" fill="none" />
-                </svg>
-            )
-        case 'dots':
-            return (
-                <svg className="absolute top-0 right-0 w-28 h-28 opacity-[0.08] pointer-events-none overflow-visible" viewBox="0 0 80 80">
-                    <circle cx="70" cy="10" r="3" fill="currentColor" />
-                    <circle cx="60" cy="25" r="2" fill="currentColor" />
-                    <circle cx="45" cy="15" r="1.5" fill="currentColor" />
-                    <circle cx="55" cy="45" r="1" fill="currentColor" />
-                    <path d="M65 15 L75 5" stroke="currentColor" strokeWidth="1" strokeDasharray="3 3" />
-                </svg>
-            )
-        default:
-            return null
-    }
-}
+        {/* Logical Ruler Markings (CSS Pattern) */}
+        <div
+            className="absolute inset-x-0 h-2 opacity-20"
+            style={{
+                backgroundImage: 'linear-gradient(90deg, white 1px, transparent 1px)',
+                backgroundSize: '20px 100%',
+                maskImage: 'linear-gradient(to right, transparent, black 40%, black 60%, transparent)'
+            }}
+        />
 
-function ActiveNumberCard({ number, onCopy }: { number: any; onCopy: (num: string) => void }) {
-    const [copied, setCopied] = useState(false)
-    const expiresAt = new Date(number.expiresAt)
-    const now = new Date()
-    const timeLeft = Math.max(0, Math.floor((expiresAt.getTime() - now.getTime()) / 1000))
-    const minutesLeft = Math.floor(timeLeft / 60)
-
-    const handleCopy = (e: React.MouseEvent) => {
-        e.preventDefault()
-        navigator.clipboard.writeText(number.number)
-        setCopied(true)
-        toast.success("Number copied!")
-        setTimeout(() => setCopied(false), 2000)
-    }
-
-    return (
-        <Link href={`/sms/${encodeURIComponent(number.number)}`}>
-            <motion.div
-                whileHover={{ scale: 1.01 }}
-                className="relative group"
-            >
-                <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity blur-lg" />
-                <div className="relative p-4 rounded-xl bg-gradient-to-r from-muted/50 to-muted/30 border border-white/5 hover:border-emerald-500/30 transition-all duration-300">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center border border-emerald-500/20 overflow-hidden">
-                                <img
-                                    src={`https://flagcdn.com/w40/${number.countryCode?.toLowerCase() || 'us'}.png`}
-                                    alt={number.countryName}
-                                    className="w-6 h-4 object-cover rounded-sm"
-                                    onError={(e) => {
-                                        (e.target as HTMLImageElement).src = 'https://flagcdn.com/w40/us.png'
-                                    }}
-                                />
-                            </div>
-                            <div>
-                                <p className="font-mono font-bold text-sm group-hover:text-emerald-400 transition-colors">
-                                    {number.number}
-                                </p>
-                                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                                    <span>{number.serviceName}</span>
-                                    <span className="w-1 h-1 rounded-full bg-muted-foreground/50" />
-                                    <img
-                                        src={`https://flagcdn.com/w20/${number.countryCode?.toLowerCase() || 'us'}.png`}
-                                        alt={number.countryName}
-                                        className="w-4 h-3 object-cover rounded-[2px] inline-block"
-                                        onError={(e) => {
-                                            (e.target as HTMLImageElement).style.display = 'none'
-                                        }}
-                                    />
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center gap-1.5 shrink-0">
-                            <Badge
-                                variant={minutesLeft > 5 ? "success" : "destructive"}
-                                className="text-[10px] gap-0.5 py-0.5 px-1.5"
-                            >
-                                <Clock className="h-2.5 w-2.5" />
-                                {minutesLeft}m
-                            </Badge>
-
-                            <Badge variant="secondary" className="text-[10px] gap-0.5 py-0.5 px-1.5">
-                                <MessageSquare className="h-2.5 w-2.5" />
-                                {number.smsCount}
-                            </Badge>
-
-                            <button
-                                onClick={handleCopy}
-                                className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
-                            >
-                                {copied ? (
-                                    <Check className="h-3.5 w-3.5 text-emerald-400" />
-                                ) : (
-                                    <Copy className="h-3.5 w-3.5 text-muted-foreground" />
-                                )}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </motion.div>
-        </Link>
-    )
-}
-
-import { PhoneMockup } from "./phone-mockup"
-
-// ... existing imports
+        {/* Central "Energy" Node */}
+        <div className="relative z-10 w-2 h-2 rounded-full bg-[hsl(var(--neon-lime))] shadow-[0_0_10px_hsl(var(--neon-lime))]">
+            <div className="absolute inset-0 animate-ping rounded-full bg-[hsl(var(--neon-lime))] opacity-50" />
+        </div>
+    </div>
+)
 
 export function DesktopDashboard() {
-    const { user, activeNumbers, transactions } = useGlobalStore()
-    const [greeting, setGreeting] = useState("Hello")
+    const { user } = useAuthStore()
+    const { userProfile, activeNumbers, transactions } = useGlobalStore()
+    const containerRef = useRef<HTMLDivElement>(null)
 
-    // ... existing hooks
+    // Parallax & Scroll
+    const { scrollY } = useScroll()
+    const yHero = useTransform(scrollY, [0, 500], [0, 50])
 
-    const totalSpent = transactions
-        .filter(t => t.type === "purchase")
-        .reduce((sum, t) => sum + Math.abs(t.amount), 0)
+    // Greeting
+    const hour = new Date().getHours()
+    const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening"
 
-    const totalDeposit = transactions
-        .filter(t => t.type === "topup")
-        .reduce((sum, t) => sum + t.amount, 0)
+    // Stats Logic
+    const totalSpent = transactions.filter(t => t.type === "purchase").reduce((sum, t) => sum + Math.abs(t.amount), 0)
+    const totalDeposit = transactions.filter(t => t.type === "topup").reduce((sum, t) => sum + t.amount, 0)
 
-    // Mouse tracking for cursor glow
-    const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null)
-    useEffect(() => {
-        const updateMousePosition = (ev: MouseEvent) => {
-            setMousePosition({ x: ev.clientX, y: ev.clientY })
-        }
-        window.addEventListener('mousemove', updateMousePosition)
-        return () => window.removeEventListener('mousemove', updateMousePosition)
-    }, [])
+    const stats = [
+        { label: "Total Balance", value: formatPrice(userProfile?.balance || 0), icon: Wallet, color: "text-[hsl(var(--neon-lime))]", bg: "bg-[hsl(var(--neon-lime)/0.1)]", border: "border-[hsl(var(--neon-lime)/0.2)]" },
+        { label: "Active Numbers", value: activeNumbers.length, icon: Phone, color: "text-cyan-400", bg: "bg-cyan-400/10", border: "border-cyan-400/20" },
+        { label: "Total Spent", value: formatPrice(totalSpent), icon: ShoppingCart, color: "text-purple-400", bg: "bg-purple-400/10", border: "border-purple-400/20" },
+        { label: "Total Deposited", value: formatPrice(totalDeposit), icon: TrendingUp, color: "text-emerald-400", bg: "bg-emerald-400/10", border: "border-emerald-400/20" },
+    ]
 
     return (
-        <div className="min-h-full relative overflow-hidden bg-background selection:bg-emerald-500/30">
-            {/* ... backgrounds ... */}
+        <div ref={containerRef} className="min-h-screen relative bg-[#0a0a0c] overflow-hidden selection:bg-[hsl(var(--neon-lime)/0.3)]">
+            <DashboardBackground />
 
-            < div className="p-8 relative z-10" >
-                <motion.div
-                    initial="hidden"
-                    animate="visible"
-                    variants={staggerContainer}
-                    className="space-y-6 max-w-7xl mx-auto"
-                >
-                    {/* Hero Section with 3D Element */}
-                    <div className="flex items-center justify-between mb-8">
-                        <motion.div variants={fadeInUp} className="flex-1 max-w-2xl relative z-10">
-                            <h1 className="text-5xl md:text-6xl font-bold mb-4 leading-tight tracking-tight">
-                                {greeting}, <br />
-                                <span className="text-transparent bg-clip-text bg-gradient-to-r from-white via-white/80 to-white/50">{user?.name?.split(" ")[0]}</span>
-                            </h1>
-                            <p className="text-muted-foreground text-lg mb-8 max-w-lg">
-                                Manage your virtual presence with premium numbers. Secure, instant, and private communication at your fingertips.
-                            </p>
+            {/* Content Wrapper */}
+            <div className="relative z-10 px-8 py-10 max-w-[1600px] mx-auto space-y-12">
 
-                            <div className="flex items-center gap-4">
-                                <Link href="/buy">
-                                    <Button variant="emerald" className="gap-2 h-14 px-8 rounded-2xl shadow-2xl shadow-emerald-500/20 font-bold text-lg hover:scale-105 transition-transform duration-300">
-                                        <ShoppingCart className="h-5 w-5" />
-                                        <span>Start Purchasing</span>
-                                        <ArrowRight className="h-5 w-5 ml-1" />
-                                    </Button>
-                                </Link>
-                                <NotificationsBtn />
-                            </div>
+                {/* 1. Hero Section (Parallax Split) */}
+                <div className="grid grid-cols-12 gap-12 min-h-[500px] items-center">
+                    {/* Left: Content (40%) */}
+                    <motion.div
+                        initial="hidden"
+                        animate="visible"
+                        variants={stagger}
+                        className="col-span-12 lg:col-span-5 space-y-8"
+                        style={{ y: yHero }}
+                    >
+                        <motion.div variants={fadeIn} className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.05] border border-white/[0.08]">
+                            <span className="w-2 h-2 rounded-full bg-[hsl(var(--neon-lime))] animate-pulse" />
+                            <span className="text-xs font-medium text-gray-300">System Operational</span>
                         </motion.div>
 
-                        {/* 3D Visual - Desktop Only */}
-                        <motion.div
-                            initial={{ opacity: 0, x: 50 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ duration: 1, delay: 0.2 }}
-                            className="hidden lg:block relative -mr-12"
-                        >
-                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-emerald-500/20 rounded-full blur-[120px] pointer-events-none" />
-                            <PhoneMockup />
+                        <motion.h1 variants={fadeIn} className="text-5xl lg:text-7xl font-bold tracking-tight text-white leading-[1.1]">
+                            {greeting}, <br />
+                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[hsl(var(--neon-lime))] to-emerald-500">
+                                {user?.name?.split(' ')[0] || "Trader"}
+                            </span>
+                        </motion.h1>
+
+                        <motion.p variants={fadeIn} className="text-lg text-gray-400 max-w-md leading-relaxed">
+                            Your secure gateway to global communication. Manage valid numbers, track usage, and scale your operations instantly.
+                        </motion.p>
+
+                        <motion.div variants={fadeIn} className="flex items-center gap-4">
+                            <Link href="/dashboard/buy">
+                                <Button className="h-14 px-8 rounded-2xl bg-[hsl(var(--neon-lime))] text-black text-lg font-bold hover:bg-[hsl(72,100%,55%)] hover:scale-105 transition-all shadow-[0_0_20px_rgba(204,255,0,0.3)]">
+                                    <Plus className="mr-2 h-5 w-5" />
+                                    New Number
+                                </Button>
+                            </Link>
+                            <Link href="/dashboard/wallet">
+                                <Button variant="outline" className="h-14 px-8 rounded-2xl border-white/10 bg-white/[0.03] text-white hover:bg-white/[0.08] text-lg font-medium">
+                                    Top Up Wallet
+                                </Button>
+                            </Link>
                         </motion.div>
-                    </div>
-
-                    {/* Stats Overview Row */}
-
-
-// Vector Accents for Desktop Cards (Matching Mobile Style)
-
-
-                    // ... inside DesktopDashboard ...
-
-                    {/* Stats Overview Row */}
-                    <motion.div variants={fadeInUp} className="grid grid-cols-4 gap-4 relative">
-                        {/* Decorative Grid Lines */}
-                        <div className="absolute inset-0 pointer-events-none">
-                            <div className="absolute top-4 bottom-4 left-1/4 w-px bg-gradient-to-b from-transparent via-white/5 to-transparent -translate-x-1/2" />
-                            <div className="absolute top-4 bottom-4 left-2/4 w-px bg-gradient-to-b from-transparent via-white/5 to-transparent -translate-x-1/2" />
-                            <div className="absolute top-4 bottom-4 left-3/4 w-px bg-gradient-to-b from-transparent via-white/5 to-transparent -translate-x-1/2" />
-                        </div>
-
-                        {[
-                            {
-                                label: "Balance",
-                                value: formatPrice(user?.balance || 0),
-                                icon: Wallet,
-                                gradient: "from-cyan-500 to-sky-600",
-                                bgGradient: "from-cyan-500/10 to-sky-500/10",
-                                decoration: "circles" as const
-                            },
-                            {
-                                label: "Active Numbers",
-                                value: activeNumbers.length.toString(),
-                                icon: Phone,
-                                gradient: "from-violet-500 to-purple-600",
-                                bgGradient: "from-violet-500/10 to-purple-500/10",
-                                decoration: "grid" as const
-                            },
-                            {
-                                label: "Total Spent",
-                                value: formatPrice(totalSpent),
-                                icon: MessageSquare,
-                                gradient: "from-rose-500 to-pink-600",
-                                bgGradient: "from-rose-500/10 to-pink-500/10",
-                                decoration: "lines" as const
-                            },
-                            {
-                                label: "Total Deposit",
-                                value: formatPrice(totalDeposit),
-                                icon: TrendingUp,
-                                gradient: "from-emerald-500 to-teal-600",
-                                bgGradient: "from-emerald-500/10 to-teal-500/10",
-                                decoration: "dots" as const
-                            }
-                        ].map((stat, index) => (
-                            <motion.div
-                                key={stat.label}
-                                variants={scaleIn}
-                                className="relative group overflow-hidden"
-                            >
-                                <div className={`absolute inset-0 bg-gradient-to-r ${stat.bgGradient} rounded-2xl opacity-50 group-hover:opacity-100 transition-opacity duration-300`} />
-
-                                <div className="relative p-5 rounded-2xl bg-card/60 backdrop-blur-xl border border-white/10 hover:border-white/20 transition-all overflow-hidden h-full">
-                                    {/* Component Level Decoration */}
-                                    <DesktopCardDecoration variant={stat.decoration} />
-
-                                    {/* Shimmer Effect */}
-                                    <motion.div
-                                        animate={{ x: ["-100%", "200%"] }}
-                                        transition={{
-                                            duration: 2.5,
-                                            repeat: Infinity,
-                                            repeatDelay: 4 + index * 0.5,
-                                            ease: "linear"
-                                        }}
-                                        className="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.08] to-transparent -skew-x-12 pointer-events-none"
-                                    />
-
-                                    <div className="flex items-center justify-between relative z-10">
-                                        <div>
-                                            <p className="text-xs text-muted-foreground mb-0.5">{stat.label}</p>
-                                            <p className="text-2xl font-bold">{stat.value}</p>
-                                        </div>
-                                        <div className={`p-2.5 rounded-xl bg-gradient-to-br ${stat.gradient} shadow-lg shrink-0`}>
-                                            <stat.icon className="h-5 w-5 text-white" />
-                                        </div>
-                                    </div>
-                                </div>
-                            </motion.div>
-                        ))}
                     </motion.div>
 
-                    {/* Main Content Grid */}
-                    <div className="grid grid-cols-3 gap-6">
-                        {/* Left Column */}
-                        <motion.div variants={fadeInUp} className="col-span-1 space-y-6">
-                            {/* Premium Wallet Card */}
-                            <Card className="relative overflow-hidden border-white/10 bg-gradient-to-br from-card/80 to-card/50 backdrop-blur-xl">
-                                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-500/20 to-purple-500/20 rounded-full blur-2xl" />
-                                <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-emerald-500/20 to-cyan-500/20 rounded-full blur-2xl" />
+                    {/* Right: 3D Isometric View (60%) */}
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ duration: 1, delay: 0.2 }}
+                        className="col-span-12 lg:col-span-7 relative h-[600px] hidden lg:block perspective-1000"
+                    >
+                        {/* 3D Composition */}
+                        <div className="absolute inset-0 flex items-center justify-center">
+                            {/* Central Phone (Hero) */}
+                            <div className="relative z-20">
+                                <PhoneMockup />
+                            </div>
 
-                                <motion.div
-                                    animate={{ x: ["-100%", "200%"] }}
-                                    transition={{ duration: 3, repeat: Infinity, repeatDelay: 5, ease: "linear" }}
-                                    className="absolute inset-0 z-10 bg-gradient-to-tr from-transparent via-white/[0.07] to-transparent -skew-x-12 pointer-events-none"
-                                />
+                            {/* Floating "Islands" / Glass Panels */}
+                            <motion.div
+                                animate={{ y: [-10, 10, -10] }}
+                                transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+                                className="absolute top-20 right-20 z-10 p-6 rounded-3xl bg-black/40 backdrop-blur-xl border border-white/10 w-64 shadow-2xl"
+                            >
+                                <div className="flex items-center justify-between mb-4">
+                                    <div className="p-2 rounded-xl bg-purple-500/20"><Globe className="h-5 w-5 text-purple-400" /></div>
+                                    <Badge variant="outline" className="border-purple-500/30 text-purple-400">Global</Badge>
+                                </div>
+                                <div className="space-y-1">
+                                    <div className="text-sm text-gray-400">Total Coverage</div>
+                                    <div className="text-2xl font-bold">180+ Countries</div>
+                                </div>
+                            </motion.div>
 
-                                <CardContent className="p-6 relative">
-                                    <div className="flex flex-col items-center gap-6">
-                                        <div className="w-full flex justify-center pt-2">
-                                            <div className="transform-gpu">
-                                                <BalanceRing
-                                                    balance={user?.balance || 50}
-                                                    spent={totalSpent}
-                                                    deposit={totalDeposit}
-                                                    size={180}
-                                                    strokeWidth={16}
-                                                />
-                                            </div>
-                                        </div>
+                            <motion.div
+                                animate={{ y: [15, -15, 15] }}
+                                transition={{ duration: 7, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+                                className="absolute bottom-40 left-10 z-30 p-6 rounded-3xl bg-black/40 backdrop-blur-xl border border-white/10 w-56 shadow-2xl"
+                            >
+                                <div className="flex items-center justify-between mb-4">
+                                    <div className="p-2 rounded-xl bg-[hsl(var(--neon-lime)/0.2)]"><ShieldCheck className="h-5 w-5 text-[hsl(var(--neon-lime))]" /></div>
+                                    <Badge variant="outline" className="border-[hsl(var(--neon-lime)/0.3)] text-[hsl(var(--neon-lime))]">Secure</Badge>
+                                </div>
+                                <div className="space-y-1">
+                                    <div className="text-sm text-gray-400">Verification</div>
+                                    <div className="text-2xl font-bold">Instant</div>
+                                </div>
+                            </motion.div>
+                        </div>
+                    </motion.div>
+                </div>
 
-                                        <div className="w-full mb-2">
-                                            <div className="h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-                                        </div>
+                {/* 2. Stats Grid (Glassmorphism) */}
+                <motion.div
+                    variants={stagger}
+                    initial="hidden"
+                    whileInView="visible"
+                    viewport={{ once: true, margin: "-100px" }}
+                    className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+                >
+                    {stats.map((stat, i) => (
+                        <motion.div
+                            key={i}
+                            variants={fadeIn}
+                            className="relative group h-full"
+                        >
+                            {/* Gradient Border Wrapper */}
+                            <div className={`absolute -inset-[1px] rounded-[24px] bg-gradient-to-br from-white/20 via-white/5 to-transparent opacity-50 group-hover:opacity-100 group-hover:via-[hsl(var(--neon-lime)/0.3)] transition-all duration-500`} />
 
-                                        <div className="flex flex-col gap-2 w-full">
-                                            <Link href="/dashboard/wallet">
-                                                <Button variant="glass" className="w-full gap-2 rounded-xl h-9 text-xs whitespace-nowrap shadow-lg shadow-emerald-500/10 hover:shadow-emerald-500/20">
-                                                    <CreditCard className="h-3 w-3" />
-                                                    Add Funds
-                                                </Button>
-                                            </Link>
-                                            <Link href="/dashboard/history">
-                                                <Button variant="glass" className="w-full gap-2 rounded-xl h-9 text-xs whitespace-nowrap shadow-lg shadow-purple-500/10 hover:shadow-purple-500/20">
-                                                    <History className="h-3 w-3" />
-                                                    History
-                                                </Button>
-                                            </Link>
-                                            <Link href="/dashboard/redeem">
-                                                <Button variant="glass" className="w-full h-9 gap-2 rounded-xl text-xs whitespace-nowrap shadow-lg shadow-pink-500/10 hover:shadow-pink-500/20 group">
-                                                    <Gift className="w-3 h-3 text-pink-400 transition-transform group-hover:scale-110" />
-                                                    Redeem Code
-                                                </Button>
-                                            </Link>
-                                            <Link href="/dashboard/referrals">
-                                                <Button variant="glass" className="w-full h-9 gap-2 rounded-xl text-xs whitespace-nowrap shadow-lg shadow-purple-500/10 hover:shadow-purple-500/20 group">
-                                                    <Sparkles className="w-3 h-3 text-purple-400 transition-transform group-hover:scale-110" />
-                                                    Referral Bonus
-                                                </Button>
-                                            </Link>
-                                        </div>
+                            {/* Inner Card */}
+                            <div className="relative h-full rounded-[24px] bg-[#0d0d10]/50 backdrop-blur-xl p-6 flex flex-col justify-between overflow-hidden">
+                                {/* Ambient Glow */}
+                                <div className={`absolute top-0 right-0 w-32 h-32 ${stat.bg.replace("bg-", "bg-").replace("/0.1", "/0.05")} rounded-full blur-[60px] group-hover:opacity-100 transition-opacity opacity-50`} />
+
+                                <div className="relative z-10 flex justify-between items-start mb-4">
+                                    <div>
+                                        <p className="text-sm font-medium text-gray-400 group-hover:text-gray-300 transition-colors">{stat.label}</p>
+                                        <h3 className="text-3xl font-bold mt-2 tracking-tight text-white drop-shadow-sm">{stat.value}</h3>
                                     </div>
-                                </CardContent>
-                            </Card>
-                        </motion.div>
+                                    <div className={`p-3 rounded-2xl ${stat.bg} ${stat.color} ring-1 ring-white/5 group-hover:scale-110 transition-transform duration-500 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.5)]`}>
+                                        <stat.icon className="h-6 w-6" />
+                                    </div>
+                                </div>
 
-                        {/* Right Column */}
-                        <motion.div variants={fadeInUp} className="col-span-2 grid grid-cols-2 gap-6">
-                            {/* Active Numbers */}
-                            <Card className="border-white/10 bg-card/50 backdrop-blur-xl overflow-hidden col-span-2">
-                                <CardHeader className="pb-3">
-                                    <div className="flex items-center justify-between">
-                                        <CardTitle className="flex items-center gap-2 text-lg">
-                                            <div className="p-2 rounded-lg bg-gradient-to-br from-emerald-500/20 to-teal-500/20">
-                                                <Phone className="h-4 w-4 text-emerald-500" />
+                                <div className="relative z-10 w-full h-1 bg-white/5 rounded-full overflow-hidden mt-4">
+                                    <motion.div
+                                        initial={{ width: 0 }}
+                                        whileInView={{ width: "60%" }}
+                                        transition={{ duration: 1.5, delay: 0.2 + (i * 0.1), ease: "easeOut" }}
+                                        className={`h-full ${stat.bg.replace('/0.1', '')} shadow-[0_0_10px_rgba(255,255,255,0.3)]`}
+                                    />
+                                </div>
+                            </div>
+                        </motion.div>
+                    ))}
+                </motion.div>
+
+                {/* 3. Main Content: Active Numbers & History */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+                    {/* Active Numbers Card - Premium Glass */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 30 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true }}
+                        className="lg:col-span-2 relative group"
+                    >
+                        {/* Gradient Border for Large Card */}
+                        <div className="absolute -inset-[1px] rounded-[32px] bg-gradient-to-b from-white/10 to-transparent opacity-60" />
+
+                        <div className="relative h-full rounded-[31px] bg-[#0c0e12]/80 backdrop-blur-3xl overflow-hidden flex flex-col">
+                            {/* Inner content */}
+                            <div className="p-8 border-b border-white/[0.03] flex items-center justify-between">
+                                <div>
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <h3 className="text-xl font-bold text-white">Active Numbers</h3>
+                                        <Badge variant="outline" className="border-[hsl(var(--neon-lime)/0.3)] text-[hsl(var(--neon-lime))] text-[10px] uppercase">
+                                            Vault
+                                        </Badge>
+                                    </div>
+                                    <p className="text-sm text-gray-400">Manage and monitor your active virtual lines.</p>
+                                </div>
+                                <Link href="/dashboard/vault">
+                                    <Button variant="ghost" className="text-[hsl(var(--neon-lime))] hover:text-[hsl(var(--neon-lime))] hover:bg-[hsl(var(--neon-lime)/0.1)] gap-2 group/btn">
+                                        View Vault
+                                        <div className="bg-[hsl(var(--neon-lime)/0.2)] p-1 rounded-full group-hover/btn:bg-[hsl(var(--neon-lime))] group-hover/btn:text-black transition-colors">
+                                            <ArrowRight className="h-3 w-3" />
+                                        </div>
+                                    </Button>
+                                </Link>
+                            </div>
+
+                            <div className="p-8 bg-gradient-to-b from-transparent to-black/20 flex-1">
+                                {activeNumbers.length > 0 ? (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {activeNumbers.slice(0, 4).map(num => (
+                                            <div key={num.id} className="group/item relative p-[1px] rounded-[20px] bg-gradient-to-br from-white/[0.08] to-transparent hover:from-[hsl(var(--neon-lime)/0.3)] hover:to-[hsl(var(--neon-lime)/0.05)] transition-all duration-300">
+                                                <div className="relative rounded-[19px] bg-[#13151b] p-5 h-full transition-all group-hover/item:bg-[#13151b]/90">
+                                                    {/* Shine effect */}
+                                                    <div className="absolute inset-0 rounded-[19px] bg-gradient-to-tr from-white/[0.02] to-transparent opacity-0 group-hover/item:opacity-100 transition-opacity pointer-events-none" />
+
+                                                    <div className="flex items-start justify-between mb-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-10 h-10 rounded-2xl bg-white/[0.03] flex items-center justify-center text-xl shadow-inner border border-white/[0.05]">
+                                                                {num.countryName === 'USA' ? '🇺🇸' : '🌍'}
+                                                            </div>
+                                                            <div>
+                                                                <div className="font-mono font-bold text-lg text-white tracking-wide mix-blend-screen">{num.number}</div>
+                                                                <div className="text-xs text-gray-500 font-medium">{num.countryName} • {num.serviceName}</div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)] animate-pulse" />
+                                                    </div>
+
+                                                    {/* Unique Tech Separator */}
+                                                    <TechSeparator />
+
+                                                    <div className="flex items-center justify-between text-xs text-gray-400">
+                                                        <span className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-white/[0.02]">
+                                                            <MessageSquare className="h-3 w-3 text-cyan-400" />
+                                                            <span className="font-medium text-gray-300">{num.smsCount}</span>
+                                                            SMS
+                                                        </span>
+                                                        <span className="text-emerald-400 font-medium tracking-wide">ACTIVE</span>
+                                                    </div>
+                                                </div>
                                             </div>
-                                            Last Purchased
-                                        </CardTitle>
-                                        <Link href="/dashboard/vault">
-                                            <Button variant="ghost" size="sm" className="gap-1 text-xs">
-                                                View All
-                                                <ChevronRight className="h-3 w-3" />
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-12 flex flex-col items-center justify-center h-full">
+                                        <div className="w-20 h-20 rounded-full bg-[hsl(var(--neon-lime)/0.05)] flex items-center justify-center mb-6 border border-[hsl(var(--neon-lime)/0.1)] shadow-[0_0_30px_-10px_hsl(var(--neon-lime)/0.2)]">
+                                            <Phone className="h-8 w-8 text-[hsl(var(--neon-lime))]" />
+                                        </div>
+                                        <h4 className="text-xl font-bold text-white mb-2">No active numbers</h4>
+                                        <p className="text-gray-400 max-w-[250px] mb-8 leading-relaxed">Your vault is empty. Purchase a number to start receiving SMS instantly.</p>
+                                        <Link href="/dashboard/buy">
+                                            <Button className="h-12 px-8 rounded-xl bg-[hsl(var(--neon-lime))] text-black font-bold hover:bg-[hsl(72,100%,60%)] shadow-lg shadow-[hsl(var(--neon-lime)/0.2)]">
+                                                Purchase Number
                                             </Button>
                                         </Link>
                                     </div>
-                                </CardHeader>
-                                <CardContent className="pt-0">
-                                    {activeNumbers.length === 0 ? (
-                                        <div className="text-center py-12">
-                                            <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-emerald-500/10 to-teal-500/10 flex items-center justify-center">
-                                                <Phone className="h-10 w-10 text-emerald-500/50" />
-                                            </div>
-                                            <h3 className="text-lg font-semibold mb-2">No Active Numbers</h3>
-                                            <p className="text-muted-foreground text-sm mb-6 max-w-xs mx-auto">
-                                                Get your first virtual number to start receiving SMS verifications
-                                            </p>
-                                            <Link href="/buy">
-                                                <Button variant="emerald" className="gap-2 rounded-xl">
-                                                    <Plus className="h-4 w-4" />
-                                                    Get Your First Number
-                                                </Button>
-                                            </Link>
-                                        </div>
-                                    ) : (
-                                        <div className="space-y-2">
-                                            <AnimatePresence>
-                                                {activeNumbers.slice(0, 4).map((number, i) => (
-                                                    <motion.div
-                                                        key={number.id}
-                                                        initial={{ opacity: 0, y: 10 }}
-                                                        animate={{ opacity: 1, y: 0 }}
-                                                        transition={{ delay: i * 0.05 }}
-                                                    >
-                                                        <ActiveNumberCard
-                                                            number={number}
-                                                            onCopy={() => { }}
-                                                        />
-                                                    </motion.div>
-                                                ))}
-                                            </AnimatePresence>
-
-                                            {activeNumbers.length > 4 && (
-                                                <Link href="/dashboard/vault">
-                                                    <Button variant="ghost" className="w-full mt-2 text-muted-foreground hover:text-foreground">
-                                                        View {activeNumbers.length - 4} more numbers
-                                                        <ChevronRight className="h-4 w-4 ml-1" />
-                                                    </Button>
-                                                </Link>
-                                            )}
-                                        </div>
-                                    )}
-                                </CardContent>
-                            </Card>
-                        </motion.div>
-                    </div>
-
-                    {/* Bottom CTA Banner */}
-                    <motion.div variants={fadeInUp}>
-                        <Card className="relative overflow-hidden border-white/10 bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-emerald-500/10 backdrop-blur-xl">
-                            <div className="absolute inset-0">
-                                <div className="absolute top-0 left-1/4 w-32 h-32 bg-indigo-500/20 rounded-full blur-3xl" />
-                                <div className="absolute bottom-0 right-1/4 w-40 h-40 bg-emerald-500/20 rounded-full blur-3xl" />
+                                )}
                             </div>
+                        </div>
+                    </motion.div>
 
-                            <CardContent className="p-8 relative">
-                                <div className="flex flex-row items-center justify-between gap-6">
-                                    <div className="flex items-center gap-4 text-left">
-                                        <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/20">
-                                            <Zap className="h-8 w-8 text-amber-500" />
-                                        </div>
-                                        <div>
-                                            <div className="flex items-center justify-start gap-2 mb-2">
-                                                <Sparkles className="h-5 w-5 text-amber-500" />
-                                                <h3 className="text-xl font-bold">Ready for more?</h3>
+                    {/* Right Column: Quick Actions & Activity */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 30 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true }}
+                        transition={{ delay: 0.2 }}
+                        className="lg:col-span-1 space-y-6"
+                    >
+                        {/* Quick Topup - Gradient Card */}
+                        <div className="relative group p-[1px] rounded-[32px] bg-gradient-to-br from-indigo-500/30 via-purple-500/10 to-transparent">
+                            <div className="relative rounded-[31px] bg-[#1e1b2e]/60 backdrop-blur-xl p-6 overflow-hidden">
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/20 rounded-full blur-[80px]" />
+
+                                <h3 className="relative z-10 text-lg font-bold text-white mb-5 flex items-center gap-2">
+                                    <Sparkles className="h-4 w-4 text-indigo-400" />
+                                    Quick Top-up
+                                </h3>
+
+                                <div className="relative z-10 grid grid-cols-3 gap-3 mb-5">
+                                    {[10, 25, 50].map(amt => (
+                                        <Button key={amt} variant="outline" className="h-12 border-indigo-500/20 bg-indigo-500/5 hover:bg-indigo-500/20 text-indigo-300 hover:text-white hover:border-indigo-500/40 font-mono font-medium rounded-xl transition-all">
+                                            ${amt}
+                                        </Button>
+                                    ))}
+                                </div>
+                                <Link href="/dashboard/wallet" className="relative z-10 block">
+                                    <Button className="w-full h-12 bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/25 rounded-xl font-semibold tracking-wide">
+                                        Add Funds
+                                    </Button>
+                                </Link>
+                            </div>
+                        </div>
+
+                        {/* Recent Transactions - Clean List */}
+                        <div className="relative rounded-[32px] bg-[#0d0d10] border border-white/[0.06] p-6 overflow-hidden">
+                            <h3 className="text-lg font-bold text-white mb-5 px-1">Recent Activity</h3>
+                            <div className="space-y-1">
+                                {transactions.slice(0, 4).map((tx, i) => (
+                                    <div key={i} className="group flex items-center justify-between p-3 rounded-2xl hover:bg-white/[0.03] transition-colors cursor-default">
+                                        <div className="flex items-center gap-4">
+                                            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center border border-white/[0.05] ${tx.type === 'topup' ? 'bg-emerald-500/5 text-emerald-500' : 'bg-red-500/5 text-red-500'}`}>
+                                                {tx.type === 'topup' ? <TrendingUp className="h-5 w-5" /> : <ShoppingCart className="h-5 w-5" />}
                                             </div>
-                                            <p className="text-muted-foreground max-w-md">
-                                                Get virtual numbers from 180+ countries with instant SMS delivery.
-                                                Starting from just <span className="text-emerald-400 font-semibold">$0.08</span>
-                                            </p>
+                                            <div>
+                                                <p className="text-sm font-medium text-white group-hover:text-white/90">{tx.description}</p>
+                                                <p className="text-xs text-gray-500 font-mono mt-0.5">{new Date(tx.date).toLocaleDateString()}</p>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <span className={`block text-sm font-mono font-bold ${tx.type === 'topup' ? 'text-emerald-400' : 'text-white'}`}>
+                                                {tx.type === 'topup' ? '+' : ''}{formatPrice(tx.amount)}
+                                            </span>
+                                            <span className="text-[10px] text-gray-600 uppercase tracking-wider font-medium">{tx.status || 'Done'}</span>
                                         </div>
                                     </div>
+                                ))}
+                                {transactions.length === 0 && (
+                                    <p className="text-sm text-gray-500 text-center py-4">No recent activity.</p>
+                                )}
+                            </div>
+                        </div>
 
-                                    <Link href="/buy" className="shrink-0 w-auto">
-                                        <Button variant="emerald" size="lg" className="gap-2 h-12 rounded-xl shadow-lg shadow-emerald-500/25">
-                                            <Sparkles className="h-4 w-4" />
-                                            Smart Buy
-                                            <ArrowRight className="h-4 w-4" />
-                                        </Button>
-                                    </Link>
-                                </div>
-                            </CardContent>
-                        </Card>
                     </motion.div>
-                </motion.div>
-            </div >
-        </div >
+                </div>
+            </div>
+        </div>
     )
 }

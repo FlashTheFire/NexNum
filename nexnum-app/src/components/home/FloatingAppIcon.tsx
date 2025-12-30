@@ -64,32 +64,26 @@ const sizeClasses = {
 export default function FloatingAppIcon({ icon, className = "", delay = 0, size = "md" }: FloatingAppIconProps) {
     return (
         <motion.div
-            initial={{ opacity: 0, scale: 0.5, rotate: -10 }}
-            animate={{ opacity: 1, scale: 1, rotate: 0 }}
-            transition={{ duration: 0.6, delay, type: "spring", stiffness: 200 }}
-            whileHover={{ scale: 1.15, rotate: 5 }}
-            whileTap={{ scale: 0.95 }}
-            className={`absolute ${className}`}
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{
+                duration: 0.4,
+                delay,
+                ease: [0.25, 0.46, 0.45, 0.94]
+            }}
+            className={`absolute will-change-transform ${className}`}
+            style={{
+                backfaceVisibility: "hidden",
+                WebkitBackfaceVisibility: "hidden",
+                transform: "translateZ(0)"
+            }}
         >
             <div className="relative group cursor-pointer">
-                {/* Animated glow backdrop */}
-                <motion.div
-                    className="absolute inset-0 rounded-2xl bg-white/20 blur-xl scale-150"
-                    initial={{ opacity: 0 }}
-                    whileHover={{ opacity: 1 }}
-                    transition={{ duration: 0.3 }}
-                />
-
-                {/* Pulse ring on hover */}
-                <motion.div
-                    className="absolute inset-0 rounded-2xl border-2 border-white/30"
-                    initial={{ scale: 1, opacity: 0 }}
-                    whileHover={{ scale: 1.3, opacity: [0, 0.5, 0] }}
-                    transition={{ duration: 0.6, repeat: Infinity }}
-                />
+                {/* Simplified glow - CSS only for better performance */}
+                <div className="absolute inset-0 rounded-2xl bg-white/10 blur-lg scale-125 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
                 {/* Icon container */}
-                <div className={`relative ${sizeClasses[size]} rounded-2xl bg-white/5 backdrop-blur-md border border-white/10 shadow-xl transition-all duration-300 group-hover:bg-white/10 group-hover:border-white/20 group-hover:shadow-2xl`}>
+                <div className={`relative ${sizeClasses[size]} rounded-2xl bg-white/5 backdrop-blur-md border border-white/10 shadow-xl transition-all duration-200 group-hover:bg-white/10 group-hover:border-white/20`}>
                     {icons[icon]}
                 </div>
             </div>

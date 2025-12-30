@@ -1,268 +1,273 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Zap, ArrowLeft, Eye, EyeOff, Mail, Lock, User, ArrowRight } from "lucide-react";
-import { useState } from "react";
+import { Zap, ArrowLeft, Eye, EyeOff, Mail, Lock, User, ArrowRight, Check, Smartphone, Shield, Globe, Clock, AlertCircle } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import AuthBackground from "@/components/auth/AuthBackground";
+import AuthCard from "@/components/auth/AuthCard";
+import Auth3DLaptop from "@/components/auth/Auth3DLaptop";
+import Navbar from "@/components/layout/Navbar";
+import { useAuthStore } from "@/stores/authStore";
+
+const features = [
+    { icon: Shield, label: "Bank-grade encryption" },
+    { icon: Globe, label: "50+ countries supported" },
+    { icon: Clock, label: "Instant SMS delivery" }
+];
 
 export default function RegisterPage() {
+    const router = useRouter();
+    const { register, isLoading, error, clearError, isAuthenticated, checkAuth } = useAuthStore();
+
     const [showPassword, setShowPassword] = useState(false);
     const [step, setStep] = useState(1);
-    const [formData, setFormData] = useState({
-        name: "",
-        email: "",
-        password: "",
-    });
+    const [isMobile, setIsMobile] = useState(false);
+    const [formData, setFormData] = useState({ name: "", email: "", password: "" });
+    const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+    const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-    return (
-        <main className="min-h-screen bg-gradient-to-br from-[#0a0a0c] via-[#0d1f1f] to-[#0a0a0c] flex items-center justify-center px-4 py-12 relative overflow-hidden">
-            {/* Background effects */}
-            <div className="absolute inset-0 pointer-events-none">
-                <div className="absolute top-1/3 right-1/4 w-96 h-96 rounded-full bg-[hsl(var(--neon-lime)/0.08)] blur-[120px]" />
-                <div className="absolute bottom-1/3 left-1/4 w-80 h-80 rounded-full bg-[hsl(180,50%,12%,0.3)] blur-[100px]" />
+    useEffect(() => {
+        checkAuth();
+    }, [checkAuth]);
+
+    useEffect(() => {
+        if (isAuthenticated) {
+            router.push("/dashboard");
+        }
+    }, [isAuthenticated, router]);
+
+    useEffect(() => {
+        const check = () => setIsMobile(window.innerWidth < 1024);
+        check();
+        window.addEventListener("resize", check);
+        return () => window.removeEventListener("resize", check);
+    }, []);
+
+    const handleOtpChange = (index: number, value: string) => {
+        if (value.length > 1) return;
+        const newOtp = [...otp];
+        newOtp[index] = value;
+        setOtp(newOtp);
+        if (value && index < 5) otpRefs.current[index + 1]?.focus();
+    };
+
+    const handleOtpKeyDown = (index: number, e: React.KeyboardEvent) => {
+        if (e.key === "Backspace" && !otp[index] && index > 0) otpRefs.current[index - 1]?.focus();
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        clearError();
+
+        if (step < 3) {
+            setStep(step + 1);
+        } else {
+            // Final step - register the user
+            const success = await register(formData.name, formData.email, formData.password);
+            if (success) {
+                router.push("/dashboard");
+            }
+        }
+    };
+
+    const getPasswordStrength = () => {
+        const { password } = formData;
+        if (password.length === 0) return 0;
+        if (password.length < 6) return 1;
+        if (password.length < 8) return 2;
+        if (password.length >= 8 && /[A-Z]/.test(password) && /[0-9]/.test(password)) return 4;
+        return 3;
+    };
+
+    const strengthColors = ["", "bg-red-400", "bg-orange-400", "bg-yellow-400", "bg-green-400"];
+    const strengthLabels = ["", "Weak", "Fair", "Good", "Strong"];
+
+    const renderForm = () => (
+        <>
+            {/* Progress steps */}
+            <div className="flex items-center justify-center gap-2 mb-6 lg:mb-8">
+                {[1, 2, 3].map((s) => (
+                    <div key={s} className="flex items-center">
+                        <div className={`w-8 h-8 lg:w-10 lg:h-10 rounded-full flex items-center justify-center text-xs lg:text-sm font-bold transition-all ${s < step ? "bg-[hsl(var(--neon-lime))] text-black" : s === step ? "bg-[hsl(var(--neon-lime)/0.2)] text-[hsl(var(--neon-lime))] border border-[hsl(var(--neon-lime)/0.5)]" : "bg-white/5 text-gray-500 border border-white/10"}`}>
+                            {s < step ? <Check className="w-4 h-4" /> : s}
+                        </div>
+                        {s < 3 && <div className={`w-6 lg:w-10 h-0.5 mx-1 ${s < step ? "bg-[hsl(var(--neon-lime))]" : "bg-white/10"}`} />}
+                    </div>
+                ))}
             </div>
 
-            {/* Content */}
-            <motion.div
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6 }}
-                className="w-full max-w-md relative z-10"
-            >
-                {/* Back to home */}
-                <Link href="/" className="inline-flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-8 text-sm">
-                    <ArrowLeft className="w-4 h-4" />
-                    Back to home
-                </Link>
-
-                {/* Card */}
-                <div className="bg-white/[0.03] backdrop-blur-xl border border-white/[0.08] rounded-3xl p-8 shadow-2xl">
-                    {/* Logo */}
-                    <div className="flex items-center justify-center mb-8">
-                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[hsl(var(--neon-lime)/0.3)] to-[hsl(var(--neon-lime)/0.1)] flex items-center justify-center shadow-lg shadow-[hsl(var(--neon-lime)/0.2)]">
-                            <Zap className="h-7 w-7 text-[hsl(var(--neon-lime))]" />
-                        </div>
-                    </div>
-
-                    {/* Header */}
-                    <div className="text-center mb-8">
-                        <h1 className="text-2xl font-bold text-white mb-2">Create your account</h1>
-                        <p className="text-gray-400 text-sm">Start verifying with virtual numbers today</p>
-                    </div>
-
-                    {/* Progress steps */}
-                    <div className="flex items-center justify-center gap-2 mb-8">
-                        {[1, 2, 3].map((s) => (
-                            <div
-                                key={s}
-                                className={`h-1.5 rounded-full transition-all duration-300 ${s === step
-                                        ? "w-8 bg-[hsl(var(--neon-lime))]"
-                                        : s < step
-                                            ? "w-4 bg-[hsl(var(--neon-lime)/0.5)]"
-                                            : "w-4 bg-white/10"
-                                    }`}
-                            />
-                        ))}
-                    </div>
-
-                    {/* Form */}
-                    <form className="space-y-5">
-                        {step === 1 && (
-                            <motion.div
-                                initial={{ opacity: 0, x: 20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                className="space-y-5"
-                            >
-                                {/* Name */}
-                                <div className="space-y-2">
-                                    <label className="text-sm text-gray-300 font-medium">Full Name</label>
-                                    <div className="relative">
-                                        <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                                        <Input
-                                            type="text"
-                                            placeholder="John Doe"
-                                            value={formData.name}
-                                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                            className="h-12 pl-11 bg-white/[0.03] border-white/10 text-white placeholder:text-gray-500 focus:border-[hsl(var(--neon-lime)/0.5)] focus:ring-[hsl(var(--neon-lime)/0.2)]"
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Email */}
-                                <div className="space-y-2">
-                                    <label className="text-sm text-gray-300 font-medium">Email</label>
-                                    <div className="relative">
-                                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                                        <Input
-                                            type="email"
-                                            placeholder="you@example.com"
-                                            value={formData.email}
-                                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                            className="h-12 pl-11 bg-white/[0.03] border-white/10 text-white placeholder:text-gray-500 focus:border-[hsl(var(--neon-lime)/0.5)] focus:ring-[hsl(var(--neon-lime)/0.2)]"
-                                        />
-                                    </div>
-                                </div>
-                            </motion.div>
-                        )}
-
-                        {step === 2 && (
-                            <motion.div
-                                initial={{ opacity: 0, x: 20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                className="space-y-5"
-                            >
-                                {/* Password */}
-                                <div className="space-y-2">
-                                    <label className="text-sm text-gray-300 font-medium">Password</label>
-                                    <div className="relative">
-                                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                                        <Input
-                                            type={showPassword ? "text" : "password"}
-                                            placeholder="••••••••"
-                                            value={formData.password}
-                                            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                                            className="h-12 pl-11 pr-11 bg-white/[0.03] border-white/10 text-white placeholder:text-gray-500 focus:border-[hsl(var(--neon-lime)/0.5)] focus:ring-[hsl(var(--neon-lime)/0.2)]"
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowPassword(!showPassword)}
-                                            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
-                                        >
-                                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                        </button>
-                                    </div>
-                                    <p className="text-xs text-gray-500">Must be at least 8 characters</p>
-                                </div>
-
-                                {/* Password strength indicator */}
-                                <div className="space-y-2">
-                                    <div className="flex gap-1">
-                                        {[1, 2, 3, 4].map((i) => (
-                                            <div
-                                                key={i}
-                                                className={`h-1 flex-1 rounded-full ${formData.password.length >= i * 2
-                                                        ? formData.password.length >= 8
-                                                            ? "bg-green-400"
-                                                            : "bg-yellow-400"
-                                                        : "bg-white/10"
-                                                    }`}
-                                            />
-                                        ))}
-                                    </div>
-                                </div>
-                            </motion.div>
-                        )}
-
-                        {step === 3 && (
-                            <motion.div
-                                initial={{ opacity: 0, x: 20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                className="space-y-5"
-                            >
-                                {/* Verification code */}
-                                <div className="text-center space-y-4">
-                                    <div className="w-16 h-16 mx-auto rounded-full bg-[hsl(var(--neon-lime)/0.1)] flex items-center justify-center">
-                                        <Mail className="w-8 h-8 text-[hsl(var(--neon-lime))]" />
-                                    </div>
-                                    <div>
-                                        <p className="text-gray-300 mb-1">We sent a code to</p>
-                                        <p className="text-white font-medium">{formData.email || "your email"}</p>
-                                    </div>
-                                </div>
-
-                                {/* OTP inputs */}
-                                <div className="flex justify-center gap-3">
-                                    {[1, 2, 3, 4, 5, 6].map((i) => (
-                                        <Input
-                                            key={i}
-                                            type="text"
-                                            maxLength={1}
-                                            className="w-11 h-12 text-center text-lg font-bold bg-white/[0.03] border-white/10 text-white focus:border-[hsl(var(--neon-lime)/0.5)] focus:ring-[hsl(var(--neon-lime)/0.2)]"
-                                        />
-                                    ))}
-                                </div>
-
-                                <p className="text-center text-sm text-gray-400">
-                                    Didn't receive code?{" "}
-                                    <button type="button" className="text-[hsl(var(--neon-lime))] hover:underline">
-                                        Resend
-                                    </button>
-                                </p>
-                            </motion.div>
-                        )}
-
-                        {/* Navigation buttons */}
-                        <div className="flex gap-3 pt-2">
-                            {step > 1 && (
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => setStep(step - 1)}
-                                    className="flex-1 h-12 border-white/10 text-white hover:bg-white/5"
-                                >
-                                    Back
-                                </Button>
-                            )}
-                            <Button
-                                type="button"
-                                onClick={() => (step < 3 ? setStep(step + 1) : null)}
-                                className="flex-1 h-12 bg-[hsl(var(--neon-lime))] text-black font-bold hover:bg-[hsl(var(--neon-lime-soft))] neon-glow transition-all duration-300 shadow-xl shadow-[hsl(var(--neon-lime)/0.25)]"
-                            >
-                                {step === 3 ? "Create Account" : "Continue"}
-                                {step < 3 && <ArrowRight className="ml-2 w-4 h-4" />}
-                            </Button>
-                        </div>
-                    </form>
-
-                    {/* Divider (step 1 only) */}
+            <form onSubmit={handleSubmit} className="space-y-4 lg:space-y-5">
+                <AnimatePresence mode="wait">
                     {step === 1 && (
-                        <>
-                            <div className="flex items-center gap-4 my-6">
-                                <div className="flex-1 h-px bg-white/10" />
-                                <span className="text-xs text-gray-500">or continue with</span>
-                                <div className="flex-1 h-px bg-white/10" />
+                        <motion.div key="step1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4 lg:space-y-5">
+                            <div className="space-y-2">
+                                <label className="text-sm text-gray-300 font-medium">Full Name</label>
+                                <div className="relative group">
+                                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 lg:w-5 lg:h-5 text-gray-500 group-focus-within:text-[hsl(var(--neon-lime))] transition-colors" />
+                                    <Input type="text" placeholder="John Doe" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="h-12 lg:h-14 pl-11 lg:pl-12 bg-white/[0.03] border-white/10 text-white placeholder:text-gray-500 focus:border-[hsl(var(--neon-lime)/0.5)] focus:ring-[hsl(var(--neon-lime)/0.2)]" required />
+                                </div>
                             </div>
-
-                            {/* Social signup */}
-                            <div className="grid grid-cols-2 gap-3">
-                                <Button variant="outline" className="h-11 border-white/10 text-white hover:bg-white/5 text-sm">
-                                    <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
-                                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-                                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
-                                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-                                    </svg>
-                                    Google
-                                </Button>
-                                <Button variant="outline" className="h-11 border-white/10 text-white hover:bg-white/5 text-sm">
-                                    <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
-                                        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
-                                    </svg>
-                                    GitHub
-                                </Button>
+                            <div className="space-y-2">
+                                <label className="text-sm text-gray-300 font-medium">Email</label>
+                                <div className="relative group">
+                                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 lg:w-5 lg:h-5 text-gray-500 group-focus-within:text-[hsl(var(--neon-lime))] transition-colors" />
+                                    <Input type="email" placeholder="you@example.com" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className="h-12 lg:h-14 pl-11 lg:pl-12 bg-white/[0.03] border-white/10 text-white placeholder:text-gray-500 focus:border-[hsl(var(--neon-lime)/0.5)] focus:ring-[hsl(var(--neon-lime)/0.2)]" required />
+                                </div>
                             </div>
-                        </>
+                        </motion.div>
                     )}
 
-                    {/* Login link */}
-                    <p className="text-center text-sm text-gray-400 mt-6">
-                        Already have an account?{" "}
-                        <Link href="/login" className="text-[hsl(var(--neon-lime))] font-medium hover:underline">
-                            Sign in
-                        </Link>
-                    </p>
-                </div>
+                    {step === 2 && (
+                        <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4 lg:space-y-5">
+                            <div className="space-y-2">
+                                <label className="text-sm text-gray-300 font-medium">Password</label>
+                                <div className="relative group">
+                                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 lg:w-5 lg:h-5 text-gray-500 group-focus-within:text-[hsl(var(--neon-lime))] transition-colors" />
+                                    <Input type={showPassword ? "text" : "password"} placeholder="••••••••" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} className="h-12 lg:h-14 pl-11 lg:pl-12 pr-11 bg-white/[0.03] border-white/10 text-white placeholder:text-gray-500 focus:border-[hsl(var(--neon-lime)/0.5)] focus:ring-[hsl(var(--neon-lime)/0.2)]" required />
+                                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300">
+                                        {showPassword ? <EyeOff className="w-4 h-4 lg:w-5 lg:h-5" /> : <Eye className="w-4 h-4 lg:w-5 lg:h-5" />}
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <div className="flex gap-1">
+                                    {[1, 2, 3, 4].map((i) => (
+                                        <div key={i} className={`h-1.5 flex-1 rounded-full transition-all ${i <= getPasswordStrength() ? strengthColors[getPasswordStrength()] : "bg-white/10"}`} />
+                                    ))}
+                                </div>
+                                {getPasswordStrength() > 0 && <p className={`text-xs ${getPasswordStrength() === 4 ? "text-green-400" : getPasswordStrength() === 3 ? "text-yellow-400" : getPasswordStrength() === 2 ? "text-orange-400" : "text-red-400"}`}>{strengthLabels[getPasswordStrength()]} password</p>}
+                            </div>
+                        </motion.div>
+                    )}
 
-                {/* Terms */}
-                <p className="text-center text-xs text-gray-500 mt-6">
-                    By creating an account, you agree to our{" "}
-                    <Link href="/terms" className="text-gray-400 hover:text-white">Terms of Service</Link>
-                    {" "}and{" "}
-                    <Link href="/privacy" className="text-gray-400 hover:text-white">Privacy Policy</Link>
-                </p>
-            </motion.div>
+                    {step === 3 && (
+                        <motion.div key="step3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
+                            <div className="text-center">
+                                <motion.div className="w-16 h-16 rounded-full bg-[hsl(var(--neon-lime)/0.1)] border border-[hsl(var(--neon-lime)/0.2)] flex items-center justify-center mx-auto mb-4" animate={{ scale: [1, 1.05, 1] }} transition={{ duration: 2, repeat: Infinity }}>
+                                    <Smartphone className="w-8 h-8 text-[hsl(var(--neon-lime))]" />
+                                </motion.div>
+                                <p className="text-gray-300 text-sm mb-1">We sent a code to</p>
+                                <p className="text-white font-medium">{formData.email || "your email"}</p>
+                            </div>
+                            <div className="flex justify-center gap-2 lg:gap-3">
+                                {otp.map((digit, i) => (
+                                    <Input key={i} ref={(el) => { otpRefs.current[i] = el; }} type="text" inputMode="numeric" maxLength={1} value={digit} onChange={(e) => handleOtpChange(i, e.target.value)} onKeyDown={(e) => handleOtpKeyDown(i, e)} className="w-10 h-12 lg:w-12 lg:h-14 text-center text-lg font-bold bg-white/[0.03] border-white/10 text-white focus:border-[hsl(var(--neon-lime)/0.5)] focus:ring-[hsl(var(--neon-lime)/0.2)]" />
+                                ))}
+                            </div>
+                            <p className="text-center text-sm text-gray-400">Didn't receive code? <button type="button" className="text-[hsl(var(--neon-lime))] hover:underline">Resend</button></p>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                <div className="flex gap-3 pt-2">
+                    {step > 1 && <Button type="button" variant="outline" onClick={() => setStep(step - 1)} className="flex-1 h-12 lg:h-14 border-white/10 bg-white/[0.02] text-white hover:bg-white/[0.05]">Back</Button>}
+                    <Button type="submit" disabled={isLoading} className="flex-1 h-12 lg:h-14 bg-[hsl(var(--neon-lime))] text-black font-bold hover:bg-[hsl(var(--neon-lime-soft))] disabled:opacity-50 neon-glow shadow-lg shadow-[hsl(var(--neon-lime)/0.25)]">
+                        {isLoading ? <div className="flex items-center gap-2"><div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />Creating...</div> : <>{step === 3 ? "Create Account" : "Continue"}{step < 3 && <ArrowRight className="ml-2 w-4 h-4" />}</>}
+                    </Button>
+                </div>
+            </form>
+
+            <p className="text-center text-sm text-gray-400 mt-6">Already have an account? <Link href="/login" className="text-[hsl(var(--neon-lime))] font-medium hover:underline">Sign in</Link></p>
+        </>
+    );
+
+    return (
+        <main className="min-h-screen relative overflow-hidden">
+            <AuthBackground />
+
+            <div className="relative z-10 min-h-screen">
+                {isMobile ? (
+                    <div className="flex flex-col min-h-screen px-4 py-8">
+                        <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
+                            <Link href="/" className="inline-flex items-center gap-2 text-gray-400 hover:text-[hsl(var(--neon-lime))] transition-colors mb-6 text-sm group">
+                                <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />Back
+                            </Link>
+                        </motion.div>
+
+                        <div className="flex-1 flex items-center justify-center">
+                            <div className="w-full max-w-sm">
+                                <AuthCard>
+                                    <motion.div className="flex items-center justify-center mb-5" initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }}>
+                                        <div className="relative">
+                                            <div className="absolute inset-0 rounded-2xl bg-[hsl(var(--neon-lime)/0.3)] blur-xl" />
+                                            <div className="relative w-12 h-12 rounded-2xl bg-gradient-to-br from-[hsl(var(--neon-lime)/0.4)] to-[hsl(var(--neon-lime)/0.1)] flex items-center justify-center border border-[hsl(var(--neon-lime)/0.3)]">
+                                                <Image
+                                                    src="/logos/nexnum-logo.svg"
+                                                    alt="NexNum"
+                                                    width={38}
+                                                    height={38}
+                                                />
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                    <motion.div className="text-center mb-5" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+                                        <h1 className="text-xl font-bold text-white mb-1">{step === 1 ? "Create account" : step === 2 ? "Set password" : "Verify email"}</h1>
+                                        <p className="text-gray-400 text-sm">{step === 1 ? "Start your free trial" : step === 2 ? "Choose a strong password" : "Enter the code we sent"}</p>
+                                    </motion.div>
+                                    {renderForm()}
+                                </AuthCard>
+                            </div>
+                        </div>
+                    </div>
+                ) : (
+                    <>
+                        <Navbar hideRegister />
+                        <div className="flex min-h-screen">
+                            <div className="hidden lg:flex lg:w-1/2 xl:w-3/5 items-center justify-center relative">
+
+                                <div className="relative">
+                                    <Auth3DLaptop />
+                                    <motion.div className="absolute -left-24 top-20" initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.8 }}>
+                                        <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/[0.05] backdrop-blur-sm border border-white/10">
+                                            <Shield className="w-4 h-4 text-[hsl(var(--neon-lime))]" />
+                                            <span className="text-white text-sm">Privacy first</span>
+                                        </div>
+                                    </motion.div>
+                                    <motion.div className="absolute -right-20 top-40" initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 1 }}>
+                                        <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/[0.05] backdrop-blur-sm border border-white/10">
+                                            <Zap className="w-4 h-4 text-yellow-400" />
+                                            <span className="text-white text-sm">Instant setup</span>
+                                        </div>
+                                    </motion.div>
+                                    <motion.div className="absolute -left-16 bottom-32" initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 1.2 }}>
+                                        <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/[0.05] backdrop-blur-sm border border-white/10">
+                                            <Globe className="w-4 h-4 text-[hsl(180,60%,50%)]" />
+                                            <span className="text-white text-sm">Global coverage</span>
+                                        </div>
+                                    </motion.div>
+                                </div>
+                            </div>
+
+                            <div className="w-full lg:w-1/2 xl:w-2/5 flex items-center justify-center p-8 lg:p-12">
+                                <motion.div className="w-full max-w-md" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.6 }}>
+                                    <div className="mb-8">
+                                        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+                                            <h1 className="text-3xl xl:text-4xl font-bold text-white mb-2">{step === 1 ? "Create your account" : step === 2 ? "Secure your account" : "Verify your email"}</h1>
+                                            <p className="text-gray-400">{step === 1 ? "Start verifying with virtual numbers today" : step === 2 ? "Choose a strong password to protect your account" : `We sent a verification code to ${formData.email}`}</p>
+                                        </motion.div>
+                                    </div>
+
+                                    {renderForm()}
+
+                                    <motion.div className="flex items-center justify-center gap-6 mt-8 pt-8 border-t border-white/5" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.7 }}>
+                                        {features.map((f, i) => (
+                                            <div key={i} className="flex items-center gap-2 text-gray-500 text-xs">
+                                                <f.icon className="w-3.5 h-3.5" />
+                                                <span>{f.label}</span>
+                                            </div>
+                                        ))}
+                                    </motion.div>
+                                </motion.div>
+                            </div>
+                        </div>
+                    </>
+                )}
+            </div>
         </main>
     );
 }

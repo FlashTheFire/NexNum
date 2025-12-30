@@ -3,7 +3,7 @@ import { Phone, Twitter, Github, Linkedin } from "lucide-react"
 
 const footerLinks = {
     product: [
-        { href: "/buy", label: "Buy Numbers" },
+        { href: "/dashboard/buy", label: "Buy Numbers" },
         { href: "/#pricing", label: "Pricing" },
         { href: "/#features", label: "Features" },
     ],

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 
 export default function Footer() {
     return (
@@ -7,8 +8,14 @@ export default function Footer() {
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
                     <div className="space-y-4">
                         <Link href="/" className="flex items-center space-x-2">
-                            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                                <span className="text-primary-foreground font-bold text-xl">N</span>
+                            <div className="w-9 h-9 bg-gradient-to-br from-[hsl(var(--neon-lime))] to-[hsl(72,70%,40%)] rounded-lg flex items-center justify-center p-1.5">
+                                <Image
+                                    src="/logos/nexnum-logo.svg"
+                                    alt="NexNum Logo"
+                                    width={24}
+                                    height={24}
+                                    style={{ filter: 'brightness(0)' }}
+                                />
                             </div>
                             <span className="font-bold text-xl tracking-tight">NexNum</span>
                         </Link>

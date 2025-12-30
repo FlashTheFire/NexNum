@@ -1,12 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Zap, Menu, X, ChevronDown } from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
-export default function Navbar() {
+interface NavbarProps {
+    hideLogin?: boolean;
+    hideRegister?: boolean;
+}
+
+export default function Navbar({ hideLogin = false, hideRegister = false }: NavbarProps) {
     const [scrolled, setScrolled] = useState(false);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -40,8 +46,15 @@ export default function Navbar() {
                         {/* Logo */}
                         <Link href="/" className="flex items-center gap-3 group">
                             <div className="relative">
-                                <div className="w-10 h-10 bg-gradient-to-br from-[hsl(var(--neon-lime))] to-[hsl(72,70%,40%)] rounded-xl flex items-center justify-center shadow-lg shadow-[hsl(var(--neon-lime)/0.25)] group-hover:shadow-[hsl(var(--neon-lime)/0.4)] transition-all duration-300 group-hover:scale-105">
-                                    <Zap className="w-5 h-5 text-black" />
+                                <div className="w-10 h-10 bg-gradient-to-br from-[hsl(var(--neon-lime))] to-[hsl(72,70%,40%)] rounded-xl flex items-center justify-center shadow-lg shadow-[hsl(var(--neon-lime)/0.25)] group-hover:shadow-[hsl(var(--neon-lime)/0.4)] transition-all duration-300 group-hover:scale-105 p-1.5">
+                                    <Image
+                                        src="/logos/nexnum-logo.svg"
+                                        alt="NexNum Logo"
+                                        width={28}
+                                        height={28}
+                                        className="text-black invert-0"
+                                        style={{ filter: 'brightness(0)' }}
+                                    />
                                 </div>
                                 {/* Glow effect */}
                                 <div className="absolute inset-0 bg-[hsl(var(--neon-lime))] rounded-xl blur-xl opacity-20 group-hover:opacity-40 transition-opacity" />
@@ -78,22 +91,29 @@ export default function Navbar() {
 
                         {/* Desktop Actions */}
                         <div className="hidden lg:flex items-center gap-3">
-                            <Link href="/login">
-                                <Button
-                                    variant="ghost"
-                                    className="text-gray-300 hover:text-white hover:bg-white/[0.06] font-medium h-10 px-5"
-                                >
-                                    Log in
-                                </Button>
-                            </Link>
-                            <Link href="/register">
-                                <Button
-                                    className="bg-[hsl(var(--neon-lime))] text-black hover:bg-[hsl(72,100%,55%)] font-semibold h-10 px-6 shadow-lg shadow-[hsl(var(--neon-lime)/0.25)] hover:shadow-[hsl(var(--neon-lime)/0.4)] transition-all duration-300"
-                                >
-                                    Get Started
-                                    <Zap className="w-4 h-4 ml-1.5" />
-                                </Button>
-                            </Link>
+                            {!hideLogin && (
+                                <Link href="/login">
+                                    <Button
+                                        variant={hideRegister ? undefined : "ghost"}
+                                        className={hideRegister
+                                            ? "bg-[hsl(var(--neon-lime))] text-black hover:bg-[hsl(72,100%,55%)] font-semibold h-10 px-6 shadow-lg shadow-[hsl(var(--neon-lime)/0.25)] hover:shadow-[hsl(var(--neon-lime)/0.4)] transition-all duration-300"
+                                            : "text-gray-300 hover:text-white hover:bg-white/[0.06] font-medium h-10 px-5"
+                                        }
+                                    >
+                                        Log in
+                                    </Button>
+                                </Link>
+                            )}
+                            {!hideRegister && (
+                                <Link href="/register">
+                                    <Button
+                                        className="bg-[hsl(var(--neon-lime))] text-black hover:bg-[hsl(72,100%,55%)] font-semibold h-10 px-6 shadow-lg shadow-[hsl(var(--neon-lime)/0.25)] hover:shadow-[hsl(var(--neon-lime)/0.4)] transition-all duration-300"
+                                    >
+                                        Get Started
+                                        <Zap className="w-4 h-4 ml-1.5" />
+                                    </Button>
+                                </Link>
+                            )}
                         </div>
 
                         {/* Mobile Menu Button */}

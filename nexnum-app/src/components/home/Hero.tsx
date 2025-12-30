@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { ArrowRight, CheckCircle2, Zap, Battery, Wifi, Signal } from "lucide-react";
@@ -90,7 +91,7 @@ export default function Hero() {
                     >
                         {/* Main headline - Mobile */}
                         <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight leading-[1.15]">
-                            <span className="text-white">Instant SMS</span>{" "}
+                            <span className="text-white">Secure SMS</span>{" "}
                             <span className="text-[hsl(var(--neon-lime))] neon-text-glow">Verification</span>
                         </h1>
                     </motion.div>
@@ -123,7 +124,7 @@ export default function Hero() {
                             {/* Main headline - Desktop */}
                             <h1 className="text-5xl lg:text-6xl xl:text-7xl font-extrabold tracking-tight mb-4 leading-[1.05]">
                                 <span className="inline-block text-white text-3d-effect">
-                                    Instant SMS
+                                    Secure SMS
                                 </span>
                                 <br />
                                 <span className="text-[hsl(var(--neon-lime))] neon-text-glow">
@@ -147,18 +148,20 @@ export default function Hero() {
                                         Get Started Free <ArrowRight className="ml-2 h-5 w-5" />
                                     </Button>
                                 </Link>
-                                <Button
-                                    variant="outline"
-                                    size="lg"
-                                    className="h-14 px-6 text-base font-semibold border-white/20 text-white hover:bg-white/5 hover:border-white/30 group"
-                                >
-                                    <div className="w-8 h-8 rounded-full bg-[hsl(var(--neon-lime))] flex items-center justify-center mr-3 group-hover:scale-110 transition-transform shadow-md">
-                                        <svg className="w-3.5 h-3.5 text-black ml-0.5" fill="currentColor" viewBox="0 0 24 24">
-                                            <path d="M8 5v14l11-7z" />
-                                        </svg>
-                                    </div>
-                                    Watch Demo
-                                </Button>
+                                <Link href="/watch-demo">
+                                    <Button
+                                        variant="outline"
+                                        size="lg"
+                                        className="h-14 px-6 text-base font-semibold border-white/20 text-white hover:bg-white/5 hover:border-white/30 group"
+                                    >
+                                        <div className="w-8 h-8 rounded-full bg-[hsl(var(--neon-lime))] flex items-center justify-center mr-3 group-hover:scale-110 transition-transform shadow-md">
+                                            <svg className="w-3.5 h-3.5 text-black ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+                                                <path d="M8 5v14l11-7z" />
+                                            </svg>
+                                        </div>
+                                        Watch Demo
+                                    </Button>
+                                </Link>
                             </div>
 
                             {/* Trust indicators - Desktop */}
@@ -211,7 +214,7 @@ export default function Hero() {
                         />
                         <FloatingAppIcon
                             icon="telegram"
-                            className="top-12 -right-4 md:-right-6 lg:-right-16 animate-float z-20 scale-75 md:scale-100"
+                            className="hidden lg:block top-12 -right-4 md:-right-6 lg:-right-16 animate-float z-20 scale-75 md:scale-100"
                             delay={0.4}
                             size="md"
                         />
@@ -272,21 +275,31 @@ export default function Hero() {
                             />
                         </svg>
 
-                        {/* 3D Phone mockup */}
+                        {/* 3D Phone mockup - Optimized for mobile performance */}
                         <motion.div
-                            initial={{ opacity: 0, y: 40, rotateY: -15 }}
-                            animate={{ opacity: 1, y: 0, rotateY: 0 }}
-                            transition={{ duration: 1, delay: 0.2, type: "spring" }}
-                            whileHover={{ rotateY: 5, rotateX: -2, scale: 1.02 }}
-                            className="relative z-10"
-                            style={{ perspective: "1200px", transformStyle: "preserve-3d" }}
+                            initial={{ opacity: 0, y: 30 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{
+                                duration: 0.6,
+                                delay: 0.15,
+                                ease: [0.25, 0.46, 0.45, 0.94] // easeOutQuad - smoother on mobile
+                            }}
+                            className="relative z-10 will-change-transform"
+                            style={{
+                                perspective: "1000px",
+                                WebkitPerspective: "1000px",
+                                backfaceVisibility: "hidden",
+                                WebkitBackfaceVisibility: "hidden"
+                            }}
                         >
-                            {/* 3D Phone container */}
+                            {/* 3D Phone container - simplified transforms for mobile */}
                             <div
                                 className="relative mx-auto w-[270px] h-[560px] md:w-[330px] md:h-[680px] lg:w-[310px] lg:h-[640px]"
                                 style={{
-                                    transform: "rotateY(-8deg) rotateX(2deg)",
-                                    transformStyle: "preserve-3d"
+                                    transform: "translateZ(0) rotateY(-8deg) rotateX(2deg)",
+                                    transformStyle: "preserve-3d",
+                                    WebkitTransform: "translateZ(0) rotateY(-8deg) rotateX(2deg)",
+                                    willChange: "transform"
                                 }}
                             >
                                 {/* Silent switch - left side top */}
@@ -378,8 +391,14 @@ export default function Hero() {
                                         {/* App header with notification */}
                                         <div className="flex items-center justify-between mb-3">
                                             <div className="flex items-center gap-2.5">
-                                                <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-[hsl(var(--neon-lime)/0.3)] to-[hsl(var(--neon-lime)/0.1)] flex items-center justify-center shadow-lg shadow-[hsl(var(--neon-lime)/0.2)]">
-                                                    <Zap className="h-5 w-5 text-[hsl(var(--neon-lime))]" />
+                                                <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-[hsl(var(--neon-lime)/0.3)] to-[hsl(var(--neon-lime)/0.1)] flex items-center justify-center shadow-lg shadow-[hsl(var(--neon-lime)/0.2)] p-1.5">
+                                                    <Image
+                                                        src="/logos/nexnum-logo.svg"
+                                                        alt="NexNum"
+                                                        width={30}
+                                                        height={20}
+                                                        className="text-[hsl(var(--neon-lime))]"
+                                                    />
                                                     {/* Notification badge */}
                                                     <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center text-[8px] font-bold text-white shadow-md">
                                                         3
@@ -518,13 +537,15 @@ export default function Hero() {
                                     Get Started Free
                                 </Button>
                             </Link>
-                            <Button
-                                variant="outline"
-                                size="lg"
-                                className="w-full h-12 text-xs font-semibold border-white/20 text-white hover:bg-white/5 hover:border-white/30"
-                            >
-                                Watch Demo
-                            </Button>
+                            <Link href="/watch-demo" className="w-full">
+                                <Button
+                                    variant="outline"
+                                    size="lg"
+                                    className="w-full h-12 text-xs font-semibold border-white/20 text-white hover:bg-white/5 hover:border-white/30"
+                                >
+                                    Watch Demo
+                                </Button>
+                            </Link>
                         </div>
 
                         {/* Trust indicators - Mobile */}

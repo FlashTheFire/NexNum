@@ -1,17 +1,20 @@
+"use client"
+
 import { motion } from "framer-motion"
+import { Battery, Signal, Wifi } from "lucide-react"
 
 export function PhoneMockup() {
     return (
-        <div className="relative w-[280px] h-[580px] perspective-[2000px] transform-gpu">
+        <div className="relative w-[280px] h-[580px] perspective-1000 mx-auto transform-gpu">
             <motion.div
-                initial={{ rotateY: -12, rotateX: 5 }}
+                initial={{ rotateY: -20, rotateX: 10 }}
                 animate={{
-                    rotateY: [-12, -8, -12],
-                    rotateX: [5, 2, 5],
-                    y: [0, -10, 0]
+                    rotateY: [-20, -5, -20],
+                    rotateX: [10, 5, 10],
+                    y: [0, -15, 0]
                 }}
                 transition={{
-                    duration: 6,
+                    duration: 8,
                     repeat: Infinity,
                     ease: "easeInOut"
                 }}
@@ -19,67 +22,67 @@ export function PhoneMockup() {
                 style={{ transformStyle: "preserve-3d" }}
             >
                 {/* Phone Frame */}
-                <div className="absolute inset-0 bg-[#121212] rounded-[45px] border-[8px] border-[#2a2a2a] shadow-2xl overflow-hidden backface-hidden">
-                    {/* Screen Content - Gradient & UI */}
-                    <div className="absolute inset-0 bg-gradient-to-br from-[#0f172a] to-[#020617] overflow-hidden">
+                <div className="absolute inset-0 bg-[#121212] rounded-[48px] border-[8px] border-[#2a2a2a] shadow-2xl overflow-hidden backface-hidden">
+                    {/* Screen Content */}
+                    <div className="w-full h-full bg-[#0a0a0c] relative overflow-hidden">
+
                         {/* Status Bar */}
-                        <div className="h-6 w-full flex justify-between px-6 py-4 items-center opacity-60">
-                            <div className="text-[10px] font-bold text-white">9:41</div>
-                            <div className="flex gap-1.5">
-                                <div className="h-2.5 w-4 rounded-[2px] bg-white/40" />
-                                <div className="h-2.5 w-4 rounded-[2px] bg-white/40" />
+                        <div className="absolute top-0 inset-x-0 h-14 px-6 flex items-center justify-between z-20">
+                            <span className="text-xs font-medium text-white">9:41</span>
+                            <div className="flex items-center gap-1.5 opacity-80">
+                                <Signal className="h-3.5 w-3.5 text-white" />
+                                <Wifi className="h-3.5 w-3.5 text-white" />
+                                <Battery className="h-3.5 w-3.5 text-white" />
                             </div>
                         </div>
 
-                        {/* Lock Screen UI Mock */}
-                        <div className="flex flex-col items-center justify-center pt-20">
-                            <div className="text-5xl font-thin text-white tracking-tighter mb-2">09:41</div>
-                            <div className="text-xs text-white/50 uppercase tracking-[0.2em] mb-12">Thursday, Nov 27</div>
+                        {/* Notch */}
+                        <div className="absolute top-0 left-1/2 -translate-x-1/2 h-7 w-32 bg-[#121212] rounded-b-2xl z-20" />
 
-                            {/* Notification Card */}
-                            <motion.div
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: 1 }}
-                                className="w-[85%] bg-white/10 backdrop-blur-md border border-white/10 p-3 rounded-2xl mb-3"
-                            >
-                                <div className="flex gap-3">
-                                    <div className="h-8 w-8 rounded-lg bg-emerald-500/20 flex items-center justify-center border border-emerald-500/20">
-                                        <div className="text-[10px]">💬</div>
-                                    </div>
-                                    <div>
-                                        <div className="text-[10px] text-white/60 mb-0.5">MESSAGES</div>
-                                        <div className="text-xs font-medium text-white">Verification Code: 839201</div>
-                                    </div>
+                        {/* UI Elements */}
+                        <div className="pt-20 px-6 space-y-6">
+                            {/* Greeting */}
+                            <div>
+                                <div className="h-2 w-20 bg-gray-800 rounded-full mb-2" />
+                                <div className="h-8 w-32 bg-gray-800 rounded-lg animate-pulse" />
+                            </div>
+
+                            {/* Card */}
+                            <div className="w-full aspect-video rounded-2xl bg-gradient-to-br from-[hsl(var(--neon-lime)/0.2)] to-transparent border border-[hsl(var(--neon-lime)/0.2)] p-4 relative overflow-hidden group">
+                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-shimmer" />
+                                <div className="flex justify-between items-start mb-6">
+                                    <div className="h-8 w-8 rounded-full bg-[hsl(var(--neon-lime))]" />
+                                    <div className="h-4 w-12 bg-white/10 rounded" />
                                 </div>
-                            </motion.div>
-                            <motion.div
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: 1.2 }}
-                                className="w-[85%] bg-white/10 backdrop-blur-md border border-white/10 p-3 rounded-2xl"
-                            >
-                                <div className="flex gap-3">
-                                    <div className="h-8 w-8 rounded-lg bg-indigo-500/20 flex items-center justify-center border border-indigo-500/20">
-                                        <div className="text-[10px]">💳</div>
+                                <div className="h-6 w-24 bg-white/20 rounded mb-2" />
+                                <div className="h-4 w-16 bg-white/10 rounded" />
+                            </div>
+
+                            {/* List Items */}
+                            <div className="space-y-3">
+                                {[1, 2, 3].map((i) => (
+                                    <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/5">
+                                        <div className="w-10 h-10 rounded-full bg-white/10" />
+                                        <div className="flex-1 space-y-2">
+                                            <div className="h-3 w-20 bg-white/10 rounded" />
+                                            <div className="h-2 w-12 bg-white/5 rounded" />
+                                        </div>
                                     </div>
-                                    <div>
-                                        <div className="text-[10px] text-white/60 mb-0.5">WALLET</div>
-                                        <div className="text-xs font-medium text-white">Balance Updated: $24.50</div>
-                                    </div>
-                                </div>
-                            </motion.div>
+                                ))}
+                            </div>
                         </div>
+
+                        {/* Navigation Bar */}
+                        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-32 h-1 bg-white/20 rounded-full" />
                     </div>
 
-                    {/* Reflection */}
-                    <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/[0.05] to-transparent pointer-events-none" />
+                    {/* Reflection/Glass Glare */}
+                    <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/[0.05] to-transparent pointer-events-none z-30" />
                 </div>
 
-                {/* Side Buttons */}
-                <div className="absolute top-[120px] -left-[9px] w-[4px] h-[32px] bg-[#333] rounded-l-md transform -translate-z-1" />
-                <div className="absolute top-[170px] -left-[9px] w-[4px] h-[64px] bg-[#333] rounded-l-md transform -translate-z-1" />
-                <div className="absolute top-[150px] -right-[9px] w-[4px] h-[48px] bg-[#333] rounded-r-md transform -translate-z-1" />
+                {/* Depth/Sides (Simple CSS 3D approximation) */}
+                <div className="absolute inset-0 rounded-[48px] bg-[#222] transform translate-z-[-5px]" />
+                <div className="absolute inset-0 rounded-[48px] bg-[#000] transform translate-z-[-10px] shadow-[0_0_50px_rgba(0,0,0,0.5)]" />
             </motion.div>
         </div>
     )

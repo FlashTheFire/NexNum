@@ -423,7 +423,7 @@ export default function VaultPage() {
                                     <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
                                         Purchase a virtual number to start receiving SMS and OTP codes
                                     </p>
-                                    <Link href="/buy">
+                                    <Link href="/dashboard/buy">
                                         <Button variant="gradient" size="lg">
                                             <Plus className="h-4 w-4 mr-2" />
                                             Buy Your First Number

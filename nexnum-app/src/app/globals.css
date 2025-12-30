@@ -232,6 +232,26 @@
 
   .bokeh {
     animation: pulse-soft 4s ease-in-out infinite;
+    will-change: opacity, transform;
+    transform: translateZ(0);
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+  }
+
+  /* Disable heavy animations on mobile for better performance */
+  @media (max-width: 1023px) {
+    .bokeh {
+      animation: none;
+      opacity: 0.3;
+    }
+    
+    .film-grain::before {
+      display: none;
+    }
+    
+    .vignette::after {
+      opacity: 0.5;
+    }
   }
 
   /* Dashed Flow Line */
