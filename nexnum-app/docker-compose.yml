@@ -1,0 +1,27 @@
+version: '3.8'
+
+# Local development services
+# PostgreSQL & Redis use cloud services (Supabase/Upstash)
+# Only Meilisearch runs locally
+
+services:
+  meilisearch:
+    image: getmeili/meilisearch:v1.6
+    container_name: nexnum-meilisearch
+    environment:
+      MEILI_MASTER_KEY: dev_master_key
+      MEILI_ENV: development
+    ports:
+      - "7700:7700"
+    volumes:
+      - meili_data:/meili_data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  meili_data:
+    driver: local

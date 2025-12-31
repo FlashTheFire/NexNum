@@ -32,6 +32,8 @@ export function MobileDashboard() {
     const { user } = useAuthStore()
     const { userProfile, activeNumbers, transactions } = useGlobalStore()
     const [scrolled, setScrolled] = useState(false)
+    const [activeCardIndex, setActiveCardIndex] = useState(0)
+    const scrollContainerRef = useRef<HTMLDivElement>(null)
 
     // Greeting
     const hour = new Date().getHours()
@@ -264,25 +266,120 @@ export function MobileDashboard() {
                     </div>
 
                     {activeNumbers.length > 0 ? (
-                        <div className="flex gap-4 overflow-x-auto pb-4 snap-x hide-scrollbar">
-                            {activeNumbers.map((num) => (
-                                <div key={num.id} className="snap-center shrink-0 w-[240px] p-4 rounded-2xl bg-[#12141a] border border-white/[0.06] relative group overflow-hidden">
-                                    <div className="absolute inset-0 bg-gradient-to-br from-[hsl(var(--neon-lime)/0.03)] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <>
+                            <div
+                                ref={scrollContainerRef}
+                                className="flex gap-4 overflow-x-auto pb-2 snap-x hide-scrollbar"
+                                onScroll={(e) => {
+                                    const container = e.currentTarget;
+                                    const scrollLeft = container.scrollLeft;
+                                    const cardWidth = 240 + 16; // card width + gap
+                                    const index = Math.round(scrollLeft / cardWidth);
+                                    setActiveCardIndex(Math.min(index, activeNumbers.length - 1));
+                                }}
+                            >
+                                {activeNumbers.map((num) => (
+                                    <Link
+                                        key={num.id}
+                                        href={`/sms/${encodeURIComponent(num.number)}`}
+                                        className="snap-center shrink-0 w-[240px] relative group cursor-pointer"
+                                        style={{
+                                            clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 34px), calc(100% - 40px) 100%, 0 100%)'
+                                        }}
+                                    >
+                                        {/* Neon-lime micro rim highlight */}
+                                        <div
+                                            className="absolute inset-0 rounded-2xl"
+                                            style={{
+                                                clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 24px), calc(100% - 24px) 100%, 0 100%)',
+                                                background: 'linear-gradient(135deg, rgba(179,255,0,0.15) 0%, transparent 50%, rgba(179,255,0,0.08) 100%)',
+                                                padding: '1px'
+                                            }}
+                                        />
 
-                                    <div className="flex items-start justify-between mb-3">
-                                        <div className="text-xs font-bold px-2 py-1 rounded bg-white/[0.06] text-gray-300">{num.countryName}</div>
-                                        <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 text-[10px] bg-emerald-500/10">Active</Badge>
-                                    </div>
+                                        {/* Main card body */}
+                                        <div
+                                            className="relative h-full p-4 bg-[#12141a]/90 backdrop-blur-md border border-white/[0.04] rounded-2xl overflow-hidden transition-all duration-200 group-hover:border-white/[0.08] group-hover:bg-[#15181e]/90"
+                                            style={{
+                                                clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 24px), calc(100% - 24px) 100%, 0 100%)'
+                                            }}
+                                        >
+                                            {/* SIM Chip Pattern (center-left, 8% opacity) */}
+                                            <div
+                                                className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-8 opacity-[0.15]"
+                                                style={{
+                                                    background: `
+                                                        linear-gradient(to right, #b3ff00 1px, transparent 1px) 0 0 / 4px 100%,
+                                                        linear-gradient(to bottom, #b3ff00 1px, transparent 1px) 0 0 / 100% 4px
+                                                    `,
+                                                    borderRadius: '3px',
+                                                    border: '1px solid rgba(179,255,0,0.3)'
+                                                }}
+                                            />
 
-                                    <div className="space-y-1">
-                                        <p className="text-xl font-mono font-medium text-white tracking-wide">{num.number}</p>
-                                        <p className="text-xs text-gray-500 flex items-center gap-1">
-                                            {num.serviceName} • <span className="text-[hsl(var(--neon-lime))]">{num.smsCount} SMS</span>
-                                        </p>
-                                    </div>
+                                            {/* Subtle gradient overlay */}
+                                            <div className="absolute inset-0 bg-gradient-to-br from-white/[0.02] via-transparent to-[hsl(var(--neon-lime)/0.02)] pointer-events-none" />
+
+                                            {/* Content */}
+                                            <div className="relative z-10">
+                                                <div className="flex items-start justify-between mb-3">
+                                                    <div className="text-xs font-bold px-2 py-1 rounded bg-white/[0.06] text-gray-300">{num.countryName}</div>
+                                                    <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 text-[10px] bg-emerald-500/10">Active</Badge>
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <p className="text-xl font-mono font-medium text-white tracking-wide">{num.number}</p>
+                                                    <p className="text-xs text-gray-500 flex items-center gap-1">
+                                                        {num.serviceName} • <span className="text-[hsl(var(--neon-lime))]">{num.smsCount} SMS</span>
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            {/* Cut corner highlight */}
+                                            <div className="absolute bottom-0 right-0 w-4 h-4 border-t border-l border-[hsl(var(--neon-lime)/0.15)]" style={{ transform: 'translate(50%, 50%) rotate(45deg)' }} />
+                                        </div>
+                                    </Link>
+                                ))}
+                            </div>
+
+                            {/* Dot Pagination Indicator - Max 3 visible dots */}
+                            {activeNumbers.length > 1 && (
+                                <div className="flex justify-center items-center gap-1.5 mt-3 p-2 rounded-full bg-white/[0.03] border border-white/[0.05] w-fit mx-auto">
+                                    {(() => {
+                                        const total = activeNumbers.length;
+                                        const maxDots = 3;
+
+                                        // Calculate which dots to show (sliding window)
+                                        let start = Math.max(0, activeCardIndex - 1);
+                                        let end = Math.min(total, start + maxDots);
+
+                                        // Adjust if we're near the end
+                                        if (end - start < maxDots && start > 0) {
+                                            start = Math.max(0, end - maxDots);
+                                        }
+
+                                        const visibleDots = [];
+                                        for (let i = start; i < end; i++) {
+                                            visibleDots.push(i);
+                                        }
+
+                                        return visibleDots.map((idx) => (
+                                            <button
+                                                key={idx}
+                                                onClick={() => {
+                                                    const container = scrollContainerRef.current;
+                                                    if (container) {
+                                                        const cardWidth = 240 + 16;
+                                                        container.scrollTo({ left: idx * cardWidth, behavior: 'smooth' });
+                                                    }
+                                                }}
+                                                className={`rounded-full transition-all duration-300 ${activeCardIndex === idx ? 'w-6 h-2 bg-[hsl(var(--neon-lime))]' : 'w-2 h-2 bg-white/20 hover:bg-white/40'}`}
+                                            />
+                                        ));
+                                    })()}
                                 </div>
-                            ))}
-                        </div>
+                            )}
+                        </>
                     ) : (
                         <div className="p-6 rounded-2xl bg-[#12141a] border border-dashed border-white/10 flex flex-col items-center justify-center text-center">
                             <div className="w-12 h-12 rounded-full bg-white/[0.03] flex items-center justify-center mb-3">
@@ -305,21 +402,30 @@ export function MobileDashboard() {
                     transition={{ delay: 0.5 }}
                     className="space-y-4"
                 >
-                    <h3 className="text-lg font-semibold text-white px-1">Recent Activity</h3>
+                    <div className="flex items-center justify-between px-1">
+                        <h3 className="text-lg font-semibold text-white">Recent Activity</h3>
+                        <Link href="/dashboard/history">
+                            <Button variant="link" className="text-[hsl(var(--neon-lime))] text-xs h-auto p-0 hover:no-underline">
+                                View All <ArrowUpRight className="ml-1 h-3 w-3" />
+                            </Button>
+                        </Link>
+                    </div>
                     <div className="space-y-2">
                         {transactions.slice(0, 3).map((tx, j) => (
                             <div key={j} className="flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/[0.04]">
                                 <div className="flex items-center gap-3">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${tx.type === 'topup' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-indigo-500/10 text-indigo-500'
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${tx.type === 'topup' ? 'bg-emerald-500/10 text-emerald-500' :
+                                        tx.type === 'purchase' ? 'bg-purple-500/10 text-purple-500' :
+                                            'bg-indigo-500/10 text-indigo-500'
                                         }`}>
                                         {tx.type === 'topup' ? <ArrowUpRight className="h-5 w-5" /> : <ShoppingCart className="h-5 w-5" />}
                                     </div>
                                     <div>
                                         <p className="text-sm font-medium text-white">{tx.description}</p>
-                                        <p className="text-[10px] text-gray-500">Just now</p>
+                                        <p className="text-[10px] text-gray-500 capitalize">{tx.type === 'purchase' ? 'Number Purchase' : tx.type === 'topup' ? 'Wallet Top-up' : tx.type}</p>
                                     </div>
                                 </div>
-                                <span className={`text-sm font-mono font-medium ${tx.amount > 0 ? 'text-emerald-400' : 'text-white'}`}>
+                                <span className={`text-sm font-mono font-medium ${tx.amount > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                                     {tx.amount > 0 ? '+' : ''}{formatPrice(tx.amount)}
                                 </span>
                             </div>

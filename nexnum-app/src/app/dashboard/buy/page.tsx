@@ -45,7 +45,7 @@ const generateOperators = (serviceId: string, countryId: string) => {
 };
 
 export default function BuyPage() {
-    const { userProfile, updateBalance, addActiveNumber } = useGlobalStore()
+    const { userProfile, purchaseNumber, fetchBalance } = useGlobalStore()
     const router = useRouter()
 
     // Flow State
@@ -75,12 +75,59 @@ export default function BuyPage() {
         setStep(3);
     };
 
-    // ... (handlePurchase remains same) ...
+    const handlePurchase = async (operator: any) => {
+        if (!userProfile) return;
 
-    const handleBackStep = (newStep: 1 | 2 | 3) => {
-        setStep(newStep);
-        setSearchTerm("");
-    }
+        if (userProfile.balance < operator.price) {
+            toast.error("Insufficient balance", {
+                description: "Please top up your wallet to continue."
+            });
+            return;
+        }
+
+        setPurchasing(true);
+
+        try {
+            // Use real API purchase
+            const result = await purchaseNumber(
+                selectedCountry?.code || 'US',
+                selectedService || 'telegram'
+            );
+
+            if (!result.success) {
+                toast.error("Purchase Failed", {
+                    description: result.error || "Something went wrong. Please try again."
+                });
+                return;
+            }
+
+            // Refresh balance after purchase
+            await fetchBalance();
+
+            toast.success("Number Purchased Successfully", {
+                description: `${operator.name} number for ${selectedService} is now active.`
+            });
+
+            // Redirect to vault to see the number
+            router.push('/dashboard/vault');
+
+        } catch (error) {
+            toast.error("Purchase Failed", {
+                description: "Something went wrong. Please try again."
+            });
+        } finally {
+            setPurchasing(false);
+        }
+    };
+
+    const handleBack = () => {
+        if (step > 1) {
+            setStep((step - 1) as 1 | 2 | 3);
+            setSearchTerm("");
+        } else {
+            router.push('/dashboard');
+        }
+    };
 
     // Determine Title based on Step
     const getStepTitle = () => {
@@ -102,7 +149,7 @@ export default function BuyPage() {
 
                 <BuyPageHeader
                     step={step}
-                    setStep={handleBackStep}
+                    onBack={handleBack}
                     userBalance={userProfile?.balance || 0}
                     title={getStepTitle()}
                     searchTerm={searchTerm}
@@ -154,61 +201,49 @@ export default function BuyPage() {
                             <div className="max-w-4xl mx-auto py-8">
                                 {/* NO Header here, header is sticky above */}
 
-                                <div className="grid md:grid-cols-3 gap-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {availableOperators.map((op, idx) => (
-                                        <Card
+                                        <motion.button
                                             key={op.id}
-                                            className="border-white/10 bg-card/30 backdrop-blur-sm hover:border-[hsl(var(--neon-lime))/50] transition-all group overflow-hidden relative"
+                                            onClick={() => handlePurchase(op)}
+                                            disabled={purchasing}
+                                            className="relative flex items-center justify-between p-4 rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 hover:border-[hsl(var(--neon-lime))] transition-all group text-left h-[88px]"
+                                            whileHover={{ scale: 1.02 }}
+                                            whileTap={{ scale: 0.98 }}
                                         >
-                                            {/* ... card content same ... */}
-                                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[hsl(var(--neon-lime))] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                                            {/* Hover Gradient */}
+                                            <div className="absolute inset-0 bg-gradient-to-r from-[hsl(var(--neon-lime)/0.05)] to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl pointer-events-none" />
 
-                                            <CardContent className="p-6 space-y-4">
-                                                <div className="flex justify-between items-start">
-                                                    <div>
-                                                        <h3 className="font-bold text-lg text-white">{op.name}</h3>
-                                                        <p className="text-sm text-gray-400">{op.carrier}</p>
-                                                    </div>
-                                                    {idx === 2 && (
-                                                        <Badge className="bg-[hsl(var(--neon-lime))] text-black hover:bg-[hsl(var(--neon-lime))]">Best</Badge>
-                                                    )}
+                                            {/* Left: Info */}
+                                            <div className="flex items-center gap-4 z-10">
+                                                <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-[hsl(var(--neon-lime))] group-hover:text-black transition-colors">
+                                                    <Signal className="w-5 h-5" />
                                                 </div>
-
-                                                <div className="space-y-2 py-4">
-                                                    <div className="flex justify-between text-sm">
-                                                        <span className="text-gray-400">Success Rate</span>
-                                                        <span className="text-green-400 font-bold">{op.successRate}</span>
-                                                    </div>
-                                                    <div className="flex justify-between text-sm">
-                                                        <span className="text-gray-400">Stock</span>
-                                                        <span className="text-white">{op.stock}</span>
-                                                    </div>
-                                                    <div className="flex justify-between text-sm">
-                                                        <span className="text-gray-400">SMS Speed</span>
-                                                        <span className="text-white">~15s</span>
-                                                    </div>
-                                                </div>
-
-                                                <div className="pt-4 border-t border-white/5">
-                                                    <div className="flex items-end gap-1 mb-4">
-                                                        <span className="text-3xl font-bold text-[hsl(var(--neon-lime))]">{formatPrice(op.price)}</span>
-                                                        <span className="text-sm text-gray-500 mb-1">/ number</span>
-                                                    </div>
-
-                                                    <Button
-                                                        className="w-full bg-white text-black hover:bg-[hsl(var(--neon-lime))] hover:text-black font-bold transition-all"
-                                                        onClick={() => handlePurchase(op)}
-                                                        disabled={purchasing}
-                                                    >
-                                                        {purchasing ? (
-                                                            <Loader2 className="w-4 h-4 animate-spin" />
-                                                        ) : (
-                                                            <>Buy Now <ArrowRight className="w-4 h-4 ml-2" /></>
+                                                <div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-bold text-white text-lg">{op.name}</span>
+                                                        {idx === 2 && (
+                                                            <span className="text-[10px] font-bold bg-[hsl(var(--neon-lime))] text-black px-1.5 py-0.5 rounded-full">BEST</span>
                                                         )}
-                                                    </Button>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 text-xs text-gray-400">
+                                                        <span>{op.carrier}</span>
+                                                        <span className="w-1 h-1 rounded-full bg-gray-600" />
+                                                        <span className="text-green-400 font-mono">{op.successRate}</span>
+                                                    </div>
                                                 </div>
-                                            </CardContent>
-                                        </Card>
+                                            </div>
+
+                                            {/* Right: Price + Action */}
+                                            <div className="z-10 text-right">
+                                                <div className="font-mono text-xl font-bold text-[hsl(var(--neon-lime))]">
+                                                    {formatPrice(op.price)}
+                                                </div>
+                                                <div className="text-[10px] text-gray-500 flex items-center justify-end gap-1">
+                                                    Buy <ArrowRight className="w-3 h-3" />
+                                                </div>
+                                            </div>
+                                        </motion.button>
                                     ))}
                                 </div>
                             </div>

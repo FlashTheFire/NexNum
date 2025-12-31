@@ -64,10 +64,25 @@ export default function RegisterPage() {
         e.preventDefault();
         clearError();
 
-        if (step < 3) {
-            setStep(step + 1);
-        } else {
-            // Final step - register the user
+        if (step === 1) {
+            setStep(2);
+        } else if (step === 2) {
+            // Validate password requirements for backend
+            const { password } = formData;
+            if (password.length < 8) {
+                return; // Let the browser handle validation
+            }
+            if (!/[A-Z]/.test(password)) {
+                return;
+            }
+            if (!/[a-z]/.test(password)) {
+                return;
+            }
+            if (!/[0-9]/.test(password)) {
+                return;
+            }
+
+            // Register the user
             const success = await register(formData.name, formData.email, formData.password);
             if (success) {
                 router.push("/dashboard");
@@ -78,10 +93,14 @@ export default function RegisterPage() {
     const getPasswordStrength = () => {
         const { password } = formData;
         if (password.length === 0) return 0;
-        if (password.length < 6) return 1;
-        if (password.length < 8) return 2;
-        if (password.length >= 8 && /[A-Z]/.test(password) && /[0-9]/.test(password)) return 4;
-        return 3;
+        if (password.length < 8) return 1;
+
+        let strength = 1;
+        if (/[A-Z]/.test(password)) strength++;
+        if (/[a-z]/.test(password)) strength++;
+        if (/[0-9]/.test(password)) strength++;
+
+        return strength;
     };
 
     const strengthColors = ["", "bg-red-400", "bg-orange-400", "bg-yellow-400", "bg-green-400"];
@@ -91,12 +110,12 @@ export default function RegisterPage() {
         <>
             {/* Progress steps */}
             <div className="flex items-center justify-center gap-2 mb-6 lg:mb-8">
-                {[1, 2, 3].map((s) => (
+                {[1, 2].map((s) => (
                     <div key={s} className="flex items-center">
                         <div className={`w-8 h-8 lg:w-10 lg:h-10 rounded-full flex items-center justify-center text-xs lg:text-sm font-bold transition-all ${s < step ? "bg-[hsl(var(--neon-lime))] text-black" : s === step ? "bg-[hsl(var(--neon-lime)/0.2)] text-[hsl(var(--neon-lime))] border border-[hsl(var(--neon-lime)/0.5)]" : "bg-white/5 text-gray-500 border border-white/10"}`}>
                             {s < step ? <Check className="w-4 h-4" /> : s}
                         </div>
-                        {s < 3 && <div className={`w-6 lg:w-10 h-0.5 mx-1 ${s < step ? "bg-[hsl(var(--neon-lime))]" : "bg-white/10"}`} />}
+                        {s < 2 && <div className={`w-6 lg:w-10 h-0.5 mx-1 ${s < step ? "bg-[hsl(var(--neon-lime))]" : "bg-white/10"}`} />}
                     </div>
                 ))}
             </div>
@@ -141,25 +160,14 @@ export default function RegisterPage() {
                                     ))}
                                 </div>
                                 {getPasswordStrength() > 0 && <p className={`text-xs ${getPasswordStrength() === 4 ? "text-green-400" : getPasswordStrength() === 3 ? "text-yellow-400" : getPasswordStrength() === 2 ? "text-orange-400" : "text-red-400"}`}>{strengthLabels[getPasswordStrength()]} password</p>}
+                                <p className="text-xs text-gray-500">Must be 8+ characters with uppercase, lowercase, and number</p>
                             </div>
-                        </motion.div>
-                    )}
-
-                    {step === 3 && (
-                        <motion.div key="step3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
-                            <div className="text-center">
-                                <motion.div className="w-16 h-16 rounded-full bg-[hsl(var(--neon-lime)/0.1)] border border-[hsl(var(--neon-lime)/0.2)] flex items-center justify-center mx-auto mb-4" animate={{ scale: [1, 1.05, 1] }} transition={{ duration: 2, repeat: Infinity }}>
-                                    <Smartphone className="w-8 h-8 text-[hsl(var(--neon-lime))]" />
-                                </motion.div>
-                                <p className="text-gray-300 text-sm mb-1">We sent a code to</p>
-                                <p className="text-white font-medium">{formData.email || "your email"}</p>
-                            </div>
-                            <div className="flex justify-center gap-2 lg:gap-3">
-                                {otp.map((digit, i) => (
-                                    <Input key={i} ref={(el) => { otpRefs.current[i] = el; }} type="text" inputMode="numeric" maxLength={1} value={digit} onChange={(e) => handleOtpChange(i, e.target.value)} onKeyDown={(e) => handleOtpKeyDown(i, e)} className="w-10 h-12 lg:w-12 lg:h-14 text-center text-lg font-bold bg-white/[0.03] border-white/10 text-white focus:border-[hsl(var(--neon-lime)/0.5)] focus:ring-[hsl(var(--neon-lime)/0.2)]" />
-                                ))}
-                            </div>
-                            <p className="text-center text-sm text-gray-400">Didn't receive code? <button type="button" className="text-[hsl(var(--neon-lime))] hover:underline">Resend</button></p>
+                            {error && (
+                                <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+                                    <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+                                    <p className="text-sm text-red-400">{error}</p>
+                                </div>
+                            )}
                         </motion.div>
                     )}
                 </AnimatePresence>
@@ -167,7 +175,7 @@ export default function RegisterPage() {
                 <div className="flex gap-3 pt-2">
                     {step > 1 && <Button type="button" variant="outline" onClick={() => setStep(step - 1)} className="flex-1 h-12 lg:h-14 border-white/10 bg-white/[0.02] text-white hover:bg-white/[0.05]">Back</Button>}
                     <Button type="submit" disabled={isLoading} className="flex-1 h-12 lg:h-14 bg-[hsl(var(--neon-lime))] text-black font-bold hover:bg-[hsl(var(--neon-lime-soft))] disabled:opacity-50 neon-glow shadow-lg shadow-[hsl(var(--neon-lime)/0.25)]">
-                        {isLoading ? <div className="flex items-center gap-2"><div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />Creating...</div> : <>{step === 3 ? "Create Account" : "Continue"}{step < 3 && <ArrowRight className="ml-2 w-4 h-4" />}</>}
+                        {isLoading ? <div className="flex items-center gap-2"><div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />Creating...</div> : <>{step === 2 ? "Create Account" : "Continue"}{step < 2 && <ArrowRight className="ml-2 w-4 h-4" />}</>}
                     </Button>
                 </div>
             </form>

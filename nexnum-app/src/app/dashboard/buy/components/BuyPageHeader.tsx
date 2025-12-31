@@ -3,7 +3,7 @@ import { formatPrice } from "@/lib/utils";
 
 interface BuyPageHeaderProps {
     step: 1 | 2 | 3;
-    setStep: (step: 1 | 2 | 3) => void;
+    onBack: () => void;
     userBalance: number;
     title: string;
     searchTerm: string;
@@ -12,7 +12,7 @@ interface BuyPageHeaderProps {
 
 export default function BuyPageHeader({
     step,
-    setStep,
+    onBack,
     userBalance,
     title,
     searchTerm,
@@ -24,12 +24,10 @@ export default function BuyPageHeader({
             {/* Top Row (Mobile): Title + Wallet/Breadcrumbs */}
             <div className="flex items-center justify-between w-full">
                 <div className="flex items-center gap-3">
-                    {/* Back Button for Steps > 1 */}
-                    {step > 1 && (
-                        <button onClick={() => setStep((step - 1) as 1 | 2 | 3)} className="p-1.5 hover:bg-white/10 rounded-full transition-colors -ml-1">
-                            <ArrowLeft className="w-4 h-4 text-white" />
-                        </button>
-                    )}
+                    {/* Back Button (Always Visible) */}
+                    <button onClick={onBack} className="p-1.5 hover:bg-white/10 rounded-full transition-colors -ml-1 group">
+                        <ArrowLeft className="w-4 h-4 text-white group-hover:text-[hsl(var(--neon-lime))] transition-colors" />
+                    </button>
 
                     <h2 className="text-xl font-bold text-white flex items-center gap-3">
                         <span className="flex items-center justify-center w-8 h-8 rounded-full bg-[hsl(var(--neon-lime))] text-black text-sm font-bold shadow-[0_0_15px_hsl(var(--neon-lime)/0.4)]">
@@ -41,8 +39,8 @@ export default function BuyPageHeader({
 
                 {/* Integrated Wallet/Breadcrumbs (Right Side) */}
                 <div className="flex items-center gap-4">
-                    {/* Breadcrumbs - Visible on Mobile for Step 2+ */}
-                    <div className={`${step > 1 ? 'flex' : 'hidden sm:flex'} items-center gap-1.5 md:gap-2 text-xs md:text-sm font-medium tracking-wide`}>
+                    {/* Hidden on very small screens if tight, but generally visible */}
+                    <div className="hidden sm:flex items-center gap-1.5 md:gap-2 text-xs md:text-sm font-medium tracking-wide">
                         <span className={step >= 1 ? "text-[hsl(var(--neon-lime))]" : "text-zinc-500"}>Service</span>
                         <span className="text-zinc-700">/</span>
                         <span className={step >= 2 ? "text-[hsl(var(--neon-lime))]" : "text-zinc-500"}>Country</span>
@@ -50,8 +48,7 @@ export default function BuyPageHeader({
                         <span className={step >= 3 ? "text-[hsl(var(--neon-lime))]" : "text-zinc-500"}>Details</span>
                     </div>
 
-                    {/* Wallet - Hidden on Mobile for Step 2+ */}
-                    <div className={`${step > 1 ? 'hidden sm:flex' : 'flex'} items-center bg-zinc-900 rounded-full border border-white/5 px-2.5 py-1 gap-2`}>
+                    <div className="flex items-center bg-zinc-900 rounded-full border border-white/5 px-2.5 py-1 gap-2">
                         <ShoppingCart className="h-3 w-3 text-[hsl(var(--neon-lime))]" />
                         <span className="text-[10px] sm:text-xs font-mono text-zinc-300">{formatPrice(userBalance)}</span>
                     </div>

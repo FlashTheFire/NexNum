@@ -33,6 +33,8 @@ const navItems = [
     { href: "/dashboard/vault", label: "Number Vault", icon: Archive, description: "Your active numbers" },
     { href: "/dashboard/history", label: "History", icon: History, description: "Transaction history" },
     { href: "/dashboard/wallet", label: "Wallet", icon: Wallet, description: "Manage funds" },
+    // Admin Link will be conditionally rendered in the component, or we check role here?
+    // Better to check in component rendering loop or filter this list.
 ]
 
 const bottomNavItems = [
@@ -48,10 +50,19 @@ export default function DashboardLayout({
     const pathname = usePathname()
     const router = useRouter()
     const { isAuthenticated, user, logout, checkAuth, isLoading } = useAuthStore()
-    const { sidebarCollapsed, toggleSidebar, _hasHydrated } = useGlobalStore()
+    const { sidebarCollapsed, toggleSidebar, _hasHydrated, fetchBalance, fetchNumbers, fetchTransactions } = useGlobalStore()
     useEffect(() => {
         checkAuth()
     }, [checkAuth])
+
+    // Fetch data when authenticated
+    useEffect(() => {
+        if (isAuthenticated && !isLoading) {
+            fetchBalance()
+            fetchNumbers()
+            fetchTransactions()
+        }
+    }, [isAuthenticated, isLoading, fetchBalance, fetchNumbers, fetchTransactions])
 
     useEffect(() => {
         if (!isLoading && !isAuthenticated) {
@@ -59,8 +70,8 @@ export default function DashboardLayout({
         }
     }, [isLoading, isAuthenticated, router])
 
-    const handleLogout = () => {
-        logout()
+    const handleLogout = async () => {
+        await logout()
         router.push("/")
     }
 
@@ -82,7 +93,7 @@ export default function DashboardLayout({
     return (
         <div className="min-h-screen bg-[#0a0a0c]">
             <Navbar />
-            <div className="flex relative items-start">
+            <div className="flex relative items-stretch min-h-[calc(100vh-4rem)]">
                 {/* Desktop Sidebar */}
                 <motion.aside
                     initial={false}
@@ -139,6 +150,29 @@ export default function DashboardLayout({
                                     </div>
                                 )
                             })}
+
+                            {/* Admin Link */}
+                            {user?.role === 'ADMIN' && (
+                                <Link href="/admin" className="block mt-2">
+                                    <motion.div
+                                        whileHover={{ x: sidebarCollapsed ? 0 : 4 }}
+                                        whileTap={{ scale: 0.98 }}
+                                        className={cn(
+                                            "relative flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group border border-[hsl(var(--neon-lime))/20] bg-[hsl(var(--neon-lime))/5] hover:bg-[hsl(var(--neon-lime))/10]",
+                                            sidebarCollapsed && "justify-center px-2"
+                                        )}
+                                    >
+                                        <div className="text-[hsl(var(--neon-lime))]">
+                                            <Settings className="h-5 w-5" />
+                                        </div>
+                                        {!sidebarCollapsed && (
+                                            <div className="flex-1 min-w-0">
+                                                <span className="text-sm font-bold text-[hsl(var(--neon-lime))]">Admin Panel</span>
+                                            </div>
+                                        )}
+                                    </motion.div>
+                                </Link>
+                            )}
 
                             {/* Dedicated Toggle Button - Moved Below Nav Items */}
                             <div className="pt-2 border-t border-white/5">
@@ -221,6 +255,6 @@ export default function DashboardLayout({
                 </main>
             </div>
             <DashboardMobileActionBar />
-        </div>
+        </div >
     )
 }
