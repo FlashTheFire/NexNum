@@ -11,14 +11,15 @@ import {
     LogOut,
     ArrowLeft,
     RefreshCw,
-    CreditCard
+    CreditCard,
+    Server
 } from "lucide-react"
 
 const menuItems = [
     { icon: LayoutDashboard, label: "Overview", href: "/admin" },
     { icon: Users, label: "Users", href: "/admin/users" },
+    { icon: Server, label: "Providers", href: "/admin/providers" },
     { icon: ShoppingBag, label: "Inventory", href: "/admin/inventory" },
-    { icon: RefreshCw, label: "Provider Sync", href: "/admin/sync" },
     { icon: CreditCard, label: "Transactions", href: "/admin/transactions" },
     { icon: Settings, label: "Settings", href: "/admin/settings" },
 ]

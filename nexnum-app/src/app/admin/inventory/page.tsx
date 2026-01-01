@@ -8,10 +8,12 @@ import { Input } from "@/components/ui/input"
 import { PremiumSkeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 import { formatDistanceToNow } from "date-fns"
+import { InfoTooltip, TTCode } from "@/components/ui/tooltip"
 
 interface ProviderStatus {
     id: string
     name: string
+    logoUrl?: string
     status: 'online' | 'maintenance' | 'offline'
 }
 
@@ -69,11 +71,11 @@ interface Service {
 }
 
 const providers: ProviderStatus[] = [
-    { id: 'grizzlysms', name: 'GrizzlySMS', status: 'online' },
-    { id: '5sim', name: '5sim', status: 'online' },
-    { id: 'smsbower', name: 'SMSBower', status: 'online' },
-    { id: 'onlinesim', name: 'OnlineSIM', status: 'online' },
-    { id: 'herosms', name: 'HeroSMS', status: 'online' },
+    { id: 'grizzlysms', name: 'GrizzlySMS', logoUrl: '/providers/grizzlysms.png', status: 'online' },
+    { id: '5sim', name: '5sim', logoUrl: '/providers/5sim.png', status: 'online' },
+    { id: 'smsbower', name: 'SMSBower', logoUrl: '/providers/smsbower.png', status: 'online' },
+    { id: 'onlinesim', name: 'OnlineSIM', logoUrl: '/providers/onlinesim.jpg', status: 'online' },
+    { id: 'herosms', name: 'HeroSMS', logoUrl: '/providers/herosms.png', status: 'online' },
 ]
 
 export default function InventoryPage() {
@@ -192,25 +194,47 @@ export default function InventoryPage() {
                                 }`}
                             onClick={() => setSelectedProvider(selectedProvider === p.id ? '' : p.id)}
                         >
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                    <Server size={16} className="text-gray-500" />
-                                    <span className="text-sm font-medium text-white">{p.name}</span>
+                            <div className="flex items-start justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-lg bg-black/40 border border-white/5 flex items-center justify-center overflow-hidden shrink-0 group-hover:border-white/20 transition-colors">
+                                        {p.logoUrl ? (
+                                            <img src={p.logoUrl} alt={p.name} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity" />
+                                        ) : (
+                                            <Server size={18} className="text-gray-600" />
+                                        )}
+                                    </div>
+                                    <div className="min-w-0">
+                                        <h4 className="text-xs font-bold text-white truncate">{p.name}</h4>
+                                        <div className="flex items-center gap-1.5 mt-1">
+                                            <div className={`w-1 h-1 rounded-full ${p.status === 'online' ? 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]' : 'bg-yellow-500'}`} />
+                                            <span className="text-[9px] text-gray-500 uppercase font-bold tracking-tighter">{p.status}</span>
+                                        </div>
+                                    </div>
                                 </div>
-                                <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-6 w-6 p-0 rounded-full hover:bg-white/10"
-                                    onClick={(e) => { e.stopPropagation(); handleSync(p.id); }}
-                                    disabled={!!syncing}
-                                >
-                                    <RefreshCw size={12} className={syncing === p.id ? "animate-spin text-[hsl(var(--neon-lime))]" : "text-gray-500"} />
-                                </Button>
+                                <div className="flex flex-col items-center gap-2">
+                                    <div className="relative">
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            className="h-7 w-7 p-0 rounded-lg hover:bg-white/10 group/btn"
+                                            onClick={(e) => { e.stopPropagation(); handleSync(p.id); }}
+                                            disabled={!!syncing}
+                                        >
+                                            <RefreshCw size={13} className={syncing === p.id ? "animate-spin text-[hsl(var(--neon-lime))]" : "text-gray-500 group-hover/btn:text-white transition-colors"} />
+                                        </Button>
+                                        <div className="absolute -top-1 -right-1">
+                                            <InfoTooltip content={<>Fetch latest countries and services from <TTCode>{p.name}</TTCode>. This will update pricing and availability.</>} />
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            <div className="flex items-center gap-1.5 mt-2">
-                                <div className={`w-1.5 h-1.5 rounded-full ${p.status === 'online' ? 'bg-emerald-500' : 'bg-yellow-500'}`} />
-                                <span className="text-[10px] text-gray-500 uppercase">{p.status}</span>
-                            </div>
+
+                            {/* Selection Glow */}
+                            {selectedProvider === p.id && (
+                                <div className="absolute top-0 right-0 p-1">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-[hsl(var(--neon-lime))] shadow-[0_0_10px_hsl(var(--neon-lime))]" />
+                                </div>
+                            )}
                         </motion.div>
                     ))}
                 </div>

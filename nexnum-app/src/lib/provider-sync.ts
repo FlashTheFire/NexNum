@@ -5,10 +5,13 @@
  * Pricing is handled separately at purchase time via real-time API calls.
  * 
  * Supported Providers:
- * - GrizzlySMS, OnlineSIM, HeroSMS, 5sim, SMSBower
+ * - Generic Dynamic Providers (Database Configured)
+ * - Legacy Fallback: GrizzlySMS, OnlineSIM, HeroSMS, 5sim, SMSBower
  */
 
 import { prisma } from './db'
+import { Provider } from '@prisma/client'
+import { DynamicProvider } from './dynamic-provider'
 
 // ============================================
 // TYPES
@@ -35,7 +38,7 @@ interface GrizzlyService {
     id: number
     name: string
     short_name?: string
-    external_id?: string  // API uses this instead of short_name
+    external_id?: string
     slug: string
     icon: string | number | null
 }
@@ -64,14 +67,12 @@ interface SmsBowerService {
     id: number
     title: string
     sender_title: string | null
-    activate_org_code: string // This is the code (e.g. "kt", "nv", "olxkz")
+    activate_org_code: string
     slug: string
     sms_pattern: string | null
     is_active: number
     img_path: string
 }
-
-
 
 // HeroSMS
 interface HeroCountry { id: number | string; name: string; iso: string; prefix: string }
@@ -147,13 +148,102 @@ async function processInBatches<T>(items: T[], batchSize: number, iterator: (ite
     }
 }
 
+// --- Dynamic Sync Implementation ---
+
+async function syncDynamic(provider: Provider): Promise<SyncResult> {
+    const startTime = Date.now()
+    let countriesCount = 0, servicesCount = 0, error: string | undefined
+
+    try {
+        const engine = new DynamicProvider(provider)
+
+        // 1. Countries
+        const countries = await engine.getCountries()
+        await processInBatches(countries, 50, async (c) => {
+            const slug = c.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+            await prisma.country.upsert({
+                where: { externalId_provider: { externalId: c.id, provider: provider.name } },
+                create: {
+                    externalId: c.id,
+                    name: c.name,
+                    slug,
+                    phoneCode: c.phoneCode || '',
+                    iconUrl: c.flag || null,
+                    provider: provider.name,
+                    isActive: true,
+                    lastSyncedAt: new Date()
+                },
+                update: {
+                    name: c.name,
+                    phoneCode: c.phoneCode || undefined,
+                    isActive: true,
+                    lastSyncedAt: new Date()
+                }
+            })
+            countriesCount++
+        })
+
+        // 2. Services
+        // For 5sim and Grizzly, we use 'any'. For others, naive 'us' or first available.
+        let services: any[] = []
+        try {
+            if (provider.name === '5sim' || provider.name === 'grizzlysms') {
+                services = await engine.getServices('any')
+            } else {
+                // Try 'us' default, then first country found
+                try {
+                    services = await engine.getServices('us')
+                } catch {
+                    if (countries.length > 0) {
+                        services = await engine.getServices(countries[0].code)
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn(`[SYNC] Failed to fetch services for ${provider.name}`, e)
+        }
+
+        if (services.length > 0) {
+            await processInBatches(services, 50, async (s) => {
+                const slug = s.code.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+                await prisma.service.upsert({
+                    where: { externalId_provider: { externalId: s.code, provider: provider.name } },
+                    create: {
+                        externalId: s.code,
+                        name: s.name,
+                        slug,
+                        shortName: s.code,
+                        provider: provider.name,
+                        isActive: true,
+                        lastSyncedAt: new Date()
+                    },
+                    update: {
+                        name: s.name,
+                        isActive: true,
+                        lastSyncedAt: new Date()
+                    }
+                })
+                servicesCount++
+            })
+        }
+
+    } catch (e) {
+        error = e instanceof Error ? e.message : 'Unknown error'
+        console.error(`[SYNC] Dynamic ${provider.name} error:`, error)
+    }
+
+    return { provider: provider.name, countries: countriesCount, services: servicesCount, error, duration: Date.now() - startTime }
+}
+
+
+// --- Legacy Sync Functions ---
+
 async function syncGrizzlySMS(): Promise<SyncResult> {
     const startTime = Date.now()
     const provider = 'grizzlysms'
     let countries = 0, services = 0, error: string | undefined
 
     try {
-        // Fetch Countries (single page)
         const countryRes = await fetch(`${PROVIDERS.grizzlysms.baseUrl}/country`)
         const countryData: GrizzlyCountry[] = await countryRes.json()
 
@@ -180,7 +270,6 @@ async function syncGrizzlySMS(): Promise<SyncResult> {
             countries++
         })
 
-        // Fetch Services (paginated)
         let page = 1
         let hasMore = true
         const seenIds = new Set<number>()
@@ -189,20 +278,17 @@ async function syncGrizzlySMS(): Promise<SyncResult> {
             const serviceRes = await fetch(`${PROVIDERS.grizzlysms.baseUrl}/service?page=${page}&lang=en`)
             const serviceData: GrizzlyService[] = await serviceRes.json()
 
-            // Stop if empty or we got duplicates (API returns same data)
             if (!serviceData || serviceData.length === 0) {
                 hasMore = false
                 break
             }
 
-            // Check for duplicates (API might return same data on high pages)
             const newServices = serviceData.filter(s => !seenIds.has(s.id))
             if (newServices.length === 0) {
                 hasMore = false
                 break
             }
 
-            // Track seen IDs
             serviceData.forEach(s => seenIds.add(s.id))
 
             await processInBatches(newServices, 50, async (s) => {
@@ -228,18 +314,14 @@ async function syncGrizzlySMS(): Promise<SyncResult> {
                 })
                 services++
             })
-
             page++
-            // Safety limit
             if (page > 100) break
         }
-
         console.log(`[SYNC] GrizzlySMS: ${countries} countries, ${services} services (${page - 1} pages)`)
     } catch (e) {
         error = e instanceof Error ? e.message : 'Unknown error'
         console.error('[SYNC] GrizzlySMS error:', error)
     }
-
     return { provider, countries, services, error, duration: Date.now() - startTime }
 }
 
@@ -250,24 +332,12 @@ async function syncOnlineSIM(): Promise<SyncResult> {
 
     try {
         const apiKey = process.env.ONLINESIM_API_KEY
-
         let page = 1
         let hasMore = true
 
         while (hasMore) {
-            console.log(`[SYNC] OnlineSIM fetching page ${page}...`)
             const url = `${PROVIDERS.onlinesim.baseUrl}/getTariffs.php?lang=en&page=${page}${apiKey ? `&apikey=${apiKey}` : ''}`
-
-            // Log URL safely
-            const safeUrl = url.replace(/apikey=[^&]+/, 'apikey=***')
-            console.log(`[SYNC] Fetching: ${safeUrl}`)
-
-            const res = await fetch(url, {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                    'Accept': 'application/json'
-                }
-            })
+            const res = await fetch(url, { headers: { 'Accept': 'application/json' } })
             const data = await res.json()
 
             if (String(data.response) !== '1') {
@@ -275,7 +345,6 @@ async function syncOnlineSIM(): Promise<SyncResult> {
                 break
             }
 
-            // Parse Countries - ONLY ON PAGE 1
             if (page === 1) {
                 const apiCountries = data.countries || {}
                 const countryList = Object.entries(apiCountries) as [string, any][]
@@ -283,7 +352,6 @@ async function syncOnlineSIM(): Promise<SyncResult> {
                 await processInBatches(countryList, 50, async ([key, c]) => {
                     const countryCode = String(c.code)
                     const name = c.name || c.original
-
                     await prisma.country.upsert({
                         where: { externalId_provider: { externalId: countryCode, provider } },
                         create: {
@@ -295,17 +363,12 @@ async function syncOnlineSIM(): Promise<SyncResult> {
                             isActive: c.enable !== false,
                             lastSyncedAt: new Date()
                         },
-                        update: {
-                            name: name,
-                            isActive: c.enable !== false,
-                            lastSyncedAt: new Date()
-                        }
+                        update: { name: name, isActive: c.enable !== false, lastSyncedAt: new Date() }
                     })
                     countries++
                 })
             }
 
-            // Parse Services
             const apiServices = data.services || {}
             const serviceList = Object.entries(apiServices) as [string, any][]
 
@@ -326,28 +389,19 @@ async function syncOnlineSIM(): Promise<SyncResult> {
                         isActive: true,
                         lastSyncedAt: new Date()
                     },
-                    update: {
-                        name: s.service,
-                        isActive: true,
-                        lastSyncedAt: new Date()
-                    }
+                    update: { name: s.service, isActive: true, lastSyncedAt: new Date() }
                 })
                 services++
             })
-
-            // Protection against infinite loop
             if (page > 50) break
-
             page++
             await new Promise(r => setTimeout(r, 500))
         }
-
         console.log(`[SYNC] OnlineSIM: ${countries} countries, ${services} services`)
     } catch (e) {
         error = e instanceof Error ? e.message : 'Unknown error'
         console.error('[SYNC] OnlineSIM error:', error)
     }
-
     return { provider, countries, services, error, duration: Date.now() - startTime }
 }
 
@@ -360,70 +414,48 @@ async function syncHeroSMS(): Promise<SyncResult> {
         const apiKey = process.env.HERO_SMS_API_KEY
         if (!apiKey) throw new Error('HERO_SMS_API_KEY not set')
 
-        // Fetch Countries
         const countryUrl = `${PROVIDERS.herosms.baseUrl}?api_key=${apiKey}&action=getCountries&lang=en`
         const countryRes = await fetch(countryUrl)
         const countryText = await countryRes.text()
         let countryData: any
-        try {
-            countryData = JSON.parse(countryText)
-        } catch (e) {
-            throw new Error(`HeroSMS getCountries parse error: ${countryText.substring(0, 100)}...`)
-        }
+        try { countryData = JSON.parse(countryText) } catch (e) { throw new Error(`HeroSMS getCountries parse error`) }
 
         const activeCountries = countryData.countries || countryData
         const countriesList = Array.isArray(activeCountries) ? activeCountries : Object.values(activeCountries)
 
         await processInBatches(countriesList as any[], 50, async (c) => {
             if (!c.id) return
-
             const name = c.eng || c.name || c.original || 'Unknown'
-            const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-')
-
-            // Try to find phone code by name from our map
             let phoneCode = c.prefix || c.code || ''
             if (!phoneCode) {
                 const found = Object.values(COUNTRY_CODE_MAP).find(val => val.name.toLowerCase() === name.toLowerCase())
                 if (found) phoneCode = found.phoneCode
             }
-
             await prisma.country.upsert({
                 where: { externalId_provider: { externalId: String(c.id), provider } },
                 create: {
                     externalId: String(c.id),
                     name: name,
-                    slug: slug,
+                    slug: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
                     phoneCode: phoneCode,
                     provider,
                     isActive: true,
                     lastSyncedAt: new Date()
                 },
-                update: {
-                    name: name,
-                    phoneCode: phoneCode,
-                    isActive: true,
-                    lastSyncedAt: new Date()
-                }
+                update: { name: name, phoneCode: phoneCode, isActive: true, lastSyncedAt: new Date() }
             })
             countries++
         })
 
-        // Fetch Services
         const serviceUrl = `${PROVIDERS.herosms.baseUrl}?api_key=${apiKey}&action=getServicesList&lang=en`
         const serviceRes = await fetch(serviceUrl)
         const serviceText = await serviceRes.text()
         let serviceData: any
-        try {
-            serviceData = JSON.parse(serviceText)
-        } catch (e) {
-            throw new Error(`HeroSMS getServicesList parse error: ${serviceText.substring(0, 100)}...`)
-        }
+        try { serviceData = JSON.parse(serviceText) } catch (e) { throw new Error(`HeroSMS getServicesList parse error`) }
 
         const servicesList = serviceData.services || []
-
         await processInBatches(servicesList as any[], 50, async (s) => {
             if (!s.code) return
-
             await prisma.service.upsert({
                 where: { externalId_provider: { externalId: s.code, provider } },
                 create: {
@@ -435,21 +467,15 @@ async function syncHeroSMS(): Promise<SyncResult> {
                     isActive: true,
                     lastSyncedAt: new Date()
                 },
-                update: {
-                    name: s.name,
-                    isActive: true,
-                    lastSyncedAt: new Date()
-                }
+                update: { name: s.name, isActive: true, lastSyncedAt: new Date() }
             })
             services++
         })
-
         console.log(`[SYNC] HeroSMS: ${countries} countries, ${services} services`)
     } catch (e) {
         error = e instanceof Error ? e.message : 'Unknown error'
         console.error('[SYNC] HeroSMS error:', error)
     }
-
     return { provider, countries, services, error, duration: Date.now() - startTime }
 }
 
@@ -457,17 +483,13 @@ async function sync5Sim(): Promise<SyncResult> {
     const startTime = Date.now()
     const provider = '5sim'
     let countries = 0, services = 0, error: string | undefined
-
     try {
-        // Countries (guest endpoint)
         const countryRes = await fetch(`${PROVIDERS['5sim'].baseUrl}/guest/countries`)
         const countryData: FiveSimCountriesResponse = await countryRes.json()
-
         const countryList = Object.entries(countryData)
         await processInBatches(countryList, 50, async ([countryName, data]) => {
             const iso = Object.keys(data.iso || {})[0] || countryName
             const prefix = Object.keys(data.prefix || {})[0] || ''
-
             await prisma.country.upsert({
                 where: { externalId_provider: { externalId: iso, provider } },
                 create: {
@@ -483,15 +505,11 @@ async function sync5Sim(): Promise<SyncResult> {
             })
             countries++
         })
-
-        // Services (guest endpoint)
         const serviceRes = await fetch(`${PROVIDERS['5sim'].baseUrl}/guest/products/any/any`)
         const serviceData: FiveSimProductsResponse = await serviceRes.json()
-
         const serviceList = Object.keys(serviceData)
         await processInBatches(serviceList, 50, async (serviceCode) => {
             const name = serviceCode.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
-
             await prisma.service.upsert({
                 where: { externalId_provider: { externalId: serviceCode, provider } },
                 create: {
@@ -507,13 +525,11 @@ async function sync5Sim(): Promise<SyncResult> {
             })
             services++
         })
-
         console.log(`[SYNC] 5sim: ${countries} countries, ${services} services`)
     } catch (e) {
         error = e instanceof Error ? e.message : 'Unknown error'
         console.error('[SYNC] 5sim error:', error)
     }
-
     return { provider, countries, services, error, duration: Date.now() - startTime }
 }
 
@@ -521,17 +537,13 @@ async function syncSMSBower(): Promise<SyncResult> {
     const startTime = Date.now()
     const provider = 'smsbower'
     let countries = 0, services = 0, error: string | undefined
-
     try {
         const apiKey = process.env.SMSBOWER_API_KEY
         if (!apiKey) throw new Error('SMSBOWER_API_KEY not set')
-
-        // Countries
         const countryRes = await fetch(`${PROVIDERS.smsbower.baseUrl}?api_key=${apiKey}&action=getCountries`)
         const countryText = await countryRes.text()
         const countryData: SmsBowerCountry[] = JSON.parse(countryText)
         const countriesList = (Array.isArray(countryData) ? countryData : Object.values(countryData)) as SmsBowerCountry[]
-
         await processInBatches(countriesList, 50, async (c) => {
             await prisma.country.upsert({
                 where: { externalId_provider: { externalId: String(c.id), provider } },
@@ -548,44 +560,21 @@ async function syncSMSBower(): Promise<SyncResult> {
             })
             countries++
         })
-
-        // Services
-        // Check if we should use the new endpoint
-        const serviceRes = await fetch(`https://smsbower.org/activations/getPricesByService?serviceId=5&withPopular=true`, {
-            cache: 'no-store',
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'application/json'
-            }
-        })
+        const serviceRes = await fetch(`https://smsbower.org/activations/getPricesByService?serviceId=5&withPopular=true`, { headers: { 'Accept': 'application/json' }, cache: 'no-store' })
         const serviceText = await serviceRes.text()
         let serviceData: SmsBowerService[] = []
-
         try {
             const serviceJson = JSON.parse(serviceText)
-
-            // New format: { "services": { "1211": { ... }, "1212": { ... } } }
             if (serviceJson.services && typeof serviceJson.services === 'object' && !Array.isArray(serviceJson.services)) {
                 serviceData = Object.values(serviceJson.services) as SmsBowerService[]
-            }
-            // Fallback for old format or if structure changes
-            else if (serviceJson.services && Array.isArray(serviceJson.services)) {
+            } else if (serviceJson.services && Array.isArray(serviceJson.services)) {
                 serviceData = serviceJson.services
             }
-        } catch (parseError) {
-            console.error('[SYNC] SMSBower failed to parse services response:', parseError)
-        }
-
+        } catch (parseError) { console.error('[SYNC] SMSBower failed parsing services', parseError) }
         await processInBatches(serviceData, 50, async (s) => {
-            // Handle image URL (prepend domain if relative)
             let iconUrl = s.img_path
-            if (iconUrl && !iconUrl.startsWith('http')) {
-                iconUrl = `https://smsbower.org${iconUrl}`
-            }
-
-            // Use activate_org_code as the external ID/code
+            if (iconUrl && !iconUrl.startsWith('http')) iconUrl = `https://smsbower.org${iconUrl}`
             const code = s.activate_org_code || s.slug
-
             await prisma.service.upsert({
                 where: { externalId_provider: { externalId: code, provider } },
                 create: {
@@ -594,35 +583,19 @@ async function syncSMSBower(): Promise<SyncResult> {
                     slug: s.slug,
                     shortName: code,
                     iconUrl: iconUrl,
-                    senderTitle: s.sender_title,
-                    smsPattern: s.sms_pattern,
                     provider,
                     isActive: s.is_active === 1,
                     lastSyncedAt: new Date()
                 },
-                update: {
-                    name: s.title,
-                    iconUrl: iconUrl,
-                    senderTitle: s.sender_title,
-                    smsPattern: s.sms_pattern,
-                    isActive: s.is_active === 1,
-                    lastSyncedAt: new Date()
-                }
+                update: { name: s.title, iconUrl, isActive: s.is_active === 1, lastSyncedAt: new Date() }
             })
         })
-
-        // Use array length for accurate count since all upserts succeeded (otherwise would throw)
         services = serviceData.length
-
-        // Use array length for accurate count since all upserts succeeded (otherwise would throw)
-        services = serviceData.length
-
         console.log(`[SYNC] SMSBower: ${countries} countries, ${services} services`)
     } catch (e) {
         error = e instanceof Error ? e.message : 'Unknown error'
         console.error('[SYNC] SMSBower error:', error)
     }
-
     return { provider, countries, services, error, duration: Date.now() - startTime }
 }
 
@@ -630,47 +603,61 @@ async function syncSMSBower(): Promise<SyncResult> {
 // MAIN EXPORTS
 // ============================================
 
-export async function syncProviderData(provider: string): Promise<SyncResult> {
-    const job = await prisma.syncJob.create({
-        data: { provider, jobType: 'countries', status: 'running' }
-    })
+export async function syncProviderData(providerName: string): Promise<SyncResult> {
+    // 1. Find provider in DB
+    const provider = await prisma.provider.findUnique({ where: { name: providerName } })
 
-    let result: SyncResult
+    if (provider) {
+        // Log start
+        const job = await prisma.syncJob.create({
+            data: { provider: providerName, providerId: provider.id, jobType: 'countries', status: 'running' }
+        })
 
-    switch (provider) {
-        case 'grizzlysms': result = await syncGrizzlySMS(); break
-        case 'onlinesim': result = await syncOnlineSIM(); break
-        case 'herosms': result = await syncHeroSMS(); break
-        case '5sim': result = await sync5Sim(); break
-        case 'smsbower': result = await syncSMSBower(); break
-        default: throw new Error(`Unknown provider: ${provider}`)
-    }
+        let result: SyncResult
 
-    await prisma.syncJob.update({
-        where: { id: job.id },
-        data: {
-            status: result.error ? 'failed' : 'completed',
-            itemsFound: result.countries + result.services,
-            itemsSynced: result.countries + result.services,
-            error: result.error,
-            completedAt: new Date()
+        // Prefer Dynamic for verified providers or generic
+        // We know 5sim works with dynamic.
+        if (provider.name === '5sim' || !['grizzlysms', 'onlinesim', 'herosms', 'smsbower'].includes(provider.name)) {
+            result = await syncDynamic(provider)
+        } else {
+            // Fallback to legacy
+            switch (provider.name) {
+                case 'grizzlysms': result = await syncGrizzlySMS(); break
+                case 'onlinesim': result = await syncOnlineSIM(); break
+                case 'herosms': result = await syncHeroSMS(); break
+                case 'smsbower': result = await syncSMSBower(); break
+                default: result = await syncDynamic(provider)
+            }
         }
-    })
 
-    return result
+        await prisma.syncJob.update({
+            where: { id: job.id },
+            data: {
+                status: result.error ? 'failed' : 'completed',
+                itemsFound: result.countries + result.services,
+                itemsSynced: result.countries + result.services,
+                error: result.error,
+                completedAt: new Date()
+            }
+        })
+        return result
+    } else {
+        throw new Error(`Provider ${providerName} not found via DB`)
+    }
 }
 
 export async function syncAllProviders(): Promise<SyncResult[]> {
     console.log(`[SYNC] Starting full sync at ${new Date().toISOString()}`)
-
     const results: SyncResult[] = []
 
-    for (const provider of Object.keys(PROVIDERS) as ProviderKey[]) {
+    const providers = await prisma.provider.findMany({ where: { isActive: true } })
+
+    for (const provider of providers) {
         try {
-            const result = await syncProviderData(provider)
+            const result = await syncProviderData(provider.name)
             results.push(result)
         } catch (e) {
-            console.error(`[SYNC] Failed to sync ${provider}:`, e)
+            console.error(`[SYNC] Failed to sync ${provider.name}:`, e)
         }
     }
 
@@ -683,9 +670,7 @@ export async function isSyncNeeded(): Promise<boolean> {
         where: { status: 'completed' },
         orderBy: { completedAt: 'desc' }
     })
-
     if (!lastSync || !lastSync.completedAt) return true
-
     const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000)
     return lastSync.completedAt < twelveHoursAgo
 }
@@ -693,12 +678,11 @@ export async function isSyncNeeded(): Promise<boolean> {
 export async function getLastSyncInfo() {
     const jobs = await prisma.syncJob.findMany({
         orderBy: { startedAt: 'desc' },
-        take: 10
+        take: 10,
+        include: { providerRel: { select: { displayName: true } } }
     })
-
     const countriesCount = await prisma.country.count({ where: { isActive: true } })
     const servicesCount = await prisma.service.count({ where: { isActive: true } })
-
     return { recentJobs: jobs, activeCountries: countriesCount, activeServices: servicesCount }
 }
 

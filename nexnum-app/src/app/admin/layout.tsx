@@ -4,6 +4,7 @@ import { AdminSidebar } from '@/components/admin/AdminSidebar'
 import AdminMobileActionBar from '@/components/admin/AdminMobileActionBar'
 
 import AdminMobileTopBar from '@/components/admin/AdminMobileTopBar'
+import { LowBalanceAlert } from '@/components/admin/LowBalanceAlert'
 
 export const metadata: Metadata = {
     title: 'Admin Panel | NexNum',
@@ -21,8 +22,9 @@ export default function AdminLayout({
             <AdminSidebar />
             <AdminMobileTopBar />
 
-            {/* Main Content Area */}
-            <div className="relative z-10 flex-1 md:pl-20 lg:pl-64 transition-all duration-300 pt-16 md:pt-0">
+            {/* Main Content Area - removed z-10 to fix sheet stacking */}
+            <div className="relative flex-1 md:pl-20 lg:pl-64 transition-all duration-300 pt-16 md:pt-0">
+                <LowBalanceAlert />
                 {children}
             </div>
 

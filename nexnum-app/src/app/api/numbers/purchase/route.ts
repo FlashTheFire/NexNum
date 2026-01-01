@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server'
 import { prisma, getUserBalance, ensureWallet } from '@/lib/db'
 import { getCurrentUser } from '@/lib/jwt'
-import { rateLimit, getRateLimitHeaders } from '@/lib/rate-limit'
 import { checkIdempotency, acquireNumberLock, releaseNumberLock } from '@/lib/redis'
-import { validate, purchaseNumberSchema } from '@/lib/validation'
+import { purchaseNumberSchema } from '@/lib/validation'
 import { smsProvider } from '@/lib/sms-providers'
+import { apiHandler } from '@/lib/api-handler'
 
-export async function POST(request: Request) {
+export const POST = apiHandler(async (request, { body }) => {
     let lockAcquired = false
     let lockId = ''
 
@@ -20,29 +20,9 @@ export async function POST(request: Request) {
             )
         }
 
-        // Rate limiting (strict for purchases)
-        const rateLimitResult = await rateLimit(user.userId, 'purchase')
-
-        if (!rateLimitResult.success) {
-            return NextResponse.json(
-                { error: 'Too many purchase attempts. Please try again later.' },
-                { status: 429, headers: getRateLimitHeaders(rateLimitResult) }
-            )
-        }
-
-        // Parse and validate input
-        const body = await request.json()
-        const validation = validate(purchaseNumberSchema, body)
-
-        if (!validation.success) {
-            const errorMessage = 'error' in validation ? validation.error : 'Invalid input'
-            return NextResponse.json(
-                { error: errorMessage },
-                { status: 400 }
-            )
-        }
-
-        const { countryCode, serviceCode, idempotencyKey } = validation.data
+        // Body validation provided by purchaseNumberSchema
+        if (!body) throw new Error('Body is required')
+        const { countryCode, serviceCode, idempotencyKey } = body
 
         // Check idempotency
         const isNewRequest = await checkIdempotency(idempotencyKey)
@@ -176,16 +156,13 @@ export async function POST(request: Request) {
         })
 
     } catch (error) {
-        console.error('Purchase number error:', error)
-
         // Release lock on error
         if (lockAcquired && lockId) {
             await releaseNumberLock(lockId)
         }
-
-        return NextResponse.json(
-            { error: error instanceof Error ? error.message : 'Internal server error' },
-            { status: 500 }
-        )
+        // Let apiHandler handle the error response
+        throw error
     }
-}
+}, {
+    schema: purchaseNumberSchema
+})

@@ -1,39 +1,180 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { verifyToken } from '@/lib/jwt'
+import { apiHandler } from '@/lib/api-handler'
 
 // Helper to check admin
-async function isAdmin(request: Request) {
-    const token = request.headers.get('cookie')?.split('auth-token=')[1]?.split(';')[0]
-    if (!token) return false
+async function getAdminPayload(request: Request) {
+    const cookieHeader = request.headers.get('cookie') || ''
+    // Try multiple cookie name patterns
+    let token = cookieHeader.split('token=')[1]?.split(';')[0]
+    if (!token) token = cookieHeader.split('auth-token=')[1]?.split(';')[0]
+    if (!token) return null
     const payload = await verifyToken(token)
-    return payload?.role === 'ADMIN'
+    if (payload?.role !== 'ADMIN') return null
+    return payload
 }
 
 export async function GET(request: Request) {
-    if (!await isAdmin(request)) {
+    const adminPayload = await getAdminPayload(request)
+    if (!adminPayload) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { searchParams } = new URL(request.url)
     const query = searchParams.get('q') || ''
     const page = parseInt(searchParams.get('page') || '1')
-    const limit = 20
+    const limit = parseInt(searchParams.get('limit') || '20')
     const skip = (page - 1) * limit
+    const roleFilter = searchParams.get('role') // 'ADMIN' | 'USER' | null
+    const statusFilter = searchParams.get('status') // 'active' | 'banned' | null
+    const sortBy = searchParams.get('sortBy') || 'createdAt'
+    const sortOrder = (searchParams.get('sortOrder') || 'desc') as 'asc' | 'desc'
+    const userId = searchParams.get('userId') // For fetching single user details
+    const exportCsv = searchParams.get('export') === 'csv'
 
     try {
-        const where = query ? {
-            OR: [
-                { email: { contains: query, mode: 'insensitive' as const } },
-                { name: { contains: query, mode: 'insensitive' as const } },
-            ]
-        } : {}
+        // Single user detail fetch
+        if (userId) {
+            const user = await prisma.user.findUnique({
+                where: { id: userId },
+                select: {
+                    id: true,
+                    email: true,
+                    name: true,
+                    role: true,
+                    isBanned: true,
+                    createdAt: true,
+                    updatedAt: true,
+                    wallet: {
+                        select: {
+                            id: true,
+                            transactions: {
+                                orderBy: { createdAt: 'desc' },
+                                take: 20,
+                                select: {
+                                    id: true,
+                                    amount: true,
+                                    type: true,
+                                    description: true,
+                                    createdAt: true,
+                                }
+                            }
+                        }
+                    },
+                    numbers: {
+                        orderBy: { createdAt: 'desc' },
+                        take: 10,
+                        select: {
+                            id: true,
+                            phoneNumber: true,
+                            countryName: true,
+                            serviceName: true,
+                            status: true,
+                            createdAt: true,
+                        }
+                    },
+                    auditLogs: {
+                        orderBy: { createdAt: 'desc' },
+                        take: 20,
+                        select: {
+                            id: true,
+                            action: true,
+                            resourceType: true,
+                            metadata: true,
+                            createdAt: true,
+                            ipAddress: true,
+                        }
+                    },
+                    _count: {
+                        select: { numbers: true, auditLogs: true }
+                    }
+                }
+            })
 
+            if (!user) {
+                return NextResponse.json({ error: 'User not found' }, { status: 404 })
+            }
+
+            const walletBalance = user.wallet?.transactions.reduce(
+                (sum, tx) => sum + Number(tx.amount),
+                0
+            ) ?? 0
+
+            return NextResponse.json({
+                user: {
+                    ...user,
+                    walletBalance,
+                    walletId: user.wallet?.id,
+                    transactions: user.wallet?.transactions || [],
+                }
+            })
+        }
+
+        const where: any = {}
+
+        // Search filter
+        if (query) {
+            where.OR = [
+                { email: { contains: query, mode: 'insensitive' } },
+                { name: { contains: query, mode: 'insensitive' } },
+            ]
+        }
+
+        // Role filter
+        if (roleFilter && ['ADMIN', 'USER'].includes(roleFilter)) {
+            where.role = roleFilter
+        }
+
+        // Status filter
+        if (statusFilter === 'banned') {
+            where.isBanned = true
+        } else if (statusFilter === 'active') {
+            where.isBanned = false
+        }
+
+        // For CSV export, fetch all matching users (up to 1000)
+        if (exportCsv) {
+            const allUsers = await prisma.user.findMany({
+                where,
+                take: 1000,
+                orderBy: { [sortBy]: sortOrder },
+                select: {
+                    id: true,
+                    email: true,
+                    name: true,
+                    role: true,
+                    isBanned: true,
+                    createdAt: true,
+                    _count: { select: { numbers: true } },
+                    wallet: {
+                        select: {
+                            transactions: { select: { amount: true } }
+                        }
+                    }
+                }
+            })
+
+            const csvData = allUsers.map(user => ({
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                role: user.role,
+                status: user.isBanned ? 'Banned' : 'Active',
+                balance: user.wallet?.transactions.reduce((sum, tx) => sum + Number(tx.amount), 0) ?? 0,
+                numbers: user._count.numbers,
+                joinedAt: user.createdAt.toISOString(),
+            }))
+
+            return NextResponse.json({ csvData })
+        }
+
+        // Fetch users with enhanced data
         const users = await prisma.user.findMany({
             where,
             take: limit,
             skip,
-            orderBy: { createdAt: 'desc' },
+            orderBy: { [sortBy]: sortOrder },
             select: {
                 id: true,
                 email: true,
@@ -41,49 +182,251 @@ export async function GET(request: Request) {
                 role: true,
                 isBanned: true,
                 createdAt: true,
+                updatedAt: true,
                 _count: {
-                    select: { numbers: true }
+                    select: {
+                        numbers: true,
+                        auditLogs: true
+                    }
+                },
+                wallet: {
+                    select: {
+                        id: true,
+                        transactions: {
+                            select: { amount: true }
+                        }
+                    }
                 }
+            }
+        })
+
+        // Transform users to include computed fields
+        const transformedUsers = users.map(user => {
+            const walletBalance = user.wallet?.transactions.reduce(
+                (sum, tx) => sum + Number(tx.amount),
+                0
+            ) ?? 0
+
+            return {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                role: user.role,
+                isBanned: user.isBanned,
+                createdAt: user.createdAt,
+                updatedAt: user.updatedAt,
+                numbersCount: user._count.numbers,
+                activityCount: user._count.auditLogs,
+                walletBalance: walletBalance,
+                hasWallet: !!user.wallet,
+                walletId: user.wallet?.id,
             }
         })
 
         const total = await prisma.user.count({ where })
 
+        // Get aggregate stats
+        const stats = await prisma.user.groupBy({
+            by: ['role', 'isBanned'],
+            _count: true
+        })
+
+        const totalUsers = await prisma.user.count()
+        const totalAdmins = stats.filter(s => s.role === 'ADMIN').reduce((sum, s) => sum + s._count, 0)
+        const totalBanned = stats.filter(s => s.isBanned).reduce((sum, s) => sum + s._count, 0)
+        const activeUsers = totalUsers - totalBanned
+
         return NextResponse.json({
-            users,
+            users: transformedUsers,
             total,
-            pages: Math.ceil(total / limit)
+            pages: Math.ceil(total / limit),
+            page,
+            stats: {
+                total: totalUsers,
+                admins: totalAdmins,
+                banned: totalBanned,
+                active: activeUsers,
+            }
         })
     } catch (error) {
+        console.error('Admin users fetch error:', error)
         return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 })
     }
 }
 
 // Update User (Role/Ban)
 export async function PATCH(request: Request) {
-    if (!await isAdmin(request)) {
+    const adminPayload = await getAdminPayload(request)
+    if (!adminPayload) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     try {
         const body = await request.json()
-        const { userId, role, isBanned } = body
+        const { userId, role, isBanned, walletAdjustment, adjustmentReason } = body
 
         if (!userId) {
             return NextResponse.json({ error: 'User ID required' }, { status: 400 })
         }
 
+        // Prevent self-demotion/ban
+        if (adminPayload.userId === userId && (role === 'USER' || isBanned === true)) {
+            return NextResponse.json({ error: 'Cannot demote or ban yourself' }, { status: 400 })
+        }
+
+        // Handle wallet adjustment
+        if (walletAdjustment !== undefined && walletAdjustment !== 0) {
+            const user = await prisma.user.findUnique({
+                where: { id: userId },
+                include: { wallet: true }
+            })
+
+            if (!user) {
+                return NextResponse.json({ error: 'User not found' }, { status: 404 })
+            }
+
+            let walletId = user.wallet?.id
+
+            // Create wallet if doesn't exist
+            if (!walletId) {
+                const wallet = await prisma.wallet.create({
+                    data: { userId }
+                })
+                walletId = wallet.id
+            }
+
+            // Create wallet transaction
+            await prisma.walletTransaction.create({
+                data: {
+                    walletId,
+                    amount: walletAdjustment,
+                    type: walletAdjustment > 0 ? 'admin_credit' : 'admin_debit',
+                    description: adjustmentReason || `Admin adjustment by ${adminPayload.userId}`,
+                }
+            })
+
+            // Audit log for wallet adjustment
+            await prisma.auditLog.create({
+                data: {
+                    userId: adminPayload.userId,
+                    action: 'admin.wallet_adjustment',
+                    resourceType: 'wallet',
+                    resourceId: walletId,
+                    metadata: {
+                        targetUserId: userId,
+                        amount: walletAdjustment,
+                        reason: adjustmentReason,
+                    },
+                    ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
+                }
+            })
+
+            return NextResponse.json({
+                success: true,
+                message: `Wallet adjusted by $${walletAdjustment.toFixed(2)}`,
+                type: 'wallet_adjustment'
+            })
+        }
+
+        // Handle role/ban updates
         const updatedUser = await prisma.user.update({
             where: { id: userId },
             data: {
-                ...(role && { role }), // Only update if provided
+                ...(role && { role }),
                 ...(isBanned !== undefined && { isBanned }),
+            },
+            select: {
+                id: true,
+                email: true,
+                name: true,
+                role: true,
+                isBanned: true,
+            }
+        })
+
+        // Audit log
+        await prisma.auditLog.create({
+            data: {
+                userId: adminPayload.userId,
+                action: 'admin.user_update',
+                resourceType: 'user',
+                resourceId: userId,
+                metadata: { role, isBanned },
+                ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
             }
         })
 
         return NextResponse.json({ success: true, user: updatedUser })
 
     } catch (error) {
+        console.error('Admin user update error:', error)
         return NextResponse.json({ error: 'Failed to update user' }, { status: 500 })
+    }
+}
+
+// Bulk actions
+export async function POST(request: Request) {
+    const adminPayload = await getAdminPayload(request)
+    if (!adminPayload) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    try {
+        const body = await request.json()
+        const { action, userIds } = body
+
+        if (!action || !userIds || !Array.isArray(userIds) || userIds.length === 0) {
+            return NextResponse.json({ error: 'Invalid bulk action request' }, { status: 400 })
+        }
+
+        // Prevent bulk action on self
+        if (userIds.includes(adminPayload.userId) && ['ban', 'demote'].includes(action)) {
+            return NextResponse.json({ error: 'Cannot perform this action on yourself' }, { status: 400 })
+        }
+
+        let updateData: any = {}
+        switch (action) {
+            case 'ban':
+                updateData = { isBanned: true }
+                break
+            case 'unban':
+                updateData = { isBanned: false }
+                break
+            case 'promote':
+                updateData = { role: 'ADMIN' }
+                break
+            case 'demote':
+                updateData = { role: 'USER' }
+                break
+            default:
+                return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
+        }
+
+        const result = await prisma.user.updateMany({
+            where: { id: { in: userIds } },
+            data: updateData
+        })
+
+        // Audit log for bulk action
+        await prisma.auditLog.create({
+            data: {
+                userId: adminPayload.userId,
+                action: `admin.bulk_${action}`,
+                resourceType: 'user',
+                resourceId: 'bulk',
+                metadata: { userIds, action, count: result.count },
+                ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
+            }
+        })
+
+        return NextResponse.json({
+            success: true,
+            message: `${result.count} users updated`,
+            count: result.count
+        })
+
+    } catch (error) {
+        console.error('Bulk action error:', error)
+        return NextResponse.json({ error: 'Bulk action failed' }, { status: 500 })
     }
 }

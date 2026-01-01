@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, ShoppingBag, Users, RefreshCw } from "lucide-react";
+import { LayoutDashboard, ShoppingBag, Users, RefreshCw, Server } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -24,9 +24,9 @@ export default function AdminMobileActionBar() {
 
     const navItems = [
         { href: "/admin", label: "Overview", icon: LayoutDashboard },
+        { href: "/admin/providers", label: "Providers", icon: Server },
         { href: "/admin/inventory", label: "Inventory", icon: ShoppingBag },
         { href: "/admin/users", label: "Users", icon: Users },
-        { href: "/admin/sync", label: "Sync", icon: RefreshCw },
     ];
 
     return (

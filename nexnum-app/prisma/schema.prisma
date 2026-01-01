@@ -169,6 +169,7 @@ model ServicePricing {
 model SyncJob {
   id          String    @id @default(uuid())
   provider    String
+  providerId  String?   @map("provider_id")
   jobType     String    @map("job_type")
   status      String
   itemsFound  Int       @default(0) @map("items_found")
@@ -177,9 +178,79 @@ model SyncJob {
   startedAt   DateTime  @default(now()) @map("started_at")
   completedAt DateTime? @map("completed_at")
 
+  providerRel Provider? @relation(fields: [providerId], references: [id])
+
   @@index([provider])
+  @@index([providerId])
   @@index([status])
   @@map("sync_jobs")
+}
+
+model Provider {
+  id              String   @id @default(uuid())
+  name            String   @unique // Internal slug (e.g., "5sim")
+  displayName     String   @map("display_name")
+  description     String?
+  logoUrl         String?  @map("logo_url")
+  websiteUrl      String?  @map("website_url")
+  
+  // --- API Configuration ---
+  apiBaseUrl      String   @map("api_base_url")
+  
+  // Auth Config
+  authType        String   @default("bearer") // enum: bearer, header, query_param, none
+  providerType    String   @default("rest") @map("provider_type") // enum: rest, hybrid, sms-activate
+  authKey         String?  @map("auth_key")   // Encrypted API Key
+  authHeader      String?  @map("auth_header") // e.g., "Authorization", "X-API-KEY"
+  authQueryParam  String?  @map("auth_query_param") // e.g., "api_key", "token"
+  
+  // --- Endpoint Definitions (JSON) ---
+  endpoints       Json     
+  
+  // --- Response Mappings (JSON) ---
+  mappings        Json     
+  
+  // --- Business Logic ---
+  priceMultiplier Decimal  @default(1.0) @map("price_multiplier") @db.Decimal(5, 2)
+  fixedMarkup     Decimal  @default(0.0) @map("fixed_markup") @db.Decimal(8, 2)
+  currency        String   @default("USD")
+
+  // --- Balance Alert ---
+  balance         Decimal  @default(0.0) @db.Decimal(10, 2)
+  lowBalanceAlert Decimal  @default(10.0) @map("low_balance_alert") @db.Decimal(10, 2)
+  lastBalanceSync DateTime? @map("last_balance_sync")
+  
+  isActive        Boolean  @default(false) @map("is_active")
+  priority        Int      @default(0) // Higher = tried first
+  
+  // --- Meta ---
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  
+  syncJobs        SyncJob[]
+  testResults     ProviderTestResult[]
+  
+  @@index([isActive])
+  @@index([priority])
+  @@map("providers")
+}
+
+model ProviderTestResult {
+  id          String   @id @default(uuid())
+  providerId  String   @map("provider_id")
+  action      String   // e.g., "getCountries", "getBalance"
+  success     Boolean
+  httpStatus  Int?     @map("http_status")
+  responseTime Int?    @map("response_time") // ms
+  requestUrl  String?  @map("request_url")
+  responseData String? @db.Text @map("response_data")
+  error       String?
+  testedAt    DateTime @default(now()) @map("tested_at")
+  
+  provider    Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  
+  @@index([providerId])
+  @@map("provider_test_results")
 }
 
 enum Role {
