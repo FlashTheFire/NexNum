@@ -44,16 +44,40 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
         // Body parsing failed, ignore
     }
 
+    let engine: DynamicProvider | null = null
+
     try {
         const provider = await prisma.provider.findUnique({ where: { id } })
         if (!provider) {
             return NextResponse.json({ error: 'Provider not found' }, { status: 404 })
         }
 
-        const engine = new DynamicProvider(provider)
+        engine = new DynamicProvider(provider)
         let result: any
 
         switch (action) {
+            case 'testAll':
+                // Parallel fetch for dashboard view
+                const [bal, cnt, srv] = await Promise.all([
+                    engine.getBalance().catch(e => ({ error: e.message })),
+                    engine.getCountries().then(c => c.slice(0, 3)).catch(e => []),
+                    // For services, we need a country. Try first country or default 'usa'/'ru'
+                    engine.getCountries().then(async (c) => {
+                        const target = c[0]?.code || 'usa'
+                        const s = await engine.getServices(target)
+                        return { services: s.slice(0, 3), country: target }
+                    }).catch(e => ({ services: [], country: '?' }))
+                ])
+
+                result = {
+                    balance: typeof bal === 'number' ? bal : null,
+                    balanceError: typeof bal === 'object' ? bal.error : null,
+                    countries: cnt,
+                    services: (srv as any).services,
+                    serviceCountry: (srv as any).country
+                }
+                break
+
             case 'getBalance':
                 result = { balance: await engine.getBalance() }
                 break
@@ -147,6 +171,7 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
         action,
         data: responseData,
         error: errorMsg,
-        duration
+        duration,
+        trace: engine?.lastRequestTrace || null
     })
 }

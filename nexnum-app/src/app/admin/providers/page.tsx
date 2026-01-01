@@ -7,7 +7,7 @@ import {
     Search, Plus, Server, Globe, Shield, RefreshCw,
     MoreHorizontal, CheckCircle, XCircle, AlertCircle, ChevronRight,
     Trash2, Edit, Save, Play, Terminal, Upload, Image, DollarSign, FileCode,
-    Wallet, MapPin, Smartphone, Phone, BarChart3, Ban, Plug, Sparkles, Info
+    Wallet, MapPin, Smartphone, Phone, BarChart3, Ban, Plug, Sparkles, Info, Wand2
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -357,6 +357,7 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
     const [isSaving, setIsSaving] = useState(false)
     const [testResult, setTestResult] = useState<any>(null)
     const [isTesting, setIsTesting] = useState(false)
+    const [isFixing, setIsFixing] = useState(false)
 
     // Testing State
     const [testAction, setTestAction] = useState('test')
@@ -475,31 +476,81 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
         }
     }
 
-    const handleTest = async () => {
+    const runTest = async (action: string) => {
         if (!provider) return
         setIsTesting(true)
+        setTestAction(action) // Sync UI state
         setTestResult(null)
+
         try {
+            // Special handling for parameterized tests if params are missing?
+            // For independent buttons, we assume defaults or current params
+            let currentParams = testParams
+
+            // Auto-set default params for "quick tests" if empty
+            if (action === 'getServices' && !currentParams.country) {
+                // If we have countries from a previous test, pick the first one?
+                // For now, let's just warn or let backend handle simple cases
+            }
+
             const res = await fetch(`/api/admin/providers/${provider.id}/test`, {
                 method: 'POST',
                 body: JSON.stringify({
-                    action: testAction,
-                    params: testParams
+                    action: action,
+                    params: currentParams
                 }),
                 headers: { 'Content-Type': 'application/json' }
             })
             const data = await res.json()
             setTestResult(data)
+
             if (res.ok && data.success) {
-                toast.success("Test successful")
-                if (testAction === 'test' || testAction === 'getCountries') onRefresh()
+                toast.success(`${action} successful`)
+                if (action === 'test' || action === 'getCountries') onRefresh()
             } else {
-                toast.error("Test failed")
+                toast.error(data.error || "Test failed")
             }
         } catch (e) {
             toast.error("Test failed")
         } finally {
             setIsTesting(false)
+        }
+    }
+
+    // Keep handleTest for legacy references if any, or just route it to runTest
+    const handleTest = () => runTest(testAction)
+
+    const handleSmartFix = async () => {
+        setIsFixing(true)
+        try {
+            const errorContext = typeof testResult.data === 'string' ? testResult.data : JSON.stringify(testResult.data)
+            const prompt = `TEST FAILED with error: ${errorContext}\n\nCurrent Config: ${JSON.stringify(formData)}\n\nAction: ${testAction}\nParams: ${JSON.stringify(testParams)}\n\nDiagnose the issue and return a FIXED configuration JSON. Focus on Mappings (regex/json paths) and Auth.\n\nRequired Format:\n{\n  "mappings": { ... },\n  "endpoints": { ... },\n  "authType": "..."\n}\n\nOnly return the fields that need changing.`
+
+            const res = await fetch('/api/admin/ai-generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt, step: 5 }) // Reusing step 5 context for config generation
+            })
+
+            const data = await res.json()
+            if (res.ok && data.result) {
+                // Merge fixes
+                setFormData(prev => ({
+                    ...prev,
+                    ...data.result,
+                    // If deep objects, merge them? For now, top level replacement for endpoints/mappings is safer if AI returns full object
+                    endpoints: data.result.endpoints ? JSON.stringify(data.result.endpoints, null, 2) : prev.endpoints,
+                    mappings: data.result.mappings ? JSON.stringify(data.result.mappings, null, 2) : prev.mappings
+                }))
+                toast.success("AI applied fixes! Please try testing again.", { icon: <Wand2 className="w-4 h-4 text-violet-400" /> })
+                setTestResult(null) // Clear error to encourage re-test
+            } else {
+                toast.error("AI could not fix the issue.")
+            }
+        } catch (e) {
+            toast.error("Smart Fix failed")
+        } finally {
+            setIsFixing(false)
         }
     }
 
@@ -1355,69 +1406,178 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                     </div>
                                 </div>
 
-                                {/* Test Action Selection */}
-                                <div className="p-4 bg-white/5 rounded-xl border border-white/5 space-y-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
-                                            <Terminal className="w-5 h-5 text-blue-400" />
-                                        </div>
-                                        <div>
-                                            <div className="flex items-center gap-1.5">
-                                                <label className="text-sm font-semibold text-white">Test Action</label>
-                                                <InfoTooltip content={<>Select which <TT>API endpoint</TT> to test. Start with <TTCode>getBalance</TTCode> to verify authentication.</>} />
+                                {/* Independent Test Cards */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    {/* Balance Test Card */}
+                                    <div
+                                        onClick={() => runTest('getBalance')}
+                                        className="group cursor-pointer p-5 rounded-2xl bg-white/5 border border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all relative overflow-hidden"
+                                    >
+                                        <div className="flex items-center justify-between mb-4">
+                                            <div className="p-2 rounded-lg bg-emerald-500/20 group-hover:bg-emerald-500/30 transition-colors">
+                                                <Wallet className="w-5 h-5 text-emerald-400" />
                                             </div>
-                                            <span className="text-[10px] text-white/40">Choose the action to test</span>
+                                            {isTesting && testAction === 'getBalance' ? (
+                                                <RefreshCw className="w-4 h-4 animate-spin text-emerald-400" />
+                                            ) : (
+                                                <Play className="w-4 h-4 text-white/20 group-hover:text-emerald-400 transition-colors" />
+                                            )}
                                         </div>
+                                        <div className="text-white font-bold text-lg mb-1">Check Balance</div>
+                                        <div className="text-xs text-white/40 mb-3">Verify API key & funds</div>
+
+                                        {testResult && testAction === 'getBalance' && (
+                                            <div className="mt-2 pt-2 border-t border-white/5 animate-in fade-in">
+                                                {testResult.balance !== undefined ? (
+                                                    <div className="text-xl font-mono font-bold text-emerald-400">
+                                                        {testResult.balance} <span className="text-xs text-emerald-400/50">{formData.currency}</span>
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-xs text-red-400">{testResult.error || 'Failed'}</div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
 
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                        {[
-                                            { value: 'getBalance', label: 'Get Balance', icon: Wallet, desc: 'Check funds', color: 'text-emerald-400' },
-                                            { value: 'getCountries', label: 'Countries', icon: MapPin, desc: 'List all', color: 'text-blue-400' },
-                                            { value: 'getServices', label: 'Services', icon: Smartphone, desc: 'List by country', color: 'text-purple-400' },
-                                            { value: 'getNumber', label: 'Get Number', icon: Phone, desc: 'Purchase test', color: 'text-cyan-400' },
-                                        ].map(action => (
-                                            <button
-                                                key={action.value}
-                                                onClick={() => setTestAction(action.value)}
-                                                className={`p-3 rounded-xl border text-left transition-all ${testAction === action.value
-                                                    ? 'bg-blue-500/20 border-blue-500/50 ring-1 ring-blue-500/30'
-                                                    : 'bg-white/5 border-white/10 hover:bg-white/10'
-                                                    }`}
-                                            >
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <action.icon className={`w-4 h-4 ${testAction === action.value ? 'text-blue-300' : action.color}`} />
-                                                    <span className={`text-xs font-medium ${testAction === action.value ? 'text-blue-300' : 'text-white/70'}`}>
-                                                        {action.label}
-                                                    </span>
-                                                </div>
-                                                <p className="text-[10px] text-white/40">{action.desc}</p>
-                                            </button>
-                                        ))}
+                                    {/* Countries Test Card */}
+                                    <div
+                                        onClick={() => runTest('getCountries')}
+                                        className="group cursor-pointer p-5 rounded-2xl bg-white/5 border border-white/10 hover:border-blue-500/50 hover:bg-blue-500/5 transition-all relative overflow-hidden"
+                                    >
+                                        <div className="flex items-center justify-between mb-4">
+                                            <div className="p-2 rounded-lg bg-blue-500/20 group-hover:bg-blue-500/30 transition-colors">
+                                                <Globe className="w-5 h-5 text-blue-400" />
+                                            </div>
+                                            {isTesting && testAction === 'getCountries' ? (
+                                                <RefreshCw className="w-4 h-4 animate-spin text-blue-400" />
+                                            ) : (
+                                                <Play className="w-4 h-4 text-white/20 group-hover:text-blue-400 transition-colors" />
+                                            )}
+                                        </div>
+                                        <div className="text-white font-bold text-lg mb-1">Fetch Countries</div>
+                                        <div className="text-xs text-white/40 mb-3">Verify country list mapping</div>
+
+                                        {testResult && testAction === 'getCountries' && (
+                                            <div className="mt-2 pt-2 border-t border-white/5 animate-in fade-in space-y-1">
+                                                {testResult.first && Array.isArray(testResult.first) ? (
+                                                    <>
+                                                        <div className="text-xs text-blue-300 font-mono mb-1">{testResult.count} found</div>
+                                                        {testResult.first.slice(0, 2).map((c: any, i: number) => (
+                                                            <div key={i} className="flex justify-between text-[10px] text-white/60">
+                                                                <span>{c.name}</span>
+                                                                <code className="text-blue-400">{c.id}</code>
+                                                            </div>
+                                                        ))}
+                                                    </>
+                                                ) : (
+                                                    <div className="text-xs text-red-400">{testResult.error || 'Failed'}</div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
 
-                                    <div className="grid grid-cols-3 gap-2">
-                                        {[
-                                            { value: 'getStatus', label: 'Get Status', icon: BarChart3, color: 'text-orange-400' },
-                                            { value: 'cancelNumber', label: 'Cancel', icon: Ban, color: 'text-red-400' },
-                                            { value: 'test', label: 'Connection', icon: Plug, color: 'text-green-400' },
-                                        ].map(action => (
-                                            <button
-                                                key={action.value}
-                                                onClick={() => setTestAction(action.value)}
-                                                className={`p-2.5 rounded-xl border transition-all flex items-center justify-center gap-2 ${testAction === action.value
-                                                    ? 'bg-blue-500/20 border-blue-500/50'
-                                                    : 'bg-white/5 border-white/10 hover:bg-white/10'
-                                                    }`}
-                                            >
-                                                <action.icon className={`w-4 h-4 ${testAction === action.value ? 'text-blue-300' : action.color}`} />
-                                                <span className={`text-xs font-medium ${testAction === action.value ? 'text-blue-300' : 'text-white/60'}`}>
-                                                    {action.label}
-                                                </span>
-                                            </button>
-                                        ))}
+                                    {/* Services Test Card */}
+                                    <div
+                                        onClick={() => runTest('getServices')}
+                                        className="group cursor-pointer p-5 rounded-2xl bg-white/5 border border-white/10 hover:border-purple-500/50 hover:bg-purple-500/5 transition-all relative overflow-hidden"
+                                    >
+                                        <div className="flex items-center justify-between mb-4">
+                                            <div className="p-2 rounded-lg bg-purple-500/20 group-hover:bg-purple-500/30 transition-colors">
+                                                <Smartphone className="w-5 h-5 text-purple-400" />
+                                            </div>
+                                            {isTesting && testAction === 'getServices' ? (
+                                                <RefreshCw className="w-4 h-4 animate-spin text-purple-400" />
+                                            ) : (
+                                                <Play className="w-4 h-4 text-white/20 group-hover:text-purple-400 transition-colors" />
+                                            )}
+                                        </div>
+                                        <div className="text-white font-bold text-lg mb-1">Fetch Services</div>
+                                        <div className="text-xs text-white/40 mb-3">Test service mapping (USA default)</div>
+
+                                        {testResult && testAction === 'getServices' && (
+                                            <div className="mt-2 pt-2 border-t border-white/5 animate-in fade-in space-y-1">
+                                                {testResult.first && Array.isArray(testResult.first) ? (
+                                                    <>
+                                                        <div className="text-xs text-purple-300 font-mono mb-1">{testResult.count} found</div>
+                                                        {testResult.first.slice(0, 2).map((s: any, i: number) => (
+                                                            <div key={i} className="flex justify-between text-[10px] text-white/60">
+                                                                <span>{s.name}</span>
+                                                                <code className="text-purple-400">{s.price}</code>
+                                                            </div>
+                                                        ))}
+                                                    </>
+                                                ) : (
+                                                    <div className="text-xs text-red-400">{testResult.error || 'Check params'}</div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
+
+                                <div className="relative pt-2">
+                                    <div className="absolute inset-0 flex items-center top-4"><div className="w-full border-t border-white/10"></div></div>
+                                    <div className="relative flex justify-center">
+                                        <button
+                                            onClick={() => setTestAction(testAction === 'manual' ? 'test' : 'manual')}
+                                            className="bg-[#0a0a0c] px-4 py-1.5 text-[10px] font-medium text-white/40 uppercase tracking-widest hover:text-white hover:bg-white/5 rounded-full border border-white/5 transition-all"
+                                        >
+                                            {testAction === 'manual' ? 'Hide Advanced' : 'Advanced Debugger'}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Padding for manual section if visible */}
+                                {(testAction === 'manual') && (
+                                    <div className="mt-4">
+                                        {/* Manual Buttons rendered below via existing logic if we keep it, otherwise insert here */}
+                                    </div>
+                                )}
+
+                                {/* Advanced / Manual Test Console */}
+                                {(testAction === 'manual' || (testAction !== 'testAll' && testAction !== 'manual')) && (
+                                    <div className="p-5 bg-white/5 rounded-2xl border border-white/5 space-y-5 animate-in fade-in slide-in-from-top-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
+                                                <Terminal className="w-5 h-5 text-blue-400" />
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center gap-1.5">
+                                                    <label className="text-sm font-semibold text-white">Manual Debugger</label>
+                                                </div>
+                                                <span className="text-[10px] text-white/40">Test specific endpoints individually</span>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                            {[
+                                                { value: 'getBalance', label: 'Get Balance', icon: Wallet, desc: 'Check funds', color: 'text-emerald-400' },
+                                                { value: 'getCountries', label: 'Countries', icon: MapPin, desc: 'List all', color: 'text-blue-400' },
+                                                { value: 'getServices', label: 'Services', icon: Smartphone, desc: 'List by country', color: 'text-purple-400' },
+                                                { value: 'getNumber', label: 'Get Number', icon: Phone, desc: 'Purchase test', color: 'text-cyan-400' },
+                                            ].map((action) => (
+                                                <button
+                                                    key={action.value}
+                                                    onClick={() => setTestAction(action.value)}
+                                                    className={`p-3 rounded-xl border text-left transition-all ${testAction === action.value
+                                                        ? 'bg-blue-500/20 border-blue-500/50 ring-1 ring-blue-500/30'
+                                                        : 'bg-white/5 border-white/10 hover:bg-white/10'
+                                                        }`}
+                                                >
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <action.icon className={`w-4 h-4 ${testAction === action.value ? 'text-blue-300' : action.color}`} />
+                                                        <span className={`text-xs font-medium ${testAction === action.value ? 'text-blue-300' : 'text-white/70'}`}>
+                                                            {action.label}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-[10px] text-white/40">{action.desc}</p>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+
+
+
 
                                 {/* Dynamic Parameters */}
                                 {(testAction === 'getServices' || testAction === 'getNumber' || testAction === 'getStatus' || testAction === 'cancelNumber') && (
@@ -1513,7 +1673,97 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                         </div>
 
                                         <div className="p-4 space-y-4">
+                                            {/* Smart Fix Button */}
+                                            {!testResult.success && (
+                                                <div className="mb-4">
+                                                    <button
+                                                        onClick={handleSmartFix}
+                                                        disabled={isFixing}
+                                                        className="w-full relative overflow-hidden group py-3 rounded-xl bg-gradient-to-r from-violet-600/10 to-fuchsia-600/10 border border-violet-500/20 hover:border-violet-500/40 transition-all text-sm font-medium text-violet-300 flex items-center justify-center gap-2"
+                                                    >
+                                                        <div className="absolute inset-0 bg-gradient-to-r from-violet-600/10 to-fuchsia-600/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                        {isFixing ? (
+                                                            <>
+                                                                <Sparkles className="w-4 h-4 animate-spin text-violet-400" />
+                                                                <span className="bg-clip-text text-transparent bg-gradient-to-r from-violet-300 to-fuchsia-300 font-bold">Diagnosing & Fixing...</span>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <Wand2 className="w-4 h-4 text-violet-400" />
+                                                                <span className="bg-clip-text text-transparent bg-gradient-to-r from-violet-300 to-fuchsia-300 font-bold">Smart Fix with AI</span>
+                                                            </>
+                                                        )}
+                                                    </button>
+                                                </div>
+                                            )}
+                                            {/* Trace / Details View */}
                                             {(() => {
+                                                const trace = testResult.trace
+                                                if (trace) {
+                                                    return (
+                                                        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                                            {/* Request Details */}
+                                                            <div className="space-y-2">
+                                                                <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-white/40 font-semibold">
+                                                                    <div className="px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 font-bold border border-blue-500/20">{trace.method}</div>
+                                                                    <span>Request Trace</span>
+                                                                </div>
+
+                                                                <div className="bg-[#0cf]/5 border border-[#0cf]/10 rounded-xl overflow-hidden">
+                                                                    {/* URL */}
+                                                                    <div className="p-3 border-b border-[#0cf]/10 bg-[#0cf]/5 flex items-start gap-3">
+                                                                        <Globe className="w-4 h-4 text-[#0cf]/40 mt-0.5 shrink-0" />
+                                                                        <div className="font-mono text-xs text-[#0cf]/80 break-all select-all leading-relaxed">
+                                                                            {trace.url}
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {/* Headers */}
+                                                                    {trace.headers && Object.keys(trace.headers).length > 0 && (
+                                                                        <div className="p-3 bg-black/20">
+                                                                            <div className="grid gap-1.5">
+                                                                                {Object.entries(trace.headers).map(([k, v]) => (
+                                                                                    <div key={k} className="flex gap-3 text-[10px] font-mono group">
+                                                                                        <span className="text-[#0cf]/40 min-w-[80px] text-right font-medium">{k}:</span>
+                                                                                        <span className="text-white/50 truncate select-all group-hover:text-white/80 transition-colors">{v as string}</span>
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Response Details */}
+                                                            <div className="space-y-2">
+                                                                <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-white/40 font-semibold">
+                                                                    <div className={`px-2 py-0.5 rounded font-bold border ${Number(trace.responseStatus) >= 200 && Number(trace.responseStatus) < 300
+                                                                        ? 'bg-green-500/10 text-green-400 border-green-500/20'
+                                                                        : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
+                                                                        {trace.responseStatus}
+                                                                    </div>
+                                                                    <span>Response Body</span>
+                                                                </div>
+
+                                                                <div className={`rounded-xl border relative group overflow-hidden ${testResult.success ? 'bg-green-500/5 border-green-500/10' : 'bg-red-500/5 border-red-500/10'}`}>
+                                                                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                        <Button variant="ghost" size="sm" className="h-6 text-[10px] bg-black/40 hover:bg-black/60 text-white/60" onClick={() => {
+                                                                            navigator.clipboard.writeText(typeof trace.responseBody === 'string' ? trace.responseBody : JSON.stringify(trace.responseBody, null, 2))
+                                                                            toast.success("Copied to clipboard")
+                                                                        }}>Copy</Button>
+                                                                    </div>
+                                                                    <div className="max-h-[400px] overflow-auto custom-scrollbar p-4">
+                                                                        <pre className={`text-xs font-mono whitespace-pre-wrap break-all ${testResult.success ? 'text-green-300/80' : 'text-red-300/80'}`}>
+                                                                            {typeof trace.responseBody === 'string' ? trace.responseBody : JSON.stringify(trace.responseBody, null, 2)}
+                                                                        </pre>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )
+                                                }
+
+                                                // Legacy / Fallback view (for when trace is missing)
                                                 let details = null
                                                 try {
                                                     details = !testResult.success && typeof testResult.data === 'string' && testResult.data.includes('_isErrorDetail')
@@ -1524,7 +1774,6 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                                 if (details && details._isErrorDetail) {
                                                     return (
                                                         <div className="space-y-4">
-                                                            {/* Status Banner */}
                                                             <div className="flex items-center gap-3 p-3 bg-red-500/10 rounded-lg border border-red-500/20">
                                                                 <div className="text-xl font-bold text-red-400">{details.status}</div>
                                                                 <div className="h-8 w-px bg-red-500/20" />
@@ -1533,36 +1782,20 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                                                     <div className="text-[10px] text-red-400/60 font-mono break-all line-clamp-1">{details.url}</div>
                                                                 </div>
                                                             </div>
-
-                                                            {/* Response Body */}
                                                             <div>
                                                                 <div className="text-[10px] uppercase tracking-wider text-white/40 font-semibold mb-1.5 flex items-center gap-1">
                                                                     <FileCode className="w-3 h-3" /> Response Body
                                                                 </div>
-                                                                <div className="bg-black/40 border border-white/5 rounded-lg p-3 relative group">
+                                                                <div className="bg-black/40 border border-white/5 rounded-lg p-3">
                                                                     <pre className="text-[10px] font-mono text-red-200/80 whitespace-pre-wrap break-all max-h-60 overflow-y-auto">
                                                                         {details.responseBody}
                                                                     </pre>
-                                                                </div>
-                                                            </div>
-
-                                                            {/* Headers Info */}
-                                                            <div className="grid grid-cols-1 gap-1">
-                                                                <div className="text-[10px] uppercase tracking-wider text-white/40 font-semibold mb-1">Request Headers</div>
-                                                                <div className="bg-black/20 border border-white/5 rounded-lg p-2 space-y-1">
-                                                                    {Object.entries(details.headers || {}).map(([k, v]: any) => (
-                                                                        <div key={k} className="flex gap-2 text-[10px] font-mono">
-                                                                            <span className="text-blue-300/60 min-w-[80px] text-right">{k}:</span>
-                                                                            <span className="text-white/40 truncate">{v}</span>
-                                                                        </div>
-                                                                    ))}
                                                                 </div>
                                                             </div>
                                                         </div>
                                                     )
                                                 }
 
-                                                // Fallback / Success View
                                                 return (
                                                     <div className="relative">
                                                         <div className="text-[10px] uppercase tracking-wider text-white/40 font-semibold mb-2 flex items-center gap-1">
@@ -1577,7 +1810,6 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                         </div>
                                     </div>
                                 )}
-
                                 {/* Bottom spacer */}
                                 <div className="h-8" />
                             </>
@@ -1646,6 +1878,6 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                     </Button>
                 </div>
             </div>
-        </motion.div>
+        </motion.div >
     )
 }

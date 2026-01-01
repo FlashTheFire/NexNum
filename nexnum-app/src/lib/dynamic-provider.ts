@@ -38,6 +38,15 @@ export class DynamicProvider implements SmsProvider {
     name: string
     public config: Provider
 
+    public lastRequestTrace: {
+        method: string
+        url: string
+        headers: Record<string, string>
+        responseStatus: number
+        responseBody: any
+        requestTime?: number
+    } | null = null
+
     constructor(config: Provider) {
         this.config = config
         this.name = config.name
@@ -58,7 +67,7 @@ export class DynamicProvider implements SmsProvider {
         } else {
             const baseUrl = (this.config.apiBaseUrl || '').replace(/\/$/, '')
             const path = (epConfig.path || '')
-            url = baseUrl + (path.startsWith('/') || !path ? path : '/' + path)
+            url = baseUrl + (path.startsWith('/') || path.startsWith('?') || !path ? path : '/' + path)
         }
 
         // Replace path params including authKey
@@ -114,14 +123,32 @@ export class DynamicProvider implements SmsProvider {
         console.log(`[DynamicProvider:${this.name}] ${epConfig.method} ${urlObj.toString()}`)
         console.log(`[DynamicProvider:${this.name}] Headers:`, JSON.stringify(maskedHeaders))
 
+        const startTime = Date.now()
+        let responseData: any = null
+        let responseStatus = 0
+
         try {
             const response = await fetch(urlObj.toString(), {
                 method: epConfig.method,
                 headers
             })
 
+            responseStatus = response.status
+
             if (!response.ok) {
                 const text = await response.text()
+                responseData = text
+
+                // Save trace before throwing
+                this.lastRequestTrace = {
+                    method: epConfig.method,
+                    url: urlObj.toString(),
+                    headers: maskedHeaders,
+                    responseStatus,
+                    responseBody: text,
+                    requestTime: Date.now() - startTime
+                }
+
                 throw new ProviderApiError(
                     `API Request Failed (${response.status} ${response.statusText})`,
                     response.status,
@@ -134,24 +161,56 @@ export class DynamicProvider implements SmsProvider {
 
             // Detect response type
             const contentType = response.headers.get('content-type')
+            let result: { type: 'json' | 'text', data: any }
+
             if (contentType && contentType.includes('application/json')) {
-                return { type: 'json', data: await response.json() }
-            }
-
-            // Fallback: Try to parse text as JSON
-            const text = await response.text()
-            try {
-                const json = JSON.parse(text)
-                if (typeof json === 'object') {
-                    return { type: 'json', data: json }
+                const json = await response.json()
+                responseData = json
+                result = { type: 'json', data: json }
+            } else {
+                // Fallback: Try to parse text as JSON
+                const text = await response.text()
+                responseData = text
+                try {
+                    const json = JSON.parse(text)
+                    if (typeof json === 'object') {
+                        responseData = json
+                        result = { type: 'json', data: json }
+                    } else {
+                        result = { type: 'text', data: text }
+                    }
+                } catch (e) {
+                    // Not JSON, keep as text
+                    result = { type: 'text', data: text }
                 }
-            } catch (e) {
-                // Not JSON, keep as text
             }
 
-            return { type: 'text', data: text }
-        } catch (error) {
+            // Save trace
+            this.lastRequestTrace = {
+                method: epConfig.method,
+                url: urlObj.toString(),
+                headers: maskedHeaders,
+                responseStatus,
+                responseBody: responseData,
+                requestTime: Date.now() - startTime
+            }
+
+            return result
+
+        } catch (error: any) {
             console.error(`[DynamicProvider:${this.name}] Request failed:`, error)
+
+            // If we haven't saved trace yet (e.g. network error)
+            if (!this.lastRequestTrace) {
+                this.lastRequestTrace = {
+                    method: epConfig.method,
+                    url: urlObj.toString(),
+                    headers: maskedHeaders,
+                    responseStatus: 0,
+                    responseBody: error.message,
+                    requestTime: Date.now() - startTime
+                }
+            }
             throw error
         }
     }
@@ -277,11 +336,37 @@ export class DynamicProvider implements SmsProvider {
             let match
             while ((match = regex.exec(text)) !== null) {
                 const item: any = {}
-                // Map numbered groups to fields
-                for (const [field, groupIndex] of Object.entries(mapConfig.fields)) {
-                    const idx = parseInt(groupIndex)
-                    if (!isNaN(idx) && match[idx]) {
-                        item[field] = match[idx]
+
+                // Support for Named Capture Groups (Modern/Readable)
+                if (match.groups) {
+                    // Method A: Auto-map named groups if no explicit fields are defined
+                    if (!mapConfig.fields || Object.keys(mapConfig.fields).length === 0) {
+                        Object.assign(item, match.groups)
+                    }
+                    // Method B: Map specific fields to named groups
+                    else {
+                        for (const [targetField, sourceGroup] of Object.entries(mapConfig.fields)) {
+                            // If sourceGroup is a name (e.g. "balance"), look in groups
+                            if (match.groups[sourceGroup]) {
+                                item[targetField] = match.groups[sourceGroup]
+                            }
+                            // Fallback to numbered groups for mixed usage
+                            else {
+                                const idx = parseInt(sourceGroup)
+                                if (!isNaN(idx) && match[idx]) {
+                                    item[targetField] = match[idx]
+                                }
+                            }
+                        }
+                    }
+                }
+                // Fallback: Numbered Capture Groups (Legacy)
+                else if (mapConfig.fields) {
+                    for (const [field, groupIndex] of Object.entries(mapConfig.fields)) {
+                        const idx = parseInt(groupIndex)
+                        if (!isNaN(idx) && match[idx]) {
+                            item[field] = match[idx]
+                        }
                     }
                 }
                 results.push(item)

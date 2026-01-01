@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { AlertTriangle, TrendingDown, ArrowRight, X } from 'lucide-react'
+import { X, Wallet, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useRouter } from 'next/navigation'
 
@@ -28,10 +28,7 @@ export function LowBalanceAlert() {
 
     const checkBalance = async () => {
         try {
-            // 1. Trigger background sync (optional, or rely on scheduled job)
             await fetch('/api/admin/providers/balance-check', { method: 'POST' })
-
-            // 2. Get alerts
             const res = await fetch('/api/admin/providers/balance-check')
             const data = await res.json()
             if (data.alerts && Array.isArray(data.alerts)) {
@@ -47,60 +44,82 @@ export function LowBalanceAlert() {
     return (
         <AnimatePresence>
             <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                className="bg-red-500/10 border-b border-red-500/20 backdrop-blur-sm"
+                initial={{ height: 0, opacity: 0, y: -20 }}
+                animate={{ height: 'auto', opacity: 1, y: 0 }}
+                exit={{ height: 0, opacity: 0, y: -20 }}
+                transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                className="relative z-50 group"
             >
-                <div className="max-w-7xl mx-auto px-4 md:px-8 py-3 flex flex-col md:flex-row items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center shrink-0 animate-pulse">
-                            <AlertTriangle size={16} className="text-red-500" />
+                {/* Premium Glass Background */}
+                <div className="absolute inset-0 bg-gradient-to-r from-red-950/90 via-red-900/60 to-black/90 backdrop-blur-xl border-b border-white/5" />
+
+                {/* Animated Bottom Glow Line */}
+                <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-red-500/50 to-transparent opacity-50" />
+
+                <div className="relative max-w-7xl mx-auto px-4 md:px-8 py-3.5 flex flex-col lg:flex-row items-center justify-between gap-4">
+
+                    {/* Left: Icon & Text */}
+                    <div className="flex items-center gap-4 w-full lg:w-auto">
+                        <div className="relative">
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-500/20 to-orange-500/20 flex items-center justify-center shrink-0 border border-red-500/20 shadow-[0_0_15px_rgba(239,68,68,0.2)]">
+                                <Wallet className="w-5 h-5 text-red-400" />
+                            </div>
+                            <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 flex items-center justify-center text-[10px] font-bold text-black ring-2 ring-black animate-bounce">
+                                !
+                            </div>
                         </div>
-                        <div className="space-y-0.5">
-                            <h4 className="text-sm font-bold text-red-400">Low Balance Warning</h4>
-                            <p className="text-xs text-red-200/60">
-                                {alerts.length} provider{alerts.length > 1 ? 's are' : ' is'} running low on funds. Service interruptions may occur.
+
+                        <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                                <h4 className="text-sm font-bold bg-clip-text text-transparent bg-gradient-to-r from-red-400 to-orange-400">
+                                    Critical Balance Alert
+                                </h4>
+                                <span className="hidden sm:inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-500/10 text-red-400 border border-red-500/20 uppercase tracking-wide">
+                                    Action Required
+                                </span>
+                            </div>
+                            <p className="text-xs text-white/50 truncate">
+                                <span className="text-white/80 font-medium">{alerts.length} provider{alerts.length > 1 ? 's' : ''}</span> have fallen below credit thresholds.
                             </p>
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-4 w-full md:w-auto">
-                        <div className="flex -space-x-2 overflow-hidden py-1">
+                    {/* Middle: Provider Chips */}
+                    <div className="flex items-center gap-3 w-full lg:w-auto overflow-hidden">
+                        <div className="flex gap-2 overflow-x-auto scrollbar-hide py-1 mask-linear-fade">
                             {alerts.map((alert) => (
-                                <div key={alert.id} className="relative group cursor-help">
-                                    <div className="h-8 px-3 flex items-center gap-1.5 bg-black/40 border border-red-500/30 rounded-full hover:bg-black/60 transition-colors">
-                                        <span className="text-[10px] font-bold text-white max-w-[60px] truncate">{alert.name}</span>
-                                        <div className="h-3 w-[1px] bg-white/10" />
-                                        <span className="text-[10px] font-mono text-red-400 group-hover:text-red-300">
-                                            {(alert.balance ?? 0).toFixed(2)} <span className="text-[8px] opacity-50">{alert.currency}</span>
-                                        </span>
-                                    </div>
-                                    {/* Tooltip */}
-                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-black border border-white/10 rounded text-[10px] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                                        Threshold: {alert.threshold} {alert.currency}
-                                    </div>
+                                <div
+                                    key={alert.id}
+                                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-black/40 border border-red-500/20 hover:border-red-500/40 hover:bg-red-500/10 transition-all group/chip cursor-default"
+                                >
+                                    <span className="text-[11px] font-semibold text-white/90">{alert.name}</span>
+                                    <div className="h-3 w-px bg-white/10" />
+                                    <span className="text-[11px] font-mono text-red-400 group-hover/chip:text-red-300 font-medium">
+                                        {(alert.balance ?? 0).toFixed(2)}
+                                        <span className="text-[9px] text-white/30 ml-0.5">{alert.currency}</span>
+                                    </span>
                                 </div>
                             ))}
                         </div>
+                    </div>
 
-                        <div className="flex items-center gap-2 ml-auto">
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-8 text-xs border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300"
-                                onClick={() => router.push('/admin/providers')}
-                            >
-                                Manage Providers
-                                <ArrowRight size={12} className="ml-2 opacity-50" />
-                            </Button>
-                            <button
-                                onClick={() => setIsVisible(false)}
-                                className="p-1 hover:bg-white/5 rounded-full text-white/40 hover:text-white transition-colors"
-                            >
-                                <X size={14} />
-                            </button>
-                        </div>
+                    {/* Right: Actions */}
+                    <div className="flex items-center gap-3 w-full lg:w-auto justify-end">
+                        <Button
+                            size="sm"
+                            className="h-9 bg-red-600/10 hover:bg-red-600/20 text-red-400 border border-red-500/20 hover:border-red-500/40 shadow-[0_0_20px_rgba(220,38,38,0.1)] hover:shadow-[0_0_25px_rgba(220,38,38,0.2)] transition-all"
+                            onClick={() => router.push('/admin/providers')}
+                        >
+                            <span className="text-xs font-semibold mr-2">Manage Funds</span>
+                            <ChevronRight className="w-3 h-3" />
+                        </Button>
+
+                        <button
+                            onClick={() => setIsVisible(false)}
+                            className="w-8 h-8 rounded-full flex items-center justify-center text-white/30 hover:text-white hover:bg-white/10 transition-colors"
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
                     </div>
                 </div>
             </motion.div>
