@@ -6,6 +6,10 @@ import { DynamicProvider } from "@/lib/dynamic-provider"
 // POST /api/admin/providers/balance-check
 // Trigger sync for all active providers
 export async function POST() {
+    // Disabled by user request to stop background sync errors
+    return NextResponse.json({ results: [] })
+
+    /*
     try {
         const providers = await prisma.provider.findMany({
             where: { isActive: true }
@@ -36,6 +40,7 @@ export async function POST() {
             { status: 500 }
         )
     }
+    */
 }
 
 // GET /api/admin/providers/balance-check

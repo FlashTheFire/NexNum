@@ -51,10 +51,10 @@ export function LowBalanceAlert() {
 
     useEffect(() => {
         if (isSnoozed) return
-        checkBalance()
+        // checkBalance() // Temporarily disabled to prevent console spam
         // Poll every 5 minutes
-        const interval = setInterval(checkBalance, 5 * 60 * 1000)
-        return () => clearInterval(interval)
+        // const interval = setInterval(checkBalance, 5 * 60 * 1000)
+        // return () => clearInterval(interval)
     }, [isSnoozed])
 
     const checkBalance = async () => {

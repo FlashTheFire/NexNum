@@ -16,6 +16,7 @@ import { toast } from "sonner"
 import { formatDistanceToNow } from "date-fns"
 import ProviderWizard from "./ProviderWizard"
 import { EndpointEditor, MappingEditor, safeParse, PROVIDER_TEMPLATES } from "./editors"
+import { ProviderAIHub } from "./ProviderAIHub"
 import { JsonEditor } from "@/components/ui/json-editor"
 import { InfoTooltip, TT, TTCode } from "@/components/ui/tooltip"
 
@@ -342,7 +343,7 @@ function SeverIcon({ name }: { name: string }) {
 
 
 function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
-    const [activeTab, setActiveTab] = useState<'settings' | 'pricing' | 'mappings' | 'test'>('settings')
+    const [activeTab, setActiveTab] = useState<'settings' | 'pricing' | 'mappings' | 'test' | 'ai'>('settings')
     const [formData, setFormData] = useState({
         name: '', displayName: '', apiBaseUrl: '', authType: 'bearer', authKey: '',
         endpoints: '{\n  "getCountries": { "method": "GET", "path": "" }\n}',
@@ -673,6 +674,9 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                     <button onClick={() => setActiveTab('pricing')} className={`px-3 md:px-4 py-3 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'pricing' ? 'border-white text-white' : 'border-transparent text-white/40 hover:text-white'}`}>Pricing</button>
                     <button onClick={() => setActiveTab('mappings')} className={`px-3 md:px-4 py-3 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'mappings' ? 'border-white text-white' : 'border-transparent text-white/40 hover:text-white'}`}>Mappings</button>
                     <button onClick={() => setActiveTab('test')} className={`px-3 md:px-4 py-3 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'test' ? 'border-white text-white' : 'border-transparent text-white/40 hover:text-white'}`}>Test</button>
+                    <button onClick={() => setActiveTab('ai')} className={`px-3 md:px-4 py-3 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'ai' ? 'border-purple-500 text-purple-400' : 'border-transparent text-white/40 hover:text-purple-300'}`}>
+                        <span className="flex items-center gap-1.5"><Sparkles className="w-3 h-3" />AI Manager</span>
+                    </button>
                 </nav>
             </div>
 
@@ -1904,6 +1908,13 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                             </>
                         )}
                     </div>
+                )}
+
+                {activeTab === 'ai' && (
+                    <ProviderAIHub
+                        currentData={formData}
+                        onUpdate={(updates: any) => setFormData({ ...formData, ...updates })}
+                    />
                 )}
             </div>
 

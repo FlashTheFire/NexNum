@@ -99,12 +99,21 @@ export class DynamicProvider implements SmsProvider {
         }
 
         for (const [key, value] of Object.entries(queryParams)) {
-            urlObj.searchParams.set(key, String(value))
+            const valStr = String(value)
+            // Fix: Filter out unresolved variables (e.g. "$service") if not provided in params
+            // This makes parameters optional by default instead of sending literal placeholders
+            if (valStr.startsWith('$') && valStr === epConfig.queryParams?.[key]) {
+                continue
+            }
+            urlObj.searchParams.set(key, valStr)
         }
 
-        // 3. Headers
+        // 3. Headers (Enhanced Browser Emulation)
         const headers: Record<string, string> = {
             'Accept': 'application/json, text/plain, */*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Cache-Control': 'no-cache',
+            'Referer': urlObj.origin,
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             ...epConfig.headers
         }
@@ -128,12 +137,14 @@ export class DynamicProvider implements SmsProvider {
         let responseStatus = 0
 
         try {
+            // Increase timeout to 30s
             const response = await fetch(urlObj.toString(), {
                 method: epConfig.method,
-                headers
-            })
+                headers,
+                signal: AbortSignal.timeout(30000)
+            });
 
-            responseStatus = response.status
+            responseStatus = response.status;
 
             if (!response.ok) {
                 const text = await response.text()
@@ -215,6 +226,30 @@ export class DynamicProvider implements SmsProvider {
         }
     }
 
+    // Helper to extract flattened values using wildcards "data.*.items"
+    private getValuesByPath(obj: any, path: string): any[] {
+        const parts = path.split('.')
+        let current = [obj]
+
+        for (const part of parts) {
+            if (part === '$') continue
+            const next: any[] = []
+            for (const item of current) {
+                if (item === null || item === undefined) continue
+
+                if (part === '*') {
+                    if (typeof item === 'object') {
+                        next.push(...Object.values(item))
+                    }
+                } else if (item[part] !== undefined) {
+                    next.push(item[part])
+                }
+            }
+            current = next
+        }
+        return current
+    }
+
     // Helper to extract nested value from object by path "data.user.id"
     private getValue(obj: any, path: string, context: any = {}): any {
         if (!path || path === '$') return obj
@@ -280,7 +315,17 @@ export class DynamicProvider implements SmsProvider {
 
         // Step 1: Apply explicit rootPath if defined
         if (mapConfig.rootPath && mapConfig.rootPath !== '$') {
-            root = this.getValue(data, mapConfig.rootPath)
+            if (mapConfig.rootPath.includes('*')) {
+                const flat = this.getValuesByPath(data, mapConfig.rootPath)
+                // If dictionary mode, merge flattened objects to iterate all keys
+                if (mapConfig.type === 'json_dictionary' && Array.isArray(flat)) {
+                    root = Object.assign({}, ...flat)
+                } else {
+                    root = flat
+                }
+            } else {
+                root = this.getValue(data, mapConfig.rootPath)
+            }
         }
 
         // Step 2: Auto-detect nested wrappers if root is still an object with common wrapper keys
@@ -653,7 +698,9 @@ export class DynamicProvider implements SmsProvider {
         if (serviceCode) params.service = serviceCode
 
         const response = await this.request('getPrices', params)
-        return this.parsePricesResponse(response, countryCode, serviceCode)
+        // Fix: Unwrap response data if wrapped, to ensure parsePricesResponse receives the actual payload
+        const rawData = response?.data || response
+        return this.parsePricesResponse(rawData, countryCode, serviceCode)
     }
 
     /**

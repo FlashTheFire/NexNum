@@ -6,7 +6,7 @@ import {
     CheckCircle, ChevronRight, ChevronLeft, Globe,
     Shield, DollarSign, Server, Command, Play,
     Layout, Zap, Settings2, Activity, HelpCircle, Sparkles, Key, Code2, Database,
-    Lock, Smartphone, ArrowRight, Info, Edit, Plug, Link, FileCode, Save, Wand2
+    Lock, Smartphone, ArrowRight, Info, Edit, Plug, Link, FileCode, Save, Wand2, FileText
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -537,7 +537,7 @@ export default function ProviderWizard({ onComplete, onCancel }: WizardProps) {
                                         { value: 'bearer', label: 'Bearer', icon: Key, desc: 'JWT/Token' },
                                         { value: 'header', label: 'Header', icon: Shield, desc: 'Custom key' },
                                         { value: 'query_param', label: 'Query', icon: Link, desc: 'URL param' },
-                                        { value: 'none', label: 'Public', icon: Globe, desc: 'No auth' },
+                                        { value: 'template', label: 'Template', icon: FileText, desc: '{authKey}' },
                                     ].map((auth) => {
                                         const Icon = auth.icon
                                         const isSelected = formData.authType === auth.value
@@ -599,6 +599,20 @@ export default function ProviderWizard({ onComplete, onCancel }: WizardProps) {
                                             placeholder="X-API-KEY"
                                             className="h-10 bg-black/30 border-white/10 text-sm font-mono focus:border-cyan-500/50 transition-all"
                                         />
+                                    </div>
+                                )}
+
+                                {formData.authType === 'template' && (
+                                    <div className="p-4 bg-white/[0.02] rounded-xl border border-white/5 space-y-3">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-7 h-7 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                                                <FileText size={14} className="text-blue-400" />
+                                            </div>
+                                            <div className="flex-1">
+                                                <label className="text-xs font-medium text-white">Usage</label>
+                                                <div className="text-[9px] text-white/50">Add <TTCode>{'{authKey}'}</TTCode> to your endpoint paths.</div>
+                                            </div>
+                                        </div>
                                     </div>
                                 )}
 

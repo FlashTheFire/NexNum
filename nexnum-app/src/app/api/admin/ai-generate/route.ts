@@ -149,6 +149,33 @@ Mapping:
   }
 }
 
+### EXAMPLE: Complex Price Mappings (Crucial for getPrices)
+
+**Scenario A: 3-Level Deep (Country -> Service -> Provider -> Data) [Most Common for Aggregators]**
+Response:
+{
+  "US": {
+    "wa": {
+      "2263": { "price": 0.5, "count": 10 },
+      "2579": { "price": 0.8, "count": 5 }
+    }
+  }
+}
+Mapping (Use json_dictionary with Wildcards):
+{
+  "type": "json_dictionary",
+  "rootPath": "$.*.*", // Flattens Country & Service levels to get Provider Dictionary
+  "fields": {
+    "provider_id": "$key", // The key "2263"
+    "cost": "price",
+    "count": "count"
+  }
+}
+
+**Scenario B: Simple Array**
+Response: [ { "service": "wa", "cost": 0.5, "count": 10 } ]
+Mapping: { "type": "json_array", "fields": { "service": "service", "cost": "cost", "count": "count" } }
+
 ALWAYS use the STANDARD field names (id, code, name, price, etc.) in your mappings!
 `
 
@@ -252,8 +279,8 @@ export async function POST(req: NextRequest) {
         }
 
         // GENERATE MODE
-        let systemPrompt = SYSTEM_PROMPT_MODERN // Default
-        if (providerType === 'legacy_text') systemPrompt = SYSTEM_PROMPT_LEGACY
+        let systemPrompt = body.systemPromptOverride || SYSTEM_PROMPT_MODERN // Default or Override
+        if (!body.systemPromptOverride && providerType === 'legacy_text') systemPrompt = SYSTEM_PROMPT_LEGACY
 
         // Inject supplements if any
         let finalPrompt = prompt
