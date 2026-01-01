@@ -70,13 +70,8 @@ interface Service {
     lastSyncedAt: string
 }
 
-const providers: ProviderStatus[] = [
-    { id: 'grizzlysms', name: 'GrizzlySMS', logoUrl: '/providers/grizzlysms.png', status: 'online' },
-    { id: '5sim', name: '5sim', logoUrl: '/providers/5sim.png', status: 'online' },
-    { id: 'smsbower', name: 'SMSBower', logoUrl: '/providers/smsbower.png', status: 'online' },
-    { id: 'onlinesim', name: 'OnlineSIM', logoUrl: '/providers/onlinesim.jpg', status: 'online' },
-    { id: 'herosms', name: 'HeroSMS', logoUrl: '/providers/herosms.png', status: 'online' },
-]
+// Providers are now fetched dynamically from the database
+// (removed hardcoded array)
 
 export default function InventoryPage() {
     const [syncing, setSyncing] = useState<string | null>(null)
@@ -84,6 +79,10 @@ export default function InventoryPage() {
     const [selectedProvider, setSelectedProvider] = useState('')
     const providerScrollRef = useRef<HTMLDivElement>(null)
     const [providerScrollProgress, setProviderScrollProgress] = useState(0)
+
+    // Dynamic providers from database
+    const [providers, setProviders] = useState<ProviderStatus[]>([])
+    const [providersLoading, setProvidersLoading] = useState(true)
 
     const [data, setData] = useState<Country[] | Service[] | AggregatedCountry[] | AggregatedService[]>([])
     const [loading, setLoading] = useState(true)
@@ -93,6 +92,30 @@ export default function InventoryPage() {
     const [total, setTotal] = useState(0)
     const [mode, setMode] = useState<'raw' | 'aggregated'>('aggregated')
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
+
+    // Fetch providers from database
+    useEffect(() => {
+        const fetchProviders = async () => {
+            try {
+                const res = await fetch('/api/admin/providers')
+                const json = await res.json()
+                // API returns array directly, not { providers: [...] }
+                const providerList = Array.isArray(json) ? json : (json.providers || [])
+                setProviders(providerList.map((p: any) => ({
+                    id: p.name.toLowerCase(),
+                    name: p.displayName || p.name,
+                    logoUrl: p.logoUrl || `/providers/${p.name.toLowerCase()}.png`,
+                    status: p.isActive ? 'online' : 'offline'
+                })))
+            } catch (e) {
+                console.error('Failed to fetch providers', e)
+            } finally {
+                setProvidersLoading(false)
+            }
+        }
+        fetchProviders()
+    }, [])
+
 
     const fetchData = async () => {
         setLoading(true)
@@ -182,7 +205,7 @@ export default function InventoryPage() {
                         const maxScroll = element.scrollWidth - element.clientWidth;
                         setProviderScrollProgress(Math.min(Math.max(scrollLeft / maxScroll, 0), 1));
                     }}
-                    className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-8 md:pb-0 md:grid md:grid-cols-3 lg:grid-cols-5 scrollbar-hide"
+                    className="flex overflow-x-auto snap-x snap-mandatory gap-3 pb-8 md:pb-0 md:grid md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 scrollbar-hide"
                 >
                     {providers.map((p, i) => (
                         <motion.div
@@ -212,20 +235,15 @@ export default function InventoryPage() {
                                     </div>
                                 </div>
                                 <div className="flex flex-col items-center gap-2">
-                                    <div className="relative">
-                                        <Button
-                                            size="sm"
-                                            variant="ghost"
-                                            className="h-7 w-7 p-0 rounded-lg hover:bg-white/10 group/btn"
-                                            onClick={(e) => { e.stopPropagation(); handleSync(p.id); }}
-                                            disabled={!!syncing}
-                                        >
-                                            <RefreshCw size={13} className={syncing === p.id ? "animate-spin text-[hsl(var(--neon-lime))]" : "text-gray-500 group-hover/btn:text-white transition-colors"} />
-                                        </Button>
-                                        <div className="absolute -top-1 -right-1">
-                                            <InfoTooltip content={<>Fetch latest countries and services from <TTCode>{p.name}</TTCode>. This will update pricing and availability.</>} />
-                                        </div>
-                                    </div>
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-7 w-7 p-0 rounded-lg hover:bg-white/10 group/btn"
+                                        onClick={(e) => { e.stopPropagation(); handleSync(p.id); }}
+                                        disabled={!!syncing}
+                                    >
+                                        <RefreshCw size={13} className={syncing === p.id ? "animate-spin text-[hsl(var(--neon-lime))]" : "text-gray-500 group-hover/btn:text-white transition-colors"} />
+                                    </Button>
                                 </div>
                             </div>
 
@@ -579,8 +597,8 @@ export default function InventoryPage() {
                                 })
                             ) : (
                                 // Services View
-                                (data as Service[]).map((item) => (
-                                    <tr key={item.id} className="hover:bg-white/[0.02] transition-colors">
+                                (data as Service[]).map((item, index) => (
+                                    <tr key={`${item.id}-${item.provider}-${index}`} className="hover:bg-white/[0.02] transition-colors">
                                         <td colSpan={5} className="p-0 border-0">
                                             <div className="flex items-center px-6 py-3 text-left">
                                                 <div className="flex-1 font-medium text-white min-w-[200px] pr-8">{item.name}</div>

@@ -4,14 +4,15 @@ import { Globe, Search } from "lucide-react"
 
 // --- Types & Constants ---
 
-export const ENDPOINT_METHODS = ['getCountries', 'getServices', 'getNumber', 'getStatus', 'getBalance', 'cancelNumber']
+export const ENDPOINT_METHODS = ['getCountries', 'getServices', 'getNumber', 'getStatus', 'getBalance', 'cancelNumber', 'getPrices']
 export const METHOD_PARAMS = {
     getCountries: ['{authKey}'],
     getServices: ['{country}', '{authKey}'],
     getNumber: ['{country}', '{service}', '{authKey}'],
     getStatus: ['{id}', '{authKey}'],
     cancelNumber: ['{id}', '{authKey}'],
-    getBalance: ['{authKey}']
+    getBalance: ['{authKey}'],
+    getPrices: ['{country}', '{service}', '{authKey}']
 }
 
 export const MAPPING_FIELDS = {
@@ -19,7 +20,8 @@ export const MAPPING_FIELDS = {
     getServices: ['id', 'name', 'code', 'price', 'count'],
     getNumber: ['id', 'phone', 'price'],
     getStatus: ['status', 'code', 'sms'],
-    getBalance: ['balance']
+    getBalance: ['balance'],
+    getPrices: ['cost', 'count', 'country', 'service', 'operator']
 }
 
 export function safeParse(jsonString: string) {

@@ -30,9 +30,13 @@ export const AdminSidebar = () => {
     return (
         <div className="fixed left-0 top-0 bottom-0 w-20 md:w-64 bg-[#0a0a0c]/80 backdrop-blur-xl border-r border-white/5 z-50 flex flex-col hidden md:flex">
             {/* Logo / Brand */}
-            <div className="h-20 flex items-center justify-center md:justify-start md:px-8 border-b border-white/5">
-                <div className="w-8 h-8 bg-[hsl(var(--neon-lime))] rounded-lg flex items-center justify-center shadow-[0_0_15px_hsl(var(--neon-lime)/0.4)]">
-                    <span className="font-bold text-black">N</span>
+            <div className="h-20 flex items-center justify-center md:justify-start md:px-6 border-b border-white/5">
+                <div className="w-10 h-10 flex items-center justify-center">
+                    <img
+                        src="/logos/nexnum-logo.svg"
+                        alt="NexNum"
+                        className="w-8 h-8 brightness-0 invert opacity-70"
+                    />
                 </div>
                 <span className="hidden md:block ml-3 font-bold text-white tracking-widest text-sm">NEXNUM <span className="text-[hsl(var(--neon-lime))]">ADMIN</span></span>
             </div>

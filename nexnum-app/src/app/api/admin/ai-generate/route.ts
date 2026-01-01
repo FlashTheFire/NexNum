@@ -90,6 +90,66 @@ ${STRICT_OUTPUT_SCHEMA}
 3. **Structure**: 
    - 'endpoints' is a DICTIONARY (Key-Value), NOT an Array.
    - 'mappings' is a DICTIONARY (Key-Value), separate from endpoints.
+
+### CRITICAL: STANDARD OUTPUT FIELD NAMES
+Mappings MUST output these exact field names. The engine expects these standard names!
+
+**getCountries fields (REQUIRED):**
+- "id": unique identifier (maps from: value.id, id, code)
+- "code": country code (maps from: value.id, code, iso)
+- "name": display name (maps from: value.eng, value.name, name, eng, title)
+- "phoneCode": phone prefix (maps from: value.prefix, prefix, phone_code)
+
+**getServices fields (REQUIRED):**
+- "id": unique identifier (maps from: id, code)
+- "code": service code (maps from: code, id, slug)  
+- "name": display name (maps from: name, title, service)
+- "price": cost (maps from: price, cost)
+
+**getNumber fields (REQUIRED):**
+- "activationId": activation ID
+- "phoneNumber": the phone number
+- "price": cost
+
+**getStatus fields (REQUIRED):**
+- "status": status string
+- "smsCode": received SMS code (if any)
+
+**getBalance fields (REQUIRED):**
+- "balance": account balance
+
+**getPrices fields (REQUIRED):**
+- "country": country ID/code (maps from key or field)
+- "service": service ID/code (maps from key or field)
+- "cost": price per number (maps from: cost, price)
+- "count": quantity available (maps from: count, quantity, qty)
+
+### EXAMPLE: Correct Mapping for Dictionary Response
+Response: { "1": { "id": 1, "eng": "Ukraine", "rus": "Украина" } }
+Mapping:
+{
+  "type": "json_dictionary",
+  "fields": {
+    "id": "value.id",
+    "code": "value.id", 
+    "name": "value.eng"
+  }
+}
+
+### EXAMPLE: Correct Mapping for Nested Array
+Response: { "status": "success", "services": [ { "code": "wa", "name": "WhatsApp" } ] }
+Mapping:
+{
+  "type": "json_array",
+  "rootPath": "services",
+  "fields": {
+    "id": "code",
+    "code": "code",
+    "name": "name"
+  }
+}
+
+ALWAYS use the STANDARD field names (id, code, name, price, etc.) in your mappings!
 `
 
 const SYSTEM_PROMPT_ANALYZE = `You are an API Auditor.Scan the documentation and return a JSON object report.
@@ -109,6 +169,7 @@ MANDATORY CHECKS:
     - getNumber(Order)
     - getStatus(Check activation)
     - cancelNumber(Set status 8 / cancel)
+    - getPrices (Get current prices)
 
 Return JSON:
 {

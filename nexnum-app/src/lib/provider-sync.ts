@@ -136,6 +136,28 @@ const PROVIDERS = {
 
 type ProviderKey = keyof typeof PROVIDERS
 
+/**
+ * BUILT-IN PROVIDERS
+ * 
+ * These providers have specialized/optimized legacy sync functions.
+ * Add new provider slugs here (lowercase) if you want to use legacy sync for them.
+ * Otherwise, new providers added via admin panel will use DynamicProvider automatically.
+ * 
+ * To add a new built-in provider:
+ * 1. Add the slug here (lowercase)
+ * 2. Create a sync function (e.g., syncNewProvider())
+ * 3. Add a case in the switch statement in syncProviderData()
+ */
+const BUILTIN_PROVIDERS: string[] = [
+    '5sim',
+    'grizzlysms',
+    'onlinesim',
+    'herosms',
+    'smsbower',
+    // Add new built-in providers here:
+    // 'newprovider',
+]
+
 // ============================================
 // SYNC FUNCTIONS
 // ============================================
@@ -184,18 +206,25 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
         })
 
         // 2. Services
-        // For 5sim and Grizzly, we use 'any'. For others, naive 'us' or first available.
+        // Strategy: Try empty (all services), then 'us', then first country code
         let services: any[] = []
         try {
             if (provider.name === '5sim' || provider.name === 'grizzlysms') {
                 services = await engine.getServices('any')
             } else {
-                // Try 'us' default, then first country found
+                // Try empty first (many APIs return all services with no country filter)
                 try {
-                    services = await engine.getServices('us')
-                } catch {
-                    if (countries.length > 0) {
-                        services = await engine.getServices(countries[0].code)
+                    services = await engine.getServices('')
+                    console.log(`[SYNC] ${provider.name}: Got ${services.length} services with empty country`)
+                } catch (e1) {
+                    // Try 'us' as fallback
+                    try {
+                        services = await engine.getServices('us')
+                    } catch (e2) {
+                        // Try first country found
+                        if (countries.length > 0) {
+                            services = await engine.getServices(countries[0].code)
+                        }
                     }
                 }
             }
@@ -615,19 +644,23 @@ export async function syncProviderData(providerName: string): Promise<SyncResult
 
         let result: SyncResult
 
-        // Prefer Dynamic for verified providers or generic
-        // We know 5sim works with dynamic.
-        if (provider.name === '5sim' || !['grizzlysms', 'onlinesim', 'herosms', 'smsbower'].includes(provider.name)) {
-            result = await syncDynamic(provider)
-        } else {
-            // Fallback to legacy
-            switch (provider.name) {
+        // Built-in providers use their specialized legacy sync functions
+        // (See BUILTIN_PROVIDERS constant at the top of this file)
+
+        if (BUILTIN_PROVIDERS.includes(provider.name.toLowerCase())) {
+            // Use optimized legacy sync for built-in providers
+            switch (provider.name.toLowerCase()) {
+                case '5sim': result = await sync5Sim(); break
                 case 'grizzlysms': result = await syncGrizzlySMS(); break
                 case 'onlinesim': result = await syncOnlineSIM(); break
                 case 'herosms': result = await syncHeroSMS(); break
                 case 'smsbower': result = await syncSMSBower(); break
                 default: result = await syncDynamic(provider)
             }
+        } else {
+            // NEW providers added via admin panel use DynamicProvider
+            console.log(`[SYNC] Using DynamicProvider for new provider: ${provider.name}`)
+            result = await syncDynamic(provider)
         }
 
         await prisma.syncJob.update({

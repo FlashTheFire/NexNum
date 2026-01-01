@@ -44,7 +44,8 @@ const REQUIRED_KEYS = [
     'getNumber',
     'getStatus',
     'cancelNumber',
-    'getBalance'
+    'getBalance',
+    'getPrices'
 ]
 
 const KEY_LABELS: Record<string, string> = {
@@ -54,7 +55,8 @@ const KEY_LABELS: Record<string, string> = {
     getNumber: "Get Number Endpoint",
     getStatus: "Get Status Endpoint",
     cancelNumber: "Cancel Number Endpoint",
-    getBalance: "Get Balance Endpoint"
+    getBalance: "Get Balance Endpoint",
+    getPrices: "Get Prices Endpoint"
 }
 
 export function AIConfigAssistant({ isOpen, onClose, step, onApply }: AIConfigAssistantProps) {

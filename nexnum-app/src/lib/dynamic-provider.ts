@@ -265,7 +265,6 @@ export class DynamicProvider implements SmsProvider {
 
         if (!mapConfig) {
             console.warn(`[DynamicProvider:${this.name}] No mapping for ${mappingKey}, returning raw`)
-            // Try to intelligently parse common formats
             return this.autoParseResponse(response.data)
         }
 
@@ -278,8 +277,31 @@ export class DynamicProvider implements SmsProvider {
 
         // JSON responses
         let root = data
+
+        // Step 1: Apply explicit rootPath if defined
         if (mapConfig.rootPath && mapConfig.rootPath !== '$') {
             root = this.getValue(data, mapConfig.rootPath)
+        }
+
+        // Step 2: Auto-detect nested wrappers if root is still an object with common wrapper keys
+        if (root && typeof root === 'object' && !Array.isArray(root)) {
+            // Check for common wrapper patterns based on mapping key
+            const lowerKey = mappingKey.toLowerCase()
+            const wrapperKeys = [
+                'data', 'result', 'results', 'items', 'list', 'response',
+                // Context-specific wrappers
+                lowerKey.includes('countr') ? 'countries' : null,
+                lowerKey.includes('service') ? 'services' : null,
+                lowerKey.includes('number') ? 'numbers' : null,
+            ].filter(Boolean) as string[]
+
+            for (const wrapperKey of wrapperKeys) {
+                if (root[wrapperKey] !== undefined) {
+                    console.log(`[DynamicProvider:${this.name}] Auto-extracted nested data from '${wrapperKey}'`)
+                    root = root[wrapperKey]
+                    break
+                }
+            }
         }
 
         if (root === undefined || root === null) {
@@ -287,7 +309,28 @@ export class DynamicProvider implements SmsProvider {
             return []
         }
 
-        switch (mapConfig.type) {
+        // Step 3: Smart type detection - override if data structure doesn't match declared type
+        let effectiveType = mapConfig.type
+
+        if (Array.isArray(root)) {
+            // Data is an array, use json_array parsing regardless of declared type
+            if (effectiveType !== 'json_array') {
+                console.log(`[DynamicProvider:${this.name}] Auto-switching to json_array (data is array)`)
+                effectiveType = 'json_array'
+            }
+        } else if (typeof root === 'object') {
+            // Data is an object
+            const keys = Object.keys(root)
+            if (keys.length > 0 && typeof root[keys[0]] === 'object') {
+                // Object of objects = dictionary
+                if (effectiveType !== 'json_dictionary') {
+                    console.log(`[DynamicProvider:${this.name}] Auto-switching to json_dictionary (object of objects)`)
+                    effectiveType = 'json_dictionary'
+                }
+            }
+        }
+
+        switch (effectiveType) {
             case 'json_array':
                 return this.parseJsonArray(root, mapConfig)
 
@@ -425,34 +468,87 @@ export class DynamicProvider implements SmsProvider {
 
     private mapFields(item: any, fields: Record<string, string>, context: any = {}): any {
         const result: any = {}
+
+        // Common field name fallbacks (ordered by priority)
+        const fieldFallbacks: Record<string, string[]> = {
+            'name': ['name', 'eng', 'title', 'text', 'label', 'rus', 'chn'],
+            'countryName': ['name', 'eng', 'title', 'country_name', 'rus'],
+            'serviceName': ['name', 'title', 'service', 'service_name'],
+            'id': ['id', 'code', 'key', 'value'],
+            'code': ['code', 'id', 'short_name', 'iso'],
+            'countryId': ['id', 'code', 'country_id', 'country_code'],
+            'countryISO': ['iso', 'iso2', 'code', 'country_code'],
+            'serviceId': ['id', 'code', 'service_id', 'service_code'],
+        }
+
         for (const [targetField, sourcePath] of Object.entries(fields)) {
-            result[targetField] = this.getValue(item, sourcePath, context)
+            let value = this.getValue(item, sourcePath, context)
+
+            // If value is undefined and we have fallbacks for this target field, try them
+            if (value === undefined || value === null) {
+                const fallbacks = fieldFallbacks[targetField]
+                if (fallbacks) {
+                    for (const fb of fallbacks) {
+                        // Try direct property
+                        if (item[fb] !== undefined) {
+                            value = item[fb]
+                            break
+                        }
+                        // Try with value. prefix (for dictionary context)
+                        if (context.value && context.value[fb] !== undefined) {
+                            value = context.value[fb]
+                            break
+                        }
+                    }
+                }
+            }
+
+            result[targetField] = value
         }
         return result
     }
 
+    /**
+     * Get countries from provider
+     * 
+     * STANDARD MAPPING OUTPUT FIELDS (mappings must use these names):
+     * - id: unique identifier
+     * - code: country code (e.g., "us", "uk")
+     * - name: display name
+     * - phoneCode: phone prefix (e.g., "1", "44")
+     * - flag: optional icon URL
+     */
     async getCountries(): Promise<Country[]> {
         const response = await this.request('getCountries')
         const items = this.parseResponse(response, 'getCountries')
 
         return items.map((i, idx) => ({
-            id: String(i.id ?? i.code ?? i.name ?? idx),
-            code: String(i.code ?? i.id ?? i.name ?? '').toLowerCase(),
-            name: i.name || i.text || i.title || i.eng || 'Unknown',
-            flag: i.flag || i.icon,
-            phoneCode: i.phoneCode ? String(i.phoneCode).replace('+', '') : i.phone_code
+            id: String(i.id ?? idx),
+            code: String(i.code ?? i.id ?? '').toLowerCase(),
+            name: String(i.name ?? 'Unknown'),
+            flag: i.flag ?? i.icon ?? undefined,
+            phoneCode: i.phoneCode ? String(i.phoneCode).replace('+', '') : undefined
         }))
     }
 
+    /**
+     * Get services from provider
+     * 
+     * STANDARD MAPPING OUTPUT FIELDS (mappings must use these names):
+     * - id: unique identifier
+     * - code: service code (e.g., "wa", "tg")
+     * - name: display name
+     * - price: cost per number
+     */
     async getServices(countryCode: string): Promise<Service[]> {
         const response = await this.request('getServices', { country: countryCode })
         const items = this.parseResponse(response, 'getServices')
 
         return items.map((s, idx) => ({
-            id: String(s.id ?? s.code ?? s.name ?? idx),
-            code: String(s.code ?? s.id ?? s.name ?? ''),
-            name: s.name || s.title || s.service || 'Unknown',
-            price: Number(s.price || s.cost || 0)
+            id: String(s.id ?? s.code ?? idx),
+            code: String(s.code ?? s.id ?? ''),
+            name: String(s.name ?? 'Unknown'),
+            price: Number(s.price ?? 0)
         }))
     }
 
@@ -534,4 +630,107 @@ export class DynamicProvider implements SmsProvider {
             return 0
         }
     }
+
+    /**
+     * Get current prices from provider
+     * 
+     * STANDARD MAPPING OUTPUT FIELDS:
+     * - cost/price: price per number
+     * - count: available quantity
+     * - operator: optional operator name
+     * 
+     * Response formats supported:
+     * 1. Nested: { country: { service: { operator: { cost, count } } } }
+     * 2. Flat: { country: { service: { cost, count } } }
+     * 3. Array: [{ service, cost, count }]
+     * 
+     * @param countryCode - Optional country filter
+     * @param serviceCode - Optional service filter
+     */
+    async getPrices(countryCode?: string, serviceCode?: string): Promise<PriceData[]> {
+        const params: Record<string, string> = {}
+        if (countryCode) params.country = countryCode
+        if (serviceCode) params.service = serviceCode
+
+        const response = await this.request('getPrices', params)
+        return this.parsePricesResponse(response, countryCode, serviceCode)
+    }
+
+    /**
+     * Parse various price response formats into normalized PriceData[]
+     */
+    private parsePricesResponse(response: any, countryFilter?: string, serviceFilter?: string): PriceData[] {
+        const results: PriceData[] = []
+
+        // Handle string response (shouldn't happen for prices, but just in case)
+        if (typeof response === 'string') {
+            try {
+                response = JSON.parse(response)
+            } catch {
+                console.warn(`[DynamicProvider:${this.name}] getPrices returned non-JSON response`)
+                return results
+            }
+        }
+
+        // If response is an array, process each item
+        if (Array.isArray(response)) {
+            for (const item of response) {
+                if (item.cost !== undefined || item.price !== undefined) {
+                    results.push({
+                        country: item.country || countryFilter || '',
+                        service: item.service || item.code || serviceFilter || '',
+                        operator: item.operator || undefined,
+                        cost: Number(item.cost ?? item.price ?? 0),
+                        count: Number(item.count ?? item.qty ?? 0)
+                    })
+                }
+            }
+            return results
+        }
+
+        // Handle nested dictionary format: { country: { service: { [operator]: { cost, count } } } }
+        if (typeof response === 'object' && response !== null) {
+            for (const [countryKey, countryData] of Object.entries(response)) {
+                if (typeof countryData !== 'object' || countryData === null) continue
+
+                for (const [serviceKey, serviceData] of Object.entries(countryData as Record<string, any>)) {
+                    if (typeof serviceData !== 'object' || serviceData === null) continue
+
+                    // Check if this level has cost/count directly (flat format)
+                    if (serviceData.cost !== undefined || serviceData.price !== undefined || serviceData.count !== undefined) {
+                        results.push({
+                            country: countryKey,
+                            service: serviceKey,
+                            cost: Number(serviceData.cost ?? serviceData.price ?? 0),
+                            count: Number(serviceData.count ?? serviceData.qty ?? 0)
+                        })
+                    } else {
+                        // Has operators nested inside
+                        for (const [operatorKey, opData] of Object.entries(serviceData as Record<string, any>)) {
+                            if (typeof opData !== 'object' || opData === null) continue
+
+                            results.push({
+                                country: countryKey,
+                                service: serviceKey,
+                                operator: operatorKey,
+                                cost: Number(opData.cost ?? opData.price ?? 0),
+                                count: Number(opData.count ?? opData.qty ?? 0)
+                            })
+                        }
+                    }
+                }
+            }
+        }
+
+        return results
+    }
+}
+
+// Price data interface
+export interface PriceData {
+    country: string
+    service: string
+    operator?: string
+    cost: number
+    count: number
 }

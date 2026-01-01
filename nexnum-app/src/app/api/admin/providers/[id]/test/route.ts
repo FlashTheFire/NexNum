@@ -89,8 +89,8 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
                 }
                 break
             case 'getServices':
-                if (!params.country) throw new Error('Country param required')
-                const services = await engine.getServices(params.country)
+                // Country is optional - some providers list all services without it
+                const services = await engine.getServices(params.country || '')
                 result = {
                     count: services.length,
                     first: services.slice(0, 3)
@@ -103,6 +103,14 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
             case 'getStatus':
                 if (!params.id) throw new Error('Activation ID required')
                 result = await engine.getStatus(params.id)
+                break
+            case 'getPrices':
+                // Get prices with optional country/service filters
+                const prices = await engine.getPrices(params.country || undefined, params.service || undefined)
+                result = {
+                    count: prices.length,
+                    first: prices.slice(0, 5) // Return first 5 prices for preview
+                }
                 break
             case 'cancelNumber':
                 if (!params.id) throw new Error('Activation ID required')

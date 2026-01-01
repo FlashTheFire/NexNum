@@ -502,7 +502,28 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                 headers: { 'Content-Type': 'application/json' }
             })
             const data = await res.json()
-            setTestResult(data)
+
+            // Parse nested JSON string in data if present
+            let parsedData = null
+            if (data.data && typeof data.data === 'string') {
+                // Only try to parse if it looks like JSON (starts with { or [)
+                const trimmed = data.data.trim()
+                if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+                    try {
+                        parsedData = JSON.parse(data.data)
+                    } catch (e) {
+                        console.warn("Failed to parse response data as JSON", e)
+                        parsedData = { raw: data.data } // Keep as raw
+                    }
+                } else {
+                    // It's a plain text response (likely an error message)
+                    parsedData = { raw: data.data }
+                }
+            } else {
+                parsedData = data.data
+            }
+
+            setTestResult({ ...data, parsed: parsedData })
 
             if (res.ok && data.success) {
                 toast.success(`${action} successful`)
@@ -1428,13 +1449,21 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
 
                                         {testResult && testAction === 'getBalance' && (
                                             <div className="mt-2 pt-2 border-t border-white/5 animate-in fade-in">
-                                                {testResult.balance !== undefined ? (
+                                                {testResult.parsed && testResult.parsed.balance !== undefined ? (
                                                     <div className="text-xl font-mono font-bold text-emerald-400">
-                                                        {testResult.balance} <span className="text-xs text-emerald-400/50">{formData.currency}</span>
+                                                        {testResult.parsed.balance} <span className="text-xs text-emerald-400/50">{formData.currency}</span>
                                                     </div>
                                                 ) : (
                                                     <div className="text-xs text-red-400">{testResult.error || 'Failed'}</div>
                                                 )}
+
+                                                {/* Mini Debug Trigger */}
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); setTestAction('manual'); }}
+                                                    className="mt-2 w-full text-[9px] text-white/20 hover:text-white uppercase tracking-wider text-center py-1 hover:bg-white/5 rounded transition-colors"
+                                                >
+                                                    View Trace
+                                                </button>
                                             </div>
                                         )}
                                     </div>
@@ -1459,10 +1488,10 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
 
                                         {testResult && testAction === 'getCountries' && (
                                             <div className="mt-2 pt-2 border-t border-white/5 animate-in fade-in space-y-1">
-                                                {testResult.first && Array.isArray(testResult.first) ? (
+                                                {testResult.parsed && testResult.parsed.first && Array.isArray(testResult.parsed.first) ? (
                                                     <>
-                                                        <div className="text-xs text-blue-300 font-mono mb-1">{testResult.count} found</div>
-                                                        {testResult.first.slice(0, 2).map((c: any, i: number) => (
+                                                        <div className="text-xs text-blue-300 font-mono mb-1">{testResult.parsed.count} found</div>
+                                                        {testResult.parsed.first.slice(0, 2).map((c: any, i: number) => (
                                                             <div key={i} className="flex justify-between text-[10px] text-white/60">
                                                                 <span>{c.name}</span>
                                                                 <code className="text-blue-400">{c.id}</code>
@@ -1472,6 +1501,13 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                                 ) : (
                                                     <div className="text-xs text-red-400">{testResult.error || 'Failed'}</div>
                                                 )}
+                                                {/* Mini Debug Trigger */}
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); setTestAction('manual'); }}
+                                                    className="mt-2 w-full text-[9px] text-white/20 hover:text-white uppercase tracking-wider text-center py-1 hover:bg-white/5 rounded transition-colors"
+                                                >
+                                                    View Trace
+                                                </button>
                                             </div>
                                         )}
                                     </div>
@@ -1496,19 +1532,70 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
 
                                         {testResult && testAction === 'getServices' && (
                                             <div className="mt-2 pt-2 border-t border-white/5 animate-in fade-in space-y-1">
-                                                {testResult.first && Array.isArray(testResult.first) ? (
+                                                {testResult.parsed && testResult.parsed.first && Array.isArray(testResult.parsed.first) ? (
                                                     <>
-                                                        <div className="text-xs text-purple-300 font-mono mb-1">{testResult.count} found</div>
-                                                        {testResult.first.slice(0, 2).map((s: any, i: number) => (
+                                                        <div className="text-xs text-purple-300 font-mono mb-1">{testResult.parsed.count} found</div>
+                                                        {testResult.parsed.first.slice(0, 2).map((s: any, i: number) => (
                                                             <div key={i} className="flex justify-between text-[10px] text-white/60">
-                                                                <span>{s.name}</span>
-                                                                <code className="text-purple-400">{s.price}</code>
+                                                                <span>{s.name || s.serviceName || 'Unknown'}</span>
+                                                                <code className="text-purple-400">{s.code || s.serviceId || s.id || s.price || ''}</code>
                                                             </div>
                                                         ))}
                                                     </>
                                                 ) : (
                                                     <div className="text-xs text-red-400">{testResult.error || 'Check params'}</div>
                                                 )}
+                                                {/* Mini Debug Trigger */}
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); setTestAction('manual'); }}
+                                                    className="mt-2 w-full text-[9px] text-white/20 hover:text-white uppercase tracking-wider text-center py-1 hover:bg-white/5 rounded transition-colors"
+                                                >
+                                                    View Trace
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Prices Test Card */}
+                                    <div
+                                        onClick={() => runTest('getPrices')}
+                                        className="group cursor-pointer p-5 rounded-2xl bg-white/5 border border-white/10 hover:border-amber-500/50 hover:bg-amber-500/5 transition-all relative overflow-hidden"
+                                    >
+                                        <div className="flex items-center justify-between mb-4">
+                                            <div className="p-2 rounded-lg bg-amber-500/20 group-hover:bg-amber-500/30 transition-colors">
+                                                <DollarSign className="w-5 h-5 text-amber-400" />
+                                            </div>
+                                            {isTesting && testAction === 'getPrices' ? (
+                                                <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
+                                            ) : (
+                                                <Play className="w-4 h-4 text-white/20 group-hover:text-amber-400 transition-colors" />
+                                            )}
+                                        </div>
+                                        <div className="text-white font-bold text-lg mb-1">Check Prices</div>
+                                        <div className="text-xs text-white/40 mb-3">Verify pricing data</div>
+
+                                        {testResult && testAction === 'getPrices' && (
+                                            <div className="mt-2 pt-2 border-t border-white/5 animate-in fade-in space-y-1">
+                                                {testResult.parsed && testResult.parsed.first && Array.isArray(testResult.parsed.first) ? (
+                                                    <>
+                                                        <div className="text-xs text-amber-300 font-mono mb-1">{testResult.parsed.count} prices found</div>
+                                                        {testResult.parsed.first.slice(0, 2).map((p: any, i: number) => (
+                                                            <div key={i} className="flex justify-between text-[10px] text-white/60">
+                                                                <span className="truncate max-w-[80px]">{p.service} ({p.country})</span>
+                                                                <code className="text-amber-400">{p.cost} ({p.count})</code>
+                                                            </div>
+                                                        ))}
+                                                    </>
+                                                ) : (
+                                                    <div className="text-xs text-red-400">{testResult.error || 'Check params'}</div>
+                                                )}
+                                                {/* Mini Debug Trigger */}
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); setTestAction('manual'); }}
+                                                    className="mt-2 w-full text-[9px] text-white/20 hover:text-white uppercase tracking-wider text-center py-1 hover:bg-white/5 rounded transition-colors"
+                                                >
+                                                    View Trace
+                                                </button>
                                             </div>
                                         )}
                                     </div>
@@ -1547,11 +1634,12 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                                 <span className="text-[10px] text-white/40">Test specific endpoints individually</span>
                                             </div>
                                         </div>
-                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
                                             {[
                                                 { value: 'getBalance', label: 'Get Balance', icon: Wallet, desc: 'Check funds', color: 'text-emerald-400' },
                                                 { value: 'getCountries', label: 'Countries', icon: MapPin, desc: 'List all', color: 'text-blue-400' },
                                                 { value: 'getServices', label: 'Services', icon: Smartphone, desc: 'List by country', color: 'text-purple-400' },
+                                                { value: 'getPrices', label: 'Prices', icon: DollarSign, desc: 'Get pricing', color: 'text-amber-400' },
                                                 { value: 'getNumber', label: 'Get Number', icon: Phone, desc: 'Purchase test', color: 'text-cyan-400' },
                                             ].map((action) => (
                                                 <button
@@ -1579,8 +1667,9 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
 
 
 
+
                                 {/* Dynamic Parameters */}
-                                {(testAction === 'getServices' || testAction === 'getNumber' || testAction === 'getStatus' || testAction === 'cancelNumber') && (
+                                {(testAction === 'getServices' || testAction === 'getNumber' || testAction === 'getStatus' || testAction === 'cancelNumber' || testAction === 'getPrices') && (
                                     <div className="p-4 bg-white/5 rounded-xl border border-white/5 space-y-4">
                                         <div className="flex items-center gap-3">
                                             <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
@@ -1593,7 +1682,7 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                         </div>
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                            {(testAction === 'getServices' || testAction === 'getNumber') && (
+                                            {(testAction === 'getServices' || testAction === 'getNumber' || testAction === 'getPrices') && (
                                                 <div className="space-y-2">
                                                     <label className="text-xs font-medium text-white/60 flex items-center gap-1.5">
                                                         Country Code
@@ -1608,10 +1697,10 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                                 </div>
                                             )}
 
-                                            {testAction === 'getNumber' && (
+                                            {(testAction === 'getNumber' || testAction === 'getPrices') && (
                                                 <div className="space-y-2">
                                                     <label className="text-xs font-medium text-white/60 flex items-center gap-1.5">
-                                                        Service Code
+                                                        Service Code {testAction === 'getPrices' && <span className="text-white/30">(optional)</span>}
                                                         <InfoTooltip content={<>Provider-specific service code. Example: <TTCode>wa</TTCode> for WhatsApp, <TTCode>tg</TTCode> for Telegram</>} />
                                                     </label>
                                                     <Input
