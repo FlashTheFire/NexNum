@@ -1,31 +1,86 @@
 import { Ratelimit } from '@upstash/ratelimit'
 import { redis } from '@/lib/redis'
+import { SettingsService } from '@/lib/settings'
 
-// Create a new ratelimiter, that allows 10 requests per 10 seconds
-// You can create multiple limiters for different purposes
+// Cache limits in memory to avoid fetching calls on every request
+// Cache validity: 1 minute
+let limitConfigCache: {
+    config: Awaited<ReturnType<typeof SettingsService.getRateLimits>>,
+    timestamp: number
+} | null = null
+
+async function getLimitConfig() {
+    const now = Date.now()
+    if (limitConfigCache && (now - limitConfigCache.timestamp < 60000)) {
+        return limitConfigCache.config
+    }
+
+    try {
+        const config = await SettingsService.getRateLimits()
+        limitConfigCache = { config, timestamp: now }
+        return config
+    } catch (e) {
+        // Fallback defaults
+        return {
+            apiLimit: 100,
+            authLimit: 5,
+            adminLimit: 30,
+            windowSize: 60
+        }
+    }
+}
+
+// Wrapper for dynamic rate limiting
+class DynamicLimiter {
+    private prefix: string
+    private getLimit: () => Promise<number>
+
+    constructor(prefix: string, getLimit: () => Promise<number>) {
+        this.prefix = prefix
+        this.getLimit = getLimit
+    }
+
+    async limit(identifier: string) {
+        const maxRequests = await this.getLimit()
+
+        // We create a new limiter instance to ensure it uses the latest limit
+        // This is cheap as it's just a class instantiation, not a DB connection
+        const limiter = new Ratelimit({
+            redis: redis,
+            limiter: Ratelimit.slidingWindow(maxRequests, '60 s'),
+            analytics: true,
+            prefix: this.prefix,
+        })
+
+        return limiter.limit(identifier)
+    }
+}
+
 export const rateLimiters = {
-    // General API limiter (moderate traffic)
-    api: new Ratelimit({
-        redis: redis,
-        limiter: Ratelimit.slidingWindow(20, '10 s'),
-        analytics: true,
-        prefix: '@upstash/ratelimit',
+    // General API limiter
+    api: new DynamicLimiter('@upstash/ratelimit', async () => {
+        const config = await getLimitConfig()
+        return config.apiLimit
     }),
 
-    // Auth limiter (stricter - prevents brute force)
-    auth: new Ratelimit({
-        redis: redis,
-        limiter: Ratelimit.slidingWindow(5, '60 s'), // 5 attempts per minute
-        analytics: true,
-        prefix: '@upstash/ratelimit-auth',
+    // Auth limiter
+    auth: new DynamicLimiter('@upstash/ratelimit-auth', async () => {
+        const config = await getLimitConfig()
+        return config.authLimit
     }),
 
-    // SMS Purchase/Action limiter (prevent balance draining automation)
+    // Transaction limiter (static for now, sensitive)
     transaction: new Ratelimit({
         redis: redis,
         limiter: Ratelimit.slidingWindow(10, '60 s'),
         analytics: true,
         prefix: '@upstash/ratelimit-tx',
+    }),
+
+    // Admin API limiter
+    admin: new DynamicLimiter('@upstash/ratelimit-admin', async () => {
+        const config = await getLimitConfig()
+        return config.adminLimit
     }),
 }
 

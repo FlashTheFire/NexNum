@@ -1,27 +1,12 @@
 
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { cookies } from 'next/headers'
-import { verifyToken } from '@/lib/jwt'
-
-async function verifyAdmin() {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('token')?.value
-    if (!token) return null
-    try {
-        const payload = await verifyToken(token)
-        if (payload?.role === 'ADMIN') return payload
-        return null
-    } catch {
-        return null
-    }
-}
+import { requireAdmin, redactProviderSecrets } from '@/lib/requireAdmin'
+import { logAdminAction, getClientIP } from '@/lib/auditLog'
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
-    const admin = await verifyAdmin()
-    if (!admin) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const auth = await requireAdmin(req)
+    if (auth.error) return auth.error
 
     const { id } = await params
 
@@ -44,22 +29,25 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
             return NextResponse.json({ error: 'Provider not found' }, { status: 404 })
         }
 
-        return NextResponse.json(provider)
+        // REDACT authKey before returning
+        return NextResponse.json(redactProviderSecrets(provider))
     } catch (error) {
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
     }
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
-    const admin = await verifyAdmin()
-    if (!admin) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const auth = await requireAdmin(req)
+    if (auth.error) return auth.error
 
     const { id } = await params
 
     try {
         const body = await req.json()
+
+        // Get original for audit comparison
+        const original = await prisma.provider.findUnique({ where: { id } })
+
         const provider = await prisma.provider.update({
             where: { id },
             data: {
@@ -68,7 +56,21 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
             }
         })
 
-        return NextResponse.json(provider)
+        // Audit log the update
+        await logAdminAction({
+            userId: auth.userId,
+            action: body.isActive !== undefined ? 'PROVIDER_TOGGLE' : 'PROVIDER_UPDATE',
+            resourceType: 'Provider',
+            resourceId: provider.id,
+            metadata: {
+                name: provider.name,
+                changes: Object.keys(body).filter(k => k !== 'authKey') // Don't log authKey changes
+            },
+            ipAddress: getClientIP(req)
+        })
+
+        // REDACT authKey before returning
+        return NextResponse.json(redactProviderSecrets(provider))
     } catch (error) {
         console.error('Update failed:', error)
         return NextResponse.json({ error: 'Update failed' }, { status: 500 })
@@ -76,10 +78,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 }
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
-    const admin = await verifyAdmin()
-    if (!admin) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const auth = await requireAdmin(req)
+    if (auth.error) return auth.error
 
     const { id } = await params
 
@@ -90,7 +90,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
         }
 
         // Protection logic
-        if (provider.name === 'mock' || provider.priority === 999) { // System default
+        if (provider.name === 'mock' || provider.priority === 999) {
             return NextResponse.json({ error: 'Cannot delete system default provider.' }, { status: 403 })
         }
 
@@ -105,6 +105,16 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
 
         await prisma.provider.delete({
             where: { id }
+        })
+
+        // Audit log the deletion
+        await logAdminAction({
+            userId: auth.userId,
+            action: 'PROVIDER_DELETE',
+            resourceType: 'Provider',
+            resourceId: id,
+            metadata: { name: provider.name, displayName: provider.displayName },
+            ipAddress: getClientIP(req)
         })
 
         return NextResponse.json({ success: true })

@@ -280,21 +280,26 @@ export default function ProviderWizard({ onComplete, onCancel }: WizardProps) {
                                     {/* Magic Import Card - Full Width */}
                                     <div
                                         onClick={() => openAIAssistant('full')}
-                                        className="md:col-span-2 lg:col-span-3 group relative bg-gradient-to-r from-violet-900/40 to-fuchsia-900/40 border border-violet-500/30 hover:border-violet-500/60 rounded-2xl md:rounded-3xl p-4 md:p-8 cursor-pointer transition-all hover:shadow-[0_0_40px_rgba(167,139,250,0.2)] overflow-hidden flex flex-col md:flex-row gap-4 md:gap-6 items-center"
+                                        className="md:col-span-2 lg:col-span-3 group relative bg-gradient-to-r from-violet-900/40 to-fuchsia-900/40 border border-violet-500/30 hover:border-violet-500/60 rounded-2xl md:rounded-3xl p-3 md:p-8 cursor-pointer transition-all hover:shadow-[0_0_40px_rgba(167,139,250,0.2)] overflow-hidden flex flex-row gap-3 md:gap-6 items-center"
                                     >
-                                        <div className="absolute top-0 right-0 p-3 md:p-4 opacity-70 group-hover:opacity-100 transition-opacity">
+                                        <div className="hidden md:block absolute top-0 right-0 p-3 md:p-4 opacity-70 group-hover:opacity-100 transition-opacity">
                                             <div className="px-3 py-1 rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white text-[10px] font-bold uppercase tracking-widest shadow-lg flex items-center gap-2">
                                                 <Sparkles size={10} /> AI Powered
                                             </div>
                                         </div>
 
-                                        <div className="shrink-0 w-16 h-16 md:w-24 md:h-24 rounded-2xl bg-gradient-to-br from-violet-600 to-fuchsia-600 flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform duration-500">
+                                        <div className="shrink-0 w-12 h-12 md:w-24 md:h-24 rounded-2xl bg-gradient-to-br from-violet-600 to-fuchsia-600 flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform duration-500">
                                             <Wand2 size={40} className="text-white" />
                                         </div>
 
                                         <div className="flex-1 text-center md:text-left">
-                                            <h3 className="text-lg md:text-2xl font-bold text-white mb-2 group-hover:text-violet-200 transition-colors">Magic Import from Docs</h3>
-                                            <p className="text-sm text-gray-300 leading-relaxed mb-4 max-w-2xl">
+                                            <div className="md:hidden flex justify-center md:justify-start mb-1.5">
+                                                <div className="px-2 py-0.5 rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white text-[9px] font-bold uppercase tracking-widest shadow-lg flex items-center gap-1.5 w-fit">
+                                                    <Sparkles size={8} /> AI Powered
+                                                </div>
+                                            </div>
+                                            <h3 className="text-base md:text-2xl font-bold text-white mb-1 md:mb-2 group-hover:text-violet-200 transition-colors">Magic Import from Docs</h3>
+                                            <p className="text-[10px] md:text-sm text-gray-300 leading-relaxed mb-2 md:mb-4 max-w-2xl line-clamp-2 md:line-clamp-none">
                                                 Paste your entire API documentation once. Our AI will automatically extract identity, detect authentication, and generate all endpoints & mappings for you.
                                             </p>
                                             <div className="flex flex-wrap justify-center md:justify-start gap-2 text-[10px] items-center text-violet-200/60 font-mono">
@@ -312,9 +317,9 @@ export default function ProviderWizard({ onComplete, onCancel }: WizardProps) {
                                     {/* Future Proof Card - SPANS 2 or 3 on large screens */}
                                     <div
                                         onClick={() => selectBlueprint('universal')}
-                                        className="md:col-span-2 lg:col-span-3 group relative bg-gradient-to-br from-blue-900/10 to-indigo-900/10 border border-blue-500/20 hover:border-blue-500/50 rounded-2xl md:rounded-3xl p-4 md:p-8 cursor-pointer transition-all hover:shadow-[0_0_30px_rgba(59,130,246,0.15)] overflow-hidden flex flex-col md:flex-row gap-4 md:gap-6 items-center"
+                                        className="md:col-span-2 lg:col-span-3 group relative bg-gradient-to-br from-blue-900/10 to-indigo-900/10 border border-blue-500/20 hover:border-blue-500/50 rounded-2xl md:rounded-3xl p-3 md:p-8 cursor-pointer transition-all hover:shadow-[0_0_30px_rgba(59,130,246,0.15)] overflow-hidden flex flex-row gap-3 md:gap-6 items-center"
                                     >
-                                        <div className="absolute top-0 right-0 p-3 md:p-4 opacity-50 group-hover:opacity-100 transition-opacity">
+                                        <div className="hidden md:block absolute top-0 right-0 p-3 md:p-4 opacity-50 group-hover:opacity-100 transition-opacity">
                                             <div className="px-2 md:px-3 py-0.5 md:py-1 rounded-full bg-blue-500 text-white text-[8px] md:text-[10px] font-bold uppercase tracking-widest shadow-lg">Recommended</div>
                                         </div>
 
@@ -323,8 +328,11 @@ export default function ProviderWizard({ onComplete, onCancel }: WizardProps) {
                                         </div>
 
                                         <div className="flex-1 text-center md:text-left">
-                                            <h3 className="text-base md:text-xl font-bold text-white mb-1 md:mb-2 group-hover:text-blue-200 transition-colors">Universal REST API</h3>
-                                            <p className="text-xs md:text-sm text-gray-400 leading-relaxed mb-3 md:mb-4">
+                                            <div className="md:hidden flex justify-center md:justify-start mb-1.5">
+                                                <div className="px-2 py-0.5 rounded-full bg-blue-500 text-white text-[8px] font-bold uppercase tracking-widest shadow-lg w-fit">Recommended</div>
+                                            </div>
+                                            <h3 className="text-sm md:text-xl font-bold text-white mb-1 md:mb-2 group-hover:text-blue-200 transition-colors">Universal REST API</h3>
+                                            <p className="text-[10px] md:text-sm text-gray-400 leading-relaxed mb-2 md:mb-4 line-clamp-2 md:line-clamp-none">
                                                 The future-proof standard. Fully customizable mappings for any JSON-based API. Supports dynamic field extraction, complex auth flows, and hybrid response types.
                                             </p>
                                             <div className="flex flex-wrap justify-center md:justify-start gap-1.5 md:gap-2 text-[9px] md:text-[10px] items-center text-blue-300/60 font-mono">

@@ -2,27 +2,12 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { syncProviderData } from '@/lib/provider-sync'
-import { cookies } from 'next/headers'
-import { verifyToken } from '@/lib/jwt'
-
-async function verifyAdmin() {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('token')?.value
-    if (!token) return null
-    try {
-        const payload = await verifyToken(token)
-        if (payload?.role === 'ADMIN') return payload
-        return null
-    } catch {
-        return null
-    }
-}
+import { requireAdmin } from '@/lib/requireAdmin'
+import { logAdminAction, getClientIP } from '@/lib/auditLog'
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-    const admin = await verifyAdmin()
-    if (!admin) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const auth = await requireAdmin(req)
+    if (auth.error) return auth.error
 
     const { id } = await params
 
@@ -33,6 +18,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         }
 
         const result = await syncProviderData(provider.name)
+
+        // Audit log the sync
+        await logAdminAction({
+            userId: auth.userId,
+            action: 'SYNC_TRIGGERED',
+            resourceType: 'Provider',
+            resourceId: id,
+            metadata: { providerName: provider.name, result },
+            ipAddress: getClientIP(req)
+        })
+
         return NextResponse.json(result)
     } catch (error: any) {
         console.error('Sync trigger failed:', error)

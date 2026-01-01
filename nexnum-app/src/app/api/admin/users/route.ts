@@ -1,25 +1,11 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { verifyToken } from '@/lib/jwt'
-import { apiHandler } from '@/lib/api-handler'
-
-// Helper to check admin
-async function getAdminPayload(request: Request) {
-    const cookieHeader = request.headers.get('cookie') || ''
-    // Try multiple cookie name patterns
-    let token = cookieHeader.split('token=')[1]?.split(';')[0]
-    if (!token) token = cookieHeader.split('auth-token=')[1]?.split(';')[0]
-    if (!token) return null
-    const payload = await verifyToken(token)
-    if (payload?.role !== 'ADMIN') return null
-    return payload
-}
+import { requireAdmin } from '@/lib/requireAdmin'
+import { logAdminAction, getClientIP } from '@/lib/auditLog'
 
 export async function GET(request: Request) {
-    const adminPayload = await getAdminPayload(request)
-    if (!adminPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const auth = await requireAdmin(request)
+    if (auth.error) return auth.error
 
     const { searchParams } = new URL(request.url)
     const query = searchParams.get('q') || ''
@@ -256,10 +242,8 @@ export async function GET(request: Request) {
 
 // Update User (Role/Ban)
 export async function PATCH(request: Request) {
-    const adminPayload = await getAdminPayload(request)
-    if (!adminPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const auth = await requireAdmin(request)
+    if (auth.error) return auth.error
 
     try {
         const body = await request.json()
@@ -270,7 +254,7 @@ export async function PATCH(request: Request) {
         }
 
         // Prevent self-demotion/ban
-        if (adminPayload.userId === userId && (role === 'USER' || isBanned === true)) {
+        if (auth.userId === userId && (role === 'USER' || isBanned === true)) {
             return NextResponse.json({ error: 'Cannot demote or ban yourself' }, { status: 400 })
         }
 
@@ -301,14 +285,14 @@ export async function PATCH(request: Request) {
                     walletId,
                     amount: walletAdjustment,
                     type: walletAdjustment > 0 ? 'admin_credit' : 'admin_debit',
-                    description: adjustmentReason || `Admin adjustment by ${adminPayload.userId}`,
+                    description: adjustmentReason || `Admin adjustment by ${auth.userId}`,
                 }
             })
 
             // Audit log for wallet adjustment
             await prisma.auditLog.create({
                 data: {
-                    userId: adminPayload.userId,
+                    userId: auth.userId,
                     action: 'admin.wallet_adjustment',
                     resourceType: 'wallet',
                     resourceId: walletId,
@@ -347,7 +331,7 @@ export async function PATCH(request: Request) {
         // Audit log
         await prisma.auditLog.create({
             data: {
-                userId: adminPayload.userId,
+                userId: auth.userId,
                 action: 'admin.user_update',
                 resourceType: 'user',
                 resourceId: userId,
@@ -366,10 +350,8 @@ export async function PATCH(request: Request) {
 
 // Bulk actions
 export async function POST(request: Request) {
-    const adminPayload = await getAdminPayload(request)
-    if (!adminPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const auth = await requireAdmin(request)
+    if (auth.error) return auth.error
 
     try {
         const body = await request.json()
@@ -380,7 +362,7 @@ export async function POST(request: Request) {
         }
 
         // Prevent bulk action on self
-        if (userIds.includes(adminPayload.userId) && ['ban', 'demote'].includes(action)) {
+        if (userIds.includes(auth.userId) && ['ban', 'demote'].includes(action)) {
             return NextResponse.json({ error: 'Cannot perform this action on yourself' }, { status: 400 })
         }
 
@@ -410,7 +392,7 @@ export async function POST(request: Request) {
         // Audit log for bulk action
         await prisma.auditLog.create({
             data: {
-                userId: adminPayload.userId,
+                userId: auth.userId,
                 action: `admin.bulk_${action}`,
                 resourceType: 'user',
                 resourceId: 'bulk',

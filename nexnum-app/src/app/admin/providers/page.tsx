@@ -1432,24 +1432,37 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                 </div>
 
                                 {/* Independent Test Cards */}
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
                                     {/* Balance Test Card */}
                                     <div
                                         onClick={() => runTest('getBalance')}
-                                        className="group cursor-pointer p-5 rounded-2xl bg-white/5 border border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all relative overflow-hidden"
+                                        className="group cursor-pointer p-3 md:p-5 rounded-2xl bg-white/5 border border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all relative overflow-hidden"
                                     >
-                                        <div className="flex items-center justify-between mb-4">
-                                            <div className="p-2 rounded-lg bg-emerald-500/20 group-hover:bg-emerald-500/30 transition-colors">
-                                                <Wallet className="w-5 h-5 text-emerald-400" />
+                                        <div className="flex flex-row items-center gap-3 md:block md:gap-0">
+                                            <div className="flex items-center justify-between md:mb-4 shrink-0">
+                                                <div className="p-2 rounded-lg bg-emerald-500/20 group-hover:bg-emerald-500/30 transition-colors">
+                                                    <Wallet className="w-5 h-5 text-emerald-400" />
+                                                </div>
+                                                <div className="hidden md:block">
+                                                    {isTesting && testAction === 'getBalance' ? (
+                                                        <RefreshCw className="w-4 h-4 animate-spin text-emerald-400" />
+                                                    ) : (
+                                                        <Play className="w-4 h-4 text-white/20 group-hover:text-emerald-400 transition-colors" />
+                                                    )}
+                                                </div>
                                             </div>
-                                            {isTesting && testAction === 'getBalance' ? (
-                                                <RefreshCw className="w-4 h-4 animate-spin text-emerald-400" />
-                                            ) : (
-                                                <Play className="w-4 h-4 text-white/20 group-hover:text-emerald-400 transition-colors" />
-                                            )}
+                                            <div className="flex-1 md:w-full">
+                                                <div className="text-white font-bold text-sm md:text-lg mb-0.5 md:mb-1">Check Balance</div>
+                                                <div className="text-[10px] md:text-xs text-white/40 md:mb-3">Verify API key & funds</div>
+                                            </div>
+                                            <div className="md:hidden">
+                                                {isTesting && testAction === 'getBalance' ? (
+                                                    <RefreshCw className="w-4 h-4 animate-spin text-emerald-400" />
+                                                ) : (
+                                                    <Play className="w-4 h-4 text-white/20 group-hover:text-emerald-400 transition-colors" />
+                                                )}
+                                            </div>
                                         </div>
-                                        <div className="text-white font-bold text-lg mb-1">Check Balance</div>
-                                        <div className="text-xs text-white/40 mb-3">Verify API key & funds</div>
 
                                         {testResult && testAction === 'getBalance' && (
                                             <div className="mt-2 pt-2 border-t border-white/5 animate-in fade-in">
@@ -1475,20 +1488,33 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                     {/* Countries Test Card */}
                                     <div
                                         onClick={() => runTest('getCountries')}
-                                        className="group cursor-pointer p-5 rounded-2xl bg-white/5 border border-white/10 hover:border-blue-500/50 hover:bg-blue-500/5 transition-all relative overflow-hidden"
+                                        className="group cursor-pointer p-3 md:p-5 rounded-2xl bg-white/5 border border-white/10 hover:border-blue-500/50 hover:bg-blue-500/5 transition-all relative overflow-hidden"
                                     >
-                                        <div className="flex items-center justify-between mb-4">
-                                            <div className="p-2 rounded-lg bg-blue-500/20 group-hover:bg-blue-500/30 transition-colors">
-                                                <Globe className="w-5 h-5 text-blue-400" />
+                                        <div className="flex flex-row items-center gap-3 md:block md:gap-0">
+                                            <div className="flex items-center justify-between md:mb-4 shrink-0">
+                                                <div className="p-2 rounded-lg bg-blue-500/20 group-hover:bg-blue-500/30 transition-colors">
+                                                    <Globe className="w-5 h-5 text-blue-400" />
+                                                </div>
+                                                <div className="hidden md:block">
+                                                    {isTesting && testAction === 'getCountries' ? (
+                                                        <RefreshCw className="w-4 h-4 animate-spin text-blue-400" />
+                                                    ) : (
+                                                        <Play className="w-4 h-4 text-white/20 group-hover:text-blue-400 transition-colors" />
+                                                    )}
+                                                </div>
                                             </div>
-                                            {isTesting && testAction === 'getCountries' ? (
-                                                <RefreshCw className="w-4 h-4 animate-spin text-blue-400" />
-                                            ) : (
-                                                <Play className="w-4 h-4 text-white/20 group-hover:text-blue-400 transition-colors" />
-                                            )}
+                                            <div className="flex-1 md:w-full">
+                                                <div className="text-white font-bold text-sm md:text-lg mb-0.5 md:mb-1">Fetch Countries</div>
+                                                <div className="text-[10px] md:text-xs text-white/40 md:mb-3">Verify country list</div>
+                                            </div>
+                                            <div className="md:hidden">
+                                                {isTesting && testAction === 'getCountries' ? (
+                                                    <RefreshCw className="w-4 h-4 animate-spin text-blue-400" />
+                                                ) : (
+                                                    <Play className="w-4 h-4 text-white/20 group-hover:text-blue-400 transition-colors" />
+                                                )}
+                                            </div>
                                         </div>
-                                        <div className="text-white font-bold text-lg mb-1">Fetch Countries</div>
-                                        <div className="text-xs text-white/40 mb-3">Verify country list mapping</div>
 
                                         {testResult && testAction === 'getCountries' && (
                                             <div className="mt-2 pt-2 border-t border-white/5 animate-in fade-in space-y-1">
@@ -1519,20 +1545,33 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                     {/* Services Test Card */}
                                     <div
                                         onClick={() => runTest('getServices')}
-                                        className="group cursor-pointer p-5 rounded-2xl bg-white/5 border border-white/10 hover:border-purple-500/50 hover:bg-purple-500/5 transition-all relative overflow-hidden"
+                                        className="group cursor-pointer p-3 md:p-5 rounded-2xl bg-white/5 border border-white/10 hover:border-purple-500/50 hover:bg-purple-500/5 transition-all relative overflow-hidden"
                                     >
-                                        <div className="flex items-center justify-between mb-4">
-                                            <div className="p-2 rounded-lg bg-purple-500/20 group-hover:bg-purple-500/30 transition-colors">
-                                                <Smartphone className="w-5 h-5 text-purple-400" />
+                                        <div className="flex flex-row items-center gap-3 md:block md:gap-0">
+                                            <div className="flex items-center justify-between md:mb-4 shrink-0">
+                                                <div className="p-2 rounded-lg bg-purple-500/20 group-hover:bg-purple-500/30 transition-colors">
+                                                    <Smartphone className="w-5 h-5 text-purple-400" />
+                                                </div>
+                                                <div className="hidden md:block">
+                                                    {isTesting && testAction === 'getServices' ? (
+                                                        <RefreshCw className="w-4 h-4 animate-spin text-purple-400" />
+                                                    ) : (
+                                                        <Play className="w-4 h-4 text-white/20 group-hover:text-purple-400 transition-colors" />
+                                                    )}
+                                                </div>
                                             </div>
-                                            {isTesting && testAction === 'getServices' ? (
-                                                <RefreshCw className="w-4 h-4 animate-spin text-purple-400" />
-                                            ) : (
-                                                <Play className="w-4 h-4 text-white/20 group-hover:text-purple-400 transition-colors" />
-                                            )}
+                                            <div className="flex-1 md:w-full">
+                                                <div className="text-white font-bold text-sm md:text-lg mb-0.5 md:mb-1">Fetch Services</div>
+                                                <div className="text-[10px] md:text-xs text-white/40 md:mb-3">Test service mapping</div>
+                                            </div>
+                                            <div className="md:hidden">
+                                                {isTesting && testAction === 'getServices' ? (
+                                                    <RefreshCw className="w-4 h-4 animate-spin text-purple-400" />
+                                                ) : (
+                                                    <Play className="w-4 h-4 text-white/20 group-hover:text-purple-400 transition-colors" />
+                                                )}
+                                            </div>
                                         </div>
-                                        <div className="text-white font-bold text-lg mb-1">Fetch Services</div>
-                                        <div className="text-xs text-white/40 mb-3">Test service mapping (USA default)</div>
 
                                         {testResult && testAction === 'getServices' && (
                                             <div className="mt-2 pt-2 border-t border-white/5 animate-in fade-in space-y-1">
@@ -1563,20 +1602,33 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                     {/* Prices Test Card */}
                                     <div
                                         onClick={() => runTest('getPrices')}
-                                        className="group cursor-pointer p-5 rounded-2xl bg-white/5 border border-white/10 hover:border-amber-500/50 hover:bg-amber-500/5 transition-all relative overflow-hidden"
+                                        className="group cursor-pointer p-3 md:p-5 rounded-2xl bg-white/5 border border-white/10 hover:border-amber-500/50 hover:bg-amber-500/5 transition-all relative overflow-hidden"
                                     >
-                                        <div className="flex items-center justify-between mb-4">
-                                            <div className="p-2 rounded-lg bg-amber-500/20 group-hover:bg-amber-500/30 transition-colors">
-                                                <DollarSign className="w-5 h-5 text-amber-400" />
+                                        <div className="flex flex-row items-center gap-3 md:block md:gap-0">
+                                            <div className="flex items-center justify-between md:mb-4 shrink-0">
+                                                <div className="p-2 rounded-lg bg-amber-500/20 group-hover:bg-amber-500/30 transition-colors">
+                                                    <DollarSign className="w-5 h-5 text-amber-400" />
+                                                </div>
+                                                <div className="hidden md:block">
+                                                    {isTesting && testAction === 'getPrices' ? (
+                                                        <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
+                                                    ) : (
+                                                        <Play className="w-4 h-4 text-white/20 group-hover:text-amber-400 transition-colors" />
+                                                    )}
+                                                </div>
                                             </div>
-                                            {isTesting && testAction === 'getPrices' ? (
-                                                <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
-                                            ) : (
-                                                <Play className="w-4 h-4 text-white/20 group-hover:text-amber-400 transition-colors" />
-                                            )}
+                                            <div className="flex-1 md:w-full">
+                                                <div className="text-white font-bold text-sm md:text-lg mb-0.5 md:mb-1">Check Prices</div>
+                                                <div className="text-[10px] md:text-xs text-white/40 md:mb-3">Verify pricing data</div>
+                                            </div>
+                                            <div className="md:hidden">
+                                                {isTesting && testAction === 'getPrices' ? (
+                                                    <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
+                                                ) : (
+                                                    <Play className="w-4 h-4 text-white/20 group-hover:text-amber-400 transition-colors" />
+                                                )}
+                                            </div>
                                         </div>
-                                        <div className="text-white font-bold text-lg mb-1">Check Prices</div>
-                                        <div className="text-xs text-white/40 mb-3">Verify pricing data</div>
 
                                         {testResult && testAction === 'getPrices' && (
                                             <div className="mt-2 pt-2 border-t border-white/5 animate-in fade-in space-y-1">

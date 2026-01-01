@@ -38,7 +38,7 @@ interface ProviderConfig {
   
   // Map of Key -> EndpointConfig
   endpoints: {
-    [key in 'getCountries' | 'getServices' | 'getNumber' | 'getStatus' | 'cancelNumber' | 'getBalance']: {
+    [key in 'getCountries' | 'getServices' | 'getNumber' | 'getStatus' | 'cancelNumber' | 'getBalance' | 'getPrices']: {
       method: 'GET' | 'POST';
       path: string; // Path ONLY. Do NOT include "?". Use queryParams for that.
       queryParams?: Record<string, string>;
@@ -47,7 +47,7 @@ interface ProviderConfig {
 
   // Map of Key -> MappingConfig
   mappings: {
-    [key in 'getCountries' | 'getServices' | 'getNumber' | 'getStatus' | 'cancelNumber' | 'getBalance']: {
+    [key in 'getCountries' | 'getServices' | 'getNumber' | 'getStatus' | 'cancelNumber' | 'getBalance' | 'getPrices']: {
       type: 'json_object' | 'json_array' | 'json_dictionary' | 'text_regex' | 'text_lines';
       rootPath?: string; // Optional JMESPath/DotPath for JSON
       regex?: string; // REQUIRED for text_regex. Use Named Capture Groups!
@@ -189,8 +189,9 @@ DETECT THE ARCHITECTURE TYPE:
 MANDATORY CHECKS:
 1. ** Identity **: Name, Base URL ?
     2. ** Auth **: Method found ? (Query param, Header, Bearer)
-3. ** Endpoints **: Are these 6 present ?
+3. ** Endpoints **: Are these 7 present ?
     - getBalance
+    - getPrices
     - getCountries
     - getServices
     - getNumber(Order)
@@ -247,6 +248,11 @@ async function handleAnalysis(prompt: string) {
 }
 
 export async function POST(req: NextRequest) {
+    // Import at top won't work at runtime, so dynamic import
+    const { requireAdmin } = await import('@/lib/requireAdmin')
+    const auth = await requireAdmin(req)
+    if (auth.error) return auth.error
+
     try {
         const body = await req.json()
         const { prompt, step, mode, supplements, providerType } = body

@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Wallet, ChevronRight, Clock, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -22,6 +22,8 @@ const SNOOZE_OPTIONS = [
 ]
 
 const SNOOZE_STORAGE_KEY = 'nexnum_balance_alert_snoozed_until'
+const LAST_CHECK_KEY = 'nexnum_balance_last_check'
+const CHECK_INTERVAL_MS = 60 * 60 * 1000 // 1 hour
 
 export function LowBalanceAlert() {
     const [alerts, setAlerts] = useState<Alert[]>([])
@@ -29,6 +31,7 @@ export function LowBalanceAlert() {
     const [showSnoozeMenu, setShowSnoozeMenu] = useState(false)
     const [isSnoozed, setIsSnoozed] = useState(false)
     const router = useRouter()
+    const isCheckingRef = useRef(false)
 
     // Check if currently snoozed
     useEffect(() => {
@@ -49,15 +52,22 @@ export function LowBalanceAlert() {
         }
     }, [])
 
-    useEffect(() => {
-        if (isSnoozed) return
-        // checkBalance() // Temporarily disabled to prevent console spam
-        // Poll every 5 minutes
-        // const interval = setInterval(checkBalance, 5 * 60 * 1000)
-        // return () => clearInterval(interval)
-    }, [isSnoozed])
+    const checkBalance = useCallback(async () => {
+        // Guard against duplicate calls (React Strict Mode, re-renders)
+        if (isCheckingRef.current) return
 
-    const checkBalance = async () => {
+        // Check if we've checked recently (guards across page navigations)
+        const lastCheck = localStorage.getItem(LAST_CHECK_KEY)
+        if (lastCheck) {
+            const elapsed = Date.now() - parseInt(lastCheck, 10)
+            if (elapsed < 60000) { // Don't check more than once per minute
+                return
+            }
+        }
+
+        isCheckingRef.current = true
+        localStorage.setItem(LAST_CHECK_KEY, Date.now().toString())
+
         try {
             await fetch('/api/admin/providers/balance-check', { method: 'POST' })
             const res = await fetch('/api/admin/providers/balance-check')
@@ -67,8 +77,18 @@ export function LowBalanceAlert() {
             }
         } catch (e) {
             console.error("Failed to check balances", e)
+        } finally {
+            isCheckingRef.current = false
         }
-    }
+    }, [])
+
+    useEffect(() => {
+        if (isSnoozed) return
+        checkBalance()
+        // Poll every 1 hour (60 minutes)
+        const interval = setInterval(checkBalance, CHECK_INTERVAL_MS)
+        return () => clearInterval(interval)
+    }, [isSnoozed, checkBalance])
 
     const handleSnooze = (hours: number) => {
         const until = new Date(Date.now() + hours * 60 * 60 * 1000)

@@ -67,6 +67,10 @@ model Number {
 
   @@index([ownerId])
   @@index([status])
+  @@index([status, createdAt])           // List by status ordered by date
+  @@index([ownerId, status])             // User's numbers by status
+  @@index([provider, status])            // Provider stats
+  @@index([expiresAt])                   // Expiring numbers cleanup
   @@map("numbers")
 }
 
@@ -163,6 +167,8 @@ model ServicePricing {
   @@index([provider])
   @@index([isAvailable])
   @@index([price])
+  @@index([serviceId, isAvailable, price])  // Optimized pricing lookup
+  @@index([countryId, isAvailable])         // Available services in country
   @@map("service_pricing")
 }
 

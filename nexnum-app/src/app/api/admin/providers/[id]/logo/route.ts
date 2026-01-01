@@ -1,29 +1,14 @@
 
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { cookies } from 'next/headers'
-import { verifyToken } from '@/lib/jwt'
+import { requireAdmin } from '@/lib/requireAdmin'
+import { logAdminAction, getClientIP } from '@/lib/auditLog'
 import { writeFile, mkdir } from 'fs/promises'
 import path from 'path'
 
-async function verifyAdmin() {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('token')?.value
-    if (!token) return null
-    try {
-        const payload = await verifyToken(token)
-        if (payload?.role === 'ADMIN') return payload
-        return null
-    } catch {
-        return null
-    }
-}
-
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-    const admin = await verifyAdmin()
-    if (!admin) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const auth = await requireAdmin(req)
+    if (auth.error) return auth.error
 
     const { id } = await params
 
@@ -70,6 +55,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         await prisma.provider.update({
             where: { id },
             data: { logoUrl }
+        })
+
+        // Audit log the upload
+        await logAdminAction({
+            userId: auth.userId,
+            action: 'PROVIDER_UPDATE',
+            resourceType: 'Provider',
+            resourceId: id,
+            metadata: { action: 'logo_upload', filename },
+            ipAddress: getClientIP(req)
         })
 
         return NextResponse.json({ logoUrl, message: 'Logo uploaded successfully' })

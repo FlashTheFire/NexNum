@@ -1,18 +1,10 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { verifyToken } from '@/lib/jwt'
-
-async function isAdmin(request: Request) {
-    const token = request.headers.get('cookie')?.split('token=')[1]?.split(';')[0]
-    if (!token) return false
-    const payload = await verifyToken(token)
-    return payload?.role === 'ADMIN'
-}
+import { requireAdmin } from '@/lib/requireAdmin'
 
 export async function GET(request: Request) {
-    if (!await isAdmin(request)) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const auth = await requireAdmin(request)
+    if (auth.error) return auth.error
 
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get('page') || '1')

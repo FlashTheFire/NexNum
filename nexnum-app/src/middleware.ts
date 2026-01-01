@@ -43,6 +43,13 @@ export async function middleware(request: NextRequest) {
             const result = await rateLimiters.transaction.limit(ip)
             success = result.success
         }
+        // Admin API limiting (stricter)
+        else if (pathname.startsWith('/api/admin')) {
+            const result = await rateLimiters.admin.limit(ip)
+            success = result.success
+            response.headers.set('X-RateLimit-Limit', result.limit.toString())
+            response.headers.set('X-RateLimit-Remaining', result.remaining.toString())
+        }
         // General API limiting
         else if (pathname.startsWith('/api')) {
             const result = await rateLimiters.api.limit(ip)
