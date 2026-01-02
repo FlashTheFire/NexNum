@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db'
 export interface AppSettings {
     general: {
         siteName: string
+        emailSender: string
         timezone: string
         maintenanceMode: boolean
         maintenanceMessage: string
@@ -14,6 +15,13 @@ export interface AppSettings {
         fixedMarkup: number
         minPrice: number
         currency: string
+    }
+    priceOptimization: {
+        enabled: boolean
+        costWeight: number      // 0-1
+        stockWeight: number     // 0-1
+        rateWeight: number      // 0-1
+        minStock: number
     }
     rateLimit: {
         apiLimit: number
@@ -31,6 +39,7 @@ export interface AppSettings {
 const DEFAULT_SETTINGS: AppSettings = {
     general: {
         siteName: 'NexNum',
+        emailSender: 'onboarding@resend.dev', // Default for testing
         timezone: 'UTC',
         maintenanceMode: false,
         maintenanceMessage: 'We are currently performing scheduled maintenance.',
@@ -40,6 +49,13 @@ const DEFAULT_SETTINGS: AppSettings = {
         fixedMarkup: 0.5,
         minPrice: 0.10,
         currency: 'USD',
+    },
+    priceOptimization: {
+        enabled: true,
+        costWeight: 0.5,     // Cost is most important
+        stockWeight: 0.3,    // Stock availability matters
+        rateWeight: 0.2,     // Success rate is bonus
+        minStock: 0,         // Accept all stock levels
     },
     rateLimit: {
         apiLimit: 100,

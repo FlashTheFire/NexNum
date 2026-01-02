@@ -1,46 +1,143 @@
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { Check, Search } from "lucide-react";
+import { Check, Sparkles, Loader2 } from "lucide-react";
 import { ServiceIcon } from "./ServiceIcon";
 
-interface Service {
-    id: string;
-    name: string;
-    popular?: boolean;
-    color?: string;
+// Helper hook for IntersectionObserver
+function useInView(options = {}) {
+    const [isIntersecting, setIntersecting] = useState(false);
+    const ref = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const observer = new IntersectionObserver(([entry]) => {
+            setIntersecting(entry.isIntersecting);
+        }, options);
+
+        if (ref.current) observer.observe(ref.current);
+        return () => observer.disconnect();
+    }, [ref, options]); // options change recreates observer
+
+    return { ref, isIntersecting };
 }
 
-const services: Service[] = [
-    { id: "whatsapp", name: "WhatsApp", popular: true, color: "#25D366" },
-    { id: "telegram", name: "Telegram", popular: true, color: "#26A5E4" },
-    { id: "google", name: "Google", popular: true, color: "#4285F4" },
-    { id: "facebook", name: "Facebook", color: "#1877F2" },
-    { id: "tiktok", name: "TikTok", popular: true, color: "#FE2C55" },
-    { id: "instagram", name: "Instagram", color: "#E4405F" },
-    { id: "openai", name: "OpenAI", color: "#10A37F" },
-    { id: "discord", name: "Discord", color: "#5865F2" },
-    { id: "amazon", name: "Amazon", color: "#FF9900" },
-    { id: "twitter", name: "Twitter", color: "#1DA1F2" },
-    { id: "uber", name: "Uber", color: "#FFFFFF" },
-    { id: "netflix", name: "Netflix", color: "#E50914" },
-];
+const MOCK_COLORS: Record<string, string> = {
+    whatsapp: "#25D366", telegram: "#26A5E4", google: "#4285F4", facebook: "#1877F2",
+    tiktok: "#FE2C55", instagram: "#E4405F", openai: "#10A37F", discord: "#5865F2",
+    amazon: "#FF9900", twitter: "#1DA1F2", uber: "#FFFFFF", netflix: "#E50914"
+};
+
+export interface Service {
+    id: string; // The search term (Canonical Name)
+    name: string; // Display Name
+    color?: string;
+    popular?: boolean;
+    providerCount?: number;
+}
 
 interface ServiceSelectorProps {
     selectedService: string | null;
-    onSelect: (id: string) => void;
+    onSelect: (id: string, name: string) => void;
     searchTerm: string;
 }
 
 export default function ServiceSelector({ selectedService, onSelect, searchTerm }: ServiceSelectorProps) {
-    const filteredServices = services.filter(service =>
-        service.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const [fetchedServices, setFetchedServices] = useState<Service[]>([]);
+    const [loading, setLoading] = useState(false); // Initial load or search load
+    const [loadingMore, setLoadingMore] = useState(false); // Pagination load
+
+    // Pagination State
+    const [page, setPage] = useState(1);
+    const [hasMore, setHasMore] = useState(true);
+
+    // Debounce or just rely on parent searchTerm? 
+    // Parent should ideally debounce 'searchTerm', but for now we assume it triggers useEffect.
+
+    // Reset when search term changes
+    useEffect(() => {
+        setFetchedServices([]);
+        setPage(1);
+        setHasMore(true);
+        // We trigger fetch via logic below, or explicit call? 
+        // Explicit call is safer to avoid race conditions with 'page' state.
+        fetchServices(1, searchTerm, true);
+    }, [searchTerm]);
+
+    // Fetch Function
+    const fetchServices = async (pageToFetch: number, query: string, isReset: boolean) => {
+        if (isReset) setLoading(true);
+        else setLoadingMore(true);
+
+        try {
+            const res = await fetch(`/api/public/services?page=${pageToFetch}&limit=24&q=${encodeURIComponent(query)}`);
+            const data = await res.json();
+
+            // Handle { items, pagination } or fallback
+            // We implemented { items, pagination } in backend
+            const items = data.items || [];
+            const meta = data.pagination || {};
+
+            const mapped: Service[] = items.map((item: any) => {
+                const lowerName = item.searchName.toLowerCase();
+                const isPopular = item.providerCount > 1 || ['whatsapp', 'telegram', 'google', 'openai'].some((p: string) => lowerName.includes(p));
+
+                return {
+                    id: item.searchName,
+                    name: item.displayName,
+                    color: MOCK_COLORS[lowerName.split(' ')[0]] || "#888888",
+                    popular: isPopular,
+                    providerCount: item.providerCount
+                };
+            });
+
+            if (isReset) {
+                setFetchedServices(mapped);
+            } else {
+                setFetchedServices(prev => {
+                    // Avoid duplicates just in case
+                    const existingIds = new Set(prev.map(s => s.id));
+                    const newItems = mapped.filter((s: Service) => !existingIds.has(s.id));
+                    return [...prev, ...newItems];
+                });
+            }
+
+            setHasMore(meta.hasMore ?? (items.length > 0));
+
+        } catch (err) {
+            console.error("Failed to load services", err);
+        } finally {
+            setLoading(false);
+            setLoadingMore(false);
+        }
+    };
+
+    // Load More Logic (Infinite Scroll)
+    const { ref: loadMoreRef, isIntersecting } = useInView({ threshold: 0.5 });
+
+    useEffect(() => {
+        if (isIntersecting && hasMore && !loading && !loadingMore) {
+            const nextPage = page + 1;
+            setPage(nextPage);
+            fetchServices(nextPage, searchTerm, false);
+        }
+    }, [isIntersecting, hasMore, loading, loadingMore, page, searchTerm]);
+
+    if (loading && fetchedServices.length === 0) {
+        return (
+            <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-3 py-6">
+                {[...Array(16)].map((_, i) => (
+                    <div key={i} className="aspect-square rounded-xl bg-white/5 animate-pulse border border-white/5" />
+                ))}
+            </div>
+        );
+    }
 
     return (
-        <section className="py-4 md:py-8">
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3 lg:gap-4 min-h-[300px] content-start">
+        <section className="py-6 min-h-[400px]">
+            {/* Grid Layout */}
+            <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-3 lg:gap-4 content-start">
                 <AnimatePresence mode="popLayout">
-                    {filteredServices.map((service) => {
+                    {fetchedServices.map((service) => {
                         const isSelected = selectedService === service.id;
                         return (
                             <motion.button
@@ -49,64 +146,67 @@ export default function ServiceSelector({ selectedService, onSelect, searchTerm 
                                 animate={{ opacity: 1, scale: 1 }}
                                 exit={{ opacity: 0, scale: 0.9 }}
                                 key={service.id}
-                                onClick={() => onSelect(service.id)}
+                                onClick={() => onSelect(service.id, service.name)}
                                 style={{ '--brand-color': service.color } as React.CSSProperties}
                                 className={cn(
-                                    "relative flex flex-col items-center justify-center p-4 aspect-square rounded-2xl border transition-all duration-300 group overflow-hidden",
+                                    "relative flex flex-col items-center justify-center p-3 aspect-square rounded-xl border transition-all duration-300 group overflow-hidden bg-gradient-to-br",
                                     isSelected
-                                        ? "bg-[hsl(var(--neon-lime)/0.1)] border-[hsl(var(--neon-lime)/0.5)] shadow-[0_0_20px_hsl(var(--neon-lime)/0.1)]"
-                                        : "bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20 hover:scale-[1.02]"
+                                        ? "from-[hsl(var(--neon-lime)/0.1)] to-transparent border-[hsl(var(--neon-lime))] shadow-[0_0_15px_hsl(var(--neon-lime)/0.2)]"
+                                        : "from-white/5 to-white/[0.02] border-white/10 hover:border-white/25 hover:from-white/10"
                                 )}
                             >
-                                {/* Hover Gradient Backlight */}
-                                <div
-                                    className="absolute inset-0 opacity-0 group-hover:opacity-20 transition-opacity duration-300 pointer-events-none"
-                                    style={{ background: `radial-gradient(circle at center, ${service.color}, transparent 70%)` }}
-                                />
+                                {/* Active Badge */}
+                                {isSelected && (
+                                    <div className="absolute top-1 right-1 z-20">
+                                        <div className="w-4 h-4 rounded-full bg-[hsl(var(--neon-lime))] text-black flex items-center justify-center shadow-sm">
+                                            <Check className="w-3 h-3" strokeWidth={3} />
+                                        </div>
+                                    </div>
+                                )}
 
-                                <div className="relative z-10 p-2 mb-2 rounded-xl bg-white/5 group-hover:bg-white/10 transition-colors">
+                                {/* Popular Badge */}
+                                {service.popular && !isSelected && (
+                                    <div className="absolute top-1 right-1 z-10 opacity-50 group-hover:opacity-100 transition-opacity">
+                                        <Sparkles className="w-3 h-3 text-yellow-400" />
+                                    </div>
+                                )}
+
+                                <div className="relative z-10 mb-2 group-hover:scale-110 transition-transform duration-300">
                                     <ServiceIcon
-                                        id={service.id}
+                                        id={service.name.toLowerCase()}
                                         className={cn(
-                                            "w-8 h-8 transition-all duration-300",
+                                            "w-7 h-7 sm:w-9 sm:h-9 transition-colors",
                                             isSelected
                                                 ? "text-[hsl(var(--neon-lime))]"
-                                                : "text-gray-300 group-hover:scale-110 group-hover:text-[var(--brand-color)]"
+                                                : "text-gray-400 group-hover:text-white"
                                         )}
                                     />
                                 </div>
 
                                 <span className={cn(
-                                    "text-xs font-medium transition-colors relative z-10",
-                                    isSelected ? "text-[hsl(var(--neon-lime))]" : "text-gray-400 group-hover:text-white"
+                                    "text-[10px] sm:text-xs font-medium text-center leading-tight line-clamp-2 w-full px-1 transition-colors",
+                                    isSelected ? "text-white" : "text-gray-400 group-hover:text-white"
                                 )}>
                                     {service.name}
                                 </span>
-
-                                {service.popular && (
-                                    <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-[hsl(var(--neon-lime))] animate-pulse shadow-[0_0_8px_hsl(var(--neon-lime))]" />
-                                )}
-
-                                {/* Checkmark for active state */}
-                                {isSelected && (
-                                    <div className="absolute top-2 left-2 z-10">
-                                        <div className="w-4 h-4 bg-[hsl(var(--neon-lime))] rounded-full flex items-center justify-center shadow-lg">
-                                            <Check className="w-2.5 h-2.5 text-black" strokeWidth={3} />
-                                        </div>
-                                    </div>
-                                )}
                             </motion.button>
                         );
                     })}
                 </AnimatePresence>
-
-                {filteredServices.length === 0 && (
-                    <div className="col-span-full flex flex-col items-center justify-center py-12 text-gray-500">
-                        <ServiceIcon id="search" className="w-12 h-12 mb-4 opacity-20" />
-                        <p className="text-sm">No services found for "{searchTerm}"</p>
-                    </div>
-                )}
             </div>
+
+            {/* Load More Sentinel */}
+            {hasMore && (
+                <div ref={loadMoreRef} className="col-span-full py-8 flex justify-center items-center">
+                    {loadingMore && <Loader2 className="w-6 h-6 animate-spin text-[hsl(var(--neon-lime))]" />}
+                </div>
+            )}
+
+            {fetchedServices.length === 0 && !loading && (
+                <div className="flex flex-col items-center justify-center py-12 text-gray-500">
+                    <p className="text-sm">No services found for "{searchTerm}"</p>
+                </div>
+            )}
         </section>
     );
 }

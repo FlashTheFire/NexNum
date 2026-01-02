@@ -3,55 +3,72 @@ import {
     Body,
     Container,
     Head,
-    Heading,
     Html,
-    Img,
     Link,
     Preview,
     Section,
     Text,
     Hr,
+    Font,
 } from '@react-email/components'
+import { colors, components, spacing, typography } from './theme'
 
 interface EmailLayoutProps {
     preview?: string
     children: React.ReactNode
 }
 
-const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://nexnum.io'
 
 export const EmailLayout = ({ preview, children }: EmailLayoutProps) => {
     return (
         <Html>
-            <Head />
+            <Head>
+                <Font
+                    fontFamily="Roboto"
+                    fallbackFontFamily="Verdana"
+                    webFont={{
+                        url: 'https://fonts.gstatic.com/s/roboto/v27/KFOmCnqEu92Fr1Mu4mxKKTU1Kg.woff2',
+                        format: 'woff2',
+                    }}
+                    fontWeight={400}
+                    fontStyle="normal"
+                />
+            </Head>
             <Preview>{preview}</Preview>
-            <Body style={main}>
-                <Container style={container}>
+            <Body style={styles.main}>
+                <Container style={components.container}>
                     {/* Header */}
-                    <Section style={header}>
-                        <div style={logoContainer}>
-                            <span style={logoText}>NexNum</span>
+                    <Section style={components.header}>
+                        <div style={styles.logoContainer}>
+                            <Text style={styles.logoText}>NexNum</Text>
                         </div>
                     </Section>
 
-                    {/* Content */}
-                    <Section style={content}>
+                    {/* Content Card */}
+                    <Section style={components.card}>
                         {children}
                     </Section>
 
                     {/* Footer */}
-                    <Section style={footer}>
-                        <Hr style={hr} />
-                        <Text style={footerText}>
+                    <Section style={components.footer}>
+                        <Text style={components.text.caption}>
                             © {new Date().getFullYear()} NexNum. All rights reserved.
                         </Text>
-                        <Text style={footerLinks}>
-                            <Link href={`${baseUrl}/dashboard`} style={link}>Dashboard</Link> •{' '}
-                            <Link href={`${baseUrl}/terms`} style={link}>Terms</Link> •{' '}
-                            <Link href={`${baseUrl}/privacy`} style={link}>Privacy</Link>
+                        <Text style={styles.footerLinks}>
+                            <Link href={`${baseUrl}/dashboard`} style={styles.link}>Dashboard</Link>
+                            <span style={{ margin: '0 8px', color: colors.neutral.text.tertiary }}>•</span>
+                            <Link href={`${baseUrl}/terms`} style={styles.link}>Terms</Link>
+                            <span style={{ margin: '0 8px', color: colors.neutral.text.tertiary }}>•</span>
+                            <Link href={`${baseUrl}/privacy`} style={styles.link}>Privacy</Link>
                         </Text>
-                        <Text style={footerAddress}>
-                            123 Tech Street, Silicon Valley, CA 94025
+                        <Text style={components.text.caption}>
+                            You are receiving this email because you are a registered user of NexNum.
+                            <br />
+                            <Link href={`${baseUrl}/settings/notifications`} style={{ ...styles.link, color: colors.neutral.text.muted }}>
+                                Unsubscribe
+                            </Link>
+                            {' '}from generic updates.
                         </Text>
                     </Section>
                 </Container>
@@ -60,77 +77,34 @@ export const EmailLayout = ({ preview, children }: EmailLayoutProps) => {
     )
 }
 
-// Styles
-const main = {
-    backgroundColor: '#0f172a', // slate-900
-    fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif',
-    color: '#e2e8f0',
-}
-
-const container = {
-    margin: '0 auto',
-    padding: '20px 0 48px',
-    maxWidth: '580px',
-}
-
-const header = {
-    padding: '20px',
-    textAlign: 'center' as const,
-}
-
-const logoContainer = {
-    display: 'inline-block',
-    padding: '10px 20px',
-    background: 'linear-gradient(to right, #8b5cf6, #3b82f6)',
-    borderRadius: '8px',
-}
-
-const logoText = {
-    color: '#ffffff',
-    fontSize: '24px',
-    fontWeight: 'bold',
-    letterSpacing: '-0.5px',
-    fontFamily: 'sans-serif',
-}
-
-const content = {
-    padding: '24px',
-    backgroundColor: '#1e293b', // slate-800
-    borderRadius: '12px',
-    border: '1px solid #334155',
-    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-}
-
-const footer = {
-    padding: '24px',
-    textAlign: 'center' as const,
-}
-
-const footerText = {
-    fontSize: '12px',
-    color: '#94a3b8', // slate-400
-    marginBottom: '10px',
-}
-
-const footerLinks = {
-    fontSize: '12px',
-    color: '#94a3b8',
-    marginBottom: '10px',
-}
-
-const footerAddress = {
-    fontSize: '10px',
-    color: '#64748b', // slate-500
-}
-
-const link = {
-    color: '#8b5cf6', // violet-500
-    textDecoration: 'none',
-}
-
-const hr = {
-    borderColor: '#334155',
-    margin: '20px 0',
+const styles = {
+    main: {
+        backgroundColor: colors.neutral.bg,
+        fontFamily: typography.fontFamily,
+        color: colors.neutral.text.primary,
+    },
+    logoContainer: {
+        display: 'inline-block',
+        padding: `${spacing.sm} ${spacing.lg}`,
+        background: `linear-gradient(to right, ${colors.brand.primary}, ${colors.brand.secondary})`,
+        borderRadius: '8px',
+    },
+    logoText: {
+        color: '#ffffff',
+        fontSize: '24px',
+        fontWeight: 'bold',
+        letterSpacing: '-0.5px',
+        margin: 0,
+    },
+    footerLinks: {
+        fontSize: typography.size.caption,
+        color: colors.neutral.text.tertiary,
+        margin: `${spacing.md} 0`,
+    },
+    link: {
+        color: colors.brand.primary,
+        textDecoration: 'none',
+    }
 }
 
 export default EmailLayout

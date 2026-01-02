@@ -6,6 +6,7 @@ import {
     Hr,
 } from '@react-email/components'
 import EmailLayout from './Layout'
+import { components, colors, spacing } from './theme'
 
 interface TransactionEmailProps {
     type: 'deposit' | 'purchase'
@@ -26,11 +27,11 @@ export const TransactionEmail = ({
 }: TransactionEmailProps) => {
     const isDeposit = type === 'deposit'
     const symbol = isDeposit ? '+' : '-'
-    const color = isDeposit ? '#10b981' : '#ef4444' // Emerald or Red
+    const color = isDeposit ? colors.state.success.text : colors.state.error.text
 
     return (
         <EmailLayout preview={`Transaction Receipt: ${currency} ${amount.toFixed(2)}`}>
-            <Heading style={h1}>
+            <Heading style={components.text.h1}>
                 {isDeposit ? 'Payment Received' : 'Order Confirmation'}
             </Heading>
 
@@ -41,7 +42,7 @@ export const TransactionEmail = ({
                 <Text style={statusText}>Successful</Text>
             </Section>
 
-            <Text style={text}>
+            <Text style={{ ...components.text.body, textAlign: 'center' }}>
                 Here is the receipt for your recent transaction on NexNum.
             </Text>
 
@@ -62,8 +63,8 @@ export const TransactionEmail = ({
                 </div>
             </Section>
 
-            <Section style={btnContainer}>
-                <Button style={button} href="https://neaxnum.io/dashboard/history">
+            <Section style={styles.btnContainer}>
+                <Button style={components.button.secondary} href="https://neaxnum.io/dashboard/history">
                     View Transaction
                 </Button>
             </Section>
@@ -72,24 +73,9 @@ export const TransactionEmail = ({
 }
 
 // Styles
-const h1 = {
-    color: '#ffffff',
-    fontSize: '24px',
-    fontWeight: 'bold',
-    textAlign: 'center' as const,
-    margin: '0 0 24px',
-}
-
-const text = {
-    color: '#cbd5e1',
-    fontSize: '16px',
-    textAlign: 'center' as const,
-    margin: '0 0 24px',
-}
-
 const amountContainer = {
     textAlign: 'center' as const,
-    marginBottom: '32px',
+    marginBottom: spacing.xl,
 }
 
 const amountText = {
@@ -99,7 +85,7 @@ const amountText = {
 }
 
 const statusText = {
-    color: '#94a3b8',
+    color: colors.neutral.text.tertiary,
     fontSize: '14px',
     textTransform: 'uppercase' as const,
     letterSpacing: '1px',
@@ -107,10 +93,10 @@ const statusText = {
 }
 
 const detailsContainer = {
-    backgroundColor: '#33415520',
+    backgroundColor: 'rgba(51, 65, 85, 0.2)',
     borderRadius: '8px',
-    padding: '16px',
-    marginBottom: '24px',
+    padding: spacing.md,
+    marginBottom: spacing.lg,
 }
 
 const row = {
@@ -120,13 +106,13 @@ const row = {
 }
 
 const label = {
-    color: '#94a3b8', // slate-400
+    color: colors.neutral.text.tertiary,
     fontSize: '14px',
     margin: '0',
 }
 
 const value = {
-    color: '#e2e8f0', // slate-200
+    color: colors.neutral.text.primary,
     fontSize: '14px',
     fontWeight: '500',
     margin: '0',
@@ -134,25 +120,12 @@ const value = {
 }
 
 const divider = {
-    borderColor: '#334155',
+    borderColor: colors.neutral.border,
     margin: '12px 0',
 }
 
-const btnContainer = {
-    textAlign: 'center' as const,
-}
-
-const button = {
-    backgroundColor: '#334155',
-    borderRadius: '8px',
-    color: '#fff',
-    fontSize: '14px',
-    fontWeight: '600',
-    textDecoration: 'none',
-    textAlign: 'center' as const,
-    display: 'inline-block',
-    padding: '12px 24px',
-    border: '1px solid #475569',
+const styles = {
+    btnContainer: { textAlign: 'center' as const }
 }
 
 export default TransactionEmail

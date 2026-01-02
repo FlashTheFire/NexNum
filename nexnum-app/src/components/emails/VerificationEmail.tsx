@@ -4,6 +4,7 @@ import {
     Text,
 } from '@react-email/components'
 import EmailLayout from './Layout'
+import { components, colors, typography } from './theme'
 
 interface VerificationEmailProps {
     code: string
@@ -12,9 +13,9 @@ interface VerificationEmailProps {
 export const VerificationEmail = ({ code }: VerificationEmailProps) => {
     return (
         <EmailLayout preview={`Your verification code is ${code}`}>
-            <Heading style={h1}>Verify Your Identity</Heading>
+            <Heading style={components.text.h1}>Verify Your Identity</Heading>
 
-            <Text style={text}>
+            <Text style={components.text.body}>
                 Please use the following code to complete your verification request.
                 This code will expire in 10 minutes.
             </Text>
@@ -23,7 +24,7 @@ export const VerificationEmail = ({ code }: VerificationEmailProps) => {
                 <Text style={codeText}>{code}</Text>
             </Section>
 
-            <Text style={subtext}>
+            <Text style={components.text.caption}>
                 If you didn't request this code, you can safely ignore this email.
                 Investigate your account activity if you're concerned about security.
             </Text>
@@ -32,45 +33,23 @@ export const VerificationEmail = ({ code }: VerificationEmailProps) => {
 }
 
 // Styles
-const h1 = {
-    color: '#ffffff',
-    fontSize: '24px',
-    fontWeight: 'bold',
-    textAlign: 'center' as const,
-    margin: '0 0 20px',
-}
-
-const text = {
-    color: '#cbd5e1',
-    fontSize: '16px',
-    textAlign: 'center' as const,
-    margin: '0 0 24px',
-}
-
 const codeContainer = {
     background: 'rgba(139, 92, 246, 0.1)',
-    border: '1px solid rgba(139, 92, 246, 0.2)',
+    border: `1px solid ${colors.brand.primary}40`, // 40 = ~25% opacity
     borderRadius: '12px',
-    margin: '16px auto',
+    margin: '24px auto',
     width: 'fit-content',
-    padding: '4px 32px',
+    padding: '12px 48px',
     textAlign: 'center' as const,
 }
 
 const codeText = {
-    color: '#a78bfa', // violet-400
+    color: colors.brand.primary,
     fontSize: '32px',
-    fontWeight: '700',
+    fontWeight: typography.weight.bold,
     letterSpacing: '8px',
     fontFamily: 'monospace',
-    margin: '16px 0',
-}
-
-const subtext = {
-    color: '#64748b',
-    fontSize: '13px',
-    textAlign: 'center' as const,
-    marginTop: '24px',
+    margin: '0',
 }
 
 export default VerificationEmail

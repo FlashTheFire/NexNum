@@ -1,0 +1,19 @@
+{
+    "name": "NexNum",
+    "short_name": "NexNum",
+    "icons": [
+        {
+            "src": "/logos/nexnum-logo.svg",
+            "sizes": "192x192",
+            "type": "image/svg+xml"
+        },
+        {
+            "src": "/logos/nexnum-logo.svg",
+            "sizes": "512x512",
+            "type": "image/svg+xml"
+        }
+    ],
+    "theme_color": "#000000",
+    "background_color": "#000000",
+    "display": "standalone"
+}

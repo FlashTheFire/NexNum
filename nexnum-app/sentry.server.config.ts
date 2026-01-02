@@ -18,11 +18,11 @@ Sentry.init({
         Sentry.consoleLoggingIntegration({ levels: ["warn", "error"] }),
     ],
 
-    // Debug mode for development
-    debug: process.env.NODE_ENV === 'development',
+    // Debug mode (disabled to reduce console noise)
+    debug: false,
 
-    // Spotlight for local Sentry debugging
-    spotlight: process.env.NODE_ENV === 'development',
+    // Spotlight for local Sentry debugging (disabled)
+    spotlight: false,
 
     // Initial scope
     initialScope: {

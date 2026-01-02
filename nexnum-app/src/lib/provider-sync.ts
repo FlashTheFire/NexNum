@@ -12,6 +12,7 @@
 import { prisma } from './db'
 import { Provider } from '@prisma/client'
 import { DynamicProvider } from './dynamic-provider'
+import { indexOffers, OfferDocument } from './search'
 
 // ============================================
 // TYPES
@@ -21,6 +22,7 @@ interface SyncResult {
     provider: string
     countries: number
     services: number
+    prices: number
     error?: string
     duration: number
 }
@@ -174,7 +176,8 @@ async function processInBatches<T>(items: T[], batchSize: number, iterator: (ite
 
 async function syncDynamic(provider: Provider): Promise<SyncResult> {
     const startTime = Date.now()
-    let countriesCount = 0, servicesCount = 0, error: string | undefined
+    let countriesCount = 0, servicesCount = 0, pricesCount = 0, error: string | undefined
+    const serviceMap = new Map<string, string>()
 
     try {
         const engine = new DynamicProvider(provider)
@@ -234,6 +237,7 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
 
         if (services.length > 0) {
             await processInBatches(services, 50, async (s) => {
+                serviceMap.set(s.code, s.name) // Cache name
                 const slug = s.code.toLowerCase().replace(/[^a-z0-9]+/g, '-')
                 await prisma.service.upsert({
                     where: { externalId_provider: { externalId: s.code, provider: provider.name } },
@@ -256,12 +260,60 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
             })
         }
 
+        // Enrich Service Map from DB to ensure extensive coverage of names
+        // (Important because getServices() might have returned a subset, but getPrices() covers all)
+        const allDbServices = await prisma.service.findMany({
+            where: { provider: provider.name },
+            select: { externalId: true, name: true }
+        })
+        allDbServices.forEach(s => serviceMap.set(s.externalId, s.name))
+
+        // 3. Sync Prices (Search Engine)
+        // Iterate active countries politely to avoid bans
+        console.log(`[SYNC] ${provider.name}: Starting price sync for ${countries.length} countries...`)
+
+        for (const country of countries) {
+            try {
+                // Fetch LIVE prices for this country (returns all services)
+                const prices = await engine.getPrices(country.code)
+
+                if (prices.length > 0) {
+                    // Filter only items with stock
+                    const stockItems = prices.filter(p => p.count > 0)
+
+                    if (stockItems.length > 0) {
+                        const offers: OfferDocument[] = stockItems.map(p => ({
+                            id: `${provider.name}_${p.country}_${p.service}`.toLowerCase().replace(/[^a-z0-9_]/g, ''),
+                            provider: provider.name,
+                            countryCode: p.country,
+                            countryName: country.name,
+                            serviceCode: p.service,
+                            serviceName: serviceMap.get(p.service) || p.service,
+                            price: p.cost,
+                            count: p.count,
+                            lastSyncedAt: Date.now()
+                        }))
+
+                        await indexOffers(offers)
+                        pricesCount += offers.length
+                    }
+                }
+
+                // Polite Delay (2s)
+                await new Promise(r => setTimeout(r, 2000))
+
+            } catch (err) {
+                console.warn(`[SYNC] Prices failed for ${provider.name}/${country.code}`, err)
+            }
+        }
+        console.log(`[SYNC] ${provider.name}: Indexed ${pricesCount} price offers`)
+
     } catch (e) {
         error = e instanceof Error ? e.message : 'Unknown error'
         console.error(`[SYNC] Dynamic ${provider.name} error:`, error)
     }
 
-    return { provider: provider.name, countries: countriesCount, services: servicesCount, error, duration: Date.now() - startTime }
+    return { provider: provider.name, countries: countriesCount, services: servicesCount, prices: pricesCount, error, duration: Date.now() - startTime }
 }
 
 
@@ -351,7 +403,7 @@ async function syncGrizzlySMS(): Promise<SyncResult> {
         error = e instanceof Error ? e.message : 'Unknown error'
         console.error('[SYNC] GrizzlySMS error:', error)
     }
-    return { provider, countries, services, error, duration: Date.now() - startTime }
+    return { provider, countries, services, prices: 0, error, duration: Date.now() - startTime }
 }
 
 async function syncOnlineSIM(): Promise<SyncResult> {
@@ -431,7 +483,7 @@ async function syncOnlineSIM(): Promise<SyncResult> {
         error = e instanceof Error ? e.message : 'Unknown error'
         console.error('[SYNC] OnlineSIM error:', error)
     }
-    return { provider, countries, services, error, duration: Date.now() - startTime }
+    return { provider, countries, services, prices: 0, error, duration: Date.now() - startTime }
 }
 
 async function syncHeroSMS(): Promise<SyncResult> {
@@ -505,7 +557,7 @@ async function syncHeroSMS(): Promise<SyncResult> {
         error = e instanceof Error ? e.message : 'Unknown error'
         console.error('[SYNC] HeroSMS error:', error)
     }
-    return { provider, countries, services, error, duration: Date.now() - startTime }
+    return { provider, countries, services, prices: 0, error, duration: Date.now() - startTime }
 }
 
 async function sync5Sim(): Promise<SyncResult> {
@@ -559,7 +611,7 @@ async function sync5Sim(): Promise<SyncResult> {
         error = e instanceof Error ? e.message : 'Unknown error'
         console.error('[SYNC] 5sim error:', error)
     }
-    return { provider, countries, services, error, duration: Date.now() - startTime }
+    return { provider, countries, services, prices: 0, error, duration: Date.now() - startTime }
 }
 
 async function syncSMSBower(): Promise<SyncResult> {
@@ -625,7 +677,7 @@ async function syncSMSBower(): Promise<SyncResult> {
         error = e instanceof Error ? e.message : 'Unknown error'
         console.error('[SYNC] SMSBower error:', error)
     }
-    return { provider, countries, services, error, duration: Date.now() - startTime }
+    return { provider, countries, services, prices: 0, error, duration: Date.now() - startTime }
 }
 
 // ============================================

@@ -4,13 +4,14 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import {
     Settings, Globe, DollarSign, Shield, Bell, Save,
-    RefreshCw, AlertTriangle, Check, Moon, Sun
+    RefreshCw, AlertTriangle, Check, Moon, Sun, Send, Mail
 } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface SettingsData {
     general: {
         siteName: string
+        emailSender: string
         timezone: string
         maintenanceMode: boolean
         maintenanceMessage: string
@@ -33,13 +34,14 @@ interface SettingsData {
     }
 }
 
-type TabType = 'general' | 'pricing' | 'rateLimit' | 'notifications'
+type TabType = 'general' | 'pricing' | 'rateLimit' | 'notifications' | 'emailTester'
 
 const tabs = [
     { id: 'general' as TabType, label: 'General', icon: Globe },
     { id: 'pricing' as TabType, label: 'Pricing', icon: DollarSign },
     { id: 'rateLimit' as TabType, label: 'Rate Limits', icon: Shield },
     { id: 'notifications' as TabType, label: 'Notifications', icon: Bell },
+    { id: 'emailTester' as TabType, label: 'Email Tester', icon: Mail },
 ]
 
 // Premium input component
@@ -50,6 +52,7 @@ function SettingsInput({
     type = 'text',
     hint,
     suffix,
+    placeholder,
 }: {
     label: string
     value: string | number
@@ -57,6 +60,7 @@ function SettingsInput({
     type?: 'text' | 'number'
     hint?: string
     suffix?: string
+    placeholder?: string
 }) {
     return (
         <div className="space-y-2">
@@ -66,6 +70,7 @@ function SettingsInput({
                     type={type}
                     value={value}
                     onChange={(e) => onChange(e.target.value)}
+                    placeholder={placeholder}
                     className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all"
                 />
                 {suffix && (
@@ -142,6 +147,8 @@ export default function SettingsPage() {
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [hasChanges, setHasChanges] = useState(false)
+    const [testRecipient, setTestRecipient] = useState('')
+    const [sendingTest, setSendingTest] = useState<string | null>(null)
 
     useEffect(() => {
         fetchSettings()
@@ -204,6 +211,31 @@ export default function SettingsPage() {
         }
     }
 
+    const sendTestEmail = async (template: string) => {
+        if (!testRecipient) {
+            toast.error('Please enter a recipient email')
+            return
+        }
+        setSendingTest(template)
+        try {
+            const res = await fetch('/api/admin/debug/test-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ template, to: testRecipient })
+            })
+            const data = await res.json()
+            if (res.ok) {
+                toast.success(`Sent ${template} email to ${testRecipient}`)
+            } else {
+                toast.error(data.error || 'Failed to send')
+            }
+        } catch (e) {
+            toast.error('Failed to send test email')
+        } finally {
+            setSendingTest(null)
+        }
+    }
+
     if (loading) {
         return (
             <div className="min-h-screen p-4 md:p-8 max-w-5xl mx-auto">
@@ -254,8 +286,8 @@ export default function SettingsPage() {
                         onClick={saveSettings}
                         disabled={!hasChanges || saving}
                         className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${hasChanges
-                                ? 'bg-violet-600 text-white hover:bg-violet-700'
-                                : 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                            ? 'bg-violet-600 text-white hover:bg-violet-700'
+                            : 'bg-gray-800 text-gray-500 cursor-not-allowed'
                             }`}
                     >
                         {saving ? (
@@ -282,8 +314,8 @@ export default function SettingsPage() {
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
                             className={`flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium transition-all whitespace-nowrap ${isActive
-                                    ? 'bg-violet-600 text-white shadow-lg'
-                                    : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                                ? 'bg-violet-600 text-white shadow-lg'
+                                : 'text-gray-400 hover:text-white hover:bg-gray-800'
                                 }`}
                         >
                             <Icon className="w-4 h-4" />
@@ -309,6 +341,12 @@ export default function SettingsPage() {
                                 value={settings.general.siteName}
                                 onChange={(v) => updateSetting('general', 'siteName', v)}
                                 hint="Displayed in emails and the browser title"
+                            />
+                            <SettingsInput
+                                label="Sender Email"
+                                value={settings.general.emailSender}
+                                onChange={(v) => updateSetting('general', 'emailSender', v)}
+                                hint="Must be verified in Resend (e.g. 'onboarding@resend.dev' for testing)"
                             />
                             <SettingsInput
                                 label="Timezone"
@@ -423,6 +461,50 @@ export default function SettingsPage() {
                             onChange={(v) => updateSetting('notifications', 'syncFailureAlert', v)}
                             description="Notify when provider sync fails"
                         />
+                    </SettingsSection>
+                )}
+
+                {activeTab === 'emailTester' && (
+                    <SettingsSection title="Email Template Tester" description="Send test emails to verify templates (Resend API Key required)">
+                        <div className="space-y-6">
+                            <SettingsInput
+                                label="Recipient Email"
+                                value={testRecipient}
+                                onChange={setTestRecipient}
+                                placeholder="sysadmin@example.com"
+                                type="text"
+                                hint="Where should we send the test emails?"
+                            />
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {[
+                                    { id: 'welcome', label: 'Welcome Email' },
+                                    { id: 'verification', label: 'Verification Code' },
+                                    { id: 'deposit', label: 'Deposit Receipt' },
+                                    { id: 'purchase', label: 'Purchase Receipt' },
+                                    { id: 'invoice', label: 'Invoice' },
+                                    { id: 'security', label: 'Security Alert' },
+                                    { id: 'apiKey', label: 'API Notification' },
+                                    { id: 'maintenance', label: 'Maintenance Notice' },
+                                    { id: 'lowBalance', label: 'Low Balance Alert' },
+                                    { id: 'announcement', label: 'Announcement' },
+                                ].map((template) => (
+                                    <button
+                                        key={template.id}
+                                        onClick={() => sendTestEmail(template.id)}
+                                        disabled={!!sendingTest}
+                                        className="flex items-center justify-between p-4 bg-gray-800/50 hover:bg-violet-600/20 border border-gray-700 hover:border-violet-500/50 rounded-xl transition-all group"
+                                    >
+                                        <span className="text-gray-300 group-hover:text-white font-medium">{template.label}</span>
+                                        {sendingTest === template.id ? (
+                                            <RefreshCw className="w-4 h-4 animate-spin text-violet-400" />
+                                        ) : (
+                                            <Send className="w-4 h-4 text-gray-500 group-hover:text-violet-400" />
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
                     </SettingsSection>
                 )}
             </motion.div>

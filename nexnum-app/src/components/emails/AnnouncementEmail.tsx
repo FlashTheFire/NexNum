@@ -2,10 +2,10 @@ import {
     Button,
     Heading,
     Section,
-    Text,
     Img,
 } from '@react-email/components'
 import EmailLayout from './Layout'
+import { components, colors } from './theme'
 
 interface AnnouncementEmailProps {
     title: string
@@ -36,7 +36,7 @@ export const AnnouncementEmail = ({
                 </Section>
             )}
 
-            <Heading style={h1}>{title}</Heading>
+            <Heading style={components.text.h1}>{title}</Heading>
 
             {/* Dangerously set HTML for flexible content */}
             <div dangerouslySetInnerHTML={{ __html: content }} style={htmlContent} />
@@ -44,7 +44,7 @@ export const AnnouncementEmail = ({
             {/* Optional Action Button */}
             {actionLabel && actionUrl && (
                 <Section style={btnContainer}>
-                    <Button style={button} href={actionUrl}>
+                    <Button style={components.button.primary} href={actionUrl}>
                         {actionLabel}
                     </Button>
                 </Section>
@@ -54,16 +54,8 @@ export const AnnouncementEmail = ({
 }
 
 // Styles
-const h1 = {
-    color: '#ffffff',
-    fontSize: '24px',
-    fontWeight: 'bold',
-    margin: '0 0 24px',
-}
-
 const htmlContent = {
-    color: '#cbd5e1',
-    fontSize: '16px',
+    ...components.text.body,
     lineHeight: '1.6',
 }
 
@@ -75,24 +67,12 @@ const imageContainer = {
 
 const image = {
     borderRadius: '8px',
-    border: '1px solid #334155',
+    border: `1px solid ${colors.neutral.border}`,
 }
 
 const btnContainer = {
     textAlign: 'center' as const,
     marginTop: '32px',
-}
-
-const button = {
-    backgroundColor: '#8b5cf6',
-    borderRadius: '8px',
-    color: '#fff',
-    fontSize: '16px',
-    fontWeight: 'bold',
-    textDecoration: 'none',
-    textAlign: 'center' as const,
-    display: 'inline-block',
-    padding: '12px 24px',
 }
 
 export default AnnouncementEmail

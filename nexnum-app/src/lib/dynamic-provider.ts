@@ -13,11 +13,36 @@ type EndpointConfig = {
 type MappingConfig = {
     type: 'json_object' | 'json_array' | 'json_dictionary' | 'text_regex' | 'text_lines'
     rootPath?: string
+
+    // Field mappings: now supports fallback chains
+    // Example: { "cost": "cost|price|amount" } - tries each path in order
     fields: Record<string, string>
-    // Advanced options
+
+    // Advanced extraction options
     regex?: string // For text_regex type
     separator?: string // For text_lines type
     transform?: Record<string, string> // Field transformations
+
+    // NEW: Multi-level extraction config
+    nestingLevels?: {
+        /** How deep to traverse (1 = country>service, 2 = country>service>operator) */
+        depth?: number
+        /** Extract operators from nested structures */
+        extractOperators?: boolean
+        /** Special key to extract nested providers (e.g., "providers") */
+        providersKey?: string
+    }
+
+    // NEW: Field fallback chains (alternative to pipe syntax in fields)
+    fieldFallbacks?: {
+        [targetField: string]: string[] // Try each path in order
+    }
+
+    // NEW: Conditional extraction based on structure detection
+    conditionalFields?: {
+        /** If this path exists in the data, use these field mappings */
+        [conditionPath: string]: Record<string, string>
+    }
 }
 
 export class ProviderApiError extends Error {
@@ -80,32 +105,62 @@ export class DynamicProvider implements SmsProvider {
 
         const urlObj = new URL(url)
 
-        // 2. Add Auth & Query Params
-        const queryParams = { ...epConfig.queryParams }
+        // 2. Add Auth & Query Params - ENHANCED VARIABLE RESOLUTION
+        const resolvedQueryParams: Record<string, string> = {}
+        const handledParamKeys = new Set<string>()
 
-        // Add Auth Query Param if configured
-        if (this.config.authType === 'query_param' && this.config.authQueryParam && this.config.authKey) {
-            queryParams[this.config.authQueryParam] = this.config.authKey
-        }
+        // Step 2a: Resolve configured queryParams with $variable syntax
+        if (epConfig.queryParams) {
+            for (const [paramName, varTemplate] of Object.entries(epConfig.queryParams)) {
+                if (typeof varTemplate !== 'string') continue
 
-        // Add Request Params to Query if GET
-        if (epConfig.method === 'GET') {
-            for (const [key, value] of Object.entries(params)) {
-                // Skip if already used in path substitution
-                if (!epConfig.path?.includes(`{${key}}`)) {
-                    queryParams[key] = String(value)
+                if (varTemplate.startsWith('$')) {
+                    // Variable placeholder: $varName or $varName|fallback
+                    const varParts = varTemplate.substring(1).split('|').map(s => s.trim())
+                    let resolvedValue: string | undefined
+
+                    for (const varName of varParts) {
+                        // Check direct match in params
+                        if (params[varName] !== undefined) {
+                            resolvedValue = String(params[varName])
+                            handledParamKeys.add(varName)
+                            break
+                        }
+                    }
+
+                    // Only add if resolved (optional params stay omitted)
+                    if (resolvedValue !== undefined) {
+                        resolvedQueryParams[paramName] = resolvedValue
+                    }
+                } else {
+                    // Static value
+                    resolvedQueryParams[paramName] = varTemplate
                 }
             }
         }
 
-        for (const [key, value] of Object.entries(queryParams)) {
-            const valStr = String(value)
-            // Fix: Filter out unresolved variables (e.g. "$service") if not provided in params
-            // This makes parameters optional by default instead of sending literal placeholders
-            if (valStr.startsWith('$') && valStr === epConfig.queryParams?.[key]) {
-                continue
+        // Step 2b: Add Auth Query Param if configured
+        if (this.config.authType === 'query_param' && this.config.authQueryParam && this.config.authKey) {
+            resolvedQueryParams[this.config.authQueryParam] = this.config.authKey
+        }
+
+        // Step 2c: Add remaining unhandled params (for GET requests without explicit config)
+        if (epConfig.method === 'GET') {
+            for (const [key, value] of Object.entries(params)) {
+                // Skip if already used in path substitution
+                if (epConfig.path?.includes(`{${key}}`)) continue
+                // Skip if already handled by a configured variable
+                if (handledParamKeys.has(key)) continue
+                // Skip if this param name is already set (prevents duplicates)
+                if (resolvedQueryParams[key] !== undefined) continue
+
+                resolvedQueryParams[key] = String(value)
             }
-            urlObj.searchParams.set(key, valStr)
+        }
+
+        // Step 2d: Apply resolved params to URL
+        for (const [key, value] of Object.entries(resolvedQueryParams)) {
+            urlObj.searchParams.set(key, value)
         }
 
         // 3. Headers (Enhanced Browser Emulation)
@@ -251,6 +306,7 @@ export class DynamicProvider implements SmsProvider {
     }
 
     // Helper to extract nested value from object by path "data.user.id"
+    // NOW SUPPORTS FALLBACK CHAINS: "cost|price|amount" tries each until one succeeds
     private getValue(obj: any, path: string, context: any = {}): any {
         if (!path || path === '$') return obj
 
@@ -258,6 +314,20 @@ export class DynamicProvider implements SmsProvider {
         if (path === '$key') return context.key
         if (path === '$value') return context.value
         if (path === '$index') return context.index
+        if (path === '$parentKey') return context.parentKey
+        if (path === '$grandParentKey' || path === '$grandparentKey') return context.grandParentKey
+
+        // NEW: Handle fallback chains (cost|price|amount)
+        if (path.includes('|')) {
+            const fallbacks = path.split('|').map(p => p.trim())
+            for (const fallbackPath of fallbacks) {
+                const value = this.getValue(obj, fallbackPath, context)
+                if (value !== undefined && value !== null) {
+                    return value
+                }
+            }
+            return undefined
+        }
 
         return path.split('.').reduce((o, key) => {
             if (o === undefined || o === null) return undefined
@@ -380,7 +450,7 @@ export class DynamicProvider implements SmsProvider {
                 return this.parseJsonArray(root, mapConfig)
 
             case 'json_dictionary':
-                return this.parseJsonDictionary(root, mapConfig)
+                return this.parseJsonDictionary(root, mapConfig, { mappingKey })
 
             case 'json_object':
                 // Heuristic: if it's actually an object with object values, treat as dictionary
@@ -388,10 +458,10 @@ export class DynamicProvider implements SmsProvider {
                     const keys = Object.keys(root)
                     // If it has keys and values are objects, treat as dictionary
                     if (keys.length > 0 && typeof root[keys[0]] === 'object') {
-                        return this.parseJsonDictionary(root, mapConfig)
+                        return this.parseJsonDictionary(root, mapConfig, { mappingKey })
                     }
                     // Single object
-                    return [this.mapFields(root, mapConfig.fields)]
+                    return [this.mapFields(root, mapConfig.fields, { mappingKey })]
                 }
                 if (Array.isArray(root)) {
                     return this.parseJsonArray(root, mapConfig)
@@ -408,13 +478,111 @@ export class DynamicProvider implements SmsProvider {
         return arr.map((item, index) => this.mapFields(item, mapConfig.fields, { index }))
     }
 
-    private parseJsonDictionary(obj: Record<string, any>, mapConfig: MappingConfig): any[] {
+    private parseJsonDictionary(obj: Record<string, any>, mapConfig: MappingConfig, parentContext: any = {}): any[] {
         const results: any[] = []
+
+        // Debug logging enabled
+        const isDebug = false // Toggle true if needed for tough cases
+
+        const nestingConfig = mapConfig.nestingLevels
+        const extractOperators = nestingConfig?.extractOperators ?? false
+        const providersKey = nestingConfig?.providersKey
+
         for (const [key, value] of Object.entries(obj)) {
-            const item = typeof value === 'object' ? value : { value }
-            results.push(this.mapFields(item, mapConfig.fields, { key, value }))
+            if (isDebug) console.log(`[DEBUG_MAPPING] Processing Key="${key}" (ExtractOps=${extractOperators}, ProvidersKey=${providersKey})`)
+
+            if (typeof value !== 'object' || value === null) {
+                // Simple value: wrap it
+                results.push(this.mapFields({ value }, this.resolveEffectiveFields({ value }, mapConfig), { ...parentContext, key, value }))
+                continue
+            }
+
+            // 1. Providers Check
+            if (providersKey && value[providersKey]) {
+                if (isDebug) console.log(`[DEBUG_MAPPING] Found providersKey "${providersKey}" in "${key}", extracting providers.`)
+                const providersObj = value[providersKey]
+                for (const [providerKey, providerData] of Object.entries(providersObj as Record<string, any>)) {
+                    if (typeof providerData === 'object' && providerData !== null) {
+                        const mapped = this.mapFields(providerData, this.resolveEffectiveFields(providerData, mapConfig), {
+                            ...parentContext,
+                            key: providerKey,
+                            value: providerData,
+                            parentKey: key
+                        })
+                        // Add parent context defaults if not mapped
+                        if (!mapped.service && key) mapped.service = key
+                        if (!mapped.operator && providerKey) mapped.operator = providerKey
+                        results.push(mapped)
+                    }
+                }
+                continue
+            }
+
+            // Check if this level contains actual data fields
+            const hasData = this.hasDataFields(value)
+
+            if (isDebug) console.log(`[DEBUG_MAPPING] Key="${key}" hasData=${hasData}`)
+
+            if (extractOperators) {
+                if (hasData) {
+                    // Leaf node with data - extract
+                    const mapped = this.mapFields(value, this.resolveEffectiveFields(value, mapConfig), {
+                        ...parentContext,
+                        key,
+                        value
+                    })
+                    results.push(mapped)
+                } else {
+                    // Nested structure - RECURSE deeper
+                    const nestedResults = this.parseJsonDictionary(value, mapConfig, {
+                        ...parentContext,
+                        grandParentKey: parentContext.key || parentContext.parentKey, // Best guess at grandfather
+                        parentKey: key
+                    })
+                    results.push(...nestedResults)
+                }
+                continue
+            }
+
+            // Standard dictionary (no extractOperators flag)
+            if (hasData) {
+                // Leaf node - extract
+                const mapped = this.mapFields(value, this.resolveEffectiveFields(value, mapConfig), { ...parentContext, key, value })
+                results.push(mapped)
+            } else {
+                // Nested structure - RECURSE deeper even in standard mode
+                const nestedResults = this.parseJsonDictionary(value, mapConfig, {
+                    ...parentContext,
+                    grandParentKey: parentContext.key || parentContext.parentKey,
+                    parentKey: key
+                })
+                results.push(...nestedResults)
+            }
         }
+
         return results
+    }
+
+    /**
+     * Helper: Detect if object contains actual data fields vs. nested structure
+     */
+    private hasDataFields(obj: any): boolean {
+        if (typeof obj !== 'object' || obj === null) return false
+
+        // Common data field names that indicate this is a leaf node
+        const dataFieldNames = [
+            'cost', 'price', 'amount', 'value', 'balance',
+            'count', 'qty', 'stock', 'quantity', 'available', 'physicalCount',
+            'rate', 'rate720', 'rate168', 'rate72', 'rate24', 'rate1',
+            'id', 'code', 'name', 'provider_id', 'activation', 'phone', 'status'
+        ]
+
+        // If object has ANY of these fields AND they are primitives, it's a data node
+        // (Prevents false positives if a container has a key like "count" that is actually an object/list)
+        return dataFieldNames.some(fieldName => {
+            const val = obj[fieldName]
+            return val !== undefined && (typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean')
+        })
     }
 
     private parseTextResponse(text: string, mapConfig: MappingConfig): any[] {
@@ -433,17 +601,27 @@ export class DynamicProvider implements SmsProvider {
                     }
                     // Method B: Map specific fields to named groups
                     else {
-                        for (const [targetField, sourceGroup] of Object.entries(mapConfig.fields)) {
-                            // If sourceGroup is a name (e.g. "balance"), look in groups
-                            if (match.groups[sourceGroup]) {
-                                item[targetField] = match.groups[sourceGroup]
-                            }
-                            // Fallback to numbered groups for mixed usage
-                            else {
-                                const idx = parseInt(sourceGroup)
-                                if (!isNaN(idx) && match[idx]) {
-                                    item[targetField] = match[idx]
+                        for (const [targetField, sourceGroupStr] of Object.entries(mapConfig.fields)) {
+                            // Support fallback chains "price|cost"
+                            const possibleGroups = sourceGroupStr.split('|').map(s => s.trim())
+                            let value = undefined
+
+                            for (const groupName of possibleGroups) {
+                                // Try named group
+                                if (match.groups[groupName] !== undefined) {
+                                    value = match.groups[groupName]
+                                    break
                                 }
+                                // Try numbered group index
+                                const idx = parseInt(groupName)
+                                if (!isNaN(idx) && match[idx] !== undefined) {
+                                    value = match[idx]
+                                    break
+                                }
+                            }
+
+                            if (value !== undefined) {
+                                item[targetField] = value
                             }
                         }
                     }
@@ -550,6 +728,24 @@ export class DynamicProvider implements SmsProvider {
 
             result[targetField] = value
         }
+
+        // Apply Transformations
+        if (this.config.mappings && context.mappingKey) {
+            const mapConfig = (this.config.mappings as any)[context.mappingKey]
+            if (mapConfig?.transform) {
+                for (const [field, rule] of Object.entries(mapConfig.transform)) {
+                    if (result[field] !== undefined) {
+                        const val = result[field]
+                        if (rule === 'number') result[field] = Number(val)
+                        else if (rule === 'string') result[field] = String(val)
+                        else if (rule === 'boolean') result[field] = Boolean(val)
+                        else if (rule === 'uppercase') result[field] = String(val).toUpperCase()
+                        else if (rule === 'lowercase') result[field] = String(val).toLowerCase()
+                    }
+                }
+            }
+        }
+
         return result
     }
 
@@ -676,100 +872,96 @@ export class DynamicProvider implements SmsProvider {
         }
     }
 
-    /**
-     * Get current prices from provider
-     * 
-     * STANDARD MAPPING OUTPUT FIELDS:
-     * - cost/price: price per number
-     * - count: available quantity
-     * - operator: optional operator name
-     * 
-     * Response formats supported:
-     * 1. Nested: { country: { service: { operator: { cost, count } } } }
-     * 2. Flat: { country: { service: { cost, count } } }
-     * 3. Array: [{ service, cost, count }]
-     * 
-     * @param countryCode - Optional country filter
-     * @param serviceCode - Optional service filter
-     */
     async getPrices(countryCode?: string, serviceCode?: string): Promise<PriceData[]> {
         const params: Record<string, string> = {}
         if (countryCode) params.country = countryCode
         if (serviceCode) params.service = serviceCode
 
         const response = await this.request('getPrices', params)
-        // Fix: Unwrap response data if wrapped, to ensure parsePricesResponse receives the actual payload
-        const rawData = response?.data || response
-        return this.parsePricesResponse(rawData, countryCode, serviceCode)
+
+        // Use parseResponse to respect mapping configuration
+        const items = this.parseResponse(response, 'getPrices')
+
+        // Load settings and apply intelligent operator selection
+        const { SettingsService } = await import('./settings')
+        const settings = await SettingsService.getSettings()
+
+        if (!settings.priceOptimization.enabled) {
+            // Optimization disabled
+            return items.map(item => ({
+                country: String(item.country || countryCode || ''),
+                service: String(item.service || serviceCode || ''),
+                operator: item.operator || undefined,
+                cost: Number(item.cost ?? item.price ?? 0),
+                count: Number(item.count ?? item.qty ?? 0)
+            }))
+        }
+
+        // Group by (country, service) to detect multiple operators
+        const groups = new Map<string, typeof items>()
+        for (const item of items) {
+            const key = `${item.country || countryCode}:${item.service || serviceCode}`
+            if (!groups.has(key)) groups.set(key, [])
+            groups.get(key)!.push(item)
+        }
+
+        const { getOptimizer } = require('./price-optimizer')
+        const optimizer = getOptimizer({
+            costWeight: settings.priceOptimization.costWeight,
+            stockWeight: settings.priceOptimization.stockWeight,
+            rateWeight: settings.priceOptimization.rateWeight,
+            minStock: settings.priceOptimization.minStock
+        })
+
+        const results: PriceData[] = []
+        for (const [, group] of groups) {
+            if (group.length === 1) {
+                const item = group[0]
+                results.push({
+                    country: String(item.country || countryCode || ''),
+                    service: String(item.service || serviceCode || ''),
+                    operator: item.operator,
+                    cost: Number(item.cost ?? item.price ?? 0),
+                    count: Number(item.count ?? item.qty ?? 0)
+                })
+            } else {
+                // Select best from multiple operators
+                const best = optimizer.selectBestOption(group.map(i => ({
+                    operator: i.operator,
+                    cost: Number(i.cost ?? i.price ?? 0),
+                    count: Number(i.count ?? i.qty ?? 0),
+                    metadata: i
+                })))
+
+                if (best) {
+                    results.push({
+                        country: String(group[0].country || countryCode || ''),
+                        service: String(group[0].service || serviceCode || ''),
+                        operator: best.operator,
+                        cost: best.cost,
+                        count: best.count
+                    })
+                    console.log(`[PriceOptim:${this.name}] ${group[0].service}: "${best.operator}" (${(best.score * 100).toFixed(0)}%)`)
+                }
+            }
+        }
+        return results
     }
 
     /**
-     * Parse various price response formats into normalized PriceData[]
+     * Helper: Resolve effective fields based on conditional logic
      */
-    private parsePricesResponse(response: any, countryFilter?: string, serviceFilter?: string): PriceData[] {
-        const results: PriceData[] = []
-
-        // Handle string response (shouldn't happen for prices, but just in case)
-        if (typeof response === 'string') {
-            try {
-                response = JSON.parse(response)
-            } catch {
-                console.warn(`[DynamicProvider:${this.name}] getPrices returned non-JSON response`)
-                return results
-            }
-        }
-
-        // If response is an array, process each item
-        if (Array.isArray(response)) {
-            for (const item of response) {
-                if (item.cost !== undefined || item.price !== undefined) {
-                    results.push({
-                        country: item.country || countryFilter || '',
-                        service: item.service || item.code || serviceFilter || '',
-                        operator: item.operator || undefined,
-                        cost: Number(item.cost ?? item.price ?? 0),
-                        count: Number(item.count ?? item.qty ?? 0)
-                    })
-                }
-            }
-            return results
-        }
-
-        // Handle nested dictionary format: { country: { service: { [operator]: { cost, count } } } }
-        if (typeof response === 'object' && response !== null) {
-            for (const [countryKey, countryData] of Object.entries(response)) {
-                if (typeof countryData !== 'object' || countryData === null) continue
-
-                for (const [serviceKey, serviceData] of Object.entries(countryData as Record<string, any>)) {
-                    if (typeof serviceData !== 'object' || serviceData === null) continue
-
-                    // Check if this level has cost/count directly (flat format)
-                    if (serviceData.cost !== undefined || serviceData.price !== undefined || serviceData.count !== undefined) {
-                        results.push({
-                            country: countryKey,
-                            service: serviceKey,
-                            cost: Number(serviceData.cost ?? serviceData.price ?? 0),
-                            count: Number(serviceData.count ?? serviceData.qty ?? 0)
-                        })
-                    } else {
-                        // Has operators nested inside
-                        for (const [operatorKey, opData] of Object.entries(serviceData as Record<string, any>)) {
-                            if (typeof opData !== 'object' || opData === null) continue
-
-                            results.push({
-                                country: countryKey,
-                                service: serviceKey,
-                                operator: operatorKey,
-                                cost: Number(opData.cost ?? opData.price ?? 0),
-                                count: Number(opData.count ?? opData.qty ?? 0)
-                            })
-                        }
-                    }
+    private resolveEffectiveFields(item: any, mapConfig: MappingConfig): Record<string, string> {
+        let effectiveFields = mapConfig.fields
+        if (mapConfig.conditionalFields) {
+            for (const [path, fields] of Object.entries(mapConfig.conditionalFields)) {
+                // Check if the condition path exists and is truthy in the item
+                if (this.getValue(item, path)) {
+                    effectiveFields = { ...effectiveFields, ...fields }
                 }
             }
         }
-
-        return results
+        return effectiveFields
     }
 }
 

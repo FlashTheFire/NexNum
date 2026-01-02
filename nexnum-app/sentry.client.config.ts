@@ -24,8 +24,8 @@ Sentry.init({
         Sentry.replayIntegration(),
     ],
 
-    // Debug mode for development
-    debug: process.env.NODE_ENV === 'development',
+    // Debug mode (disabled to reduce console noise)
+    debug: false,
 
     // Ignore common non-error events
     ignoreErrors: [
