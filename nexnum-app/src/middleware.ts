@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { verifyToken } from '@/lib/jwt'
 import { rateLimiters } from '@/lib/ratelimit'
+import { redis } from '@/lib/redis'
 
 export async function middleware(request: NextRequest) {
     const ip = request.headers.get('x-forwarded-for') ?? '127.0.0.1'
@@ -23,6 +24,42 @@ export async function middleware(request: NextRequest) {
     response.headers.set('X-Frame-Options', 'SAMEORIGIN')
     response.headers.set('X-Content-Type-Options', 'nosniff')
     response.headers.set('Referrer-Policy', 'origin-when-cross-origin')
+
+    // -------------------------------------------------------------
+    // 1.5 Maintenance Mode Check
+    // -------------------------------------------------------------
+    // Skip for static assets
+    if (!pathname.startsWith('/_next') && !pathname.includes('.')) {
+        try {
+            // Check maintenance mode from Redis (fast edge read of settings)
+            // We duplicate the key 'app:settings' here to avoid importing the class which might use Prisma
+            const settingsData = await redis.get('app:settings') as string | null
+
+            if (settingsData) {
+                const settings = typeof settingsData === 'string' ? JSON.parse(settingsData) : settingsData
+                const isMaintenance = settings?.general?.maintenanceMode
+
+                // Allow list for maintenance mode
+                const isAllowedPath =
+                    pathname.startsWith('/admin') ||
+                    pathname.startsWith('/api/admin') ||
+                    pathname.startsWith('/login') ||
+                    pathname.startsWith('/api/auth') ||
+                    pathname === '/maintenance'
+
+                if (isMaintenance && !isAllowedPath) {
+                    return NextResponse.redirect(new URL('/maintenance', request.url))
+                }
+
+                if (!isMaintenance && pathname === '/maintenance') {
+                    return NextResponse.redirect(new URL('/', request.url))
+                }
+            }
+        } catch (e) {
+            // If checking settings fails, proceed normally (fail open)
+            console.error('Middleware settings check failed:', e)
+        }
+    }
 
     // -------------------------------------------------------------
     // 2. Rate Limiting Strategy

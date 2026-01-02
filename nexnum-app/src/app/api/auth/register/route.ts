@@ -4,6 +4,8 @@ import { generateToken, setAuthCookie } from '@/lib/jwt'
 import { registerSchema } from '@/lib/validation'
 import bcrypt from 'bcryptjs'
 import { apiHandler } from '@/lib/api-handler'
+import { EmailService } from '@/lib/email'
+import { WelcomeEmail } from '@/components/emails/WelcomeEmail'
 
 export const POST = apiHandler(async (request, { body }) => {
     // Body validation provided by registerSchema
@@ -56,6 +58,18 @@ export const POST = apiHandler(async (request, { body }) => {
 
         return newUser
     })
+
+    // Send welcome email (async, non-blocking)
+    try {
+        await EmailService.send({
+            to: user.email,
+            subject: 'Welcome to NexNum! 🚀',
+            component: WelcomeEmail({ name: user.name })
+        })
+    } catch (emailError) {
+        console.error('Failed to send welcome email:', emailError)
+        // Don't fail registration if email fails
+    }
 
     // Generate JWT token
     const token = await generateToken({
