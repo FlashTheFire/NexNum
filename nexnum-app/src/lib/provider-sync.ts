@@ -383,7 +383,8 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
             try {
                 const prices = await engine.getPrices(country.code)
                 if (prices.length > 0) {
-                    const normCountry = normalizeCountryEntry(country.code)
+                    // Use cached metadata directly (contains correct Display Name & Phone Code)
+                    // Do NOT re-normalize the code (which might be "2" or "187")
 
                     const countryOffers: OfferDocument[] = prices
                         .filter(p => p.count > 0)
@@ -399,8 +400,8 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
                                 provider: provider.name,
                                 displayName: provider.displayName,
                                 countryCode: p.country,
-                                countryName: normCountry.displayName,
-                                phoneCode: normCountry.phoneCode,
+                                countryName: country.name || 'Unknown',
+                                phoneCode: country.phoneCode || '',
                                 flagUrl: country.flag || '',
                                 serviceSlug: p.service.toLowerCase(),
                                 serviceName: svcName,
