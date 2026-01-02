@@ -13,7 +13,6 @@ export async function GET(req: Request) {
         const providers = await prisma.provider.findMany({
             orderBy: { priority: 'desc' },
             include: {
-                _count: { select: { syncJobs: true } },
                 testResults: {
                     orderBy: { testedAt: 'desc' },
                     take: 1,
@@ -28,7 +27,7 @@ export async function GET(req: Request) {
             return {
                 ...safeProvider,
                 lastTest: p.testResults[0] || null,
-                syncCount: p._count.syncJobs
+                syncCount: p.syncCount
             }
         })
 

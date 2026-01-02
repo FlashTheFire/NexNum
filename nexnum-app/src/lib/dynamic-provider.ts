@@ -193,11 +193,38 @@ export class DynamicProvider implements SmsProvider {
 
         try {
             // Increase timeout to 30s
-            const response = await fetch(urlObj.toString(), {
-                method: epConfig.method,
-                headers,
-                signal: AbortSignal.timeout(30000)
-            });
+            // implementing retry logic for robust sync
+            const MAX_RETRIES = 3
+            let response: Response | undefined
+
+            for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+                try {
+                    response = await fetch(urlObj.toString(), {
+                        method: epConfig.method,
+                        headers,
+                        signal: AbortSignal.timeout(30000)
+                    });
+                    break; // Success, exit loop
+                } catch (err: any) {
+                    const isLastAttempt = attempt === MAX_RETRIES
+                    const isNetworkError = err.name === 'TypeError' || err.name === 'TimeoutError' || err.code === 'UND_ERR_CONNECT_TIMEOUT'
+
+                    if (isNetworkError && !isLastAttempt) {
+                        const delay = 1000 * attempt // Linear backoff: 1s, 2s, 3s
+                        console.warn(`[DynamicProvider:${this.name}] Request failed (attempt ${attempt}/${MAX_RETRIES}): ${err.message}. Retrying in ${delay}ms...`)
+                        await new Promise(resolve => setTimeout(resolve, delay))
+                        continue
+                    }
+
+                    // If we're here, we either ran out of retries or it's a non-retriable error
+                    throw err
+                }
+            }
+
+            if (!response) {
+                // Should logically be unreachable if we throw on error, but for type safety:
+                throw new Error('Request failed after retries')
+            }
 
             responseStatus = response.status;
 
@@ -531,6 +558,8 @@ export class DynamicProvider implements SmsProvider {
                         key,
                         value
                     })
+                    // Auto-assign operator from key if not mapped
+                    if (!mapped.operator) mapped.operator = key
                     results.push(mapped)
                 } else {
                     // Nested structure - RECURSE deeper

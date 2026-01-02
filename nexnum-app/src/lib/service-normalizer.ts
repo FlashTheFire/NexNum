@@ -103,7 +103,7 @@ const GOLDEN_RULES: [RegExp, string][] = [
     [/alipay/i, "Alipay"]
 ];
 
-function cleanName(name: string): string {
+export function cleanName(name: string): string {
     return name.toLowerCase()
         .replace(CLEAN_REGEX_PARENS, '')
         .replace(CLEAN_REGEX_SYMBOLS, ' ')

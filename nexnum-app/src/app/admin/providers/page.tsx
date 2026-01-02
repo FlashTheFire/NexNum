@@ -7,7 +7,8 @@ import {
     Search, Plus, Server, Globe, Shield, RefreshCw,
     MoreHorizontal, CheckCircle, XCircle, AlertCircle, ChevronRight,
     Trash2, Edit, Save, Play, Terminal, Upload, Image, DollarSign, FileCode,
-    Wallet, MapPin, Smartphone, Phone, BarChart3, Ban, Plug, Sparkles, Info, Wand2
+    Wallet, MapPin, Smartphone, Phone, BarChart3, Ban, Plug, Sparkles, Info, Wand2,
+    Lock, Key, Link, FileText
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -346,6 +347,7 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
     const [activeTab, setActiveTab] = useState<'settings' | 'pricing' | 'mappings' | 'test' | 'ai'>('settings')
     const [formData, setFormData] = useState({
         name: '', displayName: '', apiBaseUrl: '', authType: 'bearer', authKey: '',
+        authQueryParam: '', authHeader: '',
         endpoints: '{\n  "getCountries": { "method": "GET", "path": "" }\n}',
         mappings: '{\n  "getCountries": { "type": "json_object", "rootPath": "$" }\n}',
         isActive: false, priority: 0, providerType: 'rest',
@@ -378,6 +380,8 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                 apiBaseUrl: provider.apiBaseUrl,
                 authType: provider.authType,
                 authKey: '', // Don't show existing key 
+                authQueryParam: (provider as any).authQueryParam || '',
+                authHeader: (provider as any).authHeader || '',
                 endpoints: JSON.stringify(provider.endpoints || {}, null, 2),
                 mappings: JSON.stringify(provider.mappings || {}, null, 2),
                 isActive: provider.isActive,
@@ -836,48 +840,6 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                             />
                         </div>
 
-                        {/* Auth Type Selection */}
-                        <div className="p-4 bg-white/5 rounded-xl border border-white/5 space-y-3">
-                            <div className="flex items-center gap-2 mb-1">
-                                <div className="w-8 h-8 rounded-lg bg-orange-500/20 flex items-center justify-center">
-                                    <Shield className="w-4 h-4 text-orange-400" />
-                                </div>
-                                <div className="flex-1">
-                                    <div className="flex items-center gap-1.5">
-                                        <label className="text-sm font-medium text-white">Authentication Type</label>
-                                        <InfoTooltip content={<>How the API key is sent. <TT>Bearer Token</TT> adds <TTCode>Authorization: Bearer xxx</TTCode>. <TT>Query Param</TT> adds <TTCode>?api_key=xxx</TTCode>. <TT>Template</TT> lets you use <TTCode>{'{authKey}'}</TTCode> in endpoints.</>} />
-                                    </div>
-                                    <span className="text-[10px] text-white/40">How the API key is transmitted to the provider</span>
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-2">
-                                {[
-                                    { value: 'bearer', label: 'Bearer Token', icon: '🔐', desc: 'Authorization: Bearer xxx' },
-                                    { value: 'query_param', label: 'Query Param', icon: '🔗', desc: '?api_key=xxx' },
-                                    { value: 'header', label: 'Custom Header', icon: '📋', desc: 'X-API-Key: xxx' },
-                                    { value: 'none', label: 'Template {authKey}', icon: '📝', desc: 'Use in endpoints' },
-                                ].map(auth => (
-                                    <button
-                                        key={auth.value}
-                                        onClick={() => setFormData({ ...formData, authType: auth.value })}
-                                        className={`p-3 rounded-xl border text-left transition-all ${formData.authType === auth.value
-                                            ? 'bg-orange-500/20 border-orange-500/50 ring-1 ring-orange-500/30'
-                                            : 'bg-white/5 border-white/10 hover:bg-white/10'
-                                            }`}
-                                    >
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <span className="text-lg">{auth.icon}</span>
-                                            <span className={`text-xs font-medium ${formData.authType === auth.value ? 'text-orange-300' : 'text-white/70'}`}>
-                                                {auth.label}
-                                            </span>
-                                        </div>
-                                        <p className="text-[10px] text-white/40 font-mono truncate">{auth.desc}</p>
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Hybrid Mode Toggle */}
                         <div className="p-4 bg-gradient-to-r from-orange-500/5 to-amber-500/5 rounded-xl border border-orange-500/20">
                             <div className="flex items-start md:items-center justify-between gap-3 flex-col md:flex-row">
                                 <div className="flex items-center gap-3">
@@ -887,7 +849,7 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                     <div>
                                         <div className="flex items-center gap-2">
                                             <label className="text-sm font-medium text-white">Hybrid Mode</label>
-                                            <div className="px-1.5 py-0.5 rounded bg-orange-500/20 border border-orange-500/30 text-[8px] font-bold text-orange-400 uppercase tracking-wider">Advanced</div>
+                                            <div className="px-1.5 py-0.5 rounded bg-orange-500/20 border border-orange-500/30 text-[8px] font-bold text-orange-400 uppercase tracking-wider">Legacy</div>
                                         </div>
                                         <p className="text-[10px] text-white/40 max-w-xs">
                                             Enable for legacy providers (SMS-Activate style) using query params in endpoints
@@ -903,56 +865,168 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                             </div>
                         </div>
 
-                        {/* Auth Key & Priority Row */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {/* Auth Key */}
-                            <div className="p-4 bg-white/5 rounded-xl border border-white/5 space-y-3">
+                        {/* Use Dynamic Metadata Toggle */}
+                        <div className="p-4 bg-gradient-to-r from-blue-500/5 to-cyan-500/5 rounded-xl border border-blue-500/20">
+                            <div className="flex items-start md:items-center justify-between gap-3 flex-col md:flex-row">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                                        <Sparkles className="w-4 h-4 text-blue-400" />
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <label className="text-sm font-medium text-white">Use Dynamic Metadata</label>
+                                            <div className="px-1.5 py-0.5 rounded bg-blue-500/20 border border-blue-500/30 text-[8px] font-bold text-blue-400 uppercase tracking-wider">Experimental</div>
+                                        </div>
+                                        <p className="text-[10px] text-white/40 max-w-xs">
+                                            Use Dynamic Engine for Countries/Services (bypasses legacy hardcoded logic)
+                                        </p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => {
+                                        const currentMappings = safeParse(formData.mappings)
+                                        const newVal = !currentMappings.useDynamicMetadata
+                                        setFormData({
+                                            ...formData,
+                                            mappings: JSON.stringify({ ...currentMappings, useDynamicMetadata: newVal }, null, 2)
+                                        })
+                                    }}
+                                    className={`relative shrink-0 w-11 h-6 rounded-full transition-colors ${safeParse(formData.mappings)?.useDynamicMetadata ? 'bg-blue-500' : 'bg-white/10'}`}
+                                >
+                                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${safeParse(formData.mappings)?.useDynamicMetadata ? 'left-6' : 'left-1'}`} />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Security & Access Section */}
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-orange-500/20 to-red-500/20 border border-white/10 flex items-center justify-center">
+                                        <Lock className="w-4 h-4 text-orange-400" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-sm font-bold text-white">Security & Access</h3>
+                                        <p className="text-[10px] text-white/40">Configure API authentication method</p>
+                                    </div>
+                                </div>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setActiveTab('ai')}
+                                    className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-violet-500/20 to-fuchsia-500/20 hover:from-violet-500/30 hover:to-fuchsia-500/30 border border-violet-500/30 rounded-xl text-xs font-medium text-violet-300 transition-all shadow-sm shadow-violet-500/10 group"
+                                >
+                                    <Sparkles className="w-3.5 h-3.5 text-violet-400 group-hover:rotate-12 transition-transform" />
+                                    <span className="hidden md:inline">AI Assistant</span>
+                                    <span className="md:hidden">AI</span>
+                                </Button>
+                            </div>
+
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                {[
+                                    { value: 'bearer', label: 'Bearer', icon: Key, desc: 'JWT/Token', color: 'orange' },
+                                    { value: 'header', label: 'Header', icon: Shield, desc: 'Custom key', color: 'blue' },
+                                    { value: 'query_param', label: 'Query', icon: Link, desc: 'URL param', color: 'emerald' },
+                                    { value: 'none', label: 'Template', icon: FileText, desc: '{authKey}', color: 'purple' },
+                                ].map((auth) => {
+                                    const Icon = auth.icon
+                                    const isSelected = formData.authType === auth.value
+                                    return (
+                                        <button
+                                            key={auth.value}
+                                            onClick={() => setFormData({ ...formData, authType: auth.value })}
+                                            className={`p-3 rounded-xl border transition-all text-left group ${isSelected
+                                                ? 'bg-orange-500/20 border-orange-500/50 shadow-[0_0_15px_rgba(249,115,22,0.2)]'
+                                                : 'bg-white/[0.02] border-white/10 hover:border-white/20'
+                                                }`}
+                                        >
+                                            <div className={`w-7 h-7 rounded-lg mb-2 flex items-center justify-center transition-colors ${isSelected ? 'bg-orange-500/30' : 'bg-white/10 group-hover:bg-white/15'}`}>
+                                                <Icon className={`w-3.5 h-3.5 ${isSelected ? 'text-orange-400' : 'text-white/50'}`} />
+                                            </div>
+                                            <div className={`text-[11px] font-medium ${isSelected ? 'text-orange-300' : 'text-white/70'}`}>{auth.label}</div>
+                                            <div className="text-[9px] text-white/30 truncate">{auth.desc}</div>
+                                        </button>
+                                    )
+                                })}
+                            </div>
+
+                            {/* Conditional Auth Config Fields */}
+                            {(formData.authType === 'query_param' || formData.authType === 'header') && (
+                                <div className="p-4 bg-white/[0.02] rounded-xl border border-white/5 space-y-3">
+                                    <div className="flex items-center gap-2">
+                                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${formData.authType === 'query_param' ? 'bg-emerald-500/20' : 'bg-blue-500/20'}`}>
+                                            {formData.authType === 'query_param' ? <Link className="w-3.5 h-3.5 text-emerald-400" /> : <Shield className="w-3.5 h-3.5 text-blue-400" />}
+                                        </div>
+                                        <div className="flex-1">
+                                            <label className="text-xs font-medium text-white">
+                                                {formData.authType === 'query_param' ? 'Parameter Name' : 'Header Name'}
+                                            </label>
+                                            <span className="text-[9px] text-white/30 ml-2">
+                                                {formData.authType === 'query_param' ? 'e.g. api_key, token' : 'e.g. X-API-KEY'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <Input
+                                        value={formData.authType === 'query_param' ? formData.authQueryParam : formData.authHeader}
+                                        onChange={e => setFormData({
+                                            ...formData,
+                                            [formData.authType === 'query_param' ? 'authQueryParam' : 'authHeader']: e.target.value
+                                        })}
+                                        placeholder={formData.authType === 'query_param' ? 'api_key' : 'X-API-KEY'}
+                                        className="h-10 bg-black/30 border-white/10 text-sm font-mono focus:border-blue-500/50 transition-all"
+                                    />
+                                </div>
+                            )}
+
+                            {/* API Secret Key Input */}
+                            <div className="p-4 bg-white/[0.02] rounded-xl border border-white/5 space-y-3">
                                 <div className="flex items-center gap-2">
-                                    <div className="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center">
-                                        <Shield className="w-4 h-4 text-red-400" />
+                                    <div className="w-7 h-7 rounded-lg bg-red-500/20 flex items-center justify-center">
+                                        <Key className="w-3.5 h-3.5 text-red-400" />
                                     </div>
                                     <div className="flex-1">
-                                        <div className="flex items-center gap-1.5">
-                                            <label className="text-sm font-medium text-white">API Key / Token</label>
-                                            <InfoTooltip content={<>Your provider's <TT>API key or access token</TT>. This is <TT>securely encrypted</TT> and stored. When editing, leave blank to keep current key.</>} />
+                                        <div className="flex items-center gap-2">
+                                            <label className="text-xs font-medium text-white">API Secret Key</label>
+                                            <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/30">
+                                                <Shield className="w-2 h-2 text-emerald-400" />
+                                                <span className="text-[8px] font-bold text-emerald-400 uppercase">AES-256</span>
+                                            </div>
                                         </div>
-                                        <span className="text-[10px] text-white/40">
-                                            {isCreating ? 'Required for authentication' : 'Leave blank to keep current'}
-                                        </span>
+                                        <span className="text-[9px] text-white/30">Stored securely, never exposed</span>
                                     </div>
                                 </div>
                                 <Input
                                     type="password"
                                     value={formData.authKey}
                                     onChange={e => setFormData({ ...formData, authKey: e.target.value })}
-                                    className="bg-black/30 border-white/10 text-white h-11 text-sm"
-                                    placeholder="••••••••••••••••"
+                                    className="h-10 bg-black/30 border-white/10 text-sm font-mono focus:border-red-500/50 transition-all"
+                                    placeholder={isCreating ? "sk_live_..." : "••••••••••••••••"}
                                 />
                             </div>
+                        </div>
 
-                            {/* Priority */}
-                            <div className="p-4 bg-white/5 rounded-xl border border-white/5 space-y-3">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-8 h-8 rounded-lg bg-cyan-500/20 flex items-center justify-center">
-                                        <Server className="w-4 h-4 text-cyan-400" />
-                                    </div>
-                                    <div className="flex-1">
-                                        <div className="flex items-center gap-1.5">
-                                            <label className="text-sm font-medium text-white">Priority</label>
-                                            <InfoTooltip content={<>Determines the order providers are tried. <TT>Lower = higher priority</TT>. If provider #1 fails, system tries #2. Use <TTCode>1</TTCode> for your primary provider.</>} />
-                                        </div>
-                                        <span className="text-[10px] text-white/40">Lower = higher priority (1 is first)</span>
-                                    </div>
+                        {/* Priority */}
+                        <div className="p-4 bg-white/5 rounded-xl border border-white/5 space-y-3">
+                            <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-lg bg-cyan-500/20 flex items-center justify-center">
+                                    <Server className="w-4 h-4 text-cyan-400" />
                                 </div>
-                                <Input
-                                    type="number"
-                                    min="1"
-                                    max="100"
-                                    value={formData.priority}
-                                    onChange={e => setFormData({ ...formData, priority: parseInt(e.target.value) || 1 })}
-                                    className="bg-black/30 border-white/10 text-white h-11 text-sm text-center font-bold"
-                                />
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-1.5">
+                                        <label className="text-sm font-medium text-white">Priority</label>
+                                        <InfoTooltip content={<>Determines the order providers are tried. <TT>Lower = higher priority</TT>. If provider #1 fails, system tries #2. Use <TTCode>1</TTCode> for your primary provider.</>} />
+                                    </div>
+                                    <span className="text-[10px] text-white/40">Lower = higher priority (1 is first)</span>
+                                </div>
                             </div>
+                            <Input
+                                type="number"
+                                min="1"
+                                max="100"
+                                value={formData.priority}
+                                onChange={e => setFormData({ ...formData, priority: parseInt(e.target.value) || 1 })}
+                                className="bg-black/30 border-white/10 text-white h-11 text-sm text-center font-bold"
+                            />
                         </div>
 
                         {/* Active Provider Toggle */}

@@ -42,6 +42,14 @@ export async function logAdminAction({
     ipAddress
 }: AuditLogParams): Promise<void> {
     try {
+        // Check if user exists to prevent FK violation
+        const userExists = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } })
+
+        if (!userExists) {
+            console.warn(`[AuditLog] Skipped logging for non-existent userId: ${userId}`)
+            return
+        }
+
         await prisma.auditLog.create({
             data: {
                 userId,

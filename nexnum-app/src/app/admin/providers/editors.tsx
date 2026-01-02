@@ -62,16 +62,7 @@ export const PROVIDER_TEMPLATES = {
         endpoints: '{\n  "getCountries": { "method": "GET", "path": "https://smsbower.online/stubs/handler_api.php?action=getCountries&api_key={authKey}" },\n  "getServices": { "method": "GET", "path": "https://smsbower.online/stubs/handler_api.php?action=getServicesList&api_key={authKey}" },\n  "getNumber": { "method": "GET", "path": "https://smsbower.online/stubs/handler_api.php?action=getNumber&service={service}&country={country}&api_key={authKey}" },\n  "getStatus": { "method": "GET", "path": "https://smsbower.online/stubs/handler_api.php?action=getStatus&id={id}&api_key={authKey}" },\n  "cancelNumber": { "method": "GET", "path": "https://smsbower.online/stubs/handler_api.php?action=setStatus&id={id}&status=8&api_key={authKey}" },\n  "getBalance": { "method": "GET", "path": "https://smsbower.online/stubs/handler_api.php?action=getBalance&api_key={authKey}" }\n}',
         mappings: '{\n  "getCountries": { "type": "json_dictionary", "fields": { "id": "id", "name": "eng", "code": "id" } },\n  "getServices": { "type": "json_array", "rootPath": "services", "fields": { "id": "code", "name": "name", "code": "code" } },\n  "getNumber": { "type": "text_regex", "regex": "ACCESS_NUMBER:(\\\\d+):(\\\\d+)", "fields": { "id": "1", "phone": "2" } },\n  "getStatus": { "type": "text_regex", "regex": "STATUS_([A-Z_]+)(:?.*)?", "fields": { "status": "1", "code": "2" } },\n  "cancelNumber": { "type": "text_regex", "regex": "ACCESS_CANCEL", "fields": { "status": "0" } },\n  "getBalance": { "type": "text_regex", "regex": "ACCESS_BALANCE:([\\\\d.]+)", "fields": { "balance": "1" } }\n}'
     },
-    'onlinesim': {
-        name: 'onlinesim',
-        displayName: 'OnlineSim',
-        description: 'Advanced API with complex flows.',
-        baseUrl: 'https://onlinesim.io/api',
-        authType: 'query_param',
-        authQueryParam: 'apikey',
-        endpoints: '{\n  "getCountries": { "method": "GET", "path": "https://onlinesim.io/api/getTariffs.php?apikey={authKey}" },\n  "getServices": { "method": "GET", "path": "https://onlinesim.io/api/getTariffs.php?apikey={authKey}&country={country}" },\n  "getNumber": { "method": "GET", "path": "https://onlinesim.io/api/getNum.php?apikey={authKey}&service={service}&country={country}&number=true" },\n  "getStatus": { "method": "GET", "path": "https://onlinesim.io/api/getState.php?apikey={authKey}&tzid={id}" },\n  "cancelNumber": { "method": "GET", "path": "https://onlinesim.io/api/setOperationOk.php?apikey={authKey}&tzid={id}&ban=1" },\n  "getBalance": { "method": "GET", "path": "https://onlinesim.io/api/getBalance.php?apikey={authKey}" }\n}',
-        mappings: '{\n  "getCountries": { "type": "json_dictionary", "rootPath": "countries", "fields": { "id": "code", "name": "name", "code": "code" } },\n  "getServices": { "type": "json_dictionary", "rootPath": "services", "fields": { "id": "slug", "name": "service", "code": "slug", "price": "price", "count": "count" } },\n  "getNumber": { "type": "json_object", "fields": { "id": "tzid" } },\n  "getStatus": { "type": "json_array", "rootPath": "$", "fields": { "status": "response", "code": "msg", "sms": "msg", "phone": "number" } },\n  "cancelNumber": { "type": "json_object", "fields": { "status": "response" } },\n  "getBalance": { "type": "json_object", "fields": { "balance": "balance" } }\n}'
-    },
+
     'herosms': {
         name: 'herosms',
         displayName: 'HeroSMS',

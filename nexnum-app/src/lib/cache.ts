@@ -16,9 +16,6 @@ const CACHE_KEYS = {
 
 // Cache TTL in seconds
 const CACHE_TTL = {
-    COUNTRIES: 60 * 60, // 1 hour
-    SERVICES: 60 * 60,  // 1 hour
-    PRICING: 60 * 30,   // 30 minutes
     PROVIDERS: 60 * 5,  // 5 minutes
 } as const
 
@@ -86,91 +83,6 @@ async function refreshCache<T>(
 }
 
 /**
- * Get all active countries with caching
- */
-export async function getCachedCountries(provider?: string): Promise<CacheResult<any[]>> {
-    const key = provider ? `${CACHE_KEYS.COUNTRIES}:${provider}` : CACHE_KEYS.COUNTRIES
-
-    return getOrSet(key, async () => {
-        return prisma.country.findMany({
-            where: {
-                isActive: true,
-                ...(provider && { provider })
-            },
-            orderBy: [
-                { popular: 'desc' },
-                { name: 'asc' }
-            ],
-            select: {
-                id: true,
-                externalId: true,
-                name: true,
-                slug: true,
-                phoneCode: true,
-                iconUrl: true,
-                popular: true,
-                provider: true,
-            }
-        })
-    }, CACHE_TTL.COUNTRIES)
-}
-
-/**
- * Get all active services with caching
- */
-export async function getCachedServices(provider?: string): Promise<CacheResult<any[]>> {
-    const key = provider ? `${CACHE_KEYS.SERVICES}:${provider}` : CACHE_KEYS.SERVICES
-
-    return getOrSet(key, async () => {
-        return prisma.service.findMany({
-            where: {
-                isActive: true,
-                ...(provider && { provider })
-            },
-            orderBy: [
-                { popular: 'desc' },
-                { name: 'asc' }
-            ],
-            select: {
-                id: true,
-                externalId: true,
-                name: true,
-                slug: true,
-                shortName: true,
-                iconUrl: true,
-                popular: true,
-                provider: true,
-            }
-        })
-    }, CACHE_TTL.SERVICES)
-}
-
-/**
- * Get pricing for a country/service combination
- */
-export async function getCachedPricing(
-    countryId: string,
-    serviceId: string
-): Promise<CacheResult<any[]>> {
-    const key = `${CACHE_KEYS.PRICING}:${countryId}:${serviceId}`
-
-    return getOrSet(key, async () => {
-        return prisma.servicePricing.findMany({
-            where: {
-                countryId,
-                serviceId,
-                isAvailable: true,
-            },
-            orderBy: { price: 'asc' },
-            include: {
-                country: { select: { name: true, slug: true } },
-                service: { select: { name: true, slug: true } },
-            }
-        })
-    }, CACHE_TTL.PRICING)
-}
-
-/**
  * Get active providers
  */
 export async function getCachedActiveProviders(): Promise<CacheResult<any[]>> {
@@ -193,18 +105,9 @@ export async function getCachedActiveProviders(): Promise<CacheResult<any[]>> {
 /**
  * Invalidate cache keys (call after sync or update)
  */
-export async function invalidateCache(type: 'countries' | 'services' | 'pricing' | 'providers' | 'all') {
+export async function invalidateCache(type: 'providers' | 'all') {
     const patterns: string[] = []
 
-    if (type === 'countries' || type === 'all') {
-        patterns.push(`${CACHE_KEYS.COUNTRIES}*`)
-    }
-    if (type === 'services' || type === 'all') {
-        patterns.push(`${CACHE_KEYS.SERVICES}*`)
-    }
-    if (type === 'pricing' || type === 'all') {
-        patterns.push(`${CACHE_KEYS.PRICING}*`)
-    }
     if (type === 'providers' || type === 'all') {
         patterns.push(`${CACHE_KEYS.PROVIDERS}*`)
     }

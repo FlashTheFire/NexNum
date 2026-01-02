@@ -2,43 +2,43 @@ import { NextResponse } from "next/server";
 import { searchCountries } from "@/lib/search";
 
 /**
- * GET /api/public/countries
+ * GET /api/search/countries
  * 
- * Legacy endpoint - redirects to /api/search/countries
- * Kept for backwards compatibility with existing frontend.
+ * Search countries for a selected service with aggregated stats.
+ * Returns: lowestPrice, totalStock, serverCount per country.
+ * 
+ * Query Params:
+ * - service: Service slug (required)
+ * - q: Search query (optional)
+ * - page: Page number (default: 1)
+ * - limit: Items per page (default: 50)
+ * - sort: Sort option (name | price | stock)
  */
 export async function GET(req: Request) {
     try {
         const { searchParams } = new URL(req.url);
-        const serviceName = searchParams.get("service") || "";
+        const serviceSlug = searchParams.get("service");
         const q = searchParams.get("q") || "";
         const page = parseInt(searchParams.get("page") || "1");
-        const limit = parseInt(searchParams.get("limit") || "24");
+        const limit = parseInt(searchParams.get("limit") || "50");
         const sort = (searchParams.get("sort") || "name") as 'name' | 'price' | 'stock';
 
-        // If no service specified, return empty (service is required in new architecture)
-        if (!serviceName) {
-            return NextResponse.json({
-                items: [],
-                pagination: { total: 0, page: 1, limit, hasMore: false }
-            });
+        if (!serviceSlug) {
+            return NextResponse.json(
+                { error: "Missing required param: service" },
+                { status: 400 }
+            );
         }
-
-        // Sanitize service name to slug
-        const serviceSlug = serviceName.toLowerCase()
-            .replace(/\s+/g, '-')
-            .replace(/[^a-z0-9\-]/g, '');
 
         const result = await searchCountries(serviceSlug, q, { page, limit, sort });
 
-        // Map to legacy format for backwards compatibility
+        // Map to API response format
         const items = result.countries.map(country => ({
-            id: country.code,
-            name: country.name,
             code: country.code,
+            name: country.name,
             phoneCode: country.phoneCode,
             flagUrl: country.flagUrl,
-            minPrice: country.lowestPrice,
+            lowestPrice: country.lowestPrice,
             totalStock: country.totalStock,
             serverCount: country.serverCount,
         }));

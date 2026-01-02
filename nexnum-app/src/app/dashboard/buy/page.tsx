@@ -10,8 +10,7 @@ import { DashboardBackground } from "../components/dashboard-background"
 import BuyPageHeader from "./components/BuyPageHeader"
 import ServiceSelector from "./components/ServiceSelector"
 import CountrySelector from "./components/CountrySelector"
-import SearchResults from "./components/SearchResults"
-import { SearchOffer } from "./components/OfferCard"
+import ProviderSelector, { Provider } from "./components/ProviderSelector"
 
 export default function BuyPage() {
     const { userProfile, purchaseNumber, fetchBalance } = useGlobalStore()
@@ -24,11 +23,6 @@ export default function BuyPage() {
     const [selectedService, setSelectedService] = useState<{ id: string, name: string } | null>(null)
     const [selectedCountry, setSelectedCountry] = useState<any | null>(null)
 
-    // Search/Step 3 Data
-    const [offers, setOffers] = useState<SearchOffer[]>([])
-    const [loadingOffers, setLoadingOffers] = useState(false)
-    const [totalOffers, setTotalOffers] = useState(0)
-
     // Filters within Wizard (e.g. searching for a country in Step 2)
     const [localSearch, setLocalSearch] = useState("")
 
@@ -38,36 +32,6 @@ export default function BuyPage() {
     useEffect(() => {
         setLocalSearch("")
     }, [step])
-
-    // Step 3: Fetch Offers
-    useEffect(() => {
-        if (step === 3 && selectedService && selectedCountry) {
-            fetchOffers()
-        }
-    }, [step, selectedService, selectedCountry])
-
-    const fetchOffers = async () => {
-        setLoadingOffers(true)
-        try {
-            // Search by Service Name (e.g. "WhatsApp") + Country Phone Code (e.g. "22")
-            // This grabs offers from MeiliSearch
-            const query = encodeURIComponent(selectedService?.name || "")
-            const country = encodeURIComponent(selectedCountry?.phoneCode || "")
-
-            const res = await fetch(`/api/search/offers?q=${query}&country=${country}&limit=50`)
-            const data = await res.json()
-
-            if (data.hits) {
-                setOffers(data.hits)
-                setTotalOffers(data.total)
-            }
-        } catch (error) {
-            console.error("Failed to fetch offers", error)
-            toast.error("Failed to load offers")
-        } finally {
-            setLoadingOffers(false)
-        }
-    }
 
     // --- Handlers ---
 
@@ -81,21 +45,21 @@ export default function BuyPage() {
         setStep(3)
     }
 
-    const handlePurchase = async (offer: SearchOffer) => {
+    const handlePurchase = async (provider: Provider) => {
         if (!userProfile) return
-        if (userProfile.balance < offer.price) {
+        if (userProfile.balance < provider.price) {
             toast.error("Insufficient balance", { description: "Please top up your wallet." })
             return
         }
 
         const toastId = toast.loading("Reserving number...")
         try {
-            const result = await purchaseNumber(offer.countryCode, offer.serviceCode)
+            const result = await purchaseNumber(provider.countryCode, provider.serviceCode)
             if (!result.success) throw new Error(result.error || "Purchase failed")
 
             await fetchBalance()
             toast.dismiss(toastId)
-            toast.success("Success!", { description: `${offer.serviceName} number is ready.` })
+            toast.success("Success!", { description: `${provider.serviceName} number is ready.` })
             router.push('/dashboard/vault')
         } catch (error: any) {
             toast.dismiss(toastId)
@@ -170,8 +134,8 @@ export default function BuyPage() {
                         </motion.div>
                     )}
 
-                    {/* STEP 3: OFFERS */}
-                    {step === 3 && (
+                    {/* STEP 3: PROVIDERS */}
+                    {step === 3 && selectedService && selectedCountry && (
                         <motion.div
                             key="step3"
                             initial={{ opacity: 0, x: 20 }}
@@ -179,10 +143,11 @@ export default function BuyPage() {
                             exit={{ opacity: 0, x: -20 }}
                             transition={{ duration: 0.2 }}
                         >
-                            <SearchResults
-                                results={offers}
-                                totals={totalOffers}
-                                loading={loadingOffers}
+                            <ProviderSelector
+                                serviceCode={selectedService.id}
+                                serviceName={selectedService.name}
+                                countryCode={selectedCountry.code || selectedCountry.id}
+                                countryName={selectedCountry.name}
                                 onBuy={handlePurchase}
                             />
                         </motion.div>

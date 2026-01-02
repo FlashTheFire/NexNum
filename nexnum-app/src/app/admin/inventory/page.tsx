@@ -27,38 +27,41 @@ interface Country {
 }
 
 interface AggregatedCountry {
+    countryCode: string
     canonicalName: string
     displayName: string
     phoneCode: string
-    rawNames: string[]
-    variants: string[]  // Real variants like "(virtual)" or "(2)"
-    variantCount: number
+    flagUrl: string
     providers: Array<{
         provider: string
         externalId: string
-        name: string
-        phoneCode: string
+        stock: number
+        minPrice: number
+        maxPrice: number
     }>
-    lastSyncedAt: string
+    totalProviders: number
+    serviceCount: number
+    totalStock: number
+    priceRange: { min: number; max: number }
+    lastSyncedAt: number
 }
 
 interface AggregatedService {
     canonicalName: string
     canonicalSlug: string
-    codes: string[]
-    providers: {
+    providers: Array<{
         provider: string
         externalId: string
-        name: string
-        code: string
-        price: number
-        originalPrice?: number
-        count: number
-        isActive: boolean
-    }[]
+        stock: number
+        minPrice: number
+        maxPrice: number
+    }>
     totalProviders: number
+    countryCount: number
+    totalStock: number
     bestPrice: number
-    priceRange: { min: number, max: number }
+    priceRange: { min: number; max: number }
+    lastSyncedAt: number
 }
 
 interface Service {
@@ -115,29 +118,42 @@ export default function InventoryPage() {
         }
         fetchProviders()
     }, [])
-
+    // Reset page when changing tab or provider
+    useEffect(() => {
+        setPage(1)
+        setExpandedRows(new Set())
+    }, [activeTab, selectedProvider])
 
     const fetchData = async () => {
         setLoading(true)
         try {
+            const currentLimit = typeof window !== 'undefined' && window.innerWidth < 768 ? 10 : 20
             const params = new URLSearchParams({
                 type: activeTab,
                 page: String(page),
                 q: search,
-                aggregate: String(!selectedProvider),
-                limit: typeof window !== 'undefined' && window.innerWidth < 768 ? '10' : '20',
-                ...(selectedProvider && { provider: selectedProvider })
+                aggregate: 'true',
+                limit: String(currentLimit),
             })
+            if (selectedProvider) {
+                params.set('provider', selectedProvider)
+            }
             const res = await fetch(`/api/admin/inventory?${params}`)
             const json = await res.json()
             if (json.items) {
                 setData(json.items)
-                setTotalPages(json.pages)
-                setTotal(json.total)
+                setTotalPages(json.pages || 1)
+                setTotal(json.total || 0)
                 setMode(json.mode || 'raw')
+            } else {
+                setData([])
+                setTotalPages(1)
+                setTotal(0)
             }
-        } catch {
+        } catch (err) {
+            console.error('Inventory fetch error:', err)
             toast.error("Failed to load data")
+            setData([])
         } finally {
             setLoading(false)
         }
@@ -182,7 +198,7 @@ export default function InventoryPage() {
         })
     }
 
-    const isAggregated = mode === 'aggregated' && !selectedProvider
+    const isAggregated = mode === 'aggregated'
 
     return (
         <div className="min-h-screen p-4 md:p-8 pb-32 md:pb-8 max-w-7xl mx-auto space-y-8">
@@ -409,11 +425,11 @@ export default function InventoryPage() {
                                             <td colSpan={5} className="p-0">
                                                 {/* Main Row */}
                                                 <div
-                                                    className="flex items-center cursor-pointer hover:bg-white/[0.03] px-6 py-3"
-                                                    onClick={() => toggleRow(item.canonicalName)}
+                                                    className={`flex items-center px-6 py-3 ${!selectedProvider ? 'cursor-pointer hover:bg-white/[0.03]' : ''}`}
+                                                    onClick={() => !selectedProvider && toggleRow(item.canonicalName)}
                                                 >
                                                     <div className="w-8">
-                                                        {item.providers.length > 1 ? (
+                                                        {!selectedProvider && item.providers.length > 1 ? (
                                                             isExpanded ? (
                                                                 <ChevronDown size={14} className="text-gray-500" />
                                                             ) : (
@@ -421,30 +437,53 @@ export default function InventoryPage() {
                                                             )
                                                         ) : null}
                                                     </div>
-                                                    <div className="flex-1 font-medium text-white min-w-[200px] pr-8">
-                                                        {item.displayName}
-                                                        {item.variantCount > 0 && (
-                                                            <span className="ml-2 text-[10px] text-gray-500">
-                                                                ({item.variantCount} variant{item.variantCount > 1 ? 's' : ''})
+                                                    <div className="flex-1 font-medium text-white min-w-[180px] pr-4">
+                                                        <div className="flex items-center gap-2">
+                                                            {item.flagUrl && <img src={item.flagUrl} alt="" className="w-5 h-3.5 object-cover rounded-sm" />}
+                                                            {item.displayName}
+                                                        </div>
+                                                        {item.serviceCount > 0 && (
+                                                            <span className="ml-7 text-[10px] text-gray-500">
+                                                                {item.serviceCount} services
                                                             </span>
                                                         )}
                                                     </div>
-                                                    <div className="w-32 text-blue-300">
-                                                        {item.phoneCode ? `+${item.phoneCode}` : <span className="text-gray-600">-</span>}
+                                                    <div className="w-24 text-blue-300 text-sm">
+                                                        {item.phoneCode ? `+${item.phoneCode.replace(/^\+/, '')}` : <span className="text-gray-600">-</span>}
                                                     </div>
-                                                    <div className="w-40 flex items-center gap-1">
-                                                        <span className="px-2 py-0.5 rounded bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[10px] font-medium">
-                                                            {item.providers.length} provider{item.providers.length > 1 ? 's' : ''}
-                                                        </span>
+                                                    <div className="w-28 flex flex-col gap-0.5">
+                                                        {!selectedProvider && (
+                                                            <span className="px-2 py-0.5 rounded bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[10px] font-medium">
+                                                                {item.totalProviders} provider{item.totalProviders > 1 ? 's' : ''}
+                                                            </span>
+                                                        )}
                                                     </div>
-                                                    <div className="w-32 text-right text-xs text-gray-600">
+                                                    <div className="w-24 text-right text-xs">
+                                                        <div className="text-emerald-400 font-mono">
+                                                            {item.totalStock > 0 ? item.totalStock.toLocaleString() : '-'}
+                                                        </div>
+                                                        <div className="text-gray-500 text-[10px]">stock</div>
+                                                    </div>
+                                                    <div className="w-28 text-right text-xs">
+                                                        {item.priceRange.min > 0 ? (
+                                                            <div className="text-yellow-400 font-mono">
+                                                                ${item.priceRange.min.toFixed(2)}
+                                                                {!selectedProvider && item.priceRange.max !== item.priceRange.min && (
+                                                                    <span className="text-gray-500"> - ${item.priceRange.max.toFixed(2)}</span>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-gray-600">-</span>
+                                                        )}
+                                                    </div>
+                                                    <div className="w-28 text-right text-xs text-gray-600">
                                                         {item.lastSyncedAt && formatDistanceToNow(new Date(item.lastSyncedAt))} ago
                                                     </div>
                                                 </div>
 
-                                                {/* Expanded Provider Details */}
+                                                {/* Expanded Provider Details - Only show if NO provider selected */}
                                                 <AnimatePresence>
-                                                    {isExpanded && (
+                                                    {!selectedProvider && isExpanded && (
                                                         <motion.div
                                                             initial={{ height: 0, opacity: 0 }}
                                                             animate={{ height: 'auto', opacity: 1 }}
@@ -457,18 +496,23 @@ export default function InventoryPage() {
                                                                     className="flex items-center px-6 py-2 border-b border-white/5 last:border-0"
                                                                 >
                                                                     <div className="w-8"></div>
-                                                                    <div className="flex-1 text-gray-400 text-sm pl-4">
-                                                                        {p.name}
+                                                                    <div className="flex-1 text-gray-300 text-sm pl-4 font-medium uppercase tracking-wider">
+                                                                        {p.provider}
                                                                     </div>
-                                                                    <div className="w-32 text-gray-500 text-sm">
-                                                                        {p.phoneCode ? `+${p.phoneCode.replace(/[^0-9]/g, '')}` : '-'}
+                                                                    <div className="w-24 text-right text-xs">
+                                                                        <div className="text-emerald-400 font-mono">
+                                                                            {p.stock > 0 ? p.stock.toLocaleString() : '-'}
+                                                                        </div>
                                                                     </div>
-                                                                    <div className="w-40">
-                                                                        <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 uppercase text-[10px] tracking-wider">
-                                                                            {p.provider}
+                                                                    <div className="w-28 text-right">
+                                                                        <span className="text-yellow-400 text-sm font-mono">
+                                                                            ${p.minPrice.toFixed(2)}
+                                                                            {p.maxPrice !== p.minPrice && (
+                                                                                <span className="text-gray-500"> - ${p.maxPrice.toFixed(2)}</span>
+                                                                            )}
                                                                         </span>
                                                                     </div>
-                                                                    <div className="w-32 text-right text-xs text-gray-600 font-mono">
+                                                                    <div className="w-28 text-right text-xs text-gray-600 font-mono">
                                                                         {p.externalId}
                                                                     </div>
                                                                 </div>
@@ -516,11 +560,11 @@ export default function InventoryPage() {
                                             <td colSpan={5} className="p-0">
                                                 {/* Main Row */}
                                                 <div
-                                                    className="flex items-center cursor-pointer hover:bg-white/[0.03] px-6 py-3"
-                                                    onClick={() => toggleRow(item.canonicalName)}
+                                                    className={`flex items-center px-6 py-3 ${!selectedProvider ? 'cursor-pointer hover:bg-white/[0.03]' : ''}`}
+                                                    onClick={() => !selectedProvider && toggleRow(item.canonicalName)}
                                                 >
                                                     <div className="w-8">
-                                                        {item.providers.length > 1 ? (
+                                                        {!selectedProvider && item.providers.length > 1 ? (
                                                             isExpanded ? (
                                                                 <ChevronDown size={14} className="text-gray-500" />
                                                             ) : (
@@ -528,37 +572,47 @@ export default function InventoryPage() {
                                                             )
                                                         ) : null}
                                                     </div>
-                                                    <div className="flex-1 font-medium text-white flex items-center gap-2 min-w-[200px] pr-8">
-                                                        {item.canonicalName}
-                                                        {item.providers.length > 1 && (
-                                                            <span className="text-[10px] text-gray-500 bg-white/5 px-1.5 py-0.5 rounded">
-                                                                {item.codes?.length || 0} codes
+                                                    <div className="flex-1 font-medium text-white min-w-[180px] pr-4">
+                                                        <div>{item.canonicalName}</div>
+                                                        {item.countryCount > 0 && (
+                                                            <span className="text-[10px] text-gray-500">
+                                                                {item.countryCount} countries
                                                             </span>
                                                         )}
                                                     </div>
-                                                    <div className="w-40 text-emerald-400 font-mono">
+                                                    <div className="w-28 flex flex-col gap-0.5">
+                                                        {!selectedProvider && (
+                                                            <span className="px-2 py-0.5 rounded bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[10px] font-medium">
+                                                                {item.totalProviders} provider{item.totalProviders > 1 ? 's' : ''}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="w-24 text-right text-xs">
+                                                        <div className="text-emerald-400 font-mono">
+                                                            {item.totalStock > 0 ? item.totalStock.toLocaleString() : '-'}
+                                                        </div>
+                                                        <div className="text-gray-500 text-[10px]">stock</div>
+                                                    </div>
+                                                    <div className="w-28 text-right text-xs">
                                                         {item.bestPrice > 0 ? (
-                                                            <>
-                                                                <span className="text-gray-500 text-xs mr-1">from</span>
-                                                                {item.bestPrice.toFixed(2)}₽
-                                                            </>
+                                                            <div className="text-yellow-400 font-mono">
+                                                                ${item.bestPrice.toFixed(2)}
+                                                                {!selectedProvider && item.priceRange.max !== item.priceRange.min && (
+                                                                    <span className="text-gray-500"> - ${item.priceRange.max.toFixed(2)}</span>
+                                                                )}
+                                                            </div>
                                                         ) : (
                                                             <span className="text-gray-600">-</span>
                                                         )}
                                                     </div>
-                                                    <div className="w-40 flex items-center gap-1">
-                                                        <span className="px-2 py-0.5 rounded bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[10px] font-medium">
-                                                            {item.providers.length} provider{item.providers.length > 1 ? 's' : ''}
-                                                        </span>
-                                                    </div>
-                                                    <div className="w-64 text-right text-xs text-gray-500 font-mono truncate px-2">
-                                                        {item.codes?.join(', ') || ''}
+                                                    <div className="w-28 text-right text-xs text-gray-600">
+                                                        {item.lastSyncedAt && formatDistanceToNow(new Date(item.lastSyncedAt))} ago
                                                     </div>
                                                 </div>
 
-                                                {/* Expanded Provider Details */}
+                                                {/* Expanded Provider Details - Only show if NO provider selected */}
                                                 <AnimatePresence>
-                                                    {isExpanded && (
+                                                    {!selectedProvider && isExpanded && (
                                                         <motion.div
                                                             initial={{ height: 0, opacity: 0 }}
                                                             animate={{ height: 'auto', opacity: 1 }}
@@ -571,20 +625,24 @@ export default function InventoryPage() {
                                                                     className="flex items-center px-6 py-2 border-b border-white/5 last:border-0"
                                                                 >
                                                                     <div className="w-8"></div>
-                                                                    <div className="flex-1 text-gray-400 text-sm pl-4 flex items-center gap-2">
-                                                                        {p.name}
-                                                                        {!p.isActive && <span className="text-[10px] text-red-500 bg-red-500/10 px-1 rounded">OFFLINE</span>}
+                                                                    <div className="flex-1 text-gray-300 text-sm pl-4 font-medium uppercase tracking-wider">
+                                                                        {p.provider}
                                                                     </div>
-                                                                    <div className="w-40 text-gray-400 text-sm font-mono">
-                                                                        {p.price > 0 ? `${p.price}₽` : '-'}
+                                                                    <div className="w-24 text-right text-xs">
+                                                                        <div className="text-emerald-400 font-mono">
+                                                                            {p.stock > 0 ? p.stock.toLocaleString() : '-'}
+                                                                        </div>
                                                                     </div>
-                                                                    <div className="w-40">
-                                                                        <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 uppercase text-[10px] tracking-wider">
-                                                                            {p.provider}
+                                                                    <div className="w-28 text-right">
+                                                                        <span className="text-yellow-400 text-sm font-mono">
+                                                                            ${p.minPrice.toFixed(2)}
+                                                                            {p.maxPrice !== p.minPrice && (
+                                                                                <span className="text-gray-500"> - ${p.maxPrice.toFixed(2)}</span>
+                                                                            )}
                                                                         </span>
                                                                     </div>
-                                                                    <div className="w-64 text-right text-xs text-gray-600 font-mono">
-                                                                        {p.code}
+                                                                    <div className="w-28 text-right text-xs text-gray-600 font-mono">
+                                                                        {p.externalId}
                                                                     </div>
                                                                 </div>
                                                             ))}
@@ -647,11 +705,13 @@ export default function InventoryPage() {
                                                     <h3 className="text-lg font-medium text-white">{item.canonicalName}</h3>
                                                     <div className="flex gap-2 mt-1">
                                                         <span className="px-2 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[10px] font-medium">
-                                                            {item.providers.length} Providers
+                                                            {item.totalProviders} Providers
                                                         </span>
-                                                        <span className="px-2 py-0.5 rounded-full bg-white/5 text-gray-400 text-[10px]">
-                                                            {item.codes?.length || 0} Codes
-                                                        </span>
+                                                        {item.countryCount > 0 && (
+                                                            <span className="px-2 py-0.5 rounded-full bg-white/5 text-gray-400 text-[10px]">
+                                                                {item.countryCount} Countries
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 </div>
                                                 <div className="text-right">
@@ -664,9 +724,14 @@ export default function InventoryPage() {
                                                 </div>
                                             </div>
 
-                                            {/* Preview Codes */}
-                                            <div className="text-xs text-gray-500 font-mono truncate border-t border-white/5 pt-2">
-                                                {item.codes?.join(', ') || ''}
+                                            {/* Stock & Info */}
+                                            <div className="flex justify-between items-center border-t border-white/5 pt-2 mt-2">
+                                                <div className="text-xs text-gray-500">
+                                                    Stock: <span className="text-gray-300 font-mono">{item.totalStock > 0 ? item.totalStock.toLocaleString() : '-'}</span>
+                                                </div>
+                                                <div className="text-xs text-gray-500 font-mono">
+                                                    {item.lastSyncedAt && formatDistanceToNow(new Date(item.lastSyncedAt))} ago
+                                                </div>
                                             </div>
 
                                             {/* Expand Button */}
@@ -687,14 +752,21 @@ export default function InventoryPage() {
                                                     {item.providers.map((p, idx) => (
                                                         <div key={`${p.provider}-${idx}`} className="p-3 border-b border-white/5 last:border-0 flex justify-between items-center">
                                                             <div>
-                                                                <div className="text-sm text-gray-300">{p.name}</div>
-                                                                <div className="text-[10px] text-gray-500 font-mono mt-0.5">{p.code}</div>
+                                                                <div className="text-sm text-gray-300 font-medium uppercase tracking-wider">{p.provider}</div>
+                                                                <div className="text-[10px] text-gray-500 font-mono mt-0.5">Stock: {p.stock > 0 ? p.stock.toLocaleString() : '-'}</div>
                                                             </div>
                                                             <div className="text-right">
-                                                                <div className="font-mono text-emerald-400/80 text-sm">{p.price > 0 ? `${p.price}₽` : '-'}</div>
-                                                                <span className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10 uppercase text-[9px] tracking-wider text-gray-500 mt-1 inline-block">
-                                                                    {p.provider}
-                                                                </span>
+                                                                <div className="font-mono text-emerald-400/80 text-sm">
+                                                                    {p.minPrice > 0 ? (
+                                                                        <>
+                                                                            ${p.minPrice.toFixed(2)}
+                                                                            {p.maxPrice !== p.minPrice && <span className="text-gray-600 text-[10px]"> - ${p.maxPrice.toFixed(2)}</span>}
+                                                                        </>
+                                                                    ) : '-'}
+                                                                </div>
+                                                                <div className="text-[9px] font-mono text-gray-600 mt-0.5">
+                                                                    {p.externalId}
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     ))}

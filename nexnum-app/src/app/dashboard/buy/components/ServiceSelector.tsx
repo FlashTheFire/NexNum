@@ -28,11 +28,14 @@ const MOCK_COLORS: Record<string, string> = {
 };
 
 export interface Service {
-    id: string; // The search term (Canonical Name)
+    id: string; // Service slug
     name: string; // Display Name
     color?: string;
     popular?: boolean;
-    providerCount?: number;
+    lowestPrice?: number;   // NEW: Min price
+    totalStock?: number;    // NEW: Total stock
+    serverCount?: number;   // NEW: Provider count
+    countryCount?: number;  // NEW: Country count
 }
 
 interface ServiceSelectorProps {
@@ -43,50 +46,45 @@ interface ServiceSelectorProps {
 
 export default function ServiceSelector({ selectedService, onSelect, searchTerm }: ServiceSelectorProps) {
     const [fetchedServices, setFetchedServices] = useState<Service[]>([]);
-    const [loading, setLoading] = useState(false); // Initial load or search load
-    const [loadingMore, setLoadingMore] = useState(false); // Pagination load
-
-    // Pagination State
+    const [loading, setLoading] = useState(false);
+    const [loadingMore, setLoadingMore] = useState(false);
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(true);
-
-    // Debounce or just rely on parent searchTerm? 
-    // Parent should ideally debounce 'searchTerm', but for now we assume it triggers useEffect.
 
     // Reset when search term changes
     useEffect(() => {
         setFetchedServices([]);
         setPage(1);
         setHasMore(true);
-        // We trigger fetch via logic below, or explicit call? 
-        // Explicit call is safer to avoid race conditions with 'page' state.
         fetchServices(1, searchTerm, true);
     }, [searchTerm]);
 
-    // Fetch Function
+    // Fetch Function - uses new /api/search/services endpoint
     const fetchServices = async (pageToFetch: number, query: string, isReset: boolean) => {
         if (isReset) setLoading(true);
         else setLoadingMore(true);
 
         try {
-            const res = await fetch(`/api/public/services?page=${pageToFetch}&limit=24&q=${encodeURIComponent(query)}`);
+            // NEW: Use /api/search/services endpoint
+            const res = await fetch(`/api/search/services?page=${pageToFetch}&limit=24&q=${encodeURIComponent(query)}`);
             const data = await res.json();
 
-            // Handle { items, pagination } or fallback
-            // We implemented { items, pagination } in backend
             const items = data.items || [];
             const meta = data.pagination || {};
 
             const mapped: Service[] = items.map((item: any) => {
-                const lowerName = item.searchName.toLowerCase();
-                const isPopular = item.providerCount > 1 || ['whatsapp', 'telegram', 'google', 'openai'].some((p: string) => lowerName.includes(p));
+                const lowerName = item.name?.toLowerCase() || '';
+                const isPopular = item.serverCount > 2 || ['whatsapp', 'telegram', 'google', 'openai'].some((p: string) => lowerName.includes(p));
 
                 return {
-                    id: item.searchName,
-                    name: item.displayName,
-                    color: MOCK_COLORS[lowerName.split(' ')[0]] || "#888888",
+                    id: item.slug,          // Use slug as id
+                    name: item.name,        // Display name
+                    color: MOCK_COLORS[lowerName.split(/[\s-]/)[0]] || "#888888",
                     popular: isPopular,
-                    providerCount: item.providerCount
+                    lowestPrice: item.lowestPrice,
+                    totalStock: item.totalStock,
+                    serverCount: item.serverCount,
+                    countryCount: item.countryCount,
                 };
             });
 
@@ -94,7 +92,6 @@ export default function ServiceSelector({ selectedService, onSelect, searchTerm 
                 setFetchedServices(mapped);
             } else {
                 setFetchedServices(prev => {
-                    // Avoid duplicates just in case
                     const existingIds = new Set(prev.map(s => s.id));
                     const newItems = mapped.filter((s: Service) => !existingIds.has(s.id));
                     return [...prev, ...newItems];

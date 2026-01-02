@@ -1,5 +1,5 @@
 import { MetadataRoute } from 'next'
-import { prisma } from '@/lib/db'
+import { searchAdminCountries, searchAdminServices } from '@/lib/search'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://nexnum.com'
@@ -22,27 +22,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }))
 
     // 2. Dynamic Countries
-    const countries = await prisma.country.findMany({
-        where: { isActive: true },
-        select: { slug: true, lastSyncedAt: true },
-    })
-
-    const countryRoutes = countries.map((country) => ({
-        url: `${baseUrl}/sms/${country.slug}`,
-        lastModified: country.lastSyncedAt || new Date(),
+    const countryResult = await searchAdminCountries('', { limit: 1000 })
+    const countryRoutes = countryResult.items.map((country: any) => ({
+        url: `${baseUrl}/sms/${country.code.toLowerCase()}`,
+        lastModified: new Date(country.lastSyncedAt),
         changeFrequency: 'hourly' as const,
         priority: 0.8,
     }))
 
     // 3. Dynamic Services
-    const services = await prisma.service.findMany({
-        where: { isActive: true },
-        select: { slug: true, lastSyncedAt: true },
-    })
-
-    const serviceRoutes = services.map((service) => ({
-        url: `${baseUrl}/sms/service/${service.slug}`,
-        lastModified: service.lastSyncedAt || new Date(),
+    const serviceResult = await searchAdminServices('', { limit: 1000 })
+    const serviceRoutes = serviceResult.items.map((service: any) => ({
+        url: `${baseUrl}/sms/service/${service.canonicalSlug}`,
+        lastModified: new Date(),
         changeFrequency: 'hourly' as const,
         priority: 0.7,
     }))

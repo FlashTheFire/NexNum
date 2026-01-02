@@ -2,28 +2,32 @@ import { NextResponse } from "next/server";
 import { searchServices } from "@/lib/search";
 
 /**
- * GET /api/public/services
+ * GET /api/search/services
  * 
- * Legacy endpoint - redirects to /api/search/services
- * Kept for backwards compatibility with existing frontend.
+ * Search services with aggregated stats from offers index.
+ * Returns: lowestPrice, totalStock, serverCount, countryCount per service.
+ * 
+ * Query Params:
+ * - q: Search query (optional)
+ * - page: Page number (default: 1)
+ * - limit: Items per page (default: 50)
  */
 export async function GET(req: Request) {
     try {
         const { searchParams } = new URL(req.url);
         const q = searchParams.get("q") || "";
         const page = parseInt(searchParams.get("page") || "1");
-        const limit = parseInt(searchParams.get("limit") || "24");
+        const limit = parseInt(searchParams.get("limit") || "50");
 
         const result = await searchServices(q, { page, limit });
 
-        // Map to legacy format for backwards compatibility
+        // Map to API response format
         const items = result.services.map(service => ({
-            searchName: service.slug,
-            displayName: service.name,
             slug: service.slug,
+            name: service.name,
             lowestPrice: service.lowestPrice,
             totalStock: service.totalStock,
-            providerCount: service.serverCount,
+            serverCount: service.serverCount,
             countryCount: service.countryCount,
         }));
 

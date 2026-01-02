@@ -103,94 +103,32 @@ model AuditLog {
   @@map("audit_logs")
 }
 
-model Country {
-  id           String           @id @default(uuid())
-  externalId   String           @map("external_id")
-  name         String
-  slug         String
-  phoneCode    String           @map("phone_code")
-  iconUrl      String?          @map("icon_url")
-  popular      Int              @default(0)
-  provider     String
-  isActive     Boolean          @default(true) @map("is_active")
-  lastSyncedAt DateTime         @default(now()) @map("last_synced_at")
-  createdAt    DateTime         @default(now()) @map("created_at")
-  updatedAt    DateTime         @updatedAt @map("updated_at")
-  services     ServicePricing[]
+// ============================================
+// LOOKUP TABLES (Reference data for display)
+// ============================================
 
-  @@unique([externalId, provider])
-  @@index([provider])
-  @@index([isActive])
-  @@map("countries")
+// Service lookup: code → display details
+model ServiceLookup {
+  code     String  @id                // e.g., "wa", "tg", "fb"
+  name     String                     // e.g., "WhatsApp"
+  iconUrl  String? @map("icon_url")   // Optional icon/logo URL
+  
+  @@map("service_lookups")
 }
 
-model Service {
-  id           String           @id @default(uuid())
-  externalId   String           @map("external_id")
-  name         String
-  slug         String
-  shortName    String?          @map("short_name")
-  iconUrl      String?          @map("icon_url")
-  senderTitle  String?          @map("sender_title")
-  smsPattern   String?          @map("sms_pattern")
-  popular      Int              @default(0)
-  provider     String
-  isActive     Boolean          @default(true) @map("is_active")
-  lastSyncedAt DateTime         @default(now()) @map("last_synced_at")
-  createdAt    DateTime         @default(now()) @map("created_at")
-  updatedAt    DateTime         @updatedAt @map("updated_at")
-  pricing      ServicePricing[]
-
-  @@unique([externalId, provider])
-  @@index([provider])
-  @@index([isActive])
-  @@map("services")
+// Country lookup: code → display details  
+model CountryLookup {
+  code      String  @id               // ISO code: "US", "IN", "GB"
+  name      String                    // e.g., "United States"
+  phoneCode String  @map("phone_code") // e.g., "+1"
+  flagUrl   String? @map("flag_url")  // Flag image URL
+  
+  @@map("country_lookups")
 }
 
-model ServicePricing {
-  id            String   @id @default(uuid())
-  countryId     String   @map("country_id")
-  serviceId     String   @map("service_id")
-  provider      String
-  price         Decimal  @db.Decimal(8, 2)
-  originalPrice Decimal? @map("original_price") @db.Decimal(8, 2)
-  count         Int      @default(0)
-  successRate   Decimal? @map("success_rate") @db.Decimal(5, 2)
-  isAvailable   Boolean  @default(true) @map("is_available")
-  lastSyncedAt  DateTime @default(now()) @map("last_synced_at")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-  country       Country  @relation(fields: [countryId], references: [id], onDelete: Cascade)
-  service       Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-
-  @@unique([countryId, serviceId, provider])
-  @@index([provider])
-  @@index([isAvailable])
-  @@index([price])
-  @@index([serviceId, isAvailable, price])  // Optimized pricing lookup
-  @@index([countryId, isAvailable])         // Available services in country
-  @@map("service_pricing")
-}
-
-model SyncJob {
-  id          String    @id @default(uuid())
-  provider    String
-  providerId  String?   @map("provider_id")
-  jobType     String    @map("job_type")
-  status      String
-  itemsFound  Int       @default(0) @map("items_found")
-  itemsSynced Int       @default(0) @map("items_synced")
-  error       String?
-  startedAt   DateTime  @default(now()) @map("started_at")
-  completedAt DateTime? @map("completed_at")
-
-  providerRel Provider? @relation(fields: [providerId], references: [id])
-
-  @@index([provider])
-  @@index([providerId])
-  @@index([status])
-  @@map("sync_jobs")
-}
+// ============================================
+// PROVIDER CONFIGURATION
+// ============================================
 
 model Provider {
   id              String   @id @default(uuid())
@@ -229,11 +167,20 @@ model Provider {
   isActive        Boolean  @default(false) @map("is_active")
   priority        Int      @default(0) // Higher = tried first
   
+  // --- Sync tracking ---
+  lastSyncAt      DateTime? @map("last_sync_at")
+  syncStatus      String?   @map("sync_status") // syncing, success, failed, idle
+  syncCount       Int       @default(0) @map("sync_count")
+  
+  // --- Metadata Caching (24h Rule) ---
+  lastMetadataSyncAt DateTime? @map("last_metadata_sync_at")
+  cachedCountries    Json?     @map("cached_countries")
+  cachedServices     Json?     @map("cached_services")
+
   // --- Meta ---
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
   
-  syncJobs        SyncJob[]
   testResults     ProviderTestResult[]
   
   @@index([isActive])

@@ -370,7 +370,7 @@ export default function ProviderWizard({ onComplete, onCancel }: WizardProps) {
                                                 { key: '5sim', logo: '/providers/5sim.png', name: '5sim', desc: 'Virtual numbers worldwide', color: 'from-blue-500/20 to-cyan-500/20', border: 'border-blue-500/20 hover:border-blue-500/50' },
                                                 { key: 'grizzlysms', logo: '/providers/grizzlysms.png', name: 'GrizzlySMS', desc: 'SMS-Activate compatible', color: 'from-amber-500/20 to-orange-500/20', border: 'border-amber-500/20 hover:border-amber-500/50' },
                                                 { key: 'smsbower', logo: '/providers/smsbower.png', name: 'SMSBower', desc: 'Affordable SMS service', color: 'from-green-500/20 to-emerald-500/20', border: 'border-green-500/20 hover:border-green-500/50' },
-                                                { key: 'onlinesim', logo: '/providers/onlinesim.jpg', name: 'OnlineSim', desc: 'Multiple countries', color: 'from-purple-500/20 to-indigo-500/20', border: 'border-purple-500/20 hover:border-purple-500/50' },
+
                                                 { key: 'herosms', logo: '/providers/herosms.png', name: 'HeroSMS', desc: 'Legacy SMS provider', color: 'from-red-500/20 to-pink-500/20', border: 'border-red-500/20 hover:border-red-500/50' },
                                             ].map((provider) => (
                                                 <motion.div
