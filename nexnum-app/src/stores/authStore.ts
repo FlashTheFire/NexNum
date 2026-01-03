@@ -229,14 +229,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             });
 
             if (!response.ok) {
-                // Token invalid - clear everything
-                clearToken();
-                set({
-                    user: null,
-                    token: null,
-                    isAuthenticated: false,
-                    isLoading: false,
-                });
+                // Only clear if explicitly unauthorized
+                if (response.status === 401) {
+                    clearToken();
+                    set({
+                        user: null,
+                        token: null,
+                        isAuthenticated: false,
+                        isLoading: false,
+                    });
+                } else {
+                    // Server error (500) or other - keep state but log error
+                    console.error('Auth verification failed:', response.status)
+                    // Optionally set error state but KEEP authenticated (resilience)
+                    set({ isLoading: false })
+                }
                 return;
             }
 

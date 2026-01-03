@@ -781,12 +781,13 @@ export class DynamicProvider implements SmsProvider {
     /**
      * Get countries from provider
      * 
-     * STANDARD MAPPING OUTPUT FIELDS (mappings must use these names):
      * - id: unique identifier
      * - code: country code (e.g., "us", "uk")
      * - name: display name
-     * - phoneCode: phone prefix (e.g., "1", "44")
      * - flag: optional icon URL
+     */
+    /**
+     * Get countries from provider
      */
     async getCountries(): Promise<Country[]> {
         const response = await this.request('getCountries')
@@ -796,19 +797,12 @@ export class DynamicProvider implements SmsProvider {
             id: String(i.id ?? idx),
             code: String(i.code ?? i.id ?? '').toLowerCase(),
             name: String(i.name ?? 'Unknown'),
-            flag: i.flag ?? i.icon ?? undefined,
-            phoneCode: i.phoneCode ? String(i.phoneCode).replace('+', '') : undefined
+            flag: i.flag ?? i.icon ?? undefined
         }))
     }
 
     /**
      * Get services from provider
-     * 
-     * STANDARD MAPPING OUTPUT FIELDS (mappings must use these names):
-     * - id: unique identifier
-     * - code: service code (e.g., "wa", "tg")
-     * - name: display name
-     * - price: cost per number
      */
     async getServices(countryCode: string): Promise<Service[]> {
         const response = await this.request('getServices', { country: countryCode })

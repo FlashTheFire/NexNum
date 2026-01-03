@@ -4,6 +4,17 @@
 export async function register() {
     if (process.env.NEXT_RUNTIME === 'nodejs') {
         await import('../sentry.server.config')
+
+        // Start outbox worker for reliable MeiliSearch sync
+        // Only in production or when explicitly enabled
+        if (process.env.NODE_ENV === 'production' || process.env.OUTBOX_WORKER_ENABLED === 'true') {
+            const { startOutboxWorker } = await import('./lib/outbox-worker')
+            startOutboxWorker()
+
+            // Reservation cleanup to prevent ghost reservations
+            const { startReservationCleanup } = await import('./lib/reservation-cleanup')
+            startReservationCleanup()
+        }
     }
 
     if (process.env.NEXT_RUNTIME === 'edge') {

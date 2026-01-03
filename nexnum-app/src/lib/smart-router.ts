@@ -82,9 +82,21 @@ export class SmartSmsRouter implements SmsProvider {
         throw new Error("All active providers failed to fetch services")
     }
 
-    async getNumber(countryCode: string, serviceCode: string): Promise<NumberResult> {
-        const providers = await this.getActiveProviders()
+    async getNumber(countryCode: string, serviceCode: string, preferredProvider?: string): Promise<NumberResult> {
+        let providers = await this.getActiveProviders()
         if (providers.length === 0) throw new Error("No active providers available")
+
+        // If preference is specified, move it to the top OR filter others out (Strict Routing)
+        if (preferredProvider) {
+            const matchIndex = providers.findIndex(p => p.name.toLowerCase() === preferredProvider.toLowerCase())
+            if (matchIndex > -1) {
+                // Move preferred to front
+                const match = providers.splice(matchIndex, 1)[0]
+                providers.unshift(match)
+            } else {
+                console.warn(`SmartRouter: Preferred provider '${preferredProvider}' not active/found. Falling back to priority list.`)
+            }
+        }
 
         const checkedProviders: string[] = []
 

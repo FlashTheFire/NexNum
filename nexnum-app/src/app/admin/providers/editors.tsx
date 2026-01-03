@@ -16,7 +16,7 @@ export const METHOD_PARAMS = {
 }
 
 export const MAPPING_FIELDS = {
-    getCountries: ['id', 'name', 'code', 'phoneCode'],
+    getCountries: ['id', 'name', 'code'],
     getServices: ['id', 'name', 'code', 'price', 'count'],
     getNumber: ['id', 'phone', 'price'],
     getStatus: ['status', 'code', 'sms'],
@@ -40,7 +40,7 @@ export const PROVIDER_TEMPLATES = {
         baseUrl: 'http://api1.5sim.net/stubs/handler_api.php',
         authType: 'none',
         endpoints: '{\n  "getCountries": { "method": "GET", "path": "https://5sim.net/v1/guest/countries" },\n  "getServices": { "method": "GET", "path": "https://5sim.net/v1/guest/products/{country}/any" },\n  "getNumber": { "method": "GET", "path": "http://api1.5sim.net/stubs/handler_api.php?api_key={authKey}&action=getNumber&service={service}&country={country}" },\n  "getStatus": { "method": "GET", "path": "http://api1.5sim.net/stubs/handler_api.php?api_key={authKey}&action=getStatus&id={id}" },\n  "cancelNumber": { "method": "GET", "path": "http://api1.5sim.net/stubs/handler_api.php?api_key={authKey}&action=setStatus&status=8&id={id}" },\n  "getBalance": { "method": "GET", "path": "http://api1.5sim.net/stubs/handler_api.php?api_key={authKey}&action=getBalance" }\n}',
-        mappings: '{\n  "getCountries": { "type": "json_dictionary", "fields": { "id": "iso.$firstValue", "name": "text_en", "code": "$key", "phoneCode": "prefix.$firstKey" } },\n  "getServices": { "type": "json_dictionary", "fields": { "id": "$key", "name": "$key", "code": "$key", "price": "cost", "count": "count" } },\n  "getNumber": { "type": "text_regex", "regex": "ACCESS_NUMBER:(\\\\d+):(\\\\d+)", "fields": { "id": "1", "phone": "2", "price": "0" } },\n  "getStatus": { "type": "text_regex", "regex": "STATUS_([A-Z_]+):?(.*)?", "fields": { "status": "1", "sms": "2" } },\n  "cancelNumber": { "type": "text_regex", "regex": "ACCESS_CANCEL", "fields": { "status": "1" } },\n  "getBalance": { "type": "text_regex", "regex": "ACCESS_BALANCE:([\\\\d.]+)", "fields": { "balance": "1" } }\n}'
+        mappings: '{\n  "getCountries": { "type": "json_dictionary", "fields": { "id": "iso.$firstValue", "name": "text_en", "code": "$key" } },\n  "getServices": { "type": "json_dictionary", "fields": { "id": "$key", "name": "$key", "code": "$key", "price": "cost", "count": "count" } },\n  "getNumber": { "type": "text_regex", "regex": "ACCESS_NUMBER:(\\\\d+):(\\\\d+)", "fields": { "id": "1", "phone": "2", "price": "0" } },\n  "getStatus": { "type": "text_regex", "regex": "STATUS_([A-Z_]+):?(.*)?", "fields": { "status": "1", "sms": "2" } },\n  "cancelNumber": { "type": "text_regex", "regex": "ACCESS_CANCEL", "fields": { "status": "1" } },\n  "getBalance": { "type": "text_regex", "regex": "ACCESS_BALANCE:([\\\\d.]+)", "fields": { "balance": "1" } }\n}'
     },
     'grizzlysms': {
         name: 'grizzlysms',

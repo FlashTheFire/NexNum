@@ -33,7 +33,7 @@ interface Country {
     id: string;
     name: string;
     code: string; // ISO
-    phoneCode: string;
+
     minPrice?: number;
     totalStock?: number;
 }
@@ -227,11 +227,7 @@ export default function CountrySelector({ onSelect, selectedCountryId, searchTer
                                                     from ${country.minPrice?.toFixed(2) || "0.00"}
                                                 </div>
                                             )}
-                                            {!selectedServiceName && (
-                                                <div className="flex items-center gap-1 text-[10px] text-gray-500">
-                                                    <Globe className="w-3 h-3" /> +{country.phoneCode}
-                                                </div>
-                                            )}
+                                            {/* (phoneCode display removed) */}
 
                                             {/* Stock Tag (Always show if context exists) */}
                                             {selectedServiceName && (

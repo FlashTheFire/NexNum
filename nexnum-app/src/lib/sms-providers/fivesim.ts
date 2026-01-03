@@ -1,4 +1,5 @@
 // 5sim.net SMS Provider Adapter
+// Professional Implementation - Based on provider-sync.ts patterns
 // Documentation: https://5sim.net/docs
 
 import type {
@@ -10,13 +11,31 @@ import type {
     NumberStatus,
     SmsMessage
 } from './types'
+import { normalizeCountryEntry } from '../country-normalizer'
 
+// API Configuration
 const API_URL = process.env.FIVESIM_API_URL || 'https://5sim.net/v1'
 const API_KEY = process.env.FIVESIM_API_KEY
+
+// Response Types
+interface FiveSimCountryData {
+    iso: { [key: string]: number }
+    prefix: { [key: string]: number }
+    text_en: string
+}
+
+interface FiveSimProductData {
+    Category: string
+    Qty: number
+    Price: number
+}
 
 export class FiveSimProvider implements SmsProvider {
     name = '5sim'
 
+    /**
+     * Authenticated API request
+     */
     private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
         if (!API_KEY) {
             throw new Error('FIVESIM_API_KEY is not configured')
@@ -27,6 +46,8 @@ export class FiveSimProvider implements SmsProvider {
             headers: {
                 'Authorization': `Bearer ${API_KEY}`,
                 'Accept': 'application/json',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                 ...options?.headers,
             },
         })
@@ -39,39 +60,89 @@ export class FiveSimProvider implements SmsProvider {
         return response.json()
     }
 
-    async getCountries(): Promise<Country[]> {
-        const data = await this.request<Record<string, { name: string; iso: string; prefix: string }>>('/guest/countries')
-        return Object.values(data).map(info => ({
-            id: info.iso,
-            code: info.iso.toLowerCase(),
-            name: info.name,
-        }))
+    /**
+     * Guest API request (no auth required)
+     */
+    private async guestRequest<T>(endpoint: string): Promise<T> {
+        const response = await fetch(`${API_URL}${endpoint}`, {
+            headers: {
+                'Accept': 'application/json',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+        })
+
+        if (!response.ok) {
+            const error = await response.text()
+            throw new Error(`5sim API error: ${response.status} - ${error}`)
+        }
+
+        return response.json()
     }
 
+    /**
+     * Fetch available countries
+     * Uses same pattern as provider-sync.ts getCountriesLegacy for 5sim
+     */
+    async getCountries(): Promise<Country[]> {
+        const data = await this.guestRequest<Record<string, FiveSimCountryData>>('/guest/countries')
+
+        const results: Country[] = []
+
+        for (const [name, d] of Object.entries(data)) {
+            const norm = normalizeCountryEntry(d.text_en || name)
+
+            // Use the country name as code since 5sim uses names as keys
+            const code = name.toLowerCase().replace(/\s+/g, '_')
+
+            results.push({
+                id: code,
+                code: code,
+                name: norm.displayName
+            })
+        }
+
+        return results
+    }
+
+    /**
+     * Fetch available services for a country
+     * Uses same pattern as provider-sync.ts getServicesLegacy for 5sim
+     */
     async getServices(countryCode: string): Promise<Service[]> {
-        // Warning: This endpoint returns huge data usually. 
-        // We'll limit it or use specific product endpoint if possible, 
-        // but getServices interface assumes list for country.
-        // We'll try generic /guest/products/{country}/any
         try {
-            const data = await this.request<Record<string, { Category: string; Qty: number; Price: number }>>(`/guest/products/${countryCode}/any`)
-            return Object.entries(data).map(([name, info]) => ({
-                id: name,
-                code: name,
-                name: name,
-                price: info.Price,
-            }))
+            // Use guest products endpoint for all services
+            const endpoint = countryCode
+                ? `/guest/products/${countryCode}/any`
+                : '/guest/products/any/any'
+
+            const data = await this.guestRequest<Record<string, FiveSimProductData>>(endpoint)
+
+            return Object.entries(data).map(([code, info]) => {
+                // Convert service code to readable name
+                const name = code
+                    .replace(/_/g, ' ')
+                    .replace(/\b\w/g, c => c.toUpperCase())
+
+                return {
+                    id: code.toLowerCase(),
+                    code: code.toLowerCase(),
+                    name: name,
+                    price: info.Price
+                }
+            })
         } catch {
             return []
         }
     }
 
+    /**
+     * Purchase a number for SMS verification
+     */
     async getNumber(countryCode: string, serviceCode: string): Promise<NumberResult> {
         // GET /user/buy/activation/{country}/{operator}/{product}
-        // Operator 'any' is common
         const data = await this.request<any>(`/user/buy/activation/${countryCode}/any/${serviceCode}`)
 
-        // Response format: { id, phone, product, price, status, expires, ... }
         return {
             activationId: data.id.toString(),
             phoneNumber: data.phone,
@@ -80,12 +151,14 @@ export class FiveSimProvider implements SmsProvider {
             serviceCode,
             serviceName: data.product,
             price: data.price,
-            expiresAt: new Date(data.expires),
+            expiresAt: new Date(data.expires)
         }
     }
 
+    /**
+     * Check activation status and get SMS
+     */
     async getStatus(activationId: string): Promise<StatusResult> {
-        // GET /user/check/{id}
         const data = await this.request<any>(`/user/check/${activationId}`)
 
         const messages: SmsMessage[] = (data.sms || []).map((sms: any) => ({
@@ -93,12 +166,12 @@ export class FiveSimProvider implements SmsProvider {
             sender: sms.sender,
             content: sms.text,
             code: sms.code,
-            receivedAt: new Date(sms.date),
+            receivedAt: new Date(sms.date)
         }))
 
         let status: NumberStatus = 'pending'
         if (data.status === 'RECEIVED') status = 'received'
-        if (data.status === 'FINISHED') status = 'received' // 5sim finished means done
+        if (data.status === 'FINISHED') status = 'received'
         if (data.status === 'CANCELED') status = 'cancelled'
         if (data.status === 'TIMEOUT') status = 'expired'
         if (data.status === 'BANNED') status = 'error'
@@ -106,15 +179,18 @@ export class FiveSimProvider implements SmsProvider {
         return { status, messages }
     }
 
+    /**
+     * Cancel/release an activation
+     */
     async cancelNumber(activationId: string): Promise<void> {
-        // GET /user/cancel/{id}
-        // Alternatively /user/ban/{id} if avoiding payment for bad number
         await this.request(`/user/cancel/${activationId}`)
     }
 
+    /**
+     * Get account balance
+     */
     async getBalance(): Promise<number> {
         const data = await this.request<{ balance: number; rating: number }>('/user/profile')
         return data.balance
     }
 }
-

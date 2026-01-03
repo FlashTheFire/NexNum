@@ -36,7 +36,6 @@ export async function GET(req: Request) {
         const items = result.countries.map(country => ({
             code: country.code,
             name: country.name,
-            phoneCode: country.phoneCode,
             flagUrl: country.flagUrl,
             lowestPrice: country.lowestPrice,
             totalStock: country.totalStock,

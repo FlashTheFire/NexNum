@@ -4,8 +4,7 @@ export interface Country {
     id: string
     code: string
     name: string
-    flag?: string
-    phoneCode?: string
+    flag?: string | null;
 }
 
 export interface Service {
@@ -56,7 +55,7 @@ export interface SmsProvider {
     getServices(countryCode: string): Promise<Service[]>
 
     // Purchase a number
-    getNumber(countryCode: string, serviceCode: string): Promise<NumberResult>
+    getNumber(countryCode: string, serviceCode: string, preferredProvider?: string): Promise<NumberResult>
 
     // Check status and get SMS
     getStatus(activationId: string): Promise<StatusResult>

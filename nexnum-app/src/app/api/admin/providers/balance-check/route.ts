@@ -1,6 +1,7 @@
 
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
+import { getProviderAdapter, hasDynamicConfig } from "@/lib/provider-factory"
 import { DynamicProvider } from "@/lib/dynamic-provider"
 import { requireAdmin } from "@/lib/requireAdmin"
 
@@ -18,8 +19,18 @@ export async function POST(request: Request) {
 
         const results = await Promise.all(providers.map(async (p) => {
             try {
-                const engine = new DynamicProvider(p)
-                const balance = await engine.syncBalance()
+                const engine = getProviderAdapter(p)
+                const isDynamic = hasDynamicConfig(p)
+
+                let balance: number
+                if (isDynamic) {
+                    // DynamicProvider has syncBalance which also updates DB
+                    balance = await (engine as DynamicProvider).syncBalance()
+                } else {
+                    // Legacy providers just have getBalance
+                    balance = await engine.getBalance?.() ?? 0
+                }
+
                 return {
                     // Don't expose internal provider name
                     providerId: p.id,

@@ -8,30 +8,39 @@ export async function POST(request: Request) {
     if (auth.error) return auth.error
 
     try {
-        const body = await request.json()
-        const { provider } = body
+        let provider: string | undefined
 
-        if (!provider) {
-            return NextResponse.json({ error: 'Provider required' }, { status: 400 })
+        try {
+            const body = await request.json()
+            provider = body.provider
+        } catch (e) {
+            // Body is optional, proceed with undefined provider
         }
 
-        console.log(`Starting Admin Sync for ${provider}...`)
-
-        const result = await syncProviderData(provider)
+        let result
+        if (provider) {
+            console.log(`[API] Starting Admin Sync for provider: ${provider}...`)
+            result = await syncProviderData(provider)
+        } else {
+            console.log(`[API] Starting Full Admin Sync (all providers)...`)
+            // Import syncAllProviders dynamically or ensure it's imported at top
+            const { syncAllProviders } = await import('@/lib/provider-sync')
+            result = await syncAllProviders()
+        }
 
         // Audit log the sync action
         await logAdminAction({
             userId: auth.userId,
             action: 'SYNC_TRIGGERED',
             resourceType: 'Provider',
-            resourceId: provider,
+            resourceId: provider || 'ALL',
             metadata: { stats: result },
             ipAddress: getClientIP(request)
         })
 
         return NextResponse.json({
             success: true,
-            message: `Sync completed for ${provider}`,
+            message: provider ? `Sync completed for ${provider}` : `Full sync completed`,
             stats: result
         })
 

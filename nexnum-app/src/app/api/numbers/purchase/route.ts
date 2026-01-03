@@ -5,7 +5,17 @@ import { checkIdempotency, acquireNumberLock, releaseNumberLock } from '@/lib/re
 import { purchaseNumberSchema } from '@/lib/validation'
 import { smsProvider } from '@/lib/sms-providers'
 import { apiHandler } from '@/lib/api-handler'
+import { createOutboxEvent } from '@/lib/outbox'
+import { Prisma } from '@prisma/client'
 
+/**
+ * Purchase Flow with Production-Grade Safety:
+ * 1. Idempotency check (prevent duplicate purchases)
+ * 2. Redis lock (prevent concurrent purchases by same user)
+ * 3. SELECT FOR UPDATE (lock pricing row for stock verification)
+ * 4. OfferReservation record (audit trail)
+ * 5. Atomic transaction (wallet + number + outbox)
+ */
 export const POST = apiHandler(async (request, { body }) => {
     let lockAcquired = false
     let lockId = ''
@@ -20,56 +30,80 @@ export const POST = apiHandler(async (request, { body }) => {
             )
         }
 
-        // Body validation provided by purchaseNumberSchema
         if (!body) throw new Error('Body is required')
-        const { countryCode, serviceCode, idempotencyKey } = body
+        const { countryCode, serviceCode, provider: preferredProvider, idempotencyKey } = body
 
-        // Check idempotency
-        const isNewRequest = await checkIdempotency(idempotencyKey)
+        // ─────────────────────────────────────────────────────────────
+        // STEP 1: Idempotency Check (using DB, not just Redis)
+        // ─────────────────────────────────────────────────────────────
+        const existingByIdempotency = await prisma.number.findFirst({
+            where: { idempotencyKey }
+        })
 
-        if (!isNewRequest) {
-            // Find existing number for this idempotency key
-            const existingNumber = await prisma.number.findFirst({
-                where: {
-                    ownerId: user.userId,
-                },
-                orderBy: { createdAt: 'desc' },
-                take: 1,
+        if (existingByIdempotency) {
+            return NextResponse.json({
+                success: true,
+                message: 'Number already purchased',
+                duplicate: true,
+                number: existingByIdempotency,
             })
-
-            if (existingNumber) {
-                return NextResponse.json({
-                    success: true,
-                    message: 'Number already purchased',
-                    duplicate: true,
-                    number: existingNumber,
-                })
-            }
         }
 
-        // Get services to find price
-        const services = await smsProvider.getServices(countryCode)
-        const service = services.find(s => s.code === serviceCode)
+        // Also check Redis for very recent requests
+        const isNewRequest = await checkIdempotency(idempotencyKey)
+        if (!isNewRequest) {
+            return NextResponse.json({
+                success: false,
+                error: 'Duplicate request detected. Please wait.',
+                duplicate: true,
+            }, { status: 409 })
+        }
 
-        if (!service) {
+        // ─────────────────────────────────────────────────────────────
+        // STEP 2: Find best pricing with SELECT FOR UPDATE
+        // ─────────────────────────────────────────────────────────────
+
+        // First, get the pricing ID we want to lock
+        const pricing = await prisma.providerPricing.findFirst({
+            where: {
+                service: { code: serviceCode },
+                country: { code: countryCode },
+                stock: { gt: 0 },
+                deleted: false,
+                ...(preferredProvider ? { provider: { name: preferredProvider } } : {})
+            },
+            include: {
+                provider: true,
+                service: true,
+                country: true
+            },
+            orderBy: { sellPrice: 'asc' } // Cheapest first
+        })
+
+        if (!pricing) {
             return NextResponse.json(
-                { error: 'Service not found' },
+                { error: 'No available numbers for this service/country combination' },
                 { status: 404 }
             )
         }
 
-        // Check wallet balance
+        // ─────────────────────────────────────────────────────────────
+        // STEP 3: Check wallet balance
+        // ─────────────────────────────────────────────────────────────
         const walletId = await ensureWallet(user.userId)
         const balance = await getUserBalance(user.userId)
+        const price = Number(pricing.sellPrice)
 
-        if (balance < service.price) {
+        if (balance < price) {
             return NextResponse.json(
-                { error: 'Insufficient balance', required: service.price, available: balance },
+                { error: 'Insufficient balance', required: price, available: balance },
                 { status: 402 }
             )
         }
 
-        // Acquire lock for this purchase (prevent race conditions)
+        // ─────────────────────────────────────────────────────────────
+        // STEP 4: Acquire Redis lock (prevent race from same user)
+        // ─────────────────────────────────────────────────────────────
         lockId = `${user.userId}-${countryCode}-${serviceCode}`
         lockAcquired = await acquireNumberLock(lockId)
 
@@ -80,37 +114,93 @@ export const POST = apiHandler(async (request, { body }) => {
             )
         }
 
-        // Get number from provider
-        const providerResult = await smsProvider.getNumber(countryCode, serviceCode)
+        // ─────────────────────────────────────────────────────────────
+        // STEP 5: Transactional purchase with FOR UPDATE lock
+        // ─────────────────────────────────────────────────────────────
+        const result = await prisma.$transaction(async (tx) => {
+            // CRITICAL: Lock the pricing row to prevent concurrent stock deduction
+            const lockedPricing = await tx.$queryRaw<{ id: string; stock: number }[]>`
+                SELECT id, stock FROM provider_pricing 
+                WHERE id = ${pricing.id} 
+                FOR UPDATE
+            `
 
-        // Create number and deduct from wallet in transaction
-        const number = await prisma.$transaction(async (tx) => {
-            // Deduct from wallet (negative amount = debit)
-            await tx.walletTransaction.create({
+            if (!lockedPricing[0] || lockedPricing[0].stock <= 0) {
+                throw new Error('OUT_OF_STOCK')
+            }
+
+            // Create reservation record (audit trail)
+            const reservation = await tx.offerReservation.create({
                 data: {
-                    walletId,
-                    amount: -service.price, // Negative = debit
-                    type: 'purchase',
-                    description: `Number purchase: ${providerResult.phoneNumber} (${service.name})`,
+                    pricingId: pricing.id,
+                    userId: user.userId,
+                    quantity: 1,
+                    expiresAt: new Date(Date.now() + 60000), // 60s TTL
+                    status: 'PENDING',
                     idempotencyKey,
                 }
             })
 
-            // Create number record
+            // Call provider API to get the actual number
+            // Note: This is outside the DB transaction but inside Redis lock
+            let providerResult
+            try {
+                providerResult = await smsProvider.getNumber(
+                    pricing.country.externalId, // Use provider's country ID
+                    pricing.service.externalId,  // Use provider's service ID
+                    pricing.provider.name       // Use SPECIFIC provider
+                )
+            } catch (providerError) {
+                // Mark reservation as cancelled
+                await tx.offerReservation.update({
+                    where: { id: reservation.id },
+                    data: { status: 'CANCELLED' }
+                })
+                throw providerError
+            }
+
+            // Deduct stock
+            await tx.providerPricing.update({
+                where: { id: pricing.id },
+                data: { stock: { decrement: 1 } }
+            })
+
+            // Deduct from wallet
+            await tx.walletTransaction.create({
+                data: {
+                    walletId,
+                    amount: -price,
+                    type: 'purchase',
+                    description: `Number purchase: ${providerResult.phoneNumber} (${pricing.service.name})`,
+                    idempotencyKey,
+                }
+            })
+
+            // Create number record with idempotency key
             const newNumber = await tx.number.create({
                 data: {
                     phoneNumber: providerResult.phoneNumber,
-                    countryCode: providerResult.countryCode,
-                    countryName: providerResult.countryName,
-                    serviceName: providerResult.serviceName,
-                    serviceCode: providerResult.serviceCode,
-                    price: service.price,
+                    countryCode: pricing.country.code,
+                    countryName: pricing.country.name,
+                    serviceName: pricing.service.name,
+                    serviceCode: pricing.service.code,
+                    price,
                     status: 'active',
                     ownerId: user.userId,
                     activationId: providerResult.activationId,
-                    provider: smsProvider.name,
+                    provider: pricing.provider.name,
+                    idempotencyKey, // Store for future idempotency checks
                     expiresAt: providerResult.expiresAt,
                     purchasedAt: new Date(),
+                }
+            })
+
+            // Confirm reservation
+            await tx.offerReservation.update({
+                where: { id: reservation.id },
+                data: {
+                    status: 'CONFIRMED',
+                    confirmedAt: new Date()
                 }
             })
 
@@ -125,15 +215,33 @@ export const POST = apiHandler(async (request, { body }) => {
                         phoneNumber: providerResult.phoneNumber,
                         countryCode,
                         serviceCode,
-                        price: service.price,
-                        provider: smsProvider.name,
+                        price,
+                        provider: pricing.provider.name,
                         activationId: providerResult.activationId,
+                        pricingId: pricing.id,
+                        reservationId: reservation.id,
                     },
                     ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
                 }
             })
 
+            // Outbox event for MeiliSearch sync (stock changed)
+            await createOutboxEvent(tx, {
+                aggregateType: 'offer',
+                aggregateId: pricing.id,
+                eventType: 'offer.updated',
+                payload: {
+                    pricingId: pricing.id,
+                    newStock: lockedPricing[0].stock - 1,
+                    reason: 'purchase',
+                    purchasedBy: user.userId,
+                }
+            })
+
             return newNumber
+        }, {
+            isolationLevel: Prisma.TransactionIsolationLevel.Serializable, // Highest isolation
+            timeout: 30000, // 30s timeout for provider API calls
         })
 
         // Release lock
@@ -143,15 +251,15 @@ export const POST = apiHandler(async (request, { body }) => {
         return NextResponse.json({
             success: true,
             number: {
-                id: number.id,
-                phoneNumber: number.phoneNumber,
-                countryCode: number.countryCode,
-                countryName: number.countryName,
-                serviceName: number.serviceName,
-                price: Number(number.price),
-                status: number.status,
-                expiresAt: number.expiresAt,
-                purchasedAt: number.purchasedAt,
+                id: result.id,
+                phoneNumber: result.phoneNumber,
+                countryCode: result.countryCode,
+                countryName: result.countryName,
+                serviceName: result.serviceName,
+                price: Number(result.price),
+                status: result.status,
+                expiresAt: result.expiresAt,
+                purchasedAt: result.purchasedAt,
             }
         })
 
@@ -160,7 +268,17 @@ export const POST = apiHandler(async (request, { body }) => {
         if (lockAcquired && lockId) {
             await releaseNumberLock(lockId)
         }
-        // Let apiHandler handle the error response
+
+        // Handle specific errors
+        if (error instanceof Error) {
+            if (error.message === 'OUT_OF_STOCK') {
+                return NextResponse.json(
+                    { error: 'This number is no longer available. Please try another.' },
+                    { status: 410 }
+                )
+            }
+        }
+
         throw error
     }
 }, {

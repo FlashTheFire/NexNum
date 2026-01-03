@@ -14,11 +14,14 @@ import { Provider } from '@prisma/client'
 import { DynamicProvider } from './dynamic-provider'
 import pLimit from 'p-limit'
 import { indexOffers, OfferDocument, deleteOffersByProvider } from './search'
-import { normalizeCountryEntry } from './country-normalizer'
 import { logAdminAction } from './auditLog'
 import * as dotenv from 'dotenv'
 dotenv.config()
 import { RateLimitedQueue } from './async-utils'
+
+// Import legacy providers from centralized location
+import { getLegacyProvider, hasLegacyProvider } from './provider-factory'
+import { refreshAllServiceAggregates } from './service-aggregates'
 
 // ============================================
 // TYPES
@@ -33,25 +36,6 @@ interface SyncResult {
     duration: number
 }
 
-// GrizzlySMS Types
-interface GrizzlyCountry { id: number; name: string; phone_code: string; slug: string; icon: string; iso?: string }
-interface GrizzlyService { id: number; name: string; slug: string; icon: string | number | null }
-
-// 5sim Types
-interface FiveSimCountriesResponse { [countryName: string]: { iso: { [key: string]: number }; prefix: { [key: string]: number }; text_en: string } }
-interface FiveSimProductsResponse { [serviceCode: string]: { Category: string; Qty: number; Price: number } }
-
-// ============================================
-// CONFIG
-// ============================================
-
-const PROVIDERS_CONFIG = {
-    grizzlysms: { baseUrl: 'https://grizzlysms.com/api', apiKeyEnv: 'GRIZZLYSMS_API_KEY' },
-    herosms: { baseUrl: 'https://hero-sms.com/stubs/handler_api.php', apiKeyEnv: 'HERO_SMS_API_KEY' },
-    '5sim': { baseUrl: 'https://5sim.net/v1', apiKeyEnv: 'FIVESIM_API_KEY' },
-    smsbower: { baseUrl: 'https://smsbower.online/stubs/handler_api.php', apiKeyEnv: 'SMSBOWER_API_KEY' }
-} as const
-
 // Providers that use legacy logic for metadata fetching
 const LEGACY_METADATA_PROVIDERS = ['5sim', 'grizzlysms', 'herosms', 'smsbower']
 
@@ -60,22 +44,61 @@ const LEGACY_METADATA_PROVIDERS = ['5sim', 'grizzlysms', 'herosms', 'smsbower']
 // ============================================
 
 const limit = pLimit(10) // Limit DB upserts concurrency
-const apiLimit = pLimit(5) // Limit API concurrency
 
-async function upsertCountryLookup(code: string, name: string, phoneCode: string, flagUrl?: string | null) {
-    // In strict batching we would use createMany, but for mixed updates/creates on conflict:
-    // We stick to upsert but run reliably in parallel
+// ... (imports)
+
+// ...
+
+async function upsertCountryLookup(code: string, name: string, flagUrl?: string | null) {
     try {
         await prisma.countryLookup.upsert({
             where: { code },
-            create: { code, name, phoneCode, flagUrl: flagUrl || null },
-            update: { name, phoneCode, flagUrl: flagUrl || undefined }
+            // Pass empty string or null for phoneCode column if it exists in DB schema but we want to ignore it
+            create: { code, name, phoneCode: '', flagUrl: flagUrl || null },
+            update: { name, phoneCode: '', flagUrl: flagUrl || undefined }
         })
-    } catch (e) {
-        // Suppress unique constraint race conditions if multiple threads hit same ID
-        // console.warn(`[SYNC] Failed to upsert country lookup for ${code}`, e)
-    }
+    } catch (e) { }
 }
+
+// ... 
+
+/**
+ * Get countries using legacy provider adapter
+ */
+async function getCountriesLegacy(provider: Provider, engine: DynamicProvider): Promise<{ code: string, name: string, flag?: string | null }[]> {
+    const slug = provider.name.toLowerCase()
+
+    if (hasLegacyProvider(slug)) {
+        const legacyProvider = getLegacyProvider(slug)
+        if (legacyProvider) {
+            try {
+                const countries = await legacyProvider.getCountries()
+                const results: { code: string, name: string, flag?: string | null }[] = []
+
+                for (const c of countries) {
+                    await upsertCountryLookup(c.code, c.name)
+                    results.push({
+                        code: c.code,
+                        name: c.name,
+                        flag: c.flag
+                    })
+                }
+                return results
+            } catch (e) { console.warn('Legacy error', e) }
+        }
+    }
+
+    const dynamicCountries = await engine.getCountries()
+    return dynamicCountries.map(c => ({
+        code: c.code,
+        name: c.name,
+        flag: c.flag
+    }))
+}
+
+// ...
+
+
 
 async function upsertServiceLookup(code: string, name: string, iconUrl?: string | null) {
     try {
@@ -85,168 +108,47 @@ async function upsertServiceLookup(code: string, name: string, iconUrl?: string 
             update: { name, iconUrl: iconUrl || undefined }
         })
     } catch (e) {
-        // console.warn(`[SYNC] Failed to upsert service lookup for ${code}`, e)
+        // Suppress unique constraint race conditions
     }
 }
 
 // ============================================
-// LEGACY FETCHERS (Hybrid Strategy)
+// LEGACY FETCHERS (Using centralized providers)
 // ============================================
 
-async function getCountriesLegacy(provider: Provider, engine: DynamicProvider): Promise<{ code: string, name: string, phoneCode: string, flag?: string | null }[]> {
-    const slug = provider.name.toLowerCase()
-
-    // 5SIM
-    if (slug === '5sim') {
-        const res = await fetch(`${PROVIDERS_CONFIG['5sim'].baseUrl}/guest/countries`)
-        const data: FiveSimCountriesResponse = await res.json()
-        const results = []
-
-        await Promise.all(Object.entries(data).map(([name, d]) => limit(async () => {
-            const prefix = Object.keys(d.prefix || {})[0] || ''
-            const norm = normalizeCountryEntry(d.text_en || name, prefix)
-            await upsertCountryLookup(norm.canonical, norm.displayName, norm.phoneCode)
-            results.push({ code: norm.canonical, name: norm.displayName, phoneCode: norm.phoneCode })
-        })))
-        return results
-    }
-
-    // GRIZZLY SMS
-    if (slug === 'grizzlysms') {
-        const res = await fetch(`${PROVIDERS_CONFIG.grizzlysms.baseUrl}/country`)
-        const data: GrizzlyCountry[] = await res.json()
-        const results = []
-        for (const c of data) {
-            const providerCode = c.iso || c.id
-            if (!providerCode) continue // Strict: Skip if no code/ID
-
-            const norm = normalizeCountryEntry(c.name, c.phone_code)
-            const finalCode = String(providerCode).toLowerCase()
-
-            await upsertCountryLookup(finalCode, norm.displayName, norm.phoneCode, c.icon)
-            results.push({ code: finalCode, name: norm.displayName, phoneCode: norm.phoneCode, flag: c.icon })
-        }
-        return results
-    }
+/**
+ * Get countries using legacy provider adapter
+ * Delegates to sms-providers/*.ts implementations
+ */
 
 
-
-    // HEROSMS
-    if (slug === 'herosms') {
-        const apiKey = process.env.HERO_SMS_API_KEY
-        const res = await fetch(`${PROVIDERS_CONFIG.herosms.baseUrl}?api_key=${apiKey}&action=getCountries&lang=en`)
-        const data = await res.json()
-        const list = Array.isArray(data.countries || data) ? (data.countries || data) : Object.values(data.countries || data)
-        const results = []
-        for (const c of list as any[]) {
-            const providerCode = c.iso || c.country_code || c.id
-            if (!providerCode) continue // Strict: Skip if no code/ID
-
-            const name = c.eng || c.name || 'Unknown'
-            const norm = normalizeCountryEntry(name, c.prefix || c.code)
-            const finalCode = String(providerCode).toLowerCase()
-
-            await upsertCountryLookup(finalCode, norm.displayName, norm.phoneCode)
-            results.push({ code: finalCode, name: norm.displayName, phoneCode: norm.phoneCode })
-        }
-        return results
-    }
-
-    // SMSBOWER
-    if (slug === 'smsbower') {
-        const apiKey = process.env.SMSBOWER_API_KEY
-        const res = await fetch(`${PROVIDERS_CONFIG.smsbower.baseUrl}?api_key=${apiKey}&action=getCountries`)
-        const data = await res.json()
-        const list = Array.isArray(data) ? data : Object.values(data)
-        const results = []
-        for (const c of list as any[]) {
-            // Prioritize ISO code or explicit code from provider for the API key "code"
-            // SMS-Activate clones often return "iso" (e.g. "us", "ru") or "id"
-            const providerCode = c.iso || c.code || c.id
-            if (!providerCode) continue // Strict: Skip if no code/ID
-
-            const norm = normalizeCountryEntry(c.eng || c.rus || 'Unknown', '')
-
-            const finalCode = String(providerCode).toLowerCase()
-
-            await upsertCountryLookup(finalCode, norm.displayName, norm.phoneCode)
-            results.push({ code: finalCode, name: norm.displayName, phoneCode: norm.phoneCode })
-        }
-        return results
-    }
-
-    // Fallback to Dynamic Engine
-    const dynamicCountries = await engine.getCountries()
-    return dynamicCountries.map(c => ({
-        code: c.code,
-        name: c.name,
-        phoneCode: c.phoneCode || '',
-        flag: c.flag
-    }))
-}
-
+/**
+ * Get services using legacy provider adapter
+ * Delegates to sms-providers/*.ts implementations
+ */
 async function getServicesLegacy(provider: Provider, engine: DynamicProvider): Promise<void> {
     const slug = provider.name.toLowerCase()
 
-    // 5SIM
-    if (slug === '5sim') {
-        const res = await fetch(`${PROVIDERS_CONFIG['5sim'].baseUrl}/guest/products/any/any`)
-        const data: FiveSimProductsResponse = await res.json()
-        await Promise.all(Object.keys(data).map(code => limit(async () => {
-            const name = code.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
-            await upsertServiceLookup(code.toLowerCase(), name)
-        })))
-        return
-    }
+    // Check if we have a legacy provider for this
+    if (hasLegacyProvider(slug)) {
+        const legacyProvider = getLegacyProvider(slug)
+        if (legacyProvider) {
+            try {
+                const services = await legacyProvider.getServices('')
 
-    // GRIZZLY SMS
-    if (slug === 'grizzlysms') {
-        // Grizzly paging is sequential by nature, but upserts can be parallel
-        let page = 1; let hasMore = true; const seen = new Set<number>()
-        while (hasMore) {
-            const res = await fetch(`${PROVIDERS_CONFIG.grizzlysms.baseUrl}/service?page=${page}&lang=en`)
-            const data: GrizzlyService[] = await res.json()
-            if (!data || data.length === 0) break
-            const newItems = data.filter(s => !seen.has(s.id))
-            if (newItems.length === 0) break
-            newItems.forEach(s => seen.add(s.id))
+                // Upsert to lookup table
+                await Promise.all(services.map(s => limit(async () => {
+                    await upsertServiceLookup(s.code, s.name)
+                })))
 
-            await Promise.all(newItems.map(s => limit(async () => {
-                await upsertServiceLookup(s.slug.toLowerCase(), s.name, s.icon ? String(s.icon) : null)
-            })))
-            page++; if (page > 30) break
+                return
+            } catch (e) {
+                console.warn(`[SYNC] Legacy provider ${slug} failed for services:`, e)
+            }
         }
-        return
     }
 
-    // HEROSMS
-    if (slug === 'herosms') {
-        const apiKey = process.env.HERO_SMS_API_KEY
-        const res = await fetch(`${PROVIDERS_CONFIG.herosms.baseUrl}?api_key=${apiKey}&action=getServicesList&lang=en`)
-        const data = await res.json()
-        await Promise.all(((data.services || []) as any[]).map(s => limit(async () => {
-            await upsertServiceLookup(s.code.toLowerCase(), s.name)
-        })))
-        return
-    }
-
-    // SMSBOWER
-    if (slug === 'smsbower') {
-        const res = await fetch(`https://smsbower.org/activations/getPricesByService?serviceId=5&withPopular=true`, { headers: { 'Accept': 'application/json' } })
-        const json = await res.json()
-        const list = Array.isArray(json.services) ? json.services : Object.values(json.services || {})
-        await Promise.all((list as any[]).map(s => limit(async () => {
-            let iconUrl = s.img_path
-            if (iconUrl && !iconUrl.startsWith('http')) iconUrl = `https://smsbower.org${iconUrl}`
-            await upsertServiceLookup((s.activate_org_code || s.slug).toLowerCase(), s.title, iconUrl)
-        })))
-        return
-    }
-
-    // Fallback: Use Dynamic, but we iterate differently in syncDynamic usually.
-    // For standard providers, we usually get services per country or via engine.getServices().
-    // The legacy function only populates lookup.
-    // We'll let syncDynamic handle the fallback logic if not matched here.
+    // Fallback handled by caller
 }
 
 
@@ -260,6 +162,17 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
     const serviceMap = new Map<string, string>()
 
     try {
+        // Pre-load ALL service names from ServiceLookup table for fallback
+        // This ensures serviceName is populated even if service code isn't in getServices()
+        const allServiceLookups = await prisma.serviceLookup.findMany({
+            select: { code: true, name: true }
+        })
+        allServiceLookups.forEach(s => {
+            serviceMap.set(s.code, s.name)
+            serviceMap.set(s.code.toLowerCase(), s.name)
+        })
+        console.log(`[SYNC] Pre-loaded ${allServiceLookups.length} service names from lookup table`)
+
         // Update status to syncing
         await prisma.provider.update({
             where: { id: provider.id },
@@ -308,7 +221,7 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
             // Load existing IDs from DB
             const dbCountries = await prisma.providerCountry.findMany({
                 where: { providerId: provider.id },
-                select: { id: true, externalId: true, name: true, phoneCode: true }
+                select: { id: true, externalId: true, name: true }
             })
 
             // VALIDATION: Check for stale data (countries with 'Unknown' names or missing phoneCode)
@@ -322,7 +235,7 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
             } else {
                 dbCountries.forEach(c => {
                     countryIdMap.set(c.externalId, c.id)
-                    countries.push({ code: c.externalId, name: c.name, phoneCode: c.phoneCode })
+                    countries.push({ code: c.externalId, name: c.name })
                 })
                 countriesCount = dbCountries.length
 
@@ -359,13 +272,13 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
                         externalId: c.code,
                         code: c.code.toLowerCase(),
                         name: c.name || 'Unknown',
-                        phoneCode: c.phoneCode || null,
+                        phoneCode: '', // Dummy value
                         flagUrl: c.flag || null,
                         lastSyncAt: new Date()
                     },
                     update: {
                         name: c.name || 'Unknown',
-                        phoneCode: c.phoneCode || null,
+                        phoneCode: '', // Dummy value
                         flagUrl: c.flag || null,
                         lastSyncAt: new Date()
                     }
@@ -469,7 +382,6 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
                                 displayName: provider.displayName,
                                 countryCode: p.country,
                                 countryName: country.name || 'Unknown',
-                                phoneCode: country.phoneCode || '',
                                 flagUrl: country.flag || '',
                                 serviceSlug: p.service.toLowerCase(),
                                 serviceName: svcName,
@@ -550,6 +462,15 @@ export async function syncAllProviders(): Promise<SyncResult[]> {
             console.error(`[SYNC] Failed to sync ${provider.name}:`, e)
         }
     }
+
+    // Refresh precomputed aggregates for fast list responses
+    console.log(`[SYNC] Refreshing service aggregates...`)
+    try {
+        await refreshAllServiceAggregates()
+    } catch (e) {
+        console.error(`[SYNC] Failed to refresh aggregates:`, e)
+    }
+
     console.log(`[SYNC] Full sync completed`)
     return results
 }
@@ -585,3 +506,4 @@ export function stopSyncScheduler() {
         syncIntervalId = null
     }
 }
+

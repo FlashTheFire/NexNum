@@ -30,22 +30,26 @@ export type InventoryViewMode = 'aggregated' | 'raw';
  * Core offer document - represents a single pricing entry
  * (provider + country + service combination)
  */
+// ... (imports)
+
+// ...
+
 export interface OfferDocument {
     id: string;           // Composite: provider_country_service
 
     // Service Info
-    serviceSlug: string;  // "whatsapp" (for filtering)
-    serviceName: string;  // "WhatsApp" (for display)
+    serviceSlug: string;
+    serviceName: string;
 
     // Country Info
-    countryCode: string;  // "US" (ISO code for filtering)
-    countryName: string;  // "United States"
-    phoneCode: string;    // "+1"
+    countryCode: string;
+    countryName: string;
+    // phoneCode removed
     flagUrl: string;
 
     // Provider Info
-    provider: string;     // "5sim" (provider key)
-    displayName: string;  // "5sim" (display name)
+    provider: string;
+    displayName: string;
     logoUrl?: string;
 
     // Pricing
@@ -54,33 +58,307 @@ export interface OfferDocument {
     successRate?: number;
 
     // Metadata
-    lastSyncedAt: number; // Unix timestamp
+    lastSyncedAt: number;
 }
 
-/**
- * Aggregated service stats (computed from facets)
- */
+
+// ...
+
+export interface CountryStats {
+    code: string;
+    name: string;
+    // phoneCode removed
+    flagUrl: string;
+    lowestPrice: number;
+    totalStock: number;
+    serverCount: number;
+}
+
 export interface ServiceStats {
     slug: string;
     name: string;
     lowestPrice: number;
     totalStock: number;
-    serverCount: number;   // Distinct providers
-    countryCount: number;  // Distinct countries
+    serverCount: number;
+    countryCount: number;
+}
+
+// ...
+
+// In searchCountries
+export async function searchCountries(
+    serviceSlug: string,
+    query: string = '',
+    options?: { page?: number; limit?: number; sort?: 'name' | 'price' | 'stock' }
+): Promise<{ countries: CountryStats[]; total: number }> {
+    try {
+        const index = meili.index(INDEXES.OFFERS)
+        const limit = options?.limit || 50
+        const page = options?.page || 1
+        const sort = options?.sort || 'name'
+
+        // Filter by service and get all offers
+        const result = await index.search('', {
+            filter: `serviceSlug = "${serviceSlug}"`,
+            limit: 5000,
+            attributesToRetrieve: ['countryCode', 'countryName', 'flagUrl', 'provider', 'price', 'stock'],
+        })
+
+        // Aggregate by country
+        const countryMap = new Map<string, {
+            name: string;
+            // phoneCode removed
+            flagUrl: string;
+            minPrice: number;
+            totalStock: number;
+            providers: Set<string>;
+        }>()
+
+        for (const hit of result.hits as OfferDocument[]) {
+            const code = hit.countryCode
+            if (!countryMap.has(code)) {
+                countryMap.set(code, {
+                    name: hit.countryName,
+                    flagUrl: hit.flagUrl,
+                    minPrice: hit.price,
+                    totalStock: 0,
+                    providers: new Set(),
+                })
+            }
+            const stats = countryMap.get(code)!
+            stats.minPrice = Math.min(stats.minPrice, hit.price)
+            stats.totalStock += hit.stock || 0
+            stats.providers.add(hit.provider)
+        }
+
+        // Convert to array
+        let countries: CountryStats[] = Array.from(countryMap.entries()).map(([code, stats]) => ({
+            code,
+            name: stats.name,
+            flagUrl: stats.flagUrl,
+            lowestPrice: stats.minPrice,
+            totalStock: stats.totalStock,
+            serverCount: stats.providers.size,
+        }))
+
+        // Filter by query
+        if (query) {
+            const q = query.toLowerCase()
+            countries = countries.filter(c =>
+                c.name.toLowerCase().includes(q) ||
+                c.code.toLowerCase().includes(q)
+            )
+        }
+
+        // ... (sorting/pagination) ...
+        switch (sort) {
+            case 'price':
+                countries.sort((a, b) => a.lowestPrice - b.lowestPrice)
+                break
+            case 'stock':
+                countries.sort((a, b) => b.totalStock - a.totalStock)
+                break
+            default:
+                countries.sort((a, b) => a.name.localeCompare(b.name))
+        }
+
+        // ...
+
+        const start = (page - 1) * limit
+        const paginatedCountries = countries.slice(start, start + limit)
+
+        return {
+            countries: paginatedCountries,
+            total: countries.length,
+        }
+    } catch (error) {
+        console.error('searchCountries failed:', error)
+        return { countries: [], total: 0 }
+    }
+}
+
+// ... 
+
+// In searchAdminCountries
+export async function searchAdminCountries(
+    query: string = '',
+    options?: { page?: number; limit?: number; provider?: string }
+): Promise<{ items: any[]; total: number }> {
+    try {
+        const index = meili.index(INDEXES.OFFERS)
+        const limit = options?.limit || 50
+        const page = options?.page || 1
+        const providerFilter = options?.provider ? `provider = "${options.provider}"` : undefined
+
+        const result = await index.search(query, {
+            filter: providerFilter,
+            limit: 10000,
+            attributesToRetrieve: ['countryCode', 'countryName', 'flagUrl', 'provider', 'serviceSlug', 'price', 'stock', 'lastSyncedAt', 'id'],
+        })
+
+        const groups = new Map<string, {
+            countryCode: string
+            canonicalName: string
+            displayName: string
+            // phoneCode removed
+            flagUrl: string
+            providers: Map<string, { provider: string; externalId: string; stock: number; minPrice: number; maxPrice: number }>
+            services: Set<string>
+            totalStock: number
+            priceRange: { min: number; max: number }
+            lastSyncedAt: number
+        }>()
+
+        for (const hit of result.hits as OfferDocument[]) {
+            const code = (hit.countryCode || 'unknown').toLowerCase()
+            if (!groups.has(code)) {
+                groups.set(code, {
+                    countryCode: code,
+                    canonicalName: hit.countryName,
+                    displayName: hit.countryName,
+                    // phoneCode removed
+                    flagUrl: hit.flagUrl || '',
+                    providers: new Map(),
+                    services: new Set(),
+                    totalStock: 0,
+                    priceRange: { min: Infinity, max: 0 },
+                    lastSyncedAt: hit.lastSyncedAt
+                })
+            }
+            // ...
+            const group = groups.get(code)!
+            group.services.add(hit.serviceSlug)
+
+            group.totalStock += hit.stock || 0
+            if (hit.price < group.priceRange.min) group.priceRange.min = hit.price
+            if (hit.price > group.priceRange.max) group.priceRange.max = hit.price
+
+            if (!group.providers.has(hit.provider)) {
+                const externalId = (hit.id && typeof hit.id === 'string') ? hit.id.split('_').pop() || '' : code
+                group.providers.set(hit.provider, {
+                    provider: hit.provider,
+                    externalId: externalId,
+                    stock: hit.stock || 0,
+                    minPrice: hit.price,
+                    maxPrice: hit.price
+                })
+            } else {
+                const p = group.providers.get(hit.provider)!
+                p.stock += hit.stock || 0
+                if (hit.price < p.minPrice) p.minPrice = hit.price
+                if (hit.price > p.maxPrice) p.maxPrice = hit.price
+            }
+            if (hit.lastSyncedAt > group.lastSyncedAt) {
+                group.lastSyncedAt = hit.lastSyncedAt
+            }
+        }
+
+        const items = Array.from(groups.values()).map(g => ({
+            countryCode: g.countryCode,
+            canonicalName: g.canonicalName,
+            displayName: g.displayName,
+            // phoneCode removed
+            flagUrl: g.flagUrl,
+            providers: Array.from(g.providers.values()),
+            totalProviders: g.providers.size,
+            serviceCount: g.services.size,
+            totalStock: g.totalStock,
+            priceRange: g.priceRange.min === Infinity ? { min: 0, max: 0 } : g.priceRange,
+            lastSyncedAt: g.lastSyncedAt
+        }))
+        // ...
+
+        items.sort((a, b) => a.canonicalName.localeCompare(b.canonicalName)) // Sort
+
+        const start = (page - 1) * limit
+        return {
+            items: items.slice(start, start + limit),
+            total: items.length
+        }
+    } catch (e) {
+        // ...
+        return { items: [], total: 0 }
+    }
+}
+
+// In searchRawInventory
+export async function searchRawInventory(
+    type: 'countries' | 'services',
+    query: string = '',
+    options?: { provider?: string; page?: number; limit?: number }
+): Promise<{ items: any[]; total: number }> {
+    try {
+        const index = meili.index(INDEXES.OFFERS)
+        const limit = options?.limit || 50
+        const page = options?.page || 1
+        const providerFilter = options?.provider ? `provider = "${options.provider}"` : undefined
+
+        const result = await index.search(query, {
+            filter: providerFilter,
+            limit: 10000,
+            attributesToRetrieve: ['countryCode', 'countryName', 'flagUrl', 'provider', 'serviceSlug', 'serviceName', 'price', 'stock', 'lastSyncedAt', 'id'],
+        })
+
+        // Deduplicate by key (country or service)
+        const seen = new Map<string, any>()
+
+        for (const hit of result.hits as any[]) {
+            const key = type === 'countries'
+                ? `${hit.provider}_${hit.countryCode}`
+                : `${hit.provider}_${hit.serviceSlug}`
+
+            if (!seen.has(key)) {
+                const safeId = (hit.id && typeof hit.id === 'string') ? hit.id : key
+                const externalId = safeId.includes('_') ? safeId.split('_').pop() : safeId
+
+                if (type === 'countries') {
+                    seen.set(key, {
+                        id: safeId,
+                        externalId: externalId,
+                        name: hit.countryName,
+                        // phoneCode removed
+                        iconUrl: hit.flagUrl,
+                        provider: hit.provider,
+                        lastSyncedAt: new Date(hit.lastSyncedAt)
+                    })
+                } else {
+                    // ... (service logic same)
+                    seen.set(key, {
+                        id: safeId,
+                        externalId: externalId,
+                        name: hit.serviceName,
+                        shortName: hit.serviceSlug,
+                        slug: hit.serviceSlug,
+                        provider: hit.provider,
+                        lastSyncedAt: new Date(hit.lastSyncedAt),
+                        _count: { pricing: hit.stock ? 1 : 0 }
+                    })
+                }
+            }
+        }
+        // ...
+        const allItems = Array.from(seen.values())
+        const start = (page - 1) * limit
+        const paginatedItems = allItems.slice(start, start + limit)
+
+        return {
+            items: paginatedItems,
+            total: allItems.length
+        }
+
+    } catch (e) { /* ... */ return { items: [], total: 0 } }
 }
 
 /**
- * Aggregated country stats for a service
+ * Aggregated service stats (computed from facets)
  */
-export interface CountryStats {
-    code: string;
-    name: string;
-    phoneCode: string;
-    flagUrl: string;
-    lowestPrice: number;
-    totalStock: number;
-    serverCount: number;   // Distinct providers
-}
+
+
+// ============================================
+// INDEX INITIALIZATION
+// ============================================
+
+import { SEARCH_SYNONYMS, SEARCH_STOP_WORDS, RANKING_RULES, SEARCHABLE_ATTRIBUTES, FILTERABLE_ATTRIBUTES } from './search-config'
 
 // ============================================
 // INDEX INITIALIZATION
@@ -90,36 +368,41 @@ export async function initSearchIndexes() {
     try {
         // Main Offers Index - optimized for faceted search
         const offersIndex = meili.index(INDEXES.OFFERS)
+
+        // Deep Search Configuration
         await offersIndex.updateSettings({
-            // Searchable for fuzzy matching
-            searchableAttributes: ['serviceName', 'countryName', 'provider', 'displayName'],
-
-            // Filterable for faceted aggregation
-            filterableAttributes: [
-                'serviceSlug',
-                'countryCode',
-                'provider',
-                'price',
-                'stock'
-            ],
-
-            // Sortable for ordering results
+            searchableAttributes: SEARCHABLE_ATTRIBUTES,
+            filterableAttributes: FILTERABLE_ATTRIBUTES,
             sortableAttributes: ['price', 'stock', 'lastSyncedAt'],
-
-            // Enable distinct for aggregation
+            rankingRules: RANKING_RULES,
+            synonyms: SEARCH_SYNONYMS,
+            stopWords: SEARCH_STOP_WORDS,
             distinctAttribute: null,
 
-            // Ranking for relevance
-            rankingRules: ['words', 'typo', 'proximity', 'attribute', 'sort', 'exactness'],
+            // Typo Tolerance: Professional setup
+            typoTolerance: {
+                enabled: true,
+                minWordSizeForTypos: { oneTypo: 4, twoTypos: 8 },
+                disableOnWords: [],
+                disableOnAttributes: []
+            },
 
-            // High limit for aggregations
             pagination: { maxTotalHits: 10000 }
         })
 
-        console.log('✅ MeiliSearch indexes initialized (offers only)')
+        console.log('✅ MeiliSearch "Deep Search" indexes initialized')
     } catch (error) {
         console.error('Failed to initialize search indexes:', error)
     }
+}
+
+/**
+ * Force re-application of search settings (e.g. after config change)
+ */
+export async function reconfigureIndexes() {
+    console.log('🔄 Reconfiguring search indexes with Deep Search settings...')
+    await initSearchIndexes()
+    console.log('✨ Deep Search upgrade complete.')
 }
 
 // ============================================
@@ -207,213 +490,9 @@ export async function searchServices(
     }
 }
 
-/**
- * Step 2: Search Countries for a Service
- * Returns countries with aggregated stats for the selected service
- */
-export async function searchCountries(
-    serviceSlug: string,
-    query: string = '',
-    options?: { page?: number; limit?: number; sort?: 'name' | 'price' | 'stock' }
-): Promise<{ countries: CountryStats[]; total: number }> {
-    try {
-        const index = meili.index(INDEXES.OFFERS)
-        const limit = options?.limit || 50
-        const page = options?.page || 1
-        const sort = options?.sort || 'name'
 
-        // Filter by service and get all offers
-        const result = await index.search('', {
-            filter: `serviceSlug = "${serviceSlug}"`,
-            limit: 5000,
-            attributesToRetrieve: ['countryCode', 'countryName', 'phoneCode', 'flagUrl', 'provider', 'price', 'stock'],
-        })
 
-        // Aggregate by country
-        const countryMap = new Map<string, {
-            name: string;
-            phoneCode: string;
-            flagUrl: string;
-            minPrice: number;
-            totalStock: number;
-            providers: Set<string>;
-        }>()
 
-        for (const hit of result.hits as OfferDocument[]) {
-            const code = hit.countryCode
-            if (!countryMap.has(code)) {
-                countryMap.set(code, {
-                    name: hit.countryName,
-                    phoneCode: hit.phoneCode,
-                    flagUrl: hit.flagUrl,
-                    minPrice: hit.price,
-                    totalStock: 0,
-                    providers: new Set(),
-                })
-            }
-            const stats = countryMap.get(code)!
-            stats.minPrice = Math.min(stats.minPrice, hit.price)
-            stats.totalStock += hit.stock || 0
-            stats.providers.add(hit.provider)
-        }
-
-        // Convert to array
-        let countries: CountryStats[] = Array.from(countryMap.entries()).map(([code, stats]) => ({
-            code,
-            name: stats.name,
-            phoneCode: stats.phoneCode,
-            flagUrl: stats.flagUrl,
-            lowestPrice: stats.minPrice,
-            totalStock: stats.totalStock,
-            serverCount: stats.providers.size,
-        }))
-
-        // Filter by query
-        if (query) {
-            const q = query.toLowerCase()
-            countries = countries.filter(c =>
-                c.name.toLowerCase().includes(q) ||
-                c.code.toLowerCase().includes(q) ||
-                c.phoneCode.includes(q)
-            )
-        }
-
-        // Sort
-        switch (sort) {
-            case 'price':
-                countries.sort((a, b) => a.lowestPrice - b.lowestPrice)
-                break
-            case 'stock':
-                countries.sort((a, b) => b.totalStock - a.totalStock)
-                break
-            default:
-                countries.sort((a, b) => a.name.localeCompare(b.name))
-        }
-
-        // Paginate
-        const start = (page - 1) * limit
-        const paginatedCountries = countries.slice(start, start + limit)
-
-        return {
-            countries: paginatedCountries,
-            total: countries.length,
-        }
-    } catch (error) {
-        console.error('searchCountries failed:', error)
-        return { countries: [], total: 0 }
-    }
-}
-
-/**
- * Admin: Search Aggregated Countries (Smart View)
- * Grouped by canonical country code with full statistics
- */
-export async function searchAdminCountries(
-    query: string = '',
-    options?: { page?: number; limit?: number; provider?: string }
-): Promise<{ items: any[]; total: number }> {
-    try {
-        const index = meili.index(INDEXES.OFFERS)
-        const limit = options?.limit || 50
-        const page = options?.page || 1
-        const providerFilter = options?.provider ? `provider = "${options.provider}"` : undefined
-
-        const result = await index.search(query, {
-            filter: providerFilter,
-            limit: 10000,
-            attributesToRetrieve: ['countryCode', 'countryName', 'phoneCode', 'flagUrl', 'provider', 'serviceSlug', 'price', 'stock', 'lastSyncedAt', 'id'],
-        })
-
-        const groups = new Map<string, {
-            countryCode: string
-            canonicalName: string
-            displayName: string
-            phoneCode: string
-            flagUrl: string
-            providers: Map<string, { provider: string; externalId: string; stock: number; minPrice: number; maxPrice: number }>
-            services: Set<string>
-            totalStock: number
-            priceRange: { min: number; max: number }
-            lastSyncedAt: number
-        }>()
-
-        for (const hit of result.hits as OfferDocument[]) {
-            // Normalize header: use lower case code to group "au" and "AU" together
-            const code = (hit.countryCode || 'unknown').toLowerCase()
-            if (!groups.has(code)) {
-                groups.set(code, {
-                    countryCode: code,
-                    canonicalName: hit.countryName,
-                    displayName: hit.countryName,
-                    phoneCode: hit.phoneCode,
-                    flagUrl: hit.flagUrl || '',
-                    providers: new Map(),
-                    services: new Set(),
-                    totalStock: 0,
-                    priceRange: { min: Infinity, max: 0 },
-                    lastSyncedAt: hit.lastSyncedAt
-                })
-            }
-            const group = groups.get(code)!
-
-            // Track unique services
-            group.services.add(hit.serviceSlug)
-
-            // Track stock and pricing
-            group.totalStock += hit.stock || 0
-            if (hit.price < group.priceRange.min) group.priceRange.min = hit.price
-            if (hit.price > group.priceRange.max) group.priceRange.max = hit.price
-
-            // Track provider stats
-            if (!group.providers.has(hit.provider)) {
-                const externalId = (hit.id && typeof hit.id === 'string') ? hit.id.split('_').pop() || '' : code
-                group.providers.set(hit.provider, {
-                    provider: hit.provider,
-                    externalId: externalId,
-                    stock: hit.stock || 0,
-                    minPrice: hit.price,
-                    maxPrice: hit.price
-                })
-            } else {
-                const p = group.providers.get(hit.provider)!
-                p.stock += hit.stock || 0
-                if (hit.price < p.minPrice) p.minPrice = hit.price
-                if (hit.price > p.maxPrice) p.maxPrice = hit.price
-            }
-
-            // Update last sync
-            if (hit.lastSyncedAt > group.lastSyncedAt) {
-                group.lastSyncedAt = hit.lastSyncedAt
-            }
-        }
-
-        const items = Array.from(groups.values()).map(g => ({
-            countryCode: g.countryCode,
-            canonicalName: g.canonicalName,
-            displayName: g.displayName,
-            phoneCode: g.phoneCode,
-            flagUrl: g.flagUrl,
-            providers: Array.from(g.providers.values()),
-            totalProviders: g.providers.size,
-            serviceCount: g.services.size,
-            totalStock: g.totalStock,
-            priceRange: g.priceRange.min === Infinity ? { min: 0, max: 0 } : g.priceRange,
-            lastSyncedAt: g.lastSyncedAt
-        }))
-
-        // Sort by name
-        items.sort((a, b) => a.canonicalName.localeCompare(b.canonicalName))
-
-        const start = (page - 1) * limit
-        return {
-            items: items.slice(start, start + limit),
-            total: items.length
-        }
-    } catch (error) {
-        console.error('searchAdminCountries failed:', error)
-        return { items: [], total: 0 }
-    }
-}
 
 /**
  * Admin: Search Aggregated Services (Smart View)
@@ -517,80 +596,7 @@ export async function searchAdminServices(
     }
 }
 
-/**
- * Admin: Search Raw Inventory entries
- * Deduplicates by country (for countries) or service (for services) to show unique items
- */
-export async function searchRawInventory(
-    type: 'countries' | 'services',
-    query: string = '',
-    options?: { provider?: string; page?: number; limit?: number }
-): Promise<{ items: any[]; total: number }> {
-    try {
-        const index = meili.index(INDEXES.OFFERS)
-        const limit = options?.limit || 50
-        const page = options?.page || 1
-        const provider = options?.provider
 
-        const filter = provider ? `provider = "${provider}"` : undefined
-
-        // Fetch more to allow deduplication
-        const result = await index.search(query, {
-            filter,
-            limit: 5000,
-            sort: ['lastSyncedAt:desc']
-        })
-
-        // Deduplicate by key (country or service)
-        const seen = new Map<string, any>()
-
-        for (const hit of result.hits as any[]) {
-            const key = type === 'countries'
-                ? `${hit.provider}_${hit.countryCode}`
-                : `${hit.provider}_${hit.serviceSlug}`
-
-            if (!seen.has(key)) {
-                const safeId = (hit.id && typeof hit.id === 'string') ? hit.id : key
-                const externalId = safeId.includes('_') ? safeId.split('_').pop() : safeId
-
-                if (type === 'countries') {
-                    seen.set(key, {
-                        id: safeId,
-                        externalId: externalId,
-                        name: hit.countryName,
-                        phoneCode: hit.phoneCode,
-                        iconUrl: hit.flagUrl,
-                        provider: hit.provider,
-                        lastSyncedAt: new Date(hit.lastSyncedAt)
-                    })
-                } else {
-                    seen.set(key, {
-                        id: safeId,
-                        externalId: externalId,
-                        name: hit.serviceName,
-                        shortName: hit.serviceSlug,
-                        slug: hit.serviceSlug,
-                        provider: hit.provider,
-                        lastSyncedAt: new Date(hit.lastSyncedAt),
-                        _count: { pricing: hit.stock ? 1 : 0 }
-                    })
-                }
-            }
-        }
-
-        const allItems = Array.from(seen.values())
-        const start = (page - 1) * limit
-        const paginatedItems = allItems.slice(start, start + limit)
-
-        return {
-            items: paginatedItems,
-            total: allItems.length
-        }
-    } catch (error) {
-        console.error('searchRawInventory failed:', error)
-        return { items: [], total: 0 }
-    }
-}
 
 /**
  * Step 3: Get Providers for Service + Country

@@ -1,46 +1,46 @@
-import { NextResponse } from "next/server";
-import { searchServices } from "@/lib/search";
-
 /**
- * GET /api/public/services
+ * Public API: Get Service Aggregates
  * 
- * Legacy endpoint - redirects to /api/search/services
- * Kept for backwards compatibility with existing frontend.
+ * Returns precomputed service statistics for fast list responses.
+ * No authentication required - public endpoint for Buy flow.
  */
-export async function GET(req: Request) {
+
+import { NextResponse } from 'next/server'
+import { getServiceAggregates } from '@/lib/service-aggregates'
+
+export async function GET(request: Request) {
     try {
-        const { searchParams } = new URL(req.url);
-        const q = searchParams.get("q") || "";
-        const page = parseInt(searchParams.get("page") || "1");
-        const limit = parseInt(searchParams.get("limit") || "24");
+        const { searchParams } = new URL(request.url)
+        const query = searchParams.get('q') || undefined
+        const page = parseInt(searchParams.get('page') || '1')
+        const limit = parseInt(searchParams.get('limit') || '50')
+        const sortBy = searchParams.get('sort') as 'name' | 'price' | 'stock' | undefined
 
-        const result = await searchServices(q, { page, limit });
-
-        // Map to legacy format for backwards compatibility
-        const items = result.services.map(service => ({
-            searchName: service.slug,
-            displayName: service.name,
-            slug: service.slug,
-            lowestPrice: service.lowestPrice,
-            totalStock: service.totalStock,
-            providerCount: service.serverCount,
-            countryCount: service.countryCount,
-        }));
+        const result = await getServiceAggregates({ query, page, limit, sortBy })
 
         return NextResponse.json({
-            items,
+            success: true,
+            services: result.items.map(s => ({
+                code: s.serviceCode,
+                name: s.serviceName,
+                lowestPrice: Number(s.lowestPrice),
+                totalStock: Number(s.totalStock),
+                countryCount: s.countryCount,
+                providerCount: s.providerCount,
+                lastUpdatedAt: s.lastUpdatedAt
+            })),
             pagination: {
+                page: result.page,
+                limit: result.limit,
                 total: result.total,
-                page,
-                limit,
-                hasMore: page * limit < result.total
+                totalPages: Math.ceil(result.total / result.limit)
             }
-        });
+        })
     } catch (error) {
-        console.error("Failed to search services:", error);
+        console.error('Service aggregates API error:', error)
         return NextResponse.json(
-            { items: [], pagination: { total: 0, page: 1, hasMore: false } },
+            { success: false, error: 'Failed to fetch services' },
             { status: 500 }
-        );
+        )
     }
 }

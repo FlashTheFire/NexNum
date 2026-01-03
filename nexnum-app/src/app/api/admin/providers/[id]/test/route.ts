@@ -1,8 +1,10 @@
 
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { getProviderAdapter, getMetadataProvider, hasDynamicConfig, usesDynamicMetadata } from '@/lib/provider-factory'
 import { DynamicProvider } from '@/lib/dynamic-provider'
 import { requireAdmin } from '@/lib/requireAdmin'
+import { SmsProvider } from '@/lib/sms-providers/types'
 
 export async function POST(req: Request, source: { params: Promise<{ id: string }> }) {
     const auth = await requireAdmin(req)
@@ -28,7 +30,10 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
         // Body parsing failed, ignore
     }
 
-    let engine: DynamicProvider | null = null
+    let engine: SmsProvider | null = null
+    let metadataEngine: SmsProvider | null = null
+    let isDynamic = false
+    let useDynamicMeta = false
 
     try {
         const provider = await prisma.provider.findUnique({ where: { id } })
@@ -36,19 +41,26 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
             return NextResponse.json({ error: 'Provider not found' }, { status: 404 })
         }
 
-        engine = new DynamicProvider(provider)
+        // Main engine for non-metadata operations
+        engine = getProviderAdapter(provider)
+        isDynamic = hasDynamicConfig(provider)
+        useDynamicMeta = usesDynamicMetadata(provider)
+
+        // Metadata engine for getCountries/getServices (respects useDynamicMetadata flag)
+        metadataEngine = getMetadataProvider(provider)
+
         let result: any
 
         switch (action) {
             case 'testAll':
                 // Parallel fetch for dashboard view
                 const [bal, cnt, srv] = await Promise.all([
-                    engine.getBalance().catch(e => ({ error: e.message })),
-                    engine.getCountries().then(c => c.slice(0, 3)).catch(e => []),
+                    engine.getBalance?.().catch(e => ({ error: e.message })) ?? { error: 'Not supported' },
+                    metadataEngine.getCountries().then(c => c.slice(0, 3)).catch(e => []),
                     // For services, we need a country. Try first country or default 'usa'/'ru'
-                    engine.getCountries().then(async (c) => {
+                    metadataEngine.getCountries().then(async (c) => {
                         const target = c[0]?.code || 'usa'
-                        const s = await engine.getServices(target)
+                        const s = await metadataEngine!.getServices(target)
                         return { services: s.slice(0, 3), country: target }
                     }).catch(e => ({ services: [], country: '?' }))
                 ])
@@ -58,26 +70,31 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
                     balanceError: typeof bal === 'object' ? bal.error : null,
                     countries: cnt,
                     services: (srv as any).services,
-                    serviceCountry: (srv as any).country
+                    serviceCountry: (srv as any).country,
+                    usingLegacyMetadata: !useDynamicMeta
                 }
                 break
 
             case 'getBalance':
-                result = { balance: await engine.getBalance() }
+                result = { balance: await engine.getBalance?.() ?? 0 }
                 break
             case 'getCountries':
-                const countries = await engine.getCountries()
+                // Use metadata engine (respects useDynamicMetadata flag)
+                const countries = await metadataEngine.getCountries()
                 result = {
                     count: countries.length,
-                    first: countries.slice(0, 3) // Only return first 3 to keep log small
+                    first: countries.slice(0, 3), // Only return first 3 to keep log small
+                    usingLegacyMetadata: !useDynamicMeta
                 }
                 break
             case 'getServices':
                 // Country is optional - some providers list all services without it
-                const services = await engine.getServices(params.country || '')
+                // Use metadata engine (respects useDynamicMetadata flag)
+                const services = await metadataEngine.getServices(params.country || '')
                 result = {
                     count: services.length,
-                    first: services.slice(0, 3)
+                    first: services.slice(0, 3),
+                    usingLegacyMetadata: !useDynamicMeta
                 }
                 break
             case 'getNumber':
@@ -89,8 +106,12 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
                 result = await engine.getStatus(params.id)
                 break
             case 'getPrices':
-                // Get prices with optional country/service filters
-                const prices = await engine.getPrices(params.country || undefined, params.service || undefined)
+                // Get prices with optional country/service filters (DynamicProvider only)
+                if (!isDynamic || !('getPrices' in engine)) {
+                    throw new Error('getPrices is only supported for dynamic providers')
+                }
+                const dynamicEngine = engine as DynamicProvider
+                const prices = await dynamicEngine.getPrices(params.country || undefined, params.service || undefined)
                 result = {
                     count: prices.length,
                     first: prices.slice(0, 5) // Return first 5 prices for preview
@@ -151,7 +172,7 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
                 success,
                 httpStatus,
                 responseTime: duration,
-                requestUrl: 'DYNAMIC',
+                requestUrl: isDynamic ? 'DYNAMIC' : 'LEGACY',
                 responseData: responseData,
                 error: errorMsg,
             }
@@ -164,6 +185,6 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
         data: responseData,
         error: errorMsg,
         duration,
-        trace: engine?.lastRequestTrace || null
+        trace: isDynamic && engine ? (engine as DynamicProvider).lastRequestTrace : null
     })
 }
