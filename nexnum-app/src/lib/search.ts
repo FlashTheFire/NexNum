@@ -627,6 +627,44 @@ export async function searchProviders(
     }
 }
 
+/**
+ * General search across all offers with optional filters
+ * Used by the public-facing offers API
+ */
+export async function searchOffers(
+    query: string = '',
+    filters?: { countryCode?: string; serviceCode?: string; maxPrice?: number; minCount?: number },
+    options?: { page?: number; limit?: number; sort?: string[] }
+): Promise<{ hits: OfferDocument[]; total: number }> {
+    try {
+        const index = meili.index(INDEXES.OFFERS)
+        const limit = options?.limit || 20
+        const page = options?.page || 1
+
+        // Build filter array
+        const filterParts: string[] = []
+        if (filters?.countryCode) filterParts.push(`countryCode = "${filters.countryCode}"`)
+        if (filters?.serviceCode) filterParts.push(`serviceSlug = "${filters.serviceCode}"`)
+        if (filters?.maxPrice) filterParts.push(`price <= ${filters.maxPrice}`)
+        if (filters?.minCount) filterParts.push(`stock >= ${filters.minCount}`)
+
+        const result = await index.search(query, {
+            limit,
+            offset: (page - 1) * limit,
+            filter: filterParts.length > 0 ? filterParts.join(' AND ') : undefined,
+            sort: options?.sort || ['price:asc']
+        })
+
+        return {
+            hits: result.hits as OfferDocument[],
+            total: result.estimatedTotalHits || 0
+        }
+    } catch (error) {
+        console.error('searchOffers failed:', error)
+        return { hits: [], total: 0 }
+    }
+}
+
 // ============================================
 // INDEX MANAGEMENT
 // ============================================

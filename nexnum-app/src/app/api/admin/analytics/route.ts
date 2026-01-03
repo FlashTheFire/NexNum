@@ -74,9 +74,7 @@ export async function GET(request: Request) {
                     displayName: true,
                     balance: true,
                     priority: true,
-                    _count: {
-                        select: { syncJobs: true }
-                    }
+                    syncCount: true
                 },
                 orderBy: { priority: 'desc' }
             }),

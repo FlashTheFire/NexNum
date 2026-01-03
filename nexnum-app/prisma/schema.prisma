@@ -172,7 +172,7 @@ model Provider {
   syncStatus      String?   @map("sync_status") // syncing, success, failed, idle
   syncCount       Int       @default(0) @map("sync_count")
   
-  // --- Metadata Caching (24h Rule) ---
+  // --- Metadata Caching (24h Rule) - DEPRECATED, will be removed ---
   lastMetadataSyncAt DateTime? @map("last_metadata_sync_at")
   cachedCountries    Json?     @map("cached_countries")
   cachedServices     Json?     @map("cached_services")
@@ -181,11 +181,85 @@ model Provider {
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
   
+  // --- Relations ---
   testResults     ProviderTestResult[]
+  countries       ProviderCountry[]
+  services        ProviderService[]
+  pricing         ProviderPricing[]
   
   @@index([isActive])
   @@index([priority])
   @@map("providers")
+}
+
+// ============================================
+// PROVIDER-SPECIFIC DATA (No Merging)
+// ============================================
+
+// Provider-specific countries
+model ProviderCountry {
+  id          String   @id @default(uuid())
+  providerId  String   @map("provider_id")
+  externalId  String   @map("external_id")  // Provider's ID (e.g., "2", "187", "us")
+  code        String                        // Normalized code for internal use
+  name        String                        // Display name (e.g., "Kazakhstan")
+  phoneCode   String?  @map("phone_code")   // e.g., "+7"
+  flagUrl     String?  @map("flag_url")
+  isActive    Boolean  @default(true) @map("is_active")
+  lastSyncAt  DateTime @default(now()) @map("last_sync_at")
+  
+  provider    Provider          @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  pricing     ProviderPricing[]
+  
+  @@unique([providerId, externalId])
+  @@index([providerId])
+  @@index([code])
+  @@map("provider_countries")
+}
+
+// Provider-specific services
+model ProviderService {
+  id          String   @id @default(uuid())
+  providerId  String   @map("provider_id")
+  externalId  String   @map("external_id")  // Provider's service code (e.g., "wa", "fb")
+  code        String                        // Normalized code for internal use
+  name        String                        // Display name (e.g., "WhatsApp")
+  iconUrl     String?  @map("icon_url")
+  isActive    Boolean  @default(true) @map("is_active")
+  lastSyncAt  DateTime @default(now()) @map("last_sync_at")
+  
+  provider    Provider          @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  pricing     ProviderPricing[]
+  
+  @@unique([providerId, externalId])
+  @@index([providerId])
+  @@index([code])
+  @@map("provider_services")
+}
+
+// Provider-specific pricing (replaces MeiliSearch-only approach)
+model ProviderPricing {
+  id          String   @id @default(uuid())
+  providerId  String   @map("provider_id")
+  countryId   String   @map("country_id")
+  serviceId   String   @map("service_id")
+  operator    String?                       // Optional operator code (e.g., "virtual21")
+  cost        Decimal  @db.Decimal(8, 4)    // Raw cost from provider API
+  sellPrice   Decimal  @db.Decimal(8, 2)    // After markup applied
+  stock       Int      @default(0)
+  lastSyncAt  DateTime @default(now()) @map("last_sync_at")
+  
+  provider    Provider        @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  country     ProviderCountry @relation(fields: [countryId], references: [id], onDelete: Cascade)
+  service     ProviderService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  
+  @@unique([providerId, countryId, serviceId, operator])
+  @@index([providerId])
+  @@index([countryId])
+  @@index([serviceId])
+  @@index([sellPrice])
+  @@index([stock])
+  @@map("provider_pricing")
 }
 
 model ProviderTestResult {

@@ -27,8 +27,8 @@ export async function GET(req: NextRequest) {
 
         // 1.1 Fetch Service Map from DB (for correct naming)
         // We need to fetch ALL services for this provider to map codes -> names
-        const dbServices = await prisma.service.findMany({
-            where: { provider: providerName },
+        const dbServices = await prisma.providerService.findMany({
+            where: { providerId: provider.id },
             select: { externalId: true, name: true }
         })
         const serviceMap = new Map<string, string>()
@@ -49,12 +49,15 @@ export async function GET(req: NextRequest) {
             const offers: OfferDocument[] = stockItems.map(p => ({
                 id: `${provider.name}_${p.country}_${p.service}`.toLowerCase().replace(/[^a-z0-9_]/g, ''),
                 provider: provider.name,
+                displayName: provider.displayName,
                 countryCode: p.country, // '22'
                 countryName: countryName,
-                serviceCode: p.service,
+                phoneCode: '',
+                flagUrl: '',
+                serviceSlug: p.service.toLowerCase(),
                 serviceName: serviceMap.get(p.service) || p.service, // Use mapped name
                 price: p.cost,
-                count: p.count,
+                stock: p.count,
                 lastSyncedAt: Date.now()
             }))
 

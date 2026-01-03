@@ -17,10 +17,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
                 testResults: {
                     orderBy: { testedAt: 'desc' },
                     take: 10
-                },
-                syncJobs: {
-                    orderBy: { startedAt: 'desc' },
-                    take: 5
                 }
             }
         })

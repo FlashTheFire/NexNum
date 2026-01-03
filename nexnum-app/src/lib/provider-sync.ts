@@ -287,40 +287,61 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
         // Otherwise, use legacy if applicable, or fallback to dynamic.
         const useDynamicMetadata = (provider.mappings as any)?.useDynamicMetadata === true
 
-        // METADATA CACHING (24h Rule)
+        // Initialize arrays
         let countries: any[] = []
         let services: any[] = []
-        let skipMetadataSync = false
 
-        if (provider.lastMetadataSyncAt && provider.cachedCountries) {
-            const hoursSince = (Date.now() - provider.lastMetadataSyncAt.getTime()) / (1000 * 60 * 60)
-            if (hoursSince < 24) {
-                console.log(`[SYNC] ${provider.name}: Using cached metadata (${hoursSince.toFixed(1)}h old)`)
-                skipMetadataSync = true
-                countries = provider.cachedCountries as any[]
-                // Load cached services if available
-                if (provider.cachedServices) {
-                    services = provider.cachedServices as any[]
-                    // Re-populate memory map
-                    services.forEach(s => serviceMap.set(s.code, s.name))
-                }
+        // Check if we need fresh metadata (24h rule based on existing DB records)
+        const existingCountryCount = await prisma.providerCountry.count({ where: { providerId: provider.id } })
+        const hoursSinceMetadata = provider.lastMetadataSyncAt
+            ? (Date.now() - provider.lastMetadataSyncAt.getTime()) / (1000 * 60 * 60)
+            : 999
 
-                // VALIDATION: Check for legacy cache (codes identical to names or having spaces, e.g., "United States")
-                // We want strict ISO codes (e.g. "us", "ru") or IDs ("187").
-                // If we detect "United States" as a code, invalidate.
-                const isLegacyCache = countries.some(c => c.code.includes(' ') || c.code.length > 5)
-                if (isLegacyCache) {
-                    console.log(`[SYNC] ${provider.name}: Cache validation failed (legacy formats detected). Forcing fresh fetch...`)
-                    skipMetadataSync = false
-                    countries = []
-                    services = []
-                    serviceMap.clear()
-                }
+        let skipMetadataSync = existingCountryCount > 0 && hoursSinceMetadata < 24
+
+        // Maps for quick lookup (externalId -> dbId)
+        const countryIdMap = new Map<string, string>()
+        const serviceIdMap = new Map<string, string>()
+
+        if (skipMetadataSync) {
+            console.log(`[SYNC] ${provider.name}: Using DB metadata (${hoursSinceMetadata.toFixed(1)}h old, ${existingCountryCount} countries)`)
+            // Load existing IDs from DB
+            const dbCountries = await prisma.providerCountry.findMany({
+                where: { providerId: provider.id },
+                select: { id: true, externalId: true, name: true, phoneCode: true }
+            })
+
+            // VALIDATION: Check for stale data (countries with 'Unknown' names or missing phoneCode)
+            const hasStaleData = dbCountries.some(c => !c.name || c.name === 'Unknown' || c.name === c.externalId)
+            if (hasStaleData) {
+                console.log(`[SYNC] ${provider.name}: Stale data detected (Unknown/missing names). Forcing fresh fetch...`)
+                skipMetadataSync = false
+                // Clear the existing bad data
+                await prisma.providerCountry.deleteMany({ where: { providerId: provider.id } })
+                await prisma.providerService.deleteMany({ where: { providerId: provider.id } })
+            } else {
+                dbCountries.forEach(c => {
+                    countryIdMap.set(c.externalId, c.id)
+                    countries.push({ code: c.externalId, name: c.name, phoneCode: c.phoneCode })
+                })
+                countriesCount = dbCountries.length
+
+                const dbServices = await prisma.providerService.findMany({
+                    where: { providerId: provider.id },
+                    select: { id: true, externalId: true, name: true }
+                })
+                dbServices.forEach(s => {
+                    serviceIdMap.set(s.externalId, s.id)
+                    serviceMap.set(s.externalId, s.name)
+                })
+                servicesCount = dbServices.length
             }
         }
 
         if (!skipMetadataSync) {
             console.log(`[SYNC] ${provider.name}: Fetching fresh metadata...`)
+
+            // Fetch countries
             if (!useDynamicMetadata && LEGACY_METADATA_PROVIDERS.includes(provider.name.toLowerCase())) {
                 countries = await getCountriesLegacy(provider, engine)
             } else {
@@ -328,11 +349,37 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
             }
             countriesCount = countries.length
 
-            // 2. Services (Hybrid: Legacy or Dynamic Logic)
+            // Upsert countries to DB
+            console.log(`[SYNC] ${provider.name}: Upserting ${countries.length} countries to DB...`)
+            for (const c of countries) {
+                const record = await prisma.providerCountry.upsert({
+                    where: { providerId_externalId: { providerId: provider.id, externalId: c.code } },
+                    create: {
+                        providerId: provider.id,
+                        externalId: c.code,
+                        code: c.code.toLowerCase(),
+                        name: c.name || 'Unknown',
+                        phoneCode: c.phoneCode || null,
+                        flagUrl: c.flag || null,
+                        lastSyncAt: new Date()
+                    },
+                    update: {
+                        name: c.name || 'Unknown',
+                        phoneCode: c.phoneCode || null,
+                        flagUrl: c.flag || null,
+                        lastSyncAt: new Date()
+                    }
+                })
+                countryIdMap.set(c.code, record.id)
+            }
+
+            // Fetch services
             if (!useDynamicMetadata && LEGACY_METADATA_PROVIDERS.includes(provider.name.toLowerCase())) {
                 await getServicesLegacy(provider, engine)
+                // Load from global lookup since legacy writes there
+                const dbServices = await prisma.serviceLookup.findMany()
+                services = dbServices.map(s => ({ code: s.code, name: s.name, icon: s.iconUrl }))
             } else {
-                // Dynamic Logic
                 try {
                     services = await engine.getServices('')
                 } catch (e) {
@@ -342,58 +389,79 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
                         if (countries.length > 0) services = await engine.getServices(countries[0].code)
                     }
                 }
-                if (services.length > 0) {
-                    await Promise.all(services.map(s => limit(async () => {
-                        serviceMap.set(s.code, s.name)
-                        await upsertServiceLookup(s.code.toLowerCase(), s.name, s.icon)
-                    })))
-                    servicesCount = services.length
-                }
+            }
+            servicesCount = services.length
+
+            // Upsert services to DB
+            console.log(`[SYNC] ${provider.name}: Upserting ${services.length} services to DB...`)
+            for (const s of services) {
+                serviceMap.set(s.code, s.name)
+                const record = await prisma.providerService.upsert({
+                    where: { providerId_externalId: { providerId: provider.id, externalId: s.code } },
+                    create: {
+                        providerId: provider.id,
+                        externalId: s.code,
+                        code: s.code.toLowerCase(),
+                        name: s.name || 'Unknown',
+                        iconUrl: s.icon || null,
+                        lastSyncAt: new Date()
+                    },
+                    update: {
+                        name: s.name || 'Unknown',
+                        iconUrl: s.icon || null,
+                        lastSyncAt: new Date()
+                    }
+                })
+                serviceIdMap.set(s.code, record.id)
             }
 
-            // Update Cache & Timestamp
+            // Update metadata sync timestamp
             await prisma.provider.update({
                 where: { id: provider.id },
-                data: {
-                    lastMetadataSyncAt: new Date(),
-                    cachedCountries: countries,
-                    cachedServices: services
-                }
+                data: { lastMetadataSyncAt: new Date() }
             })
-        } else {
-            // Using cached - just populate stats
-            countriesCount = countries.length
-            servicesCount = services.length
         }
+
         // 3. Sync Prices (DEEP SEARCH ENGINE) - Always use Dynamic Engine
         console.log(`[SYNC] ${provider.name}: Starting price sync for ${countries.length} countries...`)
 
-        // Clear existing offers for this provider before re-indexing
+        // Clear existing pricing for this provider before re-indexing
+        await prisma.providerPricing.deleteMany({ where: { providerId: provider.id } })
         await deleteOffersByProvider(provider.name)
 
         const allOffers: OfferDocument[] = []
+        const pricingBatch: any[] = []
 
         // User requested "super fast" but safe (120-180 req/min).
-        // 180 req/min = 3 req/sec.
-        // We allow high concurrency (e.g. 50 parallel connections) so we never block on latency,
-        // but the Queue strictly enforces the 3 req/sec launch rate.
         const limiter = new RateLimitedQueue(50, 180)
 
         const promises = countries.map(country => limiter.add(async () => {
             try {
                 const prices = await engine.getPrices(country.code)
                 if (prices.length > 0) {
-                    // Use cached metadata directly (contains correct Display Name & Phone Code)
-                    // Do NOT re-normalize the code (which might be "2" or "187")
+                    const countryDbId = countryIdMap.get(country.code)
 
                     const countryOffers: OfferDocument[] = prices
                         .filter(p => p.count > 0)
                         .map(p => {
-                            // Try to resolve service name from map or DB or fallback
                             const svcName = serviceMap.get(p.service) || p.service
-                            // Apply pricing margins
                             const rawPrice = Number(p.cost)
                             const sellPrice = (rawPrice * Number(provider.priceMultiplier)) + Number(provider.fixedMarkup)
+
+                            // Prepare DB pricing record
+                            const serviceDbId = serviceIdMap.get(p.service)
+                            if (countryDbId && serviceDbId) {
+                                pricingBatch.push({
+                                    providerId: provider.id,
+                                    countryId: countryDbId,
+                                    serviceId: serviceDbId,
+                                    operator: p.operator || null,
+                                    cost: rawPrice,
+                                    sellPrice: Number(sellPrice.toFixed(2)),
+                                    stock: p.count,
+                                    lastSyncAt: new Date()
+                                })
+                            }
 
                             return {
                                 id: `${provider.name}_${p.country}_${p.service}`.toLowerCase().replace(/[^a-z0-9_]/g, ''),
@@ -423,8 +491,17 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
 
         await Promise.all(promises)
 
+        // Batch insert pricing to DB (in chunks to avoid memory issues)
+        if (pricingBatch.length > 0) {
+            console.log(`[SYNC] ${provider.name}: Inserting ${pricingBatch.length} pricing records to DB...`)
+            const chunkSize = 1000
+            for (let i = 0; i < pricingBatch.length; i += chunkSize) {
+                const chunk = pricingBatch.slice(i, i + chunkSize)
+                await prisma.providerPricing.createMany({ data: chunk, skipDuplicates: true })
+            }
+        }
 
-        // Final Batch index
+        // Index to MeiliSearch for fast text search
         if (allOffers.length > 0) {
             await indexOffers(allOffers)
         }
