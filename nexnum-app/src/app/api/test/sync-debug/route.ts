@@ -52,7 +52,6 @@ export async function GET(req: NextRequest) {
                 displayName: provider.displayName,
                 countryCode: p.country, // '22'
                 countryName: countryName,
-                phoneCode: '',
                 flagUrl: '',
                 serviceSlug: p.service.toLowerCase(),
                 serviceName: serviceMap.get(p.service) || p.service, // Use mapped name

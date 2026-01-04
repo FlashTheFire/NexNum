@@ -34,33 +34,6 @@ export class FiveSimProvider implements SmsProvider {
     name = '5sim'
 
     /**
-     * Authenticated API request
-     */
-    private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
-        if (!API_KEY) {
-            throw new Error('FIVESIM_API_KEY is not configured')
-        }
-
-        const response = await fetch(`${API_URL}${endpoint}`, {
-            ...options,
-            headers: {
-                'Authorization': `Bearer ${API_KEY}`,
-                'Accept': 'application/json',
-                'Accept-Language': 'en-US,en;q=0.9',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                ...options?.headers,
-            },
-        })
-
-        if (!response.ok) {
-            const error = await response.text()
-            throw new Error(`5sim API error: ${response.status} - ${error}`)
-        }
-
-        return response.json()
-    }
-
-    /**
      * Guest API request (no auth required)
      */
     private async guestRequest<T>(endpoint: string): Promise<T> {
@@ -134,63 +107,5 @@ export class FiveSimProvider implements SmsProvider {
         } catch {
             return []
         }
-    }
-
-    /**
-     * Purchase a number for SMS verification
-     */
-    async getNumber(countryCode: string, serviceCode: string): Promise<NumberResult> {
-        // GET /user/buy/activation/{country}/{operator}/{product}
-        const data = await this.request<any>(`/user/buy/activation/${countryCode}/any/${serviceCode}`)
-
-        return {
-            activationId: data.id.toString(),
-            phoneNumber: data.phone,
-            countryCode,
-            countryName: data.country,
-            serviceCode,
-            serviceName: data.product,
-            price: data.price,
-            expiresAt: new Date(data.expires)
-        }
-    }
-
-    /**
-     * Check activation status and get SMS
-     */
-    async getStatus(activationId: string): Promise<StatusResult> {
-        const data = await this.request<any>(`/user/check/${activationId}`)
-
-        const messages: SmsMessage[] = (data.sms || []).map((sms: any) => ({
-            id: sms.id ? sms.id.toString() : `sms-${Date.now()}`,
-            sender: sms.sender,
-            content: sms.text,
-            code: sms.code,
-            receivedAt: new Date(sms.date)
-        }))
-
-        let status: NumberStatus = 'pending'
-        if (data.status === 'RECEIVED') status = 'received'
-        if (data.status === 'FINISHED') status = 'received'
-        if (data.status === 'CANCELED') status = 'cancelled'
-        if (data.status === 'TIMEOUT') status = 'expired'
-        if (data.status === 'BANNED') status = 'error'
-
-        return { status, messages }
-    }
-
-    /**
-     * Cancel/release an activation
-     */
-    async cancelNumber(activationId: string): Promise<void> {
-        await this.request(`/user/cancel/${activationId}`)
-    }
-
-    /**
-     * Get account balance
-     */
-    async getBalance(): Promise<number> {
-        const data = await this.request<{ balance: number; rating: number }>('/user/profile')
-        return data.balance
     }
 }

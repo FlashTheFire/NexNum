@@ -12,6 +12,7 @@ export interface Service {
     code: string
     name: string
     price: number
+    icon?: string | null  // Service icon URL
 }
 
 export interface NumberResult {
@@ -55,13 +56,13 @@ export interface SmsProvider {
     getServices(countryCode: string): Promise<Service[]>
 
     // Purchase a number
-    getNumber(countryCode: string, serviceCode: string, preferredProvider?: string): Promise<NumberResult>
+    getNumber?(countryCode: string, serviceCode: string, preferredProvider?: string): Promise<NumberResult>
 
     // Check status and get SMS
-    getStatus(activationId: string): Promise<StatusResult>
+    getStatus?(activationId: string): Promise<StatusResult>
 
     // Cancel/release a number
-    cancelNumber(activationId: string): Promise<void>
+    cancelNumber?(activationId: string): Promise<void>
 
     // Get balance (optional, for monitoring)
     getBalance?(): Promise<number>

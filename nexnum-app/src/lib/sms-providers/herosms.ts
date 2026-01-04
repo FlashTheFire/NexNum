@@ -81,11 +81,13 @@ export class HeroSmsProvider implements SmsProvider {
             const name = c.eng || c.name || 'Unknown'
             const norm = normalizeCountryEntry(name)
             const finalCode = String(providerCode).toLowerCase()
+            const id = c.id
 
             results.push({
                 id: finalCode,
                 code: finalCode,
-                name: norm.displayName
+                name: norm.displayName,
+                flag: id ? `https://cdn.hero-sms.com/assets/img/country/${id}.svg` : null
             })
         }
 
@@ -110,93 +112,11 @@ export class HeroSmsProvider implements SmsProvider {
                 id: s.code.toLowerCase(),
                 code: s.code.toLowerCase(),
                 name: s.name || s.code,
-                price: 0 // Price fetched separately
+                price: 0, // Price fetched separately
+                icon: s.code ? `https://cdn.hero-sms.com/assets/img/service/${s.code}0.webp` : null
             })
         }
 
         return services
-    }
-
-    /**
-     * Purchase a number for SMS verification
-     */
-    async getNumber(countryCode: string, serviceCode: string): Promise<NumberResult> {
-        const response = await this.request('getNumber', {
-            service: serviceCode,
-            country: countryCode
-        })
-
-        // Parse ACCESS_NUMBER:id:phone format
-        const parts = response.split(':')
-        if (parts[0] !== 'ACCESS_NUMBER' || parts.length < 3) {
-            throw new Error(`Failed to get number: ${response}`)
-        }
-
-        return {
-            activationId: parts[1],
-            phoneNumber: parts[2],
-            countryCode,
-            countryName: '',
-            serviceCode,
-            serviceName: '',
-            price: 0,
-            expiresAt: new Date(Date.now() + 20 * 60 * 1000) // 20 min default
-        }
-    }
-
-    /**
-     * Check activation status and get SMS code
-     */
-    async getStatus(activationId: string): Promise<StatusResult> {
-        const response = await this.request('getStatus', { id: activationId })
-
-        let status: NumberStatus = 'pending'
-        let code: string | undefined
-
-        if (response === 'STATUS_WAIT_CODE') {
-            status = 'pending'
-        } else if (response.startsWith('STATUS_WAIT_RETRY')) {
-            status = 'pending'
-        } else if (response.startsWith('STATUS_OK')) {
-            status = 'received'
-            code = response.split(':')[1]
-        } else if (response === 'STATUS_CANCEL') {
-            status = 'cancelled'
-        }
-
-        const messages = code ? [{
-            id: Date.now().toString(),
-            sender: 'System',
-            content: `Code: ${code}`,
-            code,
-            receivedAt: new Date()
-        }] : []
-
-        return { status, messages }
-    }
-
-    /**
-     * Cancel/release an activation
-     */
-    async cancelNumber(activationId: string): Promise<void> {
-        await this.request('setStatus', {
-            id: activationId,
-            status: '8' // Cancel status
-        })
-    }
-
-    /**
-     * Get account balance
-     */
-    async getBalance(): Promise<number> {
-        const response = await this.request('getBalance')
-
-        // Parse ACCESS_BALANCE:123.45 format
-        const match = response.match(/ACCESS_BALANCE:(\d+\.?\d*)/)
-        if (match) {
-            return parseFloat(match[1])
-        }
-
-        return 0
     }
 }

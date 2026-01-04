@@ -497,6 +497,7 @@ export function AIConfigAssistant({ isOpen, onClose, step, onApply }: AIConfigAs
                                 </div>
                             </div>
                             <button
+                                title="Close"
                                 onClick={onClose}
                                 className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 transition-colors"
                             >

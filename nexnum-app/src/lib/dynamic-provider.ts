@@ -343,6 +343,7 @@ export class DynamicProvider implements SmsProvider {
         if (path === '$index') return context.index
         if (path === '$parentKey') return context.parentKey
         if (path === '$grandParentKey' || path === '$grandparentKey') return context.grandParentKey
+        if (path === '$operatorKey') return context.operatorKey
 
         // NEW: Handle fallback chains (cost|price|amount)
         if (path.includes('|')) {
@@ -530,15 +531,19 @@ export class DynamicProvider implements SmsProvider {
                 const providersObj = value[providersKey]
                 for (const [providerKey, providerData] of Object.entries(providersObj as Record<string, any>)) {
                     if (typeof providerData === 'object' && providerData !== null) {
+                        // IMPORTANT: Use 'operatorKey' for the provider ID, keep 'key' as service
+                        // This prevents $key from resolving to the operator ID
                         const mapped = this.mapFields(providerData, this.resolveEffectiveFields(providerData, mapConfig), {
                             ...parentContext,
-                            key: providerKey,
+                            key: key,              // Service code (e.g., "aez") - NOT providerKey!
+                            operatorKey: providerKey, // Operator/Provider ID (e.g., "11", "145")
                             value: providerData,
-                            parentKey: key
+                            parentKey: parentContext.parentKey || parentContext.key
                         })
-                        // Add parent context defaults if not mapped
-                        if (!mapped.service && key) mapped.service = key
-                        if (!mapped.operator && providerKey) mapped.operator = providerKey
+                        // Always set service from outer key (the actual service code)
+                        mapped.service = key
+                        // Set operator from providerKey if not already mapped
+                        if (!mapped.operator) mapped.operator = providerKey
                         results.push(mapped)
                     }
                 }
@@ -763,13 +768,17 @@ export class DynamicProvider implements SmsProvider {
             const mapConfig = (this.config.mappings as any)[context.mappingKey]
             if (mapConfig?.transform) {
                 for (const [field, rule] of Object.entries(mapConfig.transform)) {
-                    if (result[field] !== undefined) {
+                    if (result[field] !== undefined && result[field] !== null) {
                         const val = result[field]
                         if (rule === 'number') result[field] = Number(val)
                         else if (rule === 'string') result[field] = String(val)
                         else if (rule === 'boolean') result[field] = Boolean(val)
                         else if (rule === 'uppercase') result[field] = String(val).toUpperCase()
                         else if (rule === 'lowercase') result[field] = String(val).toLowerCase()
+                        // NEW: urlTemplate - e.g., "https://example.com/image/{value}.webp"
+                        else if (typeof rule === 'string' && rule.includes('{value}')) {
+                            result[field] = rule.replace('{value}', String(val))
+                        }
                     }
                 }
             }
@@ -812,7 +821,8 @@ export class DynamicProvider implements SmsProvider {
             id: String(s.id ?? s.code ?? idx),
             code: String(s.code ?? s.id ?? ''),
             name: String(s.name ?? 'Unknown'),
-            price: Number(s.price ?? 0)
+            price: Number(s.price ?? 0),
+            icon: s.icon ?? s.iconUrl ?? undefined  // Extract service icon URL
         }))
     }
 

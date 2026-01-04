@@ -21,7 +21,6 @@ interface Country {
     id: string
     externalId: string
     name: string
-    phoneCode: string
     provider: string
     lastSyncedAt: string
 }
@@ -30,7 +29,6 @@ interface AggregatedCountry {
     countryCode: string
     canonicalName: string
     displayName: string
-    phoneCode: string
     flagUrl: string
     providers: Array<{
         provider: string
@@ -356,7 +354,6 @@ export default function InventoryPage() {
                                                 <div className="flex items-center px-6 py-3 text-left">
                                                     <div className="w-8"></div>
                                                     <div className="flex-1 font-medium min-w-[200px] pr-8">Name</div>
-                                                    <div className="w-32 font-medium">Phone Code</div>
                                                     <div className="w-40 font-medium">Providers</div>
                                                     <div className="w-32 font-medium text-right">Last Synced</div>
                                                 </div>
@@ -366,7 +363,6 @@ export default function InventoryPage() {
                                         <th colSpan={5} className="p-0 border-0">
                                             <div className="flex items-center px-6 py-3 text-left">
                                                 <div className="flex-1 font-medium">Name</div>
-                                                <div className="w-32 font-medium">Phone Code</div>
                                                 <div className="w-40 font-medium">Provider</div>
                                                 <div className="w-40 font-medium">External ID</div>
                                                 <div className="w-32 font-medium text-right">Synced</div>
@@ -381,7 +377,7 @@ export default function InventoryPage() {
                                                 <div className="flex-1 font-medium min-w-[200px] pr-8">Service Name</div>
                                                 <div className="w-40 font-medium">Best Price</div>
                                                 <div className="w-40 font-medium">Providers</div>
-                                                <div className="w-64 font-medium text-right px-2">Codes</div>
+                                                <div className="w-64 font-medium text-right px-2">Low Price</div>
                                             </div>
                                         </th>
                                     ) : (
@@ -414,11 +410,11 @@ export default function InventoryPage() {
                                 </tr>
                             ) : activeTab === 'countries' && isAggregated ? (
                                 // Aggregated Countries View
-                                (data as AggregatedCountry[]).map((item) => {
+                                (data as AggregatedCountry[]).map((item, index) => {
                                     const isExpanded = expandedRows.has(item.canonicalName)
                                     return (
                                         <motion.tr
-                                            key={item.canonicalName}
+                                            key={`${item.canonicalName}-${item.countryCode || index}`}
                                             layout
                                             className="hover:bg-white/[0.02] transition-colors"
                                         >
@@ -437,7 +433,7 @@ export default function InventoryPage() {
                                                             )
                                                         ) : null}
                                                     </div>
-                                                    <div className="flex-1 font-medium text-white min-w-[180px] pr-4">
+                                                    <div className="flex-1 font-medium text-white min-w-[200px] pr-8">
                                                         <div className="flex items-center gap-2">
                                                             {item.flagUrl && <img src={item.flagUrl} alt="" className="w-5 h-3.5 object-cover rounded-sm" />}
                                                             {item.displayName}
@@ -447,9 +443,6 @@ export default function InventoryPage() {
                                                                 {item.serviceCount} services
                                                             </span>
                                                         )}
-                                                    </div>
-                                                    <div className="w-24 text-blue-300 text-sm">
-                                                        {item.phoneCode ? `+${item.phoneCode.replace(/^\+/, '')}` : <span className="text-gray-600">-</span>}
                                                     </div>
                                                     <div className="w-28 flex flex-col gap-0.5">
                                                         {!selectedProvider && (
@@ -531,9 +524,6 @@ export default function InventoryPage() {
                                         <td colSpan={5} className="p-0 border-0">
                                             <div className="flex items-center px-6 py-3 text-left">
                                                 <div className="flex-1 font-medium text-white min-w-[200px] pr-8">{item.name}</div>
-                                                <div className="w-32 text-blue-300">
-                                                    {item.phoneCode ? `+${item.phoneCode}` : <span className="text-gray-600">-</span>}
-                                                </div>
                                                 <div className="w-40">
                                                     <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 uppercase text-[10px] tracking-wider">
                                                         {item.provider}
@@ -549,11 +539,11 @@ export default function InventoryPage() {
                                 ))
                             ) : activeTab === 'services' && isAggregated ? (
                                 // Aggregated Services View
-                                (data as AggregatedService[]).map((item) => {
+                                (data as AggregatedService[]).map((item, index) => {
                                     const isExpanded = expandedRows.has(item.canonicalName)
                                     return (
                                         <motion.tr
-                                            key={item.canonicalName}
+                                            key={`${item.canonicalName}-${item.canonicalSlug || index}`}
                                             layout
                                             className="hover:bg-white/[0.02] transition-colors"
                                         >
@@ -688,11 +678,11 @@ export default function InventoryPage() {
                         <div className="text-center py-10 text-gray-500">No results found</div>
                     ) : (
                         activeTab === 'services' && isAggregated ? (
-                            (data as AggregatedService[]).map((item) => {
+                            (data as AggregatedService[]).map((item, index) => {
                                 const isExpanded = expandedRows.has(item.canonicalName)
                                 return (
                                     <motion.div
-                                        key={item.canonicalName}
+                                        key={`${item.canonicalName}-${item.canonicalSlug || index}`}
                                         layout
                                         className="bg-zinc-900/50 border border-white/5 rounded-2xl overflow-hidden backdrop-blur-sm"
                                     >

@@ -122,7 +122,6 @@ model ServiceLookup {
 model CountryLookup {
   code      String  @id               // ISO code: "US", "IN", "GB"
   name      String                    // e.g., "United States"
-  phoneCode String  @map("phone_code") // e.g., "+1"
   flagUrl   String? @map("flag_url")  // Flag image URL
   
   @@map("country_lookups")
@@ -205,7 +204,6 @@ model ProviderCountry {
   externalId  String   @map("external_id")  // Provider's ID (e.g., "2", "187", "us")
   code        String                        // Normalized code for internal use
   name        String                        // Display name (e.g., "Kazakhstan")
-  phoneCode   String?  @map("phone_code")   // e.g., "+7"
   flagUrl     String?  @map("flag_url")
   isActive    Boolean  @default(true) @map("is_active")
   lastSyncAt  DateTime @default(now()) @map("last_sync_at")

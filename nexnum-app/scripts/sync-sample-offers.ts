@@ -29,16 +29,16 @@ const SAMPLE_SERVICES = [
 ];
 
 const SAMPLE_COUNTRIES = [
-    { code: 'US', name: 'United States', phoneCode: '+1' },
-    { code: 'GB', name: 'United Kingdom', phoneCode: '+44' },
-    { code: 'DE', name: 'Germany', phoneCode: '+49' },
-    { code: 'FR', name: 'France', phoneCode: '+33' },
-    { code: 'IN', name: 'India', phoneCode: '+91' },
-    { code: 'BR', name: 'Brazil', phoneCode: '+55' },
-    { code: 'RU', name: 'Russia', phoneCode: '+7' },
-    { code: 'CA', name: 'Canada', phoneCode: '+1' },
-    { code: 'AU', name: 'Australia', phoneCode: '+61' },
-    { code: 'ID', name: 'Indonesia', phoneCode: '+62' },
+    { code: 'US', name: 'United States' },
+    { code: 'GB', name: 'United Kingdom' },
+    { code: 'DE', name: 'Germany' },
+    { code: 'FR', name: 'France' },
+    { code: 'IN', name: 'India' },
+    { code: 'BR', name: 'Brazil' },
+    { code: 'RU', name: 'Russia' },
+    { code: 'CA', name: 'Canada' },
+    { code: 'AU', name: 'Australia' },
+    { code: 'ID', name: 'Indonesia' },
 ];
 
 const SAMPLE_PROVIDERS = [
@@ -59,7 +59,8 @@ function generateRandomOffer(service: string, country: typeof SAMPLE_COUNTRIES[0
         serviceName: service,
         countryCode: country.code,
         countryName: country.name,
-        phoneCode: country.phoneCode,
+        // formatted price
+        serviceIcon: `https://raw.githubusercontent.com/HatScripts/circle-flags/gh-pages/flags/${country.code.toLowerCase()}.svg`, // Just using flag as placeholder or null if prefer
         flagUrl: `https://raw.githubusercontent.com/HatScripts/circle-flags/gh-pages/flags/${country.code.toLowerCase()}.svg`,
         provider: provider.name,
         displayName: provider.displayName,

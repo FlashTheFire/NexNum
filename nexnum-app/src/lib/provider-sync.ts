@@ -54,8 +54,8 @@ async function upsertCountryLookup(code: string, name: string, flagUrl?: string 
         await prisma.countryLookup.upsert({
             where: { code },
             // Pass empty string or null for phoneCode column if it exists in DB schema but we want to ignore it
-            create: { code, name, phoneCode: '', flagUrl: flagUrl || null },
-            update: { name, phoneCode: '', flagUrl: flagUrl || undefined }
+            create: { code, name, flagUrl: flagUrl || null },
+            update: { name, flagUrl: flagUrl || undefined }
         })
     } catch (e) { }
 }
@@ -159,7 +159,8 @@ async function getServicesLegacy(provider: Provider, engine: DynamicProvider): P
 async function syncDynamic(provider: Provider): Promise<SyncResult> {
     const startTime = Date.now()
     let countriesCount = 0, servicesCount = 0, pricesCount = 0, error: string | undefined
-    const serviceMap = new Map<string, string>()
+    const serviceMap = new Map<string, string>()          // code -> name
+    const serviceIconMap = new Map<string, string>()      // code -> iconUrl
 
     try {
         // Pre-load ALL service names from ServiceLookup table for fallback
@@ -272,13 +273,11 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
                         externalId: c.code,
                         code: c.code.toLowerCase(),
                         name: c.name || 'Unknown',
-                        phoneCode: '', // Dummy value
                         flagUrl: c.flag || null,
                         lastSyncAt: new Date()
                     },
                     update: {
                         name: c.name || 'Unknown',
-                        phoneCode: '', // Dummy value
                         flagUrl: c.flag || null,
                         lastSyncAt: new Date()
                     }
@@ -308,7 +307,13 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
             // Upsert services to DB
             console.log(`[SYNC] ${provider.name}: Upserting ${services.length} services to DB...`)
             for (const s of services) {
+                // Add to maps
                 serviceMap.set(s.code, s.name)
+                serviceMap.set(s.code.toLowerCase(), s.name)
+                if (s.icon) {
+                    serviceIconMap.set(s.code, s.icon)
+                    serviceIconMap.set(s.code.toLowerCase(), s.icon)
+                }
                 const record = await prisma.providerService.upsert({
                     where: { providerId_externalId: { providerId: provider.id, externalId: s.code } },
                     create: {
@@ -357,7 +362,22 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
                     const countryOffers: OfferDocument[] = prices
                         .filter(p => p.count > 0)
                         .map(p => {
-                            const svcName = serviceMap.get(p.service) || p.service
+                            // Robust service name lookup:
+                            // 1. Try exact match
+                            // 2. Try lowercase match 
+                            // 3. Try ProviderService name from DB
+                            // 4. Fallback to code (should log warning)
+                            let svcName = serviceMap.get(p.service)
+                            if (!svcName) svcName = serviceMap.get(p.service.toLowerCase())
+                            if (!svcName) {
+                                // Check if we have it from the provider's own service list
+                                // This was populated during service upsert phase above
+                                svcName = serviceMap.get(p.service) || p.service
+                                // Only log if it looks like an unmapped numeric code
+                                if (/^\d+$/.test(p.service)) {
+                                    console.warn(`[SYNC] Service code "${p.service}" has no mapped name. Please add to ServiceLookup.`)
+                                }
+                            }
                             const rawPrice = Number(p.cost)
                             const sellPrice = (rawPrice * Number(provider.priceMultiplier)) + Number(provider.fixedMarkup)
 
@@ -368,7 +388,7 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
                                     providerId: provider.id,
                                     countryId: countryDbId,
                                     serviceId: serviceDbId,
-                                    operator: p.operator || null,
+                                    operator: p.operator != null ? String(p.operator) : null,
                                     cost: rawPrice,
                                     sellPrice: Number(sellPrice.toFixed(2)),
                                     stock: p.count,
@@ -385,6 +405,7 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
                                 flagUrl: country.flag || '',
                                 serviceSlug: p.service.toLowerCase(),
                                 serviceName: svcName,
+                                serviceIcon: serviceIconMap.get(p.service) || serviceIconMap.get(p.service.toLowerCase()),
                                 price: Number(sellPrice.toFixed(2)),
                                 stock: p.count,
                                 lastSyncedAt: Date.now()

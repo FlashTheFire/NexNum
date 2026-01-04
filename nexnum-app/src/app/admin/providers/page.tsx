@@ -5,10 +5,10 @@ import { createPortal } from "react-dom"
 import { motion, AnimatePresence } from "framer-motion"
 import {
     Search, Plus, Server, Globe, Shield, RefreshCw,
-    MoreHorizontal, CheckCircle, XCircle, AlertCircle, ChevronRight,
+    MoreHorizontal, CheckCircle, XCircle, AlertCircle, ChevronRight, ChevronDown,
     Trash2, Edit, Save, Play, Terminal, Upload, Image, DollarSign, FileCode,
     Wallet, MapPin, Smartphone, Phone, BarChart3, Ban, Plug, Sparkles, Info, Wand2,
-    Lock, Key, Link, FileText
+    Lock, Key, Link, FileText, X
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -365,6 +365,9 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
     // Testing State
     const [testAction, setTestAction] = useState('test')
     const [testParams, setTestParams] = useState({ country: '', service: '', id: '' })
+    const [testResults, setTestResults] = useState<Record<string, any>>({}) // Multi-test results
+    const [expandedTest, setExpandedTest] = useState<string | null>(null) // Which test row is expanded
+    const [selectedMapping, setSelectedMapping] = useState<string>('') // Legacy prop, can reuse if needed or remove
 
     // Logo upload states
     const [logoPreview, setLogoPreview] = useState<string | null>(provider?.logoUrl || null)
@@ -394,6 +397,7 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
             // Reset test state on provider open
             setTestAction('test')
             setTestResult(null)
+            setTestResults({}) // Reset multi-test results too
             setTestParams({ country: '', service: '', id: '' })
             setMappingMode('visual')
             setEndpointMode('visual')
@@ -529,6 +533,8 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
             }
 
             setTestResult({ ...data, parsed: parsedData })
+            // Also store in multi-results for new table UI
+            setTestResults(prev => ({ ...prev, [action]: { ...data, parsed: parsedData } }))
 
             if (res.ok && data.success) {
                 toast.success(`${action} successful`)
@@ -1489,245 +1495,239 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                             </div>
                         ) : (
                             <>
-                                {/* Header Card */}
+                                {/* Header Card with Run All Button */}
                                 <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-cyan-500/10 via-blue-500/5 to-purple-500/10">
                                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(6,182,212,0.15),transparent_50%)]" />
                                     <div className="relative p-4 md:p-5">
-                                        <div className="flex items-start gap-4">
-                                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20 shrink-0">
-                                                <Play className="w-6 h-6 text-white" />
+                                        <div className="flex items-start justify-between gap-4">
+                                            <div className="flex items-start gap-4">
+                                                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20 shrink-0">
+                                                    <Play className="w-6 h-6 text-white" />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <h4 className="text-base font-bold text-white mb-1">API Test Console</h4>
+                                                    <p className="text-xs text-white/50">Test your provider's API endpoints and verify configurations</p>
+                                                </div>
                                             </div>
-                                            <div className="flex-1">
-                                                <h4 className="text-base font-bold text-white mb-1">API Test Console</h4>
-                                                <p className="text-xs text-white/50">Test your provider's API endpoints and verify configurations</p>
-                                            </div>
+                                            {/* Run All Button - Moved to Header */}
+                                            <button
+                                                onClick={async () => {
+                                                    for (const action of ['getBalance', 'getCountries', 'getServices', 'getPrices']) {
+                                                        await runTest(action)
+                                                    }
+                                                }}
+                                                disabled={isTesting}
+                                                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-semibold text-xs flex items-center gap-2 transition-all disabled:opacity-50 shadow-lg shadow-blue-500/20 shrink-0"
+                                            >
+                                                {isTesting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                                                <span className="hidden md:inline">Run All Tests</span>
+                                                <span className="md:hidden">Run</span>
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* Independent Test Cards */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-                                    {/* Balance Test Card */}
-                                    <div
-                                        onClick={() => runTest('getBalance')}
-                                        className="group cursor-pointer p-3 md:p-5 rounded-2xl bg-white/5 border border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all relative overflow-hidden"
-                                    >
-                                        <div className="flex flex-row items-center gap-3 md:block md:gap-0">
-                                            <div className="flex items-center justify-between md:mb-4 shrink-0">
-                                                <div className="p-2 rounded-lg bg-emerald-500/20 group-hover:bg-emerald-500/30 transition-colors">
-                                                    <Wallet className="w-5 h-5 text-emerald-400" />
-                                                </div>
-                                                <div className="hidden md:block">
-                                                    {isTesting && testAction === 'getBalance' ? (
-                                                        <RefreshCw className="w-4 h-4 animate-spin text-emerald-400" />
-                                                    ) : (
-                                                        <Play className="w-4 h-4 text-white/20 group-hover:text-emerald-400 transition-colors" />
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <div className="flex-1 md:w-full">
-                                                <div className="text-white font-bold text-sm md:text-lg mb-0.5 md:mb-1">Check Balance</div>
-                                                <div className="text-[10px] md:text-xs text-white/40 md:mb-3">Verify API key & funds</div>
-                                            </div>
-                                            <div className="md:hidden">
-                                                {isTesting && testAction === 'getBalance' ? (
-                                                    <RefreshCw className="w-4 h-4 animate-spin text-emerald-400" />
-                                                ) : (
-                                                    <Play className="w-4 h-4 text-white/20 group-hover:text-emerald-400 transition-colors" />
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {testResult && testAction === 'getBalance' && (
-                                            <div className="mt-2 pt-2 border-t border-white/5 animate-in fade-in">
-                                                {testResult.parsed && testResult.parsed.balance !== undefined ? (
-                                                    <div className="text-xl font-mono font-bold text-emerald-400">
-                                                        {testResult.parsed.balance} <span className="text-xs text-emerald-400/50">{formData.currency}</span>
+                                {/* NEW: Unified Test Console */}
+                                <div className="p-5 bg-white/[0.02] rounded-2xl border border-white/10">
+                                    {/* Stepper Header */}
+                                    <div className="flex items-center justify-between mb-6">
+                                        <div className="flex items-center gap-3">
+                                            {[
+                                                { key: 'getBalance', label: 'Balance', icon: Wallet, color: 'emerald' },
+                                                { key: 'getCountries', label: 'Countries', icon: Globe, color: 'blue' },
+                                                { key: 'getServices', label: 'Services', icon: Smartphone, color: 'purple' },
+                                                { key: 'getPrices', label: 'Prices', icon: DollarSign, color: 'amber' },
+                                            ].map((step, idx, arr) => {
+                                                const isActive = testAction === step.key
+                                                const hasResult = testResults?.[step.key]
+                                                const isSuccess = hasResult?.success
+                                                const colorMap: Record<string, string> = {
+                                                    emerald: isActive ? 'ring-emerald-500 bg-emerald-500/20 text-emerald-400' : hasResult ? (isSuccess ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400') : 'bg-white/5 text-white/40',
+                                                    blue: isActive ? 'ring-blue-500 bg-blue-500/20 text-blue-400' : hasResult ? (isSuccess ? 'bg-blue-500/20 text-blue-400' : 'bg-red-500/20 text-red-400') : 'bg-white/5 text-white/40',
+                                                    purple: isActive ? 'ring-purple-500 bg-purple-500/20 text-purple-400' : hasResult ? (isSuccess ? 'bg-purple-500/20 text-purple-400' : 'bg-red-500/20 text-red-400') : 'bg-white/5 text-white/40',
+                                                    amber: isActive ? 'ring-amber-500 bg-amber-500/20 text-amber-400' : hasResult ? (isSuccess ? 'bg-amber-500/20 text-amber-400' : 'bg-red-500/20 text-red-400') : 'bg-white/5 text-white/40',
+                                                }
+                                                return (
+                                                    <div key={step.key} className="flex items-center gap-2">
+                                                        <button
+                                                            onClick={() => runTest(step.key)}
+                                                            className={`relative w-10 h-10 rounded-full flex items-center justify-center transition-all ${colorMap[step.color]} ${isActive ? 'ring-2 ring-offset-2 ring-offset-[#0a0a0c]' : ''}`}
+                                                        >
+                                                            {isTesting && testAction === step.key ? (
+                                                                <RefreshCw className="w-4 h-4 animate-spin" />
+                                                            ) : hasResult ? (
+                                                                isSuccess ? <CheckCircle className="w-4 h-4" /> : <X className="w-4 h-4" />
+                                                            ) : (
+                                                                <step.icon className="w-4 h-4" />
+                                                            )}
+                                                        </button>
+                                                        <span className={`text-xs font-medium hidden md:block ${isActive ? 'text-white' : 'text-white/40'}`}>{step.label}</span>
+                                                        {idx < arr.length - 1 && (
+                                                            <div className={`w-8 h-[2px] hidden md:block ${hasResult && isSuccess ? 'bg-gradient-to-r from-current to-white/10' : 'bg-white/10'}`} />
+                                                        )}
                                                     </div>
-                                                ) : (
-                                                    <div className="text-xs text-red-400">{testResult.error || 'Failed'}</div>
-                                                )}
-
-                                                {/* Mini Debug Trigger */}
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); setTestAction('manual'); }}
-                                                    className="mt-2 w-full text-[9px] text-white/20 hover:text-white uppercase tracking-wider text-center py-1 hover:bg-white/5 rounded transition-colors"
-                                                >
-                                                    View Trace
-                                                </button>
-                                            </div>
-                                        )}
+                                                )
+                                            })}
+                                        </div>
                                     </div>
 
-                                    {/* Countries Test Card */}
-                                    <div
-                                        onClick={() => runTest('getCountries')}
-                                        className="group cursor-pointer p-3 md:p-5 rounded-2xl bg-white/5 border border-white/10 hover:border-blue-500/50 hover:bg-blue-500/5 transition-all relative overflow-hidden"
-                                    >
-                                        <div className="flex flex-row items-center gap-3 md:block md:gap-0">
-                                            <div className="flex items-center justify-between md:mb-4 shrink-0">
-                                                <div className="p-2 rounded-lg bg-blue-500/20 group-hover:bg-blue-500/30 transition-colors">
-                                                    <Globe className="w-5 h-5 text-blue-400" />
-                                                </div>
-                                                <div className="hidden md:block">
-                                                    {isTesting && testAction === 'getCountries' ? (
-                                                        <RefreshCw className="w-4 h-4 animate-spin text-blue-400" />
-                                                    ) : (
-                                                        <Play className="w-4 h-4 text-white/20 group-hover:text-blue-400 transition-colors" />
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <div className="flex-1 md:w-full">
-                                                <div className="text-white font-bold text-sm md:text-lg mb-0.5 md:mb-1">Fetch Countries</div>
-                                                <div className="text-[10px] md:text-xs text-white/40 md:mb-3">Verify country list</div>
-                                            </div>
-                                            <div className="md:hidden">
-                                                {isTesting && testAction === 'getCountries' ? (
-                                                    <RefreshCw className="w-4 h-4 animate-spin text-blue-400" />
-                                                ) : (
-                                                    <Play className="w-4 h-4 text-white/20 group-hover:text-blue-400 transition-colors" />
-                                                )}
-                                            </div>
+                                    {/* Results Table with Foldable Response Parser */}
+                                    <div className="rounded-xl border border-white/10 overflow-hidden bg-black/20">
+                                        {/* Table Header */}
+                                        <div className="grid grid-cols-12 gap-2 px-4 py-2.5 bg-white/5 border-b border-white/10 text-[10px] uppercase tracking-wider text-white/40 font-semibold">
+                                            <div className="col-span-5">Test Endpoint</div>
+                                            <div className="col-span-2 text-center">Status</div>
+                                            <div className="col-span-3">Result</div>
+                                            <div className="col-span-2 text-right">Time</div>
                                         </div>
 
-                                        {testResult && testAction === 'getCountries' && (
-                                            <div className="mt-2 pt-2 border-t border-white/5 animate-in fade-in space-y-1">
-                                                {testResult.parsed && testResult.parsed.first && Array.isArray(testResult.parsed.first) ? (
-                                                    <>
-                                                        <div className="text-xs text-blue-300 font-mono mb-1">{testResult.parsed.count} found</div>
-                                                        {testResult.parsed.first.slice(0, 2).map((c: any, i: number) => (
-                                                            <div key={i} className="flex justify-between text-[10px] text-white/60">
-                                                                <span>{c.name}</span>
-                                                                <code className="text-blue-400">{c.id}</code>
-                                                            </div>
-                                                        ))}
-                                                    </>
-                                                ) : (
-                                                    <div className="text-xs text-red-400">{testResult.error || 'Failed'}</div>
-                                                )}
-                                                {/* Mini Debug Trigger */}
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); setTestAction('manual'); }}
-                                                    className="mt-2 w-full text-[9px] text-white/20 hover:text-white uppercase tracking-wider text-center py-1 hover:bg-white/5 rounded transition-colors"
-                                                >
-                                                    View Trace
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
+                                        {/* Table Rows */}
+                                        {[
+                                            { key: 'getBalance', label: 'Check Balance', icon: Wallet, color: 'emerald', borderColor: 'border-l-emerald-500' },
+                                            { key: 'getCountries', label: 'Fetch Countries', icon: Globe, color: 'blue', borderColor: 'border-l-blue-500' },
+                                            { key: 'getServices', label: 'Fetch Services', icon: Smartphone, color: 'purple', borderColor: 'border-l-purple-500' },
+                                            { key: 'getPrices', label: 'Check Prices', icon: DollarSign, color: 'amber', borderColor: 'border-l-amber-500' },
+                                        ].map((row) => {
+                                            const result = testResults?.[row.key]
+                                            const isRunning = isTesting && testAction === row.key
+                                            const isExpanded = expandedTest === row.key
 
-                                    {/* Services Test Card */}
-                                    <div
-                                        onClick={() => runTest('getServices')}
-                                        className="group cursor-pointer p-3 md:p-5 rounded-2xl bg-white/5 border border-white/10 hover:border-purple-500/50 hover:bg-purple-500/5 transition-all relative overflow-hidden"
-                                    >
-                                        <div className="flex flex-row items-center gap-3 md:block md:gap-0">
-                                            <div className="flex items-center justify-between md:mb-4 shrink-0">
-                                                <div className="p-2 rounded-lg bg-purple-500/20 group-hover:bg-purple-500/30 transition-colors">
-                                                    <Smartphone className="w-5 h-5 text-purple-400" />
-                                                </div>
-                                                <div className="hidden md:block">
-                                                    {isTesting && testAction === 'getServices' ? (
-                                                        <RefreshCw className="w-4 h-4 animate-spin text-purple-400" />
-                                                    ) : (
-                                                        <Play className="w-4 h-4 text-white/20 group-hover:text-purple-400 transition-colors" />
+                                            return (
+                                                <div key={row.key} className="border-b border-white/5 last:border-0">
+                                                    {/* Main Row */}
+                                                    <div
+                                                        onClick={() => {
+                                                            if (result) {
+                                                                setExpandedTest(isExpanded ? null : row.key)
+                                                            } else {
+                                                                runTest(row.key)
+                                                            }
+                                                        }}
+                                                        className={`grid grid-cols-12 gap-2 px-4 py-3 border-l-4 ${row.borderColor} hover:bg-white/5 cursor-pointer transition-all ${isRunning || isExpanded ? 'bg-white/5' : ''}`}
+                                                    >
+                                                        {/* Test Name */}
+                                                        <div className="col-span-5 flex items-center gap-3">
+                                                            <div className={`p-1.5 rounded-lg bg-${row.color}-500/10`}>
+                                                                <row.icon className={`w-4 h-4 text-${row.color}-400`} />
+                                                            </div>
+                                                            <span className="text-sm font-medium text-white">{row.label}</span>
+                                                            {result && (
+                                                                <ChevronDown className={`w-3 h-3 text-white/30 transition-transform ml-auto ${isExpanded ? 'rotate-180 text-white' : ''}`} />
+                                                            )}
+                                                        </div>
+
+                                                        {/* Status */}
+                                                        {/* Status */}
+                                                        <div className="col-span-2 flex items-center justify-center">
+                                                            {isRunning ? (
+                                                                <RefreshCw className="w-4 h-4 animate-spin text-blue-400" />
+                                                            ) : result ? (
+                                                                result.success ? (
+                                                                    <div className="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                                                                        <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="w-6 h-6 rounded-full bg-red-500/20 flex items-center justify-center">
+                                                                        <X className="w-3.5 h-3.5 text-red-400" />
+                                                                    </div>
+                                                                )
+                                                            ) : (
+                                                                <div className="w-6 h-6 rounded-full bg-white/5 flex items-center justify-center">
+                                                                    <div className="w-2 h-2 rounded-full bg-white/20" />
+                                                                </div>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Result Value */}
+                                                        <div className="col-span-3 flex items-center">
+                                                            {result ? (
+                                                                result.success ? (
+                                                                    <span className="text-xs font-mono text-white/70 truncate">
+                                                                        {row.key === 'getBalance' && result.parsed?.balance !== undefined && (
+                                                                            <span className="text-emerald-400 font-bold">{result.parsed.balance} {formData.currency}</span>
+                                                                        )}
+                                                                        {row.key === 'getCountries' && result.parsed?.count && (
+                                                                            <span className="text-blue-400">{result.parsed.count} items</span>
+                                                                        )}
+                                                                        {row.key === 'getServices' && result.parsed?.count && (
+                                                                            <span className="text-purple-400">{result.parsed.count} items</span>
+                                                                        )}
+                                                                        {row.key === 'getPrices' && result.parsed?.count && (
+                                                                            <span className="text-amber-400">{result.parsed.count} items</span>
+                                                                        )}
+                                                                        {/* Fallback if no specific parsed fields */}
+                                                                        {!result.parsed?.balance && !result.parsed?.count && (
+                                                                            <span className="text-emerald-400">Success</span>
+                                                                        )}
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-xs text-red-400 truncate">{result.error || 'Failed'}</span>
+                                                                )
+                                                            ) : (
+                                                                <span className="text-xs text-white/30">—</span>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Response Time & Chevron */}
+                                                        <div className="col-span-2 flex items-center justify-end gap-3">
+                                                            {result?.duration ? (
+                                                                <span className="px-2 py-0.5 rounded-full bg-white/5 text-[10px] font-mono text-white/50">
+                                                                    {result.duration}ms
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-xs text-white/20">—</span>
+                                                            )}
+
+                                                            {/* Advanced Chevron */}
+                                                            {result && (
+                                                                <div className={`
+                                                                    w-6 h-6 rounded-full flex items-center justify-center transition-all duration-300
+                                                                    ${isExpanded ? 'bg-white text-black rotate-180 shadow-[0_0_10px_rgba(255,255,255,0.3)]' : 'bg-white/5 text-white/40 hover:bg-white/10 hover:text-white'}
+                                                                `}>
+                                                                    <ChevronDown className="w-3.5 h-3.5" />
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Folded Response Parser Section */}
+                                                    {isExpanded && result && (
+                                                        <div className="border-t border-white/5 bg-black/20 p-4 animate-in slide-in-from-top-2 duration-200">
+                                                            <div className="space-y-4">
+                                                                {/* Response Header */}
+                                                                <div className="flex items-center gap-2 mb-2">
+                                                                    <div className="p-1 rounded bg-purple-500/20">
+                                                                        <Terminal className="w-3 h-3 text-purple-400" />
+                                                                    </div>
+                                                                    <span className="text-xs font-bold text-white uppercase tracking-wider">Response Inspector</span>
+                                                                    <div className="h-px bg-white/10 flex-1 ml-2" />
+                                                                </div>
+
+                                                                {/* Parsed Data Only */}
+                                                                <div className="space-y-2">
+                                                                    <div className="flex items-center justify-between">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <div className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+                                                                            <span className="text-[10px] font-semibold text-purple-400 uppercase tracking-wider">Parsed Data</span>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="rounded-lg border border-purple-500/20 bg-black/40 overflow-hidden relative group">
+                                                                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/10 text-white/50">JSON</span>
+                                                                        </div>
+                                                                        <div className="p-3 overflow-auto max-h-60 custom-scrollbar">
+                                                                            <pre className="text-[10px] text-purple-300/80 font-mono leading-relaxed whitespace-pre-wrap break-all">
+                                                                                {JSON.stringify(result.parsed, null, 2)}
+                                                                            </pre>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
                                                     )}
                                                 </div>
-                                            </div>
-                                            <div className="flex-1 md:w-full">
-                                                <div className="text-white font-bold text-sm md:text-lg mb-0.5 md:mb-1">Fetch Services</div>
-                                                <div className="text-[10px] md:text-xs text-white/40 md:mb-3">Test service mapping</div>
-                                            </div>
-                                            <div className="md:hidden">
-                                                {isTesting && testAction === 'getServices' ? (
-                                                    <RefreshCw className="w-4 h-4 animate-spin text-purple-400" />
-                                                ) : (
-                                                    <Play className="w-4 h-4 text-white/20 group-hover:text-purple-400 transition-colors" />
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {testResult && testAction === 'getServices' && (
-                                            <div className="mt-2 pt-2 border-t border-white/5 animate-in fade-in space-y-1">
-                                                {testResult.parsed && testResult.parsed.first && Array.isArray(testResult.parsed.first) ? (
-                                                    <>
-                                                        <div className="text-xs text-purple-300 font-mono mb-1">{testResult.parsed.count} found</div>
-                                                        {testResult.parsed.first.slice(0, 2).map((s: any, i: number) => (
-                                                            <div key={i} className="flex justify-between text-[10px] text-white/60">
-                                                                <span>{s.name || s.serviceName || 'Unknown'}</span>
-                                                                <code className="text-purple-400">{s.code || s.serviceId || s.id || s.price || ''}</code>
-                                                            </div>
-                                                        ))}
-                                                    </>
-                                                ) : (
-                                                    <div className="text-xs text-red-400">{testResult.error || 'Check params'}</div>
-                                                )}
-                                                {/* Mini Debug Trigger */}
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); setTestAction('manual'); }}
-                                                    className="mt-2 w-full text-[9px] text-white/20 hover:text-white uppercase tracking-wider text-center py-1 hover:bg-white/5 rounded transition-colors"
-                                                >
-                                                    View Trace
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Prices Test Card */}
-                                    <div
-                                        onClick={() => runTest('getPrices')}
-                                        className="group cursor-pointer p-3 md:p-5 rounded-2xl bg-white/5 border border-white/10 hover:border-amber-500/50 hover:bg-amber-500/5 transition-all relative overflow-hidden"
-                                    >
-                                        <div className="flex flex-row items-center gap-3 md:block md:gap-0">
-                                            <div className="flex items-center justify-between md:mb-4 shrink-0">
-                                                <div className="p-2 rounded-lg bg-amber-500/20 group-hover:bg-amber-500/30 transition-colors">
-                                                    <DollarSign className="w-5 h-5 text-amber-400" />
-                                                </div>
-                                                <div className="hidden md:block">
-                                                    {isTesting && testAction === 'getPrices' ? (
-                                                        <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
-                                                    ) : (
-                                                        <Play className="w-4 h-4 text-white/20 group-hover:text-amber-400 transition-colors" />
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <div className="flex-1 md:w-full">
-                                                <div className="text-white font-bold text-sm md:text-lg mb-0.5 md:mb-1">Check Prices</div>
-                                                <div className="text-[10px] md:text-xs text-white/40 md:mb-3">Verify pricing data</div>
-                                            </div>
-                                            <div className="md:hidden">
-                                                {isTesting && testAction === 'getPrices' ? (
-                                                    <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
-                                                ) : (
-                                                    <Play className="w-4 h-4 text-white/20 group-hover:text-amber-400 transition-colors" />
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {testResult && testAction === 'getPrices' && (
-                                            <div className="mt-2 pt-2 border-t border-white/5 animate-in fade-in space-y-1">
-                                                {testResult.parsed && testResult.parsed.first && Array.isArray(testResult.parsed.first) ? (
-                                                    <>
-                                                        <div className="text-xs text-amber-300 font-mono mb-1">{testResult.parsed.count} prices found</div>
-                                                        {testResult.parsed.first.slice(0, 2).map((p: any, i: number) => (
-                                                            <div key={i} className="flex justify-between text-[10px] text-white/60">
-                                                                <span className="truncate max-w-[80px]">{p.service} ({p.country})</span>
-                                                                <code className="text-amber-400">{p.cost} ({p.count})</code>
-                                                            </div>
-                                                        ))}
-                                                    </>
-                                                ) : (
-                                                    <div className="text-xs text-red-400">{testResult.error || 'Check params'}</div>
-                                                )}
-                                                {/* Mini Debug Trigger */}
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); setTestAction('manual'); }}
-                                                    className="mt-2 w-full text-[9px] text-white/20 hover:text-white uppercase tracking-wider text-center py-1 hover:bg-white/5 rounded transition-colors"
-                                                >
-                                                    View Trace
-                                                </button>
-                                            </div>
-                                        )}
+                                            )
+                                        })}
                                     </div>
                                 </div>
 

@@ -199,6 +199,7 @@ export function ProviderAIHub({ currentData, onUpdate }: ProviderAIHubProps) {
                     {/* Select Endpoint Dropdown if not General */}
                     {mode !== 'general' && (
                         <select
+                            title="Select Endpoint"
                             value={selectedEndpoint}
                             onChange={(e) => setSelectedEndpoint(e.target.value)}
                             className="bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-white/20"

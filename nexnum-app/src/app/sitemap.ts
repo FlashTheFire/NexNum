@@ -23,12 +23,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
     // 2. Dynamic Countries
     const countryResult = await searchAdminCountries('', { limit: 1000 })
-    const countryRoutes = countryResult.items.map((country: any) => ({
-        url: `${baseUrl}/sms/${country.code.toLowerCase()}`,
-        lastModified: new Date(country.lastSyncedAt),
-        changeFrequency: 'hourly' as const,
-        priority: 0.8,
-    }))
+    const countryRoutes = countryResult.items
+        .filter((c: any) => c.code)
+        .map((country: any) => ({
+            url: `${baseUrl}/sms/${country.code.toLowerCase()}`,
+            lastModified: new Date(country.lastSyncedAt),
+            changeFrequency: 'hourly' as const,
+            priority: 0.8,
+        }))
 
     // 3. Dynamic Services
     const serviceResult = await searchAdminServices('', { limit: 1000 })

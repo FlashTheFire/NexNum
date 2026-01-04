@@ -38,44 +38,6 @@ export class GrizzlySmsProvider implements SmsProvider {
     name = 'grizzlysms'
 
     /**
-     * Handler API request (SMS-Activate compatible)
-     */
-    private async handlerRequest(action: string, params: Record<string, string> = {}): Promise<string> {
-        if (!API_KEY) {
-            throw new Error('GRIZZLYSMS_API_KEY is not configured')
-        }
-
-        const url = new URL(HANDLER_URL)
-        url.searchParams.set('api_key', API_KEY)
-        url.searchParams.set('action', action)
-
-        for (const [key, value] of Object.entries(params)) {
-            url.searchParams.set(key, value)
-        }
-
-        const response = await fetch(url.toString(), {
-            headers: {
-                'Accept': 'application/json, text/plain, */*',
-                'Accept-Language': 'en-US,en;q=0.9',
-                'Cache-Control': 'no-cache',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            }
-        })
-
-        if (!response.ok) {
-            throw new Error(`GrizzlySMS API error: ${response.status}`)
-        }
-
-        const text = await response.text()
-
-        if (text.startsWith('BAD_') || text.startsWith('NO_') || text.startsWith('ERROR')) {
-            throw new Error(`GrizzlySMS error: ${text}`)
-        }
-
-        return text
-    }
-
-    /**
      * REST API request (Grizzly proprietary)
      */
     private async restRequest<T>(endpoint: string): Promise<T> {
@@ -122,128 +84,36 @@ export class GrizzlySmsProvider implements SmsProvider {
     }
 
     async getServices(countryCode: string): Promise<Service[]> {
-        // Use Handler API (SMS-Activate compatible) as it contains ALL services
-        // The REST API was missing some services (e.g. acx, aco)
-
+        // Use REST API /api/service endpoint - returns ALL services with proper names
+        // external_id matches the service codes returned by getPrices
         try {
-            const response = await this.handlerRequest('getServicesList')
+            // Fetch all services (up to 10000 per page)
+            const data = await this.restRequest<Array<{
+                id: number
+                name: string
+                external_id: string
+                icon: number | null
+                slug: string
+            }>>('/service?per-page=10000&page=1')
 
-            // Response format: { status: "success", services: [{ "code": "vk", "name": "Vk.com" }, ...] }
-            let data: any
-            try {
-                data = JSON.parse(response)
-            } catch (e) {
-                // Sometimes it might return just the array or different format?
-                throw new Error(`Failed to parse getServicesList JSON: ${response ? response.substring(0, 50) : 'empty'}`)
+            if (!Array.isArray(data)) {
+                throw new Error(`Invalid service response: expected array`)
             }
 
-            if (data.status !== 'success' || !Array.isArray(data.services)) {
-                // Fallback: check if it returns array directly (some implementations differ)
-                if (Array.isArray(data)) {
-                    // Assume direct array
-                    return data.map((s: any) => ({
-                        id: s.code.toLowerCase(),
-                        code: s.code.toLowerCase(),
-                        name: s.name || s.slug,
-                        price: 0
-                    }))
-                }
-                throw new Error(`Invalid getServicesList response: ${JSON.stringify(data).substring(0, 100)}`)
-            }
+            console.log(`[GrizzlySMS] Fetched ${data.length} services from REST API`)
 
-            return data.services.map((s: any) => ({
-                id: s.code.toLowerCase(),
-                code: s.code.toLowerCase(),
-                name: s.name || s.slug, // Fallback to code if name missing
-                price: 0
+            return data.map(s => ({
+                id: s.external_id.toLowerCase(),
+                code: s.external_id.toLowerCase(),
+                name: s.name || s.slug || s.external_id, // Use name, fallback to slug, then code
+                price: 0,
+                // Construct icon URL from icon ID
+                icon: s.icon ? `https://grizzlysms.com/api/storage/image/${s.icon}.webp` : null
             }))
 
         } catch (e) {
             console.error('GrizzlySMS getServices failed:', e)
             throw e
         }
-    }
-
-    /**
-     * Purchase a number for SMS verification
-     */
-    async getNumber(countryCode: string, serviceCode: string): Promise<NumberResult> {
-        const response = await this.handlerRequest('getNumber', {
-            service: serviceCode,
-            country: countryCode
-        })
-
-        // Parse ACCESS_NUMBER:id:phone format
-        const parts = response.split(':')
-        if (parts[0] !== 'ACCESS_NUMBER' || parts.length < 3) {
-            throw new Error(`Failed to get number: ${response}`)
-        }
-
-        return {
-            activationId: parts[1],
-            phoneNumber: parts[2],
-            countryCode,
-            countryName: '',
-            serviceCode,
-            serviceName: '',
-            price: 0,
-            expiresAt: new Date(Date.now() + 20 * 60 * 1000) // 20 min default
-        }
-    }
-
-    /**
-     * Check activation status and get SMS code
-     */
-    async getStatus(activationId: string): Promise<StatusResult> {
-        const response = await this.handlerRequest('getStatus', { id: activationId })
-
-        let status: NumberStatus = 'pending'
-        let code: string | undefined
-
-        if (response === 'STATUS_WAIT_CODE') {
-            status = 'pending'
-        } else if (response.startsWith('STATUS_WAIT_RETRY')) {
-            status = 'pending'
-        } else if (response.startsWith('STATUS_OK')) {
-            status = 'received'
-            code = response.split(':')[1]
-        } else if (response === 'STATUS_CANCEL') {
-            status = 'cancelled'
-        }
-
-        const messages = code ? [{
-            id: Date.now().toString(),
-            sender: 'System',
-            content: `Code: ${code}`,
-            code,
-            receivedAt: new Date()
-        }] : []
-
-        return { status, messages }
-    }
-
-    /**
-     * Cancel/release an activation
-     */
-    async cancelNumber(activationId: string): Promise<void> {
-        await this.handlerRequest('setStatus', {
-            id: activationId,
-            status: '8' // Cancel status
-        })
-    }
-
-    /**
-     * Get account balance
-     */
-    async getBalance(): Promise<number> {
-        const response = await this.handlerRequest('getBalance')
-
-        // Parse ACCESS_BALANCE:123.45 format
-        const match = response.match(/ACCESS_BALANCE:(\d+\.?\d*)/)
-        if (match) {
-            return parseFloat(match[1])
-        }
-
-        return 0
     }
 }

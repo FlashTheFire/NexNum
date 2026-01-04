@@ -5,9 +5,178 @@
  * - Normalizes variations to canonical names
  * - Prefers more detailed names (e.g., "Czech Republic" over "Czech")
  * - Provides phone code lookup fallbacks
+ * - Maps provider-specific country IDs to ISO codes
  */
 
-// Canonical name mappings - maps alternate/short names to preferred detailed names
+// Provider ID → ISO Code mapping (GrizzlySMS and similar providers)
+// These are the numeric IDs returned by provider APIs
+export const PROVIDER_ID_TO_ISO: Record<string, string> = {
+    '0': 'ru',   // Russia
+    '1': 'ua',   // Ukraine  
+    '2': 'kz',   // Kazakhstan
+    '3': 'af',   // Afghanistan
+    '4': 'al',   // Albania
+    '5': 'dz',   // Algeria
+    '6': 'ao',   // Angola
+    '10': 'us',  // United States
+    '12': 'ar',  // Argentina
+    '13': 'am',  // Armenia
+    '14': 'au',  // Australia
+    '15': 'at',  // Austria
+    '16': 'az',  // Azerbaijan
+    '17': 'bd',  // Bangladesh
+    '18': 'by',  // Belarus
+    '19': 'be',  // Belgium
+    '21': 'ba',  // Bosnia
+    '22': 'br',  // Brazil
+    '23': 'bg',  // Bulgaria
+    '24': 'mm',  // Myanmar
+    '25': 'kh',  // Cambodia
+    '26': 'cm',  // Cameroon
+    '27': 'ca',  // Canada
+    '28': 'td',  // Chad
+    '29': 'cl',  // Chile
+    '30': 'cn',  // China
+    '31': 'co',  // Colombia
+    '33': 'cd',  // Congo DR
+    '34': 'cr',  // Costa Rica
+    '35': 'hr',  // Croatia
+    '36': 'cy',  // Cyprus
+    '37': 'cz',  // Czech Republic
+    '38': 'dk',  // Denmark
+    '39': 'do',  // Dominican Republic
+    '40': 'ec',  // Ecuador
+    '41': 'eg',  // Egypt
+    '43': 'ee',  // Estonia
+    '44': 'et',  // Ethiopia
+    '45': 'fi',  // Finland
+    '46': 'fr',  // France
+    '47': 'gm',  // Gambia
+    '48': 'ge',  // Georgia
+    '49': 'de',  // Germany
+    '50': 'gh',  // Ghana
+    '51': 'gr',  // Greece
+    '52': 'gt',  // Guatemala
+    '53': 'gn',  // Guinea
+    '54': 'ht',  // Haiti
+    '55': 'hn',  // Honduras
+    '56': 'hk',  // Hong Kong
+    '57': 'hu',  // Hungary
+    '58': 'is',  // Iceland
+    '59': 'in',  // India
+    '60': 'id',  // Indonesia
+    '61': 'iq',  // Iraq
+    '62': 'ie',  // Ireland
+    '63': 'il',  // Israel
+    '64': 'it',  // Italy
+    '65': 'ci',  // Ivory Coast
+    '66': 'jm',  // Jamaica
+    '67': 'jp',  // Japan
+    '68': 'jo',  // Jordan
+    '69': 'ke',  // Kenya
+    '70': 'kw',  // Kuwait
+    '71': 'kg',  // Kyrgyzstan
+    '72': 'la',  // Laos
+    '73': 'lv',  // Latvia
+    '74': 'lr',  // Liberia
+    '75': 'ly',  // Libya
+    '76': 'lt',  // Lithuania
+    '77': 'lu',  // Luxembourg
+    '78': 'mo',  // Macao
+    '79': 'mk',  // North Macedonia
+    '80': 'mg',  // Madagascar
+    '81': 'mw',  // Malawi
+    '82': 'my',  // Malaysia
+    '83': 'mv',  // Maldives
+    '84': 'ml',  // Mali
+    '85': 'mt',  // Malta
+    '86': 'mr',  // Mauritania
+    '87': 'mu',  // Mauritius
+    '88': 'mx',  // Mexico
+    '89': 'md',  // Moldova
+    '90': 'mn',  // Mongolia
+    '91': 'ma',  // Morocco
+    '92': 'mz',  // Mozambique
+    '93': 'np',  // Nepal
+    '94': 'nl',  // Netherlands
+    '95': 'nz',  // New Zealand
+    '96': 'ni',  // Nicaragua
+    '97': 'ne',  // Niger
+    '98': 'ng',  // Nigeria
+    '99': 'no',  // Norway
+    '100': 'om', // Oman
+    '101': 'pk', // Pakistan
+    '102': 'ps', // Palestine
+    '103': 'pa', // Panama
+    '104': 'py', // Paraguay
+    '105': 'pe', // Peru
+    '106': 'ph', // Philippines
+    '107': 'pl', // Poland
+    '108': 'pt', // Portugal
+    '109': 'pr', // Puerto Rico
+    '110': 'qa', // Qatar
+    '111': 'ro', // Romania
+    '112': 'rw', // Rwanda
+    '113': 'sa', // Saudi Arabia
+    '114': 'sn', // Senegal
+    '115': 'rs', // Serbia
+    '116': 'sl', // Sierra Leone
+    '117': 'sg', // Singapore
+    '118': 'sk', // Slovakia
+    '119': 'si', // Slovenia
+    '120': 'so', // Somalia
+    '121': 'za', // South Africa
+    '122': 'kr', // South Korea
+    '123': 'es', // Spain
+    '124': 'lk', // Sri Lanka
+    '125': 'sd', // Sudan
+    '126': 'sr', // Suriname
+    '127': 'sz', // Eswatini
+    '128': 'se', // Sweden
+    '129': 'ch', // Switzerland
+    '130': 'sy', // Syria
+    '131': 'tw', // Taiwan
+    '132': 'tj', // Tajikistan
+    '133': 'tz', // Tanzania
+    '134': 'th', // Thailand
+    '135': 'tg', // Togo
+    '136': 'tt', // Trinidad
+    '137': 'tn', // Tunisia
+    '138': 'tr', // Turkey
+    '139': 'tm', // Turkmenistan
+    '140': 'ug', // Uganda
+    '141': 'ae', // UAE
+    '142': 'gb', // United Kingdom
+    '143': 'uy', // Uruguay
+    '144': 'uz', // Uzbekistan
+    '145': 've', // Venezuela
+    '146': 'vn', // Vietnam
+    '147': 'ye', // Yemen
+    '148': 'zm', // Zambia
+    '149': 'zw', // Zimbabwe
+}
+
+// Reverse map: ISO → Provider ID (for lookups)
+export const ISO_TO_PROVIDER_ID: Record<string, string> = Object.fromEntries(
+    Object.entries(PROVIDER_ID_TO_ISO).map(([id, iso]) => [iso, id])
+)
+
+/**
+ * Convert a provider-specific country code to ISO code
+ * Returns the original code if no mapping exists
+ */
+export function toIsoCode(providerCode: string): string {
+    return PROVIDER_ID_TO_ISO[providerCode] || providerCode.toLowerCase()
+}
+
+/**
+ * Convert an ISO code to provider-specific ID
+ * Returns the original code if no mapping exists  
+ */
+export function toProviderCode(isoCode: string): string {
+    return ISO_TO_PROVIDER_ID[isoCode.toLowerCase()] || isoCode
+}
+
 const COUNTRY_NAME_MAP: Record<string, string> = {
     // Argentina variations
     'argentina': 'Argentina',

@@ -43,15 +43,117 @@ export const PROVIDER_TEMPLATES = {
         mappings: '{\n  "getCountries": { "type": "json_dictionary", "fields": { "id": "iso.$firstValue", "name": "text_en", "code": "$key" } },\n  "getServices": { "type": "json_dictionary", "fields": { "id": "$key", "name": "$key", "code": "$key", "price": "cost", "count": "count" } },\n  "getNumber": { "type": "text_regex", "regex": "ACCESS_NUMBER:(\\\\d+):(\\\\d+)", "fields": { "id": "1", "phone": "2", "price": "0" } },\n  "getStatus": { "type": "text_regex", "regex": "STATUS_([A-Z_]+):?(.*)?", "fields": { "status": "1", "sms": "2" } },\n  "cancelNumber": { "type": "text_regex", "regex": "ACCESS_CANCEL", "fields": { "status": "1" } },\n  "getBalance": { "type": "text_regex", "regex": "ACCESS_BALANCE:([\\\\d.]+)", "fields": { "balance": "1" } }\n}'
     },
     'grizzlysms': {
-        name: 'grizzlysms',
-        displayName: 'GrizzlySMS',
-        description: 'Popular provider. Uses JSON API (v2) for best reliability.',
-        baseUrl: 'https://api.grizzlysms.com/stubs/handler_api.php',
-        authType: 'query_param',
-        authQueryParam: 'api_key',
-        endpoints: '{\n  "getCountries": { "method": "GET", "path": "https://api.grizzlysms.com/stubs/handler_api.php?action=getCountries&api_key={authKey}" },\n  "getServices": { "method": "GET", "path": "https://api.grizzlysms.com/stubs/handler_api.php?action=getServicesList&country={country}&lang=en&api_key={authKey}" },\n  "getNumber": { "method": "GET", "path": "https://api.grizzlysms.com/stubs/handler_api.php?action=getNumberV2&service={service}&country={country}&api_key={authKey}" },\n  "getStatus": { "method": "GET", "path": "https://api.grizzlysms.com/stubs/handler_api.php?action=getStatus&id={id}&api_key={authKey}" },\n  "cancelNumber": { "method": "GET", "path": "https://api.grizzlysms.com/stubs/handler_api.php?action=setStatus&id={id}&status=8&api_key={authKey}" },\n  "getBalance": { "method": "GET", "path": "https://api.grizzlysms.com/stubs/handler_api.php?action=getBalance&api_key={authKey}" }\n}',
-        mappings: '{\n  "getCountries": { "type": "json_array", "rootPath": "$", "fields": { "id": "id", "name": "eng", "code": "id" } },\n  "getServices": { "type": "json_dictionary", "fields": { "id": "$key", "name": "name", "code": "$key", "price": "cost" } },\n  "getNumber": { "type": "json_object", "fields": { "id": "activationId", "phone": "phoneNumber", "price": "activationCost" } },\n  "getStatus": { "type": "text_regex", "regex": "STATUS_([A-Z_]+)(:?.*)?", "fields": { "status": "1", "code": "2" } },\n  "cancelNumber": { "type": "text_regex", "regex": "ACCESS_CANCEL", "fields": { "status": "0" } },\n  "getBalance": { "type": "text_regex", "regex": "ACCESS_BALANCE:([\\\\d.]+)", "fields": { "balance": "1" } }\n}'
-    },
+    name: 'grizzlysms',
+    displayName: 'GrizzlySMS',
+    description: 'Popular provider. Uses JSON API (v2/V3) for best reliability.',
+    baseUrl: 'https://api.grizzlysms.com/stubs/handler_api.php',
+    authType: 'query_param',
+    authQueryParam: 'api_key',
+
+    endpoints: '{\n' +
+    '  "getCountries": {\n' +
+    '    "method": "GET",\n' +
+    '    "path": "https://api.grizzlysms.com/stubs/handler_api.php?action=getCountries&api_key={authKey}"\n' +
+    '  },\n' +
+    '  "getServices": {\n' +
+    '    "method": "GET",\n' +
+    '    "path": "https://api.grizzlysms.com/stubs/handler_api.php?action=getServicesList&country={country}&lang=en&api_key={authKey}"\n' +
+    '  },\n' +
+    '  "getNumber": {\n' +
+    '    "method": "GET",\n' +
+    '    "path": "https://api.grizzlysms.com/stubs/handler_api.php?action=getNumberV2&service={service}&country={country}&api_key={authKey}"\n' +
+    '  },\n' +
+    '  "getStatus": {\n' +
+    '    "method": "GET",\n' +
+    '    "path": "https://api.grizzlysms.com/stubs/handler_api.php?action=getStatus&id={id}&api_key={authKey}"\n' +
+    '  },\n' +
+    '  "cancelNumber": {\n' +
+    '    "method": "GET",\n' +
+    '    "path": "https://api.grizzlysms.com/stubs/handler_api.php?action=setStatus&id={id}&status=8&api_key={authKey}"\n' +
+    '  },\n' +
+    '  "getBalance": {\n' +
+    '    "method": "GET",\n' +
+    '    "path": "https://api.grizzlysms.com/stubs/handler_api.php?action=getBalance&api_key={authKey}"\n' +
+    '  },\n' +
+    '  "getPrices": {\n' +
+    '    "method": "GET",\n' +
+    '    "path": "https://api.grizzlysms.com/stubs/handler_api.php",\n' +
+    '    "queryParams": {\n' +
+    '      "action": "getPricesV3",\n' +
+    '      "api_key": "{authKey}",\n' +
+    '      "country": "$country",\n' +
+    '      "service": "$service"\n' +
+    '    }\n' +
+    '  }\n' +
+    '}',
+
+    mappings: '{\n' +
+    '  "getCountries": {\n' +
+    '    "type": "json_array",\n' +
+    '    "rootPath": "$",\n' +
+    '    "fields": {\n' +
+    '      "id": "id",\n' +
+    '      "code": "id",\n' +
+    '      "name": "eng"\n' +
+    '    }\n' +
+    '  },\n' +
+    '  "getServices": {\n' +
+    '    "type": "json_dictionary",\n' +
+    '    "fields": {\n' +
+    '      "id": "$key",\n' +
+    '      "code": "$key",\n' +
+    '      "name": "name",\n' +
+    '      "price": "cost"\n' +
+    '    }\n' +
+    '  },\n' +
+    '  "getNumber": {\n' +
+    '    "type": "json_object",\n' +
+    '    "fields": {\n' +
+    '      "id": "activationId",\n' +
+    '      "phone": "phoneNumber",\n' +
+    '      "price": "activationCost"\n' +
+    '    }\n' +
+    '  },\n' +
+    '  "getStatus": {\n' +
+    '    "type": "text_regex",\n' +
+    '    "regex": "STATUS_([A-Z_]+)(:?.*)?",\n' +
+    '    "fields": {\n' +
+    '      "status": "1",\n' +
+    '      "code": "2"\n' +
+    '    }\n' +
+    '  },\n' +
+    '  "cancelNumber": {\n' +
+    '    "type": "text_regex",\n' +
+    '    "regex": "ACCESS_CANCEL",\n' +
+    '    "fields": {\n' +
+    '      "status": "0"\n' +
+    '    }\n' +
+    '  },\n' +
+    '  "getBalance": {\n' +
+    '    "type": "text_regex",\n' +
+    '    "regex": "ACCESS_BALANCE:([\\\\d.]+)",\n' +
+    '    "fields": {\n' +
+    '      "balance": "1"\n' +
+    '    }\n' +
+    '  },\n' +
+    '  "getPrices": {\n' +
+    '    "path": "$",\n' +
+    '    "type": "dictionary",\n' +
+    '    "nestingLevels": {\n' +
+    '      "providersKey": "providers",\n' +
+    '      "extractOperators": true\n' +
+    '    },\n' +
+    '    "fields": {\n' +
+    '      "country": "$parentKey",\n' +
+    '      "service": "$key",\n' +
+    '      "operator": "$operatorKey",\n' +
+    '      "cost": "price|cost",\n' +
+    '      "count": "count|quantity"\n' +
+    '    }\n' +
+    '  }\n' +
+    '}'
+},
+
     'smsbower': {
         name: 'smsbower',
         displayName: 'SMSBower',
@@ -158,6 +260,7 @@ export function EndpointEditor({ endpoints, onChange }: { endpoints: any, onChan
                     <div className="w-full md:w-24 space-y-1.5">
                         <label className="text-[10px] md:text-xs font-semibold text-white/50 uppercase tracking-wider">Method</label>
                         <select
+                            title="HTTP Method"
                             className="w-full h-9 px-3 rounded-lg bg-black/40 border border-white/10 text-xs text-white focus:outline-none focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all cursor-pointer"
                             value={currentendpoint.method || 'GET'}
                             onChange={e => setEndpoint({ method: e.target.value })}
@@ -253,6 +356,7 @@ export function MappingEditor({ mappings, onChange }: { mappings: any, onChange:
                 <div className="space-y-1.5">
                     <label className="text-[10px] md:text-xs font-semibold text-white/50 uppercase tracking-wider">Response Format</label>
                     <select
+                        title="Response Format"
                         className="w-full h-9 px-3 rounded-lg bg-black/40 border border-white/10 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all cursor-pointer"
                         value={currentMapping.type || 'json_object'}
                         onChange={e => setMapping({ type: e.target.value })}

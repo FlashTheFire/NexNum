@@ -84,6 +84,7 @@ async function handleOfferUpdate(pricingId: string, payload: Record<string, unkn
         id: `${pricing.provider.name}_${pricing.country.externalId}_${pricing.service.externalId}`.toLowerCase(),
         serviceSlug: pricing.service.code,
         serviceName: pricing.service.name,
+        serviceIcon: pricing.service.iconUrl || undefined,
         countryCode: pricing.country.externalId,
         countryName: pricing.country.name,
         flagUrl: pricing.country.flagUrl || '',

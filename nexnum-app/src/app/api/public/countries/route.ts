@@ -37,7 +37,6 @@ export async function GET(req: Request) {
                     id: c.code,
                     name: c.name,
                     code: c.code,
-                    // phoneCode removed
                     flagUrl: c.flagUrl,
                     minPrice: 0, // No specific price without service
                     totalStock: 0,
@@ -88,7 +87,6 @@ export async function GET(req: Request) {
             id: country.code,
             name: country.name,
             code: country.code,
-            // phoneCode removed
             flagUrl: country.flagUrl,
             minPrice: country.lowestPrice,
             totalStock: country.totalStock,

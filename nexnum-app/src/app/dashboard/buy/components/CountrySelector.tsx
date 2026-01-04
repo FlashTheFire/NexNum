@@ -33,21 +33,30 @@ interface Country {
     id: string;
     name: string;
     code: string; // ISO
-
     minPrice?: number;
     totalStock?: number;
+    // Add any other properties that might be missing from the API response
+    // For example, if the API returns a 'currency' or 'region' field:
+    // currency?: string;
+    // region?: string;
 }
 
 // --- Flag Component with Fallback ---
 const FlagImage = ({ code, className }: { code: string, className?: string }) => {
-    // Use Circle Flags
-    const [src, setSrc] = useState(`https://raw.githubusercontent.com/HatScripts/circle-flags/gh-pages/flags/${code.toLowerCase()}.svg`);
+    // Use Circle Flags - safe guard for initial state
+    const safeCode = (code || '').toLowerCase();
+    const [src, setSrc] = useState(`https://raw.githubusercontent.com/HatScripts/circle-flags/gh-pages/flags/${safeCode}.svg`);
     const [error, setError] = useState(false);
 
     useEffect(() => {
-        setSrc(`https://raw.githubusercontent.com/HatScripts/circle-flags/gh-pages/flags/${code.toLowerCase()}.svg`);
-        setError(false);
+        if (code) {
+            setSrc(`https://raw.githubusercontent.com/HatScripts/circle-flags/gh-pages/flags/${code.toLowerCase()}.svg`);
+            setError(false);
+        }
     }, [code]);
+
+    // Safety check return
+    if (!code) return <div className={cn("bg-white/10 rounded-full", className)} />;
 
     const handleError = () => {
         setError(true);

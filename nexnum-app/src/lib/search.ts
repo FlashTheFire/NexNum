@@ -40,11 +40,11 @@ export interface OfferDocument {
     // Service Info
     serviceSlug: string;
     serviceName: string;
+    serviceIcon?: string;  // Service icon URL
 
     // Country Info
     countryCode: string;
     countryName: string;
-    // phoneCode removed
     flagUrl: string;
 
     // Provider Info
@@ -67,7 +67,6 @@ export interface OfferDocument {
 export interface CountryStats {
     code: string;
     name: string;
-    // phoneCode removed
     flagUrl: string;
     lowestPrice: number;
     totalStock: number;
@@ -107,7 +106,6 @@ export async function searchCountries(
         // Aggregate by country
         const countryMap = new Map<string, {
             name: string;
-            // phoneCode removed
             flagUrl: string;
             minPrice: number;
             totalStock: number;
@@ -200,7 +198,6 @@ export async function searchAdminCountries(
             countryCode: string
             canonicalName: string
             displayName: string
-            // phoneCode removed
             flagUrl: string
             providers: Map<string, { provider: string; externalId: string; stock: number; minPrice: number; maxPrice: number }>
             services: Set<string>
@@ -216,7 +213,6 @@ export async function searchAdminCountries(
                     countryCode: code,
                     canonicalName: hit.countryName,
                     displayName: hit.countryName,
-                    // phoneCode removed
                     flagUrl: hit.flagUrl || '',
                     providers: new Map(),
                     services: new Set(),
@@ -257,7 +253,6 @@ export async function searchAdminCountries(
             countryCode: g.countryCode,
             canonicalName: g.canonicalName,
             displayName: g.displayName,
-            // phoneCode removed
             flagUrl: g.flagUrl,
             providers: Array.from(g.providers.values()),
             totalProviders: g.providers.size,
@@ -316,7 +311,6 @@ export async function searchRawInventory(
                         id: safeId,
                         externalId: externalId,
                         name: hit.countryName,
-                        // phoneCode removed
                         iconUrl: hit.flagUrl,
                         provider: hit.provider,
                         lastSyncedAt: new Date(hit.lastSyncedAt)
@@ -425,12 +419,13 @@ export async function searchServices(
         // Get all matching offers to aggregate
         const result = await index.search(query, {
             limit: 5000, // Get enough for aggregation
-            attributesToRetrieve: ['serviceSlug', 'serviceName', 'countryCode', 'provider', 'price', 'stock'],
+            attributesToRetrieve: ['serviceSlug', 'serviceName', 'serviceIcon', 'countryCode', 'provider', 'price', 'stock'],
         })
 
         // Aggregate by service
         const serviceMap = new Map<string, {
             name: string;
+            icon?: string;
             minPrice: number;
             totalStock: number;
             providers: Set<string>;
@@ -442,6 +437,7 @@ export async function searchServices(
             if (!serviceMap.has(slug)) {
                 serviceMap.set(slug, {
                     name: hit.serviceName,
+                    icon: hit.serviceIcon, // Capture icon/url
                     minPrice: hit.price,
                     totalStock: 0,
                     providers: new Set(),
@@ -463,6 +459,7 @@ export async function searchServices(
             totalStock: stats.totalStock,
             serverCount: stats.providers.size,
             countryCount: stats.countries.size,
+            serviceIcon: stats.icon || undefined,
         }))
 
         // Filter by query if specified

@@ -206,6 +206,7 @@ export function JsonEditor({
 
                 {/* Actual editable textarea */}
                 <textarea
+                    aria-label="JSON Editor"
                     ref={textareaRef}
                     value={value}
                     onChange={handleChange}

@@ -736,6 +736,7 @@ export default function ProviderWizard({ onComplete, onCancel }: WizardProps) {
                                             </div>
                                         </div>
                                         <select
+                                            title="Currency"
                                             value={formData.currency}
                                             onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
                                             className="w-full h-10 px-3 rounded-lg bg-black/30 border border-white/10 text-sm text-white focus:outline-none focus:border-purple-500/50 appearance-none cursor-pointer"
