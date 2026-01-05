@@ -13,6 +13,7 @@ import AuthCard from "@/components/auth/AuthCard";
 import Auth3DLaptop from "@/components/auth/Auth3DLaptop";
 import Navbar from "@/components/layout/Navbar";
 import { useAuthStore } from "@/stores/authStore";
+import LoadingScreen from "@/components/ui/LoadingScreen";
 
 const features = [
     { icon: Shield, label: "Bank-grade encryption" },
@@ -47,6 +48,14 @@ export default function RegisterPage() {
         window.addEventListener("resize", check);
         return () => window.removeEventListener("resize", check);
     }, []);
+
+    if (isLoading && !isAuthenticated) {
+        return <LoadingScreen status="Initializing Environment" />
+    }
+
+    if (isAuthenticated) {
+        return <LoadingScreen status="Preparing Workspace" />
+    }
 
     const handleOtpChange = (index: number, value: string) => {
         if (value.length > 1) return;

@@ -32,19 +32,22 @@ export async function GET(req: Request) {
 
         const result = await searchProviders(serviceSlug, countryCode, { page, limit, sort });
 
-        // Map to API response format
+        // Map to API response format (id/provider hidden for security)
         const items = result.providers.map(p => ({
-            id: p.id,
-            provider: p.provider,
             displayName: p.displayName,
             logoUrl: p.logoUrl,
             serviceName: p.serviceName,
             serviceSlug: p.serviceSlug,
             countryName: p.countryName,
             countryCode: p.countryCode,
+            flagUrl: p.flagUrl,
             price: p.price,
             stock: p.stock,
             successRate: p.successRate,
+            // Operator info
+            operatorId: p.operatorId,
+            operatorDisplayName: p.operatorDisplayName || '',
+            iconUrl: (p as any).iconUrl, // Standardized icon name
         }));
 
         return NextResponse.json({

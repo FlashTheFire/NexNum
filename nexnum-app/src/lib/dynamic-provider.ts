@@ -31,6 +31,8 @@ type MappingConfig = {
         extractOperators?: boolean
         /** Special key to extract nested providers (e.g., "providers") */
         providersKey?: string
+        /** NEW: Helper to enforce field presence (e.g., "provider_id") */
+        requiredField?: string
     }
 
     // NEW: Field fallback chains (alternative to pipe syntax in fields)
@@ -62,6 +64,10 @@ export class ProviderApiError extends Error {
 export class DynamicProvider implements SmsProvider {
     name: string
     public config: Provider
+    private lastRequestTime: number = 0
+
+    // Store last raw response for debugging in test console
+    public lastRawResponse: any = null
 
     public lastRequestTrace: {
         method: string
@@ -179,7 +185,24 @@ export class DynamicProvider implements SmsProvider {
             headers[this.config.authHeader] = this.config.authKey
         }
 
-        // 4. Execute
+        // 4. Rate Limiting Enforcer (Reservation Token Bucket)
+        // Ensure strictly NO requests are sent faster than rateLimitDelay
+        // "nextSlot" logic handles concurrency by pushing the marker forward for each request
+        const rateLimitDelay = (this.config as any).rateLimitDelay || 1000 // Default to 1000ms
+
+        const now = Date.now()
+        // Calculate when this request is allowed to fire
+        const targetTime = Math.max(now, this.lastRequestTime + rateLimitDelay)
+
+        // Reserve this slot immediately so next request sees it
+        this.lastRequestTime = targetTime
+
+        const waitTime = targetTime - now
+        if (waitTime > 0) {
+            // console.log(`[DynamicProvider:${this.name}] Rate limiting: waiting ${waitTime}ms`)
+            await new Promise(resolve => setTimeout(resolve, waitTime))
+        }
+
         const maskedHeaders = { ...headers }
         if (maskedHeaders['Authorization']) maskedHeaders['Authorization'] = maskedHeaders['Authorization'].substring(0, 15) + '...'
         if (maskedHeaders['base64_api_key']) maskedHeaders['base64_api_key'] = '...'
@@ -204,7 +227,35 @@ export class DynamicProvider implements SmsProvider {
                         headers,
                         signal: AbortSignal.timeout(30000)
                     });
-                    break; // Success, exit loop
+
+                    // Handle 429 explicitly inside loop
+                    if (response.status === 429) {
+                        if (attempt === MAX_RETRIES) break // Let it fail below
+
+                        // Check Retry-After header
+                        const retryAfter = response.headers.get('Retry-After')
+                        let delay = 1000 * Math.pow(2, attempt) // Exponential: 2s, 4s, 8s (attempt 1 is 2^1=2s? No, default was linear. Let's do 2s, 4s, 8s)
+
+                        // If Retry-After is present (seconds), use it
+                        if (retryAfter) {
+                            const seconds = parseInt(retryAfter, 10)
+                            if (!isNaN(seconds)) delay = (seconds + 1) * 1000 // Add 1s buffer
+                        }
+
+                        console.warn(`[DynamicProvider:${this.name}] Rate limited (429). Retrying in ${delay}ms...`)
+                        await new Promise(resolve => setTimeout(resolve, delay))
+                        continue
+                    }
+
+                    // Treat 5xx server errors as retriable too? Maybe safely.
+                    if (response.status >= 500 && attempt < MAX_RETRIES) {
+                        const delay = 1000 * attempt
+                        console.warn(`[DynamicProvider:${this.name}] Server error ${response.status}. Retrying in ${delay}ms...`)
+                        await new Promise(resolve => setTimeout(resolve, delay))
+                        continue
+                    }
+
+                    break; // Success or non-retriable status, exit loop
                 } catch (err: any) {
                     const isLastAttempt = attempt === MAX_RETRIES
                     const isNetworkError = err.name === 'TypeError' || err.name === 'TimeoutError' || err.code === 'UND_ERR_CONNECT_TIMEOUT'
@@ -287,6 +338,9 @@ export class DynamicProvider implements SmsProvider {
                 responseBody: responseData,
                 requestTime: Date.now() - startTime
             }
+
+            // Save raw response for test console debugging
+            this.lastRawResponse = responseData
 
             return result
 
@@ -516,6 +570,10 @@ export class DynamicProvider implements SmsProvider {
         const extractOperators = nestingConfig?.extractOperators ?? false
         const providersKey = nestingConfig?.providersKey
 
+        // Universal Logic: Default requiredField to 'provider_id' if extractOperators is true
+        // This filters out garbage nodes (like "Prcl") that lack a valid provider ID
+        const requiredField = nestingConfig?.requiredField ?? (extractOperators ? 'provider_id' : undefined)
+
         for (const [key, value] of Object.entries(obj)) {
             if (isDebug) console.log(`[DEBUG_MAPPING] Processing Key="${key}" (ExtractOps=${extractOperators}, ProvidersKey=${providersKey})`)
 
@@ -525,12 +583,18 @@ export class DynamicProvider implements SmsProvider {
                 continue
             }
 
-            // 1. Providers Check
+            // 1. Providers Check + Required Field Filter
             if (providersKey && value[providersKey]) {
                 if (isDebug) console.log(`[DEBUG_MAPPING] Found providersKey "${providersKey}" in "${key}", extracting providers.`)
                 const providersObj = value[providersKey]
                 for (const [providerKey, providerData] of Object.entries(providersObj as Record<string, any>)) {
                     if (typeof providerData === 'object' && providerData !== null) {
+                        // NEW: Check required field if configured OR default
+                        if (requiredField && providerData[requiredField] === undefined) {
+                            if (isDebug) console.log(`[DEBUG_MAPPING] Skipping provider "${providerKey}" - missing required field "${requiredField}"`)
+                            continue
+                        }
+
                         // IMPORTANT: Use 'operatorKey' for the provider ID, keep 'key' as service
                         // This prevents $key from resolving to the operator ID
                         const mapped = this.mapFields(providerData, this.resolveEffectiveFields(providerData, mapConfig), {
@@ -553,6 +617,9 @@ export class DynamicProvider implements SmsProvider {
             // Check if this level contains actual data fields
             const hasData = this.hasDataFields(value)
 
+            // RELAXED LOGIC: Process entry even if requiredField is missing, just don't treat it as a valid operator
+            // Previous strict skip logic removed as per user request (Phase 11)
+
             if (isDebug) console.log(`[DEBUG_MAPPING] Key="${key}" hasData=${hasData}`)
 
             if (extractOperators) {
@@ -563,8 +630,11 @@ export class DynamicProvider implements SmsProvider {
                         key,
                         value
                     })
-                    // Auto-assign operator from key if not mapped
-                    if (!mapped.operator) mapped.operator = key
+                    // Auto-assign operator from key ONLY if NOT in strict operator mode
+                    // If we are extracting operators, we expect explicit IDs (e.g. via provider_id mapping).
+                    // If missing, leave generic (undefined), don't fallback to key (e.g. "Prcl").
+                    if (!mapped.operator && !extractOperators) mapped.operator = key
+
                     results.push(mapped)
                 } else {
                     // Nested structure - RECURSE deeper
@@ -760,6 +830,16 @@ export class DynamicProvider implements SmsProvider {
                 }
             }
 
+            // Smart Unwrap: If retrieved value is an object (e.g. from '$value') and contains the target field, extract it
+            // This fixes cases where mapping points to a wrapper object { cost: 10.54 } instead of the value 10.54
+            if (value && typeof value === 'object' && !Array.isArray(value)) {
+                // Case-insensitive check for robustness
+                const subKey = Object.keys(value).find(k => k.toLowerCase() === targetField.toLowerCase())
+                if (subKey) {
+                    value = value[subKey]
+                }
+            }
+
             result[targetField] = value
         }
 
@@ -802,12 +882,16 @@ export class DynamicProvider implements SmsProvider {
         const response = await this.request('getCountries')
         const items = this.parseResponse(response, 'getCountries')
 
-        return items.map((i, idx) => ({
-            id: String(i.id ?? idx),
-            code: String(i.code ?? i.id ?? '').toLowerCase(),
-            name: String(i.name ?? 'Unknown'),
-            flag: i.flag ?? i.icon ?? undefined
-        }))
+        return items.map((i, idx) => {
+            const id = String(i.id ?? idx)
+            const code = String(i.code ?? i.id ?? '').toLowerCase()
+            return {
+                id,
+                code: code !== id ? code : undefined,
+                name: String(i.name ?? 'Unknown'),
+                flagUrl: i.flagUrl ?? i.flag ?? i.icon ?? undefined
+            }
+        })
     }
 
     /**
@@ -817,13 +901,16 @@ export class DynamicProvider implements SmsProvider {
         const response = await this.request('getServices', { country: countryCode })
         const items = this.parseResponse(response, 'getServices')
 
-        return items.map((s, idx) => ({
-            id: String(s.id ?? s.code ?? idx),
-            code: String(s.code ?? s.id ?? ''),
-            name: String(s.name ?? 'Unknown'),
-            price: Number(s.price ?? 0),
-            icon: s.icon ?? s.iconUrl ?? undefined  // Extract service icon URL
-        }))
+        return items.map((s, idx) => {
+            const id = String(s.id ?? s.code ?? idx)
+            const code = String(s.code ?? s.id ?? '')
+            return {
+                id,
+                code: code !== id ? code : undefined,
+                name: String(s.name ?? 'Unknown'),
+                iconUrl: s.iconUrl ?? s.icon ?? undefined  // Extract service icon URL
+            }
+        })
     }
 
     async getNumber(countryCode: string, serviceCode: string): Promise<NumberResult> {

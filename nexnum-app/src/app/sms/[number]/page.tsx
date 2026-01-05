@@ -25,8 +25,9 @@ import { useGlobalStore } from "@/store"
 import { toast } from "sonner"
 
 // Import new premium components
-import { SMSBackground, SMSSkeleton, SMSNumberCard, SMSMessageCard } from "./components"
+import { SMSBackground, SMSNumberCard, SMSMessageCard } from "./components"
 import { useSMS } from "@/hooks/use-sms"
+import LoadingScreen from "@/components/ui/LoadingScreen"
 
 const staggerContainer = {
     hidden: { opacity: 0 },
@@ -82,16 +83,9 @@ export default function SMSPage() {
     const minutesLeft = Math.floor(timeLeft / 60)
     const secondsLeft = timeLeft % 60
 
-    // Loading state with skeleton
+    // Loading state with LoadingScreen
     if (!_hasHydrated) {
-        return (
-            <div className="min-h-screen relative">
-                <SMSBackground />
-                <div className="relative z-10 p-4 md:p-6 lg:p-8 max-w-4xl mx-auto">
-                    <SMSSkeleton />
-                </div>
-            </div>
-        )
+        return <LoadingScreen status="Opening Secure Channel" />
     }
 
     // Number not found

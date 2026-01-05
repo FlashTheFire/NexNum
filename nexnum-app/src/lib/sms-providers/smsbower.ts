@@ -84,7 +84,6 @@ export class SmsBowerProvider implements SmsProvider {
 
             results.push({
                 id: finalCode,
-                code: finalCode,
                 name: norm.displayName
             })
         }
@@ -97,33 +96,39 @@ export class SmsBowerProvider implements SmsProvider {
      * Uses same pattern as provider-sync.ts getServicesLegacy for smsbower
      */
     async getServices(countryCode: string): Promise<Service[]> {
-        const response = await fetch(`${SERVICES_API_URL}?serviceId=5&withPopular=true`, {
-            headers: { 'Accept': 'application/json' }
-        })
+        try {
+            const response = await fetch(`${SERVICES_API_URL}?serviceId=5&withPopular=true`, {
+                headers: { 'Accept': 'application/json' }
+            })
 
-        const json = await response.json()
-        const list = Array.isArray(json.services) ? json.services : Object.values(json.services || {})
+            const json = await response.json()
+            const list = Array.isArray(json.services) ? json.services : Object.values(json.services || {})
 
-        const services: Service[] = []
+            console.log(`[SmsBower] Fetched ${list.length} services from JSON API`)
 
-        for (const s of list as any[]) {
-            const code = (s.activate_org_code || s.slug || s.code)?.toLowerCase()
-            if (!code) continue
+            const services: Service[] = []
 
-            let iconUrl = s.img_path
-            if (iconUrl && !iconUrl.startsWith('http')) {
-                iconUrl = `https://smsbower.org${iconUrl}`
+            for (const s of list as any[]) {
+                const code = (s.activate_org_code || s.slug || s.code)?.toLowerCase()
+                if (!code) continue
+
+                let iconUrl = s.img_path
+                if (iconUrl && !iconUrl.startsWith('http')) {
+                    iconUrl = `${iconUrl}`
+                }
+
+                services.push({
+                    id: code,
+                    name: s.title || s.name || code,
+                    iconUrl: iconUrl || null
+                })
             }
 
-            services.push({
-                id: code,
-                code: code,
-                name: s.title || s.name || code,
-                price: 0 // Price fetched separately
-            })
+            return services
+        } catch (e) {
+            console.error('SmsBower getServices failed:', e)
+            return []
         }
-
-        return services
     }
 
     /**
@@ -131,3 +136,4 @@ export class SmsBowerProvider implements SmsProvider {
      */
     // Removed legacy methods (getNumber, getStatus, etc) as requested
 }
+

@@ -305,7 +305,7 @@ export function AnalyticsDashboard() {
                             >
                                 <div>
                                     <p className="font-medium text-white">{provider.displayName}</p>
-                                    <p className="text-sm text-gray-400">{provider._count.syncJobs} syncs</p>
+                                    <p className="text-sm text-gray-400">{provider._count?.syncJobs ?? 0} syncs</p>
                                 </div>
                                 <div className="text-right">
                                     <p className={`font-bold ${provider.balance < 10 ? 'text-red-400' : 'text-emerald-400'}`}>

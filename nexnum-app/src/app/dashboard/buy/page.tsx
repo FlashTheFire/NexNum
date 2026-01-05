@@ -20,23 +20,25 @@ export default function BuyPage() {
     const [step, setStep] = useState<1 | 2 | 3>(1)
 
     // Selections
-    const [selectedService, setSelectedService] = useState<{ id: string, name: string } | null>(null)
+    const [selectedService, setSelectedService] = useState<{ id: string, name: string, iconUrl?: string } | null>(null)
     const [selectedCountry, setSelectedCountry] = useState<any | null>(null)
 
-    // Filters within Wizard (e.g. searching for a country in Step 2)
+    // Filters within Wizard
     const [localSearch, setLocalSearch] = useState("")
+    const [sortOption, setSortOption] = useState<"relevance" | "price_asc" | "stock_desc">("relevance")
 
     // --- Effects ---
 
-    // Reset local search when changing steps
+    // Reset local search and sort when changing steps
     useEffect(() => {
         setLocalSearch("")
+        setSortOption("relevance")
     }, [step])
 
     // --- Handlers ---
 
-    const handleServiceSelect = (id: string, name: string) => {
-        setSelectedService({ id, name })
+    const handleServiceSelect = (id: string, name: string, iconUrl?: string) => {
+        setSelectedService({ id, name, iconUrl })
         setStep(2)
     }
 
@@ -54,7 +56,7 @@ export default function BuyPage() {
 
         const toastId = toast.loading("Reserving number...")
         try {
-            const result = await purchaseNumber(provider.countryCode, provider.serviceCode)
+            const result = await purchaseNumber(provider.countryCode, provider.serviceSlug)
             if (!result.success) throw new Error(result.error || "Purchase failed")
 
             await fetchBalance()
@@ -79,7 +81,7 @@ export default function BuyPage() {
         switch (step) {
             case 1: return "Select Service"
             case 2: return "Select Country"
-            case 3: return `${selectedService?.name} in ${selectedCountry?.name}`
+            case 3: return "Select Provider"
         }
     }
 
@@ -96,6 +98,9 @@ export default function BuyPage() {
                     title={getStepTitle()}
                     searchTerm={localSearch}
                     setSearchTerm={setLocalSearch}
+                    sortOption={sortOption}
+                    setSortOption={setSortOption}
+                    selectedServiceIcon={selectedService?.iconUrl}
                 />
 
                 <AnimatePresence mode="wait">
@@ -112,6 +117,7 @@ export default function BuyPage() {
                                 selectedService={selectedService?.id || null}
                                 onSelect={handleServiceSelect}
                                 searchTerm={localSearch}
+                                sortOption={sortOption}
                             />
                         </motion.div>
                     )}
@@ -130,6 +136,7 @@ export default function BuyPage() {
                                 selectedCountryId={selectedCountry?.id}
                                 searchTerm={localSearch}
                                 selectedServiceName={selectedService?.name}
+                                sortOption={sortOption}
                             />
                         </motion.div>
                     )}
@@ -149,6 +156,8 @@ export default function BuyPage() {
                                 countryCode={selectedCountry.code || selectedCountry.id}
                                 countryName={selectedCountry.name}
                                 onBuy={handlePurchase}
+                                sortOption={sortOption}
+                                serviceIcon={selectedService.iconUrl}
                             />
                         </motion.div>
                     )}

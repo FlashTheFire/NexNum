@@ -7,6 +7,7 @@ import {
     RefreshCw, AlertTriangle, Check, Moon, Sun, Send, Mail
 } from 'lucide-react'
 import { toast } from 'sonner'
+import LoadingScreen from '@/components/ui/LoadingScreen'
 
 interface SettingsData {
     general: {
@@ -237,14 +238,7 @@ export default function SettingsPage() {
     }
 
     if (loading) {
-        return (
-            <div className="min-h-screen p-4 md:p-8 max-w-5xl mx-auto">
-                <div className="animate-pulse space-y-6">
-                    <div className="h-10 bg-gray-800/50 rounded w-48" />
-                    <div className="h-96 bg-gray-800/50 rounded-xl" />
-                </div>
-            </div>
-        )
+        return <LoadingScreen status="Loading Settings" />
     }
 
     if (!settings) return null

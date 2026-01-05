@@ -196,12 +196,13 @@ ${PROVIDER_CONTEXT_DOCS}
    \`\`\`
 
 2. **TRANSFORMATIONS** (Value Modification)
-   Modify values before saving.
+   Modify values before saving. Use **{ value }** for template injection.
    \`\`\`json
    "transform": {
      "status": "uppercase",  // "ok" -> "OK"
      "price": "number",      // "12.50" -> 12.5
-     "active": "boolean"     // 1 -> true
+     "active": "boolean",     // 1 -> true
+     "icon": "https://site.com/img/{value}.png" // Template Injection
    }
    \`\`\`
 
@@ -291,6 +292,7 @@ ${PROVIDER_CONTEXT_DOCS}
 - **operator**: If nested, usually "$key" or field "provider_id".
 - **service**: If nested, usually "$parentKey" or "$key".
 - **country**: If nested, usually "$grandParentKey" or "$parentKey" or request param "@country".
+- **icon**: "icon|iconUrl|img". Use transform if URL needs to be constructed from ID.
 
 ### 🔎 ENDPOINT INTELLIGENCE
 - If endpoints require **parameters**, use the new **$variable** syntax in **queryParams**.

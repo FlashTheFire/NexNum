@@ -18,8 +18,9 @@ export async function GET(req: Request) {
         const q = searchParams.get("q") || "";
         const page = parseInt(searchParams.get("page") || "1");
         const limit = parseInt(searchParams.get("limit") || "50");
+        const sort = searchParams.get("sort") || undefined;
 
-        const result = await searchServices(q, { page, limit });
+        const result = await searchServices(q, { page, limit, sort });
 
         // Map to API response format
         const items = result.services.map(service => ({
@@ -29,6 +30,8 @@ export async function GET(req: Request) {
             totalStock: service.totalStock,
             serverCount: service.serverCount,
             countryCount: service.countryCount,
+            iconUrl: service.iconUrl,
+            flagUrls: service.topCountries.map(c => c.flagUrl).filter(Boolean),
         }));
 
         return NextResponse.json({

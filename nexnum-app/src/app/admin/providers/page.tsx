@@ -5,7 +5,7 @@ import { createPortal } from "react-dom"
 import { motion, AnimatePresence } from "framer-motion"
 import {
     Search, Plus, Server, Globe, Shield, RefreshCw,
-    MoreHorizontal, CheckCircle, XCircle, AlertCircle, ChevronRight, ChevronDown,
+    MoreHorizontal, CheckCircle, XCircle, AlertCircle, ChevronRight, ChevronDown, Copy, Check,
     Trash2, Edit, Save, Play, Terminal, Upload, Image, DollarSign, FileCode,
     Wallet, MapPin, Smartphone, Phone, BarChart3, Ban, Plug, Sparkles, Info, Wand2,
     Lock, Key, Link, FileText, X
@@ -46,6 +46,75 @@ interface Provider {
 }
 
 
+
+// ------------------------------------------------------------------
+// Helper Components for API Test Console
+// ------------------------------------------------------------------
+
+function CopyButton({ text }: { text: string }) {
+    const [copied, setCopied] = useState(false)
+
+    const handleCopy = (e: React.MouseEvent) => {
+        e.stopPropagation() // Prevent row toggle if inside clickable area
+        navigator.clipboard.writeText(text)
+        setCopied(true)
+        toast.success("Copied to clipboard")
+        setTimeout(() => setCopied(false), 2000)
+    }
+
+    return (
+        <button
+            onClick={handleCopy}
+            className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white/40 hover:text-white transition-colors border border-white/5"
+            title="Copy JSON"
+        >
+            {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+        </button>
+    )
+}
+
+function SyntaxHighlightedJson({ data }: { data: any }) {
+    // If string, try to parse it first to ensure pretty printing
+    let jsonString = ''
+    try {
+        const obj = typeof data === 'string' ? JSON.parse(data) : data
+        // Handle null/undefined gracefully
+        if (obj === null || obj === undefined) {
+            jsonString = String(obj)
+        } else {
+            jsonString = JSON.stringify(obj, null, 2) || '{}'
+        }
+    } catch {
+        jsonString = String(data)
+    }
+
+    // Tokenize JSON for syntax highlighting
+    const tokens = jsonString.split(/(".*?"|true|false|null|-?\d+(?:\.\d*)?|[{},:[\]])/g).filter(Boolean)
+
+    return (
+        <code className="text-[10px] font-mono leading-relaxed whitespace-pre-wrap break-all">
+            {tokens.map((token, i) => {
+                let color = "text-purple-300/60" // Punctuation/Brackets
+
+                if (token.startsWith('"')) {
+                    if (token.endsWith('":')) {
+                        color = "text-blue-300" // Keys
+                    } else {
+                        color = "text-emerald-300" // String Values
+                    }
+                } else if (/true|false/.test(token)) {
+                    color = "text-orange-400 font-bold" // Booleans
+                } else if (/null/.test(token)) {
+                    color = "text-red-400 italic" // Null
+                } else if (/^-?\d/.test(token)) {
+                    color = "text-amber-300" // Numbers
+                }
+
+                return <span key={i} className={color}>{token}</span>
+            })}
+        </code>
+    )
+}
 
 export default function ProvidersPage() {
     const [providers, setProviders] = useState<Provider[]>([])
@@ -1703,25 +1772,114 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                                                     <div className="h-px bg-white/10 flex-1 ml-2" />
                                                                 </div>
 
-                                                                {/* Parsed Data Only */}
-                                                                <div className="space-y-2">
-                                                                    <div className="flex items-center justify-between">
-                                                                        <div className="flex items-center gap-2">
-                                                                            <div className="w-1.5 h-1.5 rounded-full bg-purple-400" />
-                                                                            <span className="text-[10px] font-semibold text-purple-400 uppercase tracking-wider">Parsed Data</span>
-                                                                        </div>
+                                                                {/* Content based on Success/Failure */}
+                                                                {result.success ? (
+                                                                    <div className="space-y-2">
+                                                                        {/* Parsed Data Only */}
+                                                                        {result.parsed && (
+                                                                            <>
+                                                                                <div className="flex items-center justify-between">
+                                                                                    <div className="flex items-center gap-2">
+                                                                                        <div className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+                                                                                        <span className="text-[10px] font-semibold text-purple-400 uppercase tracking-wider">Parsed Data</span>
+                                                                                    </div>
+                                                                                </div>
+                                                                                <div className="rounded-lg border border-purple-500/20 bg-black/40 overflow-hidden relative group">
+                                                                                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                                                                                        <CopyButton text={JSON.stringify(result.parsed, null, 2)} />
+                                                                                    </div>
+                                                                                    <div className="p-3 overflow-auto max-h-60 custom-scrollbar">
+                                                                                        <SyntaxHighlightedJson data={result.parsed} />
+                                                                                    </div>
+                                                                                </div>
+                                                                            </>
+                                                                        )}
                                                                     </div>
-                                                                    <div className="rounded-lg border border-purple-500/20 bg-black/40 overflow-hidden relative group">
-                                                                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/10 text-white/50">JSON</span>
+                                                                ) : (
+                                                                    <div className="space-y-4">
+                                                                        {/* Error Message */}
+                                                                        <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg flex items-start gap-3">
+                                                                            <AlertCircle className="w-5 h-5 text-red-400 mt-0.5" />
+                                                                            <div className="space-y-1">
+                                                                                <h4 className="text-sm font-semibold text-red-400">Test Failed</h4>
+                                                                                <p className="text-xs text-red-300/80 font-mono">{result.error || 'Unknown error occurred'}</p>
+                                                                            </div>
                                                                         </div>
-                                                                        <div className="p-3 overflow-auto max-h-60 custom-scrollbar">
-                                                                            <pre className="text-[10px] text-purple-300/80 font-mono leading-relaxed whitespace-pre-wrap break-all">
-                                                                                {JSON.stringify(result.parsed, null, 2)}
-                                                                            </pre>
-                                                                        </div>
+
+                                                                        {/* Request Trace - Show for failed results if trace exists */}
+                                                                        {result.trace && (
+                                                                            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                                                                {/* Request Details */}
+                                                                                <div className="space-y-2">
+                                                                                    <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-white/40 font-semibold">
+                                                                                        <div className="px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 font-bold border border-blue-500/20">{result.trace.method}</div>
+                                                                                        <span>Request Trace</span>
+                                                                                    </div>
+
+                                                                                    <div className="bg-[#0cf]/5 border border-[#0cf]/10 rounded-xl overflow-hidden">
+                                                                                        {/* URL */}
+                                                                                        <div className="p-3 border-b border-[#0cf]/10 bg-[#0cf]/5 flex items-start gap-3">
+                                                                                            <Globe className="w-4 h-4 text-[#0cf]/40 mt-0.5 shrink-0" />
+                                                                                            <div className="font-mono text-xs text-[#0cf]/80 break-all select-all leading-relaxed">
+                                                                                                {result.trace.url}
+                                                                                            </div>
+                                                                                        </div>
+
+                                                                                        {/* Headers */}
+                                                                                        {result.trace.headers && Object.keys(result.trace.headers).length > 0 && (
+                                                                                            <div className="p-3 bg-black/20">
+                                                                                                <div className="grid gap-1.5">
+                                                                                                    {Object.entries(result.trace.headers).map(([k, v]) => (
+                                                                                                        <div key={k} className="flex gap-3 text-[10px] font-mono group">
+                                                                                                            <span className="text-[#0cf]/40 min-w-[80px] text-right font-medium">{k}:</span>
+                                                                                                            <span className="text-white/50 truncate select-all group-hover:text-white/80 transition-colors">{v as string}</span>
+                                                                                                        </div>
+                                                                                                    ))}
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        )}
+                                                                                    </div>
+                                                                                </div>
+
+                                                                                {/* Response Body - Full Raw Data */}
+                                                                                <div className="space-y-2">
+                                                                                    <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-white/40 font-semibold">
+                                                                                        <div className="px-2 py-0.5 rounded font-bold border bg-red-500/10 text-red-400 border-red-500/20">
+                                                                                            {result.trace.responseStatus || 'ERR'}
+                                                                                        </div>
+                                                                                        <span>Response Body</span>
+                                                                                    </div>
+
+                                                                                    <div className="rounded-xl border relative group overflow-hidden bg-red-500/5 border-red-500/10">
+                                                                                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                                                                                            <CopyButton text={typeof result.trace.responseBody === 'string' ? result.trace.responseBody : JSON.stringify(result.trace.responseBody, null, 2)} />
+                                                                                        </div>
+                                                                                        <div className="max-h-[400px] overflow-auto custom-scrollbar p-4">
+                                                                                            <pre className="text-xs font-mono whitespace-pre-wrap break-all text-red-300/80">
+                                                                                                {typeof result.trace.responseBody === 'string' ? result.trace.responseBody : JSON.stringify(result.trace.responseBody, null, 2)}
+                                                                                            </pre>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        )}
+
+                                                                        {/* Fallback Raw Response - when no trace available */}
+                                                                        {!result.trace && (result.data || result.raw) && (
+                                                                            <div className="space-y-2">
+                                                                                <div className="text-[10px] uppercase tracking-wider text-red-400/60 font-semibold">Raw Response</div>
+                                                                                <div className="rounded-lg border border-red-500/10 bg-black/40 overflow-hidden relative group">
+                                                                                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                                                                                        <CopyButton text={typeof (result.data || result.raw) === 'string' ? (result.data || result.raw) : JSON.stringify(result.data || result.raw, null, 2)} />
+                                                                                    </div>
+                                                                                    <div className="max-h-60 overflow-auto custom-scrollbar p-3">
+                                                                                        <SyntaxHighlightedJson data={result.data || result.raw} />
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        )}
                                                                     </div>
-                                                                </div>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     )}

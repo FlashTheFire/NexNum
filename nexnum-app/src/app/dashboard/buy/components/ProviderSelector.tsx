@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { preloadCountryFlags, getCountryFlagUrlSync } from "@/lib/country-flags";
 import {
     Server,
     Check,
@@ -12,7 +13,10 @@ import {
     DollarSign,
     Star,
     Filter,
-    ShoppingCart
+    ShoppingCart,
+    Signal,
+    Zap,
+    ShieldCheck
 } from "lucide-react";
 import {
     DropdownMenu,
@@ -39,17 +43,20 @@ function useInView(options = {}) {
 }
 
 export interface Provider {
-    id: string;
-    provider: string;
     displayName: string;
     serviceName: string;
-    serviceCode: string;
+    serviceSlug: string;
     countryName: string;
     countryCode: string;
+    flagUrl?: string;
+    iconUrl?: string;
     price: number;
     stock: number;
     successRate?: number;
     logoUrl?: string;
+    // Operator info
+    operatorId: number;
+    operatorDisplayName: string;
 }
 
 interface ProviderSelectorProps {
@@ -58,26 +65,70 @@ interface ProviderSelectorProps {
     countryCode: string;
     countryName: string;
     onBuy: (provider: Provider) => void;
+    sortOption: "relevance" | "price_asc" | "stock_desc";
+    serviceIcon?: string;
 }
 
-type SortOption = "price_asc" | "price_desc" | "stock_desc";
+
+// Skeleton Component
+const CardSkeleton = () => (
+    <div className="rounded-xl border border-white/5 bg-white/5 p-4 animate-pulse">
+        <div className="flex items-start gap-3 mb-4">
+            <div className="w-10 h-10 rounded-lg bg-white/10" />
+            <div className="flex-1 space-y-2">
+                <div className="h-4 bg-white/10 rounded w-2/3" />
+                <div className="h-3 bg-white/5 rounded w-1/3" />
+            </div>
+        </div>
+        <div className="flex justify-between items-center pt-3 border-t border-white/5">
+            <div className="h-5 bg-white/10 rounded w-16" />
+            <div className="h-4 bg-white/5 rounded w-12" />
+        </div>
+        <div className="h-10 bg-white/5 rounded-lg mt-4" />
+    </div>
+);
 
 export default function ProviderSelector({
     serviceCode,
     serviceName,
     countryCode,
     countryName,
-    onBuy
+    onBuy,
+    sortOption,
+    serviceIcon
 }: ProviderSelectorProps) {
     const [providers, setProviders] = useState<Provider[]>([]);
     const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
-    const [sortOption, setSortOption] = useState<SortOption>("price_asc");
-    const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [selectedId, setSelectedId] = useState<number | null>(null);
 
     // Pagination
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(true);
+    const [flagsReady, setFlagsReady] = useState(false);
+
+    // Preload country flags on mount
+    useEffect(() => {
+        preloadCountryFlags().then(() => setFlagsReady(true));
+    }, []);
+
+    // Helper to validate if a URL is a valid flag URL
+    const isValidFlagUrl = (url?: string) => {
+        if (!url) return false;
+        if (url.includes('circle-flags') && /\/flags\/\d+\.svg$/.test(url)) return false;
+        return true;
+    };
+
+    // Helper to get country flag
+    const getCountryDisplay = (countryName: string, flagUrl?: string) => {
+        const circleFlagUrl = flagsReady ? getCountryFlagUrlSync(countryName) : undefined;
+        const finalUrl = circleFlagUrl || (isValidFlagUrl(flagUrl) ? flagUrl : undefined);
+
+        if (finalUrl) {
+            return <img src={finalUrl} alt={countryName} className="w-full h-full rounded-full object-cover shadow-sm ring-1 ring-white/10" />;
+        }
+        return <span className="text-lg bg-white/5 p-1.5 rounded-full">🌍</span>;
+    };
 
     // Fetch providers
     useEffect(() => {
@@ -127,186 +178,215 @@ export default function ProviderSelector({
     }, [isIntersecting, hasMore, loading, loadingMore, page]);
 
     const handleSelect = (provider: Provider) => {
-        setSelectedId(provider.id);
+        setSelectedId(provider.operatorId);
     };
 
     const handleBuy = (provider: Provider) => {
         onBuy(provider);
     };
 
-    if (loading) {
-        return (
-            <div className="flex flex-col items-center justify-center py-16">
-                <Loader2 className="w-8 h-8 animate-spin text-[hsl(var(--neon-lime))] mb-4" />
-                <p className="text-gray-400 text-sm">Loading providers...</p>
-            </div>
-        );
-    }
+    const containerVariants = {
+        hidden: { opacity: 0 },
+        show: {
+            opacity: 1,
+            transition: {
+                staggerChildren: 0.05
+            }
+        }
+    };
 
-    if (providers.length === 0) {
-        return (
-            <div className="flex flex-col items-center justify-center py-16 text-gray-500">
-                <Server className="w-12 h-12 mb-4 opacity-30" />
-                <p className="text-sm">No providers available for {serviceName} in {countryName}</p>
-                <p className="text-xs mt-2 opacity-70">Try selecting a different country or service</p>
-            </div>
-        );
-    }
+    const itemVariants = {
+        hidden: { opacity: 0, y: 10 },
+        show: { opacity: 1, y: 0 }
+    };
 
     return (
-        <section className="py-4">
+        <section className="py-4 space-y-6">
             {/* Header */}
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center justify-between">
                 <div>
-                    <h3 className="text-lg font-bold text-white">
-                        Available Providers
+                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                        Select Provider
                     </h3>
                     <p className="text-sm text-gray-400">
-                        {providers.length}+ operators for {serviceName} in {countryName}
+                        Top rated operators for <span className="text-white">{serviceName}</span>
                     </p>
                 </div>
 
-                {/* Sort Dropdown */}
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <button className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-white/10 bg-white/5 text-xs text-gray-300 hover:bg-white/10 transition-colors">
-                            <Filter className="w-3.5 h-3.5" />
-                            <span>Sort By</span>
-                        </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="bg-black/90 border-white/10 backdrop-blur-md">
-                        <DropdownMenuItem onClick={() => setSortOption("price_asc")}>
-                            <DollarSign className="w-3.5 h-3.5 mr-2" /> Cheapest First
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setSortOption("price_desc")}>
-                            <TrendingUp className="w-3.5 h-3.5 mr-2" /> Most Expensive
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setSortOption("stock_desc")}>
-                            <Package className="w-3.5 h-3.5 mr-2" /> Highest Stock
-                        </DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
             </div>
 
             {/* Provider Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <motion.div
+                variants={containerVariants}
+                initial="hidden"
+                animate="show"
+                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+            >
                 <AnimatePresence mode="popLayout">
                     {providers.map((provider, index) => {
-                        const isSelected = selectedId === provider.id;
+                        const isSelected = selectedId === provider.operatorId;
                         const isBestPrice = index === 0 && sortOption === "price_asc";
+                        const isHighStock = provider.stock > 1000;
+                        const isVerified = provider.successRate && provider.successRate > 70;
 
                         return (
                             <motion.div
                                 layout
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
+                                variants={itemVariants}
                                 exit={{ opacity: 0, scale: 0.95 }}
-                                key={provider.id}
+                                key={`${provider.displayName}_${provider.operatorId}`}
                                 onClick={() => handleSelect(provider)}
                                 className={cn(
-                                    "relative group cursor-pointer rounded-xl border p-4 transition-all duration-200",
+                                    "relative group cursor-pointer rounded-xl border p-3 transition-all duration-300 overflow-hidden",
                                     isSelected
-                                        ? "bg-[hsl(var(--neon-lime)/0.1)] border-[hsl(var(--neon-lime)/0.5)] shadow-[0_0_20px_hsl(var(--neon-lime)/0.15)]"
-                                        : "bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20"
+                                        ? "bg-[hsl(var(--neon-lime)/0.05)] border-[hsl(var(--neon-lime)/0.5)] shadow-[0_0_30px_-10px_hsl(var(--neon-lime)/0.3)]"
+                                        : "bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/20"
                                 )}
                             >
-                                {/* Best Price Badge */}
-                                {isBestPrice && (
-                                    <div className="absolute -top-2 -right-2 px-2 py-0.5 rounded-full bg-[hsl(var(--neon-lime))] text-black text-[10px] font-bold flex items-center gap-1">
-                                        <Star className="w-3 h-3" /> Best Price
-                                    </div>
+                                {/* Selection Glow */}
+                                {isSelected && (
+                                    <div className="absolute inset-0 bg-gradient-to-tr from-[hsl(var(--neon-lime)/0.1)] to-transparent pointer-events-none" />
                                 )}
 
-                                {/* Selected Check */}
-                                {isSelected && (
-                                    <div className="absolute top-2 left-2">
-                                        <div className="w-5 h-5 rounded-full bg-[hsl(var(--neon-lime))] flex items-center justify-center">
-                                            <Check className="w-3 h-3 text-black" strokeWidth={3} />
+                                {/* Badges */}
+                                <div className="absolute top-3 right-3 flex gap-2">
+                                    {isBestPrice && (
+                                        <div className="px-2 py-0.5 rounded-full bg-[hsl(var(--neon-lime))] text-black text-[10px] font-bold flex items-center gap-1 shadow-lg shadow-[hsl(var(--neon-lime)/0.2)]">
+                                            <Zap className="w-3 h-3 fill-black" /> BEST PRICE
                                         </div>
-                                    </div>
-                                )}
+                                    )}
+                                    {isHighStock && !isBestPrice && (
+                                        <div className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/20 text-[10px] font-bold flex items-center gap-1">
+                                            <Signal className="w-3 h-3" /> HIGH STOCK
+                                        </div>
+                                    )}
+                                </div>
 
                                 {/* Provider Info */}
-                                <div className="flex items-start gap-3">
-                                    {/* Logo */}
-                                    <div className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                                        {provider.logoUrl ? (
-                                            <img
-                                                src={provider.logoUrl}
-                                                alt={provider.displayName}
-                                                className="w-full h-full object-cover"
-                                            />
-                                        ) : (
-                                            <Server className="w-5 h-5 text-gray-400" />
-                                        )}
+                                <div className="flex items-center gap-3 mb-3 relative z-10 w-full">
+                                    <div className="relative w-10 h-10 flex-shrink-0">
+                                        {/* Icon container - always has strong neon glow */}
+                                        <div className={cn(
+                                            "relative w-full h-full rounded-lg overflow-hidden transition-all duration-300",
+                                            "ring-2 ring-[hsl(var(--neon-lime))] ring-offset-1 ring-offset-[#0a0a0c]",
+                                            "shadow-[0_0_12px_hsl(var(--neon-lime)/0.35)]",
+                                            "group-hover:scale-105"
+                                        )}>
+                                            {(serviceIcon?.includes('dicebear') || (!serviceIcon && !provider.iconUrl)) ? (
+                                                <div className="relative w-full h-full flex items-center justify-center bg-white/5">
+                                                    <img
+                                                        src={serviceIcon || provider.iconUrl || `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(provider.serviceName)}&backgroundColor=0ea5e9,6366f1,8b5cf6,ec4899`}
+                                                        alt=""
+                                                        className="absolute inset-0 w-full h-full object-cover blur-[2px] scale-150 opacity-50"
+                                                    />
+                                                    <img
+                                                        src="/placeholder-icon.png"
+                                                        alt={provider.serviceName}
+                                                        className="relative z-10 w-[65%] h-[65%] object-contain opacity-80"
+                                                    />
+                                                </div>
+                                            ) : (
+                                                <img
+                                                    src={serviceIcon || provider.iconUrl}
+                                                    alt={provider.serviceName}
+                                                    className="w-full h-full object-contain filter brightness-110 contrast-110"
+                                                />
+                                            )}
+                                        </div>
+
+                                        {/* Country Flag Badge */}
+                                        <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-[#151518] overflow-hidden shadow-md z-20">
+                                            {getCountryDisplay(provider.countryName, provider.flagUrl)}
+                                        </div>
                                     </div>
 
-                                    {/* Details */}
                                     <div className="flex-1 min-w-0">
-                                        <h4 className="font-semibold text-white truncate">
+                                        <h4 className={cn(
+                                            "font-semibold text-sm truncate transition-colors leading-tight",
+                                            isSelected ? "text-[hsl(var(--neon-lime))]" : "text-white"
+                                        )}>
                                             {provider.displayName}
                                         </h4>
-                                        <p className="text-xs text-gray-400 mt-0.5">
-                                            {provider.provider}
+                                        <p className="text-[11px] text-gray-500 truncate mt-0.5">
+                                            {provider.serviceName}
                                         </p>
+                                        {isVerified && (
+                                            <span className="inline-flex items-center gap-0.5 text-[9px] text-green-400 font-medium mt-0.5">
+                                                <ShieldCheck className="w-2.5 h-2.5" /> Verified
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
 
                                 {/* Stats Row */}
-                                <div className="flex items-center gap-4 mt-4 pt-3 border-t border-white/5">
+                                <div className="grid grid-cols-2 gap-2 relative z-10">
                                     {/* Price */}
-                                    <div className="flex items-center gap-1.5">
-                                        <DollarSign className="w-4 h-4 text-[hsl(var(--neon-lime))]" />
-                                        <span className="text-lg font-bold text-white">
-                                            ${provider.price.toFixed(2)}
-                                        </span>
-                                    </div>
-
-                                    {/* Stock */}
-                                    <div className="flex items-center gap-1.5">
-                                        <Package className="w-3.5 h-3.5 text-gray-400" />
-                                        <span className={cn(
-                                            "text-sm",
-                                            provider.stock > 100 ? "text-green-400" :
-                                                provider.stock > 10 ? "text-yellow-400" : "text-red-400"
-                                        )}>
-                                            {provider.stock > 1000 ? '1k+' : provider.stock} in stock
-                                        </span>
-                                    </div>
-
-                                    {/* Success Rate */}
-                                    {provider.successRate && (
-                                        <div className="flex items-center gap-1 ml-auto">
-                                            <TrendingUp className="w-3.5 h-3.5 text-blue-400" />
-                                            <span className="text-xs text-blue-400">
-                                                {provider.successRate}%
-                                            </span>
+                                    <div className="px-2.5 py-1.5 rounded-lg bg-black/30 border border-white/5">
+                                        <span className="text-[9px] text-gray-500 uppercase tracking-wider">Price</span>
+                                        <div className="flex items-baseline gap-0.5">
+                                            <span className="text-base font-bold text-white">${provider.price.toFixed(2)}</span>
+                                            <span className="text-[9px] text-gray-500">/num</span>
                                         </div>
-                                    )}
+                                    </div>
+
+                                    {/* Stock - Advanced */}
+                                    <div className="px-2.5 py-1.5 rounded-lg bg-black/30 border border-white/5">
+                                        <span className="text-[9px] text-gray-500 uppercase tracking-wider">Available</span>
+                                        <div className="flex items-center gap-1.5">
+                                            <span className={cn(
+                                                "text-sm font-bold tabular-nums",
+                                                provider.stock >= 10000 ? "text-emerald-400" :
+                                                    provider.stock >= 1000 ? "text-green-400" :
+                                                        provider.stock >= 100 ? "text-lime-400" :
+                                                            provider.stock >= 10 ? "text-yellow-400" : "text-red-400"
+                                            )}>
+                                                {provider.stock >= 100000 ? `${(provider.stock / 1000).toFixed(0)}K` :
+                                                    provider.stock >= 10000 ? `${(provider.stock / 1000).toFixed(1)}K` :
+                                                        provider.stock >= 1000 ? `${(provider.stock / 1000).toFixed(1)}K` :
+                                                            provider.stock.toLocaleString()}
+                                            </span>
+                                            {/* 5-segment stock bar for large ranges */}
+                                            <div className="flex gap-px h-1.5 flex-1 max-w-[40px]">
+                                                <div className={cn("w-full rounded-l-sm transition-colors",
+                                                    provider.stock > 0 ? "bg-green-500" : "bg-white/10")} />
+                                                <div className={cn("w-full transition-colors",
+                                                    provider.stock >= 100 ? "bg-green-500" : "bg-white/10")} />
+                                                <div className={cn("w-full transition-colors",
+                                                    provider.stock >= 1000 ? "bg-green-500" : "bg-white/10")} />
+                                                <div className={cn("w-full transition-colors",
+                                                    provider.stock >= 10000 ? "bg-emerald-500" : "bg-white/10")} />
+                                                <div className={cn("w-full rounded-r-sm transition-colors",
+                                                    provider.stock >= 50000 ? "bg-emerald-400" : "bg-white/10")} />
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
 
-                                {/* Buy Button (shown on hover or selected) */}
+                                {/* Buy Button */}
                                 <motion.button
-                                    initial={{ opacity: 0, y: 5 }}
-                                    animate={{ opacity: isSelected ? 1 : 0, y: isSelected ? 0 : 5 }}
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{
+                                        opacity: isSelected ? 1 : 0,
+                                        height: isSelected ? 'auto' : 0,
+                                        marginTop: isSelected ? 16 : 0
+                                    }}
+                                    className={cn(
+                                        "w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 relative overflow-hidden z-20",
+                                        "bg-[hsl(var(--neon-lime))] text-black shadow-lg shadow-[hsl(var(--neon-lime)/0.2)] hover:shadow-[hsl(var(--neon-lime)/0.4)] transition-shadow"
+                                    )}
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         handleBuy(provider);
                                     }}
-                                    className={cn(
-                                        "w-full mt-4 py-2.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all",
-                                        "bg-[hsl(var(--neon-lime))] text-black hover:bg-[hsl(var(--neon-lime)/0.9)]",
-                                        !isSelected && "opacity-0 group-hover:opacity-100"
-                                    )}
                                 >
-                                    <ShoppingCart className="w-4 h-4" />
-                                    Buy for ${provider.price.toFixed(2)}
+                                    <ShoppingCart className="w-4 h-4 fill-black" />
+                                    <span>Purchase Number</span>
                                 </motion.button>
                             </motion.div>
                         );
                     })}
                 </AnimatePresence>
-            </div>
+            </motion.div>
 
             {/* Load More */}
             {hasMore && (

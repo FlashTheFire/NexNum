@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
             const stockItems = prices.filter(p => p.count > 0)
 
             const offers: OfferDocument[] = stockItems.map(p => ({
-                id: `${provider.name}_${p.country}_${p.service}`.toLowerCase().replace(/[^a-z0-9_]/g, ''),
+                id: `${provider.name}_${p.country}_${p.service}_${p.operator || 'default'}`.toLowerCase().replace(/[^a-z0-9_]/g, ''),
                 provider: provider.name,
                 displayName: provider.displayName,
                 countryCode: p.country, // '22'
@@ -55,6 +55,9 @@ export async function GET(req: NextRequest) {
                 flagUrl: '',
                 serviceSlug: p.service.toLowerCase(),
                 serviceName: serviceMap.get(p.service) || p.service, // Use mapped name
+                operatorId: 1,
+                operatorDisplayName: '',
+                externalOperator: p.operator || undefined,
                 price: p.cost,
                 stock: p.count,
                 lastSyncedAt: Date.now()

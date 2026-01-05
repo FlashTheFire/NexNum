@@ -83,7 +83,7 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
                 const countries = await metadataEngine.getCountries()
                 result = {
                     count: countries.length,
-                    first: countries.slice(0, 3), // Only return first 3 to keep log small
+                    first: countries.slice(0, 5), // Return first 5 for better debugging
                     usingLegacyMetadata: !useDynamicMeta
                 }
                 break
@@ -93,7 +93,7 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
                 const services = await metadataEngine.getServices(params.country || '')
                 result = {
                     count: services.length,
-                    first: services.slice(0, 3),
+                    first: services.slice(0, 5), // Return first 5 for better debugging
                     usingLegacyMetadata: !useDynamicMeta
                 }
                 break
@@ -179,12 +179,22 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
         })
     }
 
+    // Determine which engine's trace to use based on action
+    let traceEngine: any = null
+    if (['getCountries', 'getServices'].includes(action)) {
+        // Metadata operations use metadataEngine
+        traceEngine = useDynamicMeta && metadataEngine ? metadataEngine : null
+    } else {
+        // Other operations use main engine
+        traceEngine = isDynamic && engine ? engine : null
+    }
+
     return NextResponse.json({
         success,
         action,
         data: responseData,
         error: errorMsg,
         duration,
-        trace: isDynamic && engine ? (engine as DynamicProvider).lastRequestTrace : null
+        trace: traceEngine?.lastRequestTrace ?? null
     })
 }

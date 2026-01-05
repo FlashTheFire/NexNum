@@ -27,6 +27,7 @@ import { useGlobalStore } from "@/store"
 import { cn, formatPrice } from "@/lib/utils"
 import { useAuthStore } from "@/stores/authStore"
 import DashboardMobileActionBar from "@/components/common/DashboardMobileActionBar"
+import LoadingScreen from "@/components/ui/LoadingScreen"
 
 const navItems = [
     { href: "/dashboard", label: "Overview", icon: LayoutDashboard, description: "Dashboard home" },
@@ -76,14 +77,7 @@ export default function DashboardLayout({
     }
 
     if (isLoading) {
-        return (
-            <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
-                <div className="text-center">
-                    <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                    <p className="text-muted-foreground">Loading your dashboard...</p>
-                </div>
-            </div>
-        )
+        return <LoadingScreen status="Preparing Dashboard" />
     }
 
     if (!isAuthenticated) {

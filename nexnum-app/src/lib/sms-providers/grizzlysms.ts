@@ -74,9 +74,8 @@ export class GrizzlySmsProvider implements SmsProvider {
 
             results.push({
                 id: finalCode,
-                code: finalCode, // '22', '1', etc.
                 name: norm.displayName,
-                flag: c.icon
+                flagUrl: c.icon
             })
         }
 
@@ -104,11 +103,8 @@ export class GrizzlySmsProvider implements SmsProvider {
 
             return data.map(s => ({
                 id: s.external_id.toLowerCase(),
-                code: s.external_id.toLowerCase(),
-                name: s.name || s.slug || s.external_id, // Use name, fallback to slug, then code
-                price: 0,
-                // Construct icon URL from icon ID
-                icon: s.icon ? `https://grizzlysms.com/api/storage/image/${s.icon}.webp` : null
+                name: s.name || s.slug || s.external_id,
+                iconUrl: s.icon ? `https://grizzlysms.com/api/storage/image/${s.icon}.webp` : null
             }))
 
         } catch (e) {

@@ -85,9 +85,8 @@ export class HeroSmsProvider implements SmsProvider {
 
             results.push({
                 id: finalCode,
-                code: finalCode,
                 name: norm.displayName,
-                flag: id ? `https://cdn.hero-sms.com/assets/img/country/${id}.svg` : null
+                flagUrl: id ? `https://cdn.hero-sms.com/assets/img/country/${id}.svg` : null
             })
         }
 
@@ -110,10 +109,8 @@ export class HeroSmsProvider implements SmsProvider {
 
             services.push({
                 id: s.code.toLowerCase(),
-                code: s.code.toLowerCase(),
                 name: s.name || s.code,
-                price: 0, // Price fetched separately
-                icon: s.code ? `https://cdn.hero-sms.com/assets/img/service/${s.code}0.webp` : null
+                iconUrl: s.code ? `https://cdn.hero-sms.com/assets/img/service/${s.code}0.webp` : null
             })
         }
 

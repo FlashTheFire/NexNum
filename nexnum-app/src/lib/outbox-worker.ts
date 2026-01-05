@@ -81,15 +81,18 @@ async function handleOfferUpdate(pricingId: string, payload: Record<string, unkn
 
     // Build MeiliSearch document
     const doc: OfferDocument = {
-        id: `${pricing.provider.name}_${pricing.country.externalId}_${pricing.service.externalId}`.toLowerCase(),
+        id: `${pricing.provider.name}_${pricing.country.externalId}_${pricing.service.externalId}_${pricing.operator || 'default'}`.toLowerCase(),
         serviceSlug: pricing.service.code,
         serviceName: pricing.service.name,
-        serviceIcon: pricing.service.iconUrl || undefined,
+        iconUrl: pricing.service.iconUrl || undefined,
         countryCode: pricing.country.externalId,
         countryName: pricing.country.name,
         flagUrl: pricing.country.flagUrl || '',
         provider: pricing.provider.name,
         displayName: pricing.provider.displayName,
+        operatorId: 1, // Default operator ID for outbox updates
+        operatorDisplayName: '',
+        externalOperator: pricing.operator || undefined,
         price: Number(pricing.sellPrice),
         stock: pricing.stock,
         lastSyncedAt: Date.now()

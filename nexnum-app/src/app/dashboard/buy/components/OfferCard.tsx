@@ -1,7 +1,6 @@
 import { motion } from "framer-motion";
-import { ArrowRight, Signal } from "lucide-react";
+import { ArrowRight, Signal, Server } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
-import { ServiceIcon } from "./ServiceIcon";
 
 export interface SearchOffer {
     id: string;
@@ -39,7 +38,7 @@ export const OfferCard = ({ offer, onBuy, disabled }: OfferCardProps) => {
             <div className="flex items-center gap-4 z-10">
                 {/* Service Icon */}
                 <div className="w-12 h-12 rounded-xl bg-black/20 flex items-center justify-center border border-white/5 group-hover:border-[hsl(var(--neon-lime)/0.3)] transition-colors">
-                    <ServiceIcon id={offer.serviceCode} className="w-6 h-6 text-gray-400 group-hover:text-white transition-colors" />
+                    <Server className="w-6 h-6 text-gray-400 group-hover:text-white transition-colors" />
                 </div>
 
                 {/* Details */}

@@ -70,7 +70,6 @@ export class FiveSimProvider implements SmsProvider {
 
             results.push({
                 id: code,
-                code: code,
                 name: norm.displayName
             })
         }
@@ -99,9 +98,7 @@ export class FiveSimProvider implements SmsProvider {
 
                 return {
                     id: code.toLowerCase(),
-                    code: code.toLowerCase(),
-                    name: name,
-                    price: info.Price
+                    name: name
                 }
             })
         } catch {

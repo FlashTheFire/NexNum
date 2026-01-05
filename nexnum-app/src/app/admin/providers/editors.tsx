@@ -34,14 +34,141 @@ export function safeParse(jsonString: string) {
 
 export const PROVIDER_TEMPLATES = {
     '5sim': {
-        name: '5sim',
-        displayName: '5sim.net',
-        description: 'Hybrid Config: v1 for Lists (Rich Data), Legacy API for Actions (Simple Key).',
-        baseUrl: 'http://api1.5sim.net/stubs/handler_api.php',
-        authType: 'none',
-        endpoints: '{\n  "getCountries": { "method": "GET", "path": "https://5sim.net/v1/guest/countries" },\n  "getServices": { "method": "GET", "path": "https://5sim.net/v1/guest/products/{country}/any" },\n  "getNumber": { "method": "GET", "path": "http://api1.5sim.net/stubs/handler_api.php?api_key={authKey}&action=getNumber&service={service}&country={country}" },\n  "getStatus": { "method": "GET", "path": "http://api1.5sim.net/stubs/handler_api.php?api_key={authKey}&action=getStatus&id={id}" },\n  "cancelNumber": { "method": "GET", "path": "http://api1.5sim.net/stubs/handler_api.php?api_key={authKey}&action=setStatus&status=8&id={id}" },\n  "getBalance": { "method": "GET", "path": "http://api1.5sim.net/stubs/handler_api.php?api_key={authKey}&action=getBalance" }\n}',
-        mappings: '{\n  "getCountries": { "type": "json_dictionary", "fields": { "id": "iso.$firstValue", "name": "text_en", "code": "$key" } },\n  "getServices": { "type": "json_dictionary", "fields": { "id": "$key", "name": "$key", "code": "$key", "price": "cost", "count": "count" } },\n  "getNumber": { "type": "text_regex", "regex": "ACCESS_NUMBER:(\\\\d+):(\\\\d+)", "fields": { "id": "1", "phone": "2", "price": "0" } },\n  "getStatus": { "type": "text_regex", "regex": "STATUS_([A-Z_]+):?(.*)?", "fields": { "status": "1", "sms": "2" } },\n  "cancelNumber": { "type": "text_regex", "regex": "ACCESS_CANCEL", "fields": { "status": "1" } },\n  "getBalance": { "type": "text_regex", "regex": "ACCESS_BALANCE:([\\\\d.]+)", "fields": { "balance": "1" } }\n}'
-    },
+    name: '5sim',
+    displayName: '5sim.net',
+    description: 'Official v1 guest/user endpoints. Uses Bearer auth for user actions and guest endpoints for public lists.',
+    baseUrl: 'https://5sim.net/v1',
+    authType: 'bearer',
+
+    endpoints: '{\n' +
+    '  "getCountries": {\n' +
+    '    "method": "GET",\n' +
+    '    "path": "https://5sim.net/v1/guest/countries"\n' +
+    '  },\n' +
+    '  "getServices": {\n' +
+    '    "method": "GET",\n' +
+    '    "path": "https://5sim.net/v1/guest/products/any/any"\n' +
+    '  },\n' +
+    '  "getNumber": {\n' +
+    '    "method": "GET",\n' +
+    '    "path": "https://5sim.net/v1/user/buy/activation/$country/$operator/$product",\n' +
+    '    "queryParams": {\n' +
+    '      "forwarding": "$forwarding",\n' +
+    '      "number": "$forwardingNumber",\n' +
+    '      "reuse": "$reuse",\n' +
+    '      "voice": "$voice",\n' +
+    '      "ref": "$ref",\n' +
+    '      "maxPrice": "$maxPrice"\n' +
+    '    }\n' +
+    '  },\n' +
+    '  "getStatus": {\n' +
+    '    "method": "GET",\n' +
+    '    "path": "https://5sim.net/v1/user/check/$id"\n' +
+    '  },\n' +
+    '  "cancelNumber": {\n' +
+    '    "method": "GET",\n' +
+    '    "path": "https://5sim.net/v1/user/cancel/$id"\n' +
+    '  },\n' +
+    '  "getBalance": {\n' +
+    '    "method": "GET",\n' +
+    '    "path": "https://5sim.net/v1/user/profile"\n' +
+    '  },\n' +
+    '  "getPrices": {\n' +
+    '    "method": "GET",\n' +
+    '    "path": "https://5sim.net/v1/guest/prices",\n' +
+    '    "queryParams": {\n' +
+    '      "country": "$country",\n' +
+    '      "product": "$service"\n' +
+    '    }\n' +
+    '  }\n' +
+    '}',
+
+    mappings: '{\n' +
+    '  "getCountries": {\n' +
+    '    "type": "json_dictionary",\n' +
+    '    "fields": {\n' +
+    '      "name": "text_en|$key",\n' +
+    '      "iso": "iso.$firstKey",\n' +
+    '      "prefix": "prefix.$firstKey",\n' +
+    '      "countryCode": "$key"\n' +
+    '    }\n' +
+    '  },\n' +
+    '  "getServices": {\n' +
+    '    "type": "json_dictionary",\n' +
+    '    "fields": {\n' +
+    '      "service": "$key",\n' +
+    '      "category": "Category",\n' +
+    '      "count": "Qty|count|stock",\n' +
+    '      "cost": "Price|cost|amount"\n' +
+    '    }\n' +
+    '  },\n' +
+    '  "getNumber": {\n' +
+    '    "type": "json_object",\n' +
+    '    "fields": {\n' +
+    '      "id": "id",\n' +
+    '      "phone": "phone",\n' +
+    '      "operator": "operator",\n' +
+    '      "service": "product",\n' +
+    '      "cost": "price",\n' +
+    '      "status": "status",\n' +
+    '      "expiresAt": "expires",\n' +
+    '      "country": "country",\n' +
+    '      "sms": "sms"\n' +
+    '    }\n' +
+    '  },\n' +
+    '  "getStatus": {\n' +
+    '    "type": "json_object",\n' +
+    '    "fields": {\n' +
+    '      "id": "id",\n' +
+    '      "phone": "phone",\n' +
+    '      "operator": "operator",\n' +
+    '      "service": "product",\n' +
+    '      "cost": "price",\n' +
+    '      "status": "status",\n' +
+    '      "expiresAt": "expires",\n' +
+    '      "country": "country",\n' +
+    '      "sms": "sms",\n' +
+    '      "code": "sms[0].code",\n' +
+    '      "message": "sms[0].text"\n' +
+    '    }\n' +
+    '  },\n' +
+    '  "cancelNumber": {\n' +
+    '    "type": "json_object",\n' +
+    '    "fields": {\n' +
+    '      "id": "id",\n' +
+    '      "phone": "phone",\n' +
+    '      "operator": "operator",\n' +
+    '      "service": "product",\n' +
+    '      "cost": "price",\n' +
+    '      "status": "status",\n' +
+    '      "expiresAt": "expires",\n' +
+    '      "country": "country"\n' +
+    '    }\n' +
+    '  },\n' +
+    '  "getBalance": {\n' +
+    '    "type": "json_object",\n' +
+    '    "fields": {\n' +
+    '      "balance": "balance",\n' +
+    '      "id": "id",\n' +
+    '      "email": "email",\n' +
+    '      "rating": "rating"\n' +
+    '    }\n' +
+    '  },\n' +
+    '  "getPrices": {\n' +
+    '    "type": "json_dictionary",\n' +
+    '    "nestingLevels": {\n' +
+    '      "extractOperators": true\n' +
+    '    },\n' +
+    '    "fields": {\n' +
+    '      "cost": "cost|price|amount|rate|value",\n' +
+    '      "count": "count|qty|stock|available|physicalCount",\n' +
+    '      "operator": "$key",\n' +
+    '      "service": "$parentKey",\n' +
+    '      "country": "$grandParentKey"\n' +
+    '    }\n' +
+    '  }\n' +
+    '}'
+},
     'grizzlysms': {
     name: 'grizzlysms',
     displayName: 'GrizzlySMS',
@@ -154,16 +281,134 @@ export const PROVIDER_TEMPLATES = {
     '}'
 },
 
-    'smsbower': {
-        name: 'smsbower',
-        displayName: 'SMSBower',
-        description: 'Legacy-style provider. Good availability.',
-        baseUrl: 'https://smsbower.online/stubs/handler_api.php',
-        authType: 'query_param',
-        authQueryParam: 'api_key',
-        endpoints: '{\n  "getCountries": { "method": "GET", "path": "https://smsbower.online/stubs/handler_api.php?action=getCountries&api_key={authKey}" },\n  "getServices": { "method": "GET", "path": "https://smsbower.online/stubs/handler_api.php?action=getServicesList&api_key={authKey}" },\n  "getNumber": { "method": "GET", "path": "https://smsbower.online/stubs/handler_api.php?action=getNumber&service={service}&country={country}&api_key={authKey}" },\n  "getStatus": { "method": "GET", "path": "https://smsbower.online/stubs/handler_api.php?action=getStatus&id={id}&api_key={authKey}" },\n  "cancelNumber": { "method": "GET", "path": "https://smsbower.online/stubs/handler_api.php?action=setStatus&id={id}&status=8&api_key={authKey}" },\n  "getBalance": { "method": "GET", "path": "https://smsbower.online/stubs/handler_api.php?action=getBalance&api_key={authKey}" }\n}',
-        mappings: '{\n  "getCountries": { "type": "json_dictionary", "fields": { "id": "id", "name": "eng", "code": "id" } },\n  "getServices": { "type": "json_array", "rootPath": "services", "fields": { "id": "code", "name": "name", "code": "code" } },\n  "getNumber": { "type": "text_regex", "regex": "ACCESS_NUMBER:(\\\\d+):(\\\\d+)", "fields": { "id": "1", "phone": "2" } },\n  "getStatus": { "type": "text_regex", "regex": "STATUS_([A-Z_]+)(:?.*)?", "fields": { "status": "1", "code": "2" } },\n  "cancelNumber": { "type": "text_regex", "regex": "ACCESS_CANCEL", "fields": { "status": "0" } },\n  "getBalance": { "type": "text_regex", "regex": "ACCESS_BALANCE:([\\\\d.]+)", "fields": { "balance": "1" } }\n}'
-    },
+'smsbower': {
+    name: 'smsbower',
+    displayName: 'SMSBower',
+    description: 'Legacy-style provider with extended v3 pricing and v2 getNumber. Query-param auth.',
+    baseUrl: 'https://smsbower.online/stubs/handler_api.php',
+    authType: 'query_param',
+    authQueryParam: 'api_key',
+
+    endpoints: '{\n' +
+    '  "getCountries": {\n' +
+    '    "method": "GET",\n' +
+    '    "path": "https://smsbower.online/stubs/handler_api.php",\n' +
+    '    "queryParams": { "action": "getCountries" }\n' +
+    '  },\n' +
+    '  "getServices": {\n' +
+    '    "method": "GET",\n' +
+    '    "path": "https://smsbower.online/stubs/handler_api.php",\n' +
+    '    "queryParams": { "action": "getServicesList" }\n' +
+    '  },\n' +
+    '  "getNumber": {\n' +
+    '    "method": "GET",\n' +
+    '    "path": "https://smsbower.online/stubs/handler_api.php",\n' +
+    '    "queryParams": {\n' +
+    '      "action": "getNumberV2",\n' +
+    '      "service": "$service",\n' +
+    '      "country": "$country",\n' +
+    '      "maxPrice": "$maxPrice",\n' +
+    '      "providerIds": "$providerIds",\n' +
+    '      "exceptProviderIds": "$exceptProviderIds"\n' +
+    '    }\n' +
+    '  },\n' +
+    '  "getStatus": {\n' +
+    '    "method": "GET",\n' +
+    '    "path": "https://smsbower.online/stubs/handler_api.php",\n' +
+    '    "queryParams": { "action": "getStatus", "id": "$id" }\n' +
+    '  },\n' +
+    '  "cancelNumber": {\n' +
+    '    "method": "GET",\n' +
+    '    "path": "https://smsbower.online/stubs/handler_api.php",\n' +
+    '    "queryParams": { "action": "setStatus", "status": "8", "id": "$id" }\n' +
+    '  },\n' +
+    '  "getBalance": {\n' +
+    '    "method": "GET",\n' +
+    '    "path": "https://smsbower.online/stubs/handler_api.php",\n' +
+    '    "queryParams": { "action": "getBalance" }\n' +
+    '  },\n' +
+    '  "getPrices": {\n' +
+    '    "method": "GET",\n' +
+    '    "path": "https://smsbower.online/stubs/handler_api.php",\n' +
+    '    "queryParams": { "action": "getPricesV3", "service": "$service", "country": "$country" }\n' +
+    '  }\n' +
+    '}',
+
+    mappings: '{\n' +
+    '  "getCountries": {\n' +
+    '    "type": "json_array",\n' +
+    '    "fields": {\n' +
+    '      "id": "id",\n' +
+    '      "name_en": "eng",\n' +
+    '      "name_ru": "rus",\n' +
+    '      "name_cn": "chn"\n' +
+    '    }\n' +
+    '  },\n' +
+    '  "getServices": {\n' +
+    '    "type": "json_array",\n' +
+    '    "rootPath": "services",\n' +
+    '    "fields": {\n' +
+    '      "code": "code",\n' +
+    '      "name": "name"\n' +
+    '    }\n' +
+    '  },\n' +
+    '  "getNumber": {\n' +
+    '    "type": "json_object",\n' +
+    '    "fields": {\n' +
+    '      "activation_id": "activationId",\n' +
+    '      "phone_number": "phoneNumber",\n' +
+    '      "cost": "activationCost",\n' +
+    '      "country_code": "countryCode",\n' +
+    '      "can_get_another_sms": "canGetAnotherSms",\n' +
+    '      "activation_time": "activationTime",\n' +
+    '      "operator": "activationOperator"\n' +
+    '    },\n' +
+    '    "transform": {\n' +
+    '      "cost": "number",\n' +
+    '      "can_get_another_sms": "boolean"\n' +
+    '    }\n' +
+    '  },\n' +
+    '  "getStatus": {\n' +
+    '    "type": "text_regex",\n' +
+    '    "regex": "(?<status>STATUS_WAIT_CODE|STATUS_WAIT_RETRY|STATUS_CANCEL|STATUS_OK)(?::(?<code>.+))?",\n' +
+    '    "fields": {\n' +
+    '      "status": "status",\n' +
+    '      "code": "code"\n' +
+    '    },\n' +
+    '    "conditionalFields": {\n' +
+    '      "STATUS_WAIT_CODE": { \"status\": \"PENDING\" },\n' +
+    '      "STATUS_WAIT_RETRY": { \"status\": \"PENDING\", \"message\": \"Waiting for next sms\" },\n' +
+    '      "STATUS_CANCEL": { \"status\": \"CANCELLED\" },\n' +
+    '      "STATUS_OK": { \"status\": \"RECEIVED\" }\n' +
+    '    }\n' +
+    '  },\n' +
+    '  "cancelNumber": {\n' +
+    '    "type": "text_regex",\n' +
+    '    "regex": "ACCESS_CANCEL",\n' +
+    '    "fields": { \"status\": \"ACCESS_CANCEL\" },\n' +
+    '    "conditionalFields": { \"ACCESS_CANCEL\": { \"status\": \"CANCELLED\" } }\n' +
+    '  },\n' +
+    '  "getBalance": {\n' +
+    '    "type": "text_regex",\n' +
+    '    "regex": "ACCESS_BALANCE:(?<balance>[0-9.]+)",\n' +
+    '    "fields": { \"balance\": \"balance\" },\n' +
+    '    "transform": { \"balance\": \"number\" }\n' +
+    '  },\n' +
+    '  "getPrices": {\n' +
+    '    "type": "json_dictionary",\n' +
+    '    "nestingLevels": { \"extractOperators\": true },\n' +
+    '    "fields": {\n' +
+    '      \"cost\": \"price|cost|rate\",\n' +
+    '      \"count\": \"count|qty|stock\",\n' +
+    '      \"operator\": \"provider_id|$key\",\n' +
+    '      \"service\": \"$parentKey\",\n' +
+    '      \"country\": \"$grandParentKey\"\n' +
+    '    },\n' +
+    '    "transform": { \"cost\": \"number\", \"count\": \"number\" }\n' +
+    '  }\n' +
+    '}' 
+},
+
 
     'herosms': {
         name: 'herosms',

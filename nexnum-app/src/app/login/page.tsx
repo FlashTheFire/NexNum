@@ -13,6 +13,7 @@ import AuthCard from "@/components/auth/AuthCard";
 import Auth3DLaptop from "@/components/auth/Auth3DLaptop";
 import Navbar from "@/components/layout/Navbar";
 import { useAuthStore } from "@/stores/authStore";
+import LoadingScreen from "@/components/ui/LoadingScreen";
 
 const features = [
     { icon: Shield, label: "Bank-grade encryption" },
@@ -45,6 +46,14 @@ export default function LoginPage() {
         window.addEventListener("resize", check);
         return () => window.removeEventListener("resize", check);
     }, []);
+
+    if (isLoading && !isAuthenticated) {
+        return <LoadingScreen status="Verifying Protocol" />
+    }
+
+    if (isAuthenticated) {
+        return <LoadingScreen status="Redirecting to Workspace" />
+    }
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();

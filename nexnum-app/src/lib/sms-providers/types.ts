@@ -2,17 +2,17 @@
 
 export interface Country {
     id: string
-    code: string
+    code?: string
     name: string
-    flag?: string | null;
+    flagUrl?: string | null;
 }
 
 export interface Service {
     id: string
-    code: string
+    code?: string
     name: string
-    price: number
-    icon?: string | null  // Service icon URL
+    price?: number
+    iconUrl?: string | null  // Service icon URL
 }
 
 export interface NumberResult {

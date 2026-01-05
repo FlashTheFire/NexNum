@@ -65,7 +65,7 @@ async function upsertCountryLookup(code: string, name: string, flagUrl?: string 
 /**
  * Get countries using legacy provider adapter
  */
-async function getCountriesLegacy(provider: Provider, engine: DynamicProvider): Promise<{ code: string, name: string, flag?: string | null }[]> {
+async function getCountriesLegacy(provider: Provider, engine: DynamicProvider): Promise<{ code: string, name: string, flagUrl?: string | null }[]> {
     const slug = provider.name.toLowerCase()
 
     if (hasLegacyProvider(slug)) {
@@ -73,14 +73,14 @@ async function getCountriesLegacy(provider: Provider, engine: DynamicProvider): 
         if (legacyProvider) {
             try {
                 const countries = await legacyProvider.getCountries()
-                const results: { code: string, name: string, flag?: string | null }[] = []
+                const results: { code: string, name: string, flagUrl?: string | null }[] = []
 
                 for (const c of countries) {
-                    await upsertCountryLookup(c.code, c.name)
+                    await upsertCountryLookup(c.id, c.name, c.flagUrl)
                     results.push({
-                        code: c.code,
+                        code: c.id,
                         name: c.name,
-                        flag: c.flag
+                        flagUrl: c.flagUrl
                     })
                 }
                 return results
@@ -92,7 +92,7 @@ async function getCountriesLegacy(provider: Provider, engine: DynamicProvider): 
     return dynamicCountries.map(c => ({
         code: c.code,
         name: c.name,
-        flag: c.flag
+        flagUrl: c.flagUrl
     }))
 }
 
@@ -138,7 +138,7 @@ async function getServicesLegacy(provider: Provider, engine: DynamicProvider): P
 
                 // Upsert to lookup table
                 await Promise.all(services.map(s => limit(async () => {
-                    await upsertServiceLookup(s.code, s.name)
+                    await upsertServiceLookup(s.id, s.name, s.iconUrl)
                 })))
 
                 return
@@ -160,7 +160,7 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
     const startTime = Date.now()
     let countriesCount = 0, servicesCount = 0, pricesCount = 0, error: string | undefined
     const serviceMap = new Map<string, string>()          // code -> name
-    const serviceIconMap = new Map<string, string>()      // code -> iconUrl
+    const iconUrlMap = new Map<string, string>()      // code -> iconUrl
 
     try {
         // Pre-load ALL service names from ServiceLookup table for fallback
@@ -222,7 +222,7 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
             // Load existing IDs from DB
             const dbCountries = await prisma.providerCountry.findMany({
                 where: { providerId: provider.id },
-                select: { id: true, externalId: true, name: true }
+                select: { id: true, externalId: true, name: true, flagUrl: true }
             })
 
             // VALIDATION: Check for stale data (countries with 'Unknown' names or missing phoneCode)
@@ -236,17 +236,21 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
             } else {
                 dbCountries.forEach(c => {
                     countryIdMap.set(c.externalId, c.id)
-                    countries.push({ code: c.externalId, name: c.name })
+                    countries.push({ code: c.externalId, name: c.name, flagUrl: c.flagUrl })
                 })
                 countriesCount = dbCountries.length
 
                 const dbServices = await prisma.providerService.findMany({
                     where: { providerId: provider.id },
-                    select: { id: true, externalId: true, name: true }
+                    select: { id: true, externalId: true, name: true, iconUrl: true }
                 })
                 dbServices.forEach(s => {
                     serviceIdMap.set(s.externalId, s.id)
                     serviceMap.set(s.externalId, s.name)
+                    if (s.iconUrl) {
+                        iconUrlMap.set(s.externalId, s.iconUrl)
+                        iconUrlMap.set(s.externalId.toLowerCase(), s.iconUrl)
+                    }
                 })
                 servicesCount = dbServices.length
             }
@@ -290,7 +294,7 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
                 await getServicesLegacy(provider, engine)
                 // Load from global lookup since legacy writes there
                 const dbServices = await prisma.serviceLookup.findMany()
-                services = dbServices.map(s => ({ code: s.code, name: s.name, icon: s.iconUrl }))
+                services = dbServices.map(s => ({ code: s.code, name: s.name, iconUrl: s.iconUrl }))
             } else {
                 try {
                     services = await engine.getServices('')
@@ -307,30 +311,34 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
             // Upsert services to DB
             console.log(`[SYNC] ${provider.name}: Upserting ${services.length} services to DB...`)
             for (const s of services) {
+                // Use id first (from adapters), fallback to code (from DB lookups)
+                const serviceCode = s.id || s.code
+                if (!serviceCode) continue
+
                 // Add to maps
-                serviceMap.set(s.code, s.name)
-                serviceMap.set(s.code.toLowerCase(), s.name)
-                if (s.icon) {
-                    serviceIconMap.set(s.code, s.icon)
-                    serviceIconMap.set(s.code.toLowerCase(), s.icon)
+                serviceMap.set(serviceCode, s.name)
+                serviceMap.set(serviceCode.toLowerCase(), s.name)
+                if (s.iconUrl) {
+                    iconUrlMap.set(serviceCode, s.iconUrl)
+                    iconUrlMap.set(serviceCode.toLowerCase(), s.iconUrl)
                 }
                 const record = await prisma.providerService.upsert({
-                    where: { providerId_externalId: { providerId: provider.id, externalId: s.code } },
+                    where: { providerId_externalId: { providerId: provider.id, externalId: serviceCode } },
                     create: {
                         providerId: provider.id,
-                        externalId: s.code,
-                        code: s.code.toLowerCase(),
+                        externalId: serviceCode,
+                        code: serviceCode.toLowerCase(),
                         name: s.name || 'Unknown',
-                        iconUrl: s.icon || null,
+                        iconUrl: s.iconUrl || null,
                         lastSyncAt: new Date()
                     },
                     update: {
                         name: s.name || 'Unknown',
-                        iconUrl: s.icon || null,
+                        iconUrl: s.iconUrl || null,
                         lastSyncAt: new Date()
                     }
                 })
-                serviceIdMap.set(s.code, record.id)
+                serviceIdMap.set(serviceCode, record.id)
             }
 
             // Update metadata sync timestamp
@@ -344,11 +352,22 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
         console.log(`[SYNC] ${provider.name}: Starting price sync for ${countries.length} countries...`)
 
         // Clear existing pricing for this provider before re-indexing
+        // Use raw SQL to delete reservations referencing this provider's pricing (avoids parameter limit)
+        await prisma.$executeRaw`
+            DELETE FROM offer_reservations 
+            WHERE pricing_id IN (
+                SELECT id FROM provider_pricing WHERE provider_id = ${provider.id}
+            )
+        `
         await prisma.providerPricing.deleteMany({ where: { providerId: provider.id } })
         await deleteOffersByProvider(provider.name)
 
         const allOffers: OfferDocument[] = []
         const pricingBatch: any[] = []
+
+        // Operator mapping: Track provider+externalOperator -> internal sequential ID
+        const operatorMap = new Map<string, number>()
+        let operatorCounter = 1
 
         // User requested "super fast" but safe (120-180 req/min).
         const limiter = new RateLimitedQueue(50, 180)
@@ -381,6 +400,14 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
                             const rawPrice = Number(p.cost)
                             const sellPrice = (rawPrice * Number(provider.priceMultiplier)) + Number(provider.fixedMarkup)
 
+                            // OPERATOR MAPPING: Generate internal sequential ID
+                            const externalOp = p.operator != null ? String(p.operator) : 'default'
+                            const opKey = `${provider.name}_${externalOp}`
+                            if (!operatorMap.has(opKey)) {
+                                operatorMap.set(opKey, operatorCounter++)
+                            }
+                            const internalOpId = operatorMap.get(opKey)!
+
                             // Prepare DB pricing record
                             const serviceDbId = serviceIdMap.get(p.service)
                             if (countryDbId && serviceDbId) {
@@ -396,16 +423,21 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
                                 })
                             }
 
+                            // Include operator in ID to make each offer unique per operator
                             return {
-                                id: `${provider.name}_${p.country}_${p.service}`.toLowerCase().replace(/[^a-z0-9_]/g, ''),
+                                id: `${provider.name}_${p.country}_${p.service}_${externalOp}`.toLowerCase().replace(/[^a-z0-9_]/g, ''),
                                 provider: provider.name,
                                 displayName: provider.displayName,
                                 countryCode: p.country,
                                 countryName: country.name || 'Unknown',
-                                flagUrl: country.flag || '',
+                                flagUrl: country.flagUrl || '',
                                 serviceSlug: p.service.toLowerCase(),
                                 serviceName: svcName,
-                                serviceIcon: serviceIconMap.get(p.service) || serviceIconMap.get(p.service.toLowerCase()),
+                                iconUrl: iconUrlMap.get(p.service) || iconUrlMap.get(p.service.toLowerCase()),
+                                // Operator fields
+                                operatorId: internalOpId,
+                                externalOperator: externalOp !== 'default' ? externalOp : undefined,
+                                operatorDisplayName: '', // Default empty, can be edited in admin settings
                                 price: Number(sellPrice.toFixed(2)),
                                 stock: p.count,
                                 lastSyncedAt: Date.now()
