@@ -24,6 +24,25 @@ export async function middleware(request: NextRequest) {
     response.headers.set('X-Frame-Options', 'SAMEORIGIN')
     response.headers.set('X-Content-Type-Options', 'nosniff')
     response.headers.set('Referrer-Policy', 'origin-when-cross-origin')
+    response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+
+    // Content Security Policy (Production-Grade)
+    const csp = [
+        "default-src 'self'",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.sentry.io https://*.vercel-insights.com",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        "font-src 'self' https://fonts.gstatic.com",
+        "img-src 'self' data: blob: https: http:",
+        "connect-src 'self' https://*.sentry.io https://*.ingest.sentry.io wss: https:",
+        "frame-ancestors 'self'",
+        "base-uri 'self'",
+        "form-action 'self'",
+    ].join('; ')
+    response.headers.set('Content-Security-Policy', csp)
+
+    // Request Tracing Headers (Professional Observability)
+    const requestId = `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`
+    response.headers.set('X-Request-ID', requestId)
 
     // -------------------------------------------------------------
     // 1.5 Maintenance Mode Check

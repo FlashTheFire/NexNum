@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { ZodError, ZodSchema } from 'zod'
 import { logger } from './logger'
+import { rateLimiters, RatelimitType } from './ratelimit'
 
 type ApiHandler<T> = (
     req: Request,
@@ -10,10 +11,12 @@ type ApiHandler<T> = (
 interface ApiOptions<T> {
     schema?: ZodSchema<T>
     roles?: string[] // Future: Role Based Access Control
+    rateLimit?: RatelimitType // Rate limit type: 'api' | 'auth' | 'admin' | 'transaction'
 }
 
 /**
  * Professional API Wrapper
+ * - Rate Limiting (P0 Security)
  * - Standardizes Error Handling
  * - Handles Zod Validation
  * - Logs Requests/Errors properly
@@ -24,6 +27,35 @@ export function apiHandler<T = any>(
 ) {
     return async (req: Request, context: { params: any }) => {
         try {
+            // 0. Rate Limiting (P0 Priority)
+            if (options.rateLimit) {
+                const ip = req.headers.get('x-forwarded-for')?.split(',')[0] ||
+                    req.headers.get('x-real-ip') ||
+                    'anonymous'
+
+                const limiter = rateLimiters[options.rateLimit]
+                const result = await limiter.limit(ip)
+
+                if (!result.success) {
+                    logger.warn('Rate limit exceeded', { ip, type: options.rateLimit })
+                    return NextResponse.json(
+                        {
+                            success: false,
+                            error: 'Too many requests. Please try again later.',
+                            retryAfter: Math.ceil((result.reset - Date.now()) / 1000)
+                        },
+                        {
+                            status: 429,
+                            headers: {
+                                'Retry-After': String(Math.ceil((result.reset - Date.now()) / 1000)),
+                                'X-RateLimit-Limit': String(result.limit),
+                                'X-RateLimit-Remaining': String(result.remaining),
+                            }
+                        }
+                    )
+                }
+            }
+
             let body: T | undefined
 
             // 1. Body Parsing & Validation
@@ -70,3 +102,4 @@ export function apiHandler<T = any>(
         }
     }
 }
+

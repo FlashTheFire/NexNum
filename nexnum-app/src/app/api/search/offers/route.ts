@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { searchOffers } from "@/lib/search";
 import { verifyToken } from "@/lib/jwt";
+import { createOfferId } from "@/lib/id-security";
 
 // Protected Route: Only logged in users can search offers
 export async function GET(req: NextRequest) {
@@ -33,10 +34,39 @@ export async function GET(req: NextRequest) {
             sort: sortParam ? [sortParam] : ['price:asc']
         });
 
-        return NextResponse.json(results);
+        // 2. Obfuscate internal IDs before sending to client
+        const secureHits = results.hits.map(offer => {
+            // Create secure ID that hides provider/operator details
+            const secureId = createOfferId({
+                provider: offer.provider,
+                country: offer.countryCode,
+                service: offer.serviceSlug,
+                operator: String(offer.externalOperator || offer.operatorId || '')
+            });
+
+            // Return sanitized offer (remove internal identifiers)
+            const {
+                provider,
+                operatorId,
+                externalOperator,
+                operatorDisplayName,
+                ...safeFields
+            } = offer;
+
+            return {
+                ...safeFields,
+                id: secureId, // Replace with secure ID
+            };
+        });
+
+        return NextResponse.json({
+            hits: secureHits,
+            total: results.total,
+        });
 
     } catch (error) {
         console.error("Search API Error:", error);
         return NextResponse.json({ hits: [], total: 0, error: "Search failed" }, { status: 500 });
     }
 }
+

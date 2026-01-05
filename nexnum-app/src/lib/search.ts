@@ -1125,14 +1125,9 @@ export async function indexOffers(offers: OfferDocument[]): Promise<number | und
 
             if (canonicalSlug) {
                 // If a canonical mapping exists, use it!
-                // This merges 'tg' -> 'telegram', 'wa' -> 'whatsapp'
                 return {
                     ...offer,
                     serviceSlug: canonicalSlug,
-                    // Optionally update name if it looks like a code (e.g. "tg" -> "Telegram")
-                    // But usually providers send decent names. If not, we could map names too.
-                    // Let's rely on aggregation to pick the best name (usually the longest one or most common).
-                    // Actually, if we change slug, we should probably ensure name isn't "tg".
                     serviceName: canonicalSlug === 'telegram' && offer.serviceName.length <= 3 ? 'Telegram' :
                         canonicalSlug === 'whatsapp' && offer.serviceName.length <= 3 ? 'WhatsApp' :
                             offer.serviceName

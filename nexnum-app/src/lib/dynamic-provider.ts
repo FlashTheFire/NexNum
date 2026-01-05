@@ -882,16 +882,27 @@ export class DynamicProvider implements SmsProvider {
         const response = await this.request('getCountries')
         const items = this.parseResponse(response, 'getCountries')
 
-        return items.map((i, idx) => {
+        // Import image proxy
+        const { proxyImage } = await import('./image-proxy')
+
+        return Promise.all(items.map(async (i, idx) => {
             const id = String(i.id ?? idx)
             const code = String(i.code ?? i.id ?? '').toLowerCase()
+
+            // Proxy flag URL to hide provider URLs
+            let flagUrl = i.flagUrl ?? i.flag ?? i.icon ?? undefined
+            if (flagUrl) {
+                const result = await proxyImage(flagUrl)
+                flagUrl = result.url || flagUrl
+            }
+
             return {
                 id,
                 code: code !== id ? code : undefined,
                 name: String(i.name ?? 'Unknown'),
-                flagUrl: i.flagUrl ?? i.flag ?? i.icon ?? undefined
+                flagUrl
             }
-        })
+        }))
     }
 
     /**
@@ -901,16 +912,27 @@ export class DynamicProvider implements SmsProvider {
         const response = await this.request('getServices', { country: countryCode })
         const items = this.parseResponse(response, 'getServices')
 
-        return items.map((s, idx) => {
+        // Import image proxy
+        const { proxyImage } = await import('./image-proxy')
+
+        return Promise.all(items.map(async (s, idx) => {
             const id = String(s.id ?? s.code ?? idx)
             const code = String(s.code ?? s.id ?? '')
+
+            // Proxy icon URL to hide provider URLs
+            let iconUrl = s.iconUrl ?? s.icon ?? undefined
+            if (iconUrl) {
+                const result = await proxyImage(iconUrl)
+                iconUrl = result.url || iconUrl
+            }
+
             return {
                 id,
                 code: code !== id ? code : undefined,
                 name: String(s.name ?? 'Unknown'),
-                iconUrl: s.iconUrl ?? s.icon ?? undefined  // Extract service icon URL
+                iconUrl
             }
-        })
+        }))
     }
 
     async getNumber(countryCode: string, serviceCode: string): Promise<NumberResult> {
@@ -1061,7 +1083,7 @@ export class DynamicProvider implements SmsProvider {
                         cost: best.cost,
                         count: best.count
                     })
-                    console.log(`[PriceOptim:${this.name}] ${group[0].service}: "${best.operator}" (${(best.score * 100).toFixed(0)}%)`)
+                    // console.log(`[PriceOptim:${this.name}] ${group[0].service}: "${best.operator}" (${(best.score * 100).toFixed(0)}%)`)
                 }
             }
         }

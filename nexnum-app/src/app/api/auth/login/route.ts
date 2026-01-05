@@ -66,5 +66,6 @@ export const POST = apiHandler(async (request, { body }) => {
         token,
     })
 }, {
-    schema: loginSchema
+    schema: loginSchema,
+    rateLimit: 'auth'
 })

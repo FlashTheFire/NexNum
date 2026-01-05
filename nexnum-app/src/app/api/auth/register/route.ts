@@ -91,5 +91,6 @@ export const POST = apiHandler(async (request, { body }) => {
         token,
     })
 }, {
-    schema: registerSchema
+    schema: registerSchema,
+    rateLimit: 'auth'
 })
