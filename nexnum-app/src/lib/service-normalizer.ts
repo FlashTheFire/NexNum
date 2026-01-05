@@ -1,3 +1,4 @@
+import { MEILI_CONFIG, SERVICE_OVERRIDES } from './search-config'
 
 interface ServiceData {
     name: string
@@ -80,28 +81,17 @@ class UnionFind {
 const CLEAN_REGEX_PARENS = /[\(\[].*?[\)\]]/g;
 const CLEAN_REGEX_SYMBOLS = /[^a-z0-9 ]/g;
 const CLEAN_REGEX_SPACES = /\s+/g;
-const STOP_WORDS = new Set(['the', 'and', 'or', 'of', 'service', 'app', 'verification', 'sms']);
+// Use centralized stop words from search-config
+const STOP_WORDS = new Set(MEILI_CONFIG.stopWords);
 
-// Golden List of specific service rules
-// Mapping: Normalized Pattern -> Canonical Name
-// Priority: Checks longer matches first (e.g. "whatsapp business" before "whatsapp")
-const GOLDEN_RULES: [RegExp, string][] = [
-    [/whatsapp business|\bwa business\b|\bbusiness wa\b/i, "WhatsApp Business"],
-    [/whatsapp|\bwa\b/i, "WhatsApp"],
-    [/telegram 2\.0|\btelegram 2\b/i, "Telegram 2.0"],
-    [/telegram|\btg\b/i, "Telegram"],
-    [/instagram|\big\b/i, "Instagram"],
-    [/facebook|\bfb\b/i, "Facebook"],
-    [/tiktok/i, "TikTok"],
-    [/^google$/i, "Google"],
-    [/gmail/i, "Gmail"],
-    [/youtube/i, "YouTube"],
-    [/microsoft/i, "Microsoft"],
-    [/viber/i, "Viber"],
-    [/tinder/i, "Tinder"],
-    [/airbnb/i, "Airbnb"],
-    [/alipay/i, "Alipay"]
-];
+// Build golden rules from SERVICE_OVERRIDES
+// Format: [regex pattern, canonical display name]
+const GOLDEN_RULES: [RegExp, string][] = Object.entries(SERVICE_OVERRIDES)
+    .filter(([_, config]) => config.slugAliases?.length)
+    .map(([key, config]) => {
+        const patterns = [key, ...(config.slugAliases || [])].join('|');
+        return [new RegExp(`\\b(${patterns})\\b`, 'i'), config.displayName] as [RegExp, string];
+    });
 
 export function cleanName(name: string): string {
     return name.toLowerCase()

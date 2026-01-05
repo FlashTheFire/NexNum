@@ -31,7 +31,7 @@ export default function LoadingScreen({ status = "Authenticating" }: LoadingScre
                 style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}
             />
 
-            <div className="relative flex flex-col items-center -translate-y-12 md:translate-y-0">
+            <div className="relative flex flex-col items-center -translate-y-10 md:translate-y-0">
                 {/* Brand Logo Cluster */}
                 <div className="relative w-48 h-48 flex items-center justify-center mb-10 translate-y-4">
 

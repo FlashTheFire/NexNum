@@ -24,8 +24,10 @@ export const SERVICE_OVERRIDES: Record<string, {
     'instagram': {
         displayName: 'Instagram + Threads',
     },
-    'other': {
+    'any-other': {
         displayName: 'Any Other',
+        slugAliases: ['other'],
+        iconUrl: 'https://i.ibb.co/v4jQgdBT/image.png',
     },
     'tata-1mg': {
         displayName: 'Tata 1mg',

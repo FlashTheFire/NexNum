@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { Check, Sparkles, Loader2, Server } from "lucide-react";
+import { Check, Sparkles, Loader2, Server, SearchX, HelpCircle } from "lucide-react";
 
 // Helper hook for IntersectionObserver
 function useInView(options = {}) {
@@ -296,9 +296,64 @@ export default function ServiceSelector({ selectedService, onSelect, searchTerm,
             )}
 
             {fetchedServices.length === 0 && !loading && (
-                <div className="flex flex-col items-center justify-center py-12 text-gray-500">
-                    <p className="text-sm">No services found for "{searchTerm}"</p>
-                </div>
+                <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="col-span-full flex flex-col items-center justify-center py-16 text-center"
+                >
+                    {/* Branded Empty State Icon */}
+                    <div className="relative mb-6 group cursor-default">
+                        <div className="absolute inset-0 bg-[hsl(var(--neon-lime))] blur-[40px] opacity-10 group-hover:opacity-20 transition-opacity duration-500" />
+                        <div className="relative w-20 h-20 bg-white/5 border border-white/10 rounded-3xl flex items-center justify-center shadow-2xl backdrop-blur-sm group-hover:scale-110 transition-transform duration-500">
+                            <SearchX className="w-8 h-8 text-gray-400 group-hover:text-[hsl(var(--neon-lime))] transition-colors duration-300" strokeWidth={1.5} />
+                        </div>
+                    </div>
+
+                    <h3 className="text-xl font-bold text-white mb-2">
+                        No precise matches found
+                    </h3>
+                    <p className="text-gray-400 text-sm max-w-md mx-auto mb-10 leading-relaxed">
+                        We couldn't find a dedicated service for "<span className="text-[hsl(var(--neon-lime))] font-mono">{searchTerm}</span>".
+                        <br />Try our universal service option below.
+                    </p>
+
+                    {/* "Any Other" Fallback Card */}
+                    <motion.button
+                        layout
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => onSelect('any-other', 'Any Other', '/icons/any-other.png')}
+                        className="relative group flex flex-col items-center justify-center p-5 w-40 h-40 rounded-3xl border border-white/10 bg-gradient-to-br from-white/[0.08] to-white/[0.02] hover:border-[hsl(var(--neon-lime)/0.5)] hover:shadow-[0_0_30px_hsl(var(--neon-lime)/0.15)] transition-all duration-300 overflow-hidden"
+                    >
+                        {/* Flags - Absolute Top Left */}
+                        <div className="absolute top-3 left-3 flex -space-x-1.5 opacity-80 group-hover:opacity-100 transition-opacity z-20">
+                            {['id', 'kg', 'cl'].map((code, i) => (
+                                <div key={code} className="w-5 h-5 rounded-full border-2 border-[#18181b] overflow-hidden bg-black shadow-sm" style={{ zIndex: 3 - i }}>
+                                    <img
+                                        src={`https://flagcdn.com/w40/${code}.png`}
+                                        className="w-full h-full object-cover"
+                                        alt={code}
+                                    />
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Central Question Mark Icon */}
+                        <div className="relative z-10 mb-3 w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow">
+                            <HelpCircle className="w-8 h-8 text-[#10A37F]" strokeWidth={3} />
+                        </div>
+
+                        <span className="text-sm font-bold text-white group-hover:text-[hsl(var(--neon-lime))] transition-colors">
+                            Any Other
+                        </span>
+
+                        {/* Hover Glow Effect */}
+                        <div className="absolute inset-0 bg-[hsl(var(--neon-lime))] opacity-0 group-hover:opacity-5 blur-xl transition-opacity duration-300 pointer-events-none" />
+                    </motion.button>
+
+                </motion.div>
             )}
         </section>
     );
