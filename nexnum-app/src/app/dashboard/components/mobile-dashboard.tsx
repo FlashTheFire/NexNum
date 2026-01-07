@@ -20,6 +20,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { DashboardBackground } from "./dashboard-background"
+import { DashboardNumberCard } from "./DashboardNumberCard"
 
 // Quick Actions Configuration
 const quickActions = [
@@ -265,7 +266,7 @@ export function MobileDashboard() {
                         </Link>
                     </div>
 
-                    {activeNumbers.length > 0 ? (
+                    {activeNumbers.filter(n => ['active', 'received'].includes(n.status || '')).length > 0 ? (
                         <>
                             <div
                                 ref={scrollContainerRef}
@@ -275,10 +276,10 @@ export function MobileDashboard() {
                                     const scrollLeft = container.scrollLeft;
                                     const cardWidth = 240 + 16; // card width + gap
                                     const index = Math.round(scrollLeft / cardWidth);
-                                    setActiveCardIndex(Math.min(index, activeNumbers.length - 1));
+                                    setActiveCardIndex(Math.min(index, activeNumbers.filter(n => ['active', 'received'].includes(n.status || '')).length - 1));
                                 }}
                             >
-                                {activeNumbers.map((num) => (
+                                {activeNumbers.filter(n => ['active', 'received'].includes(n.status || '')).map((num) => (
                                     <Link
                                         key={num.id}
                                         href={`/sms/${encodeURIComponent(num.number)}`}
@@ -343,10 +344,10 @@ export function MobileDashboard() {
                             </div>
 
                             {/* Dot Pagination Indicator - Max 3 visible dots */}
-                            {activeNumbers.length > 1 && (
+                            {activeNumbers.filter(n => ['active', 'received'].includes(n.status || '')).length > 1 && (
                                 <div className="flex justify-center items-center gap-1.5 mt-3 p-2 rounded-full bg-white/[0.03] border border-white/[0.05] w-fit mx-auto">
                                     {(() => {
-                                        const total = activeNumbers.length;
+                                        const total = activeNumbers.filter(n => ['active', 'received'].includes(n.status || '')).length;
                                         const maxDots = 3;
 
                                         // Calculate which dots to show (sliding window)

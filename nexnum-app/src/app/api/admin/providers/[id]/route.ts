@@ -1,4 +1,5 @@
 
+// Types synchronized with schema
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { requireAdmin, redactProviderSecrets } from '@/lib/requireAdmin'

@@ -22,6 +22,8 @@ import { RateLimitedQueue } from './async-utils'
 // Import legacy providers from centralized location
 import { getLegacyProvider, hasLegacyProvider } from './provider-factory'
 import { refreshAllServiceAggregates } from './service-aggregates'
+import { resolveToCanonicalName, getSlugFromName } from './service-identity'
+import { isValidImageUrl } from './utils'
 
 // ============================================
 // TYPES
@@ -51,11 +53,12 @@ const limit = pLimit(10) // Limit DB upserts concurrency
 
 async function upsertCountryLookup(code: string, name: string, flagUrl?: string | null) {
     try {
+        const validFlagUrl = isValidImageUrl(flagUrl) ? flagUrl : null
         await prisma.countryLookup.upsert({
             where: { code },
             // Pass empty string or null for phoneCode column if it exists in DB schema but we want to ignore it
-            create: { code, name, flagUrl: flagUrl || null },
-            update: { name, flagUrl: flagUrl || undefined }
+            create: { code, name, flagUrl: validFlagUrl },
+            update: { name, flagUrl: validFlagUrl || undefined }
         })
     } catch (e) { }
 }
@@ -102,10 +105,14 @@ async function getCountriesLegacy(provider: Provider, engine: DynamicProvider): 
 
 async function upsertServiceLookup(code: string, name: string, iconUrl?: string | null) {
     try {
+        const canonicalName = resolveToCanonicalName(name)
+        const canonicalCode = getSlugFromName(canonicalName)
+
+        const validIconUrl = isValidImageUrl(iconUrl) ? iconUrl : null
         await prisma.serviceLookup.upsert({
-            where: { code },
-            create: { code, name, iconUrl: iconUrl || null },
-            update: { name, iconUrl: iconUrl || undefined }
+            where: { code: canonicalCode },
+            create: { code: canonicalCode, name: canonicalName, iconUrl: validIconUrl },
+            update: { name: canonicalName, iconUrl: validIconUrl || undefined }
         })
     } catch (e) {
         // Suppress unique constraint race conditions
@@ -270,19 +277,24 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
             // Upsert countries to DB
             console.log(`[SYNC] ${provider.name}: Upserting ${countries.length} countries to DB...`)
             for (const c of countries) {
+                const canonicalName = resolveToCanonicalName(c.name || 'Unknown')
+                const canonicalCode = getSlugFromName(canonicalName)
+
+                const validFlagUrl = isValidImageUrl(c.flag) ? c.flag : null
                 const record = await prisma.providerCountry.upsert({
                     where: { providerId_externalId: { providerId: provider.id, externalId: c.code } },
                     create: {
                         providerId: provider.id,
                         externalId: c.code,
-                        code: c.code.toLowerCase(),
-                        name: c.name || 'Unknown',
-                        flagUrl: c.flag || null,
+                        code: canonicalCode,
+                        name: canonicalName,
+                        flagUrl: validFlagUrl,
                         lastSyncAt: new Date()
                     },
                     update: {
-                        name: c.name || 'Unknown',
-                        flagUrl: c.flag || null,
+                        name: canonicalName,
+                        code: canonicalCode,
+                        flagUrl: validFlagUrl,
                         lastSyncAt: new Date()
                     }
                 })
@@ -315,26 +327,32 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
                 const serviceCode = s.id || s.code
                 if (!serviceCode) continue
 
+                const canonicalName = resolveToCanonicalName(s.name || 'Unknown')
+                const canonicalCode = getSlugFromName(canonicalName)
+
                 // Add to maps
-                serviceMap.set(serviceCode, s.name)
-                serviceMap.set(serviceCode.toLowerCase(), s.name)
-                if (s.iconUrl) {
-                    iconUrlMap.set(serviceCode, s.iconUrl)
-                    iconUrlMap.set(serviceCode.toLowerCase(), s.iconUrl)
+                serviceMap.set(serviceCode, canonicalName)
+                serviceMap.set(serviceCode.toLowerCase(), canonicalName)
+
+                const validIconUrl = isValidImageUrl(s.iconUrl) ? s.iconUrl : null
+                if (validIconUrl) {
+                    iconUrlMap.set(serviceCode, validIconUrl)
+                    iconUrlMap.set(serviceCode.toLowerCase(), validIconUrl)
                 }
                 const record = await prisma.providerService.upsert({
                     where: { providerId_externalId: { providerId: provider.id, externalId: serviceCode } },
                     create: {
                         providerId: provider.id,
                         externalId: serviceCode,
-                        code: serviceCode.toLowerCase(),
-                        name: s.name || 'Unknown',
-                        iconUrl: s.iconUrl || null,
+                        code: canonicalCode,
+                        name: canonicalName,
+                        iconUrl: validIconUrl,
                         lastSyncAt: new Date()
                     },
                     update: {
-                        name: s.name || 'Unknown',
-                        iconUrl: s.iconUrl || null,
+                        name: canonicalName,
+                        code: canonicalCode,
+                        iconUrl: validIconUrl,
                         lastSyncAt: new Date()
                     }
                 })
@@ -423,16 +441,20 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
                                 })
                             }
 
+                            // preparing OfferDocument for MeiliSearch - use library for 100% consistency
+                            const canonicalSvcName = resolveToCanonicalName(svcName)
+                            const canonicalCtyName = resolveToCanonicalName(country.name || 'Unknown')
+
                             // Include operator in ID to make each offer unique per operator
                             return {
                                 id: `${provider.name}_${p.country}_${p.service}_${externalOp}`.toLowerCase().replace(/[^a-z0-9_]/g, ''),
                                 provider: provider.name,
                                 displayName: provider.displayName,
-                                countryCode: p.country,
-                                countryName: country.name || 'Unknown',
+                                countryCode: getSlugFromName(canonicalCtyName),
+                                countryName: canonicalCtyName,
                                 flagUrl: country.flagUrl || '',
-                                serviceSlug: p.service.toLowerCase(),
-                                serviceName: svcName,
+                                serviceSlug: getSlugFromName(canonicalSvcName),
+                                serviceName: canonicalSvcName,
                                 iconUrl: iconUrlMap.get(p.service) || iconUrlMap.get(p.service.toLowerCase()),
                                 // Operator fields
                                 operatorId: internalOpId,

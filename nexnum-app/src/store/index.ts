@@ -52,7 +52,7 @@ interface GlobalState {
 
     // Actions - Mutations via API
     topUp: (amount: number) => Promise<{ success: boolean; error?: string }>
-    purchaseNumber: (countryCode: string, serviceCode: string) => Promise<{ success: boolean; error?: string }>
+    purchaseNumber: (countryCode: string, serviceCode: string, testMode?: boolean) => Promise<{ success: boolean; error?: string }>
     cancelNumber: (id: string) => Promise<{ success: boolean; error?: string }>
     pollSms: (numberId: string) => Promise<api.SmsMessage[]>
 
@@ -145,8 +145,8 @@ export const useGlobalStore = create<GlobalState>()(
             },
 
             // Purchase number via API
-            purchaseNumber: async (countryCode: string, serviceCode: string) => {
-                const result = await api.purchaseNumber(countryCode, serviceCode)
+            purchaseNumber: async (countryCode: string, serviceCode: string, testMode?: boolean) => {
+                const result = await api.purchaseNumber(countryCode, serviceCode, testMode)
                 if (result.success && result.number) {
                     // Refresh numbers and balance
                     await Promise.all([

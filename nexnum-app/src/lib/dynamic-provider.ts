@@ -1,7 +1,12 @@
 
 import { SmsProvider, Country, Service, NumberResult, StatusResult, NumberStatus } from './sms-providers/types'
+import { WebhookPayload, WebhookVerificationResult } from './sms/types'
+import { WebhookVerifier } from './webhooks/verify'
 import { Provider } from '@prisma/client'
 import { prisma } from './db'
+
+declare var process: any;
+declare var require: any;
 
 type EndpointConfig = {
     method: string
@@ -940,8 +945,19 @@ export class DynamicProvider implements SmsProvider {
         const items = this.parseResponse(response, 'getNumber')
         const mapped = items[0]
 
-        if (!mapped || (!mapped.id && !mapped.phone)) {
-            throw new Error('Failed to parse number response')
+        // Check for presence of ANY valid ID or phone number field
+        const hasId = mapped.id || mapped.activationId || mapped.orderId
+        const hasPhone = mapped.phone || mapped.phoneNumber || mapped.number
+
+        if (!mapped || (!hasId && !hasPhone)) {
+            // Detailed error for debugging
+            const missing = []
+            if (!mapped) missing.push('result=null')
+            else {
+                if (!hasId) missing.push('id/activationId')
+                if (!hasPhone) missing.push('phone/number')
+            }
+            throw new Error(`Failed to parse number response. Missing: ${missing.join(', ')}. Got: ${JSON.stringify(mapped)}`)
         }
 
         return {
@@ -957,6 +973,15 @@ export class DynamicProvider implements SmsProvider {
     }
 
     async getStatus(activationId: string): Promise<StatusResult> {
+        // Handle mock activations for testing
+        if (activationId.startsWith('mock_')) {
+            console.log(`[DynamicProvider:${this.name}] Checking MOCK status for ${activationId} (No fake SMS generated)`)
+            return {
+                status: 'pending',
+                messages: []
+            }
+        }
+
         const response = await this.request('getStatus', { id: activationId })
         const items = this.parseResponse(response, 'getStatus')
         const mapped = items[0] || {}
@@ -965,7 +990,7 @@ export class DynamicProvider implements SmsProvider {
         let status: NumberStatus = 'pending'
         const rawStatus = String(mapped.status || '').toUpperCase()
 
-        if (['RECEIVED', 'OK', 'FINISHED', 'COMPLETE', 'DONE', '1'].includes(rawStatus)) status = 'received'
+        if (['RECEIVED', 'OK', 'STATUS_OK', 'FINISHED', 'COMPLETE', 'DONE', '1'].includes(rawStatus)) status = 'received'
         if (['CANCELED', 'CANCELLED', 'REFUNDED', '-1'].includes(rawStatus)) status = 'cancelled'
         if (['TIMEOUT', 'EXPIRED', '0'].includes(rawStatus)) status = 'expired'
 
@@ -1104,6 +1129,93 @@ export class DynamicProvider implements SmsProvider {
             }
         }
         return effectiveFields
+    }
+    /**
+     * Verify webhook signature
+     */
+    public verifyWebhook(
+        body: string,
+        headers: Record<string, string | string[] | undefined>,
+        ip: string
+    ): WebhookVerificationResult {
+        const mappings = this.config.mappings as any
+        const webhookConfig = mappings?.webhook || {}
+        const strategy = webhookConfig.strategy || 'none'
+
+        // Get secret
+        const secretEnv = webhookConfig.secretEnvVar
+        const secret = secretEnv ? process.env[secretEnv] : null
+
+        if (strategy === 'ip_whitelist') {
+            const allowedIps = webhookConfig.ipWhitelist || []
+            if (allowedIps.includes(ip)) return { valid: true }
+            return { valid: false, error: `IP not allowed: ${ip}` }
+        }
+
+        if (strategy === 'hmac') {
+            if (!secret) return { valid: false, error: 'Webhook secret not configured' }
+            const headerName = webhookConfig.signatureHeader || 'x-signature'
+            const signature = headers[headerName.toLowerCase()]
+
+            if (!signature) return { valid: false, error: `Missing signature header: ${headerName}` }
+
+            // Handle array headers
+            const sigStr = Array.isArray(signature) ? signature[0] : signature
+
+            return WebhookVerifier.verifyHmac(body, sigStr, secret, webhookConfig.algorithm)
+        }
+
+        if (strategy === 'custom_header') {
+            if (!secret) return { valid: false, error: 'Webhook secret not configured' }
+            const headerName = webhookConfig.signatureHeader || 'x-token'
+            const token = headers[headerName.toLowerCase()]
+
+            if (token !== secret) return { valid: false, error: 'Invalid token' }
+            return { valid: true }
+        }
+
+        return { valid: true }
+    }
+
+    /**
+     * Parse webhook payload
+     */
+    public parseWebhook(body: any): WebhookPayload {
+        const mappings = this.config.mappings as any
+        const webhookConfig = mappings?.webhook || {}
+        const fields = webhookConfig.fields || {}
+
+        // Helper to get value with multiple potential keys/paths
+        const getAny = (keys: string[], obj: any) => {
+            for (const k of keys) {
+                if (!k) continue
+                // Handle dot notation
+                const val = k.split('.').reduce((o, x) => (o || {})[x], obj)
+                if (val !== undefined && val !== null && val !== '') return val
+            }
+            return undefined
+        }
+
+        // Smart defaults covering standard provider formats (5sim, Grizzly, SMSBower, etc.)
+        const activationId = getAny([fields.activationId, 'activationId', 'id', 'activation_id', 'order_id', 'orderId'], body)
+        const text = getAny([fields.text, 'text', 'smsText', 'message', 'content', 'sms_text', 'msg'], body)
+        const code = getAny([fields.code, 'code', 'smsCode', 'verification_code', 'pin', 'otp'], body)
+        const sender = getAny([fields.sender, 'sender', 'from', 'service', 'app', 'origin'], body)
+        const receivedAtStr = getAny([fields.receivedAt, 'receivedAt', 'received_at', 'timestamp', 'dateTime', 'time'], body)
+
+        return {
+            provider: this.config.name,
+            eventType: 'sms.received', // Default for now, can be mapped if needed
+            activationId: String(activationId || Date.now()),
+            sms: {
+                text: String(text || ''),
+                code: code ? String(code) : undefined,
+                sender: String(sender || 'Unknown'),
+                receivedAt: receivedAtStr ? new Date(receivedAtStr) : new Date(),
+            },
+            rawPayload: body,
+            timestamp: new Date(),
+        }
     }
 }
 

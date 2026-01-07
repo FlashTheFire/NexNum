@@ -1,4 +1,5 @@
 
+// Types synchronized with schema
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getProviderAdapter, getMetadataProvider, hasDynamicConfig, usesDynamicMetadata } from '@/lib/provider-factory'

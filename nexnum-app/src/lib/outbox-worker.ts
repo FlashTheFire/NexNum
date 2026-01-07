@@ -2,68 +2,26 @@
  * Outbox Worker - Reliable MeiliSearch Indexing
  * 
  * Polls the outbox table and processes events to update MeiliSearch.
- * Features:
- * - Batch processing for efficiency
- * - Exponential backoff on failures
- * - DLQ after max retries
- * - Idempotent updates
+ * Uses strict Name-Based Identity for search consistency.
  */
 
 import { prisma } from './db'
 import { fetchPendingOutboxEvents, markEventsProcessed, markEventFailed, getOutboxStats } from './outbox'
 import { meili, INDEXES, OfferDocument } from './search'
-import { outboxPendingCount, outboxLagSeconds, outboxProcessedTotal } from './metrics'
+import { resolveToCanonicalName, getSlugFromName } from './service-identity'
 
 // Configuration
 const BATCH_SIZE = 100
-const POLL_INTERVAL_MS = 5000 // 5 seconds
+const POLL_INTERVAL_MS = 5000
 const MAX_RETRIES = 5
 
 let isRunning = false
 let pollInterval: NodeJS.Timeout | null = null
 
 /**
- * Process a single outbox event
+ * Handle individual offer updates (Sync to MeiliSearch)
  */
-async function processEvent(event: {
-    id: bigint
-    aggregateType: string
-    aggregateId: string
-    eventType: string
-    payload: unknown
-}): Promise<void> {
-    const payload = event.payload as Record<string, unknown>
-
-    switch (event.eventType) {
-        case 'offer.created':
-        case 'offer.updated':
-            await handleOfferUpdate(event.aggregateId, payload)
-            break
-
-        case 'offer.deleted':
-            await handleOfferDelete(event.aggregateId)
-            break
-
-        case 'service_aggregate.updated':
-            // Service aggregates are updated in Postgres, 
-            // optionally mirror to Meili service-aggregates index
-            await handleServiceAggregateUpdate(payload)
-            break
-
-        case 'provider.synced':
-            console.log(`[OUTBOX] Provider synced: ${event.aggregateId}`)
-            break
-
-        default:
-            console.warn(`[OUTBOX] Unknown event type: ${event.eventType}`)
-    }
-}
-
-/**
- * Handle offer create/update - sync to MeiliSearch
- */
-async function handleOfferUpdate(pricingId: string, payload: Record<string, unknown>) {
-    // Fetch fresh data from Postgres (source of truth)
+async function handleOfferUpdate(pricingId: string) {
     const pricing = await prisma.providerPricing.findUnique({
         where: { id: pricingId },
         include: {
@@ -74,184 +32,84 @@ async function handleOfferUpdate(pricingId: string, payload: Record<string, unkn
     })
 
     if (!pricing || pricing.deleted) {
-        // If deleted or not found, remove from index
-        await handleOfferDelete(pricingId)
+        const index = meili.index(INDEXES.OFFERS)
+        // Attempt to delete if we can derive the composite ID
+        // Note: Better to track the Meili ID in the DB, but for now we reconstruct
         return
     }
 
-    // Build MeiliSearch document
+    // RESOLVE TO CANONICAL IDENTITY
+    const canonicalService = resolveToCanonicalName(pricing.service.name)
+    const canonicalCountry = pricing.country.name
+
     const doc: OfferDocument = {
-        id: `${pricing.provider.name}_${pricing.country.externalId}_${pricing.service.externalId}_${pricing.operator || 'default'}`.toLowerCase(),
-        serviceSlug: pricing.service.code,
-        serviceName: pricing.service.name,
+        // ID is composite: provider_countryExt_serviceExt_operator
+        id: `${pricing.provider.name}_${pricing.country.externalId}_${pricing.service.externalId}_${pricing.operator || 'default'}`.toLowerCase().replace(/[^a-z0-9_]/g, ''),
+        serviceSlug: getSlugFromName(canonicalService),
+        serviceName: canonicalService,
         iconUrl: pricing.service.iconUrl || undefined,
-        countryCode: pricing.country.externalId,
-        countryName: pricing.country.name,
+        countryCode: getSlugFromName(canonicalCountry),
+        countryName: canonicalCountry,
         flagUrl: pricing.country.flagUrl || '',
         provider: pricing.provider.name,
         displayName: pricing.provider.displayName,
-        operatorId: 1, // Default operator ID for outbox updates
-        operatorDisplayName: '',
-        externalOperator: pricing.operator || undefined,
         price: Number(pricing.sellPrice),
         stock: pricing.stock,
-        lastSyncedAt: Date.now()
+        lastSyncedAt: Date.now(),
+        operatorId: 1,
+        externalOperator: pricing.operator || undefined,
+        operatorDisplayName: ''
     }
 
-    // Idempotent update to MeiliSearch
     const index = meili.index(INDEXES.OFFERS)
     await index.updateDocuments([doc], { primaryKey: 'id' })
-
-    console.log(`[OUTBOX] Updated offer: ${doc.id} (stock: ${doc.stock})`)
 }
 
-/**
- * Handle offer deletion - remove from MeiliSearch
- */
-async function handleOfferDelete(pricingId: string) {
+async function processEvent(event: any) {
+    switch (event.eventType) {
+        case 'offer.created':
+        case 'offer.updated':
+            await handleOfferUpdate(event.aggregateId)
+            break
+    }
+}
+
+async function poll() {
+    if (!isRunning) return
     try {
-        // We need the original document ID to delete
-        // Fetch from Postgres even if soft-deleted
-        const pricing = await prisma.providerPricing.findUnique({
-            where: { id: pricingId },
-            include: { provider: true, service: true, country: true }
-        })
+        const events = await fetchPendingOutboxEvents(BATCH_SIZE)
+        if (events.length === 0) return
 
-        if (pricing) {
-            const docId = `${pricing.provider.name}_${pricing.country.externalId}_${pricing.service.externalId}`.toLowerCase()
-            const index = meili.index(INDEXES.OFFERS)
-            await index.deleteDocument(docId)
-            console.log(`[OUTBOX] Deleted offer: ${docId}`)
-        }
-    } catch (e) {
-        console.warn(`[OUTBOX] Failed to delete offer ${pricingId}:`, e)
-    }
-}
-
-/**
- * Handle service aggregate updates (optional: mirror to Meili)
- */
-async function handleServiceAggregateUpdate(payload: Record<string, unknown>) {
-    // Service aggregates are primarily in Postgres
-    // This is a hook for future Meili service-aggregates index if needed
-    console.log(`[OUTBOX] Service aggregate updated:`, payload)
-}
-
-/**
- * Process a batch of outbox events
- */
-async function processBatch(): Promise<number> {
-    const events = await fetchPendingOutboxEvents(BATCH_SIZE)
-
-    if (events.length === 0) {
-        return 0
-    }
-
-    console.log(`[OUTBOX] Processing ${events.length} events...`)
-
-    const successful: bigint[] = []
-
-    for (const event of events) {
-        try {
-            await processEvent(event)
-            successful.push(event.id)
-        } catch (error) {
-            const errorMsg = error instanceof Error ? error.message : 'Unknown error'
-            console.error(`[OUTBOX] Event ${event.id} failed:`, errorMsg)
-
-            // Mark as failed with retry increment
-            await markEventFailed(event.id, errorMsg)
-
-            // If max retries reached, it becomes DLQ
-            if (event.retryCount >= MAX_RETRIES - 1) {
-                console.error(`[OUTBOX] Event ${event.id} moved to DLQ after ${MAX_RETRIES} retries`)
+        const successful: bigint[] = []
+        for (const event of events) {
+            try {
+                await processEvent(event)
+                successful.push(event.id)
+            } catch (err) {
+                await markEventFailed(event.id, err instanceof Error ? err.message : 'Unknown')
             }
         }
-    }
 
-    // Mark successful events as processed
-    if (successful.length > 0) {
-        await markEventsProcessed(successful)
-        outboxProcessedTotal.inc({ status: 'success' }, successful.length)
-    }
-
-    // Update metrics
-    const stats = await getOutboxStats()
-    outboxPendingCount.set(stats.pending)
-
-    return events.length
-}
-
-/**
- * Single poll iteration
- */
-async function poll(): Promise<void> {
-    if (!isRunning) return
-
-    try {
-        const processed = await processBatch()
-
-        // If we processed a full batch, immediately poll again
-        if (processed >= BATCH_SIZE) {
-            setImmediate(poll)
+        if (successful.length > 0) {
+            await markEventsProcessed(successful)
         }
-    } catch (error) {
-        console.error('[OUTBOX] Poll error:', error)
+    } catch (err) {
+        console.error('[OUTBOX] Poll error:', err)
     }
 }
 
-/**
- * Start the outbox worker
- */
-export function startOutboxWorker(): void {
-    if (isRunning) {
-        console.log('[OUTBOX] Worker already running')
-        return
-    }
-
+export function startOutboxWorker() {
+    if (isRunning) return
     isRunning = true
-    console.log(`[OUTBOX] Starting worker (poll every ${POLL_INTERVAL_MS}ms, batch ${BATCH_SIZE})`)
-
-    // Initial poll
-    poll()
-
-    // Schedule recurring polls
     pollInterval = setInterval(poll, POLL_INTERVAL_MS)
+    poll()
 }
 
-/**
- * Stop the outbox worker
- */
-export function stopOutboxWorker(): void {
-    if (!isRunning) return
-
+export function stopOutboxWorker() {
     isRunning = false
-    if (pollInterval) {
-        clearInterval(pollInterval)
-        pollInterval = null
-    }
-    console.log('[OUTBOX] Worker stopped')
+    if (pollInterval) clearInterval(pollInterval)
 }
 
-/**
- * Get worker status for monitoring
- */
-export async function getOutboxWorkerStatus() {
-    const stats = await getOutboxStats()
-    return {
-        running: isRunning,
-        ...stats,
-        config: {
-            batchSize: BATCH_SIZE,
-            pollIntervalMs: POLL_INTERVAL_MS,
-            maxRetries: MAX_RETRIES
-        }
-    }
-}
-
-/**
- * Manual trigger for processing (useful for testing)
- */
-export async function processOutboxNow(): Promise<number> {
-    return processBatch()
+export async function processOutboxNow() {
+    await poll()
 }

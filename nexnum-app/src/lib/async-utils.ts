@@ -65,3 +65,35 @@ export class RateLimitedQueue {
  * Helper to pause execution
  */
 export const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+/**
+ * Simple Semaphore for concurrency control
+ */
+export class Semaphore {
+    private tasks: (() => void)[] = []
+    private count: number
+
+    constructor(max: number) {
+        this.count = max
+    }
+
+    async acquire(): Promise<void> {
+        if (this.count > 0) {
+            this.count--
+            return Promise.resolve()
+        }
+
+        return new Promise(resolve => {
+            this.tasks.push(resolve)
+        })
+    }
+
+    release(): void {
+        if (this.tasks.length > 0) {
+            const next = this.tasks.shift()
+            next?.()
+        } else {
+            this.count++
+        }
+    }
+}

@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/db'
 import { DynamicProvider } from '@/lib/dynamic-provider'
 import { SmsProvider, Country, Service, NumberResult, StatusResult } from './sms-providers/types'
+import { healthMonitor } from '@/lib/providers/health-monitor'
+import { logger } from '@/lib/logger'
 
 // Cache for active providers to avoid DB hits on every request
 let activeProvidersCache: DynamicProvider[] | null = null
@@ -30,10 +32,31 @@ export class SmartSmsRouter implements SmsProvider {
 
             return dynamicProviders
         } catch (error) {
-            console.error("SmartRouter: Failed to fetch active providers", error)
+            logger.error("SmartRouter: Failed to fetch active providers", { error })
             // Return stale cache if available, otherwise empty
             return activeProvidersCache || []
         }
+    }
+
+    /**
+     * Get healthy providers (filter by circuit breaker state)
+     */
+    private async getHealthyProviders(): Promise<DynamicProvider[]> {
+        const allProviders = await this.getActiveProviders()
+        const healthyProviders: DynamicProvider[] = []
+
+        for (const provider of allProviders) {
+            const isAvailable = await healthMonitor.isAvailable(provider.config.id)
+            if (isAvailable) {
+                healthyProviders.push(provider)
+            } else {
+                logger.debug('Provider unavailable (circuit open)', {
+                    provider: provider.name,
+                })
+            }
+        }
+
+        return healthyProviders
     }
 
     // --- Core Methods ---
@@ -82,9 +105,35 @@ export class SmartSmsRouter implements SmsProvider {
         throw new Error("All active providers failed to fetch services")
     }
 
-    async getNumber(countryCode: string, serviceCode: string, preferredProvider?: string): Promise<NumberResult> {
-        let providers = await this.getActiveProviders()
-        if (providers.length === 0) throw new Error("No active providers available")
+    async getNumber(countryCode: string, serviceCode: string, preferredProvider?: string, testMode?: boolean): Promise<NumberResult> {
+        let providers = await this.getHealthyProviders() // Use healthy providers only
+        if (providers.length === 0) throw new Error("No healthy providers available")
+
+        // 0. If testMode is requested, bypass real providers and return mock data
+        if (testMode) {
+            const provider = preferredProvider
+                ? providers.find(p => p.name.toLowerCase() === preferredProvider.toLowerCase()) || providers[0]
+                : providers[0]
+
+            logger.info(`SmartRouter: Simulating MOCK purchase for ${provider.name}...`)
+
+            // Generate a random-ish US phone number for the mock
+            const areaCode = Math.floor(Math.random() * 800 + 200)
+            const prefix = Math.floor(Math.random() * 800 + 200)
+            const line = Math.floor(Math.random() * 8999 + 1000)
+            const mockPhone = `+1${areaCode}${prefix}${line}`
+
+            return {
+                activationId: `${provider.name}:mock_${Math.random().toString(36).substring(7)}`,
+                phoneNumber: mockPhone,
+                countryCode,
+                countryName: '', // Will be filled by DB labels usually
+                serviceCode,
+                serviceName: '', // Will be filled by DB labels usually
+                price: 0.05,    // Nominal mock price
+                expiresAt: new Date(Date.now() + 15 * 60 * 1000)
+            }
+        }
 
         // If preference is specified, move it to the top OR filter others out (Strict Routing)
         if (preferredProvider) {
@@ -94,20 +143,21 @@ export class SmartSmsRouter implements SmsProvider {
                 const match = providers.splice(matchIndex, 1)[0]
                 providers.unshift(match)
             } else {
-                console.warn(`SmartRouter: Preferred provider '${preferredProvider}' not active/found. Falling back to priority list.`)
+                logger.warn(`SmartRouter: Preferred provider '${preferredProvider}' not active/found. Falling back to priority list.`)
             }
         }
 
         const checkedProviders: string[] = []
 
         for (const provider of providers) {
+            const startTime = Date.now()
             try {
-                console.log(`SmartRouter: Attempting purchase from ${provider.name}...`)
+                logger.info(`SmartRouter: Attempting purchase from ${provider.name}...`)
                 const result = await provider.getNumber(countryCode, serviceCode)
 
-                // If successful, we must track which provider fulfilled it
-                // The DynamicProvider returns 'provider' in the result usually, but let's ensure it needs to be tracked by the caller
-                // The caller (route.ts) saves the provider name to the DB.
+                // Record success
+                const latency = Date.now() - startTime
+                await healthMonitor.recordRequest(provider.config.id, true, latency)
 
                 // Apply Pricing Rules to the result
                 const mult = Number(provider.config.priceMultiplier) || 1.0
@@ -119,48 +169,45 @@ export class SmartSmsRouter implements SmsProvider {
                     price: (result.price * mult) + fixed
                 }
             } catch (e) {
-                console.warn(`SmartRouter: Purchase failed on ${provider.name}: ${e instanceof Error ? e.message : 'Unknown error'}`)
+                // Record failure
+                const latency = Date.now() - startTime
+                await healthMonitor.recordRequest(provider.config.id, false, latency)
+
+                logger.warn(`SmartRouter: Purchase failed on ${provider.name}: ${e instanceof Error ? e.message : 'Unknown error'}`)
                 checkedProviders.push(provider.name)
                 // Continue to next provider
             }
         }
 
-        throw new Error(`All active providers failed to purchase number. Checked: ${checkedProviders.join(', ')}`)
+        throw new Error(`All healthy providers failed to purchase number. Checked: ${checkedProviders.join(', ')}`)
     }
 
     async getStatus(activationId: string): Promise<StatusResult> {
-        // Here lies the problem: We don't know which provider issued this ID if we stored "SmartRouter" as the provider.
-        // However, if we migrated the purchase route to store the *actual* provider name, we wouldn't use SmartRouter.getStatus directly for a specific number.
-        // BUT api/sms/[numberId]/route.ts likely calls `smsProvider.getStatus(number.activationId)`.
-
-        // If the ID is prefixed like "5sim:12345", we can route it.
-        // If not, we have to try all providers? That's dangerous (rate limits).
-
-        // For now, let's implement the "Prefix" strategy in `getNumber` and decode here.
-
         const [providerName, realId] = this.parseActivationId(activationId)
 
         if (providerName && realId) {
-            const providers = await this.getActiveProviders()
-            // Case-insensitive match for robustness
+            const providers = await this.getActiveProviders() // Don't filter by health for status checks
             const provider = providers.find(p => p.name.toLowerCase() === providerName.toLowerCase())
             if (provider) {
-                return provider.getStatus(realId)
+                const startTime = Date.now()
+                try {
+                    const result = await provider.getStatus(realId)
+                    const latency = Date.now() - startTime
+                    await healthMonitor.recordRequest(provider.config.id, true, latency)
+                    return result
+                } catch (e) {
+                    const latency = Date.now() - startTime
+                    await healthMonitor.recordRequest(provider.config.id, false, latency)
+                    throw e
+                }
             }
-            // If provider not found (maybe inactive?), we might still want to try creating a temporary instance if we know the slug?
         }
 
         // Fallback: Try all active providers (Inefficient but robust)
         const providers = await this.getActiveProviders()
         for (const provider of providers) {
             try {
-                // If the ID format clearly doesn't match the provider, we might skip? 
-                // Hard to know without specific logic.
-                // Just try getStatus.
                 const status = await provider.getStatus(activationId)
-                // If it returns 'error' or throws, we continue.
-                // NOTE: Some providers might return "Pending" for unknown IDs, which is bad.
-                // We really should rely on the Prefix specific logic.
                 return status
             } catch (e) {
                 continue

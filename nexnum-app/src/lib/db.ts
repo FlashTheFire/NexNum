@@ -1,3 +1,4 @@
+// Force reload of Prisma Client types
 import { Pool } from 'pg'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { PrismaClient } from '@prisma/client'

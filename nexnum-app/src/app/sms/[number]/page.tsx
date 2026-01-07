@@ -45,16 +45,23 @@ const fadeInUp = {
 export default function SMSPage() {
     const params = useParams()
     const router = useRouter()
-    const { activeNumbers, _hasHydrated } = useGlobalStore()
+    const { activeNumbers, _hasHydrated, fetchNumbers, isLoadingNumbers } = useGlobalStore()
     const [timeLeft, setTimeLeft] = useState(0)
     const [isMenuOpen, setIsMenuOpen] = useState(false)
 
-    const phoneNumber = decodeURIComponent(params.number as string)
-    const virtualNumber = activeNumbers.find(n => n.number === phoneNumber)
+    const identifier = decodeURIComponent(params.number as string)
+    const virtualNumber = activeNumbers.find(n => n.id === identifier || n.number === identifier)
+
+    // Fallback: If not found in store, try to fetch
+    useEffect(() => {
+        if (_hasHydrated && !virtualNumber && !isLoadingNumbers) {
+            fetchNumbers()
+        }
+    }, [_hasHydrated, virtualNumber, isLoadingNumbers, fetchNumbers])
 
     // Use Professional Backend Hook
-    // This replaces client-side simulation with real API polling
-    const { messages, refresh, isValidating } = useSMS(virtualNumber?.number || '')
+    // Prefer ID for API calls as it's the unique database key
+    const { messages, refresh, isValidating } = useSMS(virtualNumber?.id || (identifier.includes('-') ? identifier : ''))
 
     // Update timer every second
     useEffect(() => {
@@ -84,7 +91,7 @@ export default function SMSPage() {
     const secondsLeft = timeLeft % 60
 
     // Loading state with LoadingScreen
-    if (!_hasHydrated) {
+    if (!_hasHydrated || (isLoadingNumbers && !virtualNumber)) {
         return <LoadingScreen status="Opening Secure Channel" />
     }
 
@@ -197,7 +204,7 @@ export default function SMSPage() {
                         <div className="space-y-3 lg:sticky lg:top-8">
                             <motion.div variants={fadeInUp}>
                                 <SMSNumberCard
-                                    phoneNumber={phoneNumber}
+                                    phoneNumber={virtualNumber.number}
                                     serviceName={virtualNumber.serviceName}
                                     countryName={virtualNumber.countryName}
                                     minutesLeft={minutesLeft}

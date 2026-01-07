@@ -64,6 +64,7 @@ model Number {
   expiresAt    DateTime?    @map("expires_at")
   purchasedAt  DateTime?    @map("purchased_at")
   createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime?    @updatedAt @map("updated_at")
   owner        User?        @relation(fields: [ownerId], references: [id])
   smsMessages  SmsMessage[]
 
@@ -77,15 +78,23 @@ model Number {
 }
 
 model SmsMessage {
-  id         String   @id @default(uuid())
-  numberId   String   @map("number_id")
-  sender     String?
-  content    String?
-  code       String?
-  receivedAt DateTime @default(now()) @map("received_at")
-  number     Number   @relation(fields: [numberId], references: [id], onDelete: Cascade)
+  id            String   @id @default(uuid())
+  numberId      String   @map("number_id")
+  sender        String?
+  content       String?
+  code          String?
+  receivedAt    DateTime @default(now()) @map("received_at")
+  
+  // Enhanced fields for advanced tracking
+  provider      String?                     // Provider that received the SMS
+  rawPayload    Json?    @map("raw_payload") // Original provider response
+  extractedCode String?  @map("extracted_code") // Code from extractor
+  confidence    Decimal? @db.Decimal(3, 2)  // Extraction confidence (0-1)
+  
+  number        Number   @relation(fields: [numberId], references: [id], onDelete: Cascade)
 
   @@index([numberId])
+  @@index([provider])
   @@map("sms_messages")
 }
 
@@ -187,6 +196,7 @@ model Provider {
   countries       ProviderCountry[]
   services        ProviderService[]
   pricing         ProviderPricing[]
+  healthLogs      ProviderHealthLog[]
   
   @@index([isActive])
   @@index([priority])
@@ -281,6 +291,38 @@ model ProviderTestResult {
   
   @@index([providerId])
   @@map("provider_test_results")
+}
+
+// Provider health monitoring logs
+model ProviderHealthLog {
+  id           String   @id @default(uuid())
+  providerId   String   @map("provider_id")
+  status       String   // healthy, degraded, down
+  successRate  Decimal  @db.Decimal(5, 2)
+  avgLatency   Int      // ms
+  errorCount   Int      @default(0)
+  checkedAt    DateTime @default(now()) @map("checked_at")
+  
+  provider     Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  
+  @@index([providerId, checkedAt])
+  @@map("provider_health_logs")
+}
+
+// Webhook events tracking
+model WebhookEvent {
+  id             String   @id @default(uuid())
+  provider       String
+  eventType      String   @map("event_type")
+  payload        Json
+  idempotencyKey String   @unique @map("idempotency_key")
+  processed      Boolean  @default(false)
+  processedAt    DateTime? @map("processed_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  
+  @@index([provider, createdAt])
+  @@index([processed])
+  @@map("webhook_events")
 }
 
 enum Role {

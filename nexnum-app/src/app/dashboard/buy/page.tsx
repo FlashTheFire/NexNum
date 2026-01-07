@@ -62,7 +62,7 @@ export default function BuyPage() {
             await fetchBalance()
             toast.dismiss(toastId)
             toast.success("Success!", { description: `${provider.serviceName} number is ready.` })
-            router.push('/dashboard/vault')
+            router.push(`/sms/${result.number.id}`)
         } catch (error: any) {
             toast.dismiss(toastId)
             toast.error("Purchase Failed", { description: error.message })

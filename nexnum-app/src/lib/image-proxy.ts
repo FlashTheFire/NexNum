@@ -153,6 +153,9 @@ async function downloadImage(url: string): Promise<{ buffer: Buffer; filename: s
  * @returns Proxied URL or original URL on failure
  */
 export async function proxyImage(sourceUrl: string): Promise<UploadResult> {
+    // IMAGE PROXY DISABLED FOR NOW
+    return { success: true, url: sourceUrl, source: 'original' }
+
     // SPECIAL CASE: GrizzlySMS webp files need to be converted to jpg
     let processedUrl = sourceUrl
     if (sourceUrl.includes('grizzlysms.com') && sourceUrl.endsWith('.webp')) {

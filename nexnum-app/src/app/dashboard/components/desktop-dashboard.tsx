@@ -32,6 +32,7 @@ import { toast } from "sonner"
 import { DashboardBackground } from "./dashboard-background"
 import { PhoneMockup } from "./phone-mockup"
 import { NotificationsBtn } from "./shared"
+import { DashboardNumberCard } from "./DashboardNumberCard"
 
 // Animation Variants
 const fadeIn = {
@@ -269,39 +270,20 @@ export function DesktopDashboard() {
 
                             <div className="p-8 bg-gradient-to-b from-transparent to-black/20 flex-1">
                                 {activeNumbers.length > 0 ? (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         {activeNumbers.slice(0, 4).map(num => (
-                                            <div key={num.id} className="group/item relative p-[1px] rounded-[20px] bg-gradient-to-br from-white/[0.08] to-transparent hover:from-[hsl(var(--neon-lime)/0.3)] hover:to-[hsl(var(--neon-lime)/0.05)] transition-all duration-300">
-                                                <div className="relative rounded-[19px] bg-[#13151b] p-5 h-full transition-all group-hover/item:bg-[#13151b]/90">
-                                                    {/* Shine effect */}
-                                                    <div className="absolute inset-0 rounded-[19px] bg-gradient-to-tr from-white/[0.02] to-transparent opacity-0 group-hover/item:opacity-100 transition-opacity pointer-events-none" />
-
-                                                    <div className="flex items-start justify-between mb-4">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-10 h-10 rounded-2xl bg-white/[0.03] flex items-center justify-center text-xl shadow-inner border border-white/[0.05]">
-                                                                {num.countryName === 'USA' ? '🇺🇸' : '🌍'}
-                                                            </div>
-                                                            <div>
-                                                                <div className="font-mono font-bold text-lg text-white tracking-wide mix-blend-screen">{num.number}</div>
-                                                                <div className="text-xs text-gray-500 font-medium">{num.countryName} • {num.serviceName}</div>
-                                                            </div>
-                                                        </div>
-                                                        <div className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)] animate-pulse" />
-                                                    </div>
-
-                                                    {/* Unique Tech Separator */}
-                                                    <TechSeparator />
-
-                                                    <div className="flex items-center justify-between text-xs text-gray-400">
-                                                        <span className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-white/[0.02]">
-                                                            <MessageSquare className="h-3 w-3 text-cyan-400" />
-                                                            <span className="font-medium text-gray-300">{num.smsCount}</span>
-                                                            SMS
-                                                        </span>
-                                                        <span className="text-emerald-400 font-medium tracking-wide">ACTIVE</span>
-                                                    </div>
-                                                </div>
-                                            </div>
+                                            <DashboardNumberCard
+                                                key={num.id}
+                                                id={num.id}
+                                                number={num.phoneNumber}
+                                                countryCode={num.countryCode}
+                                                countryName={num.countryName}
+                                                serviceName={num.serviceName}
+                                                smsCount={num.smsCount}
+                                                expiresAt={num.expiresAt}
+                                                status={num.status}
+                                                latestSms={num.latestSms}
+                                            />
                                         ))}
                                     </div>
                                 ) : (

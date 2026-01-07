@@ -1,16 +1,10 @@
-import { MEILI_CONFIG, SERVICE_OVERRIDES } from './search-config'
+import { SERVICE_OVERRIDES, normalizeServiceName } from './service-identity'
+import metadata from './metadata.json'
 
-interface ServiceData {
-    name: string
-    code: string
-    provider: string
-    externalId: string
-    price?: number
-    originalPrice?: number
-    count?: number
-    isActive?: boolean
-    [key: string]: any
-}
+// Use stop words from metadata
+const STOP_WORDS = new Set(metadata.searchConfig?.stopWords || [
+    "the", "a", "an", "in", "on", "at", "for", "to", "of", "and", "sms", "verification", "code", "verify"
+]);
 
 export interface AggregatedService {
     canonicalName: string
@@ -81,13 +75,9 @@ class UnionFind {
 const CLEAN_REGEX_PARENS = /[\(\[].*?[\)\]]/g;
 const CLEAN_REGEX_SYMBOLS = /[^a-z0-9 ]/g;
 const CLEAN_REGEX_SPACES = /\s+/g;
-// Use centralized stop words from search-config
-const STOP_WORDS = new Set(MEILI_CONFIG.stopWords);
-
-// Build golden rules from SERVICE_OVERRIDES
-// Format: [regex pattern, canonical display name]
+const STOP_WORDS = new Set(["the", "a", "an", "in", "on", "at", "for", "to", "of", "and", "sms", "verification", "code", "verify"]);
+// Build golden rules from metadata.json via SERVICE_OVERRIDES
 const GOLDEN_RULES: [RegExp, string][] = Object.entries(SERVICE_OVERRIDES)
-    .filter(([_, config]) => config.slugAliases?.length)
     .map(([key, config]) => {
         const patterns = [key, ...(config.slugAliases || [])].join('|');
         return [new RegExp(`\\b(${patterns})\\b`, 'i'), config.displayName] as [RegExp, string];

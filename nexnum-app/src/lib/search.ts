@@ -8,6 +8,19 @@
 
 import { MeiliSearch } from 'meilisearch'
 import { getCountryFlagUrl } from './country-flags'
+import {
+    normalizeServiceName,
+    resolveToCanonicalName,
+    normalizeCountryName,
+    getSlugFromName,
+    SERVICE_OVERRIDES,
+    POPULAR_SERVICES,
+    CANONICAL_SERVICE_NAME_MAP,
+    CANONICAL_SERVICE_NAMES,
+    CANONICAL_DISPLAY_NAMES,
+    CANONICAL_SERVICE_ICONS
+} from './service-identity'
+import { isValidImageUrl } from './utils'
 
 // Meilisearch client
 export const meili = new MeiliSearch({
@@ -96,18 +109,6 @@ export interface ServiceStats {
 // ============================================
 
 /**
- * Normalize country name for consistent aggregation
- * Removes accents, special chars, and lowercases
- */
-export function normalizeCountryName(name: string): string {
-    return name.toLowerCase().trim()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-z\s]/g, "")
-        .trim()
-}
-
-/**
  * Country aggregate data structure used during aggregation
  */
 export interface CountryAggregate {
@@ -126,7 +127,7 @@ export function aggregateCountryFromHit(
     countryMap: Map<string, CountryAggregate>,
     hit: { countryCode?: string; countryName: string; flagUrl?: string; price: number; stock?: number; provider: string }
 ): void {
-    const key = hit.countryCode || normalizeCountryName(hit.countryName)
+    const key = normalizeCountryName(hit.countryName)
 
     if (!countryMap.has(key)) {
         countryMap.set(key, {
@@ -208,58 +209,30 @@ export async function searchCountries(
         const page = options?.page || 1
         const sort = options?.sort || 'name'
 
-        // STEP 1: RESOLVE SERVICE NAME (not slug!)
-        // Service NAME is the true identity. Slugs are provider-specific and ambiguous.
+        // STEP 1: RESOLVE SERVICE NAME
+        // We strictly use the Canonical Name as the identity
         const rawInput = serviceSlug.toLowerCase().trim()
+        let serviceNameToFilter = resolveToCanonicalName(serviceSlug)
 
-        // Check if input has a canonical mapping (e.g., "twitter" -> "Twitter / X")
-        const canonicalNameFromMap = CANONICAL_SERVICE_NAME_MAP[rawInput]
-
-        let serviceNameToFilter: string
-
-        if (canonicalNameFromMap) {
-            // Direct canonical mapping exists
-            serviceNameToFilter = canonicalNameFromMap
-        } else {
-            // Try Strategy 1: Find by serviceSlug
-            const slugDiscovery = await index.search('', {
-                filter: `serviceSlug = "${rawInput}"`,
-                limit: 1,
-                attributesToRetrieve: ['serviceName'],
-            })
-
-            if (slugDiscovery.hits.length > 0) {
-                serviceNameToFilter = (slugDiscovery.hits[0] as OfferDocument).serviceName
-            } else {
-                // Try Strategy 2: Maybe input IS the service name - search by name directly
-                const nameDiscovery = await index.search('', {
-                    filter: `serviceName = "${rawInput.charAt(0).toUpperCase() + rawInput.slice(1)}"`,
-                    limit: 1,
-                    attributesToRetrieve: ['serviceName'],
-                })
-
-                if (nameDiscovery.hits.length > 0) {
-                    serviceNameToFilter = (nameDiscovery.hits[0] as OfferDocument).serviceName
-                } else {
-                    // Strategy 3: Text search (most flexible)
-                    const textSearch = await index.search(rawInput, {
-                        limit: 1,
-                        attributesToRetrieve: ['serviceName'],
-                    })
-                    if (textSearch.hits.length > 0) {
-                        serviceNameToFilter = (textSearch.hits[0] as OfferDocument).serviceName
-                    } else {
-                        serviceNameToFilter = rawInput // Last resort
-                    }
-                }
-            }
+        // Fallback if no matching service document found
+        if (!serviceNameToFilter) {
+            serviceNameToFilter = rawInput.charAt(0).toUpperCase() + rawInput.slice(1)
         }
 
-        // STEP 2: Filter by SERVICE NAME (unambiguous identity)
-        // This correctly handles the case where different services have the same slug
-        const serviceFilter = `serviceName = "${serviceNameToFilter}"`
+        // STEP 2: Filter by SERVICE NAME (Robust Multi-Casing)
+        // Catch common variations
+        const distinctNames = new Set<string>([
+            serviceNameToFilter,
+            serviceNameToFilter.toLowerCase(),
+            serviceNameToFilter.toUpperCase()
+        ])
 
-        let result = await index.search('', {
+        const serviceFilter = Array.from(distinctNames)
+            .filter(Boolean)
+            .map(name => `serviceName = "${name}"`)
+            .join(' OR ')
+
+        let result = await index.search(query, {
             filter: serviceFilter,
             limit: 10000,
             attributesToRetrieve: ['countryCode', 'countryName', 'flagUrl', 'provider', 'price', 'stock'],
@@ -267,12 +240,6 @@ export async function searchCountries(
 
         // SMART AGGREGATION: Group by NORMALIZED COUNTRY NAME (not provider code!)
         // This eliminates duplicates like "Algeria" appearing 3 times from different providers
-        const normalizeCountryName = (name: string) =>
-            name.toLowerCase().trim()
-                .normalize("NFD")
-                .replace(/[\u0300-\u036f]/g, "")
-                .replace(/[^a-z\s]/g, "")
-                .trim()
 
         const countryMap = new Map<string, {
             displayName: string;  // Best display name (longest/most proper)
@@ -322,13 +289,13 @@ export async function searchCountries(
         }
 
         // Convert to array - use normalized name as code for consistency
-        let countries: CountryStats[] = Array.from(countryMap.entries()).map(([normalizedName, stats]) => ({
-            code: normalizedName.replace(/\s+/g, '_'),  // Clean code for identification
-            name: stats.displayName,
-            flagUrl: stats.flagUrl,
-            lowestPrice: stats.minPrice,
-            totalStock: stats.totalStock,
-            serverCount: stats.providers.size,
+        let countries: CountryStats[] = Array.from(countryMap.values()).map(g => ({
+            code: getSlugFromName(g.displayName), // Derive routing code from name
+            name: g.displayName,
+            flagUrl: g.flagUrl,
+            lowestPrice: g.minPrice,
+            totalStock: g.totalStock,
+            serverCount: g.providers.size,
         }))
 
         // Filter by query
@@ -497,35 +464,35 @@ export async function searchRawInventory(
             attributesToRetrieve: ['countryCode', 'countryName', 'flagUrl', 'provider', 'serviceSlug', 'serviceName', 'price', 'stock', 'lastSyncedAt', 'id'],
         })
 
-        // Deduplicate by key (country or service)
         const seen = new Map<string, any>()
 
         for (const hit of result.hits as any[]) {
-            const key = type === 'countries'
-                ? `${hit.provider}_${hit.countryCode}`
-                : `${hit.provider}_${hit.serviceSlug}`
+            const canonicalName = type === 'countries'
+                ? hit.countryName
+                : resolveToCanonicalName(hit.serviceName)
+
+            const normalizedKey = type === 'countries'
+                ? normalizeCountryName(hit.countryName)
+                : normalizeServiceName(canonicalName)
+
+            const key = `${hit.provider}_${normalizedKey}`
 
             if (!seen.has(key)) {
-                const safeId = (hit.id && typeof hit.id === 'string') ? hit.id : key
-                const externalId = safeId.includes('_') ? safeId.split('_').pop() : safeId
-
                 if (type === 'countries') {
                     seen.set(key, {
-                        id: safeId,
-                        externalId: externalId,
+                        id: key,
+                        externalId: hit.countryCode, // Used only as visual ref
                         name: hit.countryName,
                         iconUrl: hit.flagUrl,
                         provider: hit.provider,
                         lastSyncedAt: new Date(hit.lastSyncedAt)
                     })
                 } else {
-                    // ... (service logic same)
                     seen.set(key, {
-                        id: safeId,
-                        externalId: externalId,
-                        name: hit.serviceName,
-                        shortName: hit.serviceSlug,
-                        slug: hit.serviceSlug,
+                        id: key,
+                        externalId: hit.serviceSlug, // Used only as visual ref
+                        name: canonicalName,
+                        slug: getSlugFromName(canonicalName),
                         provider: hit.provider,
                         lastSyncedAt: new Date(hit.lastSyncedAt),
                         _count: { pricing: hit.stock ? 1 : 0 }
@@ -555,35 +522,20 @@ export async function searchRawInventory(
 // INDEX INITIALIZATION
 // ============================================
 
-import { SEARCH_SYNONYMS, SEARCH_STOP_WORDS, RANKING_RULES, SEARCHABLE_ATTRIBUTES, FILTERABLE_ATTRIBUTES, CANONICAL_SERVICE_NAMES, CANONICAL_SERVICE_NAME_MAP, CANONICAL_DISPLAY_NAMES, CANONICAL_SERVICE_ICONS, POPULAR_SERVICES } from './search-config'
-
-// ============================================
-// INDEX INITIALIZATION
-// ============================================
-
 export async function initSearchIndexes() {
     try {
-        // Main Offers Index - optimized for faceted search
         const offersIndex = meili.index(INDEXES.OFFERS)
 
-        // Deep Search Configuration
         await offersIndex.updateSettings({
-            searchableAttributes: SEARCHABLE_ATTRIBUTES,
-            filterableAttributes: FILTERABLE_ATTRIBUTES,
+            searchableAttributes: ['serviceName', 'serviceSlug', 'countryName', 'countryCode', 'provider', 'displayName'],
+            filterableAttributes: ['serviceSlug', 'serviceName', 'countryCode', 'countryName', 'provider', 'operatorId', 'price', 'stock', 'lastSyncedAt'],
             sortableAttributes: ['price', 'stock', 'lastSyncedAt'],
-            rankingRules: RANKING_RULES,
-            synonyms: SEARCH_SYNONYMS,
-            stopWords: SEARCH_STOP_WORDS,
+            rankingRules: ['words', 'typo', 'proximity', 'attribute', 'sort', 'exactness', 'stock:desc', 'lastSyncedAt:desc'],
             distinctAttribute: null,
-
-            // Typo Tolerance: Professional setup
             typoTolerance: {
                 enabled: true,
                 minWordSizeForTypos: { oneTypo: 4, twoTypos: 8 },
-                disableOnWords: [],
-                disableOnAttributes: []
             },
-
             pagination: { maxTotalHits: 10000 }
         })
 
@@ -638,23 +590,16 @@ export async function searchServices(
         }>()
 
         for (const hit of result.hits as OfferDocument[]) {
-            // STEP 1: Canonicalize service name (e.g., "Twitter / X" -> "Twitter")
-            const rawName = hit.serviceName
-            const canonicalName = CANONICAL_SERVICE_NAME_MAP[rawName.toLowerCase()] || rawName
+            // STEP 1: Canonicalize service name
+            const canonicalName = resolveToCanonicalName(hit.serviceName)
 
             // STEP 2: Normalize for aggregation key
-            const normalizedKey = canonicalName
-                .toLowerCase()
-                .trim()
-                .replace(/[^a-z0-9]/g, '') // Remove all non-alphanumeric
-
-            // Determine the canonical slug for this hit
-            const hitSlug = CANONICAL_SERVICE_NAMES[hit.serviceSlug] || hit.serviceSlug
+            const normalizedKey = normalizeServiceName(canonicalName)
 
             if (!serviceMap.has(normalizedKey)) {
                 serviceMap.set(normalizedKey, {
-                    slug: hitSlug,
-                    name: canonicalName, // Use canonical name, not raw
+                    slug: getSlugFromName(canonicalName),
+                    name: canonicalName,
                     icon: hit.iconUrl,
                     minPrice: hit.price,
                     totalStock: 0,
@@ -669,7 +614,6 @@ export async function searchServices(
 
             // Use shared country aggregation helper
             aggregateCountryFromHit(stats.countries, {
-                countryCode: hit.countryCode,
                 countryName: hit.countryName,
                 flagUrl: hit.flagUrl,
                 price: hit.price,
@@ -677,13 +621,12 @@ export async function searchServices(
                 provider: hit.provider
             })
 
-            // SMART ICON PREFERENCE: Prefer real icons over placeholders
+            // SMART ICON PREFERENCE
             const currentIconIsPlaceholder = !stats.icon || stats.icon.includes('dicebear')
             const hitIconIsReal = hit.iconUrl && hit.iconUrl.startsWith('http') && !hit.iconUrl.includes('dicebear')
 
             if (hitIconIsReal && currentIconIsPlaceholder) {
                 stats.icon = hit.iconUrl
-                stats.slug = hitSlug // Prefer the slug from the provider with the real icon
             }
         }
 
@@ -698,15 +641,12 @@ export async function searchServices(
             const isPopular = POPULAR_SERVICES.includes(stats.slug) || stats.providers.size > 2
 
             // Icon Resolution: Canonical > Aggregated Valid > DiceBear Fallback
-            let finalIcon = CANONICAL_SERVICE_ICONS[stats.slug] || stats.icon
-            if (!finalIcon || !finalIcon.startsWith('http')) {
-                finalIcon = `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(stats.name)}&backgroundColor=0ea5e9,6366f1,8b5cf6,ec4899`
-            }
+            const finalIcon = stats.icon
 
             services.push({
                 slug: stats.slug,
-                name: CANONICAL_DISPLAY_NAMES[stats.slug] || stats.name,
-                iconUrl: finalIcon,
+                name: stats.name,
+                iconUrl: finalIcon || `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(stats.name)}&backgroundColor=0ea5e9,6366f1,8b5cf6,ec4899`,
                 popular: isPopular,
                 lowestPrice: stats.minPrice,
                 totalStock: stats.totalStock,
@@ -796,11 +736,14 @@ export async function searchAdminServices(
         }>()
 
         for (const hit of result.hits as OfferDocument[]) {
-            const slug = hit.serviceSlug
-            if (!groups.has(slug)) {
-                groups.set(slug, {
-                    canonicalName: hit.serviceName,
-                    canonicalSlug: hit.serviceSlug,
+            // Group by normalized canonical name
+            const canonicalName = resolveToCanonicalName(hit.serviceName)
+            const aggregationKey = normalizeServiceName(canonicalName)
+
+            if (!groups.has(aggregationKey)) {
+                groups.set(aggregationKey, {
+                    canonicalName: canonicalName,
+                    canonicalSlug: getSlugFromName(canonicalName),
                     providers: new Map(),
                     countries: new Set(),
                     totalStock: 0,
@@ -808,10 +751,10 @@ export async function searchAdminServices(
                     lastSyncedAt: hit.lastSyncedAt
                 })
             }
-            const group = groups.get(slug)!
+            const group = groups.get(aggregationKey)!
 
-            // Track unique countries
-            group.countries.add(hit.countryCode)
+            // Track unique countries by name
+            group.countries.add(normalizeCountryName(hit.countryName))
 
             // Track stock and pricing
             group.totalStock += hit.stock || 0
@@ -820,10 +763,9 @@ export async function searchAdminServices(
 
             // Track provider stats
             if (!group.providers.has(hit.provider)) {
-                const externalId = (hit.id && typeof hit.id === 'string') ? hit.id.split('_').pop() || '' : slug
                 group.providers.set(hit.provider, {
                     provider: hit.provider,
-                    externalId: externalId,
+                    externalId: hit.serviceSlug, // Keep visual external ID for debug
                     stock: hit.stock || 0,
                     minPrice: hit.price,
                     maxPrice: hit.price
@@ -1118,22 +1060,21 @@ export async function indexOffers(offers: OfferDocument[]): Promise<number | und
     try {
         const index = meili.index(INDEXES.OFFERS)
 
-        // SMART NORMALIZATION: Unify service names before indexing
+        // SMART NORMALIZATION: Unify service and country names before indexing
         const normalizedOffers = offers.map(offer => {
-            const rawSlug = offer.serviceSlug.toLowerCase().trim()
-            const canonicalSlug = CANONICAL_SERVICE_NAMES[rawSlug]
+            const canonicalServiceName = resolveToCanonicalName(offer.serviceName)
+            const canonicalCountryName = resolveToCanonicalName(offer.countryName)
 
-            if (canonicalSlug) {
-                // If a canonical mapping exists, use it!
-                return {
-                    ...offer,
-                    serviceSlug: canonicalSlug,
-                    serviceName: canonicalSlug === 'telegram' && offer.serviceName.length <= 3 ? 'Telegram' :
-                        canonicalSlug === 'whatsapp' && offer.serviceName.length <= 3 ? 'WhatsApp' :
-                            offer.serviceName
-                }
+            return {
+                ...offer,
+                serviceName: canonicalServiceName,
+                serviceSlug: getSlugFromName(canonicalServiceName),
+                countryName: canonicalCountryName,
+                countryCode: getSlugFromName(canonicalCountryName),
+                iconUrl: isValidImageUrl(offer.iconUrl) ? offer.iconUrl : undefined,
+                flagUrl: isValidImageUrl(offer.flagUrl) ? offer.flagUrl : '',
+                logoUrl: isValidImageUrl(offer.logoUrl) ? offer.logoUrl : undefined,
             }
-            return offer
         })
 
         const task = await index.addDocuments(normalizedOffers, { primaryKey: 'id' })

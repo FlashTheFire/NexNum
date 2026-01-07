@@ -46,41 +46,8 @@ export async function GET(req: Request) {
             });
         }
 
-        // Sanitize service name to slug logic needs to be smarter.
-        // The user might send "Telegram" (name) or "tg" (code).
-        // We need to resolve it to the canonical 'code' used in our DB/Meili.
-        let serviceSlug = serviceName.toLowerCase()
-            .replace(/\s+/g, '-')
-            .replace(/[^a-z0-9\-]/g, '');
-
-        try {
-            const { prisma } = await import('@/lib/db');
-            // Try to find exact match on Code or Name
-            // We prioritize exact code match, then name match
-            // Try to find exact match on Code or Name using ACTIVE Service Aggregates
-            // This ensures we resolve to the code that actually has offers (e.g. 'tg' instead of 'telegram')
-            const serviceRef = await prisma.serviceAggregate.findFirst({
-                where: {
-                    OR: [
-                        { serviceCode: { equals: serviceSlug, mode: 'insensitive' } },
-                        { serviceName: { equals: serviceName, mode: 'insensitive' } },
-                        { serviceName: { contains: serviceName, mode: 'insensitive' } }
-                    ]
-                },
-                select: { serviceCode: true }
-            });
-
-            if (serviceRef) {
-                serviceSlug = serviceRef.serviceCode;
-            } else {
-                // If not found in lookup, maybe it's a raw slug provided by user?
-                // We keep the sanitized version as fallback.
-            }
-        } catch (e) {
-            console.warn("Failed to resolve service name:", e);
-        }
-
-        const result = await searchCountries(serviceSlug, q, { page, limit, sort });
+        // Delegate resolution to the search library's robust name-based logic
+        const result = await searchCountries(serviceName, q, { page, limit, sort });
 
         // Map to legacy format for backwards compatibility
         const items = result.countries.map(country => ({

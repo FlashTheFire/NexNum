@@ -72,7 +72,7 @@ export const rateLimiters = {
     // Transaction limiter (static for now, sensitive)
     transaction: new Ratelimit({
         redis: redis,
-        limiter: Ratelimit.slidingWindow(10, '60 s'),
+        limiter: Ratelimit.slidingWindow(60, '60 s'),
         analytics: true,
         prefix: '@upstash/ratelimit-tx',
     }),

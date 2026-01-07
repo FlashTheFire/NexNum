@@ -12,10 +12,16 @@ interface UseSMSResult {
     isValidating: boolean
 }
 
+interface BackendSMS {
+    id: string
+    sender: string | null
+    content: string | null
+    code: string | null
+    receivedAt: string
+}
+
 export function useSMS(numberId: string): UseSMSResult {
-    // Poll every 3 seconds for new messages
-    // Key is null if no numberId, preventing fetch
-    const { data, error, mutate, isValidating } = useSWR<{ success: boolean; data: SMSMessage[] }>(
+    const { data, error, mutate, isValidating } = useSWR<{ success: boolean; messages: BackendSMS[]; status?: string }>(
         numberId ? `/api/sms/${encodeURIComponent(numberId)}` : null,
         fetcher,
         {
@@ -25,17 +31,22 @@ export function useSMS(numberId: string): UseSMSResult {
         }
     )
 
-    // Sort messages locally if backend doesn't (descending time)
-    // SWR might return undefined initially
-    const messages = data?.data?.sort((a, b) =>
+    // Map backend response (sender/content) to UI expectations (from/text)
+    const messages: SMSMessage[] = data?.messages?.map(m => ({
+        id: m.id,
+        numberId,
+        from: m.sender || 'Unknown',
+        text: m.content || '',
+        receivedAt: m.receivedAt,
+        isRead: false
+    })).sort((a, b) =>
         new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime()
     ) || []
 
     const refresh = async () => {
-        // Optimistic UI or just trigger re-fetch with a POST to force simulation check
         await fetch(`/api/sms/${encodeURIComponent(numberId)}`, {
             method: 'POST',
-            body: JSON.stringify({ force: false }) // Let server decide probability
+            body: JSON.stringify({ force: false })
         })
         await mutate()
     }

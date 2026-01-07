@@ -32,3 +32,8 @@ export function formatDate(date: Date | string) {
         year: "numeric",
     })
 }
+
+export function isValidImageUrl(url?: string | null): boolean {
+    if (!url) return false
+    return url.startsWith('http://') || url.startsWith('https://')
+}

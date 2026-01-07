@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/jwt'
-import { smsProvider } from '@/lib/sms-providers'
+import { smsProvider } from '@/lib/sms-providers/index'
 import { apiHandler } from '@/lib/api-handler'
 
 interface RouteParams {
@@ -170,3 +170,5 @@ export const GET = apiHandler(async (request, context) => {
         }))
     })
 })
+
+export const POST = GET

@@ -56,7 +56,7 @@ export default function DashboardLayout({
         checkAuth()
     }, [checkAuth])
 
-    // Fetch data when authenticated
+    // Initial fetch
     useEffect(() => {
         if (isAuthenticated && !isLoading) {
             fetchBalance()
@@ -64,6 +64,19 @@ export default function DashboardLayout({
             fetchTransactions()
         }
     }, [isAuthenticated, isLoading, fetchBalance, fetchNumbers, fetchTransactions])
+
+    // Background Polling (Logical & Professional Advance)
+    useEffect(() => {
+        if (!isAuthenticated || isLoading) return
+
+        const interval = setInterval(() => {
+            fetchBalance()
+            fetchNumbers()
+            // No need to poll transactions as frequently, but can if needed
+        }, 20000) // 20 seconds
+
+        return () => clearInterval(interval)
+    }, [isAuthenticated, isLoading, fetchBalance, fetchNumbers])
 
     useEffect(() => {
         if (!isLoading && !isAuthenticated) {

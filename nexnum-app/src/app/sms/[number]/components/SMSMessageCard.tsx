@@ -127,54 +127,54 @@ export const SMSMessageCard = memo(function SMSMessageCard({ sms, index }: SMSMe
             }}
             className="group"
         >
-            <div className={`relative p-4 rounded-2xl bg-gradient-to-r ${colors.bg} ${colors.border} border backdrop-blur-sm overflow-hidden transition-all duration-300 hover:border-opacity-60`}>
+            <div className={`relative p-3 rounded-2xl bg-gradient-to-r ${colors.bg} ${colors.border} border backdrop-blur-sm overflow-hidden transition-all duration-300 hover:border-opacity-60`}>
                 {/* Shimmer on hover */}
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.03] to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 pointer-events-none" />
 
                 {/* Header */}
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center justify-between mb-1.5">
                     <div className="flex items-center gap-2">
-                        <div className={`p-2 rounded-lg bg-black/20 ${colors.icon}`}>
-                            <MessageSquare className="h-4 w-4" />
+                        <div className={`p-1.5 rounded-lg bg-black/20 ${colors.icon}`}>
+                            <MessageSquare className="h-3.5 w-3.5" />
                         </div>
-                        <span className="text-sm font-medium text-white/80">{sms.from}</span>
+                        <span className="text-xs font-medium text-white/80">{sms.from}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-500 flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
+                        <span className="text-[10px] text-gray-500 flex items-center gap-1">
+                            <Clock className="h-2.5 w-2.5" />
                             {formatRelativeTime(sms.receivedAt)}
                         </span>
                         <button
                             onClick={handleCopyFull}
-                            className="p-1.5 rounded-lg hover:bg-white/10 transition-colors opacity-0 group-hover:opacity-100"
+                            className="p-1 rounded-lg hover:bg-white/10 transition-colors opacity-0 group-hover:opacity-100"
                             aria-label="Copy full message"
                         >
                             {fullCopied ? (
-                                <Check className="h-4 w-4 text-emerald-400" />
+                                <Check className="h-3.5 w-3.5 text-emerald-400" />
                             ) : (
-                                <MoreHorizontal className="h-4 w-4 text-gray-500" />
+                                <MoreHorizontal className="h-3.5 w-3.5 text-gray-500" />
                             )}
                         </button>
                     </div>
                 </div>
 
                 {/* Message Content */}
-                <p className="text-sm leading-relaxed text-gray-300 mb-3">{sms.text}</p>
+                <p className="text-xs leading-relaxed text-gray-300 mb-2">{sms.text}</p>
 
                 {/* OTP Code Section */}
                 {otpCode && (
                     <motion.div
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: "auto" }}
-                        className="flex items-center justify-between p-3 rounded-xl bg-black/30 border border-emerald-500/20"
+                        className="flex items-center justify-between p-2 rounded-xl bg-black/30 border border-emerald-500/20"
                     >
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 rounded-lg bg-emerald-500/20">
-                                <Zap className="h-4 w-4 text-emerald-400" />
+                        <div className="flex items-center gap-2">
+                            <div className="p-1.5 rounded-lg bg-emerald-500/20">
+                                <Zap className="h-3.5 w-3.5 text-emerald-400" />
                             </div>
                             <div>
-                                <p className="text-xs text-gray-500">Verification Code</p>
-                                <p className="font-mono font-bold text-lg tracking-[0.2em] text-emerald-400">
+                                <p className="text-[10px] text-gray-500">Code</p>
+                                <p className="font-mono font-bold text-base tracking-[0.15em] text-emerald-400">
                                     {otpCode}
                                 </p>
                             </div>
@@ -183,16 +183,16 @@ export const SMSMessageCard = memo(function SMSMessageCard({ sms, index }: SMSMe
                             variant="outline"
                             size="sm"
                             onClick={handleCopyCode}
-                            className="gap-2 rounded-xl bg-emerald-500/10 border-emerald-500/30 hover:bg-emerald-500/20 text-emerald-400"
+                            className="h-8 gap-1.5 rounded-lg bg-emerald-500/10 border-emerald-500/30 hover:bg-emerald-500/20 text-emerald-400 text-xs px-2.5"
                         >
                             {copied ? (
                                 <>
-                                    <Check className="h-4 w-4" />
-                                    Copied!
+                                    <Check className="h-3 w-3" />
+                                    Copied
                                 </>
                             ) : (
                                 <>
-                                    <Copy className="h-4 w-4" />
+                                    <Copy className="h-3 w-3" />
                                     Copy
                                 </>
                             )}

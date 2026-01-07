@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { Check, Sparkles, Loader2, Server, SearchX, HelpCircle } from "lucide-react";
+import { Check, Sparkles, Loader2, Server, SearchX, HelpCircle, MessageSquare, Shield, Smartphone, Globe, Zap, Lock } from "lucide-react";
 
 // Helper hook for IntersectionObserver
 function useInView(options = {}) {
@@ -160,14 +160,6 @@ export default function ServiceSelector({ selectedService, onSelect, searchTerm,
 
     return (
         <section className="py-2 space-y-4">
-            {/* Header / Controls */}
-            <div className="flex items-center justify-between mb-4">
-                <div>
-                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                        Select Service
-                    </h3>
-                </div>
-            </div>
 
             {/* Grid Layout - 3 cols on mobile for better touch targets */}
             <motion.div
@@ -297,62 +289,234 @@ export default function ServiceSelector({ selectedService, onSelect, searchTerm,
 
             {fetchedServices.length === 0 && !loading && (
                 <motion.div
-                    initial={{ opacity: 0, y: 10 }}
+                    initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="col-span-full flex flex-col items-center justify-center py-16 text-center"
+                    transition={{ duration: 0.5, ease: "easeOut" }}
+                    className="col-span-full"
                 >
-                    {/* Branded Empty State Icon */}
-                    <div className="relative mb-6 group cursor-default">
-                        <div className="absolute inset-0 bg-[hsl(var(--neon-lime))] blur-[40px] opacity-10 group-hover:opacity-20 transition-opacity duration-500" />
-                        <div className="relative w-20 h-20 bg-white/5 border border-white/10 rounded-3xl flex items-center justify-center shadow-2xl backdrop-blur-sm group-hover:scale-110 transition-transform duration-500">
-                            <SearchX className="w-8 h-8 text-gray-400 group-hover:text-[hsl(var(--neon-lime))] transition-colors duration-300" strokeWidth={1.5} />
+                    {/* ===================== MOBILE LAYOUT ===================== */}
+                    <div className="lg:hidden">
+                        <div className="relative bg-gradient-to-br from-white/[0.06] to-transparent border border-white/10 rounded-2xl p-4 sm:p-5 backdrop-blur-xl overflow-hidden">
+                            {/* Decorative accent */}
+                            <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-bl from-[hsl(var(--neon-lime)/0.12)] to-transparent rounded-bl-full" />
+
+                            {/* Header - Compact */}
+                            <div className="relative z-10 flex items-center gap-3 mb-4">
+                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-white/10 to-white/5 border border-white/10 flex items-center justify-center">
+                                    <SearchX className="w-5 h-5 text-[hsl(var(--neon-lime))]" strokeWidth={1.5} />
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-bold text-white">Service Not Found</h3>
+                                    <p className="text-xs text-gray-500">Try the universal option</p>
+                                </div>
+                            </div>
+
+                            {/* "Other" Button - Mobile */}
+                            <motion.button
+                                whileTap={{ scale: 0.98 }}
+                                onClick={() => onSelect('other', 'Other', '/icons/other.png')}
+                                className="group w-full flex items-center gap-3 p-3 rounded-xl bg-gradient-to-br from-emerald-500/10 to-teal-500/5 border border-emerald-500/20 active:border-emerald-500/40"
+                            >
+                                <div className="relative w-11 h-11 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                                    <HelpCircle className="w-5 h-5 text-emerald-400" strokeWidth={2} />
+                                    <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-400 rounded-full animate-pulse" />
+                                </div>
+                                <div className="flex-1 text-left">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-bold text-white">Other</span>
+                                        <span className="px-1.5 py-0.5 text-[9px] font-bold uppercase bg-emerald-500/20 text-emerald-400 rounded">Universal</span>
+                                    </div>
+                                    <p className="text-[11px] text-gray-400 mt-0.5">Works with any website or app</p>
+                                </div>
+                                <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                            </motion.button>
+
+                            {/* Quick Help Link - Mobile */}
+                            <a href="/support/new-service" className="flex items-center justify-center gap-1.5 mt-3 py-2 text-[11px] text-gray-400 hover:text-[hsl(var(--neon-lime))]">
+                                <Server className="w-3 h-3" />
+                                <span>Request a new service</span>
+                            </a>
                         </div>
                     </div>
 
-                    <h3 className="text-xl font-bold text-white mb-2">
-                        No precise matches found
-                    </h3>
-                    <p className="text-gray-400 text-sm max-w-md mx-auto mb-10 leading-relaxed">
-                        We couldn't find a dedicated service for "<span className="text-[hsl(var(--neon-lime))] font-mono">{searchTerm}</span>".
-                        <br />Try our universal service option below.
-                    </p>
+                    {/* ===================== DESKTOP LAYOUT ===================== */}
+                    <div className="hidden lg:block">
+                        <div className="relative w-full">
+                            {/* Glass Card */}
+                            <div className="relative bg-[#0a0a0c]/80 border border-white/10 rounded-2xl p-6 backdrop-blur-xl shadow-lg overflow-hidden">
 
-                    {/* "Any Other" Fallback Card */}
-                    <motion.button
-                        layout
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => onSelect('any-other', 'Any Other', '/icons/any-other.png')}
-                        className="relative group flex flex-col items-center justify-center p-5 w-40 h-40 rounded-3xl border border-white/10 bg-gradient-to-br from-white/[0.08] to-white/[0.02] hover:border-[hsl(var(--neon-lime)/0.5)] hover:shadow-[0_0_30px_hsl(var(--neon-lime)/0.15)] transition-all duration-300 overflow-hidden"
-                    >
-                        {/* Flags - Absolute Top Left */}
-                        <div className="absolute top-3 left-3 flex -space-x-1.5 opacity-80 group-hover:opacity-100 transition-opacity z-20">
-                            {['id', 'kg', 'cl'].map((code, i) => (
-                                <div key={code} className="w-5 h-5 rounded-full border-2 border-[#18181b] overflow-hidden bg-black shadow-sm" style={{ zIndex: 3 - i }}>
-                                    <img
-                                        src={`https://flagcdn.com/w40/${code}.png`}
-                                        className="w-full h-full object-cover"
-                                        alt={code}
-                                    />
+                                {/* ===== ANIMATED BACKGROUND VECTORS ===== */}
+                                {/* Gradient Orbs */}
+                                <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-gradient-to-bl from-[hsl(var(--neon-lime)/0.08)] via-[hsl(var(--neon-lime)/0.02)] to-transparent rounded-full blur-3xl animate-pulse" style={{ animationDuration: '4s' }} />
+                                <div className="absolute bottom-0 left-1/4 w-80 h-80 bg-gradient-to-tr from-purple-500/5 via-blue-500/3 to-transparent rounded-full blur-3xl" />
+
+                                {/* Decorative SVG Lines */}
+                                <svg className="absolute top-0 left-0 w-full h-full pointer-events-none opacity-[0.04]" viewBox="0 0 800 400">
+                                    <defs>
+                                        <linearGradient id="lineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                                            <stop offset="0%" stopColor="currentColor" stopOpacity="0" />
+                                            <stop offset="50%" stopColor="currentColor" stopOpacity="1" />
+                                            <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
+                                        </linearGradient>
+                                    </defs>
+                                    <path d="M0 100 Q200 50 400 100 T800 100" stroke="url(#lineGrad)" strokeWidth="1" fill="none" className="text-white" />
+                                    <path d="M0 200 Q200 150 400 200 T800 200" stroke="url(#lineGrad)" strokeWidth="1" fill="none" className="text-white" />
+                                    <path d="M0 300 Q200 250 400 300 T800 300" stroke="url(#lineGrad)" strokeWidth="1" fill="none" className="text-white" />
+                                    <circle cx="100" cy="150" r="2" fill="currentColor" className="text-[hsl(var(--neon-lime))]" />
+                                    <circle cx="300" cy="80" r="1.5" fill="currentColor" className="text-white/30" />
+                                    <circle cx="500" cy="250" r="2" fill="currentColor" className="text-[hsl(var(--neon-lime))]" />
+                                    <circle cx="700" cy="120" r="1.5" fill="currentColor" className="text-white/30" />
+                                </svg>
+
+                                {/* Grid Pattern */}
+                                <div className="absolute inset-0 opacity-[0.015]" style={{
+                                    backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)',
+                                    backgroundSize: '32px 32px'
+                                }} />
+
+                                {/* ===== MAIN CONTENT GRID ===== */}
+                                <div className="relative z-10 grid grid-cols-12 gap-6 items-center min-h-[280px]">
+
+                                    {/* Left Column - Content (7 cols) */}
+                                    <div className="col-span-7 space-y-5 py-2">
+                                        {/* Status Badge with Icon */}
+                                        <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-gradient-to-r from-amber-500/10 to-orange-500/5 border border-amber-500/20">
+                                            <div className="relative">
+                                                <div className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+                                                <div className="absolute inset-0 w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping" />
+                                            </div>
+                                            <span className="text-sm font-medium text-amber-300/90">No exact match found</span>
+                                        </div>
+
+                                        {/* Heading with Icon */}
+                                        <div className="flex items-start gap-4">
+                                            <div className="shrink-0 w-14 h-14 rounded-2xl bg-gradient-to-br from-[hsl(var(--neon-lime)/0.2)] to-[hsl(var(--neon-lime)/0.05)] border border-[hsl(var(--neon-lime)/0.3)] flex items-center justify-center shadow-lg shadow-[hsl(var(--neon-lime)/0.1)]">
+                                                <SearchX className="w-6 h-6 text-[hsl(var(--neon-lime))]" strokeWidth={1.5} />
+                                            </div>
+                                            <div>
+                                                <h2 className="text-2xl font-bold text-white mb-2">
+                                                    Service Not Found
+                                                </h2>
+                                                <p className="text-sm text-gray-400 leading-relaxed max-w-md">
+                                                    {searchTerm ? (
+                                                        <>Can't find "<span className="text-[hsl(var(--neon-lime))] font-semibold">{searchTerm}</span>". Use our universal <span className="text-white font-medium">"Other"</span> service instead.</>
+                                                    ) : (
+                                                        <>Service unavailable. Try our universal <span className="text-white font-medium">"Other"</span> option.</>
+                                                    )}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {/* "Other" Service Card */}
+                                        <motion.button
+                                            whileHover={{ scale: 1.01, x: 3 }}
+                                            whileTap={{ scale: 0.99 }}
+                                            onClick={() => onSelect('other', 'Other', '/icons/other.png')}
+                                            className="group w-full flex items-center gap-4 p-4 rounded-xl bg-gradient-to-r from-emerald-500/15 via-emerald-500/5 to-transparent border border-emerald-500/25 hover:border-emerald-400/50 hover:shadow-[0_4px_30px_hsl(var(--neon-lime)/0.12)] transition-all duration-300"
+                                        >
+                                            <div className="relative shrink-0">
+                                                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500/40 to-teal-500/20 border border-emerald-400/30 flex items-center justify-center shadow-lg shadow-emerald-500/20 group-hover:shadow-emerald-400/30 transition-shadow">
+                                                    <HelpCircle className="w-5 h-5 text-emerald-300" strokeWidth={2} />
+                                                </div>
+                                                <div className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-[hsl(var(--neon-lime))] rounded-full flex items-center justify-center shadow-lg shadow-[hsl(var(--neon-lime)/0.5)]">
+                                                    <Check className="w-3 h-3 text-black" strokeWidth={3} />
+                                                </div>
+                                            </div>
+
+                                            <div className="flex-1 text-left">
+                                                <div className="flex items-center gap-2 mb-0.5">
+                                                    <h4 className="text-base font-bold text-white group-hover:text-[hsl(var(--neon-lime))] transition-colors">Other</h4>
+                                                    <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-[hsl(var(--neon-lime)/0.15)] text-[hsl(var(--neon-lime))] rounded border border-[hsl(var(--neon-lime)/0.3)]">Universal</span>
+                                                </div>
+                                                <p className="text-xs text-gray-400">Works with any website, app, or platform worldwide</p>
+                                            </div>
+
+                                            <div className="shrink-0 w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center group-hover:bg-[hsl(var(--neon-lime)/0.15)] group-hover:border-[hsl(var(--neon-lime)/0.3)] transition-all">
+                                                <svg className="w-4 h-4 text-gray-500 group-hover:text-[hsl(var(--neon-lime))] transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                                                </svg>
+                                            </div>
+                                        </motion.button>
+
+                                        {/* Help Link */}
+                                        <div className="flex items-center gap-3 pt-3">
+                                            <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
+                                                <Server className="w-3.5 h-3.5 text-blue-400" />
+                                            </div>
+                                            <div className="text-sm">
+                                                <span className="text-gray-400">Missing a service? </span>
+                                                <a href="/support/new-service" className="font-medium text-[hsl(var(--neon-lime))] hover:underline">Request it →</a>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Right Column - Professional Illustration (5 cols) */}
+                                    <div className="col-span-5 flex items-center justify-center">
+                                        <div className="relative w-full max-w-[260px] aspect-square">
+
+                                            {/* Outer Ring with Service Icons */}
+                                            <div className="absolute inset-0 flex items-center justify-center">
+                                                <div className="w-full h-full rounded-full border border-white/[0.06]" />
+                                            </div>
+
+                                            {/* Service Icons - Positioned on the outer ring */}
+                                            {/* Top */}
+                                            <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-9 h-9 rounded-xl bg-gradient-to-br from-white/10 to-white/5 border border-white/10 flex items-center justify-center shadow-lg backdrop-blur-sm">
+                                                <MessageSquare className="w-4 h-4 text-blue-400" strokeWidth={1.5} />
+                                            </div>
+                                            {/* Right */}
+                                            <div className="absolute top-1/2 right-0 translate-x-1/2 -translate-y-1/2 w-9 h-9 rounded-xl bg-gradient-to-br from-white/10 to-white/5 border border-white/10 flex items-center justify-center shadow-lg backdrop-blur-sm">
+                                                <Globe className="w-4 h-4 text-emerald-400" strokeWidth={1.5} />
+                                            </div>
+                                            {/* Bottom */}
+                                            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-9 h-9 rounded-xl bg-gradient-to-br from-white/10 to-white/5 border border-white/10 flex items-center justify-center shadow-lg backdrop-blur-sm">
+                                                <Shield className="w-4 h-4 text-purple-400" strokeWidth={1.5} />
+                                            </div>
+                                            {/* Left */}
+                                            <div className="absolute top-1/2 left-0 -translate-x-1/2 -translate-y-1/2 w-9 h-9 rounded-xl bg-gradient-to-br from-white/10 to-white/5 border border-white/10 flex items-center justify-center shadow-lg backdrop-blur-sm">
+                                                <Smartphone className="w-4 h-4 text-cyan-400" strokeWidth={1.5} />
+                                            </div>
+
+                                            {/* Inner Ring */}
+                                            <div className="absolute inset-8 flex items-center justify-center">
+                                                <div className="w-full h-full rounded-full border border-[hsl(var(--neon-lime)/0.15)]" />
+                                            </div>
+
+                                            {/* Diagonal Icons on inner ring */}
+                                            {/* Top-Right */}
+                                            <div className="absolute top-[15%] right-[15%] w-8 h-8 rounded-lg bg-gradient-to-br from-[hsl(var(--neon-lime)/0.15)] to-transparent border border-[hsl(var(--neon-lime)/0.2)] flex items-center justify-center">
+                                                <Zap className="w-3.5 h-3.5 text-[hsl(var(--neon-lime))]" strokeWidth={1.5} />
+                                            </div>
+                                            {/* Bottom-Left */}
+                                            <div className="absolute bottom-[15%] left-[15%] w-8 h-8 rounded-lg bg-gradient-to-br from-[hsl(var(--neon-lime)/0.15)] to-transparent border border-[hsl(var(--neon-lime)/0.2)] flex items-center justify-center">
+                                                <Lock className="w-3.5 h-3.5 text-[hsl(var(--neon-lime))]" strokeWidth={1.5} />
+                                            </div>
+
+                                            {/* Central Icon Container */}
+                                            <div className="absolute inset-0 flex items-center justify-center">
+                                                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#18181b] to-[#0f0f11] border border-white/10 flex items-center justify-center shadow-2xl">
+                                                    <div className="relative">
+                                                        <SearchX className="w-8 h-8 text-[hsl(var(--neon-lime))]" strokeWidth={1.5} />
+                                                        <div className="absolute inset-0 blur-md bg-[hsl(var(--neon-lime)/0.4)] -z-10 scale-150" />
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Stats Badges */}
+                                            <div className="absolute -top-6 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-[#151518] border border-white/10 shadow-lg whitespace-nowrap">
+                                                <p className="text-[11px] font-semibold text-white">500+ <span className="text-gray-500 font-normal">services</span></p>
+                                            </div>
+                                            <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-[hsl(var(--neon-lime)/0.1)] border border-[hsl(var(--neon-lime)/0.25)] shadow-lg whitespace-nowrap">
+                                                <p className="text-[11px] font-semibold text-[hsl(var(--neon-lime))]">24/7 <span className="text-[hsl(var(--neon-lime)/0.6)] font-normal">support</span></p>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-                            ))}
+                            </div>
                         </div>
-
-                        {/* Central Question Mark Icon */}
-                        <div className="relative z-10 mb-3 w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow">
-                            <HelpCircle className="w-8 h-8 text-[#10A37F]" strokeWidth={3} />
-                        </div>
-
-                        <span className="text-sm font-bold text-white group-hover:text-[hsl(var(--neon-lime))] transition-colors">
-                            Any Other
-                        </span>
-
-                        {/* Hover Glow Effect */}
-                        <div className="absolute inset-0 bg-[hsl(var(--neon-lime))] opacity-0 group-hover:opacity-5 blur-xl transition-opacity duration-300 pointer-events-none" />
-                    </motion.button>
-
+                    </div>
                 </motion.div>
             )}
         </section>

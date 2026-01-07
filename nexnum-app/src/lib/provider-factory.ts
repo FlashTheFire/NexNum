@@ -19,104 +19,74 @@ const LEGACY_PROVIDERS: Record<string, new () => SmsProvider> = {
 }
 
 /**
- * Check if a provider has valid dynamic configuration
- */
-export function hasDynamicConfig(provider: Provider): boolean {
-    if (!provider.endpoints) return false
-
-    const endpoints = provider.endpoints as Record<string, unknown>
-
-    // Check if at least one valid endpoint is configured
-    return Object.keys(endpoints).some(key => {
-        const ep = endpoints[key]
-        return ep && typeof ep === 'object' && 'path' in ep
-    })
-}
-
-/**
- * Check if provider uses dynamic metadata (countries/services from API)
- * This is controlled by the `useDynamicMetadata` flag in mappings
- */
-export function usesDynamicMetadata(provider: Provider): boolean {
-    if (!provider.mappings) return false
-    const mappings = provider.mappings as Record<string, unknown>
-    return mappings.useDynamicMetadata === true
-}
-
-/**
- * Get the legacy provider class for a provider name
- */
-export function getLegacyProvider(name: string): SmsProvider | null {
-    const normalizedName = name.toLowerCase().trim()
-    const ProviderClass = LEGACY_PROVIDERS[normalizedName]
-
-    if (ProviderClass) {
-        return new ProviderClass()
-    }
-
-    return null
-}
-
-/**
  * Get the appropriate provider adapter based on configuration
  * 
- * Priority:
- * 1. If provider has valid dynamic config (endpoints defined) → DynamicProvider
- * 2. If provider name matches a legacy provider → Legacy adapter
- * 3. Otherwise → throw error
+ * "for getting otp use dyanamic" - User
  */
 export function getProviderAdapter(provider: Provider): SmsProvider {
-    // First, check if dynamic provider config exists
-    if (hasDynamicConfig(provider)) {
-        return new DynamicProvider(provider)
+    // Check if we should use legacy adapter for non-metadata operations
+    if (!hasDynamicConfig(provider)) {
+        const normalizedName = provider.name.toLowerCase().trim()
+        const LegacyClass = LEGACY_PROVIDERS[normalizedName]
+        if (LegacyClass) {
+            return new LegacyClass()
+        }
     }
 
-    // Fallback to legacy provider
-    const legacyProvider = getLegacyProvider(provider.name)
-    if (legacyProvider) {
-        console.log(`[ProviderFactory] Using legacy adapter for ${provider.name}`)
-        return legacyProvider
-    }
-
-    throw new Error(
-        `No provider adapter found for "${provider.name}". ` +
-        `Either configure dynamic endpoints or ensure a legacy provider exists.`
-    )
+    return new DynamicProvider(provider)
 }
 
 /**
  * Get provider for metadata operations (getCountries, getServices)
  * 
- * If useDynamicMetadata is OFF → use legacy provider's scripts
- * If useDynamicMetadata is ON → use DynamicProvider (API-based)
+ * "don't remove grizzly and fivesim file for fetching country, service" - User
  */
 export function getMetadataProvider(provider: Provider): SmsProvider {
-    const useDynamic = usesDynamicMetadata(provider)
+    const mappings = provider.mappings as any
+    const useDynamic = mappings?.useDynamicMetadata === true
 
     if (!useDynamic) {
-        // Use legacy scripts for countries/services
-        const legacyProvider = getLegacyProvider(provider.name)
-        if (legacyProvider) {
+        const normalizedName = provider.name.toLowerCase().trim()
+        const LegacyClass = LEGACY_PROVIDERS[normalizedName]
+        if (LegacyClass) {
             console.log(`[ProviderFactory] Using legacy metadata scripts for ${provider.name}`)
-            return legacyProvider
+            return new LegacyClass()
         }
     }
 
-    // Fall back to DynamicProvider if legacy not available or useDynamic is true
-    if (hasDynamicConfig(provider)) {
-        return new DynamicProvider(provider)
-    }
-
-    throw new Error(
-        `No metadata provider available for "${provider.name}". ` +
-        `Either enable useDynamicMetadata or ensure a legacy provider exists.`
-    )
+    return new DynamicProvider(provider)
 }
 
-/**
- * Check if a provider name has a legacy adapter available
- */
 export function hasLegacyProvider(name: string): boolean {
     return name.toLowerCase().trim() in LEGACY_PROVIDERS
 }
+
+/**
+ * Check if the provider should use the dynamic configuration engine
+ */
+export function hasDynamicConfig(provider: Provider): boolean {
+    // If it's not a legacy provider, it's dynamic
+    if (!hasLegacyProvider(provider.name)) return true
+
+    // If it IS a legacy provider, check if dynamic mode is forced via mappings
+    const mappings = provider.mappings as any
+    return mappings?.useDynamic === true
+}
+
+export function getLegacyProvider(name: string): SmsProvider | null {
+    const LegacyClass = LEGACY_PROVIDERS[name.toLowerCase().trim()]
+    if (LegacyClass) {
+        return new LegacyClass()
+    }
+    return null
+}
+
+/**
+ * Check if the provider should use the dynamic configuration engine for metadata
+ */
+export function usesDynamicMetadata(provider: Provider): boolean {
+    const mappings = provider.mappings as any
+    return mappings?.useDynamicMetadata === true
+}
+
 
