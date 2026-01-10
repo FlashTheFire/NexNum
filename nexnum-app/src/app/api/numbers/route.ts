@@ -2,6 +2,21 @@ import { NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/jwt'
 import { smsProvider } from '@/lib/sms-providers'
 
+import { unstable_cache } from 'next/cache'
+
+// Cached Data Fetchers
+const getCachedCountries = unstable_cache(
+    async () => smsProvider.getCountries(),
+    ['countries-list'],
+    { revalidate: 300 } // 5 minutes
+)
+
+const getCachedServices = unstable_cache(
+    async (country: string) => smsProvider.getServices(country),
+    ['services-list'],
+    { revalidate: 60 } // 1 minute
+)
+
 // GET /api/numbers - List available countries and services
 export async function GET(request: Request) {
     try {
@@ -19,7 +34,7 @@ export async function GET(request: Request) {
 
         // If country specified, get services for that country
         if (countryCode) {
-            const services = await smsProvider.getServices(countryCode)
+            const services = await getCachedServices(countryCode)
             return NextResponse.json({
                 success: true,
                 countryCode,
@@ -28,7 +43,7 @@ export async function GET(request: Request) {
         }
 
         // Otherwise, get list of countries
-        const countries = await smsProvider.getCountries()
+        const countries = await getCachedCountries()
 
         return NextResponse.json({
             success: true,

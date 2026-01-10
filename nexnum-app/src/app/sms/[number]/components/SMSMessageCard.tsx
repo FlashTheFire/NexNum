@@ -117,8 +117,8 @@ export const SMSMessageCard = memo(function SMSMessageCard({ sms, index }: SMSMe
 
     return (
         <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
+            initial={{ opacity: 0, x: 30, scale: 0.98 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
             transition={{
                 delay: index * 0.05,
                 type: "spring",
@@ -164,8 +164,8 @@ export const SMSMessageCard = memo(function SMSMessageCard({ sms, index }: SMSMe
                 {/* OTP Code Section */}
                 {otpCode && (
                     <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto" }}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
                         className="flex items-center justify-between p-2 rounded-xl bg-black/30 border border-emerald-500/20"
                     >
                         <div className="flex items-center gap-2">

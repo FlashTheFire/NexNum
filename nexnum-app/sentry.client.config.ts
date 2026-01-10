@@ -1,46 +1,26 @@
-// Sentry Client Configuration for NexNum
-import * as Sentry from "@sentry/nextjs"
+import * as Sentry from "@sentry/nextjs";
 
 Sentry.init({
-    dsn: "https://e6e6efd5e81d6afcbffd3ee38c8afa28@o4510636540166144.ingest.us.sentry.io/4510636545736704",
+    dsn: process.env.NEXT_PUBLIC_SENTRY_DSN || process.env.SENTRY_DSN,
 
-    // Environment
-    environment: process.env.NODE_ENV,
+    // Adjust this value in production, or use tracesSampler for greater control
+    tracesSampleRate: 1,
 
-    // Enable logging
-    enableLogs: true,
-
-    // Performance Monitoring (10% in prod, 100% in dev)
-    tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
-
-    // Session Replay (captures user sessions)
-    replaysSessionSampleRate: 0.1,
-    replaysOnErrorSampleRate: 1.0,
-
-    // Integrations
-    integrations: [
-        // Capture console logs as Sentry logs
-        Sentry.consoleLoggingIntegration({ levels: ["warn", "error"] }),
-        Sentry.replayIntegration(),
-    ],
-
-    // Debug mode (disabled to reduce console noise)
+    // Setting this option to true will print useful information to the console while you're setting up Sentry.
     debug: false,
 
-    // Ignore common non-error events
-    ignoreErrors: [
-        'Network Error',
-        'NetworkError',
-        'Failed to fetch',
-        'ResizeObserver loop',
-        'AbortError',
-    ],
+    replaysOnErrorSampleRate: 1.0,
 
-    // Tag all events
-    initialScope: {
-        tags: {
-            app: 'nexnum',
-            runtime: 'browser',
-        },
-    },
-})
+    // This sets the sample rate to be 10%. You may want this to be 100% while
+    // in development and sample at a lower rate in production
+    replaysSessionSampleRate: 0.1,
+
+    // You can remove this option if you're not planning to use the Sentry Session Replay feature:
+    integrations: [
+        Sentry.replayIntegration({
+            // Additional Replay configuration goes in here, for example:
+            maskAllText: true,
+            blockAllMedia: true,
+        }),
+    ],
+});

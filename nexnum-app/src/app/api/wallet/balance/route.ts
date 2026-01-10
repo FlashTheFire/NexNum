@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
-import { prisma, getUserBalance, ensureWallet } from '@/lib/db'
+import { prisma, ensureWallet } from '@/lib/db'
 import { getCurrentUser } from '@/lib/jwt'
+import { WalletService } from '@/lib/wallet'
 
 export async function GET(request: Request) {
     try {
@@ -16,8 +17,8 @@ export async function GET(request: Request) {
         // Ensure wallet exists
         const walletId = await ensureWallet(user.userId)
 
-        // Get balance (ledger-based: SUM of all transactions)
-        const balance = await getUserBalance(user.userId)
+        // Get balance (via Service)
+        const balance = await WalletService.getBalance(user.userId)
 
         return NextResponse.json({
             success: true,

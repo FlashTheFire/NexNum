@@ -1,44 +1,61 @@
 "use client"
 
-import { useState, memo } from 'react'
+import { useState, memo, useEffect, useRef } from 'react'
 import { Phone, Copy, Check, Clock, MessageSquare, Shield, Sparkles, Smartphone } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { getCountryFlagUrlSync } from "@/lib/country-flags"
 
 interface SMSNumberCardProps {
     phoneNumber: string
     serviceName: string
     countryName: string
+    countryCode: string
+    countryIconUrl?: string
     minutesLeft: number
     secondsLeft: number
     messageCount: number
+    price?: number
+    status?: 'active' | 'completed' | 'expired' | 'cancelled' | 'received'
+    providerName?: string
+    serviceIconUrl?: string
     className?: string
 }
-
-const countryCodeMap: Record<string, string> = {
-    "United States": "us", "USA": "us", "US": "us",
-    "United Kingdom": "gb", "UK": "gb",
-    "Canada": "ca", "Germany": "de", "France": "fr",
-    "Russia": "ru", "India": "in", "China": "cn",
-    "Brazil": "br", "Australia": "au", "Spain": "es",
-    "Italy": "it", "Netherlands": "nl", "Poland": "pl",
-};
 
 /**
  * Professional, clean phone number display card.
  * Removes "cartoonish" elements in favor of premium glassmorphism.
  */
+
 export const SMSNumberCard = memo(function SMSNumberCard({
     phoneNumber,
     serviceName,
     countryName,
+    countryCode,
+    countryIconUrl,
     minutesLeft,
     secondsLeft,
     messageCount,
+    price = 0,
+    status = 'active',
+    providerName = 'Unknown',
+    serviceIconUrl,
     className
 }: SMSNumberCardProps) {
     const [copied, setCopied] = useState(false)
-    const countryCode = countryCodeMap[countryName] || "un"
+    const [pulseMessage, setPulseMessage] = useState(false)
+    const prevMessageCount = useRef(messageCount)
+
+    // Pulse on new message
+    useEffect(() => {
+        if (messageCount > prevMessageCount.current) {
+            setPulseMessage(true)
+            const timer = setTimeout(() => setPulseMessage(false), 2000)
+            return () => clearTimeout(timer)
+        }
+        prevMessageCount.current = messageCount
+    }, [messageCount])
 
     const handleCopyNumber = () => {
         navigator.clipboard.writeText(phoneNumber)
@@ -48,6 +65,24 @@ export const SMSNumberCard = memo(function SMSNumberCard({
     }
 
     const isLowTime = minutesLeft < 5
+    const isMediumTime = minutesLeft >= 5 && minutesLeft < 10
+    const isExpired = status === 'expired' || status === 'cancelled' || (minutesLeft === 0 && secondsLeft === 0);
+
+    const progressColor = isLowTime ? '#ef4444' : (isMediumTime ? '#f59e0b' : 'hsl(var(--neon-lime))')
+
+    // Calculate progress (assumes ~20 min activation)
+    const totalSeconds = minutesLeft * 60 + secondsLeft
+    const progress = Math.min(100, (totalSeconds / (20 * 60)) * 100)
+
+    // Dynamic Status Config
+    const getStatusConfig = () => {
+        if (status === 'cancelled') return { color: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/20', label: 'Cancelled', icon: 'bg-red-500' }
+        if (status === 'expired' || isExpired) return { color: 'text-orange-400', bg: 'bg-orange-500/10', border: 'border-orange-500/20', label: 'Expired', icon: 'bg-orange-500' }
+        if (status === 'completed') return { color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20', label: 'Completed', icon: 'bg-blue-500' }
+        // Default Active
+        return { color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', label: 'Active', icon: 'bg-emerald-500' }
+    }
+    const statusConfig = getStatusConfig()
 
     return (
         <div className={cn("relative group w-full", className)}>
@@ -85,32 +120,54 @@ export const SMSNumberCard = memo(function SMSNumberCard({
                     }}
                 />
 
-                <div className="relative z-10 flex flex-col gap-2 p-3 md:p-4">
+                <div className="relative z-10 flex flex-col gap-4 p-4 md:p-5">
                     {/* Header Section: Icon & Number */}
                     <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                            {/* Device Icon Container - Embedded in Glass with Flag */}
-                            <div className="relative">
-                                <div className="w-10 h-10 rounded-lg bg-[#1A1D24] border border-[#25282F] flex items-center justify-center">
-                                    <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 text-gray-300">
-                                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"></path>
-                                    </svg>
+                        <div className="flex items-start gap-3">
+                            {/* Service Logo Container - Matching Select Provider Design */}
+                            <div className="relative w-10 h-10 flex-shrink-0">
+                                <div className={cn(
+                                    "relative w-full h-full rounded-lg overflow-hidden transition-all duration-300",
+                                    status === 'active' ? "ring-2 ring-[hsl(var(--neon-lime))] ring-offset-1 ring-offset-[#0a0a0c] shadow-[0_0_12px_hsl(var(--neon-lime)/0.35)]" : "ring-1 ring-white/10",
+                                    "group-hover:scale-105"
+                                )}>
+                                    {serviceIconUrl ? (
+                                        <img
+                                            src={serviceIconUrl}
+                                            alt={serviceName}
+                                            className="w-full h-full object-contain filter brightness-110 contrast-110"
+                                            onError={(e) => {
+                                                e.currentTarget.style.display = 'none'
+                                                e.currentTarget.nextElementSibling?.classList.remove('hidden')
+                                            }}
+                                        />
+                                    ) : null}
+                                    {/* Fallback Icon */}
+                                    <div className={cn("w-full h-full bg-[#1A1D24] flex items-center justify-center text-gray-300 text-lg font-bold", serviceIconUrl && "hidden")}>
+                                        {serviceName?.charAt(0)?.toUpperCase() || '?'}
+                                    </div>
+                                    <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none" />
                                 </div>
-                                {/* Country Flag Badge */}
-                                <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full border border-[#1A1D24] overflow-hidden z-10 shadow-sm">
+                                {/* Country Flag Badge - Circle Flags */}
+                                <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-[#151518] overflow-hidden shadow-md z-20">
                                     <img
-                                        src={`https://flagcdn.com/w40/${countryCode}.png`}
+                                        src={countryIconUrl || getCountryFlagUrlSync(countryName) || getCountryFlagUrlSync(countryCode) || `https://raw.githubusercontent.com/HatScripts/circle-flags/gh-pages/flags/un.svg`}
                                         alt={countryName}
-                                        className="w-full h-full object-cover"
-                                        loading="lazy"
+                                        className="w-full h-full rounded-full object-cover shadow-sm ring-1 ring-white/10"
+                                        onError={(e) => {
+                                            // Fallback to 'un' (Unknown) flag if error
+                                            e.currentTarget.src = 'https://raw.githubusercontent.com/HatScripts/circle-flags/gh-pages/flags/un.svg'
+                                        }}
                                     />
                                 </div>
                             </div>
 
-
-                            <div>
+                            <div className="flex flex-col pt-0.5">
                                 <div className="flex items-center gap-2 mb-0.5">
-                                    <h2 className="text-xl md:text-2xl font-mono font-bold text-white tracking-tight drop-shadow-md">
+                                    <h2 className={cn(
+                                        "text-xl md:text-2xl font-mono font-bold tracking-tight drop-shadow-md",
+                                        isExpired ? "text-gray-400 line-through decoration-gray-600 decoration-2" : "text-white"
+                                    )}>
                                         {phoneNumber}
                                     </h2>
                                     <button
@@ -121,56 +178,111 @@ export const SMSNumberCard = memo(function SMSNumberCard({
                                         {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 group-hover/copy:text-[hsl(var(--neon-lime))]" />}
                                     </button>
                                 </div>
-                                <div className="flex items-center gap-2 text-xs text-gray-400 font-medium pl-0.5">
-                                    <span className="capitalize tracking-wide">{countryName}</span>
-                                    <span className="w-0.5 h-0.5 rounded-full bg-gray-600" />
+                                <div className="flex items-center gap-2 text-xs text-gray-400 font-medium whitespace-nowrap overflow-hidden text-ellipsis">
+                                    <span className="capitalize">{countryName}</span>
+                                    <span className="w-0.5 h-0.5 rounded-full bg-gray-600 shrink-0"></span>
                                     <span className="capitalize text-[hsl(var(--neon-lime))]">{serviceName}</span>
+                                    <span className="w-0.5 h-0.5 rounded-full bg-gray-600 shrink-0"></span>
+                                    <span className="capitalize text-gray-500">{providerName}</span>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Status Badge - Minimalist Dot */}
-                        <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/30 border border-white/5 backdrop-blur-sm">
+                        {/* Status Badge */}
+                        <div className={cn("hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full border backdrop-blur-sm shadow-sm", statusConfig.bg, statusConfig.border)}>
                             <span className="relative flex h-1.5 w-1.5">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
+                                {status === 'active' && (
+                                    <span className={cn("animate-ping absolute inline-flex h-full w-full rounded-full opacity-75", statusConfig.icon)}></span>
+                                )}
+                                <span className={cn("relative inline-flex rounded-full h-1.5 w-1.5 shadow-[0_0_8px_rgba(0,0,0,0.2)]", statusConfig.icon)}></span>
                             </span>
-                            <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-500/90">Active</span>
+                            <span className={cn("text-[10px] font-bold uppercase tracking-widest", statusConfig.color)}>{statusConfig.label}</span>
                         </div>
                     </div>
 
                     <div className="h-px w-full bg-gradient-to-r from-transparent via-white/[0.08] to-transparent" />
 
                     {/* Stats Grid - Darker, Recessed Look */}
-                    <div className="grid grid-cols-2 gap-2 md:gap-3">
+                    <div className="grid grid-cols-2 gap-3">
                         {/* Time Remaining */}
                         <div className={cn(
-                            "group/stat relative p-2.5 rounded-lg border transition-all duration-500 overflow-hidden",
-                            isLowTime
-                                ? "bg-red-500/[0.03] border-red-500/10"
-                                : "bg-white/[0.02] border-white/5 hover:border-[hsl(var(--neon-lime))/20] hover:bg-[hsl(var(--neon-lime))/0.02]"
+                            "group/stat relative p-3 rounded-xl ring-1 transition-all duration-500 overflow-hidden flex flex-col justify-between h-[72px]",
+                            isLowTime && !isExpired
+                                ? "bg-red-500/[0.03] ring-red-500/10"
+                                : "bg-white/[0.02] ring-white/5 hover:ring-[hsl(var(--neon-lime))/20] hover:bg-[hsl(var(--neon-lime))/0.02]"
                         )}>
-                            <p className="text-[10px] text-gray-500 mb-0.5 flex items-center gap-1.5 uppercase tracking-wider font-semibold">
+                            {/* Advanced Dotted Progress Bar */}
+                            {!isExpired && (
+                                <div className="absolute bottom-0 left-0 w-full h-[2px] bg-white/[0.02] overflow-hidden">
+                                    <div
+                                        className="relative h-full transition-all duration-1000 ease-linear"
+                                        style={{ width: `${progress}%` }}
+                                    >
+                                        <div className="absolute inset-0 w-full h-full opacity-50"
+                                            style={{
+                                                backgroundImage: `linear-gradient(to right, ${progressColor} 1px, transparent 1px)`,
+                                                backgroundSize: '3px 100%'
+                                            }}
+                                        />
+                                        <div className="absolute inset-0 opacity-20 blur-[1px]" style={{ backgroundColor: progressColor }} />
+                                        <div className="absolute right-0 top-1/2 -translate-y-1/2 w-1 h-1 rounded-full shadow-[0_0_8px_1px_currentColor]"
+                                            style={{ backgroundColor: progressColor, color: progressColor }}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            <p className="text-[10px] text-gray-500 flex items-center gap-1.5 uppercase tracking-wider font-semibold">
                                 <Clock className="w-3 h-3" />
-                                <span>Expires in</span>
+                                <span>{isExpired ? 'Status' : 'Expires in'}</span>
                             </p>
                             <p className={cn(
-                                "text-lg md:text-xl font-mono font-medium tracking-tight drop-shadow-sm",
-                                isLowTime ? "text-red-400" : "text-white group-hover/stat:text-[hsl(var(--neon-lime))] transition-colors"
+                                "text-xl md:text-2xl font-mono font-medium tracking-tight drop-shadow-sm truncate",
+                                isExpired ? "text-gray-500" : (isLowTime ? "text-red-400" : "text-white group-hover/stat:text-[hsl(var(--neon-lime))] transition-colors")
                             )}>
-                                {minutesLeft}:{secondsLeft.toString().padStart(2, '0')}
+                                {isExpired ? (status === 'cancelled' ? 'CANCELLED' : 'EXPIRED') : `${minutesLeft}:${secondsLeft.toString().padStart(2, '0')}`}
                             </p>
+                            {/* Price Badge (Absolute Bottom Right of Box) */}
+                            {price > 0 && (
+                                <div className="absolute top-2 right-2 text-[10px] font-mono font-medium text-white/40 bg-white/5 px-1.5 py-0.5 rounded border border-white/5">
+                                    ${price}/num
+                                </div>
+                            )}
                         </div>
 
                         {/* Message Count */}
-                        <div className="relative p-2.5 rounded-lg bg-white/[0.02] border border-white/5 transition-all duration-500 hover:border-blue-400/20 hover:bg-blue-400/[0.02]">
-                            <p className="text-[10px] text-gray-500 mb-0.5 flex items-center gap-1.5 uppercase tracking-wider font-semibold">
+                        <div className="relative p-3 rounded-xl bg-white/[0.02] ring-1 ring-white/5 transition-all duration-500 hover:ring-blue-400/20 hover:bg-blue-400/[0.02] flex flex-col justify-between h-[72px]">
+                            {/* New Message Pulse Rings (Scale based) */}
+                            <AnimatePresence>
+                                {pulseMessage && (
+                                    <motion.div
+                                        initial={{ scale: 0.8, opacity: 0 }}
+                                        animate={{ scale: 1.5, opacity: 0 }}
+                                        exit={{ opacity: 0 }}
+                                        transition={{ duration: 1.5, repeat: 2 }}
+                                        className="absolute inset-0 bg-blue-500/10 rounded-xl pointer-events-none"
+                                    />
+                                )}
+                            </AnimatePresence>
+
+                            <p className="text-[10px] text-gray-500 flex items-center gap-1.5 uppercase tracking-wider font-semibold">
                                 <MessageSquare className="w-3 h-3" />
                                 <span>Received</span>
                             </p>
-                            <p className="text-lg md:text-xl font-mono font-medium text-white tracking-tight drop-shadow-sm group-hover:text-blue-400 transition-colors">
-                                {messageCount}
-                            </p>
+                            <div className="flex items-end justify-between">
+                                <motion.p
+                                    key={messageCount}
+                                    initial={prevMessageCount.current !== messageCount ? { scale: 1.2, color: '#60a5fa' } : {}}
+                                    animate={{ scale: 1, color: '#ffffff' }}
+                                    className="text-xl md:text-2xl font-mono font-medium text-white tracking-tight drop-shadow-sm group-hover:text-blue-400 transition-colors"
+                                >
+                                    {messageCount}
+                                </motion.p>
+                                {/* Mobile Status (If needed) */}
+                                <div className="sm:hidden">
+                                    <div className={cn("w-2 h-2 rounded-full", statusConfig.icon)} />
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

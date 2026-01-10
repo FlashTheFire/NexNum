@@ -1,8 +1,7 @@
-"use client"
+'use client'
 
-import * as Sentry from "@sentry/nextjs"
-import Error from "next/error"
-import { useEffect } from "react"
+import { useEffect } from 'react'
+import { AlertTriangle } from 'lucide-react'
 
 export default function GlobalError({
     error,
@@ -12,27 +11,28 @@ export default function GlobalError({
     reset: () => void
 }) {
     useEffect(() => {
-        // Log the error to Sentry
-        Sentry.captureException(error)
+        console.error('Global Error:', error)
     }, [error])
 
     return (
         <html>
-            <body>
-                <div className="min-h-screen flex items-center justify-center bg-gray-900">
-                    <div className="text-center p-8 max-w-md">
-                        <div className="text-6xl mb-4">💥</div>
-                        <h2 className="text-2xl font-bold text-white mb-4">
-                            Something went wrong!
-                        </h2>
-                        <p className="text-gray-400 mb-6">
-                            We've been notified and are working on it.
+            <body className="bg-black text-white antialiased">
+                <div className="min-h-screen flex items-center justify-center p-4">
+                    <div className="max-w-md w-full text-center space-y-6">
+                        <div className="inline-flex p-4 rounded-full bg-red-500/10 border border-red-500/20 mb-4">
+                            <AlertTriangle className="h-10 w-10 text-red-500" />
+                        </div>
+
+                        <h1 className="text-3xl font-bold">Critical Error</h1>
+                        <p className="text-gray-400">
+                            The application encountered a critical error and cannot continue.
                         </p>
+
                         <button
                             onClick={reset}
-                            className="px-6 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-medium transition-colors"
+                            className="px-6 py-3 bg-[hsl(var(--neon-lime))] text-black font-bold rounded-xl hover:opacity-90 transition-opacity"
                         >
-                            Try again
+                            Reload Application
                         </button>
                     </div>
                 </div>

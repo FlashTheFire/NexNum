@@ -29,16 +29,16 @@ export interface WalletTransaction {
     createdAt: string
 }
 
-export async function getWalletBalance(): Promise<WalletBalance | null> {
+export async function getWalletBalance(): Promise<{ success: boolean; data?: WalletBalance }> {
     try {
         const response = await fetch('/api/wallet/balance', {
             headers: authHeaders(),
         })
-        if (!response.ok) return null
+        if (!response.ok) return { success: false }
         const data = await response.json()
-        return { walletId: data.walletId, balance: data.balance }
+        return { success: true, data: { walletId: data.walletId, balance: data.balance } }
     } catch {
-        return null
+        return { success: false }
     }
 }
 
@@ -63,16 +63,16 @@ export async function topUpWallet(amount: number): Promise<{ success: boolean; n
     }
 }
 
-export async function getWalletTransactions(page = 1, limit = 20): Promise<{ transactions: WalletTransaction[]; total: number }> {
+export async function getWalletTransactions(page = 1, limit = 20): Promise<{ success: boolean; transactions: WalletTransaction[]; total: number }> {
     try {
         const response = await fetch(`/api/wallet/transactions?page=${page}&limit=${limit}`, {
             headers: authHeaders(),
         })
-        if (!response.ok) return { transactions: [], total: 0 }
+        if (!response.ok) return { success: false, transactions: [], total: 0 }
         const data = await response.json()
-        return { transactions: data.transactions, total: data.pagination.total }
+        return { success: true, transactions: data.transactions, total: data.pagination.total }
     } catch {
-        return { transactions: [], total: 0 }
+        return { success: false, transactions: [], total: 0 }
     }
 }
 
@@ -99,7 +99,10 @@ export interface PhoneNumber {
     phoneNumber: string
     countryCode: string
     countryName: string | null
+    countryIconUrl?: string
     serviceName: string | null
+    serviceCode?: string
+    serviceIconUrl?: string
     price: number
     status: string
     expiresAt: string | null
@@ -141,6 +144,7 @@ export async function getServices(countryCode: string): Promise<Service[]> {
 export async function purchaseNumber(
     countryCode: string,
     serviceCode: string,
+    provider?: string,
     testMode?: boolean
 ): Promise<{ success: boolean; number?: PhoneNumber; error?: string }> {
     try {
@@ -155,7 +159,13 @@ export async function purchaseNumber(
                 'Content-Type': 'application/json',
                 ...authHeaders(),
             },
-            body: JSON.stringify({ countryCode, serviceCode, idempotencyKey, testMode: finalTestMode }),
+            body: JSON.stringify({
+                countryCode,
+                serviceCode,
+                provider,
+                idempotencyKey,
+                testMode: finalTestMode
+            }),
         })
         const data = await response.json()
         if (!response.ok) {
@@ -167,7 +177,7 @@ export async function purchaseNumber(
     }
 }
 
-export async function getMyNumbers(status?: string, page = 1, limit = 20): Promise<{ numbers: PhoneNumber[]; total: number }> {
+export async function getMyNumbers(status?: string, page = 1, limit = 20): Promise<{ success: boolean; numbers: PhoneNumber[]; total: number }> {
     try {
         const params = new URLSearchParams({ page: page.toString(), limit: limit.toString() })
         if (status) params.set('status', status)
@@ -175,11 +185,11 @@ export async function getMyNumbers(status?: string, page = 1, limit = 20): Promi
         const response = await fetch(`/api/numbers/my?${params}`, {
             headers: authHeaders(),
         })
-        if (!response.ok) return { numbers: [], total: 0 }
+        if (!response.ok) return { success: false, numbers: [], total: 0 }
         const data = await response.json()
-        return { numbers: data.numbers, total: data.pagination.total }
+        return { success: true, numbers: data.numbers, total: data.pagination.total }
     } catch {
-        return { numbers: [], total: 0 }
+        return { success: false, numbers: [], total: 0 }
     }
 }
 

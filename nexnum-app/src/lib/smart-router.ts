@@ -83,68 +83,60 @@ export class SmartSmsRouter implements SmsProvider {
         const providers = await this.getActiveProviders()
         if (providers.length === 0) throw new Error("No active providers available")
 
-        // Strategy: Return services from the highest priority provider
-        // This ensures the prices we show match the provider we will likely use first
-        for (const provider of providers) {
-            try {
-                const services = await provider.getServices(countryCode)
+        // Parallel Strategy: Fetch services from ALL active providers concurrently
+        const results = await Promise.allSettled(
+            providers.map(async (provider) => {
+                try {
+                    const services = await provider.getServices(countryCode)
 
-                // Apply Pricing Rules
-                const mult = Number(provider.config.priceMultiplier) || 1.0
-                const fixed = Number(provider.config.fixedMarkup) || 0.0
+                    // Apply Pricing Rules
+                    const mult = Number(provider.config.priceMultiplier) || 1.0
+                    const fixed = Number(provider.config.fixedMarkup) || 0.0
 
-                return services.map(s => ({
-                    ...s,
-                    price: (s.price * mult) + fixed
-                }))
-            } catch (e) {
-                console.warn(`SmartRouter: Provider ${provider.name} failed to get services for ${countryCode}`, e)
-                continue // Try next provider
+                    return services.map(s => ({
+                        ...s,
+                        price: (s.price * mult) + fixed
+                    }))
+                } catch (e) {
+                    console.warn(`SmartRouter: Provider ${provider.name} failed to get services for ${countryCode}`, e)
+                    return []
+                }
+            })
+        )
+
+        // Flatten results from all successful promises
+        const allServices: Service[] = []
+        results.forEach(result => {
+            if (result.status === 'fulfilled') {
+                allServices.push(...result.value)
             }
+        })
+
+        if (allServices.length === 0) {
+            throw new Error("All active providers failed to fetch services")
         }
-        throw new Error("All active providers failed to fetch services")
+
+        return allServices
     }
 
-    async getNumber(countryCode: string, serviceCode: string, preferredProvider?: string, testMode?: boolean): Promise<NumberResult> {
+    async getNumber(countryCode: string, serviceCode: string, options?: { operator?: string; maxPrice?: string | number; provider?: string; testMode?: boolean }): Promise<NumberResult> {
         let providers = await this.getHealthyProviders() // Use healthy providers only
         if (providers.length === 0) throw new Error("No healthy providers available")
 
+        const providerPreference = options?.provider
+        const testMode = options?.testMode
+
         // 0. If testMode is requested, bypass real providers and return mock data
-        if (testMode) {
-            const provider = preferredProvider
-                ? providers.find(p => p.name.toLowerCase() === preferredProvider.toLowerCase()) || providers[0]
-                : providers[0]
 
-            logger.info(`SmartRouter: Simulating MOCK purchase for ${provider.name}...`)
 
-            // Generate a random-ish US phone number for the mock
-            const areaCode = Math.floor(Math.random() * 800 + 200)
-            const prefix = Math.floor(Math.random() * 800 + 200)
-            const line = Math.floor(Math.random() * 8999 + 1000)
-            const mockPhone = `+1${areaCode}${prefix}${line}`
-
-            return {
-                activationId: `${provider.name}:mock_${Math.random().toString(36).substring(7)}`,
-                phoneNumber: mockPhone,
-                countryCode,
-                countryName: '', // Will be filled by DB labels usually
-                serviceCode,
-                serviceName: '', // Will be filled by DB labels usually
-                price: 0.05,    // Nominal mock price
-                expiresAt: new Date(Date.now() + 15 * 60 * 1000)
+        // If preference is specified, strictly use that provider only (Phase 11 Update)
+        if (providerPreference) {
+            const provider = providers.find(p => p.name.toLowerCase() === providerPreference.toLowerCase())
+            if (!provider) {
+                throw new Error(`Provider '${providerPreference}' is not active or healthy`)
             }
-        }
-
-        // If preference is specified, move it to the top OR filter others out (Strict Routing)
-        if (preferredProvider) {
-            const matchIndex = providers.findIndex(p => p.name.toLowerCase() === preferredProvider.toLowerCase())
-            if (matchIndex > -1) {
-                // Move preferred to front
-                const match = providers.splice(matchIndex, 1)[0]
-                providers.unshift(match)
-            } else {
-                logger.warn(`SmartRouter: Preferred provider '${preferredProvider}' not active/found. Falling back to priority list.`)
-            }
+            // Overwrite providers list to ONLY include this one
+            providers = [provider]
         }
 
         const checkedProviders: string[] = []
@@ -153,7 +145,10 @@ export class SmartSmsRouter implements SmsProvider {
             const startTime = Date.now()
             try {
                 logger.info(`SmartRouter: Attempting purchase from ${provider.name}...`)
-                const result = await provider.getNumber(countryCode, serviceCode)
+                const result = await provider.getNumber(countryCode, serviceCode, {
+                    operator: options?.operator,
+                    maxPrice: options?.maxPrice
+                })
 
                 // Record success
                 const latency = Date.now() - startTime
@@ -168,14 +163,30 @@ export class SmartSmsRouter implements SmsProvider {
                     activationId: `${provider.name}:${result.activationId}`,
                     price: (result.price * mult) + fixed
                 }
-            } catch (e) {
+            } catch (e: any) {
                 // Record failure
                 const latency = Date.now() - startTime
                 await healthMonitor.recordRequest(provider.config.id, false, latency)
 
-                logger.warn(`SmartRouter: Purchase failed on ${provider.name}: ${e instanceof Error ? e.message : 'Unknown error'}`)
-                checkedProviders.push(provider.name)
-                // Continue to next provider
+                // Check for structured ProviderError
+                const errorType = e.errorType || 'UNKNOWN'
+                const isNoStock = e.isNoStock ?? false
+                const isPermanent = e.isPermanent ?? false
+
+                logger.warn(`SmartRouter: Purchase failed on ${provider.name}: ${e.message}`, {
+                    errorType,
+                    isNoStock,
+                    isPermanent
+                })
+
+                checkedProviders.push(`${provider.name}(${errorType})`)
+
+                // If it's a permanent error (BAD_KEY, etc.), don't try other providers
+                if (isPermanent && providerPreference) {
+                    throw new Error(`Provider '${provider.name}' returned permanent error: ${e.message}`)
+                }
+
+                // Continue to next provider for retryable errors
             }
         }
 
@@ -183,6 +194,8 @@ export class SmartSmsRouter implements SmsProvider {
     }
 
     async getStatus(activationId: string): Promise<StatusResult> {
+
+
         const [providerName, realId] = this.parseActivationId(activationId)
 
         if (providerName && realId) {
@@ -218,6 +231,8 @@ export class SmartSmsRouter implements SmsProvider {
     }
 
     async cancelNumber(activationId: string): Promise<void> {
+
+
         const [providerName, realId] = this.parseActivationId(activationId)
 
         if (providerName && realId) {

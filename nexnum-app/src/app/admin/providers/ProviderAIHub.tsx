@@ -30,45 +30,63 @@ export function ProviderAIHub({ currentData, onUpdate }: ProviderAIHubProps) {
         setResult(null)
 
         try {
-            // Construct the prompt based on mode
-            let systemPrompt = ""
+            // Construct the user prompt based on mode
+            // The system prompt comes from the core AI-generate API
             let userPrompt = input
+            let apiMode = 'generate' // Default mode for API
+            let step: 'full' | number = 'full'
 
             if (mode === 'general') {
-                systemPrompt = "You are an expert API Integrator. Analyze the documentation and extract ALL configuration (identity, endpoints, mappings). Return a complete JSON configuration."
-                // Add context about current endpoints so AI knows what exists
-                userPrompt = `Current Endpoints JSON: ${JSON.stringify(currentData.endpoints)}\n\nDocumentation:\n${input}`
+                // Full provider analysis - send to API with current context
+                userPrompt = [
+                    `### CURRENT PROVIDER DATA:`,
+                    `Endpoints: ${JSON.stringify(currentData.endpoints)}`,
+                    `Mappings: ${JSON.stringify(currentData.mappings)}`,
+                    ``,
+                    `### TASK: Analyze and optimize the configuration. Fill in any missing endpoints or fix mapping issues.`,
+                    ``,
+                    `### DOCUMENTATION:`,
+                    input
+                ].join('\n')
             } else if (mode === 'endpoint') {
-                systemPrompt = `You are an expert API Integrator. Analyze the documentation for '${selectedEndpoint}'. 
-                
-                ### CRITICAL SCHEMA RULES:
-                1. "queryParams": MUST be Record<string, string>. NO objects!
-                   - CORRECT: "action": "getPrices", "api_key": "$api_key"
-                   - WRONG: "action": { "type": "string", "default": ... }
-                2. "mappings":
-                   - If response is a list, use "type": "json_array".
-                   - If response is a dict with dynamic keys (e.g. Country -> Service), use "type": "json_dictionary".
-                   - "fields" must be flat paths relative to the item.
-                
-                Return a JSON object with EXACTLY this structure:
-                {
-                  "endpoints": { "${selectedEndpoint}": { "method": "GET"|"POST", "path": "...", "queryParams": { "key": "value" } } },
-                  "mappings": { "${selectedEndpoint}": { "type": "json_array"|"json_dictionary", "rootPath": "...", "fields": { "cost": "price", "count": "qty" } } }
-                }
-                Do NOT include any other endpoints or top-level keys.`
-
-                userPrompt = `Target Endpoint: ${selectedEndpoint}\nCurrent Config: ${JSON.stringify({
-                    endpoint: typeof currentData.endpoints === 'string' ? (JSON.parse(currentData.endpoints)[selectedEndpoint] || {}) : (currentData.endpoints[selectedEndpoint] || {}),
-                    mapping: typeof currentData.mappings === 'string' ? (JSON.parse(currentData.mappings)[selectedEndpoint] || {}) : (currentData.mappings[selectedEndpoint] || {})
-                })}\n\nDocumentation:\n${input}`
+                // Single endpoint focus
+                step = 5 // Use step 5 for endpoint generation
+                userPrompt = [
+                    `### TARGET ENDPOINT: ${selectedEndpoint}`,
+                    ``,
+                    `### CURRENT CONFIG:`,
+                    JSON.stringify({
+                        endpoint: typeof currentData.endpoints === 'string'
+                            ? (JSON.parse(currentData.endpoints)[selectedEndpoint] || {})
+                            : (currentData.endpoints?.[selectedEndpoint] || {}),
+                        mapping: typeof currentData.mappings === 'string'
+                            ? (JSON.parse(currentData.mappings)[selectedEndpoint] || {})
+                            : (currentData.mappings?.[selectedEndpoint] || {})
+                    }, null, 2),
+                    ``,
+                    `### REQUIREMENTS:`,
+                    `1. Generate endpoint config: { method, path, queryParams }`,
+                    `2. Generate mapping config: { type, fields, rootPath?, regex?, errors? }`,
+                    `3. For lifecycle endpoints (getNumber, getStatus, setStatus, cancelNumber), include error patterns:`,
+                    `   - errors.patterns format: { "ERROR_TYPE": "pattern to match" }`,
+                    `   - Universal error types: NO_NUMBERS, NO_BALANCE, BAD_KEY, BAD_SERVICE, NO_ACTIVATION, SERVER_ERROR`,
+                    ``,
+                    `### DOCUMENTATION:`,
+                    input
+                ].join('\n')
             } else if (mode === 'debug') {
-                systemPrompt = `You are an expert API Debugger. Fix the configuration. 
-                Return a JSON object with the corrected structure:
-                {
-                  "endpoints": { "${selectedEndpoint}": { ... } },
-                  "mappings": { "${selectedEndpoint}": { ... } }
-                }`
-                userPrompt = `Context: Debugging ${selectedEndpoint}\nCurrent Config: ${JSON.stringify(currentData.mappings?.[selectedEndpoint] || {})}\n\nTrace/Error:\n${input}`
+                // Debug mode - fix broken config
+                userPrompt = [
+                    `### DEBUGGING ENDPOINT: ${selectedEndpoint}`,
+                    ``,
+                    `### CURRENT BROKEN CONFIG:`,
+                    JSON.stringify(currentData.mappings?.[selectedEndpoint] || {}, null, 2),
+                    ``,
+                    `### ERROR TRACE OR ISSUE:`,
+                    input,
+                    ``,
+                    `### TASK: Fix the configuration to resolve this error. Return corrected endpoint and mapping.`
+                ].join('\n')
             }
 
             const res = await fetch('/api/admin/ai-generate', {
@@ -76,9 +94,9 @@ export function ProviderAIHub({ currentData, onUpdate }: ProviderAIHubProps) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     prompt: userPrompt,
-                    systemPromptOverride: systemPrompt,
-                    mode: 'config', // 'config' mode expects JSON return
-                    step: 'full' // Reuse the full generation logic structure
+                    mode: apiMode,
+                    step,
+                    // NO systemPromptOverride - let API use its core detailed prompts
                 })
             })
 

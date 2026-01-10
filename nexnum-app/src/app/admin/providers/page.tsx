@@ -8,7 +8,7 @@ import {
     MoreHorizontal, CheckCircle, XCircle, AlertCircle, ChevronRight, ChevronDown, Copy, Check,
     Trash2, Edit, Save, Play, Terminal, Upload, Image, DollarSign, FileCode,
     Wallet, MapPin, Smartphone, Phone, BarChart3, Ban, Plug, Sparkles, Info, Wand2,
-    Lock, Key, Link, FileText, X
+    Lock, Key, Link, FileText, X, Eye, Settings, Package
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -433,7 +433,7 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
 
     // Testing State
     const [testAction, setTestAction] = useState('test')
-    const [testParams, setTestParams] = useState({ country: '', service: '', id: '' })
+    const [testParams, setTestParams] = useState({ country: '', service: '', operator: '', maxPrice: '', id: '', status: '' })
     const [testResults, setTestResults] = useState<Record<string, any>>({}) // Multi-test results
     const [expandedTest, setExpandedTest] = useState<string | null>(null) // Which test row is expanded
     const [selectedMapping, setSelectedMapping] = useState<string>('') // Legacy prop, can reuse if needed or remove
@@ -443,6 +443,7 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
     const [isUploading, setIsUploading] = useState(false)
     const [isDragging, setIsDragging] = useState(false)
     const fileInputRef = React.useRef<HTMLInputElement>(null)
+    const [isDynamicExpanded, setIsDynamicExpanded] = useState(false)
 
     useEffect(() => {
         if (provider) {
@@ -467,7 +468,7 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
             setTestAction('test')
             setTestResult(null)
             setTestResults({}) // Reset multi-test results too
-            setTestParams({ country: '', service: '', id: '' })
+            setTestParams({ country: '', service: '', operator: '', maxPrice: '', id: '', status: '' })
             setMappingMode('visual')
             setEndpointMode('visual')
         }
@@ -542,7 +543,7 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
             if (res.ok) {
                 toast.success(isCreating ? "Provider created" : "Provider updated")
                 onRefresh()
-                onClose()
+                // Don't close panel - stay on editing view
             } else {
                 const data = await res.json()
                 toast.error(data.error || "Operation failed")
@@ -554,21 +555,22 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
         }
     }
 
-    const runTest = async (action: string) => {
+    const runTest = async (action: string, overrides?: any) => {
         if (!provider) return
         setIsTesting(true)
         setTestAction(action) // Sync UI state
+        // Don't clear single result immediately if running chain? 
+        // Actually, for UI feedback we usually want to see the specific action. 
+        // But for chain, it might flash.
         setTestResult(null)
 
         try {
-            // Special handling for parameterized tests if params are missing?
-            // For independent buttons, we assume defaults or current params
-            let currentParams = testParams
+            // Merge current params with overrides
+            let currentParams = { ...testParams, ...overrides }
 
             // Auto-set default params for "quick tests" if empty
             if (action === 'getServices' && !currentParams.country) {
-                // If we have countries from a previous test, pick the first one?
-                // For now, let's just warn or let backend handle simple cases
+                // If we have countries from a previous test, maybe pick one?
             }
 
             const res = await fetch(`/api/admin/providers/${provider.id}/test`, {
@@ -601,9 +603,11 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                 parsedData = data.data
             }
 
-            setTestResult({ ...data, parsed: parsedData })
+            const resultObj = { ...data, parsed: parsedData }
+
+            setTestResult(resultObj)
             // Also store in multi-results for new table UI
-            setTestResults(prev => ({ ...prev, [action]: { ...data, parsed: parsedData } }))
+            setTestResults(prev => ({ ...prev, [action]: resultObj }))
 
             if (res.ok && data.success) {
                 toast.success(`${action} successful`)
@@ -611,8 +615,11 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
             } else {
                 toast.error(data.error || "Test failed")
             }
+
+            return resultObj
         } catch (e) {
             toast.error("Test failed")
+            return null
         } finally {
             setIsTesting(false)
         }
@@ -940,38 +947,148 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                             </div>
                         </div>
 
-                        {/* Use Dynamic Metadata Toggle */}
-                        <div className="p-4 bg-gradient-to-r from-blue-500/5 to-cyan-500/5 rounded-xl border border-blue-500/20">
-                            <div className="flex items-start md:items-center justify-between gap-3 flex-col md:flex-row">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                                        <Sparkles className="w-4 h-4 text-blue-400" />
-                                    </div>
-                                    <div>
-                                        <div className="flex items-center gap-2">
-                                            <label className="text-sm font-medium text-white">Use Dynamic Metadata</label>
-                                            <div className="px-1.5 py-0.5 rounded bg-blue-500/20 border border-blue-500/30 text-[8px] font-bold text-blue-400 uppercase tracking-wider">Experimental</div>
+                        {/* Dynamic Engine Functions */}
+                        {(() => {
+                            const currentMappings = safeParse(formData.mappings)
+                            const dynamicFns = currentMappings?.dynamicFunctions || {}
+                            const allFunctions = ['getBalance', 'getCountries', 'getServices', 'getPrices', 'getNumber', 'getStatus', 'setStatus', 'cancelNumber']
+                            const enabledCount = allFunctions.filter(fn => dynamicFns[fn]).length
+                            const allEnabled = enabledCount === allFunctions.length
+                            const someEnabled = enabledCount > 0
+
+                            return (
+                                <div className="p-4 bg-gradient-to-r from-blue-500/5 to-cyan-500/5 rounded-xl border border-blue-500/20 space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                                                <Sparkles className="w-4 h-4 text-blue-400" />
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <label className="text-sm font-medium text-white">Dynamic Engine</label>
+                                                    <div className="px-1.5 py-0.5 rounded bg-blue-500/20 border border-blue-500/30 text-[8px] font-bold text-blue-400 uppercase tracking-wider">Experimental</div>
+                                                    {someEnabled && !allEnabled && (
+                                                        <div className="px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-500/30 text-[8px] font-bold text-amber-400 tracking-wider">
+                                                            {enabledCount}/{allFunctions.length}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <p className="text-[10px] text-white/40">
+                                                    Select which functions use the dynamic config engine
+                                                </p>
+                                            </div>
                                         </div>
-                                        <p className="text-[10px] text-white/40 max-w-xs">
-                                            Use Dynamic Engine for Countries/Services (bypasses legacy hardcoded logic)
-                                        </p>
+                                        {/* Controls */}
+                                        <div className="flex items-center gap-2">
+                                            {/* Expand/Collapse Button */}
+                                            <button
+                                                onClick={() => setIsDynamicExpanded(!isDynamicExpanded)}
+                                                className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
+                                            >
+                                                <ChevronDown className={`w-4 h-4 text-white/40 transition-transform ${isDynamicExpanded ? '' : '-rotate-90'}`} />
+                                            </button>
+
+                                            <span className="text-[10px] text-white/40 hidden md:inline">All</span>
+                                            <button
+                                                onClick={() => {
+                                                    // If any are enabled, turn all OFF. If none enabled, turn all ON.
+                                                    const newDynamicFunctions = someEnabled
+                                                        ? {}
+                                                        : { getBalance: true, getCountries: true, getServices: true, getPrices: true, getNumber: true, getStatus: true, setStatus: true, cancelNumber: true }
+                                                    setFormData({
+                                                        ...formData,
+                                                        mappings: JSON.stringify({
+                                                            ...currentMappings,
+                                                            dynamicFunctions: newDynamicFunctions,
+                                                            useDynamicMetadata: !someEnabled
+                                                        }, null, 2)
+                                                    })
+                                                }}
+                                                className={`relative shrink-0 w-11 h-6 rounded-full transition-colors ${someEnabled ? 'bg-blue-500' : 'bg-white/10'}`}
+                                            >
+                                                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${someEnabled ? 'left-6' : 'left-1'}`} />
+                                            </button>
+                                        </div>
                                     </div>
+
+                                    {/* Individual Function Toggles - Collapsible */}
+                                    <AnimatePresence>
+                                        {isDynamicExpanded && (
+                                            <motion.div
+                                                initial={{ opacity: 0, height: 0 }}
+                                                animate={{ opacity: 1, height: 'auto' }}
+                                                exit={{ opacity: 0, height: 0 }}
+                                                transition={{ duration: 0.2 }}
+                                                className="overflow-hidden"
+                                            >
+                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                                    {[
+                                                        { key: 'getBalance', label: 'Balance', icon: DollarSign, desc: 'Check funds', color: 'emerald' },
+                                                        { key: 'getCountries', label: 'Countries', icon: Globe, desc: 'List all', color: 'blue' },
+                                                        { key: 'getServices', label: 'Services', icon: Package, desc: 'By country', color: 'violet' },
+                                                        { key: 'getPrices', label: 'Prices', icon: BarChart3, desc: 'Get pricing', color: 'amber' },
+                                                        { key: 'getNumber', label: 'Buy Number', icon: Phone, desc: 'Purchase', color: 'green' },
+                                                        { key: 'getStatus', label: 'Get Status', icon: Eye, desc: 'Check SMS', color: 'cyan' },
+                                                        { key: 'setStatus', label: 'Set Status', icon: Settings, desc: 'Confirm/Cancel', color: 'orange' },
+                                                        { key: 'cancelNumber', label: 'Cancel', icon: XCircle, desc: 'Refund', color: 'red' },
+                                                    ].map((fn) => {
+                                                        const Icon = fn.icon
+                                                        const isEnabled = dynamicFns[fn.key] ?? currentMappings?.useDynamicMetadata ?? false
+                                                        const colorMap: Record<string, { bg: string; border: string; text: string; active: string }> = {
+                                                            emerald: { bg: 'from-emerald-500/20 to-emerald-600/10', border: 'border-emerald-500/30', text: 'text-emerald-400', active: 'bg-emerald-500' },
+                                                            blue: { bg: 'from-blue-500/20 to-blue-600/10', border: 'border-blue-500/30', text: 'text-blue-400', active: 'bg-blue-500' },
+                                                            violet: { bg: 'from-violet-500/20 to-violet-600/10', border: 'border-violet-500/30', text: 'text-violet-400', active: 'bg-violet-500' },
+                                                            amber: { bg: 'from-amber-500/20 to-amber-600/10', border: 'border-amber-500/30', text: 'text-amber-400', active: 'bg-amber-500' },
+                                                            green: { bg: 'from-green-500/20 to-green-600/10', border: 'border-green-500/30', text: 'text-green-400', active: 'bg-green-500' },
+                                                            cyan: { bg: 'from-cyan-500/20 to-cyan-600/10', border: 'border-cyan-500/30', text: 'text-cyan-400', active: 'bg-cyan-500' },
+                                                            orange: { bg: 'from-orange-500/20 to-orange-600/10', border: 'border-orange-500/30', text: 'text-orange-400', active: 'bg-orange-500' },
+                                                            red: { bg: 'from-red-500/20 to-red-600/10', border: 'border-red-500/30', text: 'text-red-400', active: 'bg-red-500' },
+                                                        }
+                                                        const colorClasses = colorMap[fn.color] || colorMap.blue
+
+                                                        return (
+                                                            <button
+                                                                key={fn.key}
+                                                                onClick={() => {
+                                                                    const newVal = !isEnabled
+                                                                    setFormData({
+                                                                        ...formData,
+                                                                        mappings: JSON.stringify({
+                                                                            ...currentMappings,
+                                                                            dynamicFunctions: { ...dynamicFns, [fn.key]: newVal }
+                                                                        }, null, 2)
+                                                                    })
+                                                                }}
+                                                                className={`relative p-3 rounded-xl border transition-all ${isEnabled
+                                                                    ? `bg-gradient-to-br ${colorClasses.bg} ${colorClasses.border} shadow-lg`
+                                                                    : 'bg-white/5 border-white/10 hover:bg-white/10'
+                                                                    }`}
+                                                            >
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className={`w-6 h-6 rounded-lg flex items-center justify-center ${isEnabled ? colorClasses.bg : 'bg-white/10'
+                                                                        }`}>
+                                                                        <Icon className={`w-3 h-3 ${isEnabled ? colorClasses.text : 'text-white/40'}`} />
+                                                                    </div>
+                                                                    <div className="text-left flex-1 min-w-0">
+                                                                        <div className={`text-xs font-medium truncate ${isEnabled ? 'text-white' : 'text-white/60'}`}>
+                                                                            {fn.label}
+                                                                        </div>
+                                                                        <div className="text-[9px] text-white/40 truncate">{fn.desc}</div>
+                                                                    </div>
+                                                                    {/* Mini toggle indicator */}
+                                                                    <div className={`w-3 h-3 rounded-full shrink-0 ${isEnabled ? colorClasses.active : 'bg-white/20'
+                                                                        }`} />
+                                                                </div>
+                                                            </button>
+                                                        )
+                                                    })}
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
                                 </div>
-                                <button
-                                    onClick={() => {
-                                        const currentMappings = safeParse(formData.mappings)
-                                        const newVal = !currentMappings.useDynamicMetadata
-                                        setFormData({
-                                            ...formData,
-                                            mappings: JSON.stringify({ ...currentMappings, useDynamicMetadata: newVal }, null, 2)
-                                        })
-                                    }}
-                                    className={`relative shrink-0 w-11 h-6 rounded-full transition-colors ${safeParse(formData.mappings)?.useDynamicMetadata ? 'bg-blue-500' : 'bg-white/10'}`}
-                                >
-                                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${safeParse(formData.mappings)?.useDynamicMetadata ? 'left-6' : 'left-1'}`} />
-                                </button>
-                            </div>
-                        </div>
+                            )
+                        })()}
 
                         {/* Security & Access Section */}
                         <div className="space-y-4">
@@ -1581,8 +1698,27 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                             {/* Run All Button - Moved to Header */}
                                             <button
                                                 onClick={async () => {
-                                                    for (const action of ['getBalance', 'getCountries', 'getServices', 'getPrices']) {
-                                                        await runTest(action)
+                                                    // 1. Basic Info
+                                                    await runTest('getBalance')
+                                                    const cRes = await runTest('getCountries')
+                                                    const country = cRes?.parsed?.first?.[0]?.iso || cRes?.parsed?.first?.[0]?.id || 'us'
+
+                                                    // 2. Services & Prices
+                                                    const sRes = await runTest('getServices', { country })
+                                                    const service = sRes?.parsed?.first?.[0]?.slug || sRes?.parsed?.first?.[0]?.id || 'wa'
+
+                                                    await runTest('getPrices', { country, service })
+
+                                                    // 3. Lifecycle Test Loop
+                                                    const buyRes = await runTest('getNumber', { country, service })
+                                                    const id = buyRes?.parsed?.activationId || buyRes?.parsed?.id
+
+                                                    if (id) {
+                                                        // Check status twice to simulate polling?
+                                                        await runTest('getStatus', { id })
+
+                                                        // Cancel immediately to refund
+                                                        await runTest('cancelNumber', { id })
                                                     }
                                                 }}
                                                 disabled={isTesting}
@@ -1590,7 +1726,7 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                             >
                                                 {isTesting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
                                                 <span className="hidden md:inline">Run All Tests</span>
-                                                <span className="md:hidden">Run</span>
+                                                <span className="md:hidden">Run All</span>
                                             </button>
                                         </div>
                                     </div>
@@ -1606,6 +1742,9 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                                 { key: 'getCountries', label: 'Countries', icon: Globe, color: 'blue' },
                                                 { key: 'getServices', label: 'Services', icon: Smartphone, color: 'purple' },
                                                 { key: 'getPrices', label: 'Prices', icon: DollarSign, color: 'amber' },
+                                                { key: 'getNumber', label: 'Purchase', icon: Phone, color: 'cyan' },
+                                                { key: 'getStatus', label: 'Status', icon: Eye, color: 'pink' },
+                                                { key: 'cancelNumber', label: 'Refund', icon: XCircle, color: 'red' },
                                             ].map((step, idx, arr) => {
                                                 const isActive = testAction === step.key
                                                 const hasResult = testResults?.[step.key]
@@ -1615,6 +1754,9 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                                     blue: isActive ? 'ring-blue-500 bg-blue-500/20 text-blue-400' : hasResult ? (isSuccess ? 'bg-blue-500/20 text-blue-400' : 'bg-red-500/20 text-red-400') : 'bg-white/5 text-white/40',
                                                     purple: isActive ? 'ring-purple-500 bg-purple-500/20 text-purple-400' : hasResult ? (isSuccess ? 'bg-purple-500/20 text-purple-400' : 'bg-red-500/20 text-red-400') : 'bg-white/5 text-white/40',
                                                     amber: isActive ? 'ring-amber-500 bg-amber-500/20 text-amber-400' : hasResult ? (isSuccess ? 'bg-amber-500/20 text-amber-400' : 'bg-red-500/20 text-red-400') : 'bg-white/5 text-white/40',
+                                                    cyan: isActive ? 'ring-cyan-500 bg-cyan-500/20 text-cyan-400' : hasResult ? (isSuccess ? 'bg-cyan-500/20 text-cyan-400' : 'bg-red-500/20 text-red-400') : 'bg-white/5 text-white/40',
+                                                    pink: isActive ? 'ring-pink-500 bg-pink-500/20 text-pink-400' : hasResult ? (isSuccess ? 'bg-pink-500/20 text-pink-400' : 'bg-red-500/20 text-red-400') : 'bg-white/5 text-white/40',
+                                                    red: isActive ? 'ring-red-500 bg-red-500/20 text-red-400' : hasResult ? (isSuccess ? 'bg-red-500/20 text-red-400' : 'bg-red-500/20 text-red-400') : 'bg-white/5 text-white/40',
                                                 }
                                                 return (
                                                     <div key={step.key} className="flex items-center gap-2">
@@ -1650,237 +1792,198 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                             <div className="col-span-2 text-right">Time</div>
                                         </div>
 
-                                        {/* Table Rows */}
                                         {[
                                             { key: 'getBalance', label: 'Check Balance', icon: Wallet, color: 'emerald', borderColor: 'border-l-emerald-500' },
                                             { key: 'getCountries', label: 'Fetch Countries', icon: Globe, color: 'blue', borderColor: 'border-l-blue-500' },
                                             { key: 'getServices', label: 'Fetch Services', icon: Smartphone, color: 'purple', borderColor: 'border-l-purple-500' },
                                             { key: 'getPrices', label: 'Check Prices', icon: DollarSign, color: 'amber', borderColor: 'border-l-amber-500' },
+                                            // Lifecycle Actions
+                                            { key: 'getNumber', label: 'Buy Number', icon: Phone, color: 'cyan', borderColor: 'border-l-cyan-500' },
+                                            { key: 'getStatus', label: 'Get Status', icon: Eye, color: 'pink', borderColor: 'border-l-pink-500' },
+                                            { key: 'setStatus', label: 'Set Status', icon: Settings, color: 'orange', borderColor: 'border-l-orange-500' },
+                                            { key: 'cancelNumber', label: 'Cancel Number', icon: XCircle, color: 'red', borderColor: 'border-l-red-500' },
                                         ].map((row) => {
                                             const result = testResults?.[row.key]
                                             const isRunning = isTesting && testAction === row.key
                                             const isExpanded = expandedTest === row.key
 
+                                            // Safer Color Mapping for Tailwind
+                                            const colors = {
+                                                emerald: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/20' },
+                                                blue: { bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/20' },
+                                                purple: { bg: 'bg-purple-500/10', text: 'text-purple-400', border: 'border-purple-500/20' },
+                                                amber: { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/20' },
+                                                cyan: { bg: 'bg-cyan-500/10', text: 'text-cyan-400', border: 'border-cyan-500/20' },
+                                                pink: { bg: 'bg-pink-500/10', text: 'text-pink-400', border: 'border-pink-500/20' },
+                                                orange: { bg: 'bg-orange-500/10', text: 'text-orange-400', border: 'border-orange-500/20' },
+                                                red: { bg: 'bg-red-500/10', text: 'text-red-400', border: 'border-red-500/20' },
+                                            }[row.color as keyof typeof colors] || { bg: 'bg-white/5', text: 'text-white', border: 'border-white/10' }
+
+                                            const configFields = {
+                                                getNumber: [
+                                                    { key: 'country', label: 'Country', required: true, placeholder: 'us' },
+                                                    { key: 'service', label: 'Service', required: true, placeholder: 'wa' },
+                                                    { key: 'operator', label: 'Operator', required: false, placeholder: 'any' },
+                                                    { key: 'maxPrice', label: 'Max Price', required: false, placeholder: '5.00', type: 'number' }
+                                                ],
+                                                getServices: [{ key: 'country', label: 'Country', required: false, placeholder: 'us (optional)' }],
+                                                getPrices: [
+                                                    { key: 'country', label: 'Country', required: true, placeholder: 'us' },
+                                                    { key: 'service', label: 'Service', required: false, placeholder: 'wa' }
+                                                ],
+                                                getStatus: [{ key: 'id', label: 'Activation ID', required: true, placeholder: 'ID' }],
+                                                setStatus: [
+                                                    { key: 'id', label: 'Activation ID', required: true, placeholder: 'ID' },
+                                                    { key: 'status', label: 'Status', required: true, type: 'select', options: [{ value: '6', label: 'Complete (6)' }, { value: '8', label: 'Cancel (8)' }, { value: '3', label: 'Retry (3)' }, { value: '1', label: 'Ready (1)' }] }
+                                                ],
+                                                cancelNumber: [{ key: 'id', label: 'Activation ID', required: true, placeholder: 'ID' }]
+                                            }[row.key as keyof typeof configFields]
+
                                             return (
                                                 <div key={row.key} className="border-b border-white/5 last:border-0">
                                                     {/* Main Row */}
                                                     <div
-                                                        onClick={() => {
-                                                            if (result) {
-                                                                setExpandedTest(isExpanded ? null : row.key)
-                                                            } else {
-                                                                runTest(row.key)
-                                                            }
-                                                        }}
+                                                        onClick={() => setExpandedTest(isExpanded ? null : row.key)}
                                                         className={`grid grid-cols-12 gap-2 px-4 py-3 border-l-4 ${row.borderColor} hover:bg-white/5 cursor-pointer transition-all ${isRunning || isExpanded ? 'bg-white/5' : ''}`}
                                                     >
                                                         {/* Test Name */}
                                                         <div className="col-span-5 flex items-center gap-3">
-                                                            <div className={`p-1.5 rounded-lg bg-${row.color}-500/10`}>
-                                                                <row.icon className={`w-4 h-4 text-${row.color}-400`} />
+                                                            <div className={`p-1.5 rounded-lg ${colors.bg}`}>
+                                                                <row.icon className={`w-4 h-4 ${colors.text}`} />
                                                             </div>
                                                             <span className="text-sm font-medium text-white">{row.label}</span>
-                                                            {result && (
-                                                                <ChevronDown className={`w-3 h-3 text-white/30 transition-transform ml-auto ${isExpanded ? 'rotate-180 text-white' : ''}`} />
-                                                            )}
+                                                            <ChevronDown className={`w-3 h-3 text-white/30 transition-transform ml-auto ${isExpanded ? 'rotate-180 text-white' : ''}`} />
                                                         </div>
 
-                                                        {/* Status */}
                                                         {/* Status */}
                                                         <div className="col-span-2 flex items-center justify-center">
                                                             {isRunning ? (
                                                                 <RefreshCw className="w-4 h-4 animate-spin text-blue-400" />
                                                             ) : result ? (
-                                                                result.success ? (
-                                                                    <div className="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                                                                        <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
-                                                                    </div>
-                                                                ) : (
-                                                                    <div className="w-6 h-6 rounded-full bg-red-500/20 flex items-center justify-center">
-                                                                        <X className="w-3.5 h-3.5 text-red-400" />
-                                                                    </div>
-                                                                )
-                                                            ) : (
-                                                                <div className="w-6 h-6 rounded-full bg-white/5 flex items-center justify-center">
-                                                                    <div className="w-2 h-2 rounded-full bg-white/20" />
-                                                                </div>
-                                                            )}
+                                                                result.success ? <CheckCircle className="w-4 h-4 text-emerald-400" /> : <X className="w-4 h-4 text-red-400" />
+                                                            ) : <div className="w-2 h-2 rounded-full bg-white/20" />}
                                                         </div>
 
                                                         {/* Result Value */}
                                                         <div className="col-span-3 flex items-center">
                                                             {result ? (
-                                                                result.success ? (
-                                                                    <span className="text-xs font-mono text-white/70 truncate">
-                                                                        {row.key === 'getBalance' && result.parsed?.balance !== undefined && (
-                                                                            <span className="text-emerald-400 font-bold">{result.parsed.balance} {formData.currency}</span>
-                                                                        )}
-                                                                        {row.key === 'getCountries' && result.parsed?.count && (
-                                                                            <span className="text-blue-400">{result.parsed.count} items</span>
-                                                                        )}
-                                                                        {row.key === 'getServices' && result.parsed?.count && (
-                                                                            <span className="text-purple-400">{result.parsed.count} items</span>
-                                                                        )}
-                                                                        {row.key === 'getPrices' && result.parsed?.count && (
-                                                                            <span className="text-amber-400">{result.parsed.count} items</span>
-                                                                        )}
-                                                                        {/* Fallback if no specific parsed fields */}
-                                                                        {!result.parsed?.balance && !result.parsed?.count && (
-                                                                            <span className="text-emerald-400">Success</span>
-                                                                        )}
-                                                                    </span>
-                                                                ) : (
-                                                                    <span className="text-xs text-red-400 truncate">{result.error || 'Failed'}</span>
-                                                                )
-                                                            ) : (
-                                                                <span className="text-xs text-white/30">—</span>
-                                                            )}
+                                                                <span className={`text-xs font-mono truncate ${result.success ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                                    {result.success ? (result.parsed?.balance !== undefined ? `${result.parsed.balance} ${formData.currency}` : result.parsed?.count !== undefined ? `${result.parsed.count} items` : 'Success') : (result.error || 'Failed')}
+                                                                </span>
+                                                            ) : <span className="text-xs text-white/20">—</span>}
                                                         </div>
 
                                                         {/* Response Time & Chevron */}
-                                                        <div className="col-span-2 flex items-center justify-end gap-3">
-                                                            {result?.duration ? (
-                                                                <span className="px-2 py-0.5 rounded-full bg-white/5 text-[10px] font-mono text-white/50">
-                                                                    {result.duration}ms
-                                                                </span>
-                                                            ) : (
-                                                                <span className="text-xs text-white/20">—</span>
-                                                            )}
-
-                                                            {/* Advanced Chevron */}
-                                                            {result && (
-                                                                <div className={`
-                                                                    w-6 h-6 rounded-full flex items-center justify-center transition-all duration-300
-                                                                    ${isExpanded ? 'bg-white text-black rotate-180 shadow-[0_0_10px_rgba(255,255,255,0.3)]' : 'bg-white/5 text-white/40 hover:bg-white/10 hover:text-white'}
-                                                                `}>
-                                                                    <ChevronDown className="w-3.5 h-3.5" />
-                                                                </div>
-                                                            )}
+                                                        <div className="col-span-2 flex items-center justify-end text-[10px] font-mono text-white/40">
+                                                            {result?.duration ? `${result.duration}ms` : '—'}
                                                         </div>
                                                     </div>
 
-                                                    {/* Folded Response Parser Section */}
-                                                    {isExpanded && result && (
-                                                        <div className="border-t border-white/5 bg-black/20 p-4 animate-in slide-in-from-top-2 duration-200">
-                                                            <div className="space-y-4">
-                                                                {/* Response Header */}
-                                                                <div className="flex items-center gap-2 mb-2">
-                                                                    <div className="p-1 rounded bg-purple-500/20">
-                                                                        <Terminal className="w-3 h-3 text-purple-400" />
+                                                    {isExpanded && (
+                                                        <div className="p-4 bg-white/[0.03] border-t border-white/5 animate-in slide-in-from-top-2 duration-300">
+                                                            {configFields && (
+                                                                <div className="grid grid-cols-2 gap-3 mb-4">
+                                                                    {configFields.map(field => (
+                                                                        <div key={field.key} className="space-y-1.5">
+                                                                            <label className="text-[10px] uppercase tracking-wider text-white/40 font-bold ml-1">{field.label}</label>
+                                                                            {field.type === 'select' ? (
+                                                                                <select
+                                                                                    value={testParams[field.key] || ''}
+                                                                                    onChange={(e) => setTestParams({ ...testParams, [field.key]: e.target.value })}
+                                                                                    className="w-full h-9 bg-black/40 border border-white/10 rounded-lg px-3 text-xs text-white focus:outline-none focus:border-blue-500/50"
+                                                                                >
+                                                                                    {field.options?.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                                                                                </select>
+                                                                            ) : (
+                                                                                <Input
+                                                                                    placeholder={field.placeholder}
+                                                                                    value={testParams[field.key] || ''}
+                                                                                    onChange={(e) => setTestParams({ ...testParams, [field.key]: e.target.value })}
+                                                                                    className="h-9 bg-black/40 border-white/10 text-xs text-white"
+                                                                                />
+                                                                            )}
+                                                                        </div>
+                                                                    ))}
+                                                                    <div className="col-span-2 mt-1">
+                                                                        <button
+                                                                            onClick={() => runTest(row.key, testParams)}
+                                                                            disabled={isRunning}
+                                                                            className={`w-full h-9 rounded-lg flex items-center justify-center gap-2 text-xs font-bold transition-all ${colors.bg} ${colors.text} border ${colors.border} hover:opacity-80`}
+                                                                        >
+                                                                            {isRunning ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+                                                                            Run {row.label}
+                                                                        </button>
                                                                     </div>
-                                                                    <span className="text-xs font-bold text-white uppercase tracking-wider">Response Inspector</span>
-                                                                    <div className="h-px bg-white/10 flex-1 ml-2" />
                                                                 </div>
+                                                            )}
 
-                                                                {/* Content based on Success/Failure */}
-                                                                {result.success ? (
-                                                                    <div className="space-y-2">
-                                                                        {/* Parsed Data Only */}
-                                                                        {result.parsed && (
-                                                                            <>
-                                                                                <div className="flex items-center justify-between">
-                                                                                    <div className="flex items-center gap-2">
-                                                                                        <div className="w-1.5 h-1.5 rounded-full bg-purple-400" />
-                                                                                        <span className="text-[10px] font-semibold text-purple-400 uppercase tracking-wider">Parsed Data</span>
-                                                                                    </div>
-                                                                                </div>
-                                                                                <div className="rounded-lg border border-purple-500/20 bg-black/40 overflow-hidden relative group">
-                                                                                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                                                                                        <CopyButton text={JSON.stringify(result.parsed, null, 2)} />
-                                                                                    </div>
-                                                                                    <div className="p-3 overflow-auto max-h-60 custom-scrollbar">
-                                                                                        <SyntaxHighlightedJson data={result.parsed} />
-                                                                                    </div>
-                                                                                </div>
-                                                                            </>
-                                                                        )}
-                                                                    </div>
-                                                                ) : (
-                                                                    <div className="space-y-4">
-                                                                        {/* Error Message */}
-                                                                        <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg flex items-start gap-3">
-                                                                            <AlertCircle className="w-5 h-5 text-red-400 mt-0.5" />
-                                                                            <div className="space-y-1">
-                                                                                <h4 className="text-sm font-semibold text-red-400">Test Failed</h4>
-                                                                                <p className="text-xs text-red-300/80 font-mono">{result.error || 'Unknown error occurred'}</p>
+                                                            {result && (
+                                                                <div className="space-y-3">
+                                                                    {/* Request URL */}
+                                                                    {result.trace && (
+                                                                        <div className="p-3 rounded-xl bg-white/5 border border-white/10 flex items-start gap-3">
+                                                                            <Globe className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+                                                                            <div className="font-mono text-[10px] text-blue-300 break-all">{result.trace.url}</div>
+                                                                        </div>
+                                                                    )}
+
+                                                                    {/* Dual Panel: Raw vs Mapped */}
+                                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                                        {/* Raw Response Panel */}
+                                                                        <div className="rounded-xl border border-white/10 overflow-hidden bg-black/40">
+                                                                            <div className="px-3 py-2 bg-gradient-to-r from-orange-500/20 to-transparent border-b border-white/10 flex items-center gap-2">
+                                                                                <Terminal className="w-3 h-3 text-orange-400" />
+                                                                                <span className="text-[10px] uppercase font-bold text-orange-400">Raw Response</span>
+                                                                                <span className="text-[9px] text-white/30 ml-auto">from API</span>
+                                                                            </div>
+                                                                            <div className="p-3 max-h-60 overflow-auto custom-scrollbar">
+                                                                                <pre className="text-[10px] font-mono leading-relaxed text-orange-300/70">
+                                                                                    {result.trace?.responseBody
+                                                                                        ? (typeof result.trace.responseBody === 'string'
+                                                                                            ? result.trace.responseBody
+                                                                                            : JSON.stringify(result.trace.responseBody, null, 2))
+                                                                                        : (result.data || 'No raw response captured')}
+                                                                                </pre>
                                                                             </div>
                                                                         </div>
 
-                                                                        {/* Request Trace - Show for failed results if trace exists */}
-                                                                        {result.trace && (
-                                                                            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                                                                                {/* Request Details */}
-                                                                                <div className="space-y-2">
-                                                                                    <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-white/40 font-semibold">
-                                                                                        <div className="px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 font-bold border border-blue-500/20">{result.trace.method}</div>
-                                                                                        <span>Request Trace</span>
-                                                                                    </div>
-
-                                                                                    <div className="bg-[#0cf]/5 border border-[#0cf]/10 rounded-xl overflow-hidden">
-                                                                                        {/* URL */}
-                                                                                        <div className="p-3 border-b border-[#0cf]/10 bg-[#0cf]/5 flex items-start gap-3">
-                                                                                            <Globe className="w-4 h-4 text-[#0cf]/40 mt-0.5 shrink-0" />
-                                                                                            <div className="font-mono text-xs text-[#0cf]/80 break-all select-all leading-relaxed">
-                                                                                                {result.trace.url}
-                                                                                            </div>
-                                                                                        </div>
-
-                                                                                        {/* Headers */}
-                                                                                        {result.trace.headers && Object.keys(result.trace.headers).length > 0 && (
-                                                                                            <div className="p-3 bg-black/20">
-                                                                                                <div className="grid gap-1.5">
-                                                                                                    {Object.entries(result.trace.headers).map(([k, v]) => (
-                                                                                                        <div key={k} className="flex gap-3 text-[10px] font-mono group">
-                                                                                                            <span className="text-[#0cf]/40 min-w-[80px] text-right font-medium">{k}:</span>
-                                                                                                            <span className="text-white/50 truncate select-all group-hover:text-white/80 transition-colors">{v as string}</span>
-                                                                                                        </div>
-                                                                                                    ))}
-                                                                                                </div>
-                                                                                            </div>
-                                                                                        )}
-                                                                                    </div>
-                                                                                </div>
-
-                                                                                {/* Response Body - Full Raw Data */}
-                                                                                <div className="space-y-2">
-                                                                                    <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-white/40 font-semibold">
-                                                                                        <div className="px-2 py-0.5 rounded font-bold border bg-red-500/10 text-red-400 border-red-500/20">
-                                                                                            {result.trace.responseStatus || 'ERR'}
-                                                                                        </div>
-                                                                                        <span>Response Body</span>
-                                                                                    </div>
-
-                                                                                    <div className="rounded-xl border relative group overflow-hidden bg-red-500/5 border-red-500/10">
-                                                                                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                                                                                            <CopyButton text={typeof result.trace.responseBody === 'string' ? result.trace.responseBody : JSON.stringify(result.trace.responseBody, null, 2)} />
-                                                                                        </div>
-                                                                                        <div className="max-h-[400px] overflow-auto custom-scrollbar p-4">
-                                                                                            <pre className="text-xs font-mono whitespace-pre-wrap break-all text-red-300/80">
-                                                                                                {typeof result.trace.responseBody === 'string' ? result.trace.responseBody : JSON.stringify(result.trace.responseBody, null, 2)}
-                                                                                            </pre>
-                                                                                        </div>
-                                                                                    </div>
-                                                                                </div>
+                                                                        {/* Mapped Data Panel */}
+                                                                        <div className="rounded-xl border border-white/10 overflow-hidden bg-black/40">
+                                                                            <div className="px-3 py-2 bg-gradient-to-r from-emerald-500/20 to-transparent border-b border-white/10 flex items-center gap-2">
+                                                                                <CheckCircle className="w-3 h-3 text-emerald-400" />
+                                                                                <span className="text-[10px] uppercase font-bold text-emerald-400">Mapped Data</span>
+                                                                                <span className="text-[9px] text-white/30 ml-auto">after mappings</span>
                                                                             </div>
-                                                                        )}
-
-                                                                        {/* Fallback Raw Response - when no trace available */}
-                                                                        {!result.trace && (result.data || result.raw) && (
-                                                                            <div className="space-y-2">
-                                                                                <div className="text-[10px] uppercase tracking-wider text-red-400/60 font-semibold">Raw Response</div>
-                                                                                <div className="rounded-lg border border-red-500/10 bg-black/40 overflow-hidden relative group">
-                                                                                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                                                                                        <CopyButton text={typeof (result.data || result.raw) === 'string' ? (result.data || result.raw) : JSON.stringify(result.data || result.raw, null, 2)} />
-                                                                                    </div>
-                                                                                    <div className="max-h-60 overflow-auto custom-scrollbar p-3">
-                                                                                        <SyntaxHighlightedJson data={result.data || result.raw} />
-                                                                                    </div>
-                                                                                </div>
+                                                                            <div className="p-3 max-h-60 overflow-auto custom-scrollbar">
+                                                                                {result.parsed ? (
+                                                                                    <SyntaxHighlightedJson data={result.parsed} />
+                                                                                ) : (
+                                                                                    <pre className={`text-[10px] font-mono leading-relaxed ${result.success ? 'text-emerald-300/80' : 'text-red-300/80'}`}>
+                                                                                        {typeof result.data === 'string'
+                                                                                            ? result.data
+                                                                                            : JSON.stringify(result.data || { message: 'No mapping applied' }, null, 2)}
+                                                                                    </pre>
+                                                                                )}
                                                                             </div>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {/* Mapping Status Indicator */}
+                                                                    <div className={`flex items-center gap-2 p-2 rounded-lg border ${result.success ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
+                                                                        {result.success ? (
+                                                                            <>
+                                                                                <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+                                                                                <span className="text-[10px] text-emerald-300">Mapping successful - data normalized correctly</span>
+                                                                            </>
+                                                                        ) : (
+                                                                            <>
+                                                                                <XCircle className="w-3.5 h-3.5 text-red-400" />
+                                                                                <span className="text-[10px] text-red-300">{result.error || 'Mapping failed'}</span>
+                                                                            </>
                                                                         )}
                                                                     </div>
-                                                                )}
-                                                            </div>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     )}
                                                 </div>
@@ -1888,307 +1991,6 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                         })}
                                     </div>
                                 </div>
-
-                                <div className="relative pt-2">
-                                    <div className="absolute inset-0 flex items-center top-4"><div className="w-full border-t border-white/10"></div></div>
-                                    <div className="relative flex justify-center">
-                                        <button
-                                            onClick={() => setTestAction(testAction === 'manual' ? 'test' : 'manual')}
-                                            className="bg-[#0a0a0c] px-4 py-1.5 text-[10px] font-medium text-white/40 uppercase tracking-widest hover:text-white hover:bg-white/5 rounded-full border border-white/5 transition-all"
-                                        >
-                                            {testAction === 'manual' ? 'Hide Advanced' : 'Advanced Debugger'}
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {/* Padding for manual section if visible */}
-                                {(testAction === 'manual') && (
-                                    <div className="mt-4">
-                                        {/* Manual Buttons rendered below via existing logic if we keep it, otherwise insert here */}
-                                    </div>
-                                )}
-
-                                {/* Advanced / Manual Test Console */}
-                                {(testAction === 'manual' || (testAction !== 'testAll' && testAction !== 'manual')) && (
-                                    <div className="p-5 bg-white/5 rounded-2xl border border-white/5 space-y-5 animate-in fade-in slide-in-from-top-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
-                                                <Terminal className="w-5 h-5 text-blue-400" />
-                                            </div>
-                                            <div>
-                                                <div className="flex items-center gap-1.5">
-                                                    <label className="text-sm font-semibold text-white">Manual Debugger</label>
-                                                </div>
-                                                <span className="text-[10px] text-white/40">Test specific endpoints individually</span>
-                                            </div>
-                                        </div>
-                                        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-                                            {[
-                                                { value: 'getBalance', label: 'Get Balance', icon: Wallet, desc: 'Check funds', color: 'text-emerald-400' },
-                                                { value: 'getCountries', label: 'Countries', icon: MapPin, desc: 'List all', color: 'text-blue-400' },
-                                                { value: 'getServices', label: 'Services', icon: Smartphone, desc: 'List by country', color: 'text-purple-400' },
-                                                { value: 'getPrices', label: 'Prices', icon: DollarSign, desc: 'Get pricing', color: 'text-amber-400' },
-                                                { value: 'getNumber', label: 'Get Number', icon: Phone, desc: 'Purchase test', color: 'text-cyan-400' },
-                                            ].map((action) => (
-                                                <button
-                                                    key={action.value}
-                                                    onClick={() => setTestAction(action.value)}
-                                                    className={`p-3 rounded-xl border text-left transition-all ${testAction === action.value
-                                                        ? 'bg-blue-500/20 border-blue-500/50 ring-1 ring-blue-500/30'
-                                                        : 'bg-white/5 border-white/10 hover:bg-white/10'
-                                                        }`}
-                                                >
-                                                    <div className="flex items-center gap-2 mb-1">
-                                                        <action.icon className={`w-4 h-4 ${testAction === action.value ? 'text-blue-300' : action.color}`} />
-                                                        <span className={`text-xs font-medium ${testAction === action.value ? 'text-blue-300' : 'text-white/70'}`}>
-                                                            {action.label}
-                                                        </span>
-                                                    </div>
-                                                    <p className="text-[10px] text-white/40">{action.desc}</p>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-
-
-
-
-
-                                {/* Dynamic Parameters */}
-                                {(testAction === 'getServices' || testAction === 'getNumber' || testAction === 'getStatus' || testAction === 'cancelNumber' || testAction === 'getPrices') && (
-                                    <div className="p-4 bg-white/5 rounded-xl border border-white/5 space-y-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
-                                                <Edit className="w-5 h-5 text-purple-400" />
-                                            </div>
-                                            <div>
-                                                <label className="text-sm font-semibold text-white block">Test Parameters</label>
-                                                <span className="text-[10px] text-white/40">Required inputs for this action</span>
-                                            </div>
-                                        </div>
-
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                            {(testAction === 'getServices' || testAction === 'getNumber' || testAction === 'getPrices') && (
-                                                <div className="space-y-2">
-                                                    <label className="text-xs font-medium text-white/60 flex items-center gap-1.5">
-                                                        Country Code
-                                                        <InfoTooltip content={<>Provider-specific country code. Example: <TTCode>0</TTCode> for Russia, <TTCode>us</TTCode> for USA</>} />
-                                                    </label>
-                                                    <Input
-                                                        placeholder="e.g. 0 or us"
-                                                        value={testParams.country}
-                                                        onChange={e => setTestParams({ ...testParams, country: e.target.value })}
-                                                        className="bg-black/30 border-white/10 h-11"
-                                                    />
-                                                </div>
-                                            )}
-
-                                            {(testAction === 'getNumber' || testAction === 'getPrices') && (
-                                                <div className="space-y-2">
-                                                    <label className="text-xs font-medium text-white/60 flex items-center gap-1.5">
-                                                        Service Code {testAction === 'getPrices' && <span className="text-white/30">(optional)</span>}
-                                                        <InfoTooltip content={<>Provider-specific service code. Example: <TTCode>wa</TTCode> for WhatsApp, <TTCode>tg</TTCode> for Telegram</>} />
-                                                    </label>
-                                                    <Input
-                                                        placeholder="e.g. wa or whatsapp"
-                                                        value={testParams.service}
-                                                        onChange={e => setTestParams({ ...testParams, service: e.target.value })}
-                                                        className="bg-black/30 border-white/10 h-11"
-                                                    />
-                                                </div>
-                                            )}
-
-                                            {(testAction === 'getStatus' || testAction === 'cancelNumber') && (
-                                                <div className="space-y-2 md:col-span-2">
-                                                    <label className="text-xs font-medium text-white/60 flex items-center gap-1.5">
-                                                        Activation ID
-                                                        <InfoTooltip content={<>The <TT>order ID</TT> returned when purchasing a number. Required for status checks and cancellations.</>} />
-                                                    </label>
-                                                    <Input
-                                                        placeholder="Order/Activation ID from getNumber"
-                                                        value={testParams.id}
-                                                        onChange={e => setTestParams({ ...testParams, id: e.target.value })}
-                                                        className="bg-black/30 border-white/10 h-11"
-                                                    />
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Run Test Button */}
-                                <button
-                                    onClick={handleTest}
-                                    disabled={isTesting}
-                                    className="w-full h-14 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50 shadow-lg shadow-blue-500/20"
-                                >
-                                    {isTesting ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Play className="w-5 h-5" />}
-                                    {isTesting ? 'Running Test...' : `Run Test: ${testAction}`}
-                                </button>
-
-                                {/* Test Results */}
-                                {testResult && (
-                                    <div className={`rounded-xl border overflow-hidden ${testResult.success ? 'bg-green-500/5 border-green-500/20' : 'bg-red-500/5 border-red-500/20'}`}>
-                                        <div className={`px-4 py-3 border-b flex justify-between items-center ${testResult.success ? 'border-green-500/10 bg-green-500/10' : 'border-red-500/10 bg-red-500/10'}`}>
-                                            <div className="flex items-center gap-3">
-                                                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${testResult.success ? 'bg-green-500/20' : 'bg-red-500/20'}`}>
-                                                    {testResult.success ? <CheckCircle className="w-5 h-5 text-green-400" /> : <AlertCircle className="w-5 h-5 text-red-400" />}
-                                                </div>
-                                                <div>
-                                                    <span className={`font-semibold text-sm block ${testResult.success ? 'text-green-400' : 'text-red-400'}`}>
-                                                        {testResult.success ? 'Test Successful' : 'Test Failed'}
-                                                    </span>
-                                                    <span className="text-[10px] text-white/40">Action: {testAction}</span>
-                                                </div>
-                                            </div>
-                                            <div className="text-right">
-                                                <span className="text-xs font-mono text-white/60 block">{testResult.duration || 0}ms</span>
-                                                <span className="text-[10px] text-white/30">Response time</span>
-                                            </div>
-                                        </div>
-
-                                        <div className="p-4 space-y-4">
-                                            {/* Smart Fix Button */}
-                                            {!testResult.success && (
-                                                <div className="mb-4">
-                                                    <button
-                                                        onClick={handleSmartFix}
-                                                        disabled={isFixing}
-                                                        className="w-full relative overflow-hidden group py-3 rounded-xl bg-gradient-to-r from-violet-600/10 to-fuchsia-600/10 border border-violet-500/20 hover:border-violet-500/40 transition-all text-sm font-medium text-violet-300 flex items-center justify-center gap-2"
-                                                    >
-                                                        <div className="absolute inset-0 bg-gradient-to-r from-violet-600/10 to-fuchsia-600/10 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                                        {isFixing ? (
-                                                            <>
-                                                                <Sparkles className="w-4 h-4 animate-spin text-violet-400" />
-                                                                <span className="bg-clip-text text-transparent bg-gradient-to-r from-violet-300 to-fuchsia-300 font-bold">Diagnosing & Fixing...</span>
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <Wand2 className="w-4 h-4 text-violet-400" />
-                                                                <span className="bg-clip-text text-transparent bg-gradient-to-r from-violet-300 to-fuchsia-300 font-bold">Smart Fix with AI</span>
-                                                            </>
-                                                        )}
-                                                    </button>
-                                                </div>
-                                            )}
-                                            {/* Trace / Details View */}
-                                            {(() => {
-                                                const trace = testResult.trace
-                                                if (trace) {
-                                                    return (
-                                                        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                                                            {/* Request Details */}
-                                                            <div className="space-y-2">
-                                                                <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-white/40 font-semibold">
-                                                                    <div className="px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 font-bold border border-blue-500/20">{trace.method}</div>
-                                                                    <span>Request Trace</span>
-                                                                </div>
-
-                                                                <div className="bg-[#0cf]/5 border border-[#0cf]/10 rounded-xl overflow-hidden">
-                                                                    {/* URL */}
-                                                                    <div className="p-3 border-b border-[#0cf]/10 bg-[#0cf]/5 flex items-start gap-3">
-                                                                        <Globe className="w-4 h-4 text-[#0cf]/40 mt-0.5 shrink-0" />
-                                                                        <div className="font-mono text-xs text-[#0cf]/80 break-all select-all leading-relaxed">
-                                                                            {trace.url}
-                                                                        </div>
-                                                                    </div>
-
-                                                                    {/* Headers */}
-                                                                    {trace.headers && Object.keys(trace.headers).length > 0 && (
-                                                                        <div className="p-3 bg-black/20">
-                                                                            <div className="grid gap-1.5">
-                                                                                {Object.entries(trace.headers).map(([k, v]) => (
-                                                                                    <div key={k} className="flex gap-3 text-[10px] font-mono group">
-                                                                                        <span className="text-[#0cf]/40 min-w-[80px] text-right font-medium">{k}:</span>
-                                                                                        <span className="text-white/50 truncate select-all group-hover:text-white/80 transition-colors">{v as string}</span>
-                                                                                    </div>
-                                                                                ))}
-                                                                            </div>
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-
-                                                            {/* Response Details */}
-                                                            <div className="space-y-2">
-                                                                <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-white/40 font-semibold">
-                                                                    <div className={`px-2 py-0.5 rounded font-bold border ${Number(trace.responseStatus) >= 200 && Number(trace.responseStatus) < 300
-                                                                        ? 'bg-green-500/10 text-green-400 border-green-500/20'
-                                                                        : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
-                                                                        {trace.responseStatus}
-                                                                    </div>
-                                                                    <span>Response Body</span>
-                                                                </div>
-
-                                                                <div className={`rounded-xl border relative group overflow-hidden ${testResult.success ? 'bg-green-500/5 border-green-500/10' : 'bg-red-500/5 border-red-500/10'}`}>
-                                                                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                        <Button variant="ghost" size="sm" className="h-6 text-[10px] bg-black/40 hover:bg-black/60 text-white/60" onClick={() => {
-                                                                            navigator.clipboard.writeText(typeof trace.responseBody === 'string' ? trace.responseBody : JSON.stringify(trace.responseBody, null, 2))
-                                                                            toast.success("Copied to clipboard")
-                                                                        }}>Copy</Button>
-                                                                    </div>
-                                                                    <div className="max-h-[400px] overflow-auto custom-scrollbar p-4">
-                                                                        <pre className={`text-xs font-mono whitespace-pre-wrap break-all ${testResult.success ? 'text-green-300/80' : 'text-red-300/80'}`}>
-                                                                            {typeof trace.responseBody === 'string' ? trace.responseBody : JSON.stringify(trace.responseBody, null, 2)}
-                                                                        </pre>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    )
-                                                }
-
-                                                // Legacy / Fallback view (for when trace is missing)
-                                                let details = null
-                                                try {
-                                                    details = !testResult.success && typeof testResult.data === 'string' && testResult.data.includes('_isErrorDetail')
-                                                        ? JSON.parse(testResult.data)
-                                                        : null
-                                                } catch { }
-
-                                                if (details && details._isErrorDetail) {
-                                                    return (
-                                                        <div className="space-y-4">
-                                                            <div className="flex items-center gap-3 p-3 bg-red-500/10 rounded-lg border border-red-500/20">
-                                                                <div className="text-xl font-bold text-red-400">{details.status}</div>
-                                                                <div className="h-8 w-px bg-red-500/20" />
-                                                                <div className="space-y-0.5">
-                                                                    <div className="text-xs text-red-300 font-medium">Provider API Error</div>
-                                                                    <div className="text-[10px] text-red-400/60 font-mono break-all line-clamp-1">{details.url}</div>
-                                                                </div>
-                                                            </div>
-                                                            <div>
-                                                                <div className="text-[10px] uppercase tracking-wider text-white/40 font-semibold mb-1.5 flex items-center gap-1">
-                                                                    <FileCode className="w-3 h-3" /> Response Body
-                                                                </div>
-                                                                <div className="bg-black/40 border border-white/5 rounded-lg p-3">
-                                                                    <pre className="text-[10px] font-mono text-red-200/80 whitespace-pre-wrap break-all max-h-60 overflow-y-auto">
-                                                                        {details.responseBody}
-                                                                    </pre>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    )
-                                                }
-
-                                                return (
-                                                    <div className="relative">
-                                                        <div className="text-[10px] uppercase tracking-wider text-white/40 font-semibold mb-2 flex items-center gap-1">
-                                                            <FileCode className="w-3 h-3" /> Response Data
-                                                        </div>
-                                                        <pre className={`text-xs font-mono overflow-x-auto p-4 bg-black/40 rounded-lg max-h-80 whitespace-pre-wrap border border-white/5 ${testResult.success ? 'text-green-300/80' : 'text-red-300/80'}`}>
-                                                            {typeof testResult.data === 'string' ? testResult.data : JSON.stringify(testResult.data || testResult.error, null, 2)}
-                                                        </pre>
-                                                    </div>
-                                                )
-                                            })()}
-                                        </div>
-                                    </div>
-                                )}
-                                {/* Bottom spacer */}
-                                <div className="h-8" />
                             </>
                         )}
                     </div>
@@ -2262,6 +2064,6 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                     </Button>
                 </div>
             </div>
-        </motion.div >
+        </motion.div>
     )
 }

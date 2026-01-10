@@ -4,7 +4,7 @@ export interface Country {
     id: string
     code?: string
     name: string
-    flagUrl?: string | null;
+
 }
 
 export interface Service {
@@ -56,7 +56,7 @@ export interface SmsProvider {
     getServices(countryCode: string): Promise<Service[]>
 
     // Purchase a number
-    getNumber?(countryCode: string, serviceCode: string, preferredProvider?: string): Promise<NumberResult>
+    getNumber?(countryCode: string, serviceCode: string, options?: { operator?: string; maxPrice?: string | number }): Promise<NumberResult>
 
     // Check status and get SMS
     getStatus?(activationId: string): Promise<StatusResult>
@@ -66,4 +66,10 @@ export interface SmsProvider {
 
     // Get balance (optional, for monitoring)
     getBalance?(): Promise<number>
+
+    // Confirm or cancel activation (optional)
+    setStatus?(activationId: string, status: number | string): Promise<any>
+
+    // Get prices (optional, optimization)
+    getPrices?(countryCode?: string, serviceCode?: string): Promise<any[]>
 }

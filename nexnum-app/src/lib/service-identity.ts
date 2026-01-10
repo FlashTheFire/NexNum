@@ -15,7 +15,6 @@ export const SERVICE_OVERRIDES = metadata.serviceOverrides as Record<string, {
 
 export const POPULAR_SERVICES = metadata.popularServices
 export const COUNTRY_NAME_MAP = metadata.countryNameMap
-export const PROVIDER_ID_TO_ISO = metadata.providerIdToIso
 
 // Legacy/Compatibility Maps
 export const CANONICAL_SERVICE_NAME_MAP: Record<string, string> = {}
@@ -80,14 +79,6 @@ export function resolveToCanonicalName(input: string): string {
         .replace(/\(.*\)/g, '')          // India (91) -> India
         .trim();
 
-    // 0.5 Handle Numeric IDs (e.g. "41" for Egypt)
-    if (/^\d+$/.test(cleanInput)) {
-        const iso = PROVIDER_ID_TO_ISO[cleanInput as keyof typeof PROVIDER_ID_TO_ISO]
-        if (iso) {
-            const isoLower = iso.toLowerCase()
-            return COUNTRY_NAME_MAP[isoLower as keyof typeof COUNTRY_NAME_MAP] || iso.toUpperCase()
-        }
-    }
 
     // 1. Check SERVICE MAPS
     const normalizedInput = normalizeServiceName(cleanInput)

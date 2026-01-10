@@ -100,10 +100,21 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
                 break
             case 'getNumber':
                 if (!params.country || !params.service) throw new Error('Country and Service params required')
-                result = await engine.getNumber(params.country, params.service)
+                if (!engine.getNumber) throw new Error('getNumber is not supported by this provider')
+                // Cast to DynamicProvider to access extended options
+                if (isDynamic) {
+                    const dynamicEngine = engine as DynamicProvider
+                    result = await dynamicEngine.getNumber(params.country, params.service, {
+                        operator: params.operator || undefined,
+                        maxPrice: params.maxPrice || undefined
+                    })
+                } else {
+                    result = await engine.getNumber(params.country, params.service)
+                }
                 break
             case 'getStatus':
                 if (!params.id) throw new Error('Activation ID required')
+                if (!engine.getStatus) throw new Error('getStatus is not supported by this provider')
                 result = await engine.getStatus(params.id)
                 break
             case 'getPrices':
@@ -120,8 +131,18 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
                 break
             case 'cancelNumber':
                 if (!params.id) throw new Error('Activation ID required')
+                if (!engine.cancelNumber) throw new Error('cancelNumber is not supported by this provider')
                 await engine.cancelNumber(params.id)
                 result = { success: true, message: 'Number cancelled' }
+                break
+            case 'setStatus':
+                // Set activation status: -1 (cancel), 1 (ready), 3 (retry), 6 (complete), 8 (ban)
+                if (!params.id) throw new Error('Activation ID required')
+                if (!params.status) throw new Error('Status required (-1, 1, 3, 6, or 8)')
+                if (!isDynamic) throw new Error('setStatus is only supported for dynamic providers')
+                const dynamicEngineForStatus = engine as DynamicProvider
+                const statusResult = await dynamicEngineForStatus.setStatus(params.id, params.status)
+                result = { success: true, message: 'Status updated', response: statusResult }
                 break
             default:
                 // Default connection test (getCountries or getBalance)

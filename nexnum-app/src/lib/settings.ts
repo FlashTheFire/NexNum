@@ -58,7 +58,7 @@ const DEFAULT_SETTINGS: AppSettings = {
         minStock: 0,         // Accept all stock levels
     },
     rateLimit: {
-        apiLimit: 100,
+        apiLimit: 300,
         authLimit: 5,
         adminLimit: 30,
         windowSize: 60,

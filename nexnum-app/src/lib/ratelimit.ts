@@ -23,7 +23,7 @@ async function getLimitConfig() {
         // Fallback defaults
         return {
             apiLimit: 100,
-            authLimit: 5,
+            authLimit: 20,
             adminLimit: 30,
             windowSize: 60
         }

@@ -74,13 +74,13 @@ async function processEvent(event: any) {
     }
 }
 
-async function poll() {
-    if (!isRunning) return
+async function poll(): Promise<number> {
+    if (!isRunning) return 0
     try {
         const events = await fetchPendingOutboxEvents(BATCH_SIZE)
-        if (events.length === 0) return
+        if (events.length === 0) return 0
 
-        const successful: bigint[] = []
+        const successful: string[] = []
         for (const event of events) {
             try {
                 await processEvent(event)
@@ -93,8 +93,10 @@ async function poll() {
         if (successful.length > 0) {
             await markEventsProcessed(successful)
         }
+        return successful.length
     } catch (err) {
         console.error('[OUTBOX] Poll error:', err)
+        return 0
     }
 }
 
@@ -110,6 +112,15 @@ export function stopOutboxWorker() {
     if (pollInterval) clearInterval(pollInterval)
 }
 
-export async function processOutboxNow() {
-    await poll()
+export async function processOutboxNow(): Promise<number> {
+    return await poll()
+}
+
+export async function getOutboxWorkerStatus() {
+    const stats = await getOutboxStats()
+    return {
+        running: isRunning,
+        intervalMs: POLL_INTERVAL_MS,
+        stats
+    }
 }

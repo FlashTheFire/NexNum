@@ -115,110 +115,105 @@ export function LowBalanceAlert() {
                 {/* Animated Bottom Glow Line */}
                 <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-red-500/50 to-transparent opacity-50" />
 
-                <div className="relative max-w-7xl mx-auto px-4 md:px-8 py-3.5 flex flex-col lg:flex-row items-center justify-between gap-4">
-
-                    {/* Left: Icon & Text */}
-                    <div className="flex items-center gap-4 w-full lg:w-auto">
-                        <div className="relative">
-                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-500/20 to-orange-500/20 flex items-center justify-center shrink-0 border border-red-500/20 shadow-[0_0_15px_rgba(239,68,68,0.2)]">
-                                <Wallet className="w-5 h-5 text-red-400" />
+                <div className="relative max-w-7xl mx-auto px-3 md:px-8 py-2 md:py-3">
+                    {/* Mobile Layout - Single compact row */}
+                    <div className="flex items-center gap-2 md:gap-4">
+                        {/* Icon */}
+                        <div className="relative shrink-0">
+                            <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-gradient-to-br from-red-500/20 to-orange-500/20 flex items-center justify-center border border-red-500/20">
+                                <Wallet className="w-4 h-4 md:w-5 md:h-5 text-red-400" />
                             </div>
-                            <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 flex items-center justify-center text-[10px] font-bold text-black ring-2 ring-black animate-bounce">
+                            <div className="absolute -top-0.5 -right-0.5 w-3 h-3 md:w-4 md:h-4 rounded-full bg-red-500 flex items-center justify-center text-[8px] md:text-[10px] font-bold text-black ring-1 ring-black animate-bounce">
                                 !
                             </div>
                         </div>
 
+                        {/* Text - compressed on mobile */}
                         <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                                <h4 className="text-sm font-bold bg-clip-text text-transparent bg-gradient-to-r from-red-400 to-orange-400">
-                                    Critical Balance Alert
-                                </h4>
-                                <span className="hidden sm:inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-500/10 text-red-400 border border-red-500/20 uppercase tracking-wide">
-                                    Action Required
-                                </span>
-                            </div>
-                            <p className="text-xs text-white/50 truncate">
+                            <h4 className="text-xs md:text-sm font-bold text-red-400 truncate">
+                                Critical Balance Alert
+                            </h4>
+                            <p className="text-[10px] md:text-xs text-white/50 truncate">
                                 <span className="text-white/80 font-medium">{alerts.length} provider{alerts.length > 1 ? 's' : ''}</span> have fallen below credit thresholds.
                             </p>
                         </div>
-                    </div>
 
-                    {/* Middle: Provider Chips */}
-                    <div className="flex items-center gap-3 w-full lg:w-auto overflow-hidden">
-                        <div className="flex gap-2 overflow-x-auto scrollbar-hide py-1 mask-linear-fade">
-                            {alerts.map((alert) => (
+                        {/* Provider Chips - horizontal scroll on mobile */}
+                        <div className="hidden sm:flex items-center gap-2 overflow-x-auto scrollbar-hide max-w-xs lg:max-w-md py-1">
+                            {alerts.slice(0, 3).map((alert) => (
                                 <div
                                     key={alert.id}
-                                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-black/40 border border-red-500/20 hover:border-red-500/40 hover:bg-red-500/10 transition-all group/chip cursor-default"
+                                    className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-black/40 border border-red-500/20 shrink-0"
                                 >
-                                    <span className="text-[11px] font-semibold text-white/90">{alert.name}</span>
-                                    <div className="h-3 w-px bg-white/10" />
-                                    <span className="text-[11px] font-mono text-red-400 group-hover/chip:text-red-300 font-medium">
+                                    <span className="text-[10px] font-semibold text-white/90">{alert.name}</span>
+                                    <span className="text-[10px] font-mono text-red-400 font-medium">
                                         {(alert.balance ?? 0).toFixed(2)}
-                                        <span className="text-[9px] text-white/30 ml-0.5">{alert.currency}</span>
+                                        <span className="text-[8px] text-white/30 ml-0.5">{alert.currency}</span>
                                     </span>
                                 </div>
                             ))}
+                            {alerts.length > 3 && (
+                                <span className="text-[10px] text-white/40 shrink-0">+{alerts.length - 3}</span>
+                            )}
                         </div>
-                    </div>
 
-                    {/* Right: Actions */}
-                    <div className="flex items-center gap-2 w-full lg:w-auto justify-end">
-                        <Button
-                            size="sm"
-                            className="h-9 bg-red-600/10 hover:bg-red-600/20 text-red-400 border border-red-500/20 hover:border-red-500/40 shadow-[0_0_20px_rgba(220,38,38,0.1)] hover:shadow-[0_0_25px_rgba(220,38,38,0.2)] transition-all"
-                            onClick={() => router.push('/admin/providers')}
-                        >
-                            <span className="text-xs font-semibold mr-2">Manage Funds</span>
-                            <ChevronRight className="w-3 h-3" />
-                        </Button>
-
-                        {/* Snooze Dropdown */}
-                        <div className="relative">
-                            <button
-                                onClick={() => setShowSnoozeMenu(!showSnoozeMenu)}
-                                className="h-9 px-3 rounded-md flex items-center gap-1.5 text-white/40 hover:text-white hover:bg-white/10 transition-colors border border-transparent hover:border-white/10"
+                        {/* Actions - compact */}
+                        <div className="flex items-center gap-1 md:gap-2 shrink-0">
+                            <Button
+                                size="sm"
+                                className="h-7 md:h-9 px-2 md:px-3 bg-red-600/10 hover:bg-red-600/20 text-red-400 border border-red-500/20"
+                                onClick={() => router.push('/admin/providers')}
                             >
-                                <Clock className="w-3.5 h-3.5" />
-                                <span className="text-[11px] font-medium hidden sm:inline">Snooze</span>
-                                <ChevronDown className={`w-3 h-3 transition-transform ${showSnoozeMenu ? 'rotate-180' : ''}`} />
-                            </button>
+                                <span className="text-[10px] md:text-xs font-semibold">Manage Funds</span>
+                                <ChevronRight className="w-3 h-3 ml-1 hidden md:inline" />
+                            </Button>
 
-                            <AnimatePresence>
-                                {showSnoozeMenu && (
-                                    <motion.div
-                                        initial={{ opacity: 0, y: -5, scale: 0.95 }}
-                                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                                        exit={{ opacity: 0, y: -5, scale: 0.95 }}
-                                        className="absolute right-0 top-full mt-2 w-36 bg-zinc-900/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50"
-                                    >
-                                        <div className="p-1.5">
-                                            <div className="px-2 py-1.5 text-[10px] text-white/40 font-medium uppercase tracking-wider">
-                                                Hide for...
+                            {/* Snooze Dropdown */}
+                            <div className="relative">
+                                <button
+                                    onClick={() => setShowSnoozeMenu(!showSnoozeMenu)}
+                                    className="h-7 md:h-9 px-2 rounded-md flex items-center gap-1 text-white/40 hover:text-white hover:bg-white/10 transition-colors"
+                                >
+                                    <Clock className="w-3 h-3 md:w-3.5 md:h-3.5" />
+                                    <ChevronDown className={`w-3 h-3 transition-transform ${showSnoozeMenu ? 'rotate-180' : ''}`} />
+                                </button>
+
+                                <AnimatePresence>
+                                    {showSnoozeMenu && (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: -5, scale: 0.95 }}
+                                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                                            exit={{ opacity: 0, y: -5, scale: 0.95 }}
+                                            className="absolute right-0 top-full mt-2 w-36 bg-zinc-900/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50"
+                                        >
+                                            <div className="p-1.5">
+                                                <div className="px-2 py-1.5 text-[10px] text-white/40 font-medium uppercase tracking-wider">
+                                                    Hide for...
+                                                </div>
+                                                {SNOOZE_OPTIONS.map((option) => (
+                                                    <button
+                                                        key={option.hours}
+                                                        onClick={() => handleSnooze(option.hours)}
+                                                        className="w-full px-3 py-2 text-left text-xs text-white/70 hover:text-white hover:bg-white/5 rounded-lg transition-colors flex items-center gap-2"
+                                                    >
+                                                        <Clock className="w-3 h-3 text-white/30" />
+                                                        {option.label}
+                                                    </button>
+                                                ))}
                                             </div>
-                                            {SNOOZE_OPTIONS.map((option) => (
-                                                <button
-                                                    key={option.hours}
-                                                    onClick={() => handleSnooze(option.hours)}
-                                                    className="w-full px-3 py-2 text-left text-xs text-white/70 hover:text-white hover:bg-white/5 rounded-lg transition-colors flex items-center gap-2"
-                                                >
-                                                    <Clock className="w-3 h-3 text-white/30" />
-                                                    {option.label}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
-                        </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
 
-                        <button
-                            onClick={() => setIsVisible(false)}
-                            className="w-8 h-8 rounded-full flex items-center justify-center text-white/30 hover:text-white hover:bg-white/10 transition-colors"
-                            title="Dismiss (will show again on next check)"
-                        >
-                            <X className="w-4 h-4" />
-                        </button>
+                            <button
+                                onClick={() => setIsVisible(false)}
+                                className="w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center text-white/30 hover:text-white hover:bg-white/10 transition-colors"
+                                title="Dismiss"
+                            >
+                                <X className="w-3 h-3 md:w-4 md:h-4" />
+                            </button>
+                        </div>
                     </div>
                 </div>
 

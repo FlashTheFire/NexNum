@@ -20,6 +20,7 @@ model User {
   numbers      Number[]
   wallet       Wallet?
   reservations OfferReservation[]
+  purchaseOrders PurchaseOrder[]
 
   @@map("users")
 }
@@ -27,6 +28,8 @@ model User {
 model Wallet {
   id           String              @id @default(uuid())
   userId       String              @unique @map("user_id")
+  balance      Decimal             @default(0.00) @db.Decimal(12, 2)
+  reserved     Decimal             @default(0.00) @db.Decimal(12, 2)
   createdAt    DateTime            @default(now()) @map("created_at")
   transactions WalletTransaction[]
   user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -41,6 +44,7 @@ model WalletTransaction {
   type           String
   description    String?
   idempotencyKey String?  @unique @map("idempotency_key")
+  metadata       Json?
   createdAt      DateTime @default(now()) @map("created_at")
   wallet         Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
 
@@ -48,13 +52,38 @@ model WalletTransaction {
   @@map("wallet_transactions")
 }
 
+model PurchaseOrder {
+  id             String   @id @default(uuid())
+  userId         String   @map("user_id")
+  serviceName    String   @map("service_name")
+  countryName    String   @map("country_name")
+  amount         Decimal  @db.Decimal(8, 2)
+  status         String   // PENDING, COMPLETED, FAILED
+  provider       String?
+  activationId   String?  @map("activation_id")
+  idempotencyKey String?  @unique @map("idempotency_key")
+  expiresAt      DateTime @map("expires_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, expiresAt])
+  @@index([userId])
+  @@map("purchase_orders")
+}
+
+
+
 model Number {
   id           String       @id @default(uuid())
   phoneNumber  String       @map("phone_number")
   countryCode  String       @map("country_code")
   countryName  String?      @map("country_name")
+  countryIconUrl String?    @map("country_icon_url")
   serviceName  String?      @map("service_name")
   serviceCode  String?      @map("service_code")
+  serviceIconUrl String?    @map("service_icon_url")
   price        Decimal      @db.Decimal(8, 2)
   status       String       @default("available")
   ownerId      String?      @map("owner_id")
@@ -335,21 +364,22 @@ enum Role {
 // ============================================
 
 // Outbox events for guaranteed MeiliSearch sync
+// Outbox events for guaranteed sync and reliable messaging
 model OutboxEvent {
-  id            BigInt   @id @default(autoincrement())
-  aggregateType String   @map("aggregate_type")  // "offer", "order", "provider"
-  aggregateId   String   @map("aggregate_id")    // UUID of the entity
-  eventType     String   @map("event_type")      // "offer.created", "offer.updated", "offer.deleted"
-  payload       Json                             // Full event data
-  processed     Boolean  @default(false)
-  processedAt   DateTime? @map("processed_at")
-  retryCount    Int      @default(0) @map("retry_count")
-  error         String?                          // Last error message if failed
+  id            String   @id @default(uuid())
+  aggregateId   String   @map("aggregate_id")
+  aggregateType String   @map("aggregate_type")
+  eventType     String   @map("event_type")
+  payload       Json
+  status        String   @default("PENDING") // PENDING, PUBLISHED, FAILED
   createdAt     DateTime @default(now()) @map("created_at")
-  
-  @@index([processed, createdAt])
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  error         String?
+  retryCount    Int      @default(0) @map("retry_count")
+
+  @@index([status, createdAt])
   @@index([aggregateType, aggregateId])
-  @@map("outbox_events")
+  @@map("outbox_events_v2")
 }
 
 // ============================================
@@ -401,5 +431,85 @@ model ServiceAggregate {
   
   @@index([lowestPrice])
   @@map("service_aggregates")
+}
+
+// ============================================
+// ACTIVATION STATE MACHINE (Phase 11)
+// ============================================
+
+enum ActivationState {
+  INIT
+  RESERVED
+  ACTIVE
+  RECEIVED
+  EXPIRED
+  CANCELLED
+  FAILED
+  REFUNDED
+}
+
+model Activation {
+  id                   String          @id @default(uuid())
+  userId               String          @map("user_id")
+  state                ActivationState @default(RESERVED)
+  price                Decimal         @db.Decimal(8, 2)
+  
+  // Wallet Transaction References
+  reservedTxId         String?         @map("reserved_tx_id")
+  capturedTxId         String?         @map("captured_tx_id")
+  refundTxId           String?         @map("refund_tx_id")
+  
+  // Provider Info
+  providerActivationId String?         @map("provider_activation_id")
+  providerId           String?         @map("provider_id")
+  
+  // Request Details
+  serviceName          String          @map("service_name")
+  countryCode          String          @map("country_code")
+  countryName          String?         @map("country_name")
+  operatorId           String?         @map("operator_id")
+  
+  // Result (populated on ACTIVE)
+  phoneNumber          String?         @map("phone_number")
+  expiresAt            DateTime?       @map("expires_at")
+  
+  // Linked Number (if created)
+  numberId             String?         @unique @map("number_id")
+  
+  // Idempotency
+  idempotencyKey       String?         @unique @map("idempotency_key")
+  
+  // Metadata
+  createdAt            DateTime        @default(now()) @map("created_at")
+  updatedAt            DateTime        @updatedAt @map("updated_at")
+  
+  @@index([userId])
+  @@index([state])
+  @@index([state, createdAt])
+  @@index([providerId])
+  @@map("activations")
+}
+
+
+
+
+// ============================================
+// PROVIDER EVENTS (Webhook Store)
+// ============================================
+
+model ProviderEvent {
+  id                  String   @id @default(uuid())
+  providerEventId     String   @unique @map("provider_event_id")  // Provider's event ID (idempotency)
+  providerId          String   @map("provider_id")
+  activationId        String?  @map("activation_id")
+  eventType           String   @map("event_type")  // e.g., "sms", "expired", "cancelled"
+  payload             Json
+  processed           Boolean  @default(false)
+  processedAt         DateTime? @map("processed_at")
+  receivedAt          DateTime @default(now()) @map("received_at")
+  
+  @@index([activationId])
+  @@index([processed])
+  @@map("provider_events")
 }
 

@@ -4,9 +4,12 @@ import { WebhookPayload, WebhookVerificationResult } from './sms/types'
 import { WebhookVerifier } from './webhooks/verify'
 import { Provider } from '@prisma/client'
 import { prisma } from './db'
+import CircuitBreaker from 'opossum'
 
 declare var process: any;
 declare var require: any;
+
+const MAX_RETRIES = 3;
 
 type EndpointConfig = {
     method: string
@@ -15,8 +18,42 @@ type EndpointConfig = {
     headers?: Record<string, string>
 }
 
+// Universal error types - consistent across all providers
+export type UniversalErrorType =
+    | 'NO_NUMBERS'         // No numbers available for this service/country
+    | 'NO_BALANCE'         // Insufficient provider balance
+    | 'BAD_KEY'            // Invalid API key
+    | 'BAD_SERVICE'        // Invalid service code
+    | 'BAD_COUNTRY'        // Invalid country code
+    | 'NO_ACTIVATION'      // Activation ID not found
+    | 'ACTIVATION_EXPIRED' // Activation has expired
+    | 'ACTIVATION_CANCELLED' // Activation was cancelled
+    | 'RATE_LIMITED'       // Too many requests
+    | 'SERVER_ERROR'       // Provider server error
+    | 'WAITING'            // Waiting for SMS (not an error, status)
+    | 'RECEIVED'           // SMS received (not an error, status)
+    | 'UNKNOWN_ERROR'      // Fallback for unrecognized errors
+
+// Error mapping configuration
+type ErrorMappingConfig = {
+    // Pattern → Universal error type
+    // Patterns: exact match by default, prefix with / for regex
+    patterns: Record<string, UniversalErrorType>
+    // Optional: Field to check for errors (default: raw response)
+    errorField?: string
+}
+
 type MappingConfig = {
-    type: 'json_object' | 'json_array' | 'json_dictionary' | 'text_regex' | 'text_lines'
+    type:
+    | 'json_object'
+    | 'json_array'
+    | 'json_dictionary'
+    | 'json_value'           // NEW: Single primitive value response
+    | 'json_array_positional' // NEW: Array with position-based field mapping
+    | 'json_keyed_value'      // NEW: Key=ID, Value=primitive or object
+    | 'json_nested_array'     // NEW: 2D array (table-like data)
+    | 'text_regex'
+    | 'text_lines'
     rootPath?: string
 
     // Field mappings: now supports fallback chains
@@ -28,7 +65,20 @@ type MappingConfig = {
     separator?: string // For text_lines type
     transform?: Record<string, string> // Field transformations
 
-    // NEW: Multi-level extraction config
+    // NEW: For json_value - the target field name for the single value
+    valueField?: string // e.g., "balance" - wraps value as { balance: 123.45 }
+
+    // NEW: For json_array_positional - map array indices to field names
+    positionFields?: Record<string, string> // e.g., { "0": "id", "1": "phone", "2": "price" }
+
+    // NEW: For json_keyed_value - specify key and value field names
+    keyField?: string   // e.g., "activationId" - the dictionary key becomes this field
+    // valueField reused - the dictionary value (if primitive) becomes this field
+
+    // NEW: For json_nested_array - treat first row as headers
+    headerRow?: boolean // If true, first array element is field names
+
+    // Multi-level extraction config
     nestingLevels?: {
         /** How deep to traverse (1 = country>service, 2 = country>service>operator) */
         depth?: number
@@ -36,20 +86,23 @@ type MappingConfig = {
         extractOperators?: boolean
         /** Special key to extract nested providers (e.g., "providers") */
         providersKey?: string
-        /** NEW: Helper to enforce field presence (e.g., "provider_id") */
+        /** Helper to enforce field presence (e.g., "provider_id") */
         requiredField?: string
     }
 
-    // NEW: Field fallback chains (alternative to pipe syntax in fields)
+    // Field fallback chains (alternative to pipe syntax in fields)
     fieldFallbacks?: {
         [targetField: string]: string[] // Try each path in order
     }
 
-    // NEW: Conditional extraction based on structure detection
+    // Conditional extraction based on structure detection
     conditionalFields?: {
         /** If this path exists in the data, use these field mappings */
         [conditionPath: string]: Record<string, string>
     }
+
+    // NEW: Error pattern mappings for detecting provider errors
+    errors?: ErrorMappingConfig
 }
 
 export class ProviderApiError extends Error {
@@ -66,10 +119,63 @@ export class ProviderApiError extends Error {
     }
 }
 
+// Structured error for provider-specific errors with universal types
+export class ProviderError extends Error {
+    constructor(
+        public errorType: UniversalErrorType,
+        message: string,
+        public rawResponse?: string
+    ) {
+        super(message)
+        this.name = 'ProviderError'
+    }
+
+    // Check if error is retryable (might succeed with retry or different provider)
+    get isRetryable(): boolean {
+        return ['NO_NUMBERS', 'RATE_LIMITED', 'SERVER_ERROR'].includes(this.errorType)
+    }
+
+    // Check if error means no stock (for smart routing - try next provider)
+    get isNoStock(): boolean {
+        return this.errorType === 'NO_NUMBERS'
+    }
+
+    // Check if error is a status (not actually an error)
+    get isStatus(): boolean {
+        return ['WAITING', 'RECEIVED'].includes(this.errorType)
+    }
+
+    // Check if this is a permanent failure (don't retry)
+    get isPermanent(): boolean {
+        return ['BAD_KEY', 'BAD_SERVICE', 'BAD_COUNTRY', 'NO_ACTIVATION', 'ACTIVATION_EXPIRED'].includes(this.errorType)
+    }
+}
+
 export class DynamicProvider implements SmsProvider {
     name: string
     public config: Provider
     private lastRequestTime: number = 0
+    private fallback?: SmsProvider // New: Fallback for hybrid mode
+
+    // Circuit Breaker Registry (Static to share across instances of same provider)
+    private static breakers = new Map<string, CircuitBreaker>()
+
+    private getBreaker() {
+        if (!DynamicProvider.breakers.has(this.name)) {
+            const breaker = new CircuitBreaker(async (fn: () => Promise<any>) => fn(), {
+                timeout: 45000, // Slightly higher than internal 30s timeout
+                errorThresholdPercentage: 50,
+                resetTimeout: 15000 // 15s cooldown
+            })
+
+            breaker.on('open', () => console.warn(`[DynamicProvider:${this.name}] Circuit OPEN - Failing fast`))
+            breaker.on('halfOpen', () => console.log(`[DynamicProvider:${this.name}] Circuit HALF-OPEN - Testing`))
+            breaker.on('close', () => console.log(`[DynamicProvider:${this.name}] Circuit CLOSED - Recovered`))
+
+            DynamicProvider.breakers.set(this.name, breaker)
+        }
+        return DynamicProvider.breakers.get(this.name)!
+    }
 
     // Store last raw response for debugging in test console
     public lastRawResponse: any = null
@@ -83,10 +189,38 @@ export class DynamicProvider implements SmsProvider {
         requestTime?: number
     } | null = null
 
-    constructor(config: Provider) {
+    constructor(config: Provider, fallback?: SmsProvider) {
         this.config = config
         this.name = config.name
+        this.fallback = fallback
     }
+
+    /**
+     * Check if a specific function should use the dynamic engine
+     * based on granular toggles in mappings.dynamicFunctions
+     */
+    private shouldUseDynamic(fnName: string): boolean {
+        const mappings = this.config.mappings as any
+
+        // Granular toggle check
+        if (mappings?.dynamicFunctions && mappings.dynamicFunctions[fnName] === true) {
+            return true
+        }
+
+        // Global override for ALL metadata functions (legacy support config)
+        if (fnName === 'getCountries' || fnName === 'getServices') {
+            if (mappings?.useDynamicMetadata === true) return true
+        }
+
+        // Default behavior:
+        // If we have a fallback, prefer fallback (Hybrid mode) - UNLESS specific flag is on
+        // If NO fallback (Pure dynamic), then we MUST use dynamic (or fail if config missing)
+        if (this.fallback) return false
+
+        return true
+    }
+
+
 
     private async request(endpointKey: string, params: Record<string, any> = {}): Promise<any> {
         const endpoints = this.config.endpoints as Record<string, EndpointConfig>
@@ -96,193 +230,206 @@ export class DynamicProvider implements SmsProvider {
             throw new Error(`Endpoint ${endpointKey} not configured for provider ${this.name}`)
         }
 
-        // 1. Construct URL
-        let url = ''
-        if (epConfig.path && (epConfig.path.startsWith('http://') || epConfig.path.startsWith('https://'))) {
-            url = epConfig.path
-        } else {
-            const baseUrl = (this.config.apiBaseUrl || '').replace(/\/$/, '')
-            const path = (epConfig.path || '')
-            url = baseUrl + (path.startsWith('/') || path.startsWith('?') || !path ? path : '/' + path)
-        }
-
-        // Replace path params including authKey
-        const allParams = { ...params, authKey: this.config.authKey || '' }
-        for (const [key, value] of Object.entries(allParams)) {
-            if (url.includes(`{${key}}`)) {
-                url = url.replace(new RegExp(`{${key}}`, 'g'), String(value))
-            }
-        }
-
-        const urlObj = new URL(url)
-
-        // 2. Add Auth & Query Params - ENHANCED VARIABLE RESOLUTION
-        const resolvedQueryParams: Record<string, string> = {}
-        const handledParamKeys = new Set<string>()
-
-        // Step 2a: Resolve configured queryParams with $variable syntax
-        if (epConfig.queryParams) {
-            for (const [paramName, varTemplate] of Object.entries(epConfig.queryParams)) {
-                if (typeof varTemplate !== 'string') continue
-
-                if (varTemplate.startsWith('$')) {
-                    // Variable placeholder: $varName or $varName|fallback
-                    const varParts = varTemplate.substring(1).split('|').map(s => s.trim())
-                    let resolvedValue: string | undefined
-
-                    for (const varName of varParts) {
-                        // Check direct match in params
-                        if (params[varName] !== undefined) {
-                            resolvedValue = String(params[varName])
-                            handledParamKeys.add(varName)
-                            break
-                        }
-                    }
-
-                    // Only add if resolved (optional params stay omitted)
-                    if (resolvedValue !== undefined) {
-                        resolvedQueryParams[paramName] = resolvedValue
-                    }
-                } else {
-                    // Static value
-                    resolvedQueryParams[paramName] = varTemplate
-                }
-            }
-        }
-
-        // Step 2b: Add Auth Query Param if configured
-        if (this.config.authType === 'query_param' && this.config.authQueryParam && this.config.authKey) {
-            resolvedQueryParams[this.config.authQueryParam] = this.config.authKey
-        }
-
-        // Step 2c: Add remaining unhandled params (for GET requests without explicit config)
-        if (epConfig.method === 'GET') {
-            for (const [key, value] of Object.entries(params)) {
-                // Skip if already used in path substitution
-                if (epConfig.path?.includes(`{${key}}`)) continue
-                // Skip if already handled by a configured variable
-                if (handledParamKeys.has(key)) continue
-                // Skip if this param name is already set (prevents duplicates)
-                if (resolvedQueryParams[key] !== undefined) continue
-
-                resolvedQueryParams[key] = String(value)
-            }
-        }
-
-        // Step 2d: Apply resolved params to URL
-        for (const [key, value] of Object.entries(resolvedQueryParams)) {
-            urlObj.searchParams.set(key, value)
-        }
-
-        // 3. Headers (Enhanced Browser Emulation)
-        const headers: Record<string, string> = {
-            'Accept': 'application/json, text/plain, */*',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Cache-Control': 'no-cache',
-            'Referer': urlObj.origin,
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            ...epConfig.headers
-        }
-
-        if (this.config.authType === 'bearer' && this.config.authKey) {
-            headers['Authorization'] = `Bearer ${this.config.authKey}`
-        } else if (this.config.authType === 'header' && this.config.authHeader && this.config.authKey) {
-            headers[this.config.authHeader] = this.config.authKey
-        }
-
-        // 4. Rate Limiting Enforcer (Reservation Token Bucket)
-        // Ensure strictly NO requests are sent faster than rateLimitDelay
-        // "nextSlot" logic handles concurrency by pushing the marker forward for each request
-        const rateLimitDelay = (this.config as any).rateLimitDelay || 1000 // Default to 1000ms
-
-        const now = Date.now()
-        // Calculate when this request is allowed to fire
-        const targetTime = Math.max(now, this.lastRequestTime + rateLimitDelay)
-
-        // Reserve this slot immediately so next request sees it
-        this.lastRequestTime = targetTime
-
-        const waitTime = targetTime - now
-        if (waitTime > 0) {
-            // console.log(`[DynamicProvider:${this.name}] Rate limiting: waiting ${waitTime}ms`)
-            await new Promise(resolve => setTimeout(resolve, waitTime))
-        }
-
-        const maskedHeaders = { ...headers }
-        if (maskedHeaders['Authorization']) maskedHeaders['Authorization'] = maskedHeaders['Authorization'].substring(0, 15) + '...'
-        if (maskedHeaders['base64_api_key']) maskedHeaders['base64_api_key'] = '...'
-
-        console.log(`[DynamicProvider:${this.name}] ${epConfig.method} ${urlObj.toString()}`)
-        console.log(`[DynamicProvider:${this.name}] Headers:`, JSON.stringify(maskedHeaders))
-
+        // Initialize trace variables in outer scope for catch block access
+        let urlObj: URL | null = null
+        let maskedHeaders: Record<string, string> = {}
         const startTime = Date.now()
-        let responseData: any = null
-        let responseStatus = 0
 
         try {
-            // Increase timeout to 30s
-            // implementing retry logic for robust sync
-            const MAX_RETRIES = 3
-            let response: Response | undefined
 
-            for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-                try {
-                    response = await fetch(urlObj.toString(), {
-                        method: epConfig.method,
-                        headers,
-                        signal: AbortSignal.timeout(30000)
-                    });
 
-                    // Handle 429 explicitly inside loop
-                    if (response.status === 429) {
-                        if (attempt === MAX_RETRIES) break // Let it fail below
+            // 1. Construct URL
+            let url = ''
+            if (epConfig.path && (epConfig.path.startsWith('http://') || epConfig.path.startsWith('https://'))) {
+                url = epConfig.path
+            } else {
+                const baseUrl = (this.config.apiBaseUrl || '').replace(/\/$/, '')
+                const path = (epConfig.path || '')
+                url = baseUrl + (path.startsWith('/') || path.startsWith('?') || !path ? path : '/' + path)
+            }
 
-                        // Check Retry-After header
-                        const retryAfter = response.headers.get('Retry-After')
-                        let delay = 1000 * Math.pow(2, attempt) // Exponential: 2s, 4s, 8s (attempt 1 is 2^1=2s? No, default was linear. Let's do 2s, 4s, 8s)
-
-                        // If Retry-After is present (seconds), use it
-                        if (retryAfter) {
-                            const seconds = parseInt(retryAfter, 10)
-                            if (!isNaN(seconds)) delay = (seconds + 1) * 1000 // Add 1s buffer
-                        }
-
-                        console.warn(`[DynamicProvider:${this.name}] Rate limited (429). Retrying in ${delay}ms...`)
-                        await new Promise(resolve => setTimeout(resolve, delay))
-                        continue
-                    }
-
-                    // Treat 5xx server errors as retriable too? Maybe safely.
-                    if (response.status >= 500 && attempt < MAX_RETRIES) {
-                        const delay = 1000 * attempt
-                        console.warn(`[DynamicProvider:${this.name}] Server error ${response.status}. Retrying in ${delay}ms...`)
-                        await new Promise(resolve => setTimeout(resolve, delay))
-                        continue
-                    }
-
-                    break; // Success or non-retriable status, exit loop
-                } catch (err: any) {
-                    const isLastAttempt = attempt === MAX_RETRIES
-                    const isNetworkError = err.name === 'TypeError' || err.name === 'TimeoutError' || err.code === 'UND_ERR_CONNECT_TIMEOUT'
-
-                    if (isNetworkError && !isLastAttempt) {
-                        const delay = 1000 * attempt // Linear backoff: 1s, 2s, 3s
-                        console.warn(`[DynamicProvider:${this.name}] Request failed (attempt ${attempt}/${MAX_RETRIES}): ${err.message}. Retrying in ${delay}ms...`)
-                        await new Promise(resolve => setTimeout(resolve, delay))
-                        continue
-                    }
-
-                    // If we're here, we either ran out of retries or it's a non-retriable error
-                    throw err
+            // Replace path params including authKey
+            const allParams = { ...params, authKey: this.config.authKey || '' }
+            for (const [key, value] of Object.entries(allParams)) {
+                if (url.includes(`{${key}}`)) {
+                    url = url.replace(new RegExp(`{${key}}`, 'g'), String(value))
                 }
             }
 
-            if (!response) {
-                // Should logically be unreachable if we throw on error, but for type safety:
-                throw new Error('Request failed after retries')
+            // Cleanup any leftover placeholders (e.g. {operator} if not provided)
+            // For 5sim and others, if operator is missing, it should usually be "any"
+            if (url.includes('{operator}')) {
+                url = url.replace(/{operator}/g, 'any')
+            }
+            // Generic cleanup for other optional path segments
+            url = url.replace(/\/{[^}]*}/g, '') // Remove /{optional_param}
+            url = url.replace(/{[^}]*}/g, '')    // Remove {optional_param}
+
+            urlObj = new URL(url)
+
+            // 2. Add Auth & Query Params - ENHANCED VARIABLE RESOLUTION
+            const resolvedQueryParams: Record<string, string> = {}
+            const handledParamKeys = new Set<string>()
+
+            // Step 2a: Resolve configured queryParams with $variable syntax
+            if (epConfig.queryParams) {
+                for (const [paramName, varTemplate] of Object.entries(epConfig.queryParams)) {
+                    if (typeof varTemplate !== 'string') continue
+
+                    if (varTemplate.startsWith('$')) {
+                        // Variable placeholder: $varName or $varName|fallback
+                        const varParts = varTemplate.substring(1).split('|').map(s => s.trim())
+                        let resolvedValue: string | undefined
+
+                        for (const varName of varParts) {
+                            // Check direct match in params
+                            if (params[varName] !== undefined) {
+                                resolvedValue = String(params[varName])
+                                handledParamKeys.add(varName)
+                                break
+                            }
+                        }
+
+                        // Only add if resolved (optional params stay omitted)
+                        if (resolvedValue !== undefined) {
+                            resolvedQueryParams[paramName] = resolvedValue
+                        }
+                    } else {
+                        // Static value
+                        resolvedQueryParams[paramName] = varTemplate
+                    }
+                }
             }
 
+            // Step 2b: Add Auth Query Param if configured
+            if (this.config.authType === 'query_param' && this.config.authQueryParam && this.config.authKey) {
+                resolvedQueryParams[this.config.authQueryParam] = this.config.authKey
+            }
+
+            // Step 2c: Add remaining unhandled params (for GET requests without explicit config)
+            if (epConfig.method === 'GET') {
+                for (const [key, value] of Object.entries(params)) {
+                    // Skip if already used in path substitution
+                    if (epConfig.path?.includes(`{${key}}`)) continue
+                    // Skip if already handled by a configured variable
+                    if (handledParamKeys.has(key)) continue
+                    // Skip if this param name is already set (prevents duplicates)
+                    if (resolvedQueryParams[key] !== undefined) continue
+
+                    resolvedQueryParams[key] = String(value)
+                }
+            }
+
+            // Step 2d: Apply resolved params to URL
+            for (const [key, value] of Object.entries(resolvedQueryParams)) {
+                urlObj.searchParams.set(key, value)
+            }
+
+            // 3. Headers (Enhanced Browser Emulation)
+            const headers: Record<string, string> = {
+                'Accept': 'application/json, text/plain, */*',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Cache-Control': 'no-cache',
+                'Referer': urlObj.origin,
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                ...epConfig.headers
+            }
+
+            if (this.config.authType === 'bearer' && this.config.authKey) {
+                headers['Authorization'] = `Bearer ${this.config.authKey}`
+            } else if (this.config.authType === 'header' && this.config.authHeader && this.config.authKey) {
+                headers[this.config.authHeader] = this.config.authKey
+            }
+
+            // 4. Rate Limiting Enforcer (Reservation Token Bucket)
+            // Ensure strictly NO requests are sent faster than rateLimitDelay
+            // "nextSlot" logic handles concurrency by pushing the marker forward for each request
+            const rateLimitDelay = (this.config as any).rateLimitDelay || 1000 // Default to 1000ms
+
+            const now = Date.now()
+            // Calculate when this request is allowed to fire
+            const targetTime = Math.max(now, this.lastRequestTime + rateLimitDelay)
+
+            // Reserve this slot immediately so next request sees it
+            this.lastRequestTime = targetTime
+
+            const waitTime = targetTime - now
+            if (waitTime > 0) {
+                // console.log(`[DynamicProvider:${this.name}] Rate limiting: waiting ${waitTime}ms`)
+                await new Promise(resolve => setTimeout(resolve, waitTime))
+            }
+
+            maskedHeaders = { ...headers }
+            if (maskedHeaders['Authorization']) maskedHeaders['Authorization'] = maskedHeaders['Authorization'].substring(0, 15) + '...'
+            if (maskedHeaders['base64_api_key']) maskedHeaders['base64_api_key'] = '...'
+
+            console.log(`[DynamicProvider:${this.name}] ${epConfig.method} ${urlObj.toString()}`)
+            console.log(`[DynamicProvider:${this.name}] Headers:`, JSON.stringify(maskedHeaders))
+
+            const startTime = Date.now()
+            let responseData: any = null
+            let responseStatus = 0
+
+            // Execute with Circuit Breaker
+            const breaker = this.getBreaker()
+            let response: Response | undefined
+
+            try {
+                response = await breaker.fire(async () => {
+                    // Retry Loop (Business Logic)
+                    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+                        try {
+                            const res = await fetch(urlObj.toString(), {
+                                method: epConfig.method,
+                                headers,
+                                signal: AbortSignal.timeout(30000)
+                            });
+
+                            if (res.status === 429) {
+                                if (attempt === MAX_RETRIES) return res // Return 429 to handle outside
+                                const retryAfter = res.headers.get('Retry-After')
+                                let delay = 1000 * Math.pow(2, attempt)
+                                if (retryAfter) {
+                                    const sec = parseInt(retryAfter, 10)
+                                    if (!isNaN(sec)) delay = (sec + 1) * 1000
+                                }
+                                console.warn(`[DynamicProvider:${this.name}] 429 Retry in ${delay}ms`)
+                                await new Promise(r => setTimeout(r, delay))
+                                continue
+                            }
+
+                            if (res.status >= 500 && attempt < MAX_RETRIES) {
+                                const delay = 1000 * attempt
+                                await new Promise(r => setTimeout(r, delay))
+                                continue
+                            }
+
+                            return res // Success or non-retriable
+
+                        } catch (netErr: any) {
+                            const isNetworkError = netErr.name === 'TypeError' || netErr.name === 'TimeoutError' || netErr.code === 'UND_ERR_CONNECT_TIMEOUT'
+                            if (isNetworkError && attempt < MAX_RETRIES) {
+                                const delay = 1000 * attempt
+                                await new Promise(r => setTimeout(r, delay))
+                                continue
+                            }
+                            throw netErr
+                        }
+                    }
+                    throw new Error('Retries exhausted')
+                }) as Response
+            } catch (breakerErr: any) {
+                // Map Opossum errors
+                if (breakerErr.code === 'EOPEN') {
+                    throw new Error(`Circuit Breaker OPEN for ${this.name}`)
+                }
+                throw breakerErr
+            }
+
+            if (!response) throw new Error('Request failed')
+
             responseStatus = response.status;
+            // ... (Rest of processing)
 
             if (!response.ok) {
                 const text = await response.text()
@@ -419,6 +566,10 @@ export class DynamicProvider implements SmsProvider {
         return path.split('.').reduce((o, key) => {
             if (o === undefined || o === null) return undefined
 
+            // ==========================================
+            // ARRAY/COLLECTION ACCESSORS
+            // ==========================================
+
             // $firstKey - get first key of object
             if (key === '$firstKey') {
                 const keys = Object.keys(o)
@@ -429,6 +580,24 @@ export class DynamicProvider implements SmsProvider {
                 const keys = Object.keys(o)
                 return keys.length > 0 ? o[keys[0]] : undefined
             }
+            // $first - first element of array
+            if (key === '$first') {
+                return Array.isArray(o) ? o[0] : (typeof o === 'object' ? Object.values(o)[0] : o)
+            }
+            // $lastKey - last key of object
+            if (key === '$lastKey') {
+                const keys = Object.keys(o)
+                return keys.length > 0 ? keys[keys.length - 1] : undefined
+            }
+            // $lastValue - last value of object
+            if (key === '$lastValue') {
+                const keys = Object.keys(o)
+                return keys.length > 0 ? o[keys[keys.length - 1]] : undefined
+            }
+            // $last - last element of array
+            if (key === '$last') {
+                return Array.isArray(o) ? o[o.length - 1] : (typeof o === 'object' ? Object.values(o).pop() : o)
+            }
             // $values - get all values as array
             if (key === '$values') {
                 return Object.values(o)
@@ -437,23 +606,327 @@ export class DynamicProvider implements SmsProvider {
             if (key === '$keys') {
                 return Object.keys(o)
             }
-            // $length - get length
-            if (key === '$length') {
+            // $length / $count - get length
+            if (key === '$length' || key === '$count') {
                 return Array.isArray(o) ? o.length : Object.keys(o).length
             }
-            // $join:, - join array with separator
+            // $sum - sum of numeric array
+            if (key === '$sum') {
+                if (!Array.isArray(o)) return 0
+                return o.reduce((acc, val) => acc + (Number(val) || 0), 0)
+            }
+            // $avg / $average - average of numeric array
+            if (key === '$avg' || key === '$average') {
+                if (!Array.isArray(o) || o.length === 0) return 0
+                const sum = o.reduce((acc, val) => acc + (Number(val) || 0), 0)
+                return sum / o.length
+            }
+            // $min - minimum value
+            if (key === '$min') {
+                if (!Array.isArray(o) || o.length === 0) return undefined
+                return Math.min(...o.map(Number).filter(n => !isNaN(n)))
+            }
+            // $max - maximum value
+            if (key === '$max') {
+                if (!Array.isArray(o) || o.length === 0) return undefined
+                return Math.max(...o.map(Number).filter(n => !isNaN(n)))
+            }
+            // $unique - deduplicate array
+            if (key === '$unique') {
+                return Array.isArray(o) ? [...new Set(o)] : o
+            }
+            // $flatten - flatten nested arrays
+            if (key === '$flatten') {
+                return Array.isArray(o) ? o.flat(Infinity) : o
+            }
+            // $reverse - reverse array
+            if (key === '$reverse') {
+                return Array.isArray(o) ? [...o].reverse() : o
+            }
+            // $sort - sort array
+            if (key === '$sort') {
+                return Array.isArray(o) ? [...o].sort() : o
+            }
+            // $slice:start:end - get subset of array
+            if (key.startsWith('$slice:')) {
+                const parts = key.substring(7).split(':')
+                const start = parseInt(parts[0]) || 0
+                const end = parts[1] ? parseInt(parts[1]) : undefined
+                return Array.isArray(o) ? o.slice(start, end) : o
+            }
+            // $join:separator - join array with separator
             if (key.startsWith('$join:')) {
                 const sep = key.substring(6)
                 return Array.isArray(o) ? o.join(sep) : o
+            }
+
+            // ==========================================
+            // STRING MANIPULATION ACCESSORS
+            // ==========================================
+
+            // $lowercase / $lower - convert to lowercase
+            if (key === '$lowercase' || key === '$lower') {
+                return typeof o === 'string' ? o.toLowerCase() : String(o).toLowerCase()
+            }
+            // $uppercase / $upper - convert to uppercase
+            if (key === '$uppercase' || key === '$upper') {
+                return typeof o === 'string' ? o.toUpperCase() : String(o).toUpperCase()
+            }
+            // $trim - remove whitespace
+            if (key === '$trim') {
+                return typeof o === 'string' ? o.trim() : String(o).trim()
+            }
+            // $split:separator - split string to array
+            if (key.startsWith('$split:')) {
+                const sep = key.substring(7)
+                return typeof o === 'string' ? o.split(sep) : [o]
+            }
+            // $replace:old:new - replace substring
+            if (key.startsWith('$replace:')) {
+                const parts = key.substring(9).split(':')
+                const oldStr = parts[0] || ''
+                const newStr = parts[1] || ''
+                return typeof o === 'string' ? o.replace(new RegExp(oldStr, 'g'), newStr) : o
+            }
+            // $substring:start:end - get substring
+            if (key.startsWith('$substring:')) {
+                const parts = key.substring(11).split(':')
+                const start = parseInt(parts[0]) || 0
+                const end = parts[1] ? parseInt(parts[1]) : undefined
+                return typeof o === 'string' ? o.substring(start, end) : String(o).substring(start, end)
+            }
+            // $padStart:length:char - pad string start
+            if (key.startsWith('$padStart:')) {
+                const parts = key.substring(10).split(':')
+                const len = parseInt(parts[0]) || 0
+                const char = parts[1] || ' '
+                return String(o).padStart(len, char)
+            }
+            // $padEnd:length:char - pad string end
+            if (key.startsWith('$padEnd:')) {
+                const parts = key.substring(8).split(':')
+                const len = parseInt(parts[0]) || 0
+                const char = parts[1] || ' '
+                return String(o).padEnd(len, char)
+            }
+
+            // ==========================================
+            // TYPE CONVERSION ACCESSORS
+            // ==========================================
+
+            // $number / $int / $float - convert to number
+            if (key === '$number' || key === '$int' || key === '$float') {
+                const num = Number(o)
+                if (key === '$int') return Math.floor(num)
+                return isNaN(num) ? 0 : num
+            }
+            // $string / $str - convert to string
+            if (key === '$string' || key === '$str') {
+                return String(o)
+            }
+            // $boolean / $bool - convert to boolean
+            if (key === '$boolean' || key === '$bool') {
+                if (typeof o === 'boolean') return o
+                if (typeof o === 'string') {
+                    const lower = o.toLowerCase()
+                    return lower === 'true' || lower === '1' || lower === 'yes'
+                }
+                return Boolean(o)
+            }
+            // $json - parse JSON string
+            if (key === '$json') {
+                if (typeof o === 'string') {
+                    try { return JSON.parse(o) } catch { return o }
+                }
+                return o
+            }
+            // $stringify - convert to JSON string
+            if (key === '$stringify') {
+                try { return JSON.stringify(o) } catch { return String(o) }
+            }
+
+            // ==========================================
+            // CONDITIONAL ACCESSORS
+            // ==========================================
+
+            // $default:value - default if null/undefined
+            if (key.startsWith('$default:')) {
+                const defaultVal = key.substring(9)
+                return (o === undefined || o === null) ? defaultVal : o
+            }
+            // $ifEmpty:value - default if empty string
+            if (key.startsWith('$ifEmpty:')) {
+                const defaultVal = key.substring(9)
+                return (o === '' || o === undefined || o === null) ? defaultVal : o
+            }
+            // $exists - check if field exists (returns boolean)
+            if (key === '$exists') {
+                return o !== undefined && o !== null
+            }
+
+            // ==========================================
+            // OBJECT ACCESSORS
+            // ==========================================
+
+            // $entries - get [key, value] pairs
+            if (key === '$entries') {
+                return typeof o === 'object' && o !== null ? Object.entries(o) : []
+            }
+            // $pick:a,b,c - only specific keys
+            if (key.startsWith('$pick:')) {
+                const keysToKeep = key.substring(6).split(',').map(k => k.trim())
+                if (typeof o === 'object' && o !== null) {
+                    const result: any = {}
+                    for (const k of keysToKeep) {
+                        if (k in o) result[k] = o[k]
+                    }
+                    return result
+                }
+                return o
+            }
+            // $omit:a,b,c - exclude specific keys
+            if (key.startsWith('$omit:')) {
+                const keysToOmit = key.substring(6).split(',').map(k => k.trim())
+                if (typeof o === 'object' && o !== null) {
+                    const result: any = {}
+                    for (const [k, v] of Object.entries(o)) {
+                        if (!keysToOmit.includes(k)) result[k] = v
+                    }
+                    return result
+                }
+                return o
+            }
+            // $type - get JavaScript type
+            if (key === '$type') {
+                if (o === null) return 'null'
+                if (Array.isArray(o)) return 'array'
+                return typeof o
             }
 
             return o[key]
         }, obj)
     }
 
+    /**
+     * Check for error patterns in the raw response before attempting to parse.
+     * Throws ProviderError if a known error pattern is detected.
+     */
+    private checkForErrors(
+        response: { type: string, data: any },
+        mappingKey: string,
+        mapConfig: MappingConfig | undefined
+    ): void {
+        // Get error config from mapping, or use default patterns for known lifecycle methods
+        const errorConfig = mapConfig?.errors
+
+        // Build check value from response
+        const { type: responseType, data } = response
+        let checkValue: string
+
+        if (errorConfig?.errorField && typeof data === 'object') {
+            // Check specific field for errors (e.g., "message" or "error")
+            checkValue = String(this.getValue(data, errorConfig.errorField) ?? '')
+        } else if (responseType === 'text') {
+            // For text responses, check the entire response
+            checkValue = String(data)
+        } else if (typeof data === 'string') {
+            checkValue = data
+        } else {
+            // For JSON objects, check common error fields
+            checkValue = String(
+                data?.error || data?.message || data?.status ||
+                (typeof data === 'object' ? '' : data)
+            )
+        }
+
+        const checkString = checkValue.trim()
+
+        // Skip if we have actual data (not an error string)
+        // Most errors are short text responses without colons or JSON
+        if (!checkString || checkString.length > 200) return
+
+        // Check configured error patterns
+        // Format: { "errorType": "pattern to match" }
+        if (errorConfig?.patterns) {
+            for (const [errorType, pattern] of Object.entries(errorConfig.patterns)) {
+                const isMatch = this.matchesErrorPattern(checkString, pattern)
+                if (isMatch) {
+                    console.log(`[DynamicProvider:${this.name}] Error pattern matched: "${pattern}" → ${errorType}`)
+                    throw new ProviderError(errorType as UniversalErrorType, `Provider returned: ${checkString}`, checkString)
+                }
+            }
+        }
+
+        // DEFAULT: Universal fallback error patterns for common SMS-Activate style responses
+        // These apply to lifecycle methods if no specific patterns are configured
+        const LIFECYCLE_METHODS = ['getNumber', 'getStatus', 'setStatus', 'cancelNumber']
+        if (LIFECYCLE_METHODS.includes(mappingKey)) {
+            // Format: { "errorType": "pattern" } - key is error type, value is pattern to match
+            const defaultPatterns: Record<UniversalErrorType, string[]> = {
+                // Purchase errors
+                'NO_NUMBERS': ['NO_NUMBERS', 'no free phones'],
+                'NO_BALANCE': ['NO_BALANCE', 'not enough balance', 'not enough user balance'],
+
+                // Authentication errors
+                'BAD_KEY': ['BAD_KEY', 'Invalid API key', 'invalid api-key'],
+
+                // Service/Country errors
+                'BAD_SERVICE': ['BAD_SERVICE', 'no product'],
+                'BAD_COUNTRY': ['BAD_COUNTRY', 'bad country'],
+
+                // Activation errors
+                'NO_ACTIVATION': ['NO_ACTIVATION', 'order not found'],
+                'ACTIVATION_EXPIRED': ['order expired'],
+                'ACTIVATION_CANCELLED': ['STATUS_CANCEL'],
+
+                // Server errors
+                'SERVER_ERROR': ['ERROR_SQL', 'internal error', 'server offline'],
+
+                // Rate limiting
+                'RATE_LIMITED': ['rate limit', 'too many requests'],
+
+                // Status (not errors, but still matched)
+                'WAITING': [],
+                'RECEIVED': [],
+                'UNKNOWN_ERROR': [],
+            }
+
+            for (const [errorType, patterns] of Object.entries(defaultPatterns)) {
+                for (const pattern of patterns) {
+                    if (this.matchesErrorPattern(checkString, pattern)) {
+                        console.log(`[DynamicProvider:${this.name}] Default error pattern matched: "${pattern}" → ${errorType}`)
+                        throw new ProviderError(errorType as UniversalErrorType, `Provider returned: ${checkString}`, checkString)
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Match a string against an error pattern.
+     * Patterns starting with '/' are treated as regex, otherwise case-insensitive includes.
+     */
+    private matchesErrorPattern(str: string, pattern: string): boolean {
+        if (pattern.startsWith('/') && pattern.endsWith('/')) {
+            // Regex pattern
+            try {
+                return new RegExp(pattern.slice(1, -1), 'i').test(str)
+            } catch {
+                return false
+            }
+        }
+        // Exact or includes match (case-insensitive)
+        const lowerStr = str.toLowerCase()
+        const lowerPattern = pattern.toLowerCase()
+        return lowerStr === lowerPattern || lowerStr.includes(lowerPattern)
+    }
+
     private parseResponse(response: { type: string, data: any }, mappingKey: string): any[] {
         const mappings = this.config.mappings as Record<string, MappingConfig>
         const mapConfig = mappings[mappingKey]
+
+        // STEP 0: Check for error patterns BEFORE attempting to parse
+        this.checkForErrors(response, mappingKey, mapConfig)
 
         if (!mapConfig) {
             console.warn(`[DynamicProvider:${this.name}] No mapping for ${mappingKey}, returning raw`)
@@ -492,7 +965,7 @@ export class DynamicProvider implements SmsProvider {
             const wrapperKeys = [
                 'data', 'result', 'results', 'items', 'list', 'response',
                 // Context-specific wrappers
-                lowerKey.includes('countr') ? 'countries' : null,
+                lowerKey.includes('country') ? 'countries' : null,
                 lowerKey.includes('service') ? 'services' : null,
                 lowerKey.includes('number') ? 'numbers' : null,
             ].filter(Boolean) as string[]
@@ -555,6 +1028,22 @@ export class DynamicProvider implements SmsProvider {
                 }
                 return []
 
+            // NEW: Single primitive value response (e.g., balance: 123.45)
+            case 'json_value':
+                return this.parseJsonValue(root, mapConfig)
+
+            // NEW: Array with position-based field mapping
+            case 'json_array_positional':
+                return this.parseJsonArrayPositional(root, mapConfig)
+
+            // NEW: Key=ID, Value=primitive or object
+            case 'json_keyed_value':
+                return this.parseJsonKeyedValue(root, mapConfig)
+
+            // NEW: 2D array (table-like data with optional header row)
+            case 'json_nested_array':
+                return this.parseJsonNestedArray(root, mapConfig)
+
             default:
                 return this.autoParseResponse(root)
         }
@@ -564,6 +1053,150 @@ export class DynamicProvider implements SmsProvider {
         if (!Array.isArray(arr)) return []
         return arr.map((item, index) => this.mapFields(item, mapConfig.fields, { index }))
     }
+
+    /**
+     * Parse single primitive value response
+     * Example: 123.45 → { balance: 123.45 }
+     */
+    private parseJsonValue(value: any, mapConfig: MappingConfig): any[] {
+        const fieldName = mapConfig.valueField || 'value'
+
+        // If it's an object, try to extract the value
+        if (typeof value === 'object' && value !== null) {
+            // Check for common wrapper patterns
+            const wrapperKeys = ['balance', 'amount', 'result', 'data', 'value', 'status']
+            for (const key of wrapperKeys) {
+                if (value[key] !== undefined) {
+                    return [{ [fieldName]: value[key] }]
+                }
+            }
+            // If fields are specified, try to map them
+            if (mapConfig.fields && Object.keys(mapConfig.fields).length > 0) {
+                return [this.mapFields(value, mapConfig.fields, {})]
+            }
+            return [value]
+        }
+
+        // Primitive value - wrap it
+        return [{ [fieldName]: value }]
+    }
+
+    /**
+     * Parse array with position-based field mapping
+     * Example: ["12345", "+15551234", "0.50"] with positionFields: { "0": "id", "1": "phone", "2": "2" }
+     * → { id: "12345", phone: "+15551234", price: "0.50" }
+     */
+    private parseJsonArrayPositional(arr: any, mapConfig: MappingConfig): any[] {
+        // Handle both single array and array of arrays
+        const arrays = Array.isArray(arr)
+            ? (Array.isArray(arr[0]) ? arr : [arr])  // Normalize to array of arrays
+            : [[arr]]
+
+        const positionFields = mapConfig.positionFields || {}
+
+        // If no positionFields defined, use fields mapping with numeric keys
+        const fieldMap = Object.keys(positionFields).length > 0
+            ? positionFields
+            : mapConfig.fields
+
+        return arrays.map(item => {
+            const result: any = {}
+            if (!Array.isArray(item)) {
+                return { value: item }
+            }
+
+            for (const [indexStr, fieldName] of Object.entries(fieldMap)) {
+                const idx = parseInt(indexStr)
+                if (!isNaN(idx) && item[idx] !== undefined) {
+                    result[fieldName] = item[idx]
+                }
+            }
+            return result
+        }).filter(r => Object.keys(r).length > 0)
+    }
+
+    /**
+     * Parse key-value dictionary where key is an ID and value is data
+     * Example: { "12345": "pending", "12346": "received" }
+     * → [{ activationId: "12345", status: "pending" }, { activationId: "12346", status: "received" }]
+     */
+    private parseJsonKeyedValue(obj: any, mapConfig: MappingConfig): any[] {
+        if (typeof obj !== 'object' || obj === null || Array.isArray(obj)) {
+            return []
+        }
+
+        const keyField = mapConfig.keyField || 'id'
+        const valueField = mapConfig.valueField || 'value'
+        const results: any[] = []
+
+        for (const [key, value] of Object.entries(obj)) {
+            if (typeof value === 'object' && value !== null) {
+                // Value is an object - merge key as ID field
+                const mapped = this.mapFields(value, mapConfig.fields || {}, { key, value })
+                mapped[keyField] = key
+                results.push(mapped)
+            } else {
+                // Value is primitive
+                results.push({
+                    [keyField]: key,
+                    [valueField]: value
+                })
+            }
+        }
+
+        return results
+    }
+
+    /**
+     * Parse 2D array (table-like data)
+     * Example with headerRow=true: [["id","phone","price"], ["123","+1555","0.5"]]
+     * → [{ id: "123", phone: "+1555", price: "0.5" }]
+     */
+    private parseJsonNestedArray(arr: any, mapConfig: MappingConfig): any[] {
+        if (!Array.isArray(arr) || arr.length === 0) {
+            return []
+        }
+
+        // Check if first element is also an array (2D array)
+        if (!Array.isArray(arr[0])) {
+            // 1D array - use positional parsing
+            return this.parseJsonArrayPositional(arr, mapConfig)
+        }
+
+        const headerRow = mapConfig.headerRow ?? false
+        let headers: string[] = []
+        let dataRows: any[][]
+
+        if (headerRow && arr.length > 0) {
+            // First row is headers
+            headers = arr[0].map(String)
+            dataRows = arr.slice(1)
+        } else if (mapConfig.positionFields) {
+            // Use positionFields as header mapping
+            const maxIndex = Math.max(...Object.keys(mapConfig.positionFields).map(Number))
+            headers = Array(maxIndex + 1).fill('')
+            for (const [idx, name] of Object.entries(mapConfig.positionFields)) {
+                headers[parseInt(idx)] = name
+            }
+            dataRows = arr
+        } else {
+            // Auto-generate headers (col_0, col_1, etc.)
+            headers = arr[0].map((_: any, i: number) => `col_${i}`)
+            dataRows = arr
+        }
+
+        return dataRows.map(row => {
+            if (!Array.isArray(row)) return {}
+            const result: any = {}
+            row.forEach((val, idx) => {
+                if (headers[idx]) {
+                    result[headers[idx]] = val
+                }
+            })
+            return result
+        }).filter(r => Object.keys(r).length > 0)
+    }
+
 
     private parseJsonDictionary(obj: Record<string, any>, mapConfig: MappingConfig, parentContext: any = {}): any[] {
         const results: any[] = []
@@ -880,10 +1513,10 @@ export class DynamicProvider implements SmsProvider {
      * - name: display name
      * - flag: optional icon URL
      */
-    /**
-     * Get countries from provider
-     */
     async getCountries(): Promise<Country[]> {
+        if (!this.shouldUseDynamic('getCountries') && this.fallback?.getCountries) {
+            return this.fallback.getCountries()
+        }
         const response = await this.request('getCountries')
         const items = this.parseResponse(response, 'getCountries')
 
@@ -903,8 +1536,10 @@ export class DynamicProvider implements SmsProvider {
 
             return {
                 id,
-                code: code !== id ? code : undefined,
-                name: String(i.name ?? 'Unknown'),
+                code: code !== id && code ? code : undefined,
+                name: String(i.name ?? i.country ?? 'Unknown'),
+                price: Number(i.price ?? i.cost ?? 0),
+                count: Number(i.count ?? i.quantity ?? 0),
                 flagUrl
             }
         }))
@@ -914,17 +1549,20 @@ export class DynamicProvider implements SmsProvider {
      * Get services from provider
      */
     async getServices(countryCode: string): Promise<Service[]> {
+        // Optimization: If fallback is used for countries, it might handle services without countryCode better
+        if (!this.shouldUseDynamic('getServices') && this.fallback?.getServices) {
+            return this.fallback.getServices(countryCode)
+        }
+
         const response = await this.request('getServices', { country: countryCode })
         const items = this.parseResponse(response, 'getServices')
-
-        // Import image proxy
-        const { proxyImage } = await import('./image-proxy')
 
         return Promise.all(items.map(async (s, idx) => {
             const id = String(s.id ?? s.code ?? idx)
             const code = String(s.code ?? s.id ?? '')
 
             // Proxy icon URL to hide provider URLs
+            const { proxyImage } = await import('./image-proxy')
             let iconUrl = s.iconUrl ?? s.icon ?? undefined
             if (iconUrl) {
                 const result = await proxyImage(iconUrl)
@@ -940,23 +1578,38 @@ export class DynamicProvider implements SmsProvider {
         }))
     }
 
-    async getNumber(countryCode: string, serviceCode: string): Promise<NumberResult> {
-        const response = await this.request('getNumber', { country: countryCode, service: serviceCode })
+    async getNumber(countryCode: string, serviceCode: string, options?: { operator?: string; maxPrice?: string | number }): Promise<NumberResult> {
+        if (!this.shouldUseDynamic('getNumber') && this.fallback?.getNumber) {
+            return this.fallback.getNumber(countryCode, serviceCode, options)
+        }
+
+        // Build params object with consistent naming
+        const params: Record<string, string> = {
+            country: countryCode,
+            service: serviceCode
+        }
+
+        // Add optional params if provided
+        if (options?.operator) params.operator = options.operator
+        if (options?.maxPrice) params.maxPrice = String(options.maxPrice)
+
+        const response = await this.request('getNumber', params)
         const items = this.parseResponse(response, 'getNumber')
         const mapped = items[0]
+
+        if (!mapped) {
+            throw new Error(`Failed to parse number response. No data returned or mapping failed. Raw: ${JSON.stringify(this.lastRawResponse)}`)
+        }
 
         // Check for presence of ANY valid ID or phone number field
         const hasId = mapped.id || mapped.activationId || mapped.orderId
         const hasPhone = mapped.phone || mapped.phoneNumber || mapped.number
 
-        if (!mapped || (!hasId && !hasPhone)) {
+        if (!hasId && !hasPhone) {
             // Detailed error for debugging
             const missing = []
-            if (!mapped) missing.push('result=null')
-            else {
-                if (!hasId) missing.push('id/activationId')
-                if (!hasPhone) missing.push('phone/number')
-            }
+            if (!hasId) missing.push('id/activationId')
+            if (!hasPhone) missing.push('phone/number')
             throw new Error(`Failed to parse number response. Missing: ${missing.join(', ')}. Got: ${JSON.stringify(mapped)}`)
         }
 
@@ -973,14 +1626,11 @@ export class DynamicProvider implements SmsProvider {
     }
 
     async getStatus(activationId: string): Promise<StatusResult> {
-        // Handle mock activations for testing
-        if (activationId.startsWith('mock_')) {
-            console.log(`[DynamicProvider:${this.name}] Checking MOCK status for ${activationId} (No fake SMS generated)`)
-            return {
-                status: 'pending',
-                messages: []
-            }
+        if (!this.shouldUseDynamic('getStatus') && this.fallback?.getStatus) {
+            return this.fallback.getStatus(activationId)
         }
+
+
 
         const response = await this.request('getStatus', { id: activationId })
         const items = this.parseResponse(response, 'getStatus')
@@ -1010,15 +1660,70 @@ export class DynamicProvider implements SmsProvider {
     }
 
     async cancelNumber(activationId: string): Promise<void> {
+
+
+        if (!this.shouldUseDynamic('cancelNumber') && this.fallback?.cancelNumber) {
+            return this.fallback.cancelNumber(activationId)
+        }
         await this.request('cancelNumber', { id: activationId })
     }
 
+    /**
+     * Set activation status (SMS Activate protocol)
+     * 
+     * Status codes:
+     * -1: Cancel activation
+     *  1: Inform about readiness (SMS sent)
+     *  3: Request another code (retry)
+     *  6: Complete activation
+     *  8: Ban/cancel activation
+     * 
+     * Returns raw response for debugging
+     */
+    async setStatus(activationId: string, status: string | number): Promise<any> {
+        if (!this.shouldUseDynamic('setStatus') && this.fallback?.setStatus) {
+            return this.fallback.setStatus(activationId, status as any) // Status enum/string compat check might be needed
+        }
+
+        // Implementation for dynamic setStatus if endpoints exist
+        // Currently just a placeholder or could be implemented via request
+        try {
+            const response = await this.request('setStatus', { id: activationId, status: String(status) })
+            // Parse the response to get a meaningful result
+            const items = this.parseResponse(response, 'setStatus')
+            const mapped = items[0] || {}
+
+            // SMS Activate responses: ACCESS_READY, ACCESS_RETRY_GET, ACCESS_ACTIVATION, ACCESS_CANCEL
+            return {
+                raw: response.data,
+                parsed: mapped,
+                success: true
+            }
+        } catch (e: any) {
+            // Some providers might not support explicit setStatus via API in the same way 
+            // or it might be part of the request result
+            // For now we assume if request succeeds, it's done
+            if (e.message?.includes('404')) {
+                // Ignore missing endpoints for setStatus if not configured
+                return { raw: null, parsed: {}, success: false, error: e.message }
+            }
+            throw e
+        }
+    }
+
     async getBalance(): Promise<number> {
+        if (!this.shouldUseDynamic('getBalance') && this.fallback?.getBalance) {
+            return this.fallback.getBalance()
+        }
+        // If dynamic is disabled BUT no fallback exists (or fallback lacks getBalance),
+        // we default to using the Dynamic Engine logic so it works for standard providers.
+
         const response = await this.request('getBalance')
         const items = this.parseResponse(response, 'getBalance')
         const mapped = items[0] || {}
         return Number(mapped.balance || mapped.amount || mapped.value || 0)
     }
+
 
     async syncBalance(): Promise<number> {
         try {
@@ -1040,6 +1745,15 @@ export class DynamicProvider implements SmsProvider {
     }
 
     async getPrices(countryCode?: string, serviceCode?: string): Promise<PriceData[]> {
+        if (!this.shouldUseDynamic('getPrices')) {
+            // Check if fallback supports getPrices (it might not, as it's a newer interface method)
+            if ('getPrices' in (this.fallback || {})) {
+                return (this.fallback as any).getPrices(countryCode, serviceCode)
+            }
+            // For legacy providers without explicit getPrices, we normally fall back to getServices
+            // but here we just return empty or let dynamic handle it if configured
+        }
+
         const params: Record<string, string> = {}
         if (countryCode) params.country = countryCode
         if (serviceCode) params.service = serviceCode

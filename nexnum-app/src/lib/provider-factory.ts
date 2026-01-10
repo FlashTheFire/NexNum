@@ -33,7 +33,13 @@ export function getProviderAdapter(provider: Provider): SmsProvider {
         }
     }
 
-    return new DynamicProvider(provider)
+    // It is dynamic (either pure or hybrid)
+    // Create fallback if legacy provider exists
+    const normalizedName = provider.name.toLowerCase().trim()
+    const LegacyClass = LEGACY_PROVIDERS[normalizedName]
+    const fallback = LegacyClass ? new LegacyClass() : undefined
+
+    return new DynamicProvider(provider, fallback)
 }
 
 /**
@@ -54,7 +60,13 @@ export function getMetadataProvider(provider: Provider): SmsProvider {
         }
     }
 
-    return new DynamicProvider(provider)
+    // Logic for hybrid metadata is handled inside DynamicProvider's shouldUseDynamic
+    // so we just pass the fallback here too
+    const normalizedName = provider.name.toLowerCase().trim()
+    const LegacyClass = LEGACY_PROVIDERS[normalizedName]
+    const fallback = LegacyClass ? new LegacyClass() : undefined
+
+    return new DynamicProvider(provider, fallback)
 }
 
 export function hasLegacyProvider(name: string): boolean {
@@ -70,7 +82,14 @@ export function hasDynamicConfig(provider: Provider): boolean {
 
     // If it IS a legacy provider, check if dynamic mode is forced via mappings
     const mappings = provider.mappings as any
-    return mappings?.useDynamic === true
+    if (mappings?.useDynamic === true) return true
+
+    // Check granular toggles
+    if (mappings?.dynamicFunctions && Object.values(mappings.dynamicFunctions).some(v => v === true)) {
+        return true
+    }
+
+    return false
 }
 
 export function getLegacyProvider(name: string): SmsProvider | null {

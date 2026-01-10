@@ -1,48 +1,43 @@
+import pino from 'pino'
 import { getRequestId, getRequestDuration } from './request-context'
 
 export type LogLevel = 'info' | 'warn' | 'error' | 'debug'
 
-interface LogEntry {
-    level: LogLevel
-    message: string
-    requestId?: string
-    durationMs?: number
-    meta?: Record<string, any>
-    timestamp: string
-}
+const pinoLogger = pino({
+    level: process.env.LOG_LEVEL || 'info',
+    base: {
+        env: process.env.NODE_ENV,
+    },
+    transport: process.env.NODE_ENV === 'development' ? {
+        target: 'pino-pretty',
+        options: {
+            colorize: true,
+            ignore: 'pid,hostname',
+            translateTime: 'HH:MM:ss',
+        }
+    } : undefined,
+    formatters: {
+        level: (label) => {
+            return { level: label }
+        }
+    }
+})
 
 class Logger {
-    private isDev = process.env.NODE_ENV === 'development'
 
     private log(level: LogLevel, message: string, meta?: Record<string, any>) {
         const requestId = getRequestId()
         const duration = getRequestDuration()
 
-        const entry: LogEntry = {
-            level,
-            message,
+        const baseMeta = {
             requestId,
             durationMs: duration,
-            meta,
-            timestamp: new Date().toISOString(),
         }
 
-        if (this.isDev) {
-            // Pretty print in development
-            const color = {
-                info: '\x1b[36m',  // Cyan
-                warn: '\x1b[33m',  // Yellow
-                error: '\x1b[31m', // Red
-                debug: '\x1b[90m', // Gray
-            }[level]
+        const mergedMeta = meta ? { ...baseMeta, ...meta } : baseMeta
 
-            const idStr = requestId ? `\x1b[90m[${requestId}]\x1b[0m ` : ''
-            const durStr = duration ? `\x1b[90m(${duration}ms)\x1b[0m ` : ''
-            console[level](`${color}[${level.toUpperCase()}]${durStr}\x1b[0m ${idStr}${message}`, meta || '')
-        } else {
-            // JSON structured logging for production (Datadog/CloudWatch/Sentry friendly)
-            console.log(JSON.stringify(entry))
-        }
+        // Pino handles JSON stringification and formatting automatically
+        pinoLogger[level](mergedMeta, message)
     }
 
     info(message: string, meta?: Record<string, any>) {

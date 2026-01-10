@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import { useGlobalStore } from "@/store"
 import { DashboardBackground } from "../components/dashboard-background"
@@ -15,6 +15,7 @@ import ProviderSelector, { Provider } from "./components/ProviderSelector"
 export default function BuyPage() {
     const { userProfile, purchaseNumber, fetchBalance } = useGlobalStore()
     const router = useRouter()
+    const searchParams = useSearchParams()
 
     // --- State ---
     const [step, setStep] = useState<1 | 2 | 3>(1)
@@ -29,6 +30,36 @@ export default function BuyPage() {
 
     // --- Effects ---
 
+    // Auto-select product/country from URL
+    useEffect(() => {
+        const productParam = searchParams.get('service') || searchParams.get('product')
+        const selectedCountryParam = searchParams.get('selectedCountry')
+
+        if (productParam && !selectedService) {
+            // Basic normalization (e.g. "whatsapp" -> "Whatsapp")
+            const formattedName = productParam.charAt(0).toUpperCase() + productParam.slice(1)
+            setSelectedService({
+                id: productParam,
+                name: formattedName,
+                iconUrl: undefined
+            })
+
+            if (selectedCountryParam && !selectedCountry) {
+                // We don't have the ID, but we can pass the name. 
+                // We'll set the ID to the name temporarily, and let CountrySelector handle the "highlight by name" logic if possible,
+                // or we update CountrySelector to check name too.
+                setSelectedCountry({
+                    id: selectedCountryParam, // Placeholder, usually numeric but using name here
+                    name: selectedCountryParam,
+                    code: ''
+                })
+            }
+
+            // Always start at step 2 when coming from deep link to allow "others below" visibility
+            setStep(2)
+        }
+    }, [searchParams])
+
     // Reset local search and sort when changing steps
     useEffect(() => {
         setLocalSearch("")
@@ -40,11 +71,13 @@ export default function BuyPage() {
     const handleServiceSelect = (id: string, name: string, iconUrl?: string) => {
         setSelectedService({ id, name, iconUrl })
         setStep(2)
+        window.scrollTo({ top: 0, behavior: "instant" })
     }
 
     const handleCountrySelect = (country: any) => {
         setSelectedCountry(country)
         setStep(3)
+        window.scrollTo({ top: 0, behavior: "instant" })
     }
 
     const handlePurchase = async (provider: Provider) => {
@@ -56,13 +89,14 @@ export default function BuyPage() {
 
         const toastId = toast.loading("Reserving number...")
         try {
-            const result = await purchaseNumber(provider.countryCode, provider.serviceSlug)
+            // Pass provider name as restricted provider (Phase 11: Backend strictly uses this)
+            const result = await purchaseNumber(provider.countryCode, provider.serviceSlug, provider.displayName)
             if (!result.success) throw new Error(result.error || "Purchase failed")
 
             await fetchBalance()
             toast.dismiss(toastId)
             toast.success("Success!", { description: `${provider.serviceName} number is ready.` })
-            router.push(`/sms/${result.number.id}`)
+            router.push(`/sms/${result.number?.id || ''}`)
         } catch (error: any) {
             toast.dismiss(toastId)
             toast.error("Purchase Failed", { description: error.message })
@@ -70,9 +104,15 @@ export default function BuyPage() {
     }
 
     const handleBack = () => {
-        if (step === 3) setStep(2)
-        else if (step === 2) setStep(1)
-        else router.push('/dashboard')
+        if (step === 3) {
+            setStep(2)
+            window.scrollTo({ top: 0, behavior: "instant" })
+        } else if (step === 2) {
+            setStep(1)
+            window.scrollTo({ top: 0, behavior: "instant" })
+        } else {
+            router.push('/dashboard')
+        }
     }
 
     // --- UI Helpers ---
@@ -103,65 +143,69 @@ export default function BuyPage() {
                     selectedServiceIcon={selectedService?.iconUrl}
                 />
 
-                <AnimatePresence mode="wait">
-                    {/* STEP 1: SERVICE */}
-                    {step === 1 && (
-                        <motion.div
-                            key="step1"
-                            initial={{ opacity: 0, x: 20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: -20 }}
-                            transition={{ duration: 0.2 }}
-                        >
-                            <ServiceSelector
-                                selectedService={selectedService?.id || null}
-                                onSelect={handleServiceSelect}
-                                searchTerm={localSearch}
-                                sortOption={sortOption}
-                            />
-                        </motion.div>
-                    )}
+                <div className="min-h-[500px]">
+                    <AnimatePresence mode="wait">
+                        {/* STEP 1: SERVICE */}
+                        {step === 1 && (
+                            <motion.div
+                                key="step1"
+                                initial={{ opacity: 0, x: 20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -20 }}
+                                transition={{ duration: 0.2 }}
+                            >
+                                <ServiceSelector
+                                    selectedService={selectedService?.id || null}
+                                    defaultSelected={selectedService}
+                                    onSelect={handleServiceSelect}
+                                    searchTerm={localSearch}
+                                    sortOption={sortOption}
+                                />
+                            </motion.div>
+                        )}
 
-                    {/* STEP 2: COUNTRY */}
-                    {step === 2 && (
-                        <motion.div
-                            key="step2"
-                            initial={{ opacity: 0, x: 20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: -20 }}
-                            transition={{ duration: 0.2 }}
-                        >
-                            <CountrySelector
-                                onSelect={handleCountrySelect}
-                                selectedCountryId={selectedCountry?.id}
-                                searchTerm={localSearch}
-                                selectedServiceName={selectedService?.name}
-                                sortOption={sortOption}
-                            />
-                        </motion.div>
-                    )}
+                        {/* STEP 2: COUNTRY */}
+                        {step === 2 && (
+                            <motion.div
+                                key="step2"
+                                initial={{ opacity: 0, x: 20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -20 }}
+                                transition={{ duration: 0.2 }}
+                            >
+                                <CountrySelector
+                                    onSelect={handleCountrySelect}
+                                    selectedCountryId={selectedCountry?.id}
+                                    defaultSelected={selectedCountry}
+                                    searchTerm={localSearch}
+                                    selectedServiceName={selectedService?.name}
+                                    sortOption={sortOption}
+                                />
+                            </motion.div>
+                        )}
 
-                    {/* STEP 3: PROVIDERS */}
-                    {step === 3 && selectedService && selectedCountry && (
-                        <motion.div
-                            key="step3"
-                            initial={{ opacity: 0, x: 20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: -20 }}
-                            transition={{ duration: 0.2 }}
-                        >
-                            <ProviderSelector
-                                serviceCode={selectedService.id}
-                                serviceName={selectedService.name}
-                                countryCode={selectedCountry.code || selectedCountry.id}
-                                countryName={selectedCountry.name}
-                                onBuy={handlePurchase}
-                                sortOption={sortOption}
-                                serviceIcon={selectedService.iconUrl}
-                            />
-                        </motion.div>
-                    )}
-                </AnimatePresence>
+                        {/* STEP 3: PROVIDERS */}
+                        {step === 3 && selectedService && selectedCountry && (
+                            <motion.div
+                                key="step3"
+                                initial={{ opacity: 0, x: 20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -20 }}
+                                transition={{ duration: 0.2 }}
+                            >
+                                <ProviderSelector
+                                    serviceCode={selectedService.id}
+                                    serviceName={selectedService.name}
+                                    countryCode={selectedCountry.code || selectedCountry.id}
+                                    countryName={selectedCountry.name}
+                                    onBuy={handlePurchase}
+                                    sortOption={sortOption}
+                                    serviceIcon={selectedService.iconUrl}
+                                />
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
             </div>
         </div>
     )

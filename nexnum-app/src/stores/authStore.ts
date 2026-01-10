@@ -6,6 +6,7 @@ interface AuthState {
     isAuthenticated: boolean;
     isLoading: boolean;
     error: string | null;
+    lastAuthCheck: number;
 
     // Actions
     login: (email: string, password: string) => Promise<boolean>;
@@ -82,6 +83,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     isAuthenticated: false,
     isLoading: true,
     error: null,
+    lastAuthCheck: 0, // Timestamp of last successful verification
 
     login: async (email: string, password: string) => {
         set({ isLoading: true, error: null });
@@ -115,6 +117,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 isAuthenticated: true,
                 isLoading: false,
                 error: null,
+                lastAuthCheck: Date.now(), // update timestamp
             });
 
             return true;
@@ -159,6 +162,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 isAuthenticated: true,
                 isLoading: false,
                 error: null,
+                lastAuthCheck: Date.now(), // update timestamp
             });
 
             return true;
@@ -192,12 +196,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             isAuthenticated: false,
             isLoading: false,
             error: null,
+            lastAuthCheck: 0,
         });
     },
 
     checkAuth: async () => {
         const token = getToken();
         const cachedUser = getCachedUser();
+        const { lastAuthCheck, isAuthenticated } = get();
 
         // If no token, clear auth state
         if (!token) {
@@ -206,12 +212,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 token: null,
                 isAuthenticated: false,
                 isLoading: false,
+                lastAuthCheck: 0,
             });
             return;
         }
 
+        // THROTTLE: If already authenticated and checked recently (< 45s), skip
+        const now = Date.now();
+        if (isAuthenticated && (now - lastAuthCheck < 45000)) {
+            // Just ensure loading is false
+            set({ isLoading: false });
+            return;
+        }
+
         // If we have cached user, use it immediately (optimistic)
-        if (cachedUser) {
+        if (cachedUser && !isAuthenticated) {
             set({
                 user: cachedUser,
                 token,
@@ -237,6 +252,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                         token: null,
                         isAuthenticated: false,
                         isLoading: false,
+                        lastAuthCheck: 0,
                     });
                 } else {
                     // Server error (500) or other - keep state but log error
@@ -256,6 +272,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 token,
                 isAuthenticated: true,
                 isLoading: false,
+                lastAuthCheck: Date.now(), // Update timestamp
             });
         } catch (error) {
             // Network error - if we have cached user, stay logged in
@@ -274,6 +291,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                     token: null,
                     isAuthenticated: false,
                     isLoading: false,
+                    lastAuthCheck: 0,
                 });
             }
         }

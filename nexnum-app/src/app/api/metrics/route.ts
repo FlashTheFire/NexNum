@@ -1,27 +1,17 @@
-/**
- * Metrics Endpoint - Prometheus Scraping
- * 
- * GET /api/metrics - Returns Prometheus-format metrics
- */
-
+import { registry } from '@/lib/metrics'
 import { NextResponse } from 'next/server'
-import { getMetrics, getMetricsContentType } from '@/lib/metrics'
+
+export const dynamic = 'force-dynamic'
 
 export async function GET() {
     try {
-        const metrics = await getMetrics()
-
+        const metrics = await registry.metrics()
         return new NextResponse(metrics, {
-            status: 200,
             headers: {
-                'Content-Type': getMetricsContentType()
+                'Content-Type': registry.contentType
             }
         })
-    } catch (error) {
-        console.error('Metrics error:', error)
-        return NextResponse.json(
-            { error: 'Failed to collect metrics' },
-            { status: 500 }
-        )
+    } catch (err) {
+        return NextResponse.json({ error: 'Metrics error' }, { status: 500 })
     }
 }

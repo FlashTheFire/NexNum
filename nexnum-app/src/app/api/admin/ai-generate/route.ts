@@ -85,25 +85,48 @@ interface ProviderConfig {
     }
   };
 
-  // Map of Key -> MappingConfig (ENHANCED)
+  // Map of Key -> MappingConfig (ENHANCED WITH NEW TYPES)
   mappings: {
     [key in 'getCountries' | 'getServices' | 'getNumber' | 'getStatus' | 'cancelNumber' | 'getBalance' | 'getPrices']: {
-      type: 'json_object' | 'json_array' | 'json_dictionary' | 'text_regex' | 'text_lines';
+      // ALL AVAILABLE RESPONSE TYPES:
+      type: 
+        | 'json_object'           // Single JSON object response
+        | 'json_array'            // Array of objects
+        | 'json_dictionary'       // Object with keys as IDs (recursive)
+        | 'json_value'            // Single primitive value (number, string, boolean)
+        | 'json_array_positional' // Array with position-based field mapping
+        | 'json_keyed_value'      // Key=ID, Value=primitive or object
+        | 'json_nested_array'     // 2D array (table-like data)
+        | 'text_regex'            // Plain text parsed with regex
+        | 'text_lines';           // Line-separated text
+      
       rootPath?: string; // Optional JMESPath/DotPath for JSON
       regex?: string; // REQUIRED for text_regex. Use Named Capture Groups!
       
-      // NEW: Fields now support fallback chains using pipe syntax
-      fields: Record<string, string>; // Map internal field to extraction path/group
+      // Standard field mappings (supports fallback chains: "cost|price|amount")
+      fields: Record<string, string>;
       
-      // NEW: Multi-level extraction config (for nested structures)
+      // NEW: For json_value - target field name for single value
+      valueField?: string; // e.g., "balance" wraps value as { balance: 123.45 }
+      
+      // NEW: For json_array_positional - map array indices to field names
+      positionFields?: Record<string, string>; // e.g., { "0": "id", "1": "phone", "2": "price" }
+      
+      // NEW: For json_keyed_value - dictionary key becomes this field
+      keyField?: string; // e.g., "activationId"
+      
+      // NEW: For json_nested_array - first row contains headers
+      headerRow?: boolean; // If true, first array element is field names
+      
+      // Multi-level extraction config (for nested structures)
       nestingLevels?: {
-        extractOperators?: boolean; // Extract nested operators (e.g., country>service>operator)
-        providersKey?: string; // Special key for providers object (e.g., "providers")
+        extractOperators?: boolean;
+        providersKey?: string;
       };
       
-      // NEW: Field fallback chains (alternative to pipe syntax)
+      // Field fallback chains (alternative to pipe syntax)
       fieldFallbacks?: {
-        [targetField: string]: string[]; // Try each path in order
+        [targetField: string]: string[];
       };
     }
   };
@@ -183,6 +206,47 @@ ${PROVIDER_CONTEXT_DOCS}
    - \`$key\`: The immediate key (Operator ID / Provider ID).
    - \`$parentKey\`: The parent key (Service Code).
    - \`$grandParentKey\`: The grandparent key (Country Code).
+
+### 🔧 SPECIAL ACCESSORS (FULL REFERENCE)
+
+#### Array/Collection Accessors:
+- \`$first\` / \`$last\` - First/last element
+- \`$firstKey\` / \`$lastKey\` - First/last key of object
+- \`$firstValue\` / \`$lastValue\` - First/last value of object
+- \`$values\` / \`$keys\` - All values/keys as array
+- \`$length\` / \`$count\` - Length of array/object
+- \`$sum\` / \`$avg\` / \`$min\` / \`$max\` - Numeric operations
+- \`$unique\` - Deduplicate array
+- \`$flatten\` - Flatten nested arrays
+- \`$reverse\` / \`$sort\` - Reorder array
+- \`$slice:0:5\` - Get subset (first 5 items)
+- \`$join:,\` - Join with separator
+
+#### String Manipulation:
+- \`$lowercase\` / \`$uppercase\` - Case conversion
+- \`$trim\` - Remove whitespace
+- \`$split:,\` - Split to array
+- \`$replace:old:new\` - Replace substring
+- \`$substring:0:5\` - Get substring
+- \`$padStart:5:0\` / \`$padEnd:5:0\` - Pad string
+
+#### Type Conversion:
+- \`$number\` / \`$int\` / \`$float\` - To number
+- \`$string\` / \`$str\` - To string
+- \`$boolean\` / \`$bool\` - To boolean
+- \`$json\` - Parse JSON string
+- \`$stringify\` - Convert to JSON string
+
+#### Conditional:
+- \`$default:value\` - Default if null/undefined
+- \`$ifEmpty:value\` - Default if empty string
+- \`$exists\` - Returns true/false
+
+#### Object:
+- \`$entries\` - Get [key, value] pairs
+- \`$pick:a,b,c\` - Keep only specified keys
+- \`$omit:a,b,c\` - Exclude specified keys
+- \`$type\` - Get JavaScript type ("string", "number", "array", etc.)
 
 ### 💎 PRO FEATURES (ADVANCED)
 
@@ -285,6 +349,55 @@ ${PROVIDER_CONTEXT_DOCS}
   }
 }
 \`\`\`
+
+#### STRATEGY E: SINGLE VALUE RESPONSE (json_value)
+*Response:* \`123.45\` or \`{"balance": 123.45}\`
+*Use Case:* Balance checks, simple status responses
+\`\`\`json
+{
+  "type": "json_value",
+  "valueField": "balance"
+}
+\`\`\`
+*Result:* \`{ balance: 123.45 }\`
+
+#### STRATEGY F: POSITIONAL ARRAY (json_array_positional)
+*Response:* \`["12345", "+15551234", "0.50"]\` or \`[["id1", "phone1"], ["id2", "phone2"]]\`
+*Use Case:* Compact responses where fields are indexed by position
+\`\`\`json
+{
+  "type": "json_array_positional",
+  "positionFields": {
+    "0": "activationId",
+    "1": "phoneNumber",
+    "2": "price"
+  }
+}
+\`\`\`
+*Result:* \`{ activationId: "12345", phoneNumber: "+15551234", price: "0.50" }\`
+
+#### STRATEGY G: KEY-VALUE DICTIONARY (json_keyed_value)
+*Response:* \`{ "12345": "pending", "12346": "received" }\`
+*Use Case:* Batch status lookups where key is the ID
+\`\`\`json
+{
+  "type": "json_keyed_value",
+  "keyField": "activationId",
+  "valueField": "status"
+}
+\`\`\`
+*Result:* \`[{ activationId: "12345", status: "pending" }, { activationId: "12346", status: "received" }]\`
+
+#### STRATEGY H: TABLE DATA (json_nested_array)
+*Response:* \`[["id","phone","price"], ["123","+1555","0.5"], ["456","+1666","0.7"]]\`
+*Use Case:* CSV-like or spreadsheet data with headers
+\`\`\`json
+{
+  "type": "json_nested_array",
+  "headerRow": true
+}
+\`\`\`
+*Result:* \`[{ id: "123", phone: "+1555", price: "0.5" }, { id: "456", phone: "+1666", price: "0.7" }]\`
 
 ### 🛑 CRITICAL FIELD RULES
 - **cost**: MUST use fallback chain: "cost|price|amount|rate|value".

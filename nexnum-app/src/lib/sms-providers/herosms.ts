@@ -86,7 +86,7 @@ export class HeroSmsProvider implements SmsProvider {
             results.push({
                 id: finalCode,
                 name: norm.displayName,
-                flagUrl: id ? `https://cdn.hero-sms.com/assets/img/country/${id}.svg` : null
+
             })
         }
 
@@ -113,7 +113,6 @@ export class HeroSmsProvider implements SmsProvider {
                 iconUrl: s.code ? `https://cdn.hero-sms.com/assets/img/service/${s.code}0.webp` : null
             })
         }
-
         return services
     }
 }

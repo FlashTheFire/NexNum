@@ -1,17 +1,52 @@
 import metadata from './metadata.json'
+import countriesMetadata from './countries-metadata.json'
 
 /**
  * Country Name Normalizer & Phone Code Lookup
  */
 
-// Provider ID → ISO Code mapping
-export const PROVIDER_ID_TO_ISO: Record<string, string> = metadata.providerIdToIso
-
-// Country Name Mapping
+// Country Name Mapping (Aliases)
 export const COUNTRY_NAME_MAP: Record<string, string> = metadata.countryNameMap
 
 // Variant patterns (virtual, numbered versions)
 const VARIANT_PATTERN = /^(.+?)\s*\((?:virtual|v|[0-9]+)\)$/i
+
+// Circle-flags base URL
+const FLAG_BASE = "https://raw.githubusercontent.com/HatScripts/circle-flags/gh-pages/flags"
+
+/**
+ * Get ISO 3166-1 alpha-2 code from country name or provider code
+ * Uses local metadata.json mappings (faster than external API)
+ */
+
+// Name -> ISO map (Generated from universal countries-metadata.json)
+const NAME_TO_ISO: Record<string, string> = {}
+countriesMetadata.forEach(c => {
+    NAME_TO_ISO[c.name.toLowerCase()] = c['alpha-2']
+})
+
+export function getCountryIsoCode(input: string): string | undefined {
+    if (!input) return undefined
+    const normalized = input.toLowerCase().trim()
+
+    // 1. Check if it's already a 2-letter ISO code
+    if (/^[a-z]{2}$/.test(normalized)) {
+        return normalized
+    }
+
+    // 2. Check if it's a known country name (PRIORITY)
+    const fromName = NAME_TO_ISO[normalized]
+    if (fromName) return fromName
+
+    // 3. Check for name aliases in COUNTRY_NAME_MAP
+    const alias = COUNTRY_NAME_MAP[normalized]
+    if (alias) {
+        const fromAlias = NAME_TO_ISO[alias.toLowerCase()]
+        if (fromAlias) return fromAlias
+    }
+
+    return undefined
+}
 
 /**
  * Parse a raw country name and extract base name + variant
@@ -87,6 +122,9 @@ export interface AggregatedCountry {
     rawNames: string[]
     variants: string[]  // Only real variants like "(virtual)" or "(2)"
     variantCount: number  // Count of actual variants
+    region?: string
+    subRegion?: string
+    intermediateRegion?: string
     providers: Array<{
         provider: string
         externalId: string
@@ -110,12 +148,16 @@ export function aggregateCountries(
         const key = normalized.canonical.toLowerCase()
 
         if (!groups.has(key)) {
+            const meta = countriesMetadata.find(cm => cm.name.toLowerCase() === key || cm['alpha-2'] === key)
             groups.set(key, {
                 canonicalName: normalized.canonical,
                 displayName: normalized.canonical,
                 rawNames: [],
                 variants: [],
                 variantCount: 0,
+                region: meta?.region,
+                subRegion: meta?.['sub-region'],
+                intermediateRegion: meta?.['intermediate-region'],
                 providers: [],
                 lastSyncedAt: new Date(c.lastSyncedAt)
             })

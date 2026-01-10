@@ -37,9 +37,10 @@ export const topupSchema = z.object({
 export const purchaseNumberSchema = z.object({
     countryCode: z.string().min(1, 'Country identifier is required'),
     serviceCode: z.string().min(1, 'Service code is required'),
+    operatorId: z.number().int().optional(),
     provider: z.string().optional(),
     idempotencyKey: z.string().uuid('Invalid idempotency key'),
-    testMode: z.boolean().optional(),
+
 })
 
 export const searchNumbersSchema = z.object({

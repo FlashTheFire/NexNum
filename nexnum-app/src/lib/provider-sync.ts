@@ -23,6 +23,8 @@ import { RateLimitedQueue } from './async-utils'
 import { getLegacyProvider, hasLegacyProvider } from './provider-factory'
 import { refreshAllServiceAggregates } from './service-aggregates'
 import { resolveToCanonicalName, getSlugFromName } from './service-identity'
+import { getCountryIsoCode } from './country-normalizer'
+import { getCountryFlagUrlSync } from './country-flags'
 import { isValidImageUrl } from './utils'
 
 // ============================================
@@ -79,11 +81,11 @@ async function getCountriesLegacy(provider: Provider, engine: DynamicProvider): 
                 const results: { code: string, name: string, flagUrl?: string | null }[] = []
 
                 for (const c of countries) {
-                    await upsertCountryLookup(c.id, c.name, c.flagUrl)
+                    await upsertCountryLookup(c.id, c.name, null)
                     results.push({
                         code: c.id,
                         name: c.name,
-                        flagUrl: c.flagUrl
+                        flagUrl: null
                     })
                 }
                 return results
@@ -95,7 +97,7 @@ async function getCountriesLegacy(provider: Provider, engine: DynamicProvider): 
     return dynamicCountries.map(c => ({
         code: c.code,
         name: c.name,
-        flagUrl: c.flagUrl
+        flagUrl: null
     }))
 }
 
@@ -278,9 +280,10 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
             console.log(`[SYNC] ${provider.name}: Upserting ${countries.length} countries to DB...`)
             for (const c of countries) {
                 const canonicalName = resolveToCanonicalName(c.name || 'Unknown')
-                const canonicalCode = getSlugFromName(canonicalName)
+                const canonicalCode = getCountryIsoCode(c.code) || getSlugFromName(canonicalName)
 
-                const validFlagUrl = isValidImageUrl(c.flag) ? c.flag : null
+                const metaFlagUrl = getCountryFlagUrlSync(c.code)
+                const validFlagUrl = metaFlagUrl || (isValidImageUrl(c.flag) ? c.flag : null)
                 const record = await prisma.providerCountry.upsert({
                     where: { providerId_externalId: { providerId: provider.id, externalId: c.code } },
                     create: {
@@ -450,10 +453,10 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
                                 id: `${provider.name}_${p.country}_${p.service}_${externalOp}`.toLowerCase().replace(/[^a-z0-9_]/g, ''),
                                 provider: provider.name,
                                 displayName: provider.displayName,
-                                countryCode: getSlugFromName(canonicalCtyName),
+                                countryCode: p.country, // STRICT: Use raw ID from pricing data
                                 countryName: canonicalCtyName,
-                                flagUrl: country.flagUrl || '',
-                                serviceSlug: getSlugFromName(canonicalSvcName),
+                                flagUrl: getCountryFlagUrlSync(canonicalCtyName) || country.flagUrl || '',
+                                serviceSlug: p.service, // STRICT: Use raw ID from pricing data (e.g. "wr")
                                 serviceName: canonicalSvcName,
                                 iconUrl: iconUrlMap.get(p.service) || iconUrlMap.get(p.service.toLowerCase()),
                                 // Operator fields

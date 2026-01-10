@@ -82,12 +82,18 @@ export function DesktopDashboard() {
     const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening"
 
     // Stats Logic
-    const totalSpent = transactions.filter(t => t.type === "purchase").reduce((sum, t) => sum + Math.abs(t.amount), 0)
-    const totalDeposit = transactions.filter(t => t.type === "topup").reduce((sum, t) => sum + t.amount, 0)
+    // Stats Logic
+    const totalSpent = transactions
+        .filter(t => ['purchase', 'manual_debit'].includes(t.type))
+        .reduce((sum, t) => sum + Math.abs(t.amount), 0)
+
+    const totalDeposit = transactions
+        .filter(t => ['topup', 'manual_credit', 'referral_bonus'].includes(t.type))
+        .reduce((sum, t) => sum + Math.abs(t.amount), 0)
 
     const stats = [
         { label: "Total Balance", value: formatPrice(userProfile?.balance || 0), icon: Wallet, color: "text-[hsl(var(--neon-lime))]", bg: "bg-[hsl(var(--neon-lime)/0.1)]", border: "border-[hsl(var(--neon-lime)/0.2)]" },
-        { label: "Active Numbers", value: activeNumbers.length, icon: Phone, color: "text-cyan-400", bg: "bg-cyan-400/10", border: "border-cyan-400/20" },
+        { label: "My Numbers", value: activeNumbers.length, icon: Phone, color: "text-cyan-400", bg: "bg-cyan-400/10", border: "border-cyan-400/20" },
         { label: "Total Spent", value: formatPrice(totalSpent), icon: ShoppingCart, color: "text-purple-400", bg: "bg-purple-400/10", border: "border-purple-400/20" },
         { label: "Total Deposited", value: formatPrice(totalDeposit), icon: TrendingUp, color: "text-emerald-400", bg: "bg-emerald-400/10", border: "border-emerald-400/20" },
     ]
@@ -251,7 +257,7 @@ export function DesktopDashboard() {
                             <div className="p-8 border-b border-white/[0.03] flex items-center justify-between">
                                 <div>
                                     <div className="flex items-center gap-2 mb-1">
-                                        <h3 className="text-xl font-bold text-white">Active Numbers</h3>
+                                        <h3 className="text-xl font-bold text-white">My Numbers</h3>
                                         <Badge variant="outline" className="border-[hsl(var(--neon-lime)/0.3)] text-[hsl(var(--neon-lime))] text-[10px] uppercase">
                                             Vault
                                         </Badge>
@@ -275,10 +281,12 @@ export function DesktopDashboard() {
                                             <DashboardNumberCard
                                                 key={num.id}
                                                 id={num.id}
-                                                number={num.phoneNumber}
+                                                number={(num as any).phoneNumber || (num as any).number}
                                                 countryCode={num.countryCode}
                                                 countryName={num.countryName}
+                                                countryIconUrl={num.countryIconUrl}
                                                 serviceName={num.serviceName}
+                                                serviceIconUrl={num.serviceIconUrl}
                                                 smsCount={num.smsCount}
                                                 expiresAt={num.expiresAt}
                                                 status={num.status}
@@ -344,8 +352,8 @@ export function DesktopDashboard() {
                                 {transactions.slice(0, 4).map((tx, i) => (
                                     <div key={i} className="group flex items-center justify-between p-3 rounded-2xl hover:bg-white/[0.03] transition-colors cursor-default">
                                         <div className="flex items-center gap-4">
-                                            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center border border-white/[0.05] ${tx.type === 'topup' ? 'bg-emerald-500/5 text-emerald-500' : 'bg-red-500/5 text-red-500'}`}>
-                                                {tx.type === 'topup' ? <TrendingUp className="h-5 w-5" /> : <ShoppingCart className="h-5 w-5" />}
+                                            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center border border-white/[0.05] ${['topup', 'manual_credit', 'referral_bonus', 'refund'].includes(tx.type) ? 'bg-emerald-500/5 text-emerald-500' : 'bg-red-500/5 text-red-500'}`}>
+                                                {['topup', 'manual_credit', 'referral_bonus', 'refund'].includes(tx.type) ? <TrendingUp className="h-5 w-5" /> : <ShoppingCart className="h-5 w-5" />}
                                             </div>
                                             <div>
                                                 <p className="text-sm font-medium text-white group-hover:text-white/90">{tx.description}</p>
@@ -353,8 +361,8 @@ export function DesktopDashboard() {
                                             </div>
                                         </div>
                                         <div className="text-right">
-                                            <span className={`block text-sm font-mono font-bold ${tx.type === 'topup' ? 'text-emerald-400' : 'text-white'}`}>
-                                                {tx.type === 'topup' ? '+' : ''}{formatPrice(tx.amount)}
+                                            <span className={`block text-sm font-mono font-bold ${['topup', 'manual_credit', 'referral_bonus', 'refund'].includes(tx.type) ? 'text-emerald-400' : 'text-white'}`}>
+                                                {['topup', 'manual_credit', 'referral_bonus', 'refund'].includes(tx.type) ? '+' : ''}{formatPrice(tx.amount)}
                                             </span>
                                             <span className="text-[10px] text-gray-600 uppercase tracking-wider font-medium">{tx.status || 'Done'}</span>
                                         </div>

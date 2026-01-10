@@ -9,6 +9,7 @@ const withBundleAnalyzer = bundleAnalyzer({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     // Performance optimizations
+    output: 'standalone',
     reactStrictMode: true,
     poweredByHeader: false,
 
@@ -60,6 +61,9 @@ const sentryWebpackPluginOptions = {
     hideSourceMaps: true,
     disableLogger: true,
     tunnelRoute: "/monitoring",
+
+    // Don't attempt to upload source maps if we don't have a token (e.g. local dev)
+    dryRun: !process.env.SENTRY_AUTH_TOKEN,
 };
 
 // Apply configurations conditionally

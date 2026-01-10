@@ -60,10 +60,13 @@ export default function DashboardLayout({
     useEffect(() => {
         if (isAuthenticated && !isLoading) {
             fetchBalance()
-            fetchNumbers()
+            // Only fetch numbers on exact /dashboard route (not sub-routes)
+            if (pathname === '/dashboard') {
+                fetchNumbers()
+            }
             fetchTransactions()
         }
-    }, [isAuthenticated, isLoading, fetchBalance, fetchNumbers, fetchTransactions])
+    }, [isAuthenticated, isLoading, pathname, fetchBalance, fetchNumbers, fetchTransactions])
 
     // Background Polling (Logical & Professional Advance)
     useEffect(() => {
@@ -71,12 +74,15 @@ export default function DashboardLayout({
 
         const interval = setInterval(() => {
             fetchBalance()
-            fetchNumbers()
+            // Only poll numbers on exact /dashboard route
+            if (pathname === '/dashboard') {
+                fetchNumbers()
+            }
             // No need to poll transactions as frequently, but can if needed
         }, 20000) // 20 seconds
 
         return () => clearInterval(interval)
-    }, [isAuthenticated, isLoading, fetchBalance, fetchNumbers])
+    }, [isAuthenticated, isLoading, pathname, fetchBalance, fetchNumbers])
 
     useEffect(() => {
         if (!isLoading && !isAuthenticated) {

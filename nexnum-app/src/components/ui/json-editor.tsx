@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useRef, useCallback, useEffect } from "react"
+import React, { useState, useRef, useCallback, useEffect, useLayoutEffect } from "react"
 import { cn } from "@/lib/utils"
 import { Copy, Check, Maximize2, Minimize2, AlertTriangle } from "lucide-react"
 
@@ -24,7 +24,13 @@ const TOKEN_COLORS = {
     punctuation: "#808080",   // Gray - : ,
 }
 
+// Robust Regex for JSON syntax highlighting
+// Matches: Strings (escaping handled), Keys (string followed by colon), Keywords, Numbers, Separators
+// NOTE: We strictly forbid newlines inside strings `[^"\\\n]` to prevent unclosed quotes from swallowing the rest of the document (glitching)
+const JSON_REGEX = /("(\\.|[^"\\\n])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?|[{}\[\],:])/g
+
 function syntaxHighlight(json: string): string {
+    if (!json) return ''
     try {
         // First try to parse and re-stringify for proper formatting check
         const escaped = json
@@ -32,29 +38,27 @@ function syntaxHighlight(json: string): string {
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;')
 
-        return escaped.replace(
-            /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?|[{}\[\],:])/g,
-            (match) => {
-                let color = TOKEN_COLORS.number
-                if (/^"/.test(match)) {
-                    if (/:$/.test(match)) {
-                        // Key
-                        color = TOKEN_COLORS.key
-                    } else {
-                        // String value
-                        color = TOKEN_COLORS.string
-                    }
-                } else if (/true|false/.test(match)) {
-                    color = TOKEN_COLORS.boolean
-                } else if (/null/.test(match)) {
-                    color = TOKEN_COLORS.null
-                } else if (/[{}\[\]]/.test(match)) {
-                    color = TOKEN_COLORS.bracket
-                } else if (/[:,]/.test(match)) {
-                    color = TOKEN_COLORS.punctuation
+        return escaped.replace(JSON_REGEX, (match) => {
+            let color = TOKEN_COLORS.number
+            if (/^"/.test(match)) {
+                if (/:$/.test(match)) {
+                    // Key
+                    color = TOKEN_COLORS.key
+                } else {
+                    // String value
+                    color = TOKEN_COLORS.string
                 }
-                return `<span style="color:${color}">${match}</span>`
+            } else if (/true|false/.test(match)) {
+                color = TOKEN_COLORS.boolean
+            } else if (/null/.test(match)) {
+                color = TOKEN_COLORS.null
+            } else if (/[{}\[\]]/.test(match)) {
+                color = TOKEN_COLORS.bracket
+            } else if (/[:,]/.test(match)) {
+                color = TOKEN_COLORS.punctuation
             }
+            return `<span style="color:${color}">${match}</span>`
+        }
         )
     } catch {
         return json
@@ -62,6 +66,7 @@ function syntaxHighlight(json: string): string {
 }
 
 function addLineNumbers(html: string): string {
+    if (!html) return ''
     const lines = html.split('\n')
     return lines.map((line, i) => {
         const lineNum = `<span class="line-number">${i + 1}</span>`
@@ -77,11 +82,13 @@ export function JsonEditor({
     minHeight = "150px",
     maxHeight = "400px"
 }: JsonEditorProps) {
+    const safeValue = value || ''
     const textareaRef = useRef<HTMLTextAreaElement>(null)
     const preRef = useRef<HTMLPreElement>(null)
     const [copied, setCopied] = useState(false)
     const [isExpanded, setIsExpanded] = useState(false)
     const [isValid, setIsValid] = useState(true)
+    const [errorMessage, setErrorMessage] = useState<string>("")
     const [isFocused, setIsFocused] = useState(false)
 
     // Validate JSON
@@ -91,16 +98,18 @@ export function JsonEditor({
                 JSON.parse(json)
             }
             setIsValid(true)
+            setErrorMessage("")
             return true
-        } catch {
+        } catch (e: any) {
             setIsValid(false)
+            setErrorMessage(e.message || "Invalid JSON")
             return false
         }
     }, [])
 
     useEffect(() => {
-        validateJson(value)
-    }, [value, validateJson])
+        validateJson(safeValue)
+    }, [safeValue, validateJson])
 
     // Sync scroll between textarea and highlighted pre
     const handleScroll = () => {
@@ -110,27 +119,32 @@ export function JsonEditor({
         }
     }
 
+    // Force scroll sync on every render/update to prevent desync
+    useLayoutEffect(() => {
+        handleScroll()
+    })
+
     const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const newValue = e.target.value
         onChange?.(newValue)
     }
 
     const handleCopy = async () => {
-        await navigator.clipboard.writeText(value)
+        await navigator.clipboard.writeText(safeValue)
         setCopied(true)
         setTimeout(() => setCopied(false), 2000)
     }
 
     const formatJson = () => {
         try {
-            const parsed = JSON.parse(value)
+            const parsed = JSON.parse(safeValue)
             onChange?.(JSON.stringify(parsed, null, 2))
         } catch {
             // Already invalid
         }
     }
 
-    const highlightedHtml = addLineNumbers(syntaxHighlight(value))
+    const highlightedHtml = addLineNumbers(syntaxHighlight(safeValue))
 
     return (
         <div className={cn(
@@ -150,7 +164,10 @@ export function JsonEditor({
                     </div>
                     <span className="text-[11px] text-white/40 font-medium tracking-wide">JSON</span>
                     {!isValid && (
-                        <div className="flex items-center gap-1.5 text-[11px] text-red-400 bg-red-500/10 px-2 py-0.5 rounded-md">
+                        <div
+                            className="flex items-center gap-1.5 text-[11px] text-red-400 bg-red-500/10 px-2 py-0.5 rounded-md cursor-help"
+                            title={errorMessage}
+                        >
                             <AlertTriangle className="w-3 h-3" />
                             Invalid
                         </div>
@@ -208,7 +225,7 @@ export function JsonEditor({
                 <textarea
                     aria-label="JSON Editor"
                     ref={textareaRef}
-                    value={value}
+                    value={safeValue}
                     onChange={handleChange}
                     onScroll={handleScroll}
                     onFocus={() => setIsFocused(true)}
@@ -236,8 +253,8 @@ export function JsonEditor({
             {/* Status bar */}
             <div className="flex items-center justify-between px-3 py-1.5 bg-[#252528] border-t border-white/5 text-[10px] text-white/30">
                 <div className="flex items-center gap-4">
-                    <span>Lines: {value.split('\n').length}</span>
-                    <span>Chars: {value.length}</span>
+                    <span>Lines: {safeValue.split('\n').length}</span>
+                    <span>Chars: {safeValue.length}</span>
                 </div>
                 <span className="text-white/20">UTF-8</span>
             </div>
@@ -250,7 +267,7 @@ export function JsonEditor({
                 }
                 .line-number {
                     display: inline-block;
-                    width: 2.5rem;
+                    width: 2.25rem;
                     padding-right: 0.75rem;
                     text-align: right;
                     color: rgba(255,255,255,0.2);

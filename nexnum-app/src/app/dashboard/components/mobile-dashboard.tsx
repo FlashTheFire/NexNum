@@ -1,10 +1,11 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useGlobalStore } from "@/store"
 import { useAuthStore } from "@/stores/authStore"
 import { formatPrice } from "@/lib/utils"
+import { getCountryFlagUrlSync } from "@/lib/country-flags"
 import Link from "next/link"
 import {
     Wallet,
@@ -35,6 +36,12 @@ export function MobileDashboard() {
     const [scrolled, setScrolled] = useState(false)
     const [activeCardIndex, setActiveCardIndex] = useState(0)
     const scrollContainerRef = useRef<HTMLDivElement>(null)
+    const [now, setNow] = useState(Date.now())
+
+    useEffect(() => {
+        const interval = setInterval(() => setNow(Date.now()), 1000)
+        return () => clearInterval(interval)
+    }, [])
 
     // Greeting
     const hour = new Date().getHours()
@@ -43,8 +50,8 @@ export function MobileDashboard() {
     // Carousel Logic
     const [activeMetric, setActiveMetric] = useState(0)
 
-    const totalSpent = transactions.filter(t => t.type === "purchase").reduce((sum, t) => sum + Math.abs(t.amount), 0)
-    const totalDeposit = transactions.filter(t => t.type === "topup").reduce((sum, t) => sum + t.amount, 0)
+    const totalSpent = transactions.filter(t => ['purchase', 'manual_debit'].includes(t.type)).reduce((sum, t) => sum + Math.abs(t.amount), 0)
+    const totalDeposit = transactions.filter(t => ['topup', 'manual_credit', 'referral_bonus'].includes(t.type)).reduce((sum, t) => sum + t.amount, 0)
 
     const metrics = [
         {
@@ -258,7 +265,7 @@ export function MobileDashboard() {
                     className="space-y-4"
                 >
                     <div className="flex items-center justify-between px-1">
-                        <h3 className="text-lg font-semibold text-white">Active Numbers</h3>
+                        <h3 className="text-lg font-semibold text-white">My Numbers</h3>
                         <Link href="/dashboard/vault">
                             <Button variant="link" className="text-[hsl(var(--neon-lime))] text-xs h-auto p-0 hover:no-underline">
                                 View All <ArrowUpRight className="ml-1 h-3 w-3" />
@@ -266,7 +273,7 @@ export function MobileDashboard() {
                         </Link>
                     </div>
 
-                    {activeNumbers.filter(n => ['active', 'received'].includes(n.status || '')).length > 0 ? (
+                    {activeNumbers.length > 0 ? (
                         <>
                             <div
                                 ref={scrollContainerRef}
@@ -276,14 +283,14 @@ export function MobileDashboard() {
                                     const scrollLeft = container.scrollLeft;
                                     const cardWidth = 240 + 16; // card width + gap
                                     const index = Math.round(scrollLeft / cardWidth);
-                                    setActiveCardIndex(Math.min(index, activeNumbers.filter(n => ['active', 'received'].includes(n.status || '')).length - 1));
+                                    setActiveCardIndex(Math.min(index, activeNumbers.length - 1));
                                 }}
                             >
-                                {activeNumbers.filter(n => ['active', 'received'].includes(n.status || '')).map((num) => (
+                                {activeNumbers.slice(0, 5).map((num) => (
                                     <Link
                                         key={num.id}
-                                        href={`/sms/${encodeURIComponent(num.number)}`}
-                                        className="snap-center shrink-0 w-[240px] relative group cursor-pointer"
+                                        href={`/sms/${num.id}`}
+                                        className="snap-center shrink-0 w-[250px] relative group cursor-pointer"
                                         style={{
                                             clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 34px), calc(100% - 40px) 100%, 0 100%)'
                                         }}
@@ -324,30 +331,106 @@ export function MobileDashboard() {
                                             {/* Content */}
                                             <div className="relative z-10">
                                                 <div className="flex items-start justify-between mb-3">
-                                                    <div className="text-xs font-bold px-2 py-1 rounded bg-white/[0.06] text-gray-300">{num.countryName}</div>
-                                                    <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 text-[10px] bg-emerald-500/10">Active</Badge>
+                                                    <div className="relative w-8 h-8 flex-shrink-0">
+                                                        <div className="relative w-full h-full rounded-lg overflow-hidden transition-all duration-300 ring-1 ring-white/10 group-hover:scale-105">
+                                                            {num.serviceIconUrl ? (
+                                                                <img
+                                                                    alt={num.serviceName}
+                                                                    className="w-full h-full object-contain filter brightness-110 contrast-110"
+                                                                    src={num.serviceIconUrl}
+                                                                />
+                                                            ) : (
+                                                                <div className="w-full h-full bg-[#1A1D24] flex items-center justify-center text-gray-300 text-lg font-bold">
+                                                                    {num.serviceName?.charAt(0).toUpperCase()}
+                                                                </div>
+                                                            )}
+                                                            <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none"></div>
+                                                        </div>
+                                                        <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-[#151518] overflow-hidden shadow-md z-20">
+                                                            <img
+                                                                alt={num.countryName}
+                                                                className="w-full h-full rounded-full object-cover shadow-sm ring-1 ring-white/10"
+                                                                src={num.countryIconUrl || 'https://raw.githubusercontent.com/HatScripts/circle-flags/gh-pages/flags/un.svg'}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    {/* Dynamic Status Badge - Default to Active for anything strictly not Received/Expired/Cancelled */}
+                                                    {!['received', 'expired', 'cancelled'].includes(num.status || '') && (
+                                                        <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 text-[10px] bg-emerald-500/10 shadow-[0_0_10px_rgba(16,185,129,0.1)]">Aᴄᴛɪᴠᴇ</Badge>
+                                                    )}
+                                                    {num.status === 'received' && (
+                                                        <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 text-[10px] bg-emerald-500/10">Cᴏᴍᴘʟᴇᴛᴇᴅ</Badge>
+                                                    )}
+                                                    {num.status === 'expired' && (
+                                                        <Badge variant="outline" className="border-orange-500/30 text-orange-400 text-[10px] bg-orange-500/10">Exᴘɪʀᴇᴅ</Badge>
+                                                    )}
+                                                    {num.status === 'cancelled' && (
+                                                        <Badge variant="outline" className="border-red-500/30 text-red-400 text-[10px] bg-red-500/10">Cᴀɴᴄᴇʟʟᴇᴅ</Badge>
+                                                    )}
                                                 </div>
 
                                                 <div className="space-y-1">
                                                     <p className="text-xl font-mono font-medium text-white tracking-wide">{num.number}</p>
                                                     <p className="text-xs text-gray-500 flex items-center gap-1">
-                                                        {num.serviceName} • <span className="text-[hsl(var(--neon-lime))]">{num.smsCount} SMS</span>
+                                                        {num.serviceName.length > 10 ? num.serviceName.substring(0, 10) + '...' : num.serviceName} • <span className="text-[hsl(var(--neon-lime))]">{num.smsCount || 0} SMS</span>
                                                     </p>
                                                 </div>
                                             </div>
 
                                             {/* Cut corner highlight */}
                                             <div className="absolute bottom-0 right-0 w-4 h-4 border-t border-l border-[hsl(var(--neon-lime)/0.15)]" style={{ transform: 'translate(50%, 50%) rotate(45deg)' }} />
+
+                                            {/* Advanced Progress Bar */}
+                                            {num.expiresAt && num.status !== 'cancelled' && num.status !== 'expired' && (
+                                                <div className="absolute bottom-0 left-0 w-full h-[2px] bg-white/[0.02] overflow-hidden">
+                                                    {(() => {
+                                                        const expiry = new Date(num.expiresAt).getTime()
+                                                        const diff = expiry - now
+                                                        if (diff <= 0) return null
+                                                        const total = 20 * 60 * 1000
+                                                        const pct = Math.min(100, Math.max(0, (diff / total) * 100))
+                                                        const isLow = diff < 5 * 60 * 1000
+                                                        const isMedium = diff < 10 * 60 * 1000
+                                                        const color = isLow ? '#ef4444' : (isMedium ? '#f59e0b' : 'hsl(var(--neon-lime))')
+
+                                                        return (
+                                                            <div className="relative h-full transition-all duration-1000 ease-linear" style={{ width: `${pct}%` }}>
+                                                                <div className="absolute inset-0 w-full h-full opacity-50" style={{ backgroundImage: `linear-gradient(to right, ${color} 1px, transparent 1px)`, backgroundSize: '3px 100%' }} />
+                                                                <div className="absolute inset-0 opacity-20 blur-[1px]" style={{ backgroundColor: color }} />
+                                                                <div className="absolute right-0 top-1/2 -translate-y-1/2 w-1 h-1 rounded-full shadow-[0_0_8px_1px_currentColor]" style={{ backgroundColor: color, color }} />
+                                                            </div>
+                                                        )
+                                                    })()}
+                                                </div>
+                                            )}
                                         </div>
                                     </Link>
                                 ))}
+
+                                {/* "View All" Card */}
+                                {activeNumbers.length > 5 && (
+                                    <Link
+                                        href="/dashboard/vault"
+                                        className="snap-center shrink-0 w-[240px] relative group cursor-pointer"
+                                    >
+                                        <div className="h-full w-full rounded-2xl bg-[#12141a] border border-dashed border-white/10 flex flex-col items-center justify-center gap-3 hover:bg-white/[0.03] transition-colors p-6">
+                                            <div className="w-12 h-12 rounded-full bg-white/[0.03] flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                                                <ArrowUpRight className="w-5 h-5 text-[hsl(var(--neon-lime))]" />
+                                            </div>
+                                            <div className="text-center">
+                                                <p className="text-sm font-bold text-white group-hover:text-[hsl(var(--neon-lime))] transition-colors">View All Numbers</p>
+                                                <p className="text-xs text-gray-500 mt-1">+{activeNumbers.length - 5} more in Vault</p>
+                                            </div>
+                                        </div>
+                                    </Link>
+                                )}
                             </div>
 
                             {/* Dot Pagination Indicator - Max 3 visible dots */}
-                            {activeNumbers.filter(n => ['active', 'received'].includes(n.status || '')).length > 1 && (
+                            {activeNumbers.length > 1 && (
                                 <div className="flex justify-center items-center gap-1.5 mt-3 p-2 rounded-full bg-white/[0.03] border border-white/[0.05] w-fit mx-auto">
                                     {(() => {
-                                        const total = activeNumbers.filter(n => ['active', 'received'].includes(n.status || '')).length;
+                                        const total = activeNumbers.length;
                                         const maxDots = 3;
 
                                         // Calculate which dots to show (sliding window)
@@ -415,19 +498,19 @@ export function MobileDashboard() {
                         {transactions.slice(0, 3).map((tx, j) => (
                             <div key={j} className="flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/[0.04]">
                                 <div className="flex items-center gap-3">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${tx.type === 'topup' ? 'bg-emerald-500/10 text-emerald-500' :
-                                        tx.type === 'purchase' ? 'bg-purple-500/10 text-purple-500' :
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${['topup', 'manual_credit', 'referral_bonus', 'refund'].includes(tx.type) ? 'bg-emerald-500/10 text-emerald-500' :
+                                        ['purchase', 'manual_debit'].includes(tx.type) ? 'bg-purple-500/10 text-purple-500' :
                                             'bg-indigo-500/10 text-indigo-500'
                                         }`}>
-                                        {tx.type === 'topup' ? <ArrowUpRight className="h-5 w-5" /> : <ShoppingCart className="h-5 w-5" />}
+                                        {['topup', 'manual_credit', 'referral_bonus', 'refund'].includes(tx.type) ? <ArrowUpRight className="h-5 w-5" /> : <ShoppingCart className="h-5 w-5" />}
                                     </div>
                                     <div>
                                         <p className="text-sm font-medium text-white">{tx.description}</p>
-                                        <p className="text-[10px] text-gray-500 capitalize">{tx.type === 'purchase' ? 'Number Purchase' : tx.type === 'topup' ? 'Wallet Top-up' : tx.type}</p>
+                                        <p className="text-[10px] text-gray-500 capitalize">{tx.type.replace('_', ' ')}</p>
                                     </div>
                                 </div>
-                                <span className={`text-sm font-mono font-medium ${tx.amount > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                    {tx.amount > 0 ? '+' : ''}{formatPrice(tx.amount)}
+                                <span className={`text-sm font-mono font-medium ${['topup', 'manual_credit', 'referral_bonus', 'refund'].includes(tx.type) ? 'text-emerald-400' : 'text-red-400'}`}>
+                                    {['topup', 'manual_credit', 'referral_bonus', 'refund'].includes(tx.type) ? '+' : ''}{formatPrice(tx.amount)}
                                 </span>
                             </div>
                         ))}

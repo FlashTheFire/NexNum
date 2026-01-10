@@ -16,13 +16,16 @@ import {
     Shield,
     MoreHorizontal,
     Check,
-    Trash2
+    Trash2,
+    Globe,
+    Search
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useGlobalStore } from "@/store"
 import { toast } from "sonner"
+import { cn } from "@/lib/utils"
 
 // Import new premium components
 import { SMSBackground, SMSNumberCard, SMSMessageCard } from "./components"
@@ -37,47 +40,131 @@ const staggerContainer = {
     }
 }
 
-const fadeInUp = {
-    hidden: { opacity: 0, y: 20 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] } }
+const fadeInLeft = {
+    hidden: { opacity: 0, x: -30 },
+    visible: { opacity: 1, x: 0, transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] } }
 }
 
 export default function SMSPage() {
     const params = useParams()
     const router = useRouter()
-    const { activeNumbers, _hasHydrated, fetchNumbers, isLoadingNumbers } = useGlobalStore()
+    const { activeNumbers, _hasHydrated, fetchNumbers, isLoadingNumbers, cancelNumber, purchaseNumber } = useGlobalStore()
     const [timeLeft, setTimeLeft] = useState(0)
     const [isMenuOpen, setIsMenuOpen] = useState(false)
+
+    // Action button states
+    const [isNextLoading, setIsNextLoading] = useState(false)
+    const [isCancelLoading, setIsCancelLoading] = useState(false)
+    const [showCancelConfirm, setShowCancelConfirm] = useState(false)
 
     const identifier = decodeURIComponent(params.number as string)
     const virtualNumber = activeNumbers.find(n => n.id === identifier || n.number === identifier)
 
-    // Fallback: If not found in store, try to fetch
+    // Fallback: If not found in store, try to fetch specific number (could be expired/cancelled)
+    const [localNumber, setLocalNumber] = useState<any>(null)
+    const [isFetchingLocal, setIsFetchingLocal] = useState(false)
+
     useEffect(() => {
-        if (_hasHydrated && !virtualNumber && !isLoadingNumbers) {
+        if (_hasHydrated && !virtualNumber && !isLoadingNumbers && !localNumber && !isFetchingLocal) {
+            // 1. Try refreshing store first (maybe it's just new)
             fetchNumbers()
+
+            // 2. If valid UUID, try fetching specific number details
+            if (identifier.includes('-')) {
+                setIsFetchingLocal(true)
+                import("@/lib/api-client").then(({ getNumberDetails }) => {
+                    getNumberDetails(identifier).then(num => {
+                        if (num) setLocalNumber(num)
+                        setIsFetchingLocal(false)
+                    })
+                })
+            }
         }
-    }, [_hasHydrated, virtualNumber, isLoadingNumbers, fetchNumbers])
+    }, [_hasHydrated, virtualNumber, isLoadingNumbers, fetchNumbers, identifier, localNumber, isFetchingLocal])
+
+    const displayNumber = virtualNumber || localNumber
 
     // Use Professional Backend Hook
     // Prefer ID for API calls as it's the unique database key
-    const { messages, refresh, isValidating } = useSMS(virtualNumber?.id || (identifier.includes('-') ? identifier : ''))
+    const { messages, refresh, isValidating, status: pollStatus } = useSMS(displayNumber?.id || (identifier.includes('-') ? identifier : ''))
 
-    // Update timer every second
+    // Sync local number status with polled status
     useEffect(() => {
-        if (!virtualNumber) return
+        if (localNumber && pollStatus && localNumber.status !== pollStatus) {
+            setLocalNumber((prev: any) => ({ ...prev, status: pollStatus }))
+        }
+    }, [pollStatus, localNumber])
+
+    const [currentPage, setCurrentPage] = useState(1)
+    const itemsPerPage = 10
+
+    // Pagination Logic
+    const totalPages = Math.ceil(messages.length / itemsPerPage)
+    const paginatedMessages = messages.slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage
+    )
+
+    // Reset page when messages change
+    useEffect(() => {
+        setCurrentPage(1)
+    }, [messages.length, identifier])
+
+    // Extract Provider Name (Prioritize DB field)
+    const providerName = useMemo(() => {
+        if (displayNumber?.provider) return displayNumber.provider.charAt(0).toUpperCase() + displayNumber.provider.slice(1)
+        if (!displayNumber?.id) return 'Unknown'
+        // Fallback to ID parsing if provider field missing
+        const parts = displayNumber.id.split(':')
+        return parts.length > 1 ? parts[0].charAt(0).toUpperCase() + parts[0].slice(1) : 'Unknown'
+    }, [displayNumber?.provider, displayNumber?.id])
+
+    // Handle Download History
+    const handleDownload = () => {
+        if (messages.length === 0) {
+            toast.error("No messages to download")
+            return
+        }
+
+        const content = messages.map(msg =>
+            `From: ${msg.from}\nTime: ${new Date(msg.receivedAt).toLocaleString()}\nMessage: ${msg.text}\n-------------------`
+        ).join('\n\n')
+
+        const blob = new Blob([content], { type: 'text/plain' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `sms_history_${displayNumber?.number || 'unknown'}.txt`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+        toast.success("Download started")
+        setIsMenuOpen(false)
+    }
+
+    // Update timer every second & Sync on Expiry
+    useEffect(() => {
+        if (!displayNumber) return
 
         const updateTimer = () => {
-            const expiresAt = new Date(virtualNumber.expiresAt || Date.now())
+            const expiresAt = new Date(displayNumber.expiresAt || Date.now())
             const now = new Date()
             const remaining = Math.max(0, Math.floor((expiresAt.getTime() - now.getTime()) / 1000))
-            setTimeLeft(remaining)
+
+            // If timer just hit zero, trigger a sync to process refund/status change
+            setTimeLeft(prev => {
+                if (prev > 0 && remaining === 0) {
+                    setTimeout(() => refresh(), 500)
+                }
+                return remaining
+            })
         }
 
         updateTimer()
         const interval = setInterval(updateTimer, 1000)
         return () => clearInterval(interval)
-    }, [virtualNumber])
+    }, [displayNumber])
 
     const handleRefresh = async () => {
         toast.promise(refresh(), {
@@ -87,16 +174,88 @@ export default function SMSPage() {
         })
     }
 
+    // Handle Next Number - Purchase same service/country again
+    const handleNextNumber = async () => {
+        if (!displayNumber) return
+
+        setIsNextLoading(true)
+        try {
+            // Re-purchase uses store action, safe to use properties
+            const result = await purchaseNumber(
+                displayNumber.countryCode,
+                displayNumber.serviceCode || displayNumber.serviceName,
+                true // testMode for safety
+            )
+
+            if (result.success && result.number) {
+                toast.success('New number purchased!', {
+                    description: result.number.phoneNumber,
+                    action: {
+                        label: 'View',
+                        onClick: () => router.push(`/sms/${result.number!.id}`)
+                    }
+                })
+                // Navigate to the new number
+                router.push(`/sms/${result.number.id}`)
+            } else {
+                toast.error('Failed to get next number', {
+                    description: result.error || 'Please try again'
+                })
+            }
+        } catch (err: any) {
+            toast.error('Failed to get next number', {
+                description: err.message
+            })
+        } finally {
+            setIsNextLoading(false)
+        }
+    }
+
+    // Handle Cancel Number - Show confirmation
+    const handleCancelNumber = () => {
+        if (displayNumber?.status === 'cancelled') return
+        setShowCancelConfirm(true)
+    }
+
+    // Confirm Cancel - Actually cancel and refund
+    const confirmCancel = async () => {
+        if (!displayNumber) return
+
+        setIsCancelLoading(true)
+        try {
+            const result = await cancelNumber(displayNumber.id)
+
+            if (result.success) {
+                toast.success('Number cancelled', {
+                    description: `Refund of $${Number(displayNumber.price || 0).toFixed(2)} processed`
+                })
+                setShowCancelConfirm(false)
+                // Stay on page to show cancelled state
+                // router.push('/dashboard')
+            } else {
+                toast.error('Failed to cancel', {
+                    description: result.error || 'Please try again'
+                })
+            }
+        } catch (err: any) {
+            toast.error('Failed to cancel', {
+                description: err.message
+            })
+        } finally {
+            setIsCancelLoading(false)
+        }
+    }
+
     const minutesLeft = Math.floor(timeLeft / 60)
     const secondsLeft = timeLeft % 60
 
     // Loading state with LoadingScreen
-    if (!_hasHydrated || (isLoadingNumbers && !virtualNumber)) {
+    if (!_hasHydrated || (isLoadingNumbers && !displayNumber && !localNumber)) {
         return <LoadingScreen status="Opening Secure Channel" />
     }
 
     // Number not found
-    if (!virtualNumber) {
+    if (!displayNumber) {
         return (
             <div className="min-h-screen relative">
                 <SMSBackground />
@@ -134,7 +293,7 @@ export default function SMSPage() {
         <div className="min-h-screen relative">
             <SMSBackground />
 
-            <div className="relative z-10 p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
+            <div className="relative z-10 p-4 md:p-6 lg:p-8 max-w-7xl mx-auto -mt-7 md:mt-0">
                 <motion.div
                     initial="hidden"
                     animate="visible"
@@ -142,90 +301,142 @@ export default function SMSPage() {
                     className="space-y-6 lg:space-y-8"
                 >
                     {/* Header - Full Width */}
-                    <motion.div variants={fadeInUp} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                        <div className="flex items-center justify-between w-full sm:w-auto sm:justify-start gap-4">
-                            <div className="flex items-center gap-4">
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => router.push("/dashboard")}
-                                    className="rounded-xl hover:bg-white/10 text-gray-400 hover:text-white shrink-0"
-                                >
-                                    <ArrowLeft className="h-5 w-5" />
-                                </Button>
-                                <div>
-                                    <h1 className="text-2xl md:text-3xl font-bold text-white flex items-center gap-3">
-                                        <span className="relative flex h-3 w-3">
-                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[hsl(var(--neon-lime))] opacity-75"></span>
-                                            <span className="relative inline-flex rounded-full h-3 w-3 bg-[hsl(var(--neon-lime))]"></span>
-                                        </span>
-                                        SMS Inbox
-                                    </h1>
-                                    <p className="text-sm text-gray-500 mt-1">
-                                        Real-time message viewer
-                                    </p>
-                                </div>
+                    <div className="sticky top-0 md:top-4 z-40 bg-[#0a0a0c]/95 backdrop-blur-xl border-b border-white/5 py-2 -mx-4 px-4 md:mx-0 md:bg-[#0a0a0c]/80 md:border md:rounded-2xl md:px-5 md:py-3 mb-6 flex items-center justify-between gap-3 shadow-lg transition-all">
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={() => router.push("/dashboard")}
+                                className="p-1.5 hover:bg-white/10 rounded-full transition-colors -ml-1 group"
+                            >
+                                <ArrowLeft className="w-5 h-5 text-zinc-400 group-hover:text-white transition-colors" />
+                            </button>
+                            <div>
+                                <h1 className="text-lg font-bold text-white flex items-center gap-2.5">
+                                    <span className="relative flex h-2.5 w-2.5">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[hsl(var(--neon-lime))] opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[hsl(var(--neon-lime))]"></span>
+                                    </span>
+                                    SMS Inbox
+                                </h1>
+                                <p className="text-sm text-gray-500 mt-1">
+                                    Real-time message viewer
+                                </p>
                             </div>
-
-                            {/* Mobile Refresh Button */}
-                            <Button
-                                variant="outline"
-                                size="icon"
-                                onClick={handleRefresh}
-                                disabled={isValidating}
-                                className="sm:hidden rounded-xl border-white/10 bg-white/[0.03] hover:bg-white/10 text-gray-300 shadow-sm"
-                            >
-                                <RefreshCw className={`h-4 w-4 ${isValidating ? 'animate-spin' : ''}`} />
-                            </Button>
                         </div>
 
-                        <div className="flex items-center gap-3 self-end sm:self-auto hidden sm:flex">
-                            <Badge variant="outline" className="hidden md:flex border-white/10 text-gray-400 px-3 py-1.5 gap-2">
-                                <Shield className="w-3.5 h-3.5" />
-                                End-to-End Encrypted
-                            </Badge>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={handleRefresh}
-                                disabled={isValidating}
-                                className="rounded-xl border-white/10 bg-white/[0.03] hover:bg-white/10 text-gray-300 gap-2 px-4 shadow-sm"
-                            >
-                                <RefreshCw className={`h-4 w-4 ${isValidating ? 'animate-spin' : ''}`} />
-                                <span className="hidden sm:inline">Refresh</span>
-                            </Button>
+
+                        {/* Right: Status Badge (Replacing Refresh) */}
+                        <div className="flex items-center bg-zinc-900 rounded-full border border-white/5 px-3 py-1.5 gap-2">
+                            <Shield className="h-3.5 w-3.5 text-[hsl(var(--neon-lime))]" />
+                            <span className="text-xs font-medium text-zinc-400 hidden sm:inline">End-to-End Encrypted</span>
+                            <span className="text-xs font-medium text-zinc-400 sm:hidden">Encrypted</span>
                         </div>
-                    </motion.div>
+                    </div>
 
                     {/* Main Content Grid */}
                     <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6 lg:gap-8 items-start">
 
                         {/* Left Column: Number Details & Tips */}
                         <div className="space-y-3 lg:sticky lg:top-8">
-                            <motion.div variants={fadeInUp}>
+                            <motion.div variants={fadeInLeft}>
                                 <SMSNumberCard
-                                    phoneNumber={virtualNumber.number}
-                                    serviceName={virtualNumber.serviceName}
-                                    countryName={virtualNumber.countryName}
+                                    phoneNumber={displayNumber.number || displayNumber.phoneNumber}
+                                    serviceName={displayNumber.serviceName}
+                                    countryName={displayNumber.countryName}
+                                    countryCode={displayNumber.countryCode}
+                                    countryIconUrl={displayNumber.countryIconUrl}
                                     minutesLeft={minutesLeft}
                                     secondsLeft={secondsLeft}
                                     messageCount={messages.length}
+                                    price={displayNumber.price}
+                                    status={displayNumber.status || 'active'}
+                                    providerName={providerName}
+                                    serviceIconUrl={displayNumber.serviceIconUrl}
                                 />
                             </motion.div>
 
-                            {/* Action Buttons */}
-                            <motion.div variants={fadeInUp} className="grid grid-cols-2 gap-3">
-                                <button className="inline-flex items-center justify-center text-sm font-medium h-12 rounded-xl bg-card/40 border border-emerald-500/20 hover:bg-emerald-500/10 backdrop-blur-sm transition-colors text-white">
-                                    <Plus className="mr-2 h-4 w-4 text-emerald-400" />
-                                    Next Number
-                                </button>
-                                <button className="inline-flex items-center justify-center text-sm font-medium h-12 rounded-xl bg-card/40 border border-red-500/20 hover:bg-red-500/10 backdrop-blur-sm transition-colors text-white">
-                                    <XCircle className="mr-2 h-4 w-4 text-red-400" />
-                                    Cancel Number
-                                </button>
+                            {/* Action Buttons - Professional Inline Design */}
+                            <motion.div variants={fadeInLeft} className="grid grid-cols-2 gap-3">
+                                {/* Left Side: Next -> Keep */}
+                                <div className="relative h-12 overflow-hidden rounded-xl">
+                                    {!showCancelConfirm ? (
+                                        <button
+                                            onClick={handleNextNumber}
+                                            disabled={isNextLoading || isCancelLoading}
+                                            className={cn(
+                                                "w-full h-full inline-flex items-center justify-center text-sm font-medium rounded-xl bg-card/40 border border-emerald-500/20 backdrop-blur-sm transition-all text-white",
+                                                isNextLoading ? "opacity-50 cursor-wait" : "hover:bg-emerald-500/10 active:scale-[0.98]"
+                                            )}
+                                        >
+                                            {isNextLoading ? (
+                                                <RefreshCw className="mr-2 h-4 w-4 text-emerald-400 animate-spin" />
+                                            ) : (
+                                                <Plus className="mr-2 h-4 w-4 text-emerald-400" />
+                                            )}
+                                            {isNextLoading ? "Getting..." : "Next Number"}
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={() => setShowCancelConfirm(false)}
+                                            disabled={isCancelLoading}
+                                            className={cn(
+                                                "w-full h-full inline-flex items-center justify-center text-sm font-medium rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm transition-all text-gray-300",
+                                                isCancelLoading ? "opacity-50 cursor-not-allowed" : "hover:bg-white/10 active:scale-[0.98]"
+                                            )}
+                                        >
+                                            <ArrowLeft className="mr-2 h-4 w-4" />
+                                            Keep Number
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Right Side: Cancel -> Confirm */}
+                                <div className="relative h-12 overflow-hidden rounded-xl">
+                                    {/* Show Change Country if status is TERMINAL (cancelled, expired, completed, timeout) */}
+                                    {['cancelled', 'expired', 'completed', 'timeout'].includes(displayNumber.status || '') ? (
+                                        <button
+                                            onClick={() => router.push(`/dashboard/buy?service=${displayNumber.serviceName || displayNumber.serviceCode}&selectedCountry=${displayNumber.countryName}`)}
+                                            className="w-full h-full inline-flex items-center justify-center text-sm font-medium rounded-xl bg-card/40 border border-blue-500/20 backdrop-blur-sm transition-all text-white hover:bg-blue-500/10 active:scale-[0.98] group"
+                                        >
+                                            <Search className="mr-2 h-4 w-4 text-blue-400" />
+                                            Search Country
+                                        </button>
+                                    ) : !showCancelConfirm ? (
+                                        <button
+                                            onClick={handleCancelNumber}
+                                            disabled={isCancelLoading || isNextLoading}
+                                            className={cn(
+                                                "w-full h-full inline-flex items-center justify-center text-sm font-medium rounded-xl bg-card/40 border border-red-500/20 backdrop-blur-sm transition-all text-white",
+                                                (isCancelLoading) ? "opacity-50 cursor-wait" : "hover:bg-red-500/10 active:scale-[0.98]"
+                                            )}
+                                        >
+                                            {isCancelLoading ? (
+                                                <RefreshCw className="mr-2 h-4 w-4 text-red-400 animate-spin" />
+                                            ) : (
+                                                <XCircle className="mr-2 h-4 w-4 text-red-400" />
+                                            )}
+                                            {isCancelLoading ? "Cancelling..." : "Cancel Number"}
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={confirmCancel}
+                                            disabled={isCancelLoading}
+                                            className={cn(
+                                                "w-full h-full inline-flex items-center justify-center text-sm font-medium rounded-xl bg-red-500/20 border border-red-500/30 backdrop-blur-sm transition-all text-red-200",
+                                                isCancelLoading ? "opacity-50 cursor-wait" : "hover:bg-red-500/30 active:scale-[0.98]"
+                                            )}
+                                        >
+                                            {isCancelLoading ? (
+                                                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                                            ) : (
+                                                <Check className="mr-2 h-4 w-4" />
+                                            )}
+                                            Confirm Refund
+                                        </button>
+                                    )}
+                                </div>
                             </motion.div>
 
-                            <motion.div variants={fadeInUp} className="hidden lg:block">
+                            <motion.div variants={fadeInLeft} className="hidden lg:block">
                                 <Card className="border-amber-500/10 bg-gradient-to-br from-amber-500/[0.02] to-transparent backdrop-blur-xl">
                                     <CardContent className="p-5 flex gap-4">
                                         <div className="p-2.5 h-fit rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-500">
@@ -243,7 +454,7 @@ export default function SMSPage() {
                         </div>
 
                         {/* Right Column: Messages Feed */}
-                        <motion.div variants={fadeInUp} className="min-h-[500px]">
+                        <motion.div variants={fadeInLeft} className="min-h-[500px]">
                             <Card className="border-white/[0.06] bg-[#0f1115]/50 backdrop-blur-xl h-full shadow-2xl overflow-hidden flex flex-col">
                                 <CardHeader className="border-b border-white/[0.04] p-5 md:p-6 bg-white/[0.01] flex flex-row items-center justify-between sticky top-0 z-20 backdrop-blur-md">
                                     <div className="flex items-center gap-3">
@@ -298,14 +509,11 @@ export default function SMSPage() {
                                                         </button>
                                                         <div className="h-px bg-white/5 my-1" />
                                                         <button
-                                                            onClick={() => {
-                                                                toast.error("Cannot clear history in demo mode")
-                                                                setIsMenuOpen(false)
-                                                            }}
-                                                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors text-left"
+                                                            onClick={handleDownload}
+                                                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 rounded-lg transition-colors text-left"
                                                         >
-                                                            <Trash2 className="h-4 w-4" />
-                                                            Clear history
+                                                            <ArrowDownRight className="h-4 w-4" />
+                                                            Download History
                                                         </button>
                                                     </div>
                                                 </motion.div>
@@ -313,13 +521,13 @@ export default function SMSPage() {
                                         </AnimatePresence>
                                     </div>
                                 </CardHeader>
-                                <CardContent className="p-0">
+                                <CardContent className="p-0 flex flex-col h-full">
                                     {/* p-0 to allow scrollbar to hug edges, padding added inside */}
 
-                                    {/* Scrollable Container (Limit to ~3 items height, approx 400px) */}
-                                    <div className="max-h-[400px] overflow-y-auto custom-scrollbar p-5 md:p-6 space-y-4">
+                                    {/* Scrollable Container (Flex grow to fill available space) */}
+                                    <div className="flex-1 overflow-y-auto custom-scrollbar p-5 md:p-6 space-y-4">
                                         {messages.length === 0 ? (
-                                            <div className="flex flex-col items-center justify-center py-10 text-center">
+                                            <div className="flex flex-col items-center justify-center py-10 text-center h-full">
                                                 <div className="w-16 h-16 rounded-full bg-white/[0.03] border border-white/[0.05] flex items-center justify-center mb-4">
                                                     <div className="relative">
                                                         <Inbox className="h-6 w-6 text-gray-600" />
@@ -336,12 +544,43 @@ export default function SMSPage() {
                                             </div>
                                         ) : (
                                             <AnimatePresence mode="popLayout">
-                                                {[...messages].map((sms, i) => (
+                                                {paginatedMessages.map((sms, i) => (
                                                     <SMSMessageCard key={sms.id} sms={sms} index={i} />
                                                 ))}
                                             </AnimatePresence>
                                         )}
                                     </div>
+
+                                    {/* Pagination Footer */}
+                                    {totalPages > 1 && (
+                                        <div className="border-t border-white/[0.04] p-4 bg-white/[0.01] flex items-center justify-between">
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                                disabled={currentPage === 1}
+                                                className="text-gray-400 hover:text-white"
+                                            >
+                                                <ArrowLeft className="w-4 h-4 mr-2" />
+                                                Previous
+                                            </Button>
+                                            <span className="text-xs text-gray-500">
+                                                Page {currentPage} of {totalPages}
+                                            </span>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                                disabled={currentPage === totalPages}
+                                                className="text-gray-400 hover:text-white"
+                                            >
+                                                Next
+                                                <ArrowUpRight className="w-4 h-4 ml-2" />
+                                            </Button>
+                                        </div>
+                                    )}
+
+                                    {/* CSS for custom scrollbar injected here for simplicity */}
 
                                     {/* CSS for custom scrollbar injected here for simplicity */}
                                     <style jsx global>{`
@@ -364,7 +603,7 @@ export default function SMSPage() {
                         </motion.div>
 
                         {/* Mobile Tip (visible only on mobile) */}
-                        <motion.div variants={fadeInUp} className="lg:hidden">
+                        <motion.div variants={fadeInLeft} className="lg:hidden">
                             <Card className="border-amber-500/10 bg-amber-500/[0.02]">
                                 <CardContent className="p-4 flex items-center gap-3">
                                     <Sparkles className="h-4 w-4 text-amber-500/70" />
@@ -378,6 +617,6 @@ export default function SMSPage() {
                     </div>
                 </motion.div>
             </div>
-        </div>
+        </div >
     )
 }

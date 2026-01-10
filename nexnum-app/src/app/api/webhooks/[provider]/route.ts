@@ -15,9 +15,9 @@ import { DynamicWebhookHandler } from '@/lib/webhooks/handlers/dynamic'
 
 export async function POST(
     request: NextRequest,
-    { params }: { params: { provider: string } }
+    { params }: { params: Promise<{ provider: string }> }
 ) {
-    const providerName = params.provider
+    const { provider: providerName } = await params
 
     try {
         // 1. Load provider configuration

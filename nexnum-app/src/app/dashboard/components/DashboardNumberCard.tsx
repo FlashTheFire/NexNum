@@ -14,7 +14,9 @@ interface DashboardNumberCardProps {
     number: string
     countryCode: string
     countryName: string
+    countryIconUrl?: string
     serviceName: string
+    serviceIconUrl?: string
     smsCount: number
     expiresAt: string
     status: string
@@ -34,7 +36,9 @@ export const DashboardNumberCard = memo(function DashboardNumberCard({
     number,
     countryCode,
     countryName,
+    countryIconUrl,
     serviceName,
+    serviceIconUrl,
     smsCount,
     expiresAt,
     status,
@@ -43,7 +47,9 @@ export const DashboardNumberCard = memo(function DashboardNumberCard({
 }: DashboardNumberCardProps) {
     const router = useRouter()
     const [timeLeft, setTimeLeft] = useState('')
-    const [isLowTime, setIsLowTime] = useState(false)
+    const [percent, setPercent] = useState(100)
+    const [progressColor, setProgressColor] = useState('hsl(var(--neon-lime))')
+    const isLowTime = progressColor === '#ef4444'
     const [copied, setCopied] = useState(false)
 
     // Real-time Expiration Logic
@@ -55,15 +61,23 @@ export const DashboardNumberCard = memo(function DashboardNumberCard({
 
             if (diff <= 0) {
                 setTimeLeft('EXPIRED')
-                setIsLowTime(true)
+                setProgressColor('#ef4444')
                 return
             }
 
             const mins = Math.floor(diff / 60000)
             const secs = Math.floor((diff % 60000) / 1000)
 
-            if (mins < 5) setIsLowTime(true)
+            if (mins < 5) setProgressColor('#ef4444')
+            else if (mins < 10) setProgressColor('#f59e0b')
+            else setProgressColor('hsl(var(--neon-lime))')
+
             setTimeLeft(`${mins}:${secs.toString().padStart(2, '0')}`)
+
+            // Calculate Percentage (Assuming 20 min window standard for SMS)
+            const totalDuration = 20 * 60 * 1000 // 20 minutes in ms
+            const p = Math.max(0, Math.min(100, (diff / totalDuration) * 100))
+            setPercent(p)
         }
 
         updateTimer()
@@ -109,11 +123,28 @@ export const DashboardNumberCard = memo(function DashboardNumberCard({
                 <div className="p-5 flex flex-col gap-4">
                     {/* Header: Country & Status */}
                     <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-lg bg-white/[0.05] border border-white/[0.05] flex items-center justify-center text-sm">
-                                🌍
+                        <div className="relative w-10 h-10 flex-shrink-0">
+                            <div className="relative w-full h-full rounded-lg overflow-hidden transition-all duration-300 ring-1 ring-white/10 group-hover:scale-105">
+                                {serviceIconUrl ? (
+                                    <img
+                                        alt={serviceName}
+                                        className="w-full h-full object-contain filter brightness-110 contrast-110"
+                                        src={serviceIconUrl}
+                                    />
+                                ) : (
+                                    <div className="w-full h-full bg-[#1A1D24] flex items-center justify-center text-gray-300 text-lg font-bold">
+                                        {serviceName?.charAt(0).toUpperCase()}
+                                    </div>
+                                )}
+                                <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none"></div>
                             </div>
-                            <span className="text-xs font-semibold text-gray-400 uppercase tracking-widest">{countryName}</span>
+                            <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-[#151518] overflow-hidden shadow-md z-20">
+                                <img
+                                    alt={countryName}
+                                    className="w-full h-full rounded-full object-cover shadow-sm ring-1 ring-white/10"
+                                    src={countryIconUrl || 'https://raw.githubusercontent.com/HatScripts/circle-flags/gh-pages/flags/un.svg'}
+                                />
+                            </div>
                         </div>
 
                         <div className="flex items-center gap-2">
@@ -129,10 +160,44 @@ export const DashboardNumberCard = memo(function DashboardNumberCard({
                                         </Badge>
                                     </motion.div>
                                 )}
+                                {status === 'expired' && (
+                                    <motion.div
+                                        initial={{ opacity: 0, scale: 0.8 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        exit={{ opacity: 0, scale: 0.8 }}
+                                    >
+                                        <Badge className="bg-orange-500/10 text-orange-500 border-orange-500/20 text-[9px] font-bold px-2">
+                                            EXPIRED
+                                        </Badge>
+                                    </motion.div>
+                                )}
+                                {status === 'cancelled' && (
+                                    <motion.div
+                                        initial={{ opacity: 0, scale: 0.8 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        exit={{ opacity: 0, scale: 0.8 }}
+                                    >
+                                        <Badge className="bg-red-500/10 text-red-500 border-red-500/20 text-[9px] font-bold px-2">
+                                            CANCELLED
+                                        </Badge>
+                                    </motion.div>
+                                )}
+                                {status === 'active' && (
+                                    <motion.div
+                                        initial={{ opacity: 0, scale: 0.8 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        exit={{ opacity: 0, scale: 0.8 }}
+                                    >
+                                        <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-[9px] font-bold px-2 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
+                                            ACTIVE
+                                        </Badge>
+                                    </motion.div>
+                                )}
                             </AnimatePresence>
                             <div className={cn(
                                 "flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[10px] font-bold uppercase tracking-wider",
-                                isLowTime ? "bg-red-500/10 border-red-500/20 text-red-500" : "bg-white/5 border-white/10 text-gray-500"
+                                (status === 'expired' || status === 'cancelled') ? "bg-red-500/10 border-red-500/20 text-red-500" :
+                                    isLowTime ? "bg-red-500/10 border-red-500/20 text-red-500" : "bg-white/5 border-white/10 text-gray-500"
                             )}>
                                 <Clock className="w-3 h-3" />
                                 {timeLeft}
@@ -152,7 +217,9 @@ export const DashboardNumberCard = memo(function DashboardNumberCard({
                             </button>
                         </div>
                         <div className="flex items-center gap-2 text-sm">
-                            <span className="text-[hsl(var(--neon-lime))] font-semibold">{serviceName}</span>
+                            <span className="text-[hsl(var(--neon-lime))] font-semibold">
+                                {serviceName.length > 10 ? serviceName.substring(0, 10) + '...' : serviceName}
+                            </span>
                             <span className="text-gray-600">|</span>
                             <span className="text-gray-400 flex items-center gap-1">
                                 <MessageSquare className="w-3.5 h-3.5" />
@@ -184,6 +251,34 @@ export const DashboardNumberCard = memo(function DashboardNumberCard({
                             <ArrowRight className="w-3.5 h-3.5 translate-x-0 group-hover/btn:translate-x-1 transition-transform" />
                         </Button>
                     </div>
+
+                    {/* Advanced Professional Dotted Progress */}
+                    {/* Advanced Professional Dotted Progress */}
+                    {status !== 'expired' && status !== 'cancelled' && timeLeft !== 'EXPIRED' && (
+                        <div className="absolute bottom-0 left-0 w-full h-[2px] bg-white/[0.02]">
+                            <motion.div
+                                initial={{ width: '100%' }}
+                                animate={{ width: `${percent}%` }}
+                                transition={{ duration: 1, ease: 'linear' }}
+                                className="relative h-full"
+                            >
+                                {/* Dotted Pattern */}
+                                <div
+                                    className="absolute inset-0 w-full h-full opacity-50"
+                                    style={{
+                                        backgroundImage: `linear-gradient(to right, ${progressColor} 1px, transparent 1px)`,
+                                        backgroundSize: '3px 100%',
+                                    }}
+                                />
+                                {/* Glow Line Underneath */}
+                                <div className="absolute inset-0 opacity-20 blur-[1px]" style={{ backgroundColor: progressColor }} />
+
+                                {/* Leading Energy Head */}
+                                <div className="absolute right-0 top-1/2 -translate-y-1/2 w-1 h-1 rounded-full shadow-[0_0_8px_1px_currentColor]"
+                                    style={{ backgroundColor: progressColor, color: progressColor }} />
+                            </motion.div>
+                        </div>
+                    )}
                 </div>
             </div>
         </motion.div>

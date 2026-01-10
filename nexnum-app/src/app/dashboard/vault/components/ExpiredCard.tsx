@@ -7,14 +7,7 @@ import { useState, memo } from "react";
 import { toast } from "sonner";
 
 // Country Code Map
-const countryCodeMap: Record<string, string> = {
-    "United States": "us", "USA": "us", "US": "us",
-    "United Kingdom": "gb", "UK": "gb",
-    "Canada": "ca", "Germany": "de", "France": "fr",
-    "Russia": "ru", "India": "in", "China": "cn",
-    "Brazil": "br", "Australia": "au", "Spain": "es",
-    "Italy": "it", "Netherlands": "nl", "Poland": "pl",
-};
+
 
 interface ExpiredCardProps {
     number: any;
@@ -23,7 +16,6 @@ interface ExpiredCardProps {
 export const ExpiredCard = memo(({ number }: ExpiredCardProps) => {
     const [isExpanded, setIsExpanded] = useState(false);
     const [copied, setCopied] = useState(false);
-    const countryCode = countryCodeMap[number.countryName] || "un";
     const serviceId = (number.serviceName || 'unknown').toLowerCase();
 
     const handleCopy = (e: React.MouseEvent) => {
@@ -61,10 +53,13 @@ export const ExpiredCard = memo(({ number }: ExpiredCardProps) => {
                         </div>
                         <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-[#111318] overflow-hidden">
                             <img
-                                src={`https://flagcdn.com/w40/${countryCode}.png`}
-                                alt=""
+                                src={number.countryIconUrl || `https://raw.githubusercontent.com/HatScripts/circle-flags/gh-pages/flags/un.svg`}
+                                alt={number.countryName}
                                 className="w-full h-full object-cover"
                                 loading="lazy"
+                                onError={(e) => {
+                                    e.currentTarget.src = 'https://raw.githubusercontent.com/HatScripts/circle-flags/gh-pages/flags/un.svg'
+                                }}
                             />
                         </div>
                     </div>

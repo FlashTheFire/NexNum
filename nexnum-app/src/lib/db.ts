@@ -20,7 +20,14 @@ function createPrismaClient(): PrismaClient {
         throw new Error('DATABASE_URL environment variable is not set')
     }
 
-    const pool = new Pool({ connectionString })
+    const pool = new Pool({
+        connectionString,
+        max: 5, // Keep it low in dev to avoid Supabase connection limits
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 10000, // 10s timeout
+        keepalive: true,
+    })
+
     const adapter = new PrismaPg(pool)
 
     return new PrismaClient({
@@ -35,30 +42,7 @@ if (process.env.NODE_ENV !== 'production') {
     globalForPrisma.prisma = prisma
 }
 
-// Wallet balance helper (ledger-based)
-export async function getWalletBalance(walletId: string): Promise<number> {
-    const result = await prisma.walletTransaction.aggregate({
-        where: { walletId },
-        _sum: { amount: true }
-    })
-    return Number(result._sum.amount ?? 0)
-}
 
-// Get wallet balance by user ID
-export async function getUserBalance(userId: string): Promise<number> {
-    const wallet = await prisma.wallet.findUnique({
-        where: { userId },
-        include: {
-            transactions: {
-                select: { amount: true }
-            }
-        }
-    })
-
-    if (!wallet) return 0
-
-    return wallet.transactions.reduce((sum, tx) => sum + Number(tx.amount), 0)
-}
 
 // Ensure user has a wallet (create if not exists)
 export async function ensureWallet(userId: string): Promise<string> {

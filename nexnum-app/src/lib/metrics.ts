@@ -1,164 +1,95 @@
-/**
- * API Performance Metrics
- * 
- * Lightweight in-memory metrics for monitoring without external dependencies
- * Exports /api/metrics endpoint data
- */
+import { Registry, collectDefaultMetrics, Counter, Histogram, Gauge, Metric } from 'prom-client'
 
-interface EndpointMetric {
-    count: number
-    totalDuration: number
-    minDuration: number
-    maxDuration: number
-    errors: number
-    last4xx: number
-    last5xx: number
+// Singleton Registry to prevent HMR issues
+const globalForMetrics = globalThis as unknown as {
+    registry: Registry | undefined
 }
 
-class MetricsCollector {
-    private endpoints: Map<string, EndpointMetric> = new Map()
-    private startTime: number = Date.now()
+export const registry = globalForMetrics.registry ?? new Registry()
 
-    /**
-     * Record an API request
-     */
-    record(
-        method: string,
-        path: string,
-        status: number,
-        durationMs: number
-    ): void {
-        const key = `${method} ${this.normalizePath(path)}`
-
-        if (!this.endpoints.has(key)) {
-            this.endpoints.set(key, {
-                count: 0,
-                totalDuration: 0,
-                minDuration: Infinity,
-                maxDuration: 0,
-                errors: 0,
-                last4xx: 0,
-                last5xx: 0,
-            })
-        }
-
-        const metric = this.endpoints.get(key)!
-        metric.count++
-        metric.totalDuration += durationMs
-        metric.minDuration = Math.min(metric.minDuration, durationMs)
-        metric.maxDuration = Math.max(metric.maxDuration, durationMs)
-
-        if (status >= 400 && status < 500) {
-            metric.last4xx = Date.now()
-        } else if (status >= 500) {
-            metric.last5xx = Date.now()
-            metric.errors++
-        }
-    }
-
-    /**
-     * Normalize path (remove IDs for grouping)
-     */
-    private normalizePath(path: string): string {
-        return path
-            .replace(/\/[0-9a-f]{24,}/g, '/:id')  // MongoDB ObjectIds
-            .replace(/\/[0-9]+/g, '/:id')          // Numeric IDs
-            .replace(/\/[a-z0-9-]{36}/g, '/:uuid') // UUIDs
-    }
-
-    /**
-     * Get all metrics
-     */
-    getMetrics(): {
-        uptime: number
-        endpoints: Record<string, {
-            count: number
-            avgDuration: number
-            minDuration: number
-            maxDuration: number
-            errorRate: number
-        }>
-    } {
-        const result: Record<string, any> = {}
-
-        for (const [key, metric] of this.endpoints.entries()) {
-            result[key] = {
-                count: metric.count,
-                avgDuration: Math.round(metric.totalDuration / metric.count),
-                minDuration: metric.minDuration === Infinity ? 0 : metric.minDuration,
-                maxDuration: metric.maxDuration,
-                errorRate: metric.count > 0 ? (metric.errors / metric.count * 100).toFixed(2) + '%' : '0%',
-            }
-        }
-
-        return {
-            uptime: Date.now() - this.startTime,
-            endpoints: result,
-        }
-    }
-
-    /**
-     * Reset all metrics
-     */
-    reset(): void {
-        this.endpoints.clear()
-        this.startTime = Date.now()
-    }
+// Only initialize defaults once
+if (!globalForMetrics.registry) {
+    collectDefaultMetrics({ register: registry, prefix: 'nexnum_' })
+    globalForMetrics.registry = registry
 }
 
-export const metrics = new MetricsCollector()
-
-/**
- * Get metrics in Prometheus format (for /api/metrics route)
- */
-export async function getMetrics(): Promise<string> {
-    const data = metrics.getMetrics()
-    const lines: string[] = []
-
-    // System metrics
-    lines.push(`# HELP nexnum_uptime_seconds Application uptime in seconds`)
-    lines.push(`# TYPE nexnum_uptime_seconds gauge`)
-    lines.push(`nexnum_uptime_seconds ${Math.floor(data.uptime / 1000)}`)
-
-    // Endpoint metrics
-    for (const [endpoint, stats] of Object.entries(data.endpoints)) {
-        const safeName = endpoint.replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase()
-        lines.push(`nexnum_http_requests_total{endpoint="${endpoint}"} ${stats.count}`)
-        lines.push(`nexnum_http_request_duration_avg_ms{endpoint="${endpoint}"} ${stats.avgDuration}`)
-    }
-
-    return lines.join('\n')
+// Helper to prevent "Metric already registered" errors on HMR
+function register<T extends Metric>(name: string, factory: () => T): T {
+    const existing = registry.getSingleMetric(name)
+    if (existing) return existing as T
+    return factory()
 }
 
-/**
- * Get Prometheus content type
- */
-export function getMetricsContentType(): string {
-    return 'text/plain; version=0.0.4; charset=utf-8'
-}
+// --- DEFINITIONS ---
 
-// ============================================================================
-// OUTBOX METRICS (Stubs for outbox-worker compatibility)
-// ============================================================================
+export const wallet_transactions_total = register('nexnum_wallet_transactions_total', () => new Counter({
+    name: 'nexnum_wallet_transactions_total',
+    help: 'Total wallet transactions by type and status',
+    labelNames: ['type', 'status'],
+    registers: [registry]
+}))
 
-class SimpleGauge {
-    private value: number = 0
-    set(val: number): void { this.value = val }
-    get(): number { return this.value }
-}
+export const purchase_duration_seconds = register('nexnum_purchase_duration_seconds', () => new Histogram({
+    name: 'nexnum_purchase_duration_seconds',
+    help: 'Latency of purchase flow stages',
+    labelNames: ['stage', 'provider', 'country'], // stage: 'provider_call', 'db_commit'
+    buckets: [0.1, 0.3, 0.5, 1, 2, 5, 10],
+    registers: [registry]
+}))
 
-class SimpleCounter {
-    private values: Map<string, number> = new Map()
-    inc(labels: Record<string, string> = {}, amount: number = 1): void {
-        const key = JSON.stringify(labels)
-        this.values.set(key, (this.values.get(key) || 0) + amount)
-    }
-    get(labels: Record<string, string> = {}): number {
-        return this.values.get(JSON.stringify(labels)) || 0
-    }
-}
+export const provider_api_calls_total = register('nexnum_provider_api_calls_total', () => new Counter({
+    name: 'nexnum_provider_api_calls_total',
+    help: 'Total calls to SMS providers',
+    labelNames: ['provider', 'method', 'status'], // status: 'success', 'error'
+    registers: [registry]
+}))
 
-export const outboxPendingCount = new SimpleGauge()
-export const outboxLagSeconds = new SimpleGauge()
-export const outboxProcessedTotal = new SimpleCounter()
+export const polling_active_jobs = register('nexnum_polling_active_jobs', () => new Gauge({
+    name: 'nexnum_polling_active_jobs',
+    help: 'Current number of active polling jobs',
+    labelNames: ['provider'],
+    registers: [registry]
+}))
 
+export const sms_received_total = register('nexnum_sms_received_total', () => new Counter({
+    name: 'nexnum_sms_received_total',
+    help: 'Total SMS received per provider',
+    labelNames: ['provider', 'service'],
+    registers: [registry]
+}))
+
+export const reservation_stuck_count = register('nexnum_reservation_stuck_count', () => new Gauge({
+    name: 'nexnum_reservation_stuck_count',
+    help: 'Number of stalled purchase orders detected by reconciler',
+    registers: [registry]
+}))
+
+// --- LIFECYCLE MANAGER METRICS ---
+
+export const lifecycle_jobs_total = register('nexnum_lifecycle_jobs_total', () => new Counter({
+    name: 'nexnum_lifecycle_jobs_total',
+    help: 'Total lifecycle jobs processed by type and result',
+    labelNames: ['type', 'result'],
+    registers: [registry]
+}))
+
+export const lifecycle_circuit_state = register('nexnum_lifecycle_circuit_state', () => new Gauge({
+    name: 'nexnum_lifecycle_circuit_state',
+    help: 'Circuit breaker state (0=closed, 1=open, 2=half-open)',
+    registers: [registry]
+}))
+
+export const lifecycle_job_duration = register('nexnum_lifecycle_job_duration_seconds', () => new Histogram({
+    name: 'nexnum_lifecycle_job_duration_seconds',
+    help: 'Duration of lifecycle job processing',
+    labelNames: ['type'],
+    buckets: [0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
+    registers: [registry]
+}))
+
+export const lifecycle_queue_size = register('nexnum_lifecycle_queue_size', () => new Gauge({
+    name: 'nexnum_lifecycle_queue_size',
+    help: 'Current size of lifecycle queue by status',
+    labelNames: ['status'],
+    registers: [registry]
+}))

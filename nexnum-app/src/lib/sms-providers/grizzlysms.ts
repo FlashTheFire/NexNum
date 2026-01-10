@@ -75,7 +75,7 @@ export class GrizzlySmsProvider implements SmsProvider {
             results.push({
                 id: finalCode,
                 name: norm.displayName,
-                flagUrl: c.icon
+
             })
         }
 

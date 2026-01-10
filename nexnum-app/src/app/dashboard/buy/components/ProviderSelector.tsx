@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { preloadCountryFlags, getCountryFlagUrlSync } from "@/lib/country-flags";
+import { getCountryFlagUrlSync } from "@/lib/country-flags";
 import {
     Server,
     Check,
@@ -105,12 +105,7 @@ export default function ProviderSelector({
     // Pagination
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(true);
-    const [flagsReady, setFlagsReady] = useState(false);
 
-    // Preload country flags on mount
-    useEffect(() => {
-        preloadCountryFlags().then(() => setFlagsReady(true));
-    }, []);
 
     // Helper to validate if a URL is a valid flag URL
     const isValidFlagUrl = (url?: string) => {
@@ -119,14 +114,24 @@ export default function ProviderSelector({
         return true;
     };
 
-    // Helper to get country flag
-    const getCountryDisplay = (countryName: string, flagUrl?: string) => {
-        const circleFlagUrl = flagsReady ? getCountryFlagUrlSync(countryName) : undefined;
-        const finalUrl = circleFlagUrl || (isValidFlagUrl(flagUrl) ? flagUrl : undefined);
-
-        if (finalUrl) {
-            return <img src={finalUrl} alt={countryName} className="w-full h-full rounded-full object-cover shadow-sm ring-1 ring-white/10" />;
+    const getCountryDisplay = (countryName: string, countryCode: string, flagUrl?: string) => {
+        // 1. Prioritize Server-provided flagUrl (it's already name-based and robust)
+        if (isValidFlagUrl(flagUrl)) {
+            return <img src={flagUrl} alt={countryName} className="w-full h-full rounded-full object-cover shadow-sm ring-1 ring-white/10" />;
         }
+
+        // 2. Fallback to name-based lookup (Universal)
+        const nameBasedFlag = getCountryFlagUrlSync(countryName);
+        if (nameBasedFlag) {
+            return <img src={nameBasedFlag} alt={countryName} className="w-full h-full rounded-full object-cover shadow-sm ring-1 ring-white/10" />;
+        }
+
+        // 3. Last resort: code-based lookup
+        const codeBasedFlag = getCountryFlagUrlSync(countryCode);
+        if (codeBasedFlag) {
+            return <img src={codeBasedFlag} alt={countryName} className="w-full h-full rounded-full object-cover shadow-sm ring-1 ring-white/10" />;
+        }
+
         return <span className="text-lg bg-white/5 p-1.5 rounded-full">🌍</span>;
     };
 
@@ -296,7 +301,7 @@ export default function ProviderSelector({
 
                                         {/* Country Flag Badge */}
                                         <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-[#151518] overflow-hidden shadow-md z-20">
-                                            {getCountryDisplay(provider.countryName, provider.flagUrl)}
+                                            {getCountryDisplay(provider.countryName, provider.countryCode, provider.flagUrl)}
                                         </div>
                                     </div>
 

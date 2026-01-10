@@ -1,10 +1,11 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import * as api from '@/lib/api-client'
+import { getCountryFlagUrlSync } from "@/lib/country-flags"
 
 export interface Transaction {
     id: string
-    type: 'purchase' | 'topup' | 'refund'
+    type: 'purchase' | 'topup' | 'refund' | 'manual_credit' | 'manual_debit' | 'referral_bonus'
     amount: number
     date: string
     createdAt: string
@@ -17,7 +18,11 @@ export interface ActiveNumber {
     number: string
     countryCode: string
     countryName: string
+    countryIconUrl?: string
     serviceName: string
+    serviceCode?: string
+    serviceIconUrl?: string
+    provider?: string
     price: number
     expiresAt: string
     purchasedAt?: string
@@ -28,6 +33,7 @@ export interface ActiveNumber {
         code: string | null
         receivedAt: string
     } | null
+    isOptimistic?: boolean // New flag for UI spinners
 }
 
 interface UserProfile {
@@ -52,9 +58,10 @@ interface GlobalState {
 
     // Actions - Mutations via API
     topUp: (amount: number) => Promise<{ success: boolean; error?: string }>
-    purchaseNumber: (countryCode: string, serviceCode: string, testMode?: boolean) => Promise<{ success: boolean; error?: string }>
+    purchaseNumber: (countryCode: string, serviceCode: string, provider?: string, testMode?: boolean) => Promise<{ success: boolean; number?: api.PhoneNumber; error?: string }>
     cancelNumber: (id: string) => Promise<{ success: boolean; error?: string }>
     pollSms: (numberId: string) => Promise<api.SmsMessage[]>
+    updateNumber: (id: string, data: Partial<ActiveNumber>) => void
 
     // UI State
     sidebarCollapsed: boolean
@@ -87,9 +94,9 @@ export const useGlobalStore = create<GlobalState>()(
             fetchBalance: async () => {
                 set({ isLoadingBalance: true })
                 const result = await api.getWalletBalance()
-                if (result) {
+                if (result.success && result.data) {
                     set({
-                        userProfile: { balance: result.balance },
+                        userProfile: { balance: result.data.balance },
                         isLoadingBalance: false
                     })
                 } else {
@@ -101,13 +108,23 @@ export const useGlobalStore = create<GlobalState>()(
             fetchNumbers: async () => {
                 set({ isLoadingNumbers: true })
                 const result = await api.getMyNumbers()
+
+                if ((result as any).success === false) {
+                    set({ isLoadingNumbers: false })
+                    return
+                }
+
                 const numbers: ActiveNumber[] = result.numbers.map(n => ({
                     id: n.id,
                     number: n.phoneNumber,
                     countryCode: n.countryCode,
                     countryName: n.countryName || '',
+                    // Use API's countryIconUrl if available, else fallback to sync lookup using countryName
+                    countryIconUrl: n.countryIconUrl || getCountryFlagUrlSync(n.countryName || n.countryCode),
                     serviceName: n.serviceName || '',
-                    price: n.price,
+                    serviceCode: n.serviceCode,
+                    serviceIconUrl: n.serviceIconUrl,
+                    price: Number(n.price) || 0,
                     expiresAt: n.expiresAt || '',
                     purchasedAt: n.purchasedAt || undefined,
                     smsCount: n.smsCount || 0,
@@ -121,6 +138,10 @@ export const useGlobalStore = create<GlobalState>()(
             fetchTransactions: async () => {
                 set({ isLoadingTransactions: true })
                 const result = await api.getWalletTransactions(1, 50)
+                if ((result as any).success === false) {
+                    set({ isLoadingTransactions: false })
+                    return
+                }
                 const transactions: Transaction[] = result.transactions.map(t => ({
                     id: t.id,
                     type: t.type as Transaction['type'],
@@ -135,27 +156,110 @@ export const useGlobalStore = create<GlobalState>()(
 
             // Top up wallet via API
             topUp: async (amount: number) => {
-                const result = await api.topUpWallet(amount)
-                if (result.success && result.newBalance !== undefined) {
-                    set({ userProfile: { balance: result.newBalance } })
-                    // Refresh transactions
-                    get().fetchTransactions()
+                // OPTIMISTIC UPDATE
+                const prevBalance = get().userProfile.balance
+                set(state => ({
+                    userProfile: { balance: prevBalance + amount },
+                    // Add temp transaction for feedback
+                    transactions: [
+                        {
+                            id: 'temp-' + Date.now(),
+                            type: 'topup',
+                            amount: amount,
+                            date: new Date().toISOString(),
+                            createdAt: new Date().toISOString(),
+                            status: 'pending',
+                            description: 'Top-up (Processing...)'
+                        },
+                        ...state.transactions
+                    ]
+                }))
+
+                try {
+                    const result = await api.topUpWallet(amount)
+                    if (result.success && result.newBalance !== undefined) {
+                        set({ userProfile: { balance: result.newBalance } })
+                        // Refresh to get real transaction ID and consistent state
+                        get().fetchTransactions()
+                    } else {
+                        throw new Error(result.error || 'Top-up failed')
+                    }
+                    return result
+                } catch (error: any) {
+                    // ROLLBACK
+                    set({ userProfile: { balance: prevBalance } })
+                    // Remove temp transaction
+                    set(state => ({
+                        transactions: state.transactions.filter(t => !t.id.startsWith('temp-'))
+                    }))
+                    return { success: false, error: error.message }
                 }
-                return result
             },
 
             // Purchase number via API
-            purchaseNumber: async (countryCode: string, serviceCode: string, testMode?: boolean) => {
-                const result = await api.purchaseNumber(countryCode, serviceCode, testMode)
-                if (result.success && result.number) {
-                    // Refresh numbers and balance
-                    await Promise.all([
-                        get().fetchNumbers(),
-                        get().fetchBalance(),
-                        get().fetchTransactions(),
-                    ])
+            purchaseNumber: async (countryCode: string, serviceCode: string, provider?: string, testMode?: boolean) => {
+                // OPTIMISTIC UPDATE
+                const tempId = 'temp-' + Date.now()
+                const optimisticNumber: ActiveNumber = {
+                    id: tempId,
+                    number: 'Reserve...',
+                    countryCode,
+                    countryName: 'Processing...',
+                    serviceName: 'Processing...',
+                    price: 0,
+                    expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+                    smsCount: 0,
+                    status: 'active',
+                    isOptimistic: true
                 }
-                return result
+
+                set(state => ({
+                    activeNumbers: [optimisticNumber, ...state.activeNumbers]
+                }))
+
+                try {
+                    const result = await api.purchaseNumber(countryCode, serviceCode, provider, testMode)
+
+                    if (result.success && result.number) {
+                        // REPLACE optimistic with real
+                        const realNumber: ActiveNumber = {
+                            id: result.number.id,
+                            number: result.number.phoneNumber,
+                            countryCode: result.number.countryCode,
+                            countryName: result.number.countryName || '',
+                            // Use countryName for flag resolution (NAME_TO_ISO handles it correctly)
+                            // Provider IDs like "36" are not universal across providers
+                            countryIconUrl: getCountryFlagUrlSync(result.number.countryName || result.number.countryCode),
+                            serviceName: result.number.serviceName || '',
+                            serviceCode: result.number.serviceCode,
+                            serviceIconUrl: result.number.serviceIconUrl,
+                            price: result.number.price,
+                            expiresAt: result.number.expiresAt || '',
+                            purchasedAt: result.number.purchasedAt || undefined,
+                            smsCount: result.number.smsCount || 0,
+                            status: result.number.status as ActiveNumber['status'],
+                            latestSms: result.number.latestSms,
+                        }
+
+                        set(state => ({
+                            activeNumbers: state.activeNumbers.map(n => n.id === tempId ? realNumber : n)
+                        }))
+
+                        // Background refresh to ensure sync with proper icons
+                        get().fetchBalance()
+                        get().fetchNumbers() // This fetches service icons from API
+                        get().fetchTransactions()
+                    } else {
+                        throw new Error(result.error || 'Purchase failed')
+                    }
+                    return result
+                } catch (error: any) {
+                    // ROLLBACK
+                    set(state => ({
+                        activeNumbers: state.activeNumbers.filter(n => n.id !== tempId)
+                    }))
+                    return { success: false, error: error.message }
+                }
             },
 
             // Cancel number via API
@@ -172,6 +276,15 @@ export const useGlobalStore = create<GlobalState>()(
                 return result
             },
 
+            // Update number locally
+            updateNumber: (id: string, data: Partial<ActiveNumber>) => {
+                set(state => ({
+                    activeNumbers: state.activeNumbers.map(n =>
+                        n.id === id ? { ...n, ...data } : n
+                    )
+                }))
+            },
+
             // Poll SMS for a number
             pollSms: async (numberId: string) => {
                 const result = await api.pollSms(numberId)
@@ -183,7 +296,7 @@ export const useGlobalStore = create<GlobalState>()(
                             ? {
                                 ...n,
                                 smsCount: result.messages.length,
-                                status: result.status === 'received' ? 'received' : n.status,
+                                status: (result.status as ActiveNumber['status']) || n.status,
                                 latestSms: result.messages[0] ? {
                                     content: result.messages[0].content,
                                     code: result.messages[0].code,

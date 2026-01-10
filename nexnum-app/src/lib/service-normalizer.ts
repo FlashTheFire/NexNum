@@ -2,9 +2,21 @@ import { SERVICE_OVERRIDES, normalizeServiceName } from './service-identity'
 import metadata from './metadata.json'
 
 // Use stop words from metadata
-const STOP_WORDS = new Set(metadata.searchConfig?.stopWords || [
+// Use stop words from metadata
+const STOP_WORDS = new Set((metadata as any).searchConfig?.stopWords || [
     "the", "a", "an", "in", "on", "at", "for", "to", "of", "and", "sms", "verification", "code", "verify"
 ]);
+
+export interface ServiceData {
+    provider: string
+    externalId: string
+    name: string
+    code?: string
+    price?: number
+    originalPrice?: number
+    count?: number
+    isActive?: boolean
+}
 
 export interface AggregatedService {
     canonicalName: string
@@ -75,7 +87,7 @@ class UnionFind {
 const CLEAN_REGEX_PARENS = /[\(\[].*?[\)\]]/g;
 const CLEAN_REGEX_SYMBOLS = /[^a-z0-9 ]/g;
 const CLEAN_REGEX_SPACES = /\s+/g;
-const STOP_WORDS = new Set(["the", "a", "an", "in", "on", "at", "for", "to", "of", "and", "sms", "verification", "code", "verify"]);
+// STOP_WORDS already defined at top of file
 // Build golden rules from metadata.json via SERVICE_OVERRIDES
 const GOLDEN_RULES: [RegExp, string][] = Object.entries(SERVICE_OVERRIDES)
     .map(([key, config]) => {

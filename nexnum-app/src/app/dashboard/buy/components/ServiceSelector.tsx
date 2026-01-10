@@ -41,12 +41,13 @@ export interface Service {
 
 interface ServiceSelectorProps {
     selectedService: string | null;
+    defaultSelected?: { id: string, name: string, iconUrl?: string } | null;
     onSelect: (id: string, name: string, iconUrl?: string) => void;
     searchTerm: string;
     sortOption: "relevance" | "price_asc" | "stock_desc";
 }
 
-export default function ServiceSelector({ selectedService, onSelect, searchTerm, sortOption }: ServiceSelectorProps) {
+export default function ServiceSelector({ selectedService, defaultSelected, onSelect, searchTerm, sortOption }: ServiceSelectorProps) {
     const [fetchedServices, setFetchedServices] = useState<Service[]>([]);
     const [loading, setLoading] = useState(false);
     const [loadingMore, setLoadingMore] = useState(false);
@@ -83,7 +84,7 @@ export default function ServiceSelector({ selectedService, onSelect, searchTerm,
                     id: item.slug,          // Use slug as id
                     name: item.name,        // Display name
                     color: MOCK_COLORS[lowerName.split(/[\s-]/)[0]] || "#888888",
-                    popular: isPopular,
+                    popular: false,
                     lowestPrice: item.lowestPrice,
                     totalStock: item.totalStock,
                     serverCount: item.serverCount,
@@ -94,8 +95,32 @@ export default function ServiceSelector({ selectedService, onSelect, searchTerm,
             });
 
             if (isReset) {
-                // Prioritize Selected Service (Move to Top)
-                if (selectedService) {
+                // Ensure Selected Service is Visible
+                if (defaultSelected) {
+                    // Normalize IDs for comparison
+                    const targetId = defaultSelected.id.toLowerCase();
+                    const idx = mapped.findIndex(s => s.id.toLowerCase() === targetId);
+
+                    if (idx > -1) {
+                        // Found logic (even if case mismatch): Move to top
+                        const [item] = mapped.splice(idx, 1);
+                        mapped.unshift(item);
+                    } else if (pageToFetch === 1 && !query) {
+                        // Not found: Inject
+                        const safeColor = defaultSelected.name
+                            ? (MOCK_COLORS[defaultSelected.name.toLowerCase().split(/[\s-]/)[0]] || "#888888")
+                            : "#888888";
+
+                        mapped.unshift({
+                            id: defaultSelected.id, // Keep original casing from selection
+                            name: defaultSelected.name,
+                            iconUrl: defaultSelected.iconUrl,
+                            popular: false,
+                            color: safeColor
+                        });
+                    }
+                } else if (selectedService) {
+                    // Fallback to old ID-only logic
                     const idx = mapped.findIndex(s => s.id === selectedService);
                     if (idx > -1) {
                         const [item] = mapped.splice(idx, 1);
@@ -199,13 +224,7 @@ export default function ServiceSelector({ selectedService, onSelect, searchTerm,
 
                                 {/* Popular Badge */}
                                 {/* Popular Badge */}
-                                {service.popular && !isSelected && (
-                                    <div className="absolute top-1.5 right-1.5 z-10 animate-in fade-in zoom-in duration-300">
-                                        <div className="bg-black/40 backdrop-blur-md rounded-full p-1 border border-white/10 shadow-sm group-hover:border-[hsl(var(--neon-lime)/0.5)] transition-colors">
-                                            <Sparkles className="w-3 h-3 text-amber-400 fill-amber-400" />
-                                        </div>
-                                    </div>
-                                )}
+
 
                                 <div className="relative z-10 mt-3 mb-2 w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center">
                                     {/* Hover glow ring */}

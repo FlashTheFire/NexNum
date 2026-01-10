@@ -134,6 +134,7 @@ export class SmsBowerProvider implements SmsProvider {
     /**
      * Purchase a number for SMS verification
      */
-    // Removed legacy methods (getNumber, getStatus, etc) as requested
+    // Removed legacy methods (getNumber, getStatus, etc) as requested.
+    // These are now handled by the DynamicProvider engine.
 }
 

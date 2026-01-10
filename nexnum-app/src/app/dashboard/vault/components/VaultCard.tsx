@@ -31,14 +31,7 @@ function useTimeLeft(expiresAt: string) {
 }
 
 // Country Code Map
-const countryCodeMap: Record<string, string> = {
-    "United States": "us", "USA": "us", "US": "us",
-    "United Kingdom": "gb", "UK": "gb",
-    "Canada": "ca", "Germany": "de", "France": "fr",
-    "Russia": "ru", "India": "in", "China": "cn",
-    "Brazil": "br", "Australia": "au", "Spain": "es",
-    "Italy": "it", "Netherlands": "nl", "Poland": "pl",
-};
+
 
 interface VaultCardProps {
     number: any;
@@ -48,7 +41,6 @@ interface VaultCardProps {
 export const VaultCard = memo(({ number }: VaultCardProps) => {
     const [copied, setCopied] = useState(false);
     const { timeLeft, isExpired } = useTimeLeft(number.expiresAt);
-    const countryCode = countryCodeMap[number.countryName] || "un";
     const serviceId = (number.serviceName || 'unknown').toLowerCase();
 
     const handleCopy = (e: React.MouseEvent) => {
@@ -79,10 +71,13 @@ export const VaultCard = memo(({ number }: VaultCardProps) => {
                             {/* Country Flag Badge */}
                             <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-[#111318] overflow-hidden">
                                 <img
-                                    src={`https://flagcdn.com/w40/${countryCode}.png`}
-                                    alt=""
+                                    src={number.countryIconUrl || `https://raw.githubusercontent.com/HatScripts/circle-flags/gh-pages/flags/un.svg`}
+                                    alt={number.countryName}
                                     className="w-full h-full object-cover"
                                     loading="lazy"
+                                    onError={(e) => {
+                                        e.currentTarget.src = 'https://raw.githubusercontent.com/HatScripts/circle-flags/gh-pages/flags/un.svg'
+                                    }}
                                 />
                             </div>
                         </div>

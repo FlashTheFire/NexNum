@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma, ensureWallet } from '@/lib/db'
 import { getCurrentUser } from '@/lib/jwt'
 import { smsProvider } from '@/lib/sms-providers'
+import { WalletService } from '@/lib/wallet'
 
 interface RouteParams {
     params: Promise<{ id: string }>
@@ -60,7 +61,8 @@ export async function POST(request: Request, { params }: RouteParams) {
         }
 
         // Check if SMS was received (no refund if SMS received)
-        if (number.smsMessages.length > 0) {
+        const smsCount = await prisma.smsMessage.count({ where: { numberId: id } })
+        if (smsCount > 0) {
             return NextResponse.json(
                 { error: 'Cannot cancel - SMS already received' },
                 { status: 400 }
@@ -73,45 +75,49 @@ export async function POST(request: Request, { params }: RouteParams) {
                 await smsProvider.cancelNumber(number.activationId)
             } catch (e) {
                 console.error('Provider cancel error:', e)
-                // Continue anyway - we'll refund the user
+                // Continue anyway - we'll refund the user if provider fails to block it
             }
         }
 
         // Refund and update status in transaction
-        const walletId = await ensureWallet(user.userId)
+        try {
+            await prisma.$transaction(async (tx) => {
+                // Refund to wallet using WalletService (atomic balance update)
+                await WalletService.refund(
+                    user.userId,
+                    Number(number.price),
+                    'refund',
+                    id,
+                    `Refund for cancelled number: ${number.phoneNumber}`,
+                    `cancel_refund_${id}`, // Idempotency
+                    tx
+                )
 
-        await prisma.$transaction(async (tx) => {
-            // Refund to wallet (positive amount = credit)
-            await tx.walletTransaction.create({
-                data: {
-                    walletId,
-                    amount: Number(number.price), // Positive = credit (refund)
-                    type: 'refund',
-                    description: `Refund for cancelled number: ${number.phoneNumber}`,
-                }
-            })
+                // Update number status
+                await tx.number.update({
+                    where: { id },
+                    data: { status: 'cancelled' }
+                })
 
-            // Update number status
-            await tx.number.update({
-                where: { id },
-                data: { status: 'cancelled' }
+                // Audit log
+                await tx.auditLog.create({
+                    data: {
+                        userId: user.userId,
+                        action: 'number.cancel',
+                        resourceType: 'number',
+                        resourceId: id,
+                        metadata: {
+                            phoneNumber: number.phoneNumber,
+                            refundAmount: Number(number.price),
+                        },
+                        ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
+                    }
+                })
             })
-
-            // Audit log
-            await tx.auditLog.create({
-                data: {
-                    userId: user.userId,
-                    action: 'number.cancel',
-                    resourceType: 'number',
-                    resourceId: id,
-                    metadata: {
-                        phoneNumber: number.phoneNumber,
-                        refundAmount: Number(number.price),
-                    },
-                    ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
-                }
-            })
-        })
+        } catch (refundErr: any) {
+            console.error('Refund transaction failed:', refundErr)
+            return NextResponse.json({ error: 'Refund processing failed' }, { status: 500 })
+        }
 
         return NextResponse.json({
             success: true,

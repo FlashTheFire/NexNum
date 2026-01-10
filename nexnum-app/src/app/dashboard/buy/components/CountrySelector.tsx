@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Globe, Search, Check, DollarSign, BarChart2, Filter, Loader2, Signal, Package } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { preloadCountryFlags, getCountryFlagUrlSync } from "@/lib/country-flags";
+import { getCountryFlagUrlSync } from "@/lib/country-flags";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -31,41 +31,28 @@ interface Country {
     id: string;
     name: string;
     code: string; // Provider code (numeric, not ISO!)
+    identifier?: string; // Best provider ID for flag lookup
     flagUrl?: string; // Fallback flag URL from provider
     minPrice?: number;
     totalStock?: number;
 }
 
 // --- Flag Component with Name Lookup ---
-const FlagImage = ({ name, flagUrl, className }: { name: string, flagUrl?: string, className?: string }) => {
-    const [src, setSrc] = useState<string | undefined>(undefined);
+const FlagImage = ({ name, providerId, flagUrl, className }: { name: string, providerId?: string, flagUrl?: string, className?: string }) => {
     const [error, setError] = useState(false);
-    const [ready, setReady] = useState(false);
+
+    // Synchronous lookup priority: Name -> Provider ID -> Fallback URL
+    const src = (name ? getCountryFlagUrlSync(name) : undefined)
+        || (providerId ? getCountryFlagUrlSync(providerId) : undefined)
+        || flagUrl;
 
     useEffect(() => {
-        // Preload country flags cache
-        preloadCountryFlags().then(() => setReady(true));
-    }, []);
-
-    useEffect(() => {
-        if (ready && name) {
-            // Look up by country name to get proper circle-flags URL
-            const circleFlagUrl = getCountryFlagUrlSync(name);
-            if (circleFlagUrl) {
-                setSrc(circleFlagUrl);
-                setError(false);
-            } else if (flagUrl) {
-                // Fallback to provider's flagUrl
-                setSrc(flagUrl);
-                setError(false);
-            } else {
-                setError(true);
-            }
-        }
-    }, [ready, name, flagUrl]);
+        // Reset error when props change
+        setError(false);
+    }, [src]);
 
     // Safety check return
-    if (!name || error || !src) {
+    if ((!name && !providerId) || error || !src) {
         return (
             <div className={cn("flex items-center justify-center bg-white/10 rounded-full", className)}>
                 <Globe className="w-1/2 h-1/2 text-gray-400" />
@@ -100,14 +87,13 @@ const CardSkeleton = () => (
 interface CountrySelectorProps {
     onSelect: (country: Country) => void;
     selectedCountryId: string | null;
+    defaultSelected?: Country | null;
     searchTerm: string;
     selectedServiceName?: string;
     sortOption: "relevance" | "price_asc" | "stock_desc";
 }
 
-// Remove local SortOption type definition as it's now in the prop
-
-export default function CountrySelector({ onSelect, selectedCountryId, searchTerm, selectedServiceName, sortOption }: CountrySelectorProps) {
+export default function CountrySelector({ onSelect, selectedCountryId, defaultSelected, searchTerm, selectedServiceName, sortOption }: CountrySelectorProps) {
     const [countries, setCountries] = useState<Country[]>([]);
     const [loading, setLoading] = useState(false);
     const [loadingMore, setLoadingMore] = useState(false);
@@ -144,6 +130,25 @@ export default function CountrySelector({ onSelect, selectedCountryId, searchTer
             const meta = data.pagination || {};
 
             if (isReset) {
+                // Ensure Selected Country is Visible at Top
+                if (defaultSelected) {
+                    const targetId = defaultSelected.id.toLowerCase();
+                    const targetName = defaultSelected.name.toLowerCase();
+
+                    // Try finding by ID first, then by Name
+                    let idx = newItems.findIndex((c: Country) => c.id.toLowerCase() === targetId);
+                    if (idx === -1) {
+                        idx = newItems.findIndex((c: Country) => c.name.toLowerCase() === targetName);
+                    }
+
+                    if (idx > -1) {
+                        const [item] = newItems.splice(idx, 1);
+                        newItems.unshift(item);
+                    } else if (pageToFetch === 1 && !search) {
+                        // Inject if not found in first page
+                        newItems.unshift(defaultSelected);
+                    }
+                }
                 setCountries(newItems);
             } else {
                 setCountries(prev => [...prev, ...newItems]);
@@ -218,7 +223,9 @@ export default function CountrySelector({ onSelect, selectedCountryId, searchTer
             >
                 <AnimatePresence mode="popLayout">
                     {filteredCountries.map((country, index) => {
-                        const isSelected = selectedCountryId === country.id;
+                        // Check match by ID OR Name (case-insensitive) for flexible deep linking
+                        const isSelected = selectedCountryId === country.id ||
+                            (selectedCountryId && country.name.toLowerCase() === selectedCountryId.toLowerCase());
                         return (
                             <motion.button
                                 layout
@@ -243,7 +250,7 @@ export default function CountrySelector({ onSelect, selectedCountryId, searchTer
                                         "transition-transform duration-300 group-hover:scale-110",
                                         isSelected ? "scale-110" : ""
                                     )}>
-                                        <FlagImage name={country.name} flagUrl={country.flagUrl} className="w-8 h-8 flex-shrink-0" />
+                                        <FlagImage name={country.name} providerId={country.code} flagUrl={country.flagUrl} className="w-8 h-8 flex-shrink-0" />
                                     </div>
 
                                     <div className="min-w-0 flex-1">

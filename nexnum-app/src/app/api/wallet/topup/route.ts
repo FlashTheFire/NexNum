@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma, ensureWallet } from '@/lib/db'
+import { WalletService } from '@/lib/wallet'
 import { getCurrentUser } from '@/lib/jwt'
 import { checkIdempotency } from '@/lib/redis'
 import { topupSchema } from '@/lib/validation'
@@ -23,7 +24,6 @@ export const POST = apiHandler(async (request, { body }) => {
     const isNewRequest = await checkIdempotency(idempotencyKey)
 
     if (!isNewRequest) {
-        // Return success for duplicate request (idempotent)
         return NextResponse.json({
             success: true,
             message: 'Transaction already processed',
@@ -34,44 +34,35 @@ export const POST = apiHandler(async (request, { body }) => {
     // Ensure wallet exists
     const walletId = await ensureWallet(user.userId)
 
-    // Create transaction (MOCK - in production, this would be after payment gateway confirmation)
-    const transaction = await prisma.$transaction(async (tx) => {
-        // Create wallet transaction (positive amount = credit)
-        const walletTx = await tx.walletTransaction.create({
-            data: {
-                walletId,
-                amount: amount, // Positive = credit
-                type: 'topup',
-                description: `Wallet top-up: $${amount.toFixed(2)}`,
+    // PROCESS TOP-UP ATOMICALLY
+    // Now using centralized Service for consistency
+    const transaction = await WalletService.credit(
+        user.userId,
+        amount,
+        'topup',
+        `Wallet top-up: $${amount.toFixed(2)}`,
+        idempotencyKey
+    )
+
+    // Audit log (best effort, non-blocking)
+    prisma.auditLog.create({
+        data: {
+            userId: user.userId,
+            action: 'wallet.topup',
+            resourceType: 'wallet',
+            resourceId: walletId,
+            metadata: {
+                amount,
+                transactionId: transaction.id,
                 idempotencyKey,
-            }
-        })
-
-        // Audit log
-        await tx.auditLog.create({
-            data: {
-                userId: user.userId,
-                action: 'wallet.topup',
-                resourceType: 'wallet',
-                resourceId: walletId,
-                metadata: {
-                    amount,
-                    transactionId: walletTx.id,
-                    idempotencyKey,
-                },
-                ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
-            }
-        })
-
-        return walletTx
-    })
+            },
+            ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
+        }
+    }).catch(console.error)
 
     // Get new balance
-    const result = await prisma.walletTransaction.aggregate({
-        where: { walletId },
-        _sum: { amount: true }
-    })
-    const newBalance = Number(result._sum.amount ?? 0)
+    // Faster to read from updated wallet than aggregate
+    const newBalance = await WalletService.getBalance(user.userId)
 
     return NextResponse.json({
         success: true,
