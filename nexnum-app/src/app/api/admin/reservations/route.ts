@@ -3,13 +3,13 @@
  */
 
 import { NextResponse } from 'next/server'
-import { getCurrentUser } from '@/lib/jwt'
+import { getCurrentUser } from '@/lib/auth/jwt'
 import {
     getReservationCleanupStatus,
     cleanupNow,
     startReservationCleanup,
     stopReservationCleanup
-} from '@/lib/reservation-cleanup'
+} from '@/lib/activation/reservation-cleanup'
 
 export async function GET(request: Request) {
     try {

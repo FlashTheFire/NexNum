@@ -29,7 +29,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { useGlobalStore, Transaction } from "@/store"
 import { useAuthStore } from "@/stores/authStore"
-import { formatPrice, formatRelativeTime, cn } from "@/lib/utils"
+import { formatPrice, formatRelativeTime, cn } from "@/lib/utils/utils"
 
 // Animation Variants
 const fadeInUp: any = {

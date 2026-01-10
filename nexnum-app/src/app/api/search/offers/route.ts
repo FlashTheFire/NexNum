@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { searchOffers } from "@/lib/search";
-import { verifyToken } from "@/lib/jwt";
-import { createOfferId } from "@/lib/id-security";
+import { searchOffers } from "@/lib/search/search";
+import { verifyToken } from "@/lib/auth/jwt";
+import { createOfferId } from "@/lib/auth/id-security";
 
 // Protected Route: Only logged in users can search offers
 export async function GET(req: NextRequest) {

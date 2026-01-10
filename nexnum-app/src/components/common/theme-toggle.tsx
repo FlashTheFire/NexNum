@@ -3,7 +3,7 @@
 import * as React from "react"
 import { Moon, Sun, Sparkles } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils/utils"
 
 export function ThemeToggle({ className }: { className?: string }) {
     const [theme, setTheme] = React.useState<"light" | "dark">("dark")

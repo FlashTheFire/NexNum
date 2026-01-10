@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
-import { getCurrentUser } from '@/lib/jwt'
+import { prisma } from '@/lib/core/db'
+import { getCurrentUser } from '@/lib/auth/jwt'
 
 interface RouteParams {
     params: Promise<{ id: string }>

@@ -6,7 +6,7 @@
  */
 
 import { NextResponse } from 'next/server'
-import { lifecycleManager } from '@/lib/number-lifecycle-manager'
+import { lifecycleManager } from '@/lib/activation/number-lifecycle-manager'
 
 export async function GET() {
     try {

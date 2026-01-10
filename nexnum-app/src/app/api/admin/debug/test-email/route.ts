@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { requireAdmin } from '@/lib/requireAdmin'
+import { requireAdmin } from '@/lib/auth/requireAdmin'
 import { EmailService } from '@/lib/email'
 import { WelcomeEmail } from '@/components/emails/WelcomeEmail'
 import { VerificationEmail } from '@/components/emails/VerificationEmail'

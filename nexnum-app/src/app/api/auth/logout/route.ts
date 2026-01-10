@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { clearAuthCookie, getCurrentUser } from '@/lib/jwt'
-import { prisma } from '@/lib/db'
+import { clearAuthCookie, getCurrentUser } from '@/lib/auth/jwt'
+import { prisma } from '@/lib/core/db'
 
 export async function POST(request: Request) {
     try {

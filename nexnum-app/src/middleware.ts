@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { verifyToken } from '@/lib/jwt'
-import { rateLimiters } from '@/lib/ratelimit'
-import { redis } from '@/lib/redis'
+import { verifyToken } from '@/lib/auth/jwt'
+import { rateLimiters } from '@/lib/auth/ratelimit'
+import { redis } from '@/lib/core/redis'
 
 export async function middleware(request: NextRequest) {
     const ip = request.headers.get('x-forwarded-for') ?? '127.0.0.1'

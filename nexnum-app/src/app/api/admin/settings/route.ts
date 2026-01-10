@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { requireAdmin } from '@/lib/requireAdmin'
-import { logAdminAction } from '@/lib/auditLog'
+import { requireAdmin } from '@/lib/auth/requireAdmin'
+import { logAdminAction } from '@/lib/core/auditLog'
 import { SettingsService, AppSettings } from '@/lib/settings'
 
 /**

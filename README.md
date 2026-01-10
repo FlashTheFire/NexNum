@@ -29,12 +29,15 @@
 - [✨ Features](#-features)
 - [🏗️ Architecture](#️-architecture)
 - [🛠️ Tech Stack](#️-tech-stack)
+- [📁 Project Structure](#-project-structure)
 - [🚀 Quick Start](#-quick-start)
 - [📊 System Overview](#-system-overview)
 - [🔌 Provider Integration](#-provider-integration)
 - [💳 Wallet System](#-wallet-system)
 - [🎨 Design System](#-design-system)
 - [📈 Monitoring](#-monitoring)
+- [☁️ Production Deployment](#️-production-deployment-aws-amplify)
+- [🔒 Security](#-security)
 - [📄 License](#-license)
 
 ---
@@ -148,6 +151,133 @@ flowchart TB
 ![Sentry](https://img.shields.io/badge/Sentry-362D59?style=for-the-badge&logo=sentry&logoColor=white)
 
 </div>
+
+---
+
+## 📁 Project Structure
+
+<details open>
+<summary><b>🗂️ Complete Directory Tree</b></summary>
+
+```
+nexnum-app/
+├── 📂 prisma/
+│   └── schema.prisma              # 🗃️ Database schema (PostgreSQL)
+│
+├── 📂 public/                     # 🖼️ Static assets
+│
+├── 📂 src/
+│   ├── 📂 app/                    # ⚡ Next.js App Router
+│   │   ├── 📂 admin/              # 🛡️ Admin dashboard pages
+│   │   │   ├── inventory/         #    └─ Inventory management
+│   │   │   ├── providers/         #    └─ Provider configuration
+│   │   │   ├── settings/          #    └─ System settings
+│   │   │   └── users/             #    └─ User management
+│   │   │
+│   │   ├── 📂 api/                # 🔌 API Routes
+│   │   │   ├── admin/             #    └─ Admin endpoints
+│   │   │   │   ├── ai-generate/   #        └─ AI config generator
+│   │   │   │   ├── analytics/     #        └─ Dashboard analytics
+│   │   │   │   ├── providers/     #        └─ Provider CRUD & sync
+│   │   │   │   ├── settings/      #        └─ System configuration
+│   │   │   │   └── users/         #        └─ User management
+│   │   │   ├── auth/              #    └─ Authentication (login/register/refresh)
+│   │   │   ├── cron/              #    └─ Scheduled job triggers
+│   │   │   ├── health/            #    └─ Health check endpoints
+│   │   │   ├── metrics/           #    └─ Prometheus metrics
+│   │   │   ├── numbers/           #    └─ Number operations
+│   │   │   │   ├── purchase/      #        └─ Buy virtual number
+│   │   │   │   ├── cancel/        #        └─ Cancel activation
+│   │   │   │   └── status/        #        └─ Check SMS status
+│   │   │   ├── search/            #    └─ MeiliSearch integration
+│   │   │   ├── wallet/            #    └─ Wallet operations
+│   │   │   └── webhooks/          #    └─ Incoming SMS webhooks
+│   │   │
+│   │   ├── 📂 dashboard/          # 👤 User dashboard pages
+│   │   │   ├── buy/               #    └─ Purchase flow
+│   │   │   ├── history/           #    └─ Transaction history
+│   │   │   ├── vault/             #    └─ Active numbers
+│   │   │   └── wallet/            #    └─ Balance & deposits
+│   │   │
+│   │   ├── 📂 login/              # 🔐 Auth pages
+│   │   ├── 📂 register/
+│   │   ├── globals.css            # 🎨 Global styles & CSS vars
+│   │   ├── layout.tsx             # 📄 Root layout
+│   │   └── page.tsx               # 🏠 Landing page
+│   │
+│   ├── 📂 components/             # 🧩 React Components
+│   │   ├── 📂 admin/              # 🛡️ Admin UI components
+│   │   │   ├── AdminBackground    #    └─ Dashboard background
+│   │   │   ├── AIConfigAssistant  #    └─ AI provider setup wizard
+│   │   │   └── ProviderAIHub      #    └─ AI optimization panel
+│   │   ├── 📂 auth/               # 🔐 Auth forms
+│   │   ├── 📂 common/             # 🔧 Shared components
+│   │   ├── 📂 home/               # 🏠 Landing page sections
+│   │   │   ├── Hero               #    └─ Hero section
+│   │   │   ├── Features           #    └─ Feature cards
+│   │   │   ├── Pricing            #    └─ Pricing tiers
+│   │   │   └── FAQ                #    └─ FAQ accordion
+│   │   ├── 📂 layout/             # 📐 Layout components
+│   │   │   ├── Navbar             #    └─ Navigation bar
+│   │   │   └── Footer             #    └─ Site footer
+│   │   └── 📂 ui/                 # 🎨 UI primitives (Button, Input, etc.)
+│   │
+│   ├── 📂 lib/                    # 📚 Core Business Logic
+│   │   ├── 🔧 Core Services
+│   │   │   ├── db.ts              #    └─ Prisma client
+│   │   │   ├── redis.ts           #    └─ Redis connection
+│   │   │   ├── logger.ts          #    └─ Structured logging
+│   │   │   └── cache.ts           #    └─ SWR caching layer
+│   │   │
+│   │   ├── 🔐 Auth & Security
+│   │   │   ├── auth.ts            #    └─ Session management
+│   │   │   ├── jwt.ts             #    └─ Token generation
+│   │   │   ├── ratelimit.ts       #    └─ Request throttling
+│   │   │   └── validation.ts      #    └─ Input validation (Zod)
+│   │   │
+│   │   ├── 📱 SMS Provider Engine
+│   │   │   ├── dynamic-provider.ts    #    └─ Universal provider adapter
+│   │   │   ├── smart-router.ts        #    └─ Multi-provider routing
+│   │   │   ├── provider-factory.ts    #    └─ Provider instantiation
+│   │   │   └── provider-sync.ts       #    └─ Country/service sync
+│   │   │
+│   │   ├── 📂 sms-providers/      # 🔌 Provider implementations
+│   │   │   ├── types.ts           #    └─ SmsProvider interface
+│   │   │   └── fivesim.ts         #    └─ 5sim reference implementation
+│   │   │
+│   │   ├── 💰 Wallet & Transactions
+│   │   │   ├── wallet.ts          #    └─ Balance operations
+│   │   │   └── reservation-cleanup.ts └─ Expired reservation cleanup
+│   │   │
+│   │   ├── ⚙️ Background Jobs
+│   │   │   ├── number-lifecycle-manager.ts  # └─ pg-boss job processor
+│   │   │   └── activation-service.ts        # └─ Activation state machine
+│   │   │
+│   │   ├── 🔍 Search & Discovery
+│   │   │   ├── search.ts          #    └─ MeiliSearch client
+│   │   │   ├── country-normalizer.ts  #    └─ Country name mapping
+│   │   │   └── service-normalizer.ts  #    └─ Service code mapping
+│   │   │
+│   │   ├── 🤖 AI Integration
+│   │   │   └── gemini-pool.ts     #    └─ Gemini API key rotation
+│   │   │
+│   │   └── 📊 Observability
+│   │       └── metrics.ts         #    └─ Prometheus counters/gauges
+│   │
+│   ├── 📂 hooks/                  # 🪝 React Hooks
+│   ├── 📂 stores/                 # 🗄️ Zustand state stores
+│   ├── 📂 types/                  # 📝 TypeScript types
+│   ├── middleware.ts              # 🛡️ Edge middleware (auth, rate limit)
+│   └── instrumentation.ts         # 📡 Sentry & pg-boss init
+│
+├── 📄 .env                        # 🔒 Environment variables
+├── 📄 Dockerfile                  # 🐳 Container build (optional)
+├── 📄 docker-compose.yml          # 🐳 Local development stack
+├── 📄 package.json                # 📦 Dependencies
+└── 📄 tsconfig.json               # ⚙️ TypeScript config
+```
+
+</details>
 
 ---
 
@@ -356,6 +486,83 @@ stateDiagram-v2
 GET /api/health          → Basic health check
 GET /api/health/detailed → Full system status
 GET /api/metrics         → Prometheus metrics
+```
+
+---
+
+## ☁️ Production Deployment (AWS Amplify)
+
+NexNum is optimized for **AWS Amplify** - the recommended deployment platform for Next.js applications.
+
+### Why AWS Amplify?
+
+| Feature | Benefit |
+|---------|---------|
+| ✅ **Native Next.js 16 Support** | SSR, API routes, Image optimization |
+| ✅ **Free Tier (12 months)** | $100 credits + always-free Lambda |
+| ✅ **Commercial Use Allowed** | Unlike Vercel Hobby plan |
+| ✅ **Auto CI/CD** | Deploy on every GitHub push |
+| ✅ **Global CDN** | CloudFront included |
+
+### Production Stack (FREE Tier)
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                   NexNum Production                     │
+├─────────────────────────────────────────────────────────┤
+│  ☁️  AWS Amplify    → Next.js hosting           (FREE) │
+│  🗃️  Supabase       → PostgreSQL database       (FREE) │
+│  ⚡  Upstash        → Redis cache               (FREE) │
+│  📧  Resend         → Transactional emails      (FREE) │
+│  🔍  MeiliSearch    → Search (Cloud or Docker)  (FREE) │
+├─────────────────────────────────────────────────────────┤
+│  💰 TOTAL: $0/month for 12+ months                      │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Quick Deploy to AWS
+
+```bash
+# 1️⃣ Install Amplify CLI
+npm install -g @aws-amplify/cli
+
+# 2️⃣ Configure AWS credentials
+amplify configure
+
+# 3️⃣ Initialize Amplify in your project
+amplify init
+
+# 4️⃣ Add hosting
+amplify add hosting
+# Select: Hosting with Amplify Console
+# Select: Continuous deployment
+
+# 5️⃣ Deploy
+amplify publish
+```
+
+### Environment Variables (AWS Console)
+
+Set these in **Amplify Console → App Settings → Environment Variables**:
+
+```env
+DATABASE_URL=postgresql://user:pass@host:5432/db
+DIRECT_URL=postgresql://user:pass@host:5432/db
+REDIS_URL=redis://default:xxx@xxx.upstash.io:6379
+JWT_SECRET=your-secret-key
+NEXT_PUBLIC_API_URL=https://your-app.amplifyapp.com
+```
+
+### Alternative: Docker Deployment
+
+For VPS or self-hosted environments:
+
+```bash
+# Build image
+docker build -t nexnum-app .
+
+# Run with env file
+docker run -p 3000:3000 --env-file .env nexnum-app
 ```
 
 ---

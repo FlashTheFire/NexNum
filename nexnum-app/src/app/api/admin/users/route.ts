@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
-import { requireAdmin } from '@/lib/requireAdmin'
-import { logAdminAction, getClientIP } from '@/lib/auditLog'
+import { prisma } from '@/lib/core/db'
+import { requireAdmin } from '@/lib/auth/requireAdmin'
+import { logAdminAction, getClientIP } from '@/lib/core/auditLog'
 
 export async function GET(request: Request) {
     const auth = await requireAdmin(request)

@@ -6,7 +6,7 @@
  */
 
 import { NextResponse } from 'next/server'
-import { getServiceAggregates } from '@/lib/service-aggregates'
+import { getServiceAggregates } from '@/lib/search/service-aggregates'
 
 export async function GET(request: Request) {
     try {

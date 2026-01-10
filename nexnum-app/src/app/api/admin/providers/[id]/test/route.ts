@@ -1,10 +1,10 @@
 
 // Types synchronized with schema
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
-import { getProviderAdapter, getMetadataProvider, hasDynamicConfig, usesDynamicMetadata } from '@/lib/provider-factory'
-import { DynamicProvider } from '@/lib/dynamic-provider'
-import { requireAdmin } from '@/lib/requireAdmin'
+import { prisma } from '@/lib/core/db'
+import { getProviderAdapter, getMetadataProvider, hasDynamicConfig, usesDynamicMetadata } from '@/lib/providers/provider-factory'
+import { DynamicProvider } from '@/lib/providers/dynamic-provider'
+import { requireAdmin } from '@/lib/auth/requireAdmin'
 import { SmsProvider } from '@/lib/sms-providers/types'
 
 export async function POST(req: Request, source: { params: Promise<{ id: string }> }) {

@@ -1,9 +1,9 @@
 
 import { NextResponse } from "next/server"
-import { prisma } from "@/lib/db"
-import { getProviderAdapter, hasDynamicConfig } from "@/lib/provider-factory"
-import { DynamicProvider } from "@/lib/dynamic-provider"
-import { requireAdmin } from "@/lib/requireAdmin"
+import { prisma } from "@/lib/core/db"
+import { getProviderAdapter, hasDynamicConfig } from "@/lib/providers/provider-factory"
+import { DynamicProvider } from "@/lib/providers/dynamic-provider"
+import { requireAdmin } from "@/lib/auth/requireAdmin"
 
 // POST /api/admin/providers/balance-check
 // Trigger sync for all active providers

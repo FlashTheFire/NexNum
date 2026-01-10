@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { ArrowRight, Signal, Server } from "lucide-react";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice } from "@/lib/utils/utils";
 
 export interface SearchOffer {
     id: string;

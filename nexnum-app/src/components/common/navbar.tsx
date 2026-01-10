@@ -20,7 +20,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { useGlobalStore } from "@/store"
 import { useAuthStore } from "@/stores/authStore"
-import { formatPrice, cn } from "@/lib/utils"
+import { formatPrice, cn } from "@/lib/utils/utils"
 
 export function Navbar() {
     const pathname = usePathname()

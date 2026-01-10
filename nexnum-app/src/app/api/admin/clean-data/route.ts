@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
-import { meili } from '@/lib/search'
+import { prisma } from '@/lib/core/db'
+import { meili } from '@/lib/search/search'
 
 export async function POST() {
     try {

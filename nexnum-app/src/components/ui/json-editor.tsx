@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useRef, useCallback, useEffect, useLayoutEffect } from "react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils/utils"
 import { Copy, Check, Maximize2, Minimize2, AlertTriangle } from "lucide-react"
 
 interface JsonEditorProps {

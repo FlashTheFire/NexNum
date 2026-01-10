@@ -1,5 +1,5 @@
 import { ArrowLeft, Search, ShoppingCart, DollarSign, Package, TrendingUp, SlidersHorizontal } from "lucide-react";
-import { formatPrice, cn } from "@/lib/utils";
+import { formatPrice, cn } from "@/lib/utils/utils";
 import {
     DropdownMenu,
     DropdownMenuContent,

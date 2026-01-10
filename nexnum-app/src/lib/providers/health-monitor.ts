@@ -8,9 +8,9 @@
  * - Automatic recovery
  */
 
-import { redis } from '@/lib/redis'
-import { prisma } from '@/lib/db'
-import { logger } from '@/lib/logger'
+import { redis } from '@/lib/core/redis'
+import { prisma } from '@/lib/core/db'
+import { logger } from '@/lib/core/logger'
 import { ProviderHealth } from '@/lib/sms/types'
 
 // ============================================

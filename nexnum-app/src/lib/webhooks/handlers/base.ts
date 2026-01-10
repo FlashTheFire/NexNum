@@ -5,9 +5,9 @@
  * Handles normalization, deduplication, and storage
  */
 
-import { prisma } from '@/lib/db'
-import { redis } from '@/lib/redis'
-import { logger } from '@/lib/logger'
+import { prisma } from '@/lib/core/db'
+import { redis } from '@/lib/core/redis'
+import { logger } from '@/lib/core/logger'
 import { CodeExtractor } from '@/lib/sms/code-extractor'
 import { WebhookPayload, SmsResult, ActivationStatus } from '@/lib/sms/types'
 

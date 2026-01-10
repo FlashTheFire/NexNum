@@ -14,8 +14,13 @@ export const AdminBackground = () => {
             {/* 3. Secondary Halo (Bottom-Left) - Isometric depth */}
             <div className="absolute -bottom-[20%] -left-[10%] w-[60vw] h-[60vw] rounded-full bg-[radial-gradient(circle,rgba(16,185,129,0.02)_0%,transparent_70%)] blur-3xl opacity-40" />
 
-            {/* 4. Micro-Noise Texture (Film Grain) */}
-            <div className="absolute inset-0 bg-[url('/noise.png')] opacity-[0.015] mix-blend-overlay" />
+            {/* 4. Micro-Noise Texture (CSS-based film grain) */}
+            <div
+                className="absolute inset-0 opacity-[0.03] mix-blend-overlay"
+                style={{
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
+                }}
+            />
 
             {/* 5. Isometric Grid Lines (Very faint) */}
             <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.015)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.015)_1px,transparent_1px)] bg-[size:100px_100px] opacity-20" />

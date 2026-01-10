@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
-import { requireAdmin } from '@/lib/requireAdmin'
+import { prisma } from '@/lib/core/db'
+import { requireAdmin } from '@/lib/auth/requireAdmin'
 
 /**
  * Analytics API for Admin Dashboard

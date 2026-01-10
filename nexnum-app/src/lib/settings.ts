@@ -1,5 +1,5 @@
-import { redis } from '@/lib/redis'
-import { prisma } from '@/lib/db'
+import { redis } from '@/lib/core/redis'
+import { prisma } from '@/lib/core/db'
 
 // Types
 export interface AppSettings {

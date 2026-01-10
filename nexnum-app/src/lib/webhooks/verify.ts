@@ -8,7 +8,7 @@
 // @ts-ignore
 import crypto = require('crypto')
 import { WebhookVerificationResult } from '@/lib/sms/types'
-import { logger } from '@/lib/logger'
+import { logger } from '@/lib/core/logger'
 
 declare var Buffer: any;
 

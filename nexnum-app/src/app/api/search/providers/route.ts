@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { searchProviders } from "@/lib/search";
+import { searchProviders } from "@/lib/search/search";
 
 /**
  * GET /api/search/providers

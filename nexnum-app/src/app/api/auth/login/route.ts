@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
-import { generateToken, setAuthCookie } from '@/lib/jwt'
-import { loginSchema } from '@/lib/validation'
+import { prisma } from '@/lib/core/db'
+import { generateToken, setAuthCookie } from '@/lib/auth/jwt'
+import { loginSchema } from '@/lib/api/validation'
 import bcrypt from 'bcryptjs'
-import { apiHandler } from '@/lib/api-handler'
+import { apiHandler } from '@/lib/api/api-handler'
 
 export const POST = apiHandler(async (request, { body }) => {
     // Body is already validated by apiHandler using loginSchema

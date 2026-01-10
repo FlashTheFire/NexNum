@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
-import { generateToken, setAuthCookie } from '@/lib/jwt'
-import { registerSchema } from '@/lib/validation'
+import { prisma } from '@/lib/core/db'
+import { generateToken, setAuthCookie } from '@/lib/auth/jwt'
+import { registerSchema } from '@/lib/api/validation'
 import bcrypt from 'bcryptjs'
-import { apiHandler } from '@/lib/api-handler'
+import { apiHandler } from '@/lib/api/api-handler'
 import { EmailService } from '@/lib/email'
 import { WelcomeEmail } from '@/components/emails/WelcomeEmail'
 

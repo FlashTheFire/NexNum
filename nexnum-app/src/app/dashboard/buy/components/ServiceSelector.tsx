@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils/utils";
 import { Check, Sparkles, Loader2, Server, SearchX, HelpCircle, MessageSquare, Shield, Smartphone, Globe, Zap, Lock } from "lucide-react";
 
 // Helper hook for IntersectionObserver

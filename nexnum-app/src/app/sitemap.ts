@@ -1,5 +1,5 @@
 import { MetadataRoute } from 'next'
-import { searchAdminCountries, searchAdminServices } from '@/lib/search'
+import { searchAdminCountries, searchAdminServices } from '@/lib/search/search'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://nexnum.com'

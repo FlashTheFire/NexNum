@@ -25,7 +25,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { useGlobalStore } from "@/store"
 import { useAuthStore } from "@/stores/authStore"
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils/utils"
 
 // Tab Configuration
 const tabs = [

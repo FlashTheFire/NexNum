@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { cn } from "@/lib/utils";
-import { getCountryFlagUrlSync } from "@/lib/country-flags";
+import { cn } from "@/lib/utils/utils";
+import { getCountryFlagUrlSync } from "@/lib/normalizers/country-flags";
 import {
     Server,
     Check,

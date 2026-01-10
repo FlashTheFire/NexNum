@@ -476,7 +476,7 @@ async function handleAnalysis(prompt: string) {
 
 export async function POST(req: NextRequest) {
   // Import at top won't work at runtime, so dynamic import
-  const { requireAdmin } = await import('@/lib/requireAdmin')
+  const { requireAdmin } = await import('@/lib/auth/requireAdmin')
   const auth = await requireAdmin(req)
   if (auth.error) return auth.error
 

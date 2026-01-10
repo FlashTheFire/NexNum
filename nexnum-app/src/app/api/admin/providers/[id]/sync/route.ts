@@ -1,9 +1,9 @@
 
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
-import { syncProviderData } from '@/lib/provider-sync'
-import { requireAdmin } from '@/lib/requireAdmin'
-import { logAdminAction, getClientIP } from '@/lib/auditLog'
+import { prisma } from '@/lib/core/db'
+import { syncProviderData } from '@/lib/providers/provider-sync'
+import { requireAdmin } from '@/lib/auth/requireAdmin'
+import { logAdminAction, getClientIP } from '@/lib/core/auditLog'
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
     const auth = await requireAdmin(req)

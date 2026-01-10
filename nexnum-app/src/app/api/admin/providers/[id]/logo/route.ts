@@ -1,8 +1,8 @@
 
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
-import { requireAdmin } from '@/lib/requireAdmin'
-import { logAdminAction, getClientIP } from '@/lib/auditLog'
+import { prisma } from '@/lib/core/db'
+import { requireAdmin } from '@/lib/auth/requireAdmin'
+import { logAdminAction, getClientIP } from '@/lib/core/auditLog'
 import { writeFile, mkdir } from 'fs/promises'
 import path from 'path'
 

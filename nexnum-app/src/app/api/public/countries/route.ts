@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { searchCountries } from "@/lib/search";
+import { searchCountries } from "@/lib/search/search";
 
 /**
  * GET /api/public/countries
@@ -19,7 +19,7 @@ export async function GET(req: Request) {
 
         if (!serviceName) {
             // New Behavior: If no service selected, return generic country list from Lookup
-            const { prisma } = await import('@/lib/db');
+            const { prisma } = await import('@/lib/core/db');
             const [countries, total] = await Promise.all([
                 prisma.countryLookup.findMany({
                     where: q ? { name: { contains: q, mode: 'insensitive' } } : {},

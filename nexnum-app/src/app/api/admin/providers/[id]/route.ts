@@ -1,9 +1,9 @@
 
 // Types synchronized with schema
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
-import { requireAdmin, redactProviderSecrets } from '@/lib/requireAdmin'
-import { logAdminAction, getClientIP } from '@/lib/auditLog'
+import { prisma } from '@/lib/core/db'
+import { requireAdmin, redactProviderSecrets } from '@/lib/auth/requireAdmin'
+import { logAdminAction, getClientIP } from '@/lib/core/auditLog'
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
     const auth = await requireAdmin(req)

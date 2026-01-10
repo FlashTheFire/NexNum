@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
-import { requireAdmin } from '@/lib/requireAdmin'
+import { prisma } from '@/lib/core/db'
+import { requireAdmin } from '@/lib/auth/requireAdmin'
 
 export async function GET(request: Request) {
     const auth = await requireAdmin(request)

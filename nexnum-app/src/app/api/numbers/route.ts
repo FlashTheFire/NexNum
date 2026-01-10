@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getCurrentUser } from '@/lib/jwt'
+import { getCurrentUser } from '@/lib/auth/jwt'
 import { smsProvider } from '@/lib/sms-providers'
 
 import { unstable_cache } from 'next/cache'

@@ -8,11 +8,11 @@ export async function register() {
         // Start outbox worker for reliable MeiliSearch sync
         // Only in production or when explicitly enabled
         if (process.env.NODE_ENV === 'production' || process.env.OUTBOX_WORKER_ENABLED === 'true') {
-            const { startOutboxWorker } = await import('./lib/outbox-worker')
+            const { startOutboxWorker } = await import('@/lib/activation/outbox-worker')
             startOutboxWorker()
 
             // Reservation cleanup to prevent ghost reservations
-            const { startReservationCleanup } = await import('./lib/reservation-cleanup')
+            const { startReservationCleanup } = await import('@/lib/activation/reservation-cleanup')
             startReservationCleanup()
         }
     }

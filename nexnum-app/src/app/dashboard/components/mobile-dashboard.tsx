@@ -4,8 +4,8 @@ import { useState, useRef, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useGlobalStore } from "@/store"
 import { useAuthStore } from "@/stores/authStore"
-import { formatPrice } from "@/lib/utils"
-import { getCountryFlagUrlSync } from "@/lib/country-flags"
+import { formatPrice } from "@/lib/utils/utils"
+import { getCountryFlagUrlSync } from "@/lib/normalizers/country-flags"
 import Link from "next/link"
 import {
     Wallet,

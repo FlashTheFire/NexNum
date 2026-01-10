@@ -5,9 +5,9 @@
  */
 
 import { NextResponse } from 'next/server'
-import { getCurrentUser } from '@/lib/jwt'
+import { getCurrentUser } from '@/lib/auth/jwt'
 import { getOutboxWorkerStatus, processOutboxNow, startOutboxWorker, stopOutboxWorker } from '@/lib/outbox-worker'
-import { cleanupProcessedEvents } from '@/lib/outbox'
+import { cleanupProcessedEvents } from '@/lib/activation/outbox'
 
 export async function GET(request: Request) {
     try {

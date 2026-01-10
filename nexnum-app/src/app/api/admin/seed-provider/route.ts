@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
-import { DynamicProvider } from '@/lib/dynamic-provider'
+import { prisma } from '@/lib/core/db'
+import { DynamicProvider } from '@/lib/providers/dynamic-provider'
 
 // ----------------------------------------------------------------------------
 // 🛠️ CONFIGURATION AREA: EDIT THIS SECTION TO ADD YOUR REAL PROVIDER

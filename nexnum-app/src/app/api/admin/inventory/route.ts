@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
-import { requireAdmin } from '@/lib/requireAdmin'
+import { requireAdmin } from '@/lib/auth/requireAdmin'
 import {
     searchAdminCountries,
     searchAdminServices,
     searchRawInventory
-} from '@/lib/search'
+} from '@/lib/search/search'
 
 export async function GET(request: Request) {
     const auth = await requireAdmin(request)

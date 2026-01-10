@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
-import { redis } from '@/lib/redis'
+import { prisma } from '@/lib/core/db'
+import { redis } from '@/lib/core/redis'
 
 interface HealthStatus {
     status: 'healthy' | 'degraded' | 'unhealthy'

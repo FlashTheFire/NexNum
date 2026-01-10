@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Globe, Search, Check, DollarSign, BarChart2, Filter, Loader2, Signal, Package } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { getCountryFlagUrlSync } from "@/lib/country-flags";
+import { cn } from "@/lib/utils/utils";
+import { getCountryFlagUrlSync } from "@/lib/normalizers/country-flags";
 import {
     DropdownMenu,
     DropdownMenuContent,

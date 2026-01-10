@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { processOutboxEvents } from '@/lib/outbox'
+import { processOutboxEvents } from '@/lib/activation/outbox'
 import { processActivationOutbox } from '@/lib/activation-outbox-worker'
 
 export const dynamic = 'force-dynamic'

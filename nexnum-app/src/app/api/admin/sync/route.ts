@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
-import { syncProviderData } from '@/lib/provider-sync'
-import { requireAdmin } from '@/lib/requireAdmin'
-import { logAdminAction, getClientIP } from '@/lib/auditLog'
+import { syncProviderData } from '@/lib/providers/provider-sync'
+import { requireAdmin } from '@/lib/auth/requireAdmin'
+import { logAdminAction, getClientIP } from '@/lib/core/auditLog'
 
 export async function POST(request: Request) {
     const auth = await requireAdmin(request)
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
         } else {
             console.log(`[API] Starting Full Admin Sync (all providers)...`)
             // Import syncAllProviders dynamically or ensure it's imported at top
-            const { syncAllProviders } = await import('@/lib/provider-sync')
+            const { syncAllProviders } = await import('@/lib/providers/provider-sync')
             result = await syncAllProviders()
         }
 

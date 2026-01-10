@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
-import { getCurrentUser } from '@/lib/jwt'
+import { prisma } from '@/lib/core/db'
+import { getCurrentUser } from '@/lib/auth/jwt'
 import { smsProvider } from '@/lib/sms-providers/index'
-import { apiHandler } from '@/lib/api-handler'
+import { apiHandler } from '@/lib/api/api-handler'
 
 interface RouteParams {
     params: Promise<{ numberId: string }>

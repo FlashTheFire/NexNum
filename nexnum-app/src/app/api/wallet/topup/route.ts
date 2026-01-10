@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
-import { prisma, ensureWallet } from '@/lib/db'
-import { WalletService } from '@/lib/wallet'
-import { getCurrentUser } from '@/lib/jwt'
-import { checkIdempotency } from '@/lib/redis'
-import { topupSchema } from '@/lib/validation'
-import { apiHandler } from '@/lib/api-handler'
+import { prisma, ensureWallet } from '@/lib/core/db'
+import { WalletService } from '@/lib/wallet/wallet'
+import { getCurrentUser } from '@/lib/auth/jwt'
+import { checkIdempotency } from '@/lib/core/redis'
+import { topupSchema } from '@/lib/api/validation'
+import { apiHandler } from '@/lib/api/api-handler'
 
 export const POST = apiHandler(async (request, { body }) => {
     // Body validated by apiHandler

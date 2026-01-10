@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
-import { WalletService } from '@/lib/wallet'
-import { logger } from '@/lib/logger'
+import { prisma } from '@/lib/core/db'
+import { WalletService } from '@/lib/wallet/wallet'
+import { logger } from '@/lib/core/logger'
 
 export const dynamic = 'force-dynamic'
 

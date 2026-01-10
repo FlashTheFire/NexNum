@@ -1,9 +1,9 @@
 
 // Types synchronized with schema
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
-import { requireAdmin, redactProvidersSecrets, redactProviderSecrets } from '@/lib/requireAdmin'
-import { logAdminAction, getClientIP } from '@/lib/auditLog'
+import { prisma } from '@/lib/core/db'
+import { requireAdmin, redactProvidersSecrets, redactProviderSecrets } from '@/lib/auth/requireAdmin'
+import { logAdminAction, getClientIP } from '@/lib/core/auditLog'
 import { SettingsService } from '@/lib/settings'
 
 export async function GET(req: Request) {

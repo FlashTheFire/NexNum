@@ -1,6 +1,6 @@
 "use client"
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils/utils";
 import { ChevronDown, Copy, Check } from "lucide-react";
 import { ServiceIcon } from "../../buy/components/ServiceIcon";
 import { useState, memo } from "react";

@@ -6,7 +6,7 @@
  */
 
 import { BaseWebhookHandler } from './base'
-import { DynamicProvider } from '@/lib/dynamic-provider'
+import { DynamicProvider } from '@/lib/providers/dynamic-provider'
 import { WebhookPayload } from '@/lib/sms/types'
 
 export class DynamicWebhookHandler extends BaseWebhookHandler {

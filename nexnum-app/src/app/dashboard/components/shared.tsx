@@ -5,7 +5,7 @@ import { useGlobalStore } from "@/store"
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 
-import { formatPrice, formatRelativeTime } from "@/lib/utils"
+import { formatPrice, formatRelativeTime } from "@/lib/utils/utils"
 
 // Notifications Component (Shared)
 export function NotificationsBtn() {

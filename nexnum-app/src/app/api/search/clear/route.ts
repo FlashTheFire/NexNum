@@ -1,8 +1,8 @@
 
 import { NextResponse } from 'next/server'
-import { meili, INDEXES } from '@/lib/search'
-import { syncAllProviders } from '@/lib/provider-sync'
-import { prisma } from '@/lib/db'
+import { meili, INDEXES } from '@/lib/search/search'
+import { syncAllProviders } from '@/lib/providers/provider-sync'
+import { prisma } from '@/lib/core/db'
 
 export const dynamic = 'force-dynamic'
 

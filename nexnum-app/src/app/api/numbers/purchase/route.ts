@@ -1,16 +1,16 @@
 import { NextResponse } from 'next/server'
-import { prisma, ensureWallet } from '@/lib/db'
+import { prisma, ensureWallet } from '@/lib/core/db'
 import { Prisma } from '@prisma/client'
-import { getCurrentUser } from '@/lib/jwt'
-import { checkIdempotency, acquireNumberLock, releaseNumberLock } from '@/lib/redis'
-import { purchaseNumberSchema } from '@/lib/validation'
+import { getCurrentUser } from '@/lib/auth/jwt'
+import { checkIdempotency, acquireNumberLock, releaseNumberLock } from '@/lib/core/redis'
+import { purchaseNumberSchema } from '@/lib/api/validation'
 import { purchase_duration_seconds, wallet_transactions_total, provider_api_calls_total } from '@/lib/metrics'
 import { smsProvider } from '@/lib/sms-providers'
-import { apiHandler } from '@/lib/api-handler'
-import { createOutboxEvent } from '@/lib/outbox'
-import { getOfferForPurchase, OfferDocument } from '@/lib/search'
-import { getCountryFlagUrl } from '@/lib/country-flags'
-import { WalletService } from '@/lib/wallet'
+import { apiHandler } from '@/lib/api/api-handler'
+import { createOutboxEvent } from '@/lib/activation/outbox'
+import { getOfferForPurchase, OfferDocument } from '@/lib/search/search'
+import { getCountryFlagUrl } from '@/lib/normalizers/country-flags'
+import { WalletService } from '@/lib/wallet/wallet'
 
 /**
  * Purchase Flow: MeiliSearch-First Architecture
@@ -233,7 +233,7 @@ export const POST = apiHandler(async (request, { body }) => {
         // Schedule lifecycle tracking (auto-start polling + timeout)
         // This replaces the need for external cron jobs
         try {
-            const { lifecycleManager } = await import('@/lib/number-lifecycle-manager')
+            const { lifecycleManager } = await import('@/lib/activation/number-lifecycle-manager')
             await lifecycleManager.schedulePolling(
                 resultNumber.id,
                 resultNumber.activationId,

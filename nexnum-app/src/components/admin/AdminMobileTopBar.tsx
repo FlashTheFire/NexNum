@@ -2,7 +2,7 @@
 
 import { useAuthStore } from "@/stores/authStore"
 import { LogOut } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils/utils"
 
 export default function AdminMobileTopBar() {
     const { user, logout } = useAuthStore()

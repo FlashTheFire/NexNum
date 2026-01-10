@@ -1,5 +1,5 @@
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils/utils";
 
 interface VectorAccentsProps {
     variant?: "corner" | "edge" | "circle" | "crosshair" | "dots";

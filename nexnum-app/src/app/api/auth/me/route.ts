@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
-import { getCurrentUser } from '@/lib/jwt'
-import { WalletService } from '@/lib/wallet'
+import { prisma } from '@/lib/core/db'
+import { getCurrentUser } from '@/lib/auth/jwt'
+import { WalletService } from '@/lib/wallet/wallet'
 
 export async function GET(request: Request) {
     try {

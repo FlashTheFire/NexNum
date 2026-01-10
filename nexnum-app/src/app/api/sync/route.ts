@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { getCurrentUser } from '@/lib/jwt'
-import { syncAllProviders, isSyncNeeded, getLastSyncInfo } from '@/lib/provider-sync'
+import { getCurrentUser } from '@/lib/auth/jwt'
+import { syncAllProviders, isSyncNeeded, getLastSyncInfo } from '@/lib/providers/provider-sync'
 
 // GET - Get sync status and info
 export async function GET(request: Request) {

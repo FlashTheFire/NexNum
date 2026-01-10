@@ -30,7 +30,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { useGlobalStore } from "@/store"
-import { formatPrice, formatDate, cn } from "@/lib/utils"
+import { formatPrice, formatDate, cn } from "@/lib/utils/utils"
 import { DashboardBackground } from "../components/dashboard-background"
 
 // ============================================

@@ -4,8 +4,8 @@ import { useState, memo, useEffect, useRef } from 'react'
 import { Phone, Copy, Check, Clock, MessageSquare, Shield, Sparkles, Smartphone } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
-import { cn } from '@/lib/utils'
-import { getCountryFlagUrlSync } from "@/lib/country-flags"
+import { cn } from '@/lib/utils/utils'
+import { getCountryFlagUrlSync } from "@/lib/normalizers/country-flags"
 
 interface SMSNumberCardProps {
     phoneNumber: string

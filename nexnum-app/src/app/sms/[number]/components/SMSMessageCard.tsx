@@ -5,7 +5,7 @@ import { motion } from 'framer-motion'
 import { MessageSquare, Copy, Check, Clock, Zap, MoreHorizontal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { formatRelativeTime } from '@/lib/utils'
+import { formatRelativeTime } from '@/lib/utils/utils'
 import { toast } from 'sonner'
 
 // OTP Code Extractor

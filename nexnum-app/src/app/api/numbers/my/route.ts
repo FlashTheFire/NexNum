@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
-import { getCurrentUser } from '@/lib/jwt'
+import { prisma } from '@/lib/core/db'
+import { getCurrentUser } from '@/lib/auth/jwt'
 import { syncUserNumbers } from '@/lib/sms/sync'
-import { getServiceIconUrlByName } from '@/lib/search'
-import { getCountryFlagUrl } from '@/lib/country-flags'
+import { getServiceIconUrlByName } from '@/lib/search/search'
+import { getCountryFlagUrl } from '@/lib/normalizers/country-flags'
 
 // GET /api/numbers/my - Get user's numbers
 export async function GET(request: Request) {

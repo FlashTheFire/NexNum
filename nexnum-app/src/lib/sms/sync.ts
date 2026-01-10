@@ -1,10 +1,10 @@
 // Types synchronized with schema
-import { prisma } from '@/lib/db'
+import { prisma } from '@/lib/core/db'
 import { smsProvider } from '@/lib/sms-providers/index'
-import { logger } from '@/lib/logger'
-import { getServiceIconUrlByName } from '@/lib/search'
-import { getCountryFlagUrl } from '@/lib/country-flags'
-import { WalletService } from '@/lib/wallet'
+import { logger } from '@/lib/core/logger'
+import { getServiceIconUrlByName } from '@/lib/search/search'
+import { getCountryFlagUrl } from '@/lib/normalizers/country-flags'
+import { WalletService } from '@/lib/wallet/wallet'
 
 /**
  * Advanced Sync Engine for User Numbers

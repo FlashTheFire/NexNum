@@ -25,7 +25,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useGlobalStore } from "@/store"
 import { toast } from "sonner"
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils/utils"
 
 // Import new premium components
 import { SMSBackground, SMSNumberCard, SMSMessageCard } from "./components"
@@ -72,7 +72,7 @@ export default function SMSPage() {
             // 2. If valid UUID, try fetching specific number details
             if (identifier.includes('-')) {
                 setIsFetchingLocal(true)
-                import("@/lib/api-client").then(({ getNumberDetails }) => {
+                import("@/lib/api/api-client").then(({ getNumberDetails }) => {
                     getNumberDetails(identifier).then(num => {
                         if (num) setLocalNumber(num)
                         setIsFetchingLocal(false)

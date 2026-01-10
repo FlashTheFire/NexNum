@@ -8,9 +8,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { logger } from '@/lib/logger'
-import { prisma } from '@/lib/db'
-import { DynamicProvider } from '@/lib/dynamic-provider'
+import { logger } from '@/lib/core/logger'
+import { prisma } from '@/lib/core/db'
+import { DynamicProvider } from '@/lib/providers/dynamic-provider'
 import { DynamicWebhookHandler } from '@/lib/webhooks/handlers/dynamic'
 
 export async function POST(

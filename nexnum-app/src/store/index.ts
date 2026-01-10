@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-import * as api from '@/lib/api-client'
-import { getCountryFlagUrlSync } from "@/lib/country-flags"
+import * as api from '@/lib/api/api-client'
+import { getCountryFlagUrlSync } from "@/lib/normalizers/country-flags"
 
 export interface Transaction {
     id: string

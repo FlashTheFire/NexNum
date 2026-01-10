@@ -1,5 +1,5 @@
 import useSWR from 'swr'
-import { SMSMessage } from '@/lib/sms-service'
+import { SMSMessage } from '@/lib/providers/sms-service'
 import { useGlobalStore } from '@/store'
 import { useEffect } from 'react'
 
