@@ -5,11 +5,11 @@
  * Handles creation, state transitions, and integrates with WalletService.
  */
 
-import { prisma } from './db'
+import { prisma } from '@/lib/core/db'
 import { Prisma, ActivationState } from '@prisma/client'
-import { WalletService } from './wallet'
+import { WalletService } from '@/lib/wallet/wallet'
 import { canTransition, isRefundable } from './activation-state-machine'
-import { logger } from './logger'
+import { logger } from '@/lib/core/logger'
 
 export interface CreateActivationInput {
     userId: string
@@ -130,8 +130,11 @@ export class ActivationService {
             where: { id: activationId }
         })
 
-        if (!canTransition(activation.state, 'ACTIVE')) {
-            throw new Error(`Cannot transition ${activation.state} -> ACTIVE`)
+        // CRITICAL RACE GUARD: If reconciliation already marked this as FAILED/CANCELLED, 
+        // we must NOT proceed with capture. The provider number is already technical debt.
+        if (activation.state !== 'RESERVED') {
+            logger.error(`[Activation] Conflict: Cannot confirm ${activationId}. Current state: ${activation.state}`)
+            throw new Error(`ACTIVATION_CONFLICT: State is ${activation.state}`)
         }
 
         // Commit wallet funds
@@ -216,6 +219,21 @@ export class ActivationService {
 
         if (!canTransition(activation.state, 'REFUNDED')) {
             throw new Error(`Cannot transition ${activation.state} -> REFUNDED`)
+        }
+
+        // Guard: Check for any received messages
+        const smsCount = await client.smsMessage.count({
+            where: { numberId: activation.numberId! }
+        })
+
+        if (smsCount > 0) {
+            logger.warn(`[ActivationService] Blocked Refund for ${activationId}: SMS messages exist.`)
+            // Auto-correct state to RECEIVED
+            await client.activation.update({
+                where: { id: activationId },
+                data: { state: 'RECEIVED' }
+            })
+            throw new Error('Cannot refund: Service was delivered (SMS received)')
         }
 
         // Issue refund

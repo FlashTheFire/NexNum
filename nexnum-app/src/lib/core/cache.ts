@@ -58,7 +58,7 @@ async function getOrSet<T>(
 
         // Cache miss - fetch fresh data
         const data = await fetchFn()
-        await redis.set(key, JSON.stringify(data), { ex: ttl })
+        await redis.set(key, JSON.stringify(data), 'EX', ttl)
 
         return { data, fromCache: false }
     } catch (error) {
@@ -78,7 +78,7 @@ async function refreshCache<T>(
     ttl: number
 ): Promise<void> {
     const data = await fetchFn()
-    await redis.set(key, JSON.stringify(data), { ex: ttl })
+    await redis.set(key, JSON.stringify(data), 'EX', ttl)
     logger.debug('Cache refreshed', { key })
 }
 

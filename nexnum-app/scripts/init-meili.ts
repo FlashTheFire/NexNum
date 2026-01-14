@@ -9,8 +9,8 @@
 
 import { config } from "dotenv";
 config({ path: '.env' });
-
-import { initSearchIndexes } from "../src/lib/search";
+import { prisma } from '../src/lib/core/db';
+import { initSearchIndexes } from '../src/lib/search/search';
 
 async function main() {
     console.log("⚙️  Initializing MeiliSearch indexes...");

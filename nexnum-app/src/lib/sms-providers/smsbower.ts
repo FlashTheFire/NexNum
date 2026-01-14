@@ -10,7 +10,7 @@ import type {
     StatusResult,
     NumberStatus
 } from './types'
-import { normalizeCountryEntry } from '../country-normalizer'
+import { normalizeCountryEntry } from '@/lib/normalizers/country-normalizer'
 
 // API Configuration
 const API_URL = process.env.SMSBOWER_API_URL || 'https://smsbower.org/stubs/handler_api.php'

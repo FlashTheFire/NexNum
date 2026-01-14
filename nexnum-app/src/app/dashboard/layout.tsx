@@ -28,6 +28,7 @@ import { cn, formatPrice } from "@/lib/utils/utils"
 import { useAuthStore } from "@/stores/authStore"
 import DashboardMobileActionBar from "@/components/common/DashboardMobileActionBar"
 import LoadingScreen from "@/components/ui/LoadingScreen"
+import { NotificationRequester } from "@/components/dashboard/notification-requester"
 
 const navItems = [
     { href: "/dashboard", label: "Overview", icon: LayoutDashboard, description: "Dashboard home" },
@@ -268,6 +269,7 @@ export default function DashboardLayout({
                 </main>
             </div>
             <DashboardMobileActionBar />
+            <NotificationRequester />
         </div >
     )
 }

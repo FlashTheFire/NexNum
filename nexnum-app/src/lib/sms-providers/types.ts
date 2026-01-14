@@ -4,7 +4,7 @@ export interface Country {
     id: string
     code?: string
     name: string
-
+    flagUrl?: string | null  // Country flag URL from provider
 }
 
 export interface Service {
@@ -19,10 +19,10 @@ export interface NumberResult {
     activationId: string
     phoneNumber: string
     countryCode: string
-    countryName: string
+    countryName?: string
     serviceCode: string
-    serviceName: string
-    price: number
+    serviceName?: string
+    price: number | null
     expiresAt: Date
 }
 

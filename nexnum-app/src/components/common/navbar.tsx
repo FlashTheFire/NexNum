@@ -15,12 +15,17 @@ import {
     User,
     ChevronDown,
     Zap,
-    Bell
+    Bell,
+    Check,
+    Trash2,
+    Loader2
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useGlobalStore } from "@/store"
 import { useAuthStore } from "@/stores/authStore"
 import { formatPrice, cn } from "@/lib/utils/utils"
+import { useNotifications, formatNotificationTime } from "@/hooks/use-notifications"
+import { NotificationDropdown } from "@/components/common/notification-dropdown"
 
 export function Navbar() {
     const pathname = usePathname()
@@ -28,14 +33,7 @@ export function Navbar() {
     const { userProfile } = useGlobalStore()
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
     const [scrolled, setScrolled] = useState(false)
-    const [showNotifications, setShowNotifications] = useState(false)
 
-    // Mock Notifications
-    const notifications = [
-        { id: 1, title: "Payment Successful", desc: "Added $50.00 to wallet", time: "2m ago", read: false },
-        { id: 2, title: "Number Expiring", desc: "+1 (555) 123-4567 expires soon", time: "2h ago", read: false },
-        { id: 3, title: "Welcome to NexNum", desc: "Get started with your first number", time: "1d ago", read: true },
-    ]
 
     useEffect(() => {
         const handleScroll = () => {
@@ -118,7 +116,10 @@ export function Navbar() {
                                         </button>
                                     </Link>
 
-                                    {/* Profile / Logout Button (Styled as "Get Started" originally) */}
+                                    {/* Desktop Notification Bell */}
+                                    <NotificationDropdown />
+
+                                    {/* Profile / Logout Button */}
                                     <button
                                         onClick={() => logout()}
                                         className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 py-2 bg-[hsl(var(--neon-lime))] text-black hover:bg-[hsl(72,100%,55%)] font-semibold h-10 px-6 shadow-lg shadow-[hsl(var(--neon-lime)/0.25)] hover:shadow-[hsl(var(--neon-lime)/0.4)] transition-all duration-300"
@@ -146,55 +147,7 @@ export function Navbar() {
 
                         {/* Mobile Actions (Notification + Menu) */}
                         <div className="flex items-center gap-2 lg:hidden relative">
-                            <button
-                                onClick={() => setShowNotifications(!showNotifications)}
-                                className="inline-flex items-center justify-center whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:text-accent-foreground h-10 w-10 rounded-full bg-white/[0.05] hover:bg-white/[0.1] text-white relative"
-                            >
-                                <Bell className="h-5 w-5" />
-                                <span className="absolute top-2.5 right-2.5 w-2 h-2 rounded-full bg-[hsl(var(--neon-lime))]" />
-                            </button>
-
-                            <AnimatePresence>
-                                {showNotifications && (
-                                    <>
-                                        <div
-                                            className="fixed inset-0 z-40"
-                                            onClick={() => setShowNotifications(false)}
-                                        />
-                                        <motion.div
-                                            initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                                            exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                                            transition={{ duration: 0.2 }}
-                                            className="absolute top-full right-0 mt-3 w-80 max-w-[90vw] bg-[#0f1115] border border-white/10 rounded-2xl shadow-xl shadow-black/50 overflow-hidden z-50 origin-top-right backdrop-blur-xl"
-                                        >
-                                            <div className="p-4 border-b border-white/5 flex items-center justify-between">
-                                                <span className="font-semibold text-sm">Notifications</span>
-                                                <span className="text-[10px] text-[hsl(var(--neon-lime))] bg-[hsl(var(--neon-lime)/0.1)] px-2 py-0.5 rounded-full font-medium">
-                                                    2 New
-                                                </span>
-                                            </div>
-                                            <div className="max-h-[300px] overflow-y-auto">
-                                                {notifications.map((n) => (
-                                                    <div key={n.id} className="p-3 border-b border-white/5 hover:bg-white/[0.02] transition-colors flex gap-3">
-                                                        <div className={`mt-1 h-2 w-2 rounded-full shrink-0 ${n.read ? 'bg-transparent' : 'bg-[hsl(var(--neon-lime))]'}`} />
-                                                        <div className="space-y-1">
-                                                            <p className={`text-xs ${n.read ? 'text-gray-400' : 'text-white font-medium'}`}>{n.title}</p>
-                                                            <p className="text-[11px] text-gray-500 leading-snug">{n.desc}</p>
-                                                            <p className="text-[10px] text-gray-600 mt-1">{n.time}</p>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                            <div className="p-2 border-t border-white/5 bg-white/[0.02]">
-                                                <button className="w-full py-2 text-xs text-center text-gray-400 hover:text-white transition-colors">
-                                                    Mark all as read
-                                                </button>
-                                            </div>
-                                        </motion.div>
-                                    </>
-                                )}
-                            </AnimatePresence>
+                            <NotificationDropdown />
 
                             <button
                                 className="p-2.5 text-gray-400 hover:text-white rounded-xl hover:bg-white/[0.06] transition-all"
@@ -237,6 +190,12 @@ export function Navbar() {
                                             <p className="font-semibold text-white">{user?.name}</p>
                                             <p className="text-xs text-gray-400">{user?.email}</p>
                                         </div>
+                                        <button
+                                            onClick={() => logout()}
+                                            className="ml-auto p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                                        >
+                                            <LogOut className="w-4 h-4" />
+                                        </button>
                                     </motion.div>
                                 )}
                                 <div className="space-y-1">

@@ -4,7 +4,11 @@ import { verifyToken } from '@/lib/auth/jwt'
 import { rateLimiters } from '@/lib/auth/ratelimit'
 import { redis } from '@/lib/core/redis'
 
-export async function middleware(request: NextRequest) {
+// In-memory cache for settings to reduce Redis hits
+let settingsCache: { data: string, timestamp: number } | null = null
+const SETTINGS_CACHE_TTL = 60000 // 60 seconds
+
+export default async function proxy(request: NextRequest) {
     const ip = request.headers.get('x-forwarded-for') ?? '127.0.0.1'
     const { pathname } = request.nextUrl
 
@@ -51,8 +55,18 @@ export async function middleware(request: NextRequest) {
     if (!pathname.startsWith('/_next') && !pathname.includes('.')) {
         try {
             // Check maintenance mode from Redis (fast edge read of settings)
-            // We duplicate the key 'app:settings' here to avoid importing the class which might use Prisma
-            const settingsData = await redis.get('app:settings') as string | null
+            // We use local caching to avoid hitting Redis on every request
+            let settingsData: string | null = null
+            const now = Date.now()
+
+            if (settingsCache && (now - settingsCache.timestamp < SETTINGS_CACHE_TTL)) {
+                settingsData = settingsCache.data
+            } else {
+                settingsData = await redis.get('app:settings') as string | null
+                if (settingsData) {
+                    settingsCache = { data: settingsData, timestamp: now }
+                }
+            }
 
             if (settingsData) {
                 const settings = typeof settingsData === 'string' ? JSON.parse(settingsData) : settingsData
@@ -87,29 +101,35 @@ export async function middleware(request: NextRequest) {
     if (!pathname.startsWith('/_next') && !pathname.includes('.')) {
         let success = true
 
-        // Strict limiting for Auth routes
-        if (pathname.startsWith('/api/auth')) {
-            const result = await rateLimiters.auth.limit(ip)
-            success = result.success
-            response.headers.set('X-RateLimit-Limit', result.limit.toString())
-            response.headers.set('X-RateLimit-Remaining', result.remaining.toString())
-        }
-        // Strict limiting for Transactions (Buy/SMS)
-        else if (pathname.startsWith('/api/sms') || pathname.startsWith('/api/wallet')) {
-            const result = await rateLimiters.transaction.limit(ip)
-            success = result.success
-        }
-        // Admin API limiting (stricter)
-        else if (pathname.startsWith('/api/admin')) {
-            const result = await rateLimiters.admin.limit(ip)
-            success = result.success
-            response.headers.set('X-RateLimit-Limit', result.limit.toString())
-            response.headers.set('X-RateLimit-Remaining', result.remaining.toString())
-        }
-        // General API limiting
-        else if (pathname.startsWith('/api')) {
-            const result = await rateLimiters.api.limit(ip)
-            success = result.success
+        try {
+            // Strict limiting for Auth routes
+            if (pathname.startsWith('/api/auth')) {
+                const result = await rateLimiters.auth.limit(ip)
+                success = result.success
+                response.headers.set('X-RateLimit-Limit', result.limit.toString())
+                response.headers.set('X-RateLimit-Remaining', result.remaining.toString())
+            }
+            // Strict limiting for Transactions (Buy/SMS)
+            else if (pathname.startsWith('/api/sms') || pathname.startsWith('/api/wallet')) {
+                const result = await rateLimiters.transaction.limit(ip)
+                success = result.success
+            }
+            // Admin API limiting (stricter)
+            else if (pathname.startsWith('/api/admin')) {
+                const result = await rateLimiters.admin.limit(ip)
+                success = result.success
+                response.headers.set('X-RateLimit-Limit', result.limit.toString())
+                response.headers.set('X-RateLimit-Remaining', result.remaining.toString())
+            }
+            // General API limiting
+            else if (pathname.startsWith('/api')) {
+                const result = await rateLimiters.api.limit(ip)
+                success = result.success
+            }
+        } catch (error) {
+            // "Fail open" if rate limiting service is down or limit is hit
+            console.error('[RateLimit Error] Failing open:', error)
+            success = true
         }
 
         if (!success) {

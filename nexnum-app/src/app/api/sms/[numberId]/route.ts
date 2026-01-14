@@ -3,6 +3,7 @@ import { prisma } from '@/lib/core/db'
 import { getCurrentUser } from '@/lib/auth/jwt'
 import { smsProvider } from '@/lib/sms-providers/index'
 import { apiHandler } from '@/lib/api/api-handler'
+import { NotificationFactory } from '@/lib/notifications/notification-service'
 
 interface RouteParams {
     params: Promise<{ numberId: string }>
@@ -65,20 +66,31 @@ export const GET = apiHandler(async (request, context) => {
     }
 
     // Check if number is still active
-    if (number.status === 'expired' || number.status === 'cancelled') {
+    if (number.status === 'expired' || number.status === 'cancelled' || number.status === 'timeout' || number.status === 'completed') {
         // Return existing messages
         const existingMessages = await prisma.smsMessage.findMany({
             where: { numberId },
             orderBy: { receivedAt: 'desc' }
         })
 
+        // Check if status should be repaired (e.g., marked expired/timeout but has messages)
+        let status = number.status
+        if ((status === 'expired' || status === 'timeout') && existingMessages.length > 0) {
+            status = 'completed'
+            // Repair in background
+            await prisma.number.update({
+                where: { id: numberId },
+                data: { status: 'completed' }
+            })
+        }
+
         return NextResponse.json({
             success: true,
-            status: number.status,
+            status: status,
             messages: existingMessages.map(m => ({
                 id: m.id,
                 sender: m.sender,
-                content: m.content,
+                content: formatMessageContent(m),
                 code: m.code,
                 receivedAt: m.receivedAt,
             }))
@@ -87,70 +99,37 @@ export const GET = apiHandler(async (request, context) => {
 
     // Check if expired
     if (number.expiresAt && new Date() > number.expiresAt) {
-        // Mark as expired
-        await prisma.number.update({
-            where: { id: numberId },
-            data: { status: 'expired' }
-        })
-
+        // Check if any messages were received
         const existingMessages = await prisma.smsMessage.findMany({
             where: { numberId },
             orderBy: { receivedAt: 'desc' }
         })
 
+        // If SMS was received, mark as COMPLETED, not EXPIRED
+        const finalStatus = existingMessages.length > 0 ? 'completed' : 'expired'
+
+        await prisma.number.update({
+            where: { id: numberId },
+            data: { status: finalStatus }
+        })
+
         return NextResponse.json({
             success: true,
-            status: 'expired',
+            status: finalStatus,
             messages: existingMessages.map(m => ({
                 id: m.id,
                 sender: m.sender,
-                content: m.content,
+                content: formatMessageContent(m),
                 code: m.code,
                 receivedAt: m.receivedAt,
             }))
         })
     }
 
-    // Poll provider for new messages
-    if (!number.activationId) {
-        return NextResponse.json(
-            { error: 'Invalid activation' },
-            { status: 400 }
-        )
-    }
 
-    const providerStatus = await smsProvider.getStatus(number.activationId)
+    // Note: Provider polling is now handled by the background worker (process-inbox).
+    // This endpoint is read-only from the database.
 
-    // Save any new messages to database
-    const existingMsgIds = new Set(
-        (await prisma.smsMessage.findMany({
-            where: { numberId },
-            select: { id: true }
-        })).map(m => m.id)
-    )
-
-    const newMessages = providerStatus.messages.filter(m => !existingMsgIds.has(m.id))
-
-    if (newMessages.length > 0) {
-        await prisma.smsMessage.createMany({
-            data: newMessages.map(m => ({
-                id: m.id,
-                numberId,
-                sender: m.sender,
-                content: m.content,
-                code: m.code,
-                receivedAt: m.receivedAt,
-            }))
-        })
-
-        // Update number status if SMS received
-        if (providerStatus.status === 'received') {
-            await prisma.number.update({
-                where: { id: numberId },
-                data: { status: 'received' }
-            })
-        }
-    }
 
     // Get all messages
     const allMessages = await prisma.smsMessage.findMany({
@@ -160,15 +139,22 @@ export const GET = apiHandler(async (request, context) => {
 
     return NextResponse.json({
         success: true,
-        status: providerStatus.status,
+        status: number.status,
         messages: allMessages.map(m => ({
             id: m.id,
             sender: m.sender,
-            content: m.content,
+            content: formatMessageContent(m),
             code: m.code,
             receivedAt: m.receivedAt,
         }))
     })
 })
+
+function formatMessageContent(m: { content: string | null, code: string | null }): string | null {
+    if ((!m.content || m.content.trim() === '') && m.code) {
+        return `Your verification code is: ${m.code}`
+    }
+    return m.content
+}
 
 export const POST = GET

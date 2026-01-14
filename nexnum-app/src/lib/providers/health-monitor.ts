@@ -65,14 +65,11 @@ export class HealthMonitor {
 
         // Store in Redis sorted set (score = timestamp)
         const key = `health:${providerId}:requests`
-        await redis.zadd(key, {
-            score: now,
-            member: JSON.stringify({
-                success,
-                latency,
-                timestamp: now,
-            })
-        })
+        await redis.zadd(key, now, JSON.stringify({
+            success,
+            latency,
+            timestamp: now,
+        }))
 
         // Clean up old entries (beyond window)
         const cutoff = now - (this.config.window * 1000)
@@ -159,7 +156,7 @@ export class HealthMonitor {
         await redis.set(
             `health:${providerId}:circuit`,
             'open',
-            { ex: Math.floor(this.config.openDuration / 1000) }
+            'EX', Math.floor(this.config.openDuration / 1000)
         )
         logger.warn('Circuit manually opened', { providerId })
     }
@@ -182,10 +179,11 @@ export class HealthMonitor {
         const failures = await redis.incr(` health:${providerId}:failures`)
 
         // Store error
-        await redis.setex(
+        await redis.set(
             `health:${providerId}:lastError`,
-            3600, // 1 hour
-            new Date().toISOString()
+            new Date().toISOString(),
+            'EX',
+            3600 // 1 hour
         )
 
         // Check if should open circuit
@@ -193,7 +191,7 @@ export class HealthMonitor {
             await redis.set(
                 `health:${providerId}:circuit`,
                 'open',
-                { ex: Math.floor(this.config.openDuration / 1000) }
+                'EX', Math.floor(this.config.openDuration / 1000)
             )
 
             logger.error('Circuit breaker opened', {

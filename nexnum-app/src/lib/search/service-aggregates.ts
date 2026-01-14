@@ -5,7 +5,7 @@
  * Updated during sync or via background job.
  */
 
-import { prisma } from './db'
+import { prisma } from '@/lib/core/db'
 
 interface ServiceAggregateData {
     serviceCode: string

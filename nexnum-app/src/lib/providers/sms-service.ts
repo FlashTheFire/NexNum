@@ -8,6 +8,7 @@ export interface SMSMessage {
     numberId: string
     from: string
     text: string
+    code?: string | null  // Extracted verification code
     receivedAt: string
     isRead: boolean
 }

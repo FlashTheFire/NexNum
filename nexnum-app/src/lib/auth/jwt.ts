@@ -42,7 +42,8 @@ export async function getCurrentUser(headers: Headers): Promise<TokenPayload | n
     // Try Authorization header first
     const headerToken = getTokenFromHeaders(headers)
     if (headerToken) {
-        return verifyToken(headerToken)
+        const payload = await verifyToken(headerToken)
+        if (payload) return payload
     }
 
     // Try cookie

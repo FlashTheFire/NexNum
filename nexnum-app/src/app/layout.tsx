@@ -82,7 +82,7 @@ export default function RootLayout({
             <body className={inter.className}>
                 <JsonLd />
                 {children}
-                <Toaster />
+                <Toaster position="top-right" theme="dark" closeButton richColors />
             </body>
         </html>
     );

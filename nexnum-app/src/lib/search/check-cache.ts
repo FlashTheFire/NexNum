@@ -1,6 +1,6 @@
 
 import 'dotenv/config'
-import { prisma } from './db'
+import { prisma } from '@/lib/core/db'
 
 async function checkCache() {
     console.log('='.repeat(50))

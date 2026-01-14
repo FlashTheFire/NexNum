@@ -6,8 +6,7 @@
 
 import { NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth/jwt'
-import { getOutboxWorkerStatus, processOutboxNow, startOutboxWorker, stopOutboxWorker } from '@/lib/outbox-worker'
-import { cleanupProcessedEvents } from '@/lib/activation/outbox'
+import { processOutboxEvents, cleanupProcessedEvents, getOutboxStats } from '@/lib/activation/outbox'
 
 export async function GET(request: Request) {
     try {
@@ -16,11 +15,15 @@ export async function GET(request: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
-        const status = await getOutboxWorkerStatus()
+        const stats = await getOutboxStats()
 
         return NextResponse.json({
             success: true,
-            outbox: status
+            outbox: {
+                running: true, // Always running under MasterWorker
+                intervalMs: 10000,
+                stats
+            }
         })
     } catch (error) {
         console.error('Outbox status error:', error)
@@ -43,28 +46,24 @@ export async function POST(request: Request) {
 
         switch (action) {
             case 'start':
-                startOutboxWorker()
-                return NextResponse.json({ success: true, message: 'Worker started' })
-
             case 'stop':
-                stopOutboxWorker()
-                return NextResponse.json({ success: true, message: 'Worker stopped' })
+                return NextResponse.json({ success: false, message: 'Worker is now managed by the system scheduler.' })
 
             case 'process':
-                const count = await processOutboxNow()
-                return NextResponse.json({ success: true, message: `Processed ${count} events` })
+                const result = await processOutboxEvents(50)
+                return NextResponse.json({ success: true, message: `Processed ${result.succeeded} events` })
 
             case 'cleanup':
                 const days = body.days || 7
-                const result = await cleanupProcessedEvents(days)
+                const cleanResult = await cleanupProcessedEvents(days)
                 return NextResponse.json({
                     success: true,
-                    message: `Cleaned up ${result.count} old events`
+                    message: `Cleaned up ${cleanResult.count} old events`
                 })
 
             default:
                 return NextResponse.json(
-                    { error: 'Invalid action. Use: start, stop, process, cleanup' },
+                    { error: 'Invalid action. Use: process, cleanup' },
                     { status: 400 }
                 )
         }

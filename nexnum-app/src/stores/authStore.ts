@@ -205,7 +205,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const cachedUser = getCachedUser();
         const { lastAuthCheck, isAuthenticated } = get();
 
-        // If no token, clear auth state
+        // If no token, we might still be authenticated via HTTP-only cookies (e.g. Google Auth)
+        // So we DON'T return early. Instead we let the fetch('/api/auth/me') happen.
+        // If that fails, THEN we clear state.
+
+        /* 
         if (!token) {
             set({
                 user: null,
@@ -216,6 +220,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             });
             return;
         }
+        */
 
         // THROTTLE: If already authenticated and checked recently (< 45s), skip
         const now = Date.now();

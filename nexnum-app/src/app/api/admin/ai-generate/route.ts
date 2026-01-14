@@ -175,9 +175,10 @@ ${PROVIDER_CONTEXT_DOCS}
 \`\`\`
 
 ### 🛑 CRITICAL FIELD RULES
-- **cost**: "cost|price|balance"
+- **cost/price**: "cost|price|balance"
 - **count**: "count|qty|stock"
 - **phoneNumber**: "phone|number"
+- **activationId**: "id|activation_id|order_id"
 
 GENERATE VALID JSON ONLY. NO MARKDOWN.
 `
@@ -400,7 +401,7 @@ ${PROVIDER_CONTEXT_DOCS}
 *Result:* \`[{ id: "123", phone: "+1555", price: "0.5" }, { id: "456", phone: "+1666", price: "0.7" }]\`
 
 ### 🛑 CRITICAL FIELD RULES
-- **cost**: MUST use fallback chain: "cost|price|amount|rate|value".
+- **cost/price**: MUST use fallback chain: "cost|price|amount|rate|value".
 - **count**: MUST use fallback chain: "count|qty|stock|available|physicalCount".
 - **operator**: If nested, usually "$key" or field "provider_id".
 - **service**: If nested, usually "$parentKey" or "$key".

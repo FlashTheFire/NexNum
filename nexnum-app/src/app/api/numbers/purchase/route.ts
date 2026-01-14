@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma, ensureWallet } from '@/lib/core/db'
 import { Prisma } from '@prisma/client'
 import { getCurrentUser } from '@/lib/auth/jwt'
-import { checkIdempotency, acquireNumberLock, releaseNumberLock } from '@/lib/core/redis'
+import { checkIdempotency, acquireNumberLock, releaseNumberLock, redis } from '@/lib/core/redis'
 import { purchaseNumberSchema } from '@/lib/api/validation'
 import { purchase_duration_seconds, wallet_transactions_total, provider_api_calls_total } from '@/lib/metrics'
 import { smsProvider } from '@/lib/sms-providers'
@@ -57,11 +57,33 @@ export const POST = apiHandler(async (request, { body }) => {
 
     console.log(`[PURCHASE] Found offer:`, { providerName, serviceName, countryName, price })
 
-    // 2. Lock
-    lockId = `${user.userId}-${serviceName}-${countryName}`.toLowerCase()
+    // 2. ULTIMATE SECURITY: Global User Lock & Rate Limit
+
+    // A. Rate Limit Guard (2 seconds cooldown)
+    const rateKey = `rate:purchase:${user.userId}`
+    const isRateLimited = await redis.get(rateKey)
+    if (isRateLimited) {
+        return NextResponse.json({ error: 'Please wait 2 seconds between purchases' }, { status: 429 })
+    }
+
+    // B. Global User Lock (Strict Single-Threaded Purchase)
+    // Prevents "Fast Script" parallel attacks
+    lockId = `lock:purchase:${user.userId}`
     lockAcquired = await acquireNumberLock(lockId)
     if (!lockAcquired) {
-        return NextResponse.json({ error: 'Please wait' }, { status: 409 })
+        return NextResponse.json({ error: 'Another purchase is in progress. Please wait.' }, { status: 409 })
+    }
+
+    // Set cooldown immediately after acquiring lock
+    await redis.set(rateKey, '1', 'EX', 2)
+
+    // C. Strict Idempotency Check
+    if (idempotencyKey) {
+        const isNew = await checkIdempotency(idempotencyKey)
+        if (!isNew) {
+            await releaseNumberLock(lockId)
+            return NextResponse.json({ error: 'Duplicate request (Idempotency)' }, { status: 409 })
+        }
     }
 
     try {
@@ -230,20 +252,8 @@ export const POST = apiHandler(async (request, { body }) => {
             return newNumber
         }, { timeout: 20000 })
 
-        // Schedule lifecycle tracking (auto-start polling + timeout)
-        // This replaces the need for external cron jobs
-        try {
-            const { lifecycleManager } = await import('@/lib/activation/number-lifecycle-manager')
-            await lifecycleManager.schedulePolling(
-                resultNumber.id,
-                resultNumber.activationId,
-                user.userId
-            )
-        } catch (lifecycleError) {
-            // Log but don't fail the purchase - lifecycle will recover on restart
-            console.warn('[PURCHASE] Failed to schedule lifecycle tracking:', lifecycleError)
-        }
-
+        // Polling is handled automatically by the MasterWorker (InboxWorker loop)
+        // providing a stateless, database-driven mechanism for SMS synchronization.
         console.log(`[PURCHASE] Success! Number: ${resultNumber.id}`)
         await releaseNumberLock(lockId)
         return NextResponse.json({ success: true, number: resultNumber })

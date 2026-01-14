@@ -5,8 +5,8 @@
  * Uses fallback chain: ImgHippo → FreeImage.host → IM.GE
  */
 
-import { redis } from './redis'
-import { logger } from './logger'
+import { redis } from '@/lib/core/redis'
+import { logger } from '@/lib/core/logger'
 
 // API Configuration
 const APIS = {
@@ -216,7 +216,7 @@ export async function proxyImage(sourceUrl: string): Promise<UploadResult> {
     if (proxiedUrl) {
         // Cache the result
         try {
-            await redis.set(cacheKey, proxiedUrl, { ex: CACHE_TTL })
+            await redis.set(cacheKey, proxiedUrl, 'EX', CACHE_TTL)
         } catch (e) {
             // Cache write failed, continue anyway
         }

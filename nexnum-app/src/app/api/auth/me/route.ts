@@ -39,6 +39,7 @@ export async function GET(request: Request) {
                 id: dbUser.id,
                 name: dbUser.name,
                 email: dbUser.email,
+                role: dbUser.role,
                 createdAt: dbUser.createdAt,
             },
             wallet: {

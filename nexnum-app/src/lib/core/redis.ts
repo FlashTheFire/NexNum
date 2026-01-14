@@ -1,10 +1,23 @@
-import { Redis } from '@upstash/redis'
+import Redis from 'ioredis'
 
-// Upstash Redis client (serverless)
-export const redis = new Redis({
-    url: process.env.UPSTASH_REDIS_REST_URL!,
-    token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-})
+// Redis client initialization (Singleton)
+const getRedisUrl = () => {
+    if (process.env.REDIS_URL) return process.env.REDIS_URL;
+    // Fallback to local Docker Redis with default password
+    return 'redis://:dev_redis_pass@localhost:6379';
+};
+
+export const redis = new Redis(getRedisUrl(), {
+    maxRetriesPerRequest: null,
+    retryStrategy(times) {
+        const delay = Math.min(times * 50, 2000);
+        return delay;
+    }
+});
+
+redis.on('error', (err) => {
+    console.error('[Redis] Connection Error:', err);
+});
 
 // Key patterns
 export const REDIS_KEYS = {
@@ -36,26 +49,19 @@ export const TTL = {
 // Helper: Check and set idempotency key
 export async function checkIdempotency(key: string): Promise<boolean> {
     const redisKey = REDIS_KEYS.idempotency(key)
-    const exists = await redis.get(redisKey)
 
-    if (exists) return false // Key already used
+    // Set NX (Only if doesn't exist) with EX (Expire)
+    const result = await redis.set(redisKey, '1', 'EX', TTL.IDEMPOTENCY, 'NX')
 
-    // Set key with TTL
-    await redis.setex(redisKey, TTL.IDEMPOTENCY, '1')
-    return true // Key is new, proceed
+    return result === 'OK'
 }
 
 // Helper: Acquire lock for number reservation
 export async function acquireNumberLock(numberId: string): Promise<boolean> {
     const key = REDIS_KEYS.numberLock(numberId)
-    const result = await redis.setnx(key, Date.now().toString())
+    const result = await redis.set(key, Date.now().toString(), 'EX', TTL.NUMBER_LOCK, 'NX')
 
-    if (result === 1) {
-        await redis.expire(key, TTL.NUMBER_LOCK)
-        return true
-    }
-
-    return false
+    return result === 'OK'
 }
 
 // Helper: Release lock
@@ -77,16 +83,21 @@ export async function cacheGet<T>(
 ): Promise<T> {
     try {
         // Try cache first
-        const cached = await redis.get<T>(key)
+        const cached = await redis.get(key)
         if (cached !== null) {
-            return cached
+            try {
+                return JSON.parse(cached) as T
+            } catch {
+                return cached as unknown as T
+            }
         }
 
         // Fetch from source
         const value = await fetchFn()
 
         // Cache the result
-        await redis.setex(key, ttlSeconds, value)
+        const stringified = typeof value === 'string' ? value : JSON.stringify(value)
+        await redis.set(key, stringified, 'EX', ttlSeconds)
 
         return value
     } catch (error) {
@@ -117,7 +128,8 @@ export async function cacheSet<T>(
     ttlSeconds: number = 300
 ): Promise<void> {
     try {
-        await redis.setex(key, ttlSeconds, value)
+        const stringified = typeof value === 'string' ? value : JSON.stringify(value)
+        await redis.set(key, stringified, 'EX', ttlSeconds)
     } catch (error) {
         console.warn('[Redis] Cache set error:', error)
     }

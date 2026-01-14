@@ -40,14 +40,30 @@ export function useSMS(numberId: string): UseSMSResult {
     )
 
     // Map backend response (sender/content) to UI expectations (from/text)
-    const messages: SMSMessage[] = data?.messages?.map(m => ({
-        id: m.id,
-        numberId,
-        from: m.sender || 'Unknown',
-        text: m.content || '',
-        receivedAt: m.receivedAt,
-        isRead: false
-    })).sort((a, b) =>
+    // Also include the extracted code and create professional fallback messages
+    const messages: SMSMessage[] = data?.messages?.map(m => {
+        // Clean the code - remove any leading colon
+        const cleanCode = m.code?.replace(/^:/, '').trim() || null
+
+        // Build professional message text
+        let displayText = m.content || ''
+        if (!displayText && cleanCode) {
+            // Professional fallback when no content but code exists
+            displayText = `Your verification code is: ${cleanCode}`
+        } else if (!displayText && !cleanCode) {
+            displayText = 'Message received'
+        }
+
+        return {
+            id: m.id,
+            numberId,
+            from: m.sender || 'Verification Service',
+            text: displayText,
+            code: cleanCode, // Pass the extracted code directly
+            receivedAt: m.receivedAt,
+            isRead: false
+        }
+    }).sort((a, b) =>
         new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime()
     ) || []
 

@@ -20,7 +20,8 @@ let isRunning = false
 let cleanupInterval: NodeJS.Timeout | null = null
 
 interface CleanupResult {
-    expired: number
+    expiredReservations: number
+    expiredNumbers: number
     stockRestored: number
     errors: number
 }
@@ -29,7 +30,7 @@ interface CleanupResult {
  * Find and expire stale reservations
  */
 async function cleanupExpiredReservations(): Promise<CleanupResult> {
-    const result: CleanupResult = { expired: 0, stockRestored: 0, errors: 0 }
+    const result: CleanupResult = { expiredReservations: 0, expiredNumbers: 0, stockRestored: 0, errors: 0 }
 
     try {
         // Find expired PENDING reservations
@@ -78,7 +79,7 @@ async function cleanupExpiredReservations(): Promise<CleanupResult> {
                     })
                 })
 
-                result.expired++
+                result.expiredReservations++
                 result.stockRestored += reservation.quantity
 
             } catch (error) {
@@ -87,13 +88,133 @@ async function cleanupExpiredReservations(): Promise<CleanupResult> {
             }
         }
 
-        console.log(`[RESERVATION-CLEANUP] Expired ${result.expired} reservations, restored ${result.stockRestored} stock`)
+        console.log(`[RESERVATION-CLEANUP] Expired ${result.expiredReservations} reservations, restored ${result.stockRestored} stock`)
 
     } catch (error) {
         console.error('[RESERVATION-CLEANUP] Batch error:', error)
     }
 
-    return result
+    return {
+        expiredReservations: result.expiredReservations,
+        expiredNumbers: 0,
+        stockRestored: result.stockRestored,
+        errors: result.errors
+    }
+}
+
+import { smsProvider } from '@/lib/sms-providers'
+import { ActivationService } from './activation-service'
+
+/**
+ * Find and mark expired numbers as EXPIRED
+ * Enhanced: Performs a final check and active cancellation via provider
+ */
+async function cleanupExpiredNumbers(): Promise<number> {
+    let expiredCount = 0
+
+    try {
+        const expiredNumbers = await prisma.number.findMany({
+            where: {
+                status: { in: ['active', 'received'] },
+                expiresAt: { lt: new Date() }
+            },
+            take: BATCH_SIZE
+        })
+
+        if (expiredNumbers.length === 0) return 0
+
+        console.log(`[NUMBER-CLEANUP] Processing ${expiredNumbers.length} potentially expired numbers`)
+
+        for (const num of expiredNumbers) {
+            try {
+                // 1. Final Status Check
+                if (num.activationId) {
+                    try {
+                        const status = await smsProvider.getStatus(num.activationId)
+                        if (status.messages.length > 0) {
+                            // SMS found at the last second! Mark as completed instead of expiring.
+                            await prisma.number.update({
+                                where: { id: num.id },
+                                data: { status: 'completed' }
+                            })
+
+                            if (num.activationId) {
+                                // Sync Activation state too
+                                const activation = await prisma.activation.findFirst({
+                                    where: { providerActivationId: num.activationId }
+                                })
+                                if (activation) {
+                                    await prisma.activation.update({
+                                        where: { id: activation.id },
+                                        data: { state: 'RECEIVED' }
+                                    })
+                                }
+                            }
+
+                            console.log(`[NUMBER-CLEANUP] Number ${num.phoneNumber} saved by late SMS!`)
+                            continue
+                        }
+
+                        // NEW: Final DB Check - If we have messages locally, DO NOT EXPIRE.
+                        const localMsgCount = await prisma.smsMessage.count({
+                            where: { numberId: num.id }
+                        })
+                        if (localMsgCount > 0) {
+                            await prisma.number.update({
+                                where: { id: num.id },
+                                data: { status: 'completed' }
+                            })
+
+                            if (num.activationId) {
+                                await prisma.activation.updateMany({
+                                    where: { providerActivationId: num.activationId },
+                                    data: { state: 'RECEIVED' }
+                                })
+                            }
+                            console.log(`[NUMBER-CLEANUP] Number ${num.phoneNumber} saved by local DB messages!`)
+                            continue
+                        }
+
+                        // 2. Active Cancellation
+                        await smsProvider.cancelNumber(num.activationId)
+                        console.log(`[NUMBER-CLEANUP] Cancelled at provider: ${num.activationId}`)
+                    } catch (err: any) {
+                        console.warn(`[NUMBER-CLEANUP] Provider check/cancel failed for ${num.id}:`, err.message)
+                        // Continue anyway, we need to clear our DB
+                    }
+                }
+
+                // 3. Mark as Expired in DB
+                await prisma.$transaction(async (tx) => {
+                    await tx.number.update({
+                        where: { id: num.id },
+                        data: { status: 'expired' }
+                    })
+
+                    // Handle Activation sync
+                    if (num.activationId) {
+                        const activation = await tx.activation.findFirst({
+                            where: { providerActivationId: num.activationId }
+                        })
+                        if (activation && activation.state === 'ACTIVE') {
+                            await tx.activation.update({
+                                where: { id: activation.id },
+                                data: { state: 'EXPIRED' }
+                            })
+                        }
+                    }
+                })
+
+                expiredCount++
+            } catch (e) {
+                console.error(`[NUMBER-CLEANUP] Failed to expire number ${num.id}:`, e)
+            }
+        }
+    } catch (error) {
+        console.error('[NUMBER-CLEANUP] Batch error:', error)
+    }
+
+    return expiredCount
 }
 
 /**
@@ -124,6 +245,7 @@ async function runCleanup(): Promise<void> {
 
     try {
         await cleanupExpiredReservations()
+        await cleanupExpiredNumbers()
 
         // Purge old records once per hour (every ~120 iterations)
         if (Math.random() < 0.01) {
@@ -200,5 +322,11 @@ export async function getReservationCleanupStatus() {
  * Manual trigger for cleanup (useful for testing)
  */
 export async function cleanupNow(): Promise<CleanupResult> {
-    return cleanupExpiredReservations()
+    const res = await cleanupExpiredReservations()
+    const numExpired = await cleanupExpiredNumbers()
+
+    return {
+        ...res,
+        expiredNumbers: numExpired
+    }
 }

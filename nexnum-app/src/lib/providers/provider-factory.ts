@@ -3,11 +3,11 @@
 
 import { Provider } from '@prisma/client'
 import { DynamicProvider } from './dynamic-provider'
-import { SmsProvider } from './sms-providers/types'
-import { FiveSimProvider } from './sms-providers/fivesim'
-import { SmsBowerProvider } from './sms-providers/smsbower'
-import { GrizzlySmsProvider } from './sms-providers/grizzlysms'
-import { HeroSmsProvider } from './sms-providers/herosms'
+import { SmsProvider } from '@/lib/sms-providers/types'
+import { FiveSimProvider } from '@/lib/sms-providers/fivesim'
+import { SmsBowerProvider } from '@/lib/sms-providers/smsbower'
+import { GrizzlySmsProvider } from '@/lib/sms-providers/grizzlysms'
+import { HeroSmsProvider } from '@/lib/sms-providers/herosms'
 
 // Map of legacy provider names to their adapter classes
 const LEGACY_PROVIDERS: Record<string, new () => SmsProvider> = {
@@ -49,9 +49,10 @@ export function getProviderAdapter(provider: Provider): SmsProvider {
  */
 export function getMetadataProvider(provider: Provider): SmsProvider {
     const mappings = provider.mappings as any
-    const useDynamic = mappings?.useDynamicMetadata === true
+    const useDynamic = hasDynamicConfig(provider) || mappings?.useDynamicMetadata === true
+    const useLegacyOnly = !useDynamic
 
-    if (!useDynamic) {
+    if (useLegacyOnly) {
         const normalizedName = provider.name.toLowerCase().trim()
         const LegacyClass = LEGACY_PROVIDERS[normalizedName]
         if (LegacyClass) {
@@ -104,7 +105,13 @@ export function getLegacyProvider(name: string): SmsProvider | null {
  * Check if the provider should use the dynamic configuration engine for metadata
  */
 export function usesDynamicMetadata(provider: Provider): boolean {
+    // If it's a pure dynamic provider (no legacy), it's always dynamic
+    if (!hasLegacyProvider(provider.name)) return true
+
     const mappings = provider.mappings as any
+    // Global toggle
+    if (mappings?.useDynamic === true) return true
+    // Specific toggle
     return mappings?.useDynamicMetadata === true
 }
 

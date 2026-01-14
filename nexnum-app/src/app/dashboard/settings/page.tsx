@@ -26,6 +26,7 @@ import { Switch } from "@/components/ui/switch"
 import { useGlobalStore } from "@/store"
 import { useAuthStore } from "@/stores/authStore"
 import { cn } from "@/lib/utils/utils"
+import { NotificationSettings } from "@/components/dashboard/settings/NotificationSettings"
 
 // Tab Configuration
 const tabs = [
@@ -262,35 +263,7 @@ export default function SettingsPage() {
                                 {...fadeInScale}
                                 className="space-y-6"
                             >
-                                <Card className="border-white/10 bg-card/30 backdrop-blur-xl">
-                                    <CardHeader>
-                                        <CardTitle>Email Notifications</CardTitle>
-                                        <CardDescription>Choose what updates you want to receive</CardDescription>
-                                    </CardHeader>
-                                    <CardContent className="space-y-6">
-                                        <div className="flex items-center justify-between">
-                                            <div className="space-y-0.5">
-                                                <Label>Account Activity</Label>
-                                                <p className="text-sm text-muted-foreground">Get notified about new sign-ins and successful payments</p>
-                                            </div>
-                                            <Switch defaultChecked />
-                                        </div>
-                                        <div className="flex items-center justify-between">
-                                            <div className="space-y-0.5">
-                                                <Label>Product Updates</Label>
-                                                <p className="text-sm text-muted-foreground">Be the first to know about new features and numbers</p>
-                                            </div>
-                                            <Switch />
-                                        </div>
-                                        <div className="flex items-center justify-between">
-                                            <div className="space-y-0.5">
-                                                <Label>Marketing & Offers</Label>
-                                                <p className="text-sm text-muted-foreground">Receive special discounts and promotional offers</p>
-                                            </div>
-                                            <Switch defaultChecked />
-                                        </div>
-                                    </CardContent>
-                                </Card>
+                                <NotificationSettings />
                             </motion.div>
                         )}
 

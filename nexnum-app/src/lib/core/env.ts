@@ -10,10 +10,9 @@ import { z } from 'zod'
 const envSchema = z.object({
     // Database
     DATABASE_URL: z.string().url().min(1, 'DATABASE_URL is required'),
+    DIRECT_URL: z.string().url().optional(),
 
-    // Redis
-    UPSTASH_REDIS_REST_URL: z.string().url().optional(),
-    UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
+    REDIS_URL: z.string().url().optional(),
 
     // MeiliSearch
     MEILISEARCH_HOST: z.string().url().default('http://localhost:7700'),

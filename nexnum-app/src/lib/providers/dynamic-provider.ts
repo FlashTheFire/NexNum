@@ -1,10 +1,12 @@
 
-import { SmsProvider, Country, Service, NumberResult, StatusResult, NumberStatus } from './sms-providers/types'
-import { WebhookPayload, WebhookVerificationResult } from './sms/types'
-import { WebhookVerifier } from './webhooks/verify'
+import { SmsProvider, Country, Service, NumberResult, StatusResult, NumberStatus } from '@/lib/sms-providers/types'
+import { WebhookPayload, WebhookVerificationResult } from '@/lib/sms/types'
+import { WebhookVerifier } from '@/lib/webhooks/verify'
 import { Provider } from '@prisma/client'
-import { prisma } from './db'
+// Retrying import fix
+import { prisma } from '@/lib/core/db'
 import CircuitBreaker from 'opossum'
+import { logger } from '@/lib/core/logger'
 
 declare var process: any;
 declare var require: any;
@@ -36,10 +38,7 @@ export type UniversalErrorType =
 
 // Error mapping configuration
 type ErrorMappingConfig = {
-    // Pattern → Universal error type
-    // Patterns: exact match by default, prefix with / for regex
     patterns: Record<string, UniversalErrorType>
-    // Optional: Field to check for errors (default: raw response)
     errorField?: string
 }
 
@@ -64,6 +63,14 @@ type MappingConfig = {
     regex?: string // For text_regex type
     separator?: string // For text_lines type
     transform?: Record<string, string> // Field transformations
+
+    // NEW: Status Mapping (Dynamic)
+    // Map raw provider status (e.g. "ACCESS_NUMBER", "1", "OK") to NumberStatus
+    statusMapping?: Record<string, NumberStatus>
+
+    // Support for specialized error patterns within this specific mapping
+    errorPatterns?: Record<string, UniversalErrorType>
+    errorField?: string
 
     // NEW: For json_value - the target field name for the single value
     valueField?: string // e.g., "balance" - wraps value as { balance: 123.45 }
@@ -149,6 +156,12 @@ export class ProviderError extends Error {
     get isPermanent(): boolean {
         return ['BAD_KEY', 'BAD_SERVICE', 'BAD_COUNTRY', 'NO_ACTIVATION', 'ACTIVATION_EXPIRED'].includes(this.errorType)
     }
+
+    // Check if this is a business lifecycle terminal state (not a system error)
+    // These should NOT trigger circuit breakers or health degradation
+    get isLifecycleTerminal(): boolean {
+        return ['NO_ACTIVATION', 'ACTIVATION_EXPIRED', 'ACTIVATION_CANCELLED'].includes(this.errorType)
+    }
 }
 
 export class DynamicProvider implements SmsProvider {
@@ -168,9 +181,9 @@ export class DynamicProvider implements SmsProvider {
                 resetTimeout: 15000 // 15s cooldown
             })
 
-            breaker.on('open', () => console.warn(`[DynamicProvider:${this.name}] Circuit OPEN - Failing fast`))
-            breaker.on('halfOpen', () => console.log(`[DynamicProvider:${this.name}] Circuit HALF-OPEN - Testing`))
-            breaker.on('close', () => console.log(`[DynamicProvider:${this.name}] Circuit CLOSED - Recovered`))
+            breaker.on('open', () => logger.warn(`[DynamicProvider:${this.name}] Circuit OPEN - Failing fast`))
+            breaker.on('halfOpen', () => logger.info(`[DynamicProvider:${this.name}] Circuit HALF-OPEN - Testing`))
+            breaker.on('close', () => logger.success(`[DynamicProvider:${this.name}] Circuit CLOSED - Recovered`))
 
             DynamicProvider.breakers.set(this.name, breaker)
         }
@@ -211,6 +224,9 @@ export class DynamicProvider implements SmsProvider {
         if (fnName === 'getCountries' || fnName === 'getServices') {
             if (mappings?.useDynamicMetadata === true) return true
         }
+
+        // Global override for ALL functions
+        if (mappings?.useDynamic === true) return true
 
         // Default behavior:
         // If we have a fallback, prefer fallback (Hybrid mode) - UNLESS specific flag is on
@@ -359,12 +375,8 @@ export class DynamicProvider implements SmsProvider {
                 await new Promise(resolve => setTimeout(resolve, waitTime))
             }
 
-            maskedHeaders = { ...headers }
-            if (maskedHeaders['Authorization']) maskedHeaders['Authorization'] = maskedHeaders['Authorization'].substring(0, 15) + '...'
-            if (maskedHeaders['base64_api_key']) maskedHeaders['base64_api_key'] = '...'
-
-            console.log(`[DynamicProvider:${this.name}] ${epConfig.method} ${urlObj.toString()}`)
-            console.log(`[DynamicProvider:${this.name}] Headers:`, JSON.stringify(maskedHeaders))
+            // 0. Logging Request
+            logger.request(`DynamicProvider:${this.name}`, epConfig.method, urlObj.toString())
 
             const startTime = Date.now()
             let responseData: any = null
@@ -379,7 +391,7 @@ export class DynamicProvider implements SmsProvider {
                     // Retry Loop (Business Logic)
                     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
                         try {
-                            const res = await fetch(urlObj.toString(), {
+                            const res = await fetch(urlObj!.toString(), {
                                 method: epConfig.method,
                                 headers,
                                 signal: AbortSignal.timeout(30000)
@@ -393,7 +405,7 @@ export class DynamicProvider implements SmsProvider {
                                     const sec = parseInt(retryAfter, 10)
                                     if (!isNaN(sec)) delay = (sec + 1) * 1000
                                 }
-                                console.warn(`[DynamicProvider:${this.name}] 429 Retry in ${delay}ms`)
+                                logger.warn(`[DynamicProvider:${this.name}] 429 Retry in ${delay}ms`)
                                 await new Promise(r => setTimeout(r, delay))
                                 continue
                             }
@@ -423,13 +435,20 @@ export class DynamicProvider implements SmsProvider {
                 if (breakerErr.code === 'EOPEN') {
                     throw new Error(`Circuit Breaker OPEN for ${this.name}`)
                 }
+
+                // CRITICAL FIX: If this is a ProviderError (business error) that we threw in checkForErrors,
+                // it might have been caught by the circuit breaker if checkForErrors happened inside fire.
+                // But checkForErrors actually happens AFTER fire returns the response.
+                // Wait, I need to check WHERE checkForErrors is called.
                 throw breakerErr
             }
 
             if (!response) throw new Error('Request failed')
 
             responseStatus = response.status;
-            // ... (Rest of processing)
+
+            // Log Response early
+            logger.response(`DynamicProvider:${this.name}`, epConfig.method, urlObj.toString(), responseStatus, { durationMs: Date.now() - startTime })
 
             if (!response.ok) {
                 const text = await response.text()
@@ -497,7 +516,7 @@ export class DynamicProvider implements SmsProvider {
             return result
 
         } catch (error: any) {
-            console.error(`[DynamicProvider:${this.name}] Request failed:`, error)
+            logger.error(`[DynamicProvider:${this.name}] Request failed`, { error: error.message })
 
             // If we haven't saved trace yet (e.g. network error)
             if (!this.lastRequestTrace) {
@@ -811,28 +830,19 @@ export class DynamicProvider implements SmsProvider {
      * Check for error patterns in the raw response before attempting to parse.
      * Throws ProviderError if a known error pattern is detected.
      */
-    private checkForErrors(
-        response: { type: string, data: any },
-        mappingKey: string,
-        mapConfig: MappingConfig | undefined
-    ): void {
-        // Get error config from mapping, or use default patterns for known lifecycle methods
-        const errorConfig = mapConfig?.errors
+    private checkForErrors(response: { type: string, data: any }, mappingKey: string, mapConfig?: MappingConfig): void {
+        const { data } = response
+        let checkValue = ''
 
-        // Build check value from response
-        const { type: responseType, data } = response
-        let checkValue: string
-
-        if (errorConfig?.errorField && typeof data === 'object') {
-            // Check specific field for errors (e.g., "message" or "error")
-            checkValue = String(this.getValue(data, errorConfig.errorField) ?? '')
-        } else if (responseType === 'text') {
-            // For text responses, check the entire response
-            checkValue = String(data)
+        // 1. Determine error field to check
+        const errorConfig = (this.config as any).errorConfig
+        const errorField = mapConfig?.errorField || errorConfig?.errorField
+        if (errorField && typeof data === 'object') {
+            checkValue = String(data[errorField] || '')
         } else if (typeof data === 'string') {
             checkValue = data
         } else {
-            // For JSON objects, check common error fields
+            // Default heuristics for JSON objects
             checkValue = String(
                 data?.error || data?.message || data?.status ||
                 (typeof data === 'object' ? '' : data)
@@ -840,66 +850,29 @@ export class DynamicProvider implements SmsProvider {
         }
 
         const checkString = checkValue.trim()
+        if (!checkString || checkString.length > 500) return
 
-        // Skip if we have actual data (not an error string)
-        // Most errors are short text responses without colons or JSON
-        if (!checkString || checkString.length > 200) return
-
-        // Check configured error patterns
-        // Format: { "errorType": "pattern to match" }
-        if (errorConfig?.patterns) {
-            for (const [errorType, pattern] of Object.entries(errorConfig.patterns)) {
-                const isMatch = this.matchesErrorPattern(checkString, pattern)
-                if (isMatch) {
-                    console.log(`[DynamicProvider:${this.name}] Error pattern matched: "${pattern}" → ${errorType}`)
+        // 2. LAYER 1: Mapping-specific patterns (High priority)
+        if (mapConfig?.errorPatterns) {
+            for (const [errorType, pattern] of Object.entries(mapConfig.errorPatterns)) {
+                if (this.matchesErrorPattern(checkString, pattern)) {
                     throw new ProviderError(errorType as UniversalErrorType, `Provider returned: ${checkString}`, checkString)
                 }
             }
         }
 
-        // DEFAULT: Universal fallback error patterns for common SMS-Activate style responses
-        // These apply to lifecycle methods if no specific patterns are configured
-        const LIFECYCLE_METHODS = ['getNumber', 'getStatus', 'setStatus', 'cancelNumber']
-        if (LIFECYCLE_METHODS.includes(mappingKey)) {
-            // Format: { "errorType": "pattern" } - key is error type, value is pattern to match
-            const defaultPatterns: Record<UniversalErrorType, string[]> = {
-                // Purchase errors
-                'NO_NUMBERS': ['NO_NUMBERS', 'no free phones'],
-                'NO_BALANCE': ['NO_BALANCE', 'not enough balance', 'not enough user balance'],
-
-                // Authentication errors
-                'BAD_KEY': ['BAD_KEY', 'Invalid API key', 'invalid api-key'],
-
-                // Service/Country errors
-                'BAD_SERVICE': ['BAD_SERVICE', 'no product'],
-                'BAD_COUNTRY': ['BAD_COUNTRY', 'bad country'],
-
-                // Activation errors
-                'NO_ACTIVATION': ['NO_ACTIVATION', 'order not found'],
-                'ACTIVATION_EXPIRED': ['order expired'],
-                'ACTIVATION_CANCELLED': ['STATUS_CANCEL'],
-
-                // Server errors
-                'SERVER_ERROR': ['ERROR_SQL', 'internal error', 'server offline'],
-
-                // Rate limiting
-                'RATE_LIMITED': ['rate limit', 'too many requests'],
-
-                // Status (not errors, but still matched)
-                'WAITING': [],
-                'RECEIVED': [],
-                'UNKNOWN_ERROR': [],
-            }
-
-            for (const [errorType, patterns] of Object.entries(defaultPatterns)) {
-                for (const pattern of patterns) {
-                    if (this.matchesErrorPattern(checkString, pattern)) {
-                        console.log(`[DynamicProvider:${this.name}] Default error pattern matched: "${pattern}" → ${errorType}`)
-                        throw new ProviderError(errorType as UniversalErrorType, `Provider returned: ${checkString}`, checkString)
-                    }
+        // 3. LAYER 2: Global provider patterns
+        const globalPatterns = errorConfig?.patterns as Record<string, string>
+        if (globalPatterns) {
+            for (const [errorType, pattern] of Object.entries(globalPatterns)) {
+                if (this.matchesErrorPattern(checkString, pattern)) {
+                    throw new ProviderError(errorType as UniversalErrorType, `Provider returned: ${checkString}`, checkString)
                 }
             }
         }
+
+        // 4. LAYER 3: Universal Fallbacks - REMOVED for Strict Dynamic Mapping
+        // Every error MUST be explicitly defined in the provider configuration (Global or Local).
     }
 
     /**
@@ -1538,8 +1511,6 @@ export class DynamicProvider implements SmsProvider {
                 id,
                 code: code !== id && code ? code : undefined,
                 name: String(i.name ?? i.country ?? 'Unknown'),
-                price: Number(i.price ?? i.cost ?? 0),
-                count: Number(i.count ?? i.quantity ?? 0),
                 flagUrl
             }
         }))
@@ -1617,10 +1588,8 @@ export class DynamicProvider implements SmsProvider {
             activationId: String(mapped.id || mapped.activationId || mapped.orderId),
             phoneNumber: String(mapped.phone || mapped.phoneNumber || mapped.number),
             countryCode,
-            countryName: '',
             serviceCode,
-            serviceName: '',
-            price: Number(mapped.price || mapped.cost || 0),
+            price: (mapped.price ?? mapped.cost) !== undefined ? Number(mapped.price ?? mapped.cost ?? 0) : null,
             expiresAt: new Date(Date.now() + 15 * 60 * 1000)
         }
     }
@@ -1633,27 +1602,48 @@ export class DynamicProvider implements SmsProvider {
 
 
         const response = await this.request('getStatus', { id: activationId })
-        const items = this.parseResponse(response, 'getStatus')
+        const mappingKey = 'getStatus'
+        const mappings = this.config.mappings as Record<string, MappingConfig>
+        const mapConfig = mappings[mappingKey]
+
+        const items = this.parseResponse(response, mappingKey)
         const mapped = items[0] || {}
 
-        // Map status string to internal NumberStatus
+        // Map status string to internal NumberStatus based STRICTLY on configuration
+        // Professional approach: No guesswork. If it's not mapped, it stays pending.
         let status: NumberStatus = 'pending'
-        const rawStatus = String(mapped.status || '').toUpperCase()
+        const rawStatus = String(mapped.status || '').trim().toUpperCase()
 
-        if (['RECEIVED', 'OK', 'STATUS_OK', 'FINISHED', 'COMPLETE', 'DONE', '1'].includes(rawStatus)) status = 'received'
-        if (['CANCELED', 'CANCELLED', 'REFUNDED', '-1'].includes(rawStatus)) status = 'cancelled'
-        if (['TIMEOUT', 'EXPIRED', '0'].includes(rawStatus)) status = 'expired'
+        if (mapConfig?.statusMapping) {
+            // Check case-insensitive
+            const statusMap = mapConfig.statusMapping as Record<string, NumberStatus>
+            const mappedStatus = statusMap[rawStatus] ||
+                statusMap[rawStatus.toLowerCase()] ||
+                statusMap[String(mapped.status)]
+
+            if (mappedStatus) {
+                status = mappedStatus
+            }
+        }
 
         const messages = []
         if (mapped.sms || mapped.code || mapped.message) {
             const smsList = Array.isArray(mapped.sms) ? mapped.sms : [mapped.sms || mapped]
-            messages.push(...smsList.filter(Boolean).map((s: any) => ({
-                id: s.id || Date.now().toString(),
-                sender: s.sender || s.from || 'System',
-                content: s.text || s.content || s.message || '',
-                code: s.code,
-                receivedAt: new Date()
-            })))
+            messages.push(...smsList.filter(Boolean).map((s: any) => {
+                // Determine a stable ID for deduplication in the worker
+                // Protocol 1: SMS-Activate / Grizzly often just return the status/code without a stable SMS ID
+                // We generate a deterministic one: sms_{activationId}_{code}
+                const code = s.code || s.text || s.message || ''
+                const stableId = s.id || `sms_${activationId}_${code}`
+
+                return {
+                    id: String(stableId),
+                    sender: s.sender || s.from || 'System',
+                    content: s.text || s.content || s.message || '',
+                    code: s.code,
+                    receivedAt: new Date()
+                }
+            }))
         }
 
         return { status, messages }
@@ -1764,7 +1754,7 @@ export class DynamicProvider implements SmsProvider {
         const items = this.parseResponse(response, 'getPrices')
 
         // Load settings and apply intelligent operator selection
-        const { SettingsService } = await import('./settings')
+        const { SettingsService } = await import('@/lib/settings')
         const settings = await SettingsService.getSettings()
 
         if (!settings.priceOptimization.enabled) {

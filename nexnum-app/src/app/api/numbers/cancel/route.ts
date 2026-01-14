@@ -51,6 +51,18 @@ export const POST = apiHandler(async (request, { body }) => {
         return NextResponse.json({ error: `Cannot cancel number in '${number.status}' status` }, { status: 400 })
     }
 
+    // New Guard: Zero-SMS Check
+    // If the user received ANY message, they cannot cancel/refund manually.
+    const smsCount = await prisma.smsMessage.count({
+        where: { numberId: number.id }
+    })
+
+    if (smsCount > 0) {
+        return NextResponse.json({
+            error: 'Cannot cancel: SMS Code already received. Service fulfilled.'
+        }, { status: 400 })
+    }
+
     console.log(`[CANCEL] Cancelling number ${numberId} (${number.phoneNumber}) for user ${user.userId}`)
 
     // 2. Call Provider Cancel

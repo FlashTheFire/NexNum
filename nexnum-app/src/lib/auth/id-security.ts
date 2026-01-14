@@ -12,7 +12,7 @@
  */
 
 import crypto from 'crypto'
-import { redis } from './redis'
+import { redis } from '@/lib/core/redis'
 
 // ============================================================================
 // CONFIGURATION
@@ -254,8 +254,8 @@ export async function createPublicId(internalId: string, type: string = 'offer')
     const reverseKey = `${CACHE_PREFIX}internal:${type}:${internalId}`
 
     await Promise.all([
-        redis.set(forwardKey, internalId, { ex: CACHE_TTL }),
-        redis.set(reverseKey, publicId, { ex: CACHE_TTL })
+        redis.set(forwardKey, internalId, 'EX', CACHE_TTL),
+        redis.set(reverseKey, publicId, 'EX', CACHE_TTL)
     ])
 
     return publicId

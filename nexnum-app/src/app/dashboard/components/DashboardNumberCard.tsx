@@ -182,15 +182,26 @@ export const DashboardNumberCard = memo(function DashboardNumberCard({
                                         </Badge>
                                     </motion.div>
                                 )}
+                                {status === 'completed' && (
+                                    <motion.div
+                                        initial={{ opacity: 0, scale: 0.8 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        exit={{ opacity: 0, scale: 0.8 }}
+                                    >
+                                        <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-emerald-500/30 text-emerald-400 text-[10px] bg-emerald-500/10 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
+                                            Cᴏᴍᴘʟᴇᴛᴇᴅ
+                                        </div>
+                                    </motion.div>
+                                )}
                                 {status === 'active' && (
                                     <motion.div
                                         initial={{ opacity: 0, scale: 0.8 }}
                                         animate={{ opacity: 1, scale: 1 }}
                                         exit={{ opacity: 0, scale: 0.8 }}
                                     >
-                                        <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-[9px] font-bold px-2 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
-                                            ACTIVE
-                                        </Badge>
+                                        <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-emerald-500/30 text-emerald-400 text-[10px] bg-emerald-500/10 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
+                                            Aᴄᴛɪᴠᴇ
+                                        </div>
                                     </motion.div>
                                 )}
                             </AnimatePresence>

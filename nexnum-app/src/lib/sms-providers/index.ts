@@ -1,7 +1,7 @@
 /**
  * Central export for SMS Providers
  */
-import { SmartSmsRouter } from '../smart-router'
+import { SmartSmsRouter } from '@/lib/providers/smart-router'
 
 export * from './types'
 

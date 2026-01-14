@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { ZodError, ZodSchema } from 'zod'
-import { logger } from './logger'
-import { rateLimiters, RatelimitType } from './ratelimit'
+import { logger } from '@/lib/core/logger'
+import { rateLimiters, RatelimitType } from '@/lib/auth/ratelimit'
 
 type ApiHandler<T> = (
     req: Request,
@@ -27,6 +27,11 @@ export function apiHandler<T = any>(
 ) {
     return async (req: Request, context: { params: any }) => {
         try {
+            // 0. Logging Request
+            const url = new URL(req.url)
+            const label = url.pathname.startsWith('/api') ? 'API' : 'APP'
+            logger.request(label, req.method, url.pathname)
+
             // 0. Rate Limiting (P0 Priority)
             if (options.rateLimit) {
                 const ip = req.headers.get('x-forwarded-for')?.split(',')[0] ||
@@ -82,7 +87,12 @@ export function apiHandler<T = any>(
             }
 
             // 2. Execute Handler
-            return await handler(req, { ...context, body })
+            const response = await handler(req, { ...context, body })
+
+            // 3. Log Response
+            logger.response(label, req.method, url.pathname, response.status)
+
+            return response
 
         } catch (error: any) {
             // 3. Centralized Error Handling
@@ -92,12 +102,17 @@ export function apiHandler<T = any>(
                 stack: error.stack
             })
 
+            const status = error.status || 500
+            const url = new URL(req.url)
+            const label = url.pathname.startsWith('/api') ? 'API' : 'APP'
+            logger.response(label, req.method, url.pathname, status)
+
             return NextResponse.json(
                 {
                     success: false,
                     error: error.message || 'Internal Server Error'
                 },
-                { status: error.status || 500 }
+                { status: status }
             )
         }
     }

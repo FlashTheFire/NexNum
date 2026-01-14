@@ -56,7 +56,7 @@ export async function POST(request: Request) {
                 const result = await cleanupNow()
                 return NextResponse.json({
                     success: true,
-                    message: `Expired ${result.expired} reservations, restored ${result.stockRestored} stock`,
+                    message: `Expired ${result.expiredReservations} reservations, restored ${result.stockRestored} stock`,
                     result
                 })
 

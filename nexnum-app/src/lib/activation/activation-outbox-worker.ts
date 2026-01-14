@@ -12,10 +12,10 @@
  * - refund: Process refund compensation
  */
 
-import { prisma } from './db'
+import { prisma } from '@/lib/core/db'
 import { ActivationService } from './activation-service'
-import { smsProvider } from './sms-providers'
-import { logger } from './logger'
+import { smsProvider } from '@/lib/sms-providers'
+import { logger } from '@/lib/core/logger'
 
 const WORKER_ID = `worker_${process.pid}_${Date.now()}`
 const LOCK_DURATION_MS = 60 * 1000 // 1 minute lock
@@ -169,6 +169,16 @@ async function handleProviderRequest(activationId: string, payload: any) {
 
     logger.info(`[ActivationOutbox] Requesting number for activation ${activationId}`)
 
+    // 0. Pre-check: Ensure it hasn't been cancelled/refunded while waiting in outbox
+    const activationCheck = await prisma.activation.findUnique({
+        where: { id: activationId },
+        select: { state: true }
+    })
+    if (!activationCheck || activationCheck.state !== 'RESERVED') {
+        logger.warn(`[ActivationOutbox] Skipping ${activationId}: State is ${activationCheck?.state || 'MISSING'}`)
+        return
+    }
+
     // Call provider
     const providerResult = await smsProvider.getNumber(
         countryCode,
@@ -177,18 +187,37 @@ async function handleProviderRequest(activationId: string, payload: any) {
     )
 
     // On success: Confirm Activation
-    await prisma.$transaction(async (tx) => {
-        await ActivationService.confirmActive(
-            activationId,
-            {
-                providerActivationId: providerResult.activationId,
-                phoneNumber: providerResult.phoneNumber,
-                expiresAt: providerResult.expiresAt
-            },
-            tx
-        )
+    try {
+        await prisma.$transaction(async (tx) => {
+            await ActivationService.confirmActive(
+                activationId,
+                {
+                    providerActivationId: providerResult.activationId,
+                    phoneNumber: providerResult.phoneNumber,
+                    expiresAt: providerResult.expiresAt
+                },
+                tx
+            )
 
-        // Create Number record (for backward compatibility)
+            // ... (existing creation logic)
+        })
+    } catch (err: any) {
+        if (err.message.includes('ACTIVATION_CONFLICT')) {
+            // WE ALREADY BOUGHT THE NUMBER BUT DB REJECTED CAPTURE
+            // MUST CANCEL AT PROVIDER TO AVOID LOSS
+            logger.error(`[ActivationOutbox] CRITICAL CONFLICT: Number bought but state changed. Canceling at provider: ${providerResult.activationId}`)
+            try {
+                await smsProvider.cancelNumber(providerResult.activationId)
+            } catch (cancelErr: any) {
+                logger.error(`[ActivationOutbox] Failed to cancel orphaned number: ${cancelErr.message}`)
+            }
+            return // Stop processing this event
+        }
+        throw err
+    }
+
+    // On success (continued): Create Number record (for backward compatibility)
+    await prisma.$transaction(async (tx) => {
         const activation = await tx.activation.findUniqueOrThrow({
             where: { id: activationId }
         })
@@ -206,7 +235,8 @@ async function handleProviderRequest(activationId: string, payload: any) {
                 activationId: providerResult.activationId,
                 provider: providerId,
                 expiresAt: providerResult.expiresAt,
-                idempotencyKey: activation.idempotencyKey
+                idempotencyKey: activation.idempotencyKey,
+                nextPollAt: new Date(Date.now() + 10000)
             }
         })
 

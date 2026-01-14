@@ -184,6 +184,7 @@ export default function SMSPage() {
             const result = await purchaseNumber(
                 displayNumber.countryCode,
                 displayNumber.serviceCode || displayNumber.serviceName,
+                undefined, // provider (optional)
                 true // testMode for safety
             )
 
@@ -249,6 +250,8 @@ export default function SMSPage() {
     const minutesLeft = Math.floor(timeLeft / 60)
     const secondsLeft = timeLeft % 60
 
+    const isExpired = displayNumber?.status === 'expired' || displayNumber?.status === 'cancelled' || displayNumber?.status === 'timeout' || displayNumber?.status === 'completed' || (minutesLeft === 0 && secondsLeft === 0 && displayNumber?.status !== 'active');
+
     // Loading state with LoadingScreen
     if (!_hasHydrated || (isLoadingNumbers && !displayNumber && !localNumber)) {
         return <LoadingScreen status="Opening Secure Channel" />
@@ -312,8 +315,8 @@ export default function SMSPage() {
                             <div>
                                 <h1 className="text-lg font-bold text-white flex items-center gap-2.5">
                                     <span className="relative flex h-2.5 w-2.5">
-                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[hsl(var(--neon-lime))] opacity-75"></span>
-                                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[hsl(var(--neon-lime))]"></span>
+                                        <span className={cn("absolute inline-flex h-full w-full rounded-full opacity-75", isExpired ? "bg-gray-500" : "animate-ping bg-[hsl(var(--neon-lime))]")}></span>
+                                        <span className={cn("relative inline-flex rounded-full h-2.5 w-2.5", isExpired ? "bg-gray-500" : "bg-[hsl(var(--neon-lime))]")}></span>
                                     </span>
                                     SMS Inbox
                                 </h1>
@@ -455,11 +458,17 @@ export default function SMSPage() {
 
                         {/* Right Column: Messages Feed */}
                         <motion.div variants={fadeInLeft} className="min-h-[500px]">
-                            <Card className="border-white/[0.06] bg-[#0f1115]/50 backdrop-blur-xl h-full shadow-2xl overflow-hidden flex flex-col">
-                                <CardHeader className="border-b border-white/[0.04] p-5 md:p-6 bg-white/[0.01] flex flex-row items-center justify-between sticky top-0 z-20 backdrop-blur-md">
+                            <Card className={cn(
+                                "backdrop-blur-xl h-full shadow-2xl overflow-hidden flex flex-col transition-all duration-500",
+                                isExpired ? "border-white/5 bg-[#0c0d10] opacity-80" : "border-white/[0.06] bg-[#0f1115]/50"
+                            )}>
+                                <CardHeader className={cn(
+                                    "border-b p-5 md:p-6 flex flex-row items-center justify-between sticky top-0 z-20 backdrop-blur-md transition-colors",
+                                    isExpired ? "border-white/5 bg-black/20" : "border-white/[0.04] bg-white/[0.01]"
+                                )}>
                                     <div className="flex items-center gap-3">
-                                        <CardTitle className="flex items-center gap-3 text-lg font-medium text-white">
-                                            <Inbox className="h-5 w-5 text-gray-400" />
+                                        <CardTitle className={cn("flex items-center gap-3 text-lg font-medium", isExpired ? "text-gray-500" : "text-white")}>
+                                            <Inbox className={cn("h-5 w-5", isExpired ? "text-gray-600" : "text-gray-400")} />
                                             Received Messages
                                         </CardTitle>
                                         <Badge variant="secondary" className="bg-white/[0.06] text-gray-300 pointer-events-none">
@@ -527,20 +536,92 @@ export default function SMSPage() {
                                     {/* Scrollable Container (Flex grow to fill available space) */}
                                     <div className="flex-1 overflow-y-auto custom-scrollbar p-5 md:p-6 space-y-4">
                                         {messages.length === 0 ? (
-                                            <div className="flex flex-col items-center justify-center py-10 text-center h-full">
-                                                <div className="w-16 h-16 rounded-full bg-white/[0.03] border border-white/[0.05] flex items-center justify-center mb-4">
-                                                    <div className="relative">
-                                                        <Inbox className="h-6 w-6 text-gray-600" />
-                                                        <span className="absolute -top-1 -right-1 flex h-2 w-2">
-                                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75"></span>
-                                                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                            <div className="flex flex-col items-center justify-center py-14 text-center h-full relative overflow-hidden">
+                                                {/* Sophisticated Background Glow */}
+                                                {!isExpired && (
+                                                    <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-64 bg-[hsl(var(--neon-lime)/0.02)] blur-[100px] pointer-events-none" />
+                                                )}
+
+                                                <div className={cn(
+                                                    "w-24 h-24 rounded-3xl flex items-center justify-center mb-8 transition-all duration-700 relative",
+                                                    isExpired
+                                                        ? "bg-zinc-500/[0.03] border border-white/[0.05]"
+                                                        : "bg-black/20 border border-[hsl(var(--neon-lime)/0.15)] shadow-[0_0_50px_-20px_hsl(var(--neon-lime)/0.3)]"
+                                                )}>
+                                                    {/* Premium Active Animations */}
+                                                    {!isExpired && (
+                                                        <>
+                                                            {/* Soft Breathing Glow */}
+                                                            <div className="absolute inset-0 rounded-3xl animate-[pulse_4s_infinite] bg-[hsl(var(--neon-lime)/0.05)]" />
+                                                            {/* Outer Scanning Ring */}
+                                                            <div className="absolute inset-[-12px] rounded-[2rem] border border-[hsl(var(--neon-lime)/0.1)] animate-[ping_4s_infinite] opacity-30" />
+                                                            <div className="absolute inset-[-24px] rounded-[3rem] border border-[hsl(var(--neon-lime)/0.05)] animate-[ping_4s_infinite] [animation-delay:1s] opacity-20" />
+                                                        </>
+                                                    )}
+
+                                                    <div className="relative z-10 flex flex-col items-center justify-center">
+                                                        <motion.div
+                                                            animate={!isExpired ? {
+                                                                y: [0, -6, 0],
+                                                                scale: [1, 1.02, 1]
+                                                            } : {}}
+                                                            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                                                        >
+                                                            <Inbox className={cn(
+                                                                "h-10 w-10 transition-colors duration-500",
+                                                                isExpired ? "text-zinc-700" : "text-[hsl(var(--neon-lime))]"
+                                                            )} />
+                                                        </motion.div>
+
+                                                        {!isExpired && (
+                                                            <div className="absolute -top-1 -right-1 w-3 h-3 bg-[hsl(var(--neon-lime))] rounded-full shadow-[0_0_10px_hsl(var(--neon-lime))] border-2 border-[#0f1115]" />
+                                                        )}
+                                                    </div>
+
+                                                    {/* High-End Status Label */}
+                                                    <div className={cn(
+                                                        "absolute -top-4 left-1/2 -translate-x-1/2 px-3 py-1 bg-[#0a0b0d] border rounded-full shadow-2xl transition-all duration-500 flex items-center gap-2",
+                                                        isExpired ? "border-zinc-800" : "border-[hsl(var(--neon-lime)/0.3)]"
+                                                    )}>
+                                                        {!isExpired && (
+                                                            <span className="relative flex h-2 w-2">
+                                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[hsl(var(--neon-lime))] opacity-40"></span>
+                                                                <span className="relative inline-flex rounded-full h-2 w-2 bg-[hsl(var(--neon-lime))]"></span>
+                                                            </span>
+                                                        )}
+                                                        <span className={cn(
+                                                            "text-[10px] tracking-[0.2em] font-bold uppercase",
+                                                            isExpired ? "text-zinc-600" : "text-[hsl(var(--neon-lime))]"
+                                                        )} style={{ fontVariant: 'small-caps' }}>
+                                                            {isExpired ? "Expired" : "Listening"}
                                                         </span>
                                                     </div>
                                                 </div>
-                                                <h3 className="text-base font-medium text-white mb-1">Waiting for Messages</h3>
-                                                <p className="text-xs text-gray-500 max-w-xs leading-relaxed">
-                                                    We're listening for incoming SMS...
-                                                </p>
+
+                                                <h3 className={cn(
+                                                    "text-xl font-bold mb-3 tracking-tight transition-colors duration-500",
+                                                    isExpired ? "text-zinc-500" : "text-white"
+                                                )}>
+                                                    {isExpired ? "Connection Terminated" : "Signal Search Active"}
+                                                </h3>
+
+                                                <div className={cn(
+                                                    "text-sm max-w-[320px] leading-relaxed mx-auto transition-colors duration-500 px-6",
+                                                    isExpired ? "text-zinc-700" : "text-zinc-400"
+                                                )}>
+                                                    {isExpired ? (
+                                                        <p>This session has expired. No further signals can be received on this channel.</p>
+                                                    ) : (
+                                                        <div className="space-y-2">
+                                                            <p>Actively monitoring encrypted channels for inbound verification codes.</p>
+                                                            <div className="flex items-center justify-center gap-3">
+                                                                <span className="h-px w-8 bg-[hsl(var(--neon-lime)/0.2)]" />
+                                                                <span className="text-[10px] text-[hsl(var(--neon-lime))] font-bold tracking-[0.3em] uppercase opacity-60">Secure Link</span>
+                                                                <span className="h-px w-8 bg-[hsl(var(--neon-lime)/0.2)]" />
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
                                         ) : (
                                             <AnimatePresence mode="popLayout">

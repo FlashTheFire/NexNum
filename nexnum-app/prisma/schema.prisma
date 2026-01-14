@@ -8,21 +8,83 @@ datasource db {
 }
 
 model User {
-  id           String     @id @default(uuid())
-  email        String     @unique
-  passwordHash String     @map("password_hash")
-  name         String
-  createdAt    DateTime   @default(now()) @map("created_at")
-  updatedAt    DateTime   @updatedAt @map("updated_at")
-  role         Role       @default(USER)
-  isBanned     Boolean    @default(false) @map("is_banned")
-  auditLogs    AuditLog[]
-  numbers      Number[]
-  wallet       Wallet?
-  reservations OfferReservation[]
-  purchaseOrders PurchaseOrder[]
+  id                      String                   @id @default(uuid())
+  email                   String                   @unique
+  passwordHash            String                   @map("password_hash")
+  name                    String
+  googleId                String?                  @unique @map("google_id")
+  image                   String?
+  createdAt               DateTime                 @default(now()) @map("created_at")
+  updatedAt               DateTime                 @updatedAt @map("updated_at")
+  role                    Role                     @default(USER)
+  isBanned                Boolean                  @default(false) @map("is_banned")
+  auditLogs               AuditLog[]
+  numbers                 Number[]
+  wallet                  Wallet?
+  reservations            OfferReservation[]
+  purchaseOrders          PurchaseOrder[]
+  notifications           Notification[]
+  pushSubscriptions       PushSubscription[]
+  notificationPreferences NotificationPreferences?
 
   @@map("users")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  type      String // sms_received, payment_success, number_expiring, welcome, etc.
+  title     String
+  message   String
+  data      Json? // Additional context (numberId, amount, etc.)
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+model PushSubscription {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
+}
+
+model NotificationPreferences {
+  id     String @id @default(uuid())
+  userId String @unique @map("user_id")
+
+  // Channels
+  emailEnabled Boolean @default(true) @map("email_enabled")
+  pushEnabled  Boolean @default(true) @map("push_enabled")
+  smsEnabled   Boolean @default(false) @map("sms_enabled")
+
+  // Categories
+  smsReceived Boolean @default(true) @map("sms_received")
+  promotions  Boolean @default(true)
+  billing     Boolean @default(true)
+  security    Boolean @default(true)
+  system      Boolean @default(true)
+
+  // Customization
+  soundEnabled Boolean @default(true) @map("sound_enabled")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_preferences")
 }
 
 model Wallet {
@@ -58,7 +120,7 @@ model PurchaseOrder {
   serviceName    String   @map("service_name")
   countryName    String   @map("country_name")
   amount         Decimal  @db.Decimal(8, 2)
-  status         String   // PENDING, COMPLETED, FAILED
+  status         String // PENDING, COMPLETED, FAILED
   provider       String?
   activationId   String?  @map("activation_id")
   idempotencyKey String?  @unique @map("idempotency_key")
@@ -66,61 +128,61 @@ model PurchaseOrder {
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([status, expiresAt])
   @@index([userId])
   @@map("purchase_orders")
 }
 
-
-
 model Number {
-  id           String       @id @default(uuid())
-  phoneNumber  String       @map("phone_number")
-  countryCode  String       @map("country_code")
-  countryName  String?      @map("country_name")
-  countryIconUrl String?    @map("country_icon_url")
-  serviceName  String?      @map("service_name")
-  serviceCode  String?      @map("service_code")
-  serviceIconUrl String?    @map("service_icon_url")
-  price        Decimal      @db.Decimal(8, 2)
-  status       String       @default("available")
-  ownerId      String?      @map("owner_id")
-  activationId String?      @map("activation_id")
-  provider     String?
-  idempotencyKey String?    @unique @map("idempotency_key") // For purchase safety
-  expiresAt    DateTime?    @map("expires_at")
-  purchasedAt  DateTime?    @map("purchased_at")
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime?    @updatedAt @map("updated_at")
-  owner        User?        @relation(fields: [ownerId], references: [id])
-  smsMessages  SmsMessage[]
+  id             String       @id @default(uuid())
+  phoneNumber    String       @map("phone_number")
+  countryCode    String       @map("country_code")
+  countryName    String?      @map("country_name")
+  countryIconUrl String?      @map("country_icon_url")
+  serviceName    String?      @map("service_name")
+  serviceCode    String?      @map("service_code")
+  serviceIconUrl String?      @map("service_icon_url")
+  price          Decimal      @db.Decimal(8, 2)
+  status         String       @default("available")
+  ownerId        String?      @map("owner_id")
+  activationId   String?      @map("activation_id")
+  provider       String?
+  idempotencyKey String?      @unique @map("idempotency_key") // For purchase safety
+  expiresAt      DateTime?    @map("expires_at")
+  purchasedAt    DateTime?    @map("purchased_at")
+  pollCount      Int          @default(0) @map("poll_count")
+  nextPollAt     DateTime?    @default(now()) @map("next_poll_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime?    @updatedAt @map("updated_at")
+  owner          User?        @relation(fields: [ownerId], references: [id])
+  smsMessages    SmsMessage[]
 
   @@index([ownerId])
   @@index([status])
-  @@index([status, createdAt])           // List by status ordered by date
-  @@index([ownerId, status])             // User's numbers by status
-  @@index([provider, status])            // Provider stats
-  @@index([expiresAt])                   // Expiring numbers cleanup
+  @@index([status, createdAt]) // List by status ordered by date
+  @@index([ownerId, status]) // User's numbers by status
+  @@index([provider, status]) // Provider stats
+  @@index([expiresAt]) // Expiring numbers cleanup
   @@map("numbers")
 }
 
 model SmsMessage {
-  id            String   @id @default(uuid())
-  numberId      String   @map("number_id")
-  sender        String?
-  content       String?
-  code          String?
-  receivedAt    DateTime @default(now()) @map("received_at")
-  
+  id         String   @id @default(uuid())
+  numberId   String   @map("number_id")
+  sender     String?
+  content    String?
+  code       String?
+  receivedAt DateTime @default(now()) @map("received_at")
+
   // Enhanced fields for advanced tracking
-  provider      String?                     // Provider that received the SMS
+  provider      String? // Provider that received the SMS
   rawPayload    Json?    @map("raw_payload") // Original provider response
   extractedCode String?  @map("extracted_code") // Code from extractor
-  confidence    Decimal? @db.Decimal(3, 2)  // Extraction confidence (0-1)
-  
-  number        Number   @relation(fields: [numberId], references: [id], onDelete: Cascade)
+  confidence    Decimal? @db.Decimal(3, 2) // Extraction confidence (0-1)
+
+  number Number @relation(fields: [numberId], references: [id], onDelete: Cascade)
 
   @@index([numberId])
   @@index([provider])
@@ -149,19 +211,19 @@ model AuditLog {
 
 // Service lookup: code → display details
 model ServiceLookup {
-  code     String  @id                // e.g., "wa", "tg", "fb"
-  name     String                     // e.g., "WhatsApp"
-  iconUrl  String? @map("icon_url")   // Optional icon/logo URL
-  
+  code    String  @id // e.g., "wa", "tg", "fb"
+  name    String // e.g., "WhatsApp"
+  iconUrl String? @map("icon_url") // Optional icon/logo URL
+
   @@map("service_lookups")
 }
 
 // Country lookup: code → display details  
 model CountryLookup {
-  code      String  @id               // ISO code: "US", "IN", "GB"
-  name      String                    // e.g., "United States"
-  flagUrl   String? @map("flag_url")  // Flag image URL
-  
+  code    String  @id // ISO code: "US", "IN", "GB"
+  name    String // e.g., "United States"
+  flagUrl String? @map("flag_url") // Flag image URL
+
   @@map("country_lookups")
 }
 
@@ -170,63 +232,63 @@ model CountryLookup {
 // ============================================
 
 model Provider {
-  id              String   @id @default(uuid())
-  name            String   @unique // Internal slug (e.g., "5sim")
-  displayName     String   @map("display_name")
-  description     String?
-  logoUrl         String?  @map("logo_url")
-  websiteUrl      String?  @map("website_url")
-  
+  id          String  @id @default(uuid())
+  name        String  @unique // Internal slug (e.g., "5sim")
+  displayName String  @map("display_name")
+  description String?
+  logoUrl     String? @map("logo_url")
+  websiteUrl  String? @map("website_url")
+
   // --- API Configuration ---
-  apiBaseUrl      String   @map("api_base_url")
-  
+  apiBaseUrl String @map("api_base_url")
+
   // Auth Config
-  authType        String   @default("bearer") // enum: bearer, header, query_param, none
-  providerType    String   @default("rest") @map("provider_type") // enum: rest, hybrid, sms-activate
-  authKey         String?  @map("auth_key")   // Encrypted API Key
-  authHeader      String?  @map("auth_header") // e.g., "Authorization", "X-API-KEY"
-  authQueryParam  String?  @map("auth_query_param") // e.g., "api_key", "token"
-  
+  authType       String  @default("bearer") // enum: bearer, header, query_param, none
+  providerType   String  @default("rest") @map("provider_type") // enum: rest, hybrid, sms-activate
+  authKey        String? @map("auth_key") // Encrypted API Key
+  authHeader     String? @map("auth_header") // e.g., "Authorization", "X-API-KEY"
+  authQueryParam String? @map("auth_query_param") // e.g., "api_key", "token"
+
   // --- Endpoint Definitions (JSON) ---
-  endpoints       Json     
-  
+  endpoints Json
+
   // --- Response Mappings (JSON) ---
-  mappings        Json     
-  
+  mappings Json
+
   // --- Business Logic ---
-  priceMultiplier Decimal  @default(1.0) @map("price_multiplier") @db.Decimal(5, 2)
-  fixedMarkup     Decimal  @default(0.0) @map("fixed_markup") @db.Decimal(8, 2)
-  currency        String   @default("USD")
+  priceMultiplier Decimal @default(1.0) @map("price_multiplier") @db.Decimal(5, 2)
+  fixedMarkup     Decimal @default(0.0) @map("fixed_markup") @db.Decimal(8, 2)
+  currency        String  @default("USD")
 
   // --- Balance Alert ---
-  balance         Decimal  @default(0.0) @db.Decimal(10, 2)
-  lowBalanceAlert Decimal  @default(10.0) @map("low_balance_alert") @db.Decimal(10, 2)
+  balance         Decimal   @default(0.0) @db.Decimal(10, 2)
+  lowBalanceAlert Decimal   @default(10.0) @map("low_balance_alert") @db.Decimal(10, 2)
   lastBalanceSync DateTime? @map("last_balance_sync")
-  
-  isActive        Boolean  @default(false) @map("is_active")
-  priority        Int      @default(0) // Higher = tried first
-  
+
+  isActive Boolean @default(false) @map("is_active")
+  priority Int     @default(0) // Higher = tried first
+
   // --- Sync tracking ---
-  lastSyncAt      DateTime? @map("last_sync_at")
-  syncStatus      String?   @map("sync_status") // syncing, success, failed, idle
-  syncCount       Int       @default(0) @map("sync_count")
-  
+  lastSyncAt DateTime? @map("last_sync_at")
+  syncStatus String?   @map("sync_status") // syncing, success, failed, idle
+  syncCount  Int       @default(0) @map("sync_count")
+
   // --- Metadata Caching (24h Rule) - DEPRECATED, will be removed ---
   lastMetadataSyncAt DateTime? @map("last_metadata_sync_at")
   cachedCountries    Json?     @map("cached_countries")
   cachedServices     Json?     @map("cached_services")
 
   // --- Meta ---
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
-  
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
   // --- Relations ---
-  testResults     ProviderTestResult[]
-  countries       ProviderCountry[]
-  services        ProviderService[]
-  pricing         ProviderPricing[]
-  healthLogs      ProviderHealthLog[]
-  
+  testResults ProviderTestResult[]
+  countries   ProviderCountry[]
+  services    ProviderService[]
+  pricing     ProviderPricing[]
+  healthLogs  ProviderHealthLog[]
+
   @@index([isActive])
   @@index([priority])
   @@map("providers")
@@ -238,18 +300,18 @@ model Provider {
 
 // Provider-specific countries
 model ProviderCountry {
-  id          String   @id @default(uuid())
-  providerId  String   @map("provider_id")
-  externalId  String   @map("external_id")  // Provider's ID (e.g., "2", "187", "us")
-  code        String                        // Normalized code for internal use
-  name        String                        // Display name (e.g., "Kazakhstan")
-  flagUrl     String?  @map("flag_url")
-  isActive    Boolean  @default(true) @map("is_active")
-  lastSyncAt  DateTime @default(now()) @map("last_sync_at")
-  
-  provider    Provider          @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  pricing     ProviderPricing[]
-  
+  id         String   @id @default(uuid())
+  providerId String   @map("provider_id")
+  externalId String   @map("external_id") // Provider's ID (e.g., "2", "187", "us")
+  code       String // Normalized code for internal use
+  name       String // Display name (e.g., "Kazakhstan")
+  flagUrl    String?  @map("flag_url")
+  isActive   Boolean  @default(true) @map("is_active")
+  lastSyncAt DateTime @default(now()) @map("last_sync_at")
+
+  provider Provider          @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  pricing  ProviderPricing[]
+
   @@unique([providerId, externalId])
   @@index([providerId])
   @@index([code])
@@ -258,18 +320,18 @@ model ProviderCountry {
 
 // Provider-specific services
 model ProviderService {
-  id          String   @id @default(uuid())
-  providerId  String   @map("provider_id")
-  externalId  String   @map("external_id")  // Provider's service code (e.g., "wa", "fb")
-  code        String                        // Normalized code for internal use
-  name        String                        // Display name (e.g., "WhatsApp")
-  iconUrl     String?  @map("icon_url")
-  isActive    Boolean  @default(true) @map("is_active")
-  lastSyncAt  DateTime @default(now()) @map("last_sync_at")
-  
-  provider    Provider          @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  pricing     ProviderPricing[]
-  
+  id         String   @id @default(uuid())
+  providerId String   @map("provider_id")
+  externalId String   @map("external_id") // Provider's service code (e.g., "wa", "fb")
+  code       String // Normalized code for internal use
+  name       String // Display name (e.g., "WhatsApp")
+  iconUrl    String?  @map("icon_url")
+  isActive   Boolean  @default(true) @map("is_active")
+  lastSyncAt DateTime @default(now()) @map("last_sync_at")
+
+  provider Provider          @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  pricing  ProviderPricing[]
+
   @@unique([providerId, externalId])
   @@index([providerId])
   @@index([code])
@@ -278,23 +340,23 @@ model ProviderService {
 
 // Provider-specific pricing (replaces MeiliSearch-only approach)
 model ProviderPricing {
-  id          String   @id @default(uuid())
-  providerId  String   @map("provider_id")
-  countryId   String   @map("country_id")
-  serviceId   String   @map("service_id")
-  operator    String?                       // Optional operator code (e.g., "virtual21")
-  cost        Decimal  @db.Decimal(8, 4)    // Raw cost from provider API
-  providerRawCost Decimal? @db.Decimal(8, 6) @map("provider_raw_cost") // Original provider cost for reconciliation
-  sellPrice   Decimal  @db.Decimal(8, 2)    // After markup applied
-  stock       Int      @default(0)
-  deleted     Boolean  @default(false)      // Soft delete for sync
-  lastSyncAt  DateTime @default(now()) @map("last_sync_at")
-  
-  provider    Provider        @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  country     ProviderCountry @relation(fields: [countryId], references: [id], onDelete: Cascade)
-  service     ProviderService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  id              String   @id @default(uuid())
+  providerId      String   @map("provider_id")
+  countryId       String   @map("country_id")
+  serviceId       String   @map("service_id")
+  operator        String? // Optional operator code (e.g., "virtual21")
+  cost            Decimal  @db.Decimal(8, 4) // Raw cost from provider API
+  providerRawCost Decimal? @map("provider_raw_cost") @db.Decimal(8, 6) // Original provider cost for reconciliation
+  sellPrice       Decimal  @db.Decimal(8, 2) // After markup applied
+  stock           Int      @default(0)
+  deleted         Boolean  @default(false) // Soft delete for sync
+  lastSyncAt      DateTime @default(now()) @map("last_sync_at")
+
+  provider     Provider           @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  country      ProviderCountry    @relation(fields: [countryId], references: [id], onDelete: Cascade)
+  service      ProviderService    @relation(fields: [serviceId], references: [id], onDelete: Cascade)
   reservations OfferReservation[]
-  
+
   @@unique([providerId, countryId, serviceId, operator])
   @@index([providerId])
   @@index([countryId])
@@ -305,50 +367,50 @@ model ProviderPricing {
 }
 
 model ProviderTestResult {
-  id          String   @id @default(uuid())
-  providerId  String   @map("provider_id")
-  action      String   // e.g., "getCountries", "getBalance"
-  success     Boolean
-  httpStatus  Int?     @map("http_status")
-  responseTime Int?    @map("response_time") // ms
-  requestUrl  String?  @map("request_url")
-  responseData String? @db.Text @map("response_data")
-  error       String?
-  testedAt    DateTime @default(now()) @map("tested_at")
-  
-  provider    Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  
+  id           String   @id @default(uuid())
+  providerId   String   @map("provider_id")
+  action       String // e.g., "getCountries", "getBalance"
+  success      Boolean
+  httpStatus   Int?     @map("http_status")
+  responseTime Int?     @map("response_time") // ms
+  requestUrl   String?  @map("request_url")
+  responseData String?  @map("response_data") @db.Text
+  error        String?
+  testedAt     DateTime @default(now()) @map("tested_at")
+
+  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
   @@index([providerId])
   @@map("provider_test_results")
 }
 
 // Provider health monitoring logs
 model ProviderHealthLog {
-  id           String   @id @default(uuid())
-  providerId   String   @map("provider_id")
-  status       String   // healthy, degraded, down
-  successRate  Decimal  @db.Decimal(5, 2)
-  avgLatency   Int      // ms
-  errorCount   Int      @default(0)
-  checkedAt    DateTime @default(now()) @map("checked_at")
-  
-  provider     Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  
+  id          String   @id @default(uuid())
+  providerId  String   @map("provider_id")
+  status      String // healthy, degraded, down
+  successRate Decimal  @db.Decimal(5, 2)
+  avgLatency  Int // ms
+  errorCount  Int      @default(0)
+  checkedAt   DateTime @default(now()) @map("checked_at")
+
+  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
   @@index([providerId, checkedAt])
   @@map("provider_health_logs")
 }
 
 // Webhook events tracking
 model WebhookEvent {
-  id             String   @id @default(uuid())
+  id             String    @id @default(uuid())
   provider       String
-  eventType      String   @map("event_type")
+  eventType      String    @map("event_type")
   payload        Json
-  idempotencyKey String   @unique @map("idempotency_key")
-  processed      Boolean  @default(false)
+  idempotencyKey String    @unique @map("idempotency_key")
+  processed      Boolean   @default(false)
   processedAt    DateTime? @map("processed_at")
-  createdAt      DateTime @default(now()) @map("created_at")
-  
+  createdAt      DateTime  @default(now()) @map("created_at")
+
   @@index([provider, createdAt])
   @@index([processed])
   @@map("webhook_events")
@@ -388,20 +450,20 @@ model OutboxEvent {
 
 // Reservation for preventing double-sells
 model OfferReservation {
-  id             String   @id @default(uuid())
-  pricingId      String   @map("pricing_id")      // Reference to ProviderPricing
-  userId         String   @map("user_id")
-  quantity       Int      @default(1)
-  expiresAt      DateTime @map("expires_at")      // TTL for reservation
-  status         ReservationStatus @default(PENDING)
-  idempotencyKey String?  @unique @map("idempotency_key")
-  providerReservationId String? @map("provider_reservation_id") // If provider supports reservations
-  createdAt      DateTime @default(now()) @map("created_at")
-  confirmedAt    DateTime? @map("confirmed_at")
-  
-  user           User     @relation(fields: [userId], references: [id])
-  pricing        ProviderPricing @relation(fields: [pricingId], references: [id])
-  
+  id                    String            @id @default(uuid())
+  pricingId             String            @map("pricing_id") // Reference to ProviderPricing
+  userId                String            @map("user_id")
+  quantity              Int               @default(1)
+  expiresAt             DateTime          @map("expires_at") // TTL for reservation
+  status                ReservationStatus @default(PENDING)
+  idempotencyKey        String?           @unique @map("idempotency_key")
+  providerReservationId String?           @map("provider_reservation_id") // If provider supports reservations
+  createdAt             DateTime          @default(now()) @map("created_at")
+  confirmedAt           DateTime?         @map("confirmed_at")
+
+  user    User            @relation(fields: [userId], references: [id])
+  pricing ProviderPricing @relation(fields: [pricingId], references: [id])
+
   @@index([userId])
   @@index([pricingId])
   @@index([status, expiresAt])
@@ -422,13 +484,13 @@ enum ReservationStatus {
 model ServiceAggregate {
   id            String   @id @default(uuid())
   serviceCode   String   @unique @map("service_code") // "wa", "tg"
-  serviceName   String   @map("service_name")         // "WhatsApp"
+  serviceName   String   @map("service_name") // "WhatsApp"
   lowestPrice   Decimal  @map("lowest_price") @db.Decimal(8, 2)
   totalStock    BigInt   @map("total_stock")
   countryCount  Int      @map("country_count")
   providerCount Int      @map("provider_count")
   lastUpdatedAt DateTime @default(now()) @map("last_updated_at")
-  
+
   @@index([lowestPrice])
   @@map("service_aggregates")
 }
@@ -449,40 +511,40 @@ enum ActivationState {
 }
 
 model Activation {
-  id                   String          @id @default(uuid())
-  userId               String          @map("user_id")
-  state                ActivationState @default(RESERVED)
-  price                Decimal         @db.Decimal(8, 2)
-  
+  id     String          @id @default(uuid())
+  userId String          @map("user_id")
+  state  ActivationState @default(RESERVED)
+  price  Decimal         @db.Decimal(8, 2)
+
   // Wallet Transaction References
-  reservedTxId         String?         @map("reserved_tx_id")
-  capturedTxId         String?         @map("captured_tx_id")
-  refundTxId           String?         @map("refund_tx_id")
-  
+  reservedTxId String? @map("reserved_tx_id")
+  capturedTxId String? @map("captured_tx_id")
+  refundTxId   String? @map("refund_tx_id")
+
   // Provider Info
-  providerActivationId String?         @map("provider_activation_id")
-  providerId           String?         @map("provider_id")
-  
+  providerActivationId String? @map("provider_activation_id")
+  providerId           String? @map("provider_id")
+
   // Request Details
-  serviceName          String          @map("service_name")
-  countryCode          String          @map("country_code")
-  countryName          String?         @map("country_name")
-  operatorId           String?         @map("operator_id")
-  
+  serviceName String  @map("service_name")
+  countryCode String  @map("country_code")
+  countryName String? @map("country_name")
+  operatorId  String? @map("operator_id")
+
   // Result (populated on ACTIVE)
-  phoneNumber          String?         @map("phone_number")
-  expiresAt            DateTime?       @map("expires_at")
-  
+  phoneNumber String?   @map("phone_number")
+  expiresAt   DateTime? @map("expires_at")
+
   // Linked Number (if created)
-  numberId             String?         @unique @map("number_id")
-  
+  numberId String? @unique @map("number_id")
+
   // Idempotency
-  idempotencyKey       String?         @unique @map("idempotency_key")
-  
+  idempotencyKey String? @unique @map("idempotency_key")
+
   // Metadata
-  createdAt            DateTime        @default(now()) @map("created_at")
-  updatedAt            DateTime        @updatedAt @map("updated_at")
-  
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
   @@index([userId])
   @@index([state])
   @@index([state, createdAt])
@@ -490,26 +552,22 @@ model Activation {
   @@map("activations")
 }
 
-
-
-
 // ============================================
 // PROVIDER EVENTS (Webhook Store)
 // ============================================
 
 model ProviderEvent {
-  id                  String   @id @default(uuid())
-  providerEventId     String   @unique @map("provider_event_id")  // Provider's event ID (idempotency)
-  providerId          String   @map("provider_id")
-  activationId        String?  @map("activation_id")
-  eventType           String   @map("event_type")  // e.g., "sms", "expired", "cancelled"
-  payload             Json
-  processed           Boolean  @default(false)
-  processedAt         DateTime? @map("processed_at")
-  receivedAt          DateTime @default(now()) @map("received_at")
-  
+  id              String    @id @default(uuid())
+  providerEventId String    @unique @map("provider_event_id") // Provider's event ID (idempotency)
+  providerId      String    @map("provider_id")
+  activationId    String?   @map("activation_id")
+  eventType       String    @map("event_type") // e.g., "sms", "expired", "cancelled"
+  payload         Json
+  processed       Boolean   @default(false)
+  processedAt     DateTime? @map("processed_at")
+  receivedAt      DateTime  @default(now()) @map("received_at")
+
   @@index([activationId])
   @@index([processed])
   @@map("provider_events")
 }
-

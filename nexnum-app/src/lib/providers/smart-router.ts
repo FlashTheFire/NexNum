@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/core/db'
 import { DynamicProvider } from '@/lib/providers/dynamic-provider'
-import { SmsProvider, Country, Service, NumberResult, StatusResult } from './sms-providers/types'
+import { SmsProvider, Country, Service, NumberResult, StatusResult } from '@/lib/sms-providers/types'
 import { healthMonitor } from '@/lib/providers/health-monitor'
 import { logger } from '@/lib/core/logger'
 
@@ -161,7 +161,7 @@ export class SmartSmsRouter implements SmsProvider {
                 return {
                     ...result,
                     activationId: `${provider.name}:${result.activationId}`,
-                    price: (result.price * mult) + fixed
+                    price: ((result.price || 0) * mult) + fixed
                 }
             } catch (e: any) {
                 // Record failure
@@ -208,9 +208,14 @@ export class SmartSmsRouter implements SmsProvider {
                     const latency = Date.now() - startTime
                     await healthMonitor.recordRequest(provider.config.id, true, latency)
                     return result
-                } catch (e) {
+                } catch (e: any) {
                     const latency = Date.now() - startTime
-                    await healthMonitor.recordRequest(provider.config.id, false, latency)
+
+                    // Treat terminal business states (LifecycleTerminal) as a success for health monitoring
+                    // This prevents healthy providers from being flagged as "degraded" just because an order timed out.
+                    const isSuccess = e.isLifecycleTerminal || false
+                    await healthMonitor.recordRequest(provider.config.id, isSuccess, latency)
+
                     throw e
                 }
             }

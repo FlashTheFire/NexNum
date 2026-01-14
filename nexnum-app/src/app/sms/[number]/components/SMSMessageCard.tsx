@@ -81,6 +81,7 @@ interface SMSMessageCardProps {
         id: string
         from: string
         text: string
+        code?: string | null  // Direct code from backend
         receivedAt: string
     }
     index: number
@@ -96,7 +97,8 @@ interface SMSMessageCardProps {
 export const SMSMessageCard = memo(function SMSMessageCard({ sms, index }: SMSMessageCardProps) {
     const [copied, setCopied] = useState(false)
     const [fullCopied, setFullCopied] = useState(false)
-    const otpCode = extractOTPCode(sms.text)
+    // Use direct code from backend, or extract from text as fallback
+    const otpCode = sms.code || extractOTPCode(sms.text)
     const colors = getServiceColor(sms.from, sms.text)
 
     const handleCopyCode = () => {

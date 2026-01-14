@@ -98,7 +98,7 @@ async function revalidateCache<T>(
         ttl,
     }
 
-    await redis.set(cacheKey, JSON.stringify(cacheData), { ex: ttl * 2 })
+    await redis.set(cacheKey, JSON.stringify(cacheData), 'EX', ttl * 2)
 
     return data
 }

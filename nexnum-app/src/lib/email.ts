@@ -2,7 +2,7 @@ import { Resend } from 'resend'
 import { render } from '@react-email/render'
 import { ReactElement } from 'react'
 import { SettingsService } from './settings'
-import { redis } from './redis'
+import { redis } from '@/lib/core/redis'
 
 // ============================================================
 // API KEY POOL MANAGER
@@ -62,7 +62,7 @@ class ApiKeyPool {
         await redis.set(redisKey, JSON.stringify({
             failures: 0,
             exhaustedAt: Date.now()
-        }), { ex: COOLDOWN_TTL })
+        }), 'EX', COOLDOWN_TTL)
         console.warn(`[EmailService] Key ${this.maskKey(key)} marked as exhausted`)
     }
 
@@ -78,7 +78,7 @@ class ApiKeyPool {
             await this.markExhausted(key)
         } else {
             const redisKey = `${KEY_POOL_PREFIX}${this.hashKey(key)}`
-            await redis.set(redisKey, JSON.stringify(status), { ex: 300 }) // 5 min TTL
+            await redis.set(redisKey, JSON.stringify(status), 'EX', 300) // 5 min TTL
         }
     }
 

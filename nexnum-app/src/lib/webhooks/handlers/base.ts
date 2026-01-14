@@ -196,7 +196,7 @@ export abstract class BaseWebhookHandler {
      */
     private async markProcessed(key: string): Promise<void> {
         // Store for 24 hours
-        await redis.set(key, '1', { ex: 86400 })
+        await redis.set(key, '1', 'EX', 86400)
     }
 
     /**
@@ -222,6 +222,6 @@ export abstract class BaseWebhookHandler {
      */
     private async cacheSms(numberId: string, sms: SmsResult): Promise<void> {
         const cacheKey = `sms:${numberId}`
-        await redis.set(cacheKey, JSON.stringify(sms), { ex: 300 }) // 5 minutes
+        await redis.set(cacheKey, JSON.stringify(sms), 'EX', 300) // 5 minutes
     }
 }

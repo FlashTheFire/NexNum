@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import prisma from '@/lib/core/db'
+import { prisma } from '@/lib/core/db'
 import { logger } from '@/lib/core/logger'
 
 /**

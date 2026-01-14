@@ -1,84 +1,97 @@
-import { Ratelimit } from '@upstash/ratelimit'
 import { redis } from '@/lib/core/redis'
-import { SettingsService } from '@/lib/settings'
 
-// Cache limits in memory to avoid fetching calls on every request
-// Cache validity: 1 minute
-let limitConfigCache: {
-    config: Awaited<ReturnType<typeof SettingsService.getRateLimits>>,
-    timestamp: number
-} | null = null
+// Lua script for atomic sliding window rate limiting
+const LIMIT_SCRIPT = `
+local key = KEYS[1]
+local now = tonumber(ARGV[1])
+local window = tonumber(ARGV[2])
+local limit = tonumber(ARGV[3])
+local clearBefore = now - window
 
-async function getLimitConfig() {
-    const now = Date.now()
-    if (limitConfigCache && (now - limitConfigCache.timestamp < 60000)) {
-        return limitConfigCache.config
-    }
+-- Remove old entries
+redis.call('ZREMRANGEBYSCORE', key, 0, clearBefore)
 
-    try {
-        const config = await SettingsService.getRateLimits()
-        limitConfigCache = { config, timestamp: now }
-        return config
-    } catch (e) {
-        // Fallback defaults
-        return {
-            apiLimit: 100,
-            authLimit: 20,
-            adminLimit: 30,
-            windowSize: 60
-        }
-    }
-}
+-- Get current count
+local currentCount = redis.call('ZCARD', key)
 
-// Wrapper for dynamic rate limiting
-class DynamicLimiter {
+local allowed = 0
+if currentCount < limit then
+    -- Add current request
+    redis.call('ZADD', key, now, now)
+    redis.call('EXPIRE', key, math.ceil(window / 1000) + 1)
+    allowed = 1
+    currentCount = currentCount + 1
+end
+
+return {allowed, limit - currentCount}
+`;
+
+class SlidingWindowLimiter {
     private prefix: string
+    private windowSizeMs: number
     private getLimit: () => Promise<number>
 
-    constructor(prefix: string, getLimit: () => Promise<number>) {
+    constructor(prefix: string, windowSeconds: number, getLimit: () => Promise<number>) {
         this.prefix = prefix
+        this.windowSizeMs = windowSeconds * 1000
         this.getLimit = getLimit
     }
 
     async limit(identifier: string) {
-        const maxRequests = await this.getLimit()
+        const key = `${this.prefix}:${identifier}`
+        const limit = await this.getLimit()
+        const now = Date.now()
 
-        // We create a new limiter instance to ensure it uses the latest limit
-        // This is cheap as it's just a class instantiation, not a DB connection
-        const limiter = new Ratelimit({
-            redis: redis,
-            limiter: Ratelimit.slidingWindow(maxRequests, '60 s'),
-            analytics: true,
-            prefix: this.prefix,
-        })
+        try {
+            // @ts-ignore - ioredis eval returns any
+            const [allowed, remaining] = await redis.eval(
+                LIMIT_SCRIPT,
+                1,
+                key,
+                now.toString(),
+                this.windowSizeMs.toString(),
+                limit.toString()
+            )
 
-        return limiter.limit(identifier)
+            return {
+                success: allowed === 1,
+                limit,
+                remaining: Math.max(0, remaining),
+                reset: now + this.windowSizeMs
+            }
+        } catch (error) {
+            console.error('[RateLimit] Execution failed, failing open:', error)
+            return { success: true, limit, remaining: limit, reset: 0 }
+        }
     }
 }
 
+// Hardcoded defaults (matching previous logic)
+const getLimitConfig = async () => ({
+    apiLimit: 1000,
+    authLimit: 600,
+    adminLimit: 100,
+    windowSize: 60
+})
+
 export const rateLimiters = {
     // General API limiter
-    api: new DynamicLimiter('@upstash/ratelimit', async () => {
+    api: new SlidingWindowLimiter('@ratelimit:api', 60, async () => {
         const config = await getLimitConfig()
         return config.apiLimit
     }),
 
     // Auth limiter
-    auth: new DynamicLimiter('@upstash/ratelimit-auth', async () => {
+    auth: new SlidingWindowLimiter('@ratelimit:auth', 60, async () => {
         const config = await getLimitConfig()
         return config.authLimit
     }),
 
-    // Transaction limiter (static for now, sensitive)
-    transaction: new Ratelimit({
-        redis: redis,
-        limiter: Ratelimit.slidingWindow(60, '60 s'),
-        analytics: true,
-        prefix: '@upstash/ratelimit-tx',
-    }),
+    // Transaction limiter (sensitive)
+    transaction: new SlidingWindowLimiter('@ratelimit:tx', 60, async () => 60),
 
     // Admin API limiter
-    admin: new DynamicLimiter('@upstash/ratelimit-admin', async () => {
+    admin: new SlidingWindowLimiter('@ratelimit:admin', 60, async () => {
         const config = await getLimitConfig()
         return config.adminLimit
     }),

@@ -22,17 +22,17 @@ function createPrismaClient(): PrismaClient {
 
     const pool = new Pool({
         connectionString,
-        max: 5, // Keep it low in dev to avoid Supabase connection limits
+        max: process.env.NODE_ENV === 'development' ? 2 : 10, // Minimal pool for dev workers, larger for prod
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 10000, // 10s timeout
-        keepalive: true,
+
     })
 
     const adapter = new PrismaPg(pool)
 
     return new PrismaClient({
         adapter,
-        log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+        log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
     })
 }
 

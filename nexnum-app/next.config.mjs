@@ -9,9 +9,16 @@ const withBundleAnalyzer = bundleAnalyzer({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     // Performance optimizations
-    output: 'standalone',
+    // output: 'standalone',
     reactStrictMode: true,
     poweredByHeader: false,
+
+    // Suppress verbose request logging to keep terminal clean
+    logging: {
+        fetches: {
+            fullUrl: false,
+        },
+    },
 
     // Image optimization
     images: {
@@ -48,6 +55,11 @@ const nextConfig = {
             };
         }
 
+        // Fix Sentry deprecation warning
+        if (config.treeshake) {
+            config.treeshake.removeDebugLogging = true;
+        }
+
         return config;
     },
 };
@@ -59,7 +71,6 @@ const sentryWebpackPluginOptions = {
     authToken: process.env.SENTRY_AUTH_TOKEN,
     silent: !process.env.CI,
     hideSourceMaps: true,
-    disableLogger: true,
     tunnelRoute: "/monitoring",
 
     // Don't attempt to upload source maps if we don't have a token (e.g. local dev)

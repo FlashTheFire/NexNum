@@ -9,23 +9,23 @@
  * - Hybrid Mode for Built-ins: Uses legacy fetch logic for metadata, Dynamic engine for pricing/indexing.
  */
 
-import { prisma } from './db'
+import { prisma } from '@/lib/core/db'
 import { Provider } from '@prisma/client'
 import { DynamicProvider } from './dynamic-provider'
 import pLimit from 'p-limit'
-import { indexOffers, OfferDocument, deleteOffersByProvider } from './search'
-import { logAdminAction } from './auditLog'
+import { indexOffers, OfferDocument, deleteOffersByProvider } from '@/lib/search/search'
+import { logAdminAction } from '@/lib/core/auditLog'
 import * as dotenv from 'dotenv'
 dotenv.config()
-import { RateLimitedQueue } from './async-utils'
+import { RateLimitedQueue } from '@/lib/utils/async-utils'
 
 // Import legacy providers from centralized location
 import { getLegacyProvider, hasLegacyProvider } from './provider-factory'
-import { refreshAllServiceAggregates } from './service-aggregates'
-import { resolveToCanonicalName, getSlugFromName } from './service-identity'
-import { getCountryIsoCode } from './country-normalizer'
-import { getCountryFlagUrlSync } from './country-flags'
-import { isValidImageUrl } from './utils'
+import { refreshAllServiceAggregates } from '@/lib/search/service-aggregates'
+import { resolveToCanonicalName, getSlugFromName } from '@/lib/normalizers/service-identity'
+import { getCountryIsoCode } from '@/lib/normalizers/country-normalizer'
+import { getCountryFlagUrlSync } from '@/lib/normalizers/country-flags'
+import { isValidImageUrl } from '@/lib/utils/utils'
 
 // ============================================
 // TYPES
@@ -279,16 +279,19 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
             // Upsert countries to DB
             console.log(`[SYNC] ${provider.name}: Upserting ${countries.length} countries to DB...`)
             for (const c of countries) {
+                // externalId is the provider's raw ID - always use c.id, never undefined
+                const externalId = String(c.id || c.code || 'unknown')
                 const canonicalName = resolveToCanonicalName(c.name || 'Unknown')
-                const canonicalCode = getCountryIsoCode(c.code) || getSlugFromName(canonicalName)
+                const canonicalCode = getCountryIsoCode(c.code || c.id) || getSlugFromName(canonicalName)
 
-                const metaFlagUrl = getCountryFlagUrlSync(c.code)
-                const validFlagUrl = metaFlagUrl || (isValidImageUrl(c.flag) ? c.flag : null)
+                // Flag URL: prefer provider's mapped flagUrl, then metadata, then legacy c.flag
+                const metaFlagUrl = getCountryFlagUrlSync(c.code || c.id)
+                const validFlagUrl = c.flagUrl || metaFlagUrl || (isValidImageUrl((c as any).flag) ? (c as any).flag : null)
                 const record = await prisma.providerCountry.upsert({
-                    where: { providerId_externalId: { providerId: provider.id, externalId: c.code } },
+                    where: { providerId_externalId: { providerId: provider.id, externalId } },
                     create: {
                         providerId: provider.id,
-                        externalId: c.code,
+                        externalId,
                         code: canonicalCode,
                         name: canonicalName,
                         flagUrl: validFlagUrl,
@@ -301,7 +304,7 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
                         lastSyncAt: new Date()
                     }
                 })
-                countryIdMap.set(c.code, record.id)
+                countryIdMap.set(externalId, record.id)
             }
 
             // Fetch services

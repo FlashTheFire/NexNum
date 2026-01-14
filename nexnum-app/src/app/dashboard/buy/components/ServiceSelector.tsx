@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils/utils";
-import { Check, Sparkles, Loader2, Server, SearchX, HelpCircle, MessageSquare, Shield, Smartphone, Globe, Zap, Lock } from "lucide-react";
+import { Check, Sparkles, Loader2, Server, SearchX, HelpCircle, MessageSquare, Shield, Smartphone, Globe, Zap, Lock, Star } from "lucide-react";
+import { usePinnedItems } from "@/hooks/usePinnedItems";
 
 // Helper hook for IntersectionObserver
 function useInView(options = {}) {
@@ -47,12 +48,152 @@ interface ServiceSelectorProps {
     sortOption: "relevance" | "price_asc" | "stock_desc";
 }
 
+const ServiceCard = React.memo(({
+    service,
+    isSelected,
+    pinned,
+    onSelect,
+    togglePin,
+    index
+}: {
+    service: Service;
+    isSelected: boolean;
+    pinned: boolean;
+    onSelect: (id: string, name: string, iconUrl?: string) => void;
+    togglePin: (service: Service) => void;
+    index: number;
+}) => {
+    const itemVariants = {
+        hidden: { opacity: 0, scale: 0.8 },
+        show: { opacity: 1, scale: 1 }
+    };
+
+    return (
+        <motion.div
+            variants={itemVariants}
+            exit={{ opacity: 0, scale: 0.9 }}
+            onClick={() => onSelect(service.id, service.name, service.iconUrl)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    onSelect(service.id, service.name, service.iconUrl);
+                }
+            }}
+            style={{ '--brand-color': service.color, willChange: 'transform' } as React.CSSProperties}
+            className={cn(
+                "relative flex flex-col items-center justify-center p-3 sm:p-4 aspect-square rounded-2xl border transition-all duration-300 group overflow-hidden cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--neon-lime))] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0c]",
+                "backdrop-blur-sm shadow-lg",
+                isSelected
+                    ? "bg-gradient-to-br from-[hsl(var(--neon-lime)/0.15)] via-[hsl(var(--neon-lime)/0.05)] to-transparent border-[hsl(var(--neon-lime))] shadow-[0_0_20px_hsl(var(--neon-lime)/0.25)]"
+                    : pinned
+                        ? "bg-gradient-to-br from-yellow-500/10 to-yellow-500/5 border-yellow-500/20 shadow-[0_0_15px_rgba(234,179,8,0.1)]"
+                        : "bg-gradient-to-br from-white/[0.08] to-white/[0.02] border-white/10 hover:border-white/30 hover:from-white/[0.12] hover:shadow-xl"
+            )}
+        >
+            {/* Pin Button - Top Right */}
+            <button
+                onClick={(e) => {
+                    e.stopPropagation();
+                    togglePin(service);
+                }}
+                className={cn(
+                    "absolute top-1.5 right-1.5 z-30 p-1.5 rounded-full transition-all duration-300",
+                    (pinned || isSelected)
+                        ? "opacity-100 bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20 hover:scale-110"
+                        : "opacity-0 group-hover:opacity-100 bg-black/40 text-gray-400 hover:text-white hover:bg-black/60 scale-90 hover:scale-100"
+                )}
+                title={pinned ? "Unpin service" : "Pin sort to top"}
+            >
+                <Star className={cn("w-3.5 h-3.5", pinned && "fill-yellow-500")} strokeWidth={pinned ? 3 : 2} />
+            </button>
+            {/* Active Badge - Moved to Bottom Right to avoid overlap */}
+            {isSelected && (
+                <div className="absolute bottom-1 right-1 z-20">
+                    <div className="w-4 h-4 rounded-full bg-[hsl(var(--neon-lime))] text-black flex items-center justify-center shadow-sm">
+                        <Check className="w-3 h-3" strokeWidth={3} />
+                    </div>
+                </div>
+            )}
+
+            <div className="relative z-10 mt-3 mb-2 w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center">
+                {/* Hover glow ring */}
+                <div className={cn(
+                    "absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-all duration-500",
+                    "bg-gradient-to-br from-purple-500/20 via-blue-500/20 to-cyan-500/20",
+                    "blur-md scale-110 group-hover:scale-125"
+                )} />
+
+                {/* Icon container with hover scale */}
+                <div className={cn(
+                    "relative w-full h-full rounded-xl overflow-hidden transition-all duration-300",
+                    "group-hover:scale-110 group-hover:rotate-2",
+                    isSelected && "ring-2 ring-[hsl(var(--neon-lime))] ring-offset-2 ring-offset-[#0a0a0c]"
+                )}>
+                    {(service.iconUrl?.includes('dicebear') || !service.iconUrl) ? (
+                        <div className="relative w-full h-full flex items-center justify-center bg-white/5">
+                            <img
+                                src={service.iconUrl || `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(service.name)}&backgroundColor=0ea5e9,6366f1,8b5cf6,ec4899`}
+                                alt=""
+                                className="absolute inset-0 w-full h-full object-cover blur-[2px] scale-150 opacity-50 contrast-125 brightness-110"
+                            />
+                            <img
+                                src="/placeholder-icon.png"
+                                alt={service.name}
+                                className={cn(
+                                    "relative z-10 w-[70%] h-[70%] object-contain opacity-80 drop-shadow-lg",
+                                    !isSelected && "group-hover:opacity-100 group-hover:scale-105 transition-all"
+                                )}
+                            />
+                        </div>
+                    ) : (
+                        <img
+                            src={service.iconUrl}
+                            alt={service.name}
+                            className={cn(
+                                "w-full h-full object-contain filter transition-all",
+                                "brightness-110 contrast-110",
+                                !isSelected && "opacity-90 group-hover:opacity-100"
+                            )}
+                        />
+                    )}
+                </div>
+            </div>
+
+            {/* Country Flags */}
+            {service.flagUrls && service.flagUrls.length > 0 && (
+                <div className="absolute top-1.5 left-1.5 flex -space-x-1 opacity-60 group-hover:opacity-100 transition-all duration-300 group-hover:scale-110 z-20">
+                    {service.flagUrls.slice(0, 3).map((url, i) => (
+                        <div
+                            key={i}
+                            className="w-3.5 h-3.5 rounded-full border border-[#151518] overflow-hidden bg-black/30 shadow-sm"
+                            style={{ zIndex: 3 - i }}
+                        >
+                            <img src={url} className="w-full h-full object-cover" alt="" />
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            <span className={cn(
+                "text-[11px] sm:text-xs font-semibold text-center leading-tight line-clamp-2 w-full px-1 transition-colors",
+                isSelected ? "text-white" : "text-gray-300 group-hover:text-white"
+            )}>
+                {service.name}
+            </span>
+        </motion.div>
+    );
+});
+
+ServiceCard.displayName = "ServiceCard";
+
 export default function ServiceSelector({ selectedService, defaultSelected, onSelect, searchTerm, sortOption }: ServiceSelectorProps) {
     const [fetchedServices, setFetchedServices] = useState<Service[]>([]);
     const [loading, setLoading] = useState(false);
     const [loadingMore, setLoadingMore] = useState(false);
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(true);
+    const { pinnedItems, isPinned, togglePin } = usePinnedItems<Service>("pinned_services");
 
     // Reset when search term or sort option changes
     useEffect(() => {
@@ -146,6 +287,28 @@ export default function ServiceSelector({ selectedService, defaultSelected, onSe
         }
     };
 
+    // Derived state for services: Merge pinned items and sort
+    const sortedServices = useMemo(() => {
+        const merged = [...fetchedServices];
+        // Add pinned items that are not in the current fetched list
+        pinnedItems.forEach(pinned => {
+            if (!merged.some(s => s.id === pinned.id)) {
+                // Only add if it matches search term (simple client-side filter)
+                if (!searchTerm || pinned.name.toLowerCase().includes(searchTerm.toLowerCase())) {
+                    merged.push(pinned);
+                }
+            }
+        });
+
+        // Sort: Pinned items first
+        return merged.sort((a, b) => {
+            const aPinned = isPinned(a.id);
+            const bPinned = isPinned(b.id);
+            if (aPinned === bPinned) return 0;
+            return aPinned ? -1 : 1;
+        });
+    }, [fetchedServices, pinnedItems, isPinned, searchTerm]);
+
     // Load More Logic (Infinite Scroll)
     const { ref: loadMoreRef, isIntersecting } = useInView({ threshold: 0.5 });
 
@@ -193,109 +356,18 @@ export default function ServiceSelector({ selectedService, defaultSelected, onSe
                 animate="show"
                 className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3 sm:gap-4 content-start"
             >
-                <AnimatePresence mode="popLayout">
-                    {fetchedServices.map((service, index) => {
-                        // ... map logic
-                        const isSelected = selectedService === service.id;
-                        return (
-                            <motion.button
-                                layout
-                                variants={itemVariants}
-                                exit={{ opacity: 0, scale: 0.9 }}
-                                key={`${service.id}_${index}`}
-                                onClick={() => onSelect(service.id, service.name, service.iconUrl)}
-                                style={{ '--brand-color': service.color } as React.CSSProperties}
-                                className={cn(
-                                    "relative flex flex-col items-center justify-center p-3 sm:p-4 aspect-square rounded-2xl border transition-all duration-300 group overflow-hidden",
-                                    "backdrop-blur-sm shadow-lg",
-                                    isSelected
-                                        ? "bg-gradient-to-br from-[hsl(var(--neon-lime)/0.15)] via-[hsl(var(--neon-lime)/0.05)] to-transparent border-[hsl(var(--neon-lime))] shadow-[0_0_20px_hsl(var(--neon-lime)/0.25)]"
-                                        : "bg-gradient-to-br from-white/[0.08] to-white/[0.02] border-white/10 hover:border-white/30 hover:from-white/[0.12] hover:shadow-xl"
-                                )}
-                            >
-                                {/* Active Badge */}
-                                {isSelected && (
-                                    <div className="absolute top-1 right-1 z-20">
-                                        <div className="w-4 h-4 rounded-full bg-[hsl(var(--neon-lime))] text-black flex items-center justify-center shadow-sm">
-                                            <Check className="w-3 h-3" strokeWidth={3} />
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Popular Badge */}
-                                {/* Popular Badge */}
-
-
-                                <div className="relative z-10 mt-3 mb-2 w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center">
-                                    {/* Hover glow ring */}
-                                    <div className={cn(
-                                        "absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-all duration-500",
-                                        "bg-gradient-to-br from-purple-500/20 via-blue-500/20 to-cyan-500/20",
-                                        "blur-md scale-110 group-hover:scale-125"
-                                    )} />
-
-                                    {/* Icon container with hover scale */}
-                                    <div className={cn(
-                                        "relative w-full h-full rounded-xl overflow-hidden transition-all duration-300",
-                                        "group-hover:scale-110 group-hover:rotate-2",
-                                        isSelected && "ring-2 ring-[hsl(var(--neon-lime))] ring-offset-2 ring-offset-[#0a0a0c]"
-                                    )}>
-                                        {(service.iconUrl?.includes('dicebear') || !service.iconUrl) ? (
-                                            <div className="relative w-full h-full flex items-center justify-center bg-white/5">
-                                                {/* Blurred Dynamic Background */}
-                                                <img
-                                                    src={service.iconUrl || `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(service.name)}&backgroundColor=0ea5e9,6366f1,8b5cf6,ec4899`}
-                                                    alt=""
-                                                    className="absolute inset-0 w-full h-full object-cover blur-[2px] scale-150 opacity-50 contrast-125 brightness-110"
-                                                />
-                                                {/* Custom Overlay Icon */}
-                                                <img
-                                                    src="/placeholder-icon.png"
-                                                    alt={service.name}
-                                                    className={cn(
-                                                        "relative z-10 w-[70%] h-[70%] object-contain opacity-80 drop-shadow-lg",
-                                                        !isSelected && "group-hover:opacity-100 group-hover:scale-105 transition-all"
-                                                    )}
-                                                />
-                                            </div>
-                                        ) : (
-                                            <img
-                                                src={service.iconUrl}
-                                                alt={service.name}
-                                                className={cn(
-                                                    "w-full h-full object-contain filter transition-all",
-                                                    "brightness-110 contrast-110",
-                                                    !isSelected && "opacity-90 group-hover:opacity-100"
-                                                )}
-                                            />
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Country Flags - Top Left */}
-                                {service.flagUrls && service.flagUrls.length > 0 && (
-                                    <div className="absolute top-1.5 left-1.5 flex -space-x-1 opacity-60 group-hover:opacity-100 transition-all duration-300 group-hover:scale-110 z-20">
-                                        {service.flagUrls.slice(0, 3).map((url, i) => (
-                                            <div
-                                                key={i}
-                                                className="w-4 h-4 rounded-full border-2 border-[#151518] overflow-hidden bg-black/30 shadow-sm"
-                                                style={{ zIndex: 3 - i }}
-                                            >
-                                                <img src={url} className="w-full h-full object-cover" alt="" />
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-
-                                <span className={cn(
-                                    "text-[11px] sm:text-xs font-semibold text-center leading-tight line-clamp-2 w-full px-1 transition-colors",
-                                    isSelected ? "text-white" : "text-gray-300 group-hover:text-white"
-                                )}>
-                                    {service.name}
-                                </span>
-                            </motion.button>
-                        );
-                    })}
+                <AnimatePresence>
+                    {sortedServices.map((service, index) => (
+                        <ServiceCard
+                            key={`${service.id}_${index}`}
+                            service={service}
+                            isSelected={selectedService === service.id}
+                            pinned={isPinned(service.id)}
+                            onSelect={onSelect}
+                            togglePin={togglePin}
+                            index={index}
+                        />
+                    ))}
                 </AnimatePresence>
             </motion.div>
 

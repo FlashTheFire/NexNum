@@ -10,7 +10,7 @@ import type {
     StatusResult,
     NumberStatus
 } from './types'
-import { normalizeCountryEntry } from '../country-normalizer'
+import { normalizeCountryEntry } from '@/lib/normalizers/country-normalizer'
 
 // API Endpoints
 const BASE_URL = 'https://grizzlysms.com/api'

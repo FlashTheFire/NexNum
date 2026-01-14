@@ -178,7 +178,7 @@ export default function BuyPage() {
                                     selectedCountryId={selectedCountry?.id}
                                     defaultSelected={selectedCountry}
                                     searchTerm={localSearch}
-                                    selectedServiceName={selectedService?.name}
+                                    selectedService={selectedService}
                                     sortOption={sortOption}
                                 />
                             </motion.div>

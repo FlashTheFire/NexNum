@@ -85,22 +85,72 @@ export async function getOutboxStats() {
  * Consumer Worker
  * Scans for PENDING events and publishes them (e.g. to Redis/Log).
  */
+
+import { meili, INDEXES, OfferDocument } from '@/lib/search/search'
+import { resolveToCanonicalName, getSlugFromName } from '@/lib/normalizers/service-identity'
+
+/**
+ * Handle individual offer updates (Sync to MeiliSearch)
+ */
+async function handleOfferUpdate(pricingId: string) {
+    const pricing = await prisma.providerPricing.findUnique({
+        where: { id: pricingId },
+        include: {
+            provider: true,
+            service: true,
+            country: true
+        }
+    })
+
+    if (!pricing || pricing.deleted) {
+        // const index = meili.index(INDEXES.OFFERS)
+        // Attempt to delete if we can derive the composite ID
+        return
+    }
+
+    // RESOLVE TO CANONICAL IDENTITY
+    const canonicalService = resolveToCanonicalName(pricing.service.name)
+    const canonicalCountry = pricing.country.name
+
+    const doc: OfferDocument = {
+        // ID is composite: provider_countryExt_serviceExt_operator
+        id: `${pricing.provider.name}_${pricing.country.externalId}_${pricing.service.externalId}_${pricing.operator || 'default'}`.toLowerCase().replace(/[^a-z0-9_]/g, ''),
+        serviceSlug: getSlugFromName(canonicalService),
+        serviceName: canonicalService,
+        iconUrl: pricing.service.iconUrl || undefined,
+        countryCode: getSlugFromName(canonicalCountry),
+        countryName: canonicalCountry,
+        flagUrl: pricing.country.flagUrl || '',
+        provider: pricing.provider.name,
+        displayName: pricing.provider.displayName,
+        price: Number(pricing.sellPrice),
+        stock: pricing.stock,
+        lastSyncedAt: Date.now(),
+        operatorId: 1,
+        externalOperator: pricing.operator || undefined,
+        operatorDisplayName: ''
+    }
+
+    const index = meili.index(INDEXES.OFFERS)
+    await index.updateDocuments([doc], { primaryKey: 'id' })
+}
+
+/**
+ * Consumer Worker
+ * Scans for PENDING events and publishes them (Syncs to MeiliSearch).
+ */
 export async function processOutboxEvents(batchSize = 50) {
     const events = await fetchPendingOutboxEvents(batchSize)
     const results = { succeeded: 0, failed: 0, count: events.length }
 
     if (events.length === 0) return results
 
-    // In a real worker, we would process these.
-    // Since this method is often just "marking as published" if we don't have a specific handler:
-
-    // Note: The logic inside the original version was "Simulate Publish".
-    // We will keep it simple here.
-
     for (const event of events) {
         try {
-            // Simulate processing
-            // console.log(`[Outbox] Processing: ${event.eventType}`)
+            if (event.eventType === 'offer.created' || event.eventType === 'offer.updated') {
+                await handleOfferUpdate(event.aggregateId)
+            }
+
             await markEventsProcessed([event.id])
             results.succeeded++
         } catch (err: any) {
@@ -110,6 +160,7 @@ export async function processOutboxEvents(batchSize = 50) {
     }
     return results
 }
+
 
 export async function cleanupProcessedEvents(olderThanDays = 7) {
     const date = new Date()

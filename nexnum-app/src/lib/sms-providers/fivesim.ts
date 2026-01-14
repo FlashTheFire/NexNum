@@ -11,7 +11,7 @@ import type {
     NumberStatus,
     SmsMessage
 } from './types'
-import { normalizeCountryEntry } from '../country-normalizer'
+import { normalizeCountryEntry } from '@/lib/normalizers/country-normalizer'
 
 // API Configuration
 const API_URL = process.env.FIVESIM_API_URL || 'https://5sim.net/v1'

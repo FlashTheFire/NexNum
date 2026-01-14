@@ -5,7 +5,7 @@
  * Uses tiered approach: Pro for heavy analysis, Flash for medium, Lite for simple tasks.
  */
 
-import { redis } from './redis'
+import { redis } from '@/lib/core/redis'
 
 // ============================================================================
 // MODEL REGISTRY
@@ -209,7 +209,7 @@ class GeminiKeyPoolService {
     private async markKeyExhausted(keyIndex: number, modelId: string, cooldownMs: number): Promise<void> {
         const cooldownKey = `${REDIS_KEY_PREFIX}cooldown:${keyIndex}:${modelId}`
         const cooldownSeconds = Math.ceil(cooldownMs / 1000)
-        await redis.set(cooldownKey, Date.now().toString(), { ex: cooldownSeconds })
+        await redis.set(cooldownKey, Date.now().toString(), 'EX', cooldownSeconds)
         console.log(`[GeminiPool] Key #${keyIndex + 1} + ${modelId} in cooldown for ${cooldownSeconds}s`)
     }
 

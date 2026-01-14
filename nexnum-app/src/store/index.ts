@@ -27,7 +27,7 @@ export interface ActiveNumber {
     expiresAt: string
     purchasedAt?: string
     smsCount: number
-    status?: 'active' | 'expired' | 'cancelled' | 'received'
+    status?: 'active' | 'expired' | 'cancelled' | 'received' | 'timeout' | 'completed'
     latestSms?: {
         content: string | null
         code: string | null
