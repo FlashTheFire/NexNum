@@ -18,6 +18,407 @@ import {
 import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils/utils";
 
+// Animated Cursor Component for Professional Demo
+const DemoCursor = ({
+    position,
+    isClicking,
+    isHovering,
+    isVisible
+}: {
+    position: { x: number; y: number };
+    isClicking: boolean;
+    isHovering: boolean;
+    isVisible: boolean;
+}) => (
+    <AnimatePresence>
+        {isVisible && (
+            <motion.div
+                className="pointer-events-none fixed z-[9999]"
+                initial={{ opacity: 0, scale: 0 }}
+                animate={{
+                    opacity: 1,
+                    scale: 1,
+                    x: position.x - 12,
+                    y: position.y - 12
+                }}
+                exit={{ opacity: 0, scale: 0 }}
+                transition={{
+                    x: { type: "spring", stiffness: 300, damping: 25 },
+                    y: { type: "spring", stiffness: 300, damping: 25 },
+                    opacity: { duration: 0.2 },
+                    scale: { duration: 0.2 }
+                }}
+            >
+                {/* Glow trail */}
+                <motion.div
+                    className="absolute inset-0 rounded-full"
+                    animate={{
+                        scale: isHovering ? 2.5 : 1.5,
+                        opacity: isClicking ? 0.4 : 0.2
+                    }}
+                    style={{
+                        background: 'radial-gradient(circle, hsl(75, 100%, 50%, 0.4) 0%, transparent 70%)',
+                        filter: 'blur(8px)'
+                    }}
+                />
+
+                {/* Main cursor ring */}
+                <motion.div
+                    className={cn(
+                        "w-6 h-6 rounded-full border-2 border-[hsl(var(--neon-lime))] flex items-center justify-center",
+                        "shadow-[0_0_20px_hsl(var(--neon-lime)/0.5)]"
+                    )}
+                    animate={{
+                        scale: isClicking ? 0.7 : isHovering ? 1.4 : 1,
+                        borderWidth: isHovering ? 3 : 2,
+                        backgroundColor: isHovering ? 'hsla(75, 100%, 50%, 0.15)' : 'transparent'
+                    }}
+                    transition={{ type: "spring", stiffness: 400, damping: 20 }}
+                >
+                    {/* Inner dot */}
+                    <motion.div
+                        className="w-1.5 h-1.5 rounded-full bg-[hsl(var(--neon-lime))]"
+                        animate={{
+                            scale: isClicking ? 2 : 1,
+                            opacity: isClicking ? 0 : 1
+                        }}
+                    />
+                </motion.div>
+
+                {/* Click ripple effect */}
+                <AnimatePresence>
+                    {isClicking && (
+                        <motion.div
+                            className="absolute inset-0 flex items-center justify-center"
+                            initial={{ scale: 0.5, opacity: 1 }}
+                            animate={{ scale: 3, opacity: 0 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.5, ease: "easeOut" }}
+                        >
+                            <div className="w-6 h-6 rounded-full border-2 border-[hsl(var(--neon-lime))]" />
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </motion.div>
+        )}
+    </AnimatePresence>
+);
+
+// Focus/Spotlight Overlay Component - Professional Sharp Style
+const FocusOverlay = ({
+    isActive,
+    targetPosition,
+    playerBounds,
+}: {
+    isActive: boolean;
+    targetPosition: { x: number; y: number };
+    playerBounds: { left: number; top: number; width: number; height: number };
+}) => {
+    // Calculate relative position within the player bounds
+    const relativeX = targetPosition.x - playerBounds.left;
+    const relativeY = targetPosition.y - playerBounds.top;
+
+    return (
+        <AnimatePresence>
+            {isActive && (
+                <motion.div
+                    className="absolute inset-0 z-[9990] pointer-events-none overflow-hidden rounded-2xl"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.3 }}
+                >
+                    <svg className="absolute inset-0 w-full h-full" style={{ isolation: 'isolate' }}>
+                        <defs>
+                            {/* Sharp spotlight gradient with crisp edge */}
+                            <radialGradient id="sharp-spotlight" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+                                <stop offset="0%" stopColor="transparent" />
+                                <stop offset="70%" stopColor="transparent" />
+                                <stop offset="85%" stopColor="rgba(0,0,0,0.3)" />
+                                <stop offset="95%" stopColor="rgba(0,0,0,0.7)" />
+                                <stop offset="100%" stopColor="rgba(0,0,0,0.85)" />
+                            </radialGradient>
+
+                            {/* Inner glow ring for premium effect */}
+                            <radialGradient id="glow-ring" cx="50%" cy="50%" r="50%">
+                                <stop offset="65%" stopColor="transparent" />
+                                <stop offset="72%" stopColor="hsla(75, 100%, 50%, 0.15)" />
+                                <stop offset="78%" stopColor="hsla(75, 100%, 50%, 0.05)" />
+                                <stop offset="85%" stopColor="transparent" />
+                            </radialGradient>
+
+                            {/* Sharp mask for clean cutout */}
+                            <mask id="sharp-mask">
+                                <rect fill="white" width="100%" height="100%" />
+                                <motion.ellipse
+                                    fill="black"
+                                    animate={{ cx: relativeX, cy: relativeY }}
+                                    rx="240"
+                                    ry="170"
+                                    transition={{ type: "spring", stiffness: 150, damping: 25 }}
+                                />
+                            </mask>
+
+                            {/* Soft feathered mask for gradient overlay */}
+                            <mask id="feather-mask">
+                                <rect fill="white" width="100%" height="100%" />
+                                <motion.ellipse
+                                    fill="black"
+                                    animate={{ cx: relativeX, cy: relativeY }}
+                                    rx="320"
+                                    ry="230"
+                                    transition={{ type: "spring", stiffness: 150, damping: 25 }}
+                                >
+                                    <animate attributeName="rx" values="320;325;320" dur="3s" repeatCount="indefinite" />
+                                    <animate attributeName="ry" values="230;235;230" dur="3s" repeatCount="indefinite" />
+                                </motion.ellipse>
+                            </mask>
+                        </defs>
+
+                        {/* Layer 1: Deep vignette background */}
+                        <rect
+                            fill="rgba(0,0,0,0.75)"
+                            mask="url(#sharp-mask)"
+                            width="100%"
+                            height="100%"
+                        />
+
+                        {/* Layer 2: Soft gradient transition */}
+                        <rect
+                            fill="rgba(0,0,0,0.25)"
+                            mask="url(#feather-mask)"
+                            width="100%"
+                            height="100%"
+                        />
+
+                        {/* Layer 3: Subtle glow ring around spotlight */}
+                        <motion.ellipse
+                            animate={{ cx: relativeX, cy: relativeY }}
+                            rx="250"
+                            ry="180"
+                            fill="none"
+                            stroke="hsla(75, 100%, 50%, 0.12)"
+                            strokeWidth="3"
+                            transition={{ type: "spring", stiffness: 150, damping: 25 }}
+                        />
+                        <motion.ellipse
+                            animate={{ cx: relativeX, cy: relativeY }}
+                            rx="245"
+                            ry="175"
+                            fill="none"
+                            stroke="hsla(75, 100%, 50%, 0.06)"
+                            strokeWidth="8"
+                            filter="blur(4px)"
+                            transition={{ type: "spring", stiffness: 150, damping: 25 }}
+                        />
+                    </svg>
+                </motion.div>
+            )}
+        </AnimatePresence>
+    );
+};
+
+// Professional Sound Effects System - Smooth, Studio-Quality Audio
+const useDemoSounds = (isMuted: boolean) => {
+    const audioContextRef = useRef<AudioContext | null>(null);
+
+    const getAudioContext = () => {
+        if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
+            audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+        }
+        // Resume if suspended (browser autoplay policy)
+        if (audioContextRef.current.state === 'suspended') {
+            audioContextRef.current.resume();
+        }
+        return audioContextRef.current;
+    };
+
+    // Professional tone with ADSR envelope
+    const playProfessionalTone = (
+        frequency: number,
+        duration: number,
+        options: {
+            type?: OscillatorType;
+            volume?: number;
+            attack?: number;
+            decay?: number;
+            sustain?: number;
+            release?: number;
+            filterFreq?: number;
+        } = {}
+    ) => {
+        if (isMuted) return;
+        try {
+            const ctx = getAudioContext();
+            const {
+                type = 'sine',
+                volume = 0.08,
+                attack = 0.01,
+                decay = 0.1,
+                sustain = 0.3,
+                release = 0.15,
+                filterFreq = 2000
+            } = options;
+
+            const now = ctx.currentTime;
+            const oscillator = ctx.createOscillator();
+            const gainNode = ctx.createGain();
+            const filter = ctx.createBiquadFilter();
+
+            // Low-pass filter for smoother sound
+            filter.type = 'lowpass';
+            filter.frequency.value = filterFreq;
+            filter.Q.value = 0.7;
+
+            oscillator.connect(filter);
+            filter.connect(gainNode);
+            gainNode.connect(ctx.destination);
+
+            oscillator.frequency.value = frequency;
+            oscillator.type = type;
+
+            // ADSR Envelope for smooth, professional sound
+            gainNode.gain.setValueAtTime(0, now);
+            gainNode.gain.linearRampToValueAtTime(volume, now + attack); // Attack
+            gainNode.gain.linearRampToValueAtTime(volume * sustain, now + attack + decay); // Decay to sustain
+            gainNode.gain.setValueAtTime(volume * sustain, now + duration - release); // Hold sustain
+            gainNode.gain.linearRampToValueAtTime(0, now + duration); // Release
+
+            oscillator.start(now);
+            oscillator.stop(now + duration + 0.1);
+        } catch (e) {
+            // Audio not supported
+        }
+    };
+
+    // Soft UI click - subtle, tactile feedback
+    const playClick = () => {
+        // Soft high-frequency click
+        playProfessionalTone(1200, 0.06, {
+            type: 'sine',
+            volume: 0.04,
+            attack: 0.002,
+            decay: 0.02,
+            sustain: 0.2,
+            release: 0.04,
+            filterFreq: 3000
+        });
+        // Soft low-end thump for weight
+        setTimeout(() => {
+            playProfessionalTone(150, 0.08, {
+                type: 'sine',
+                volume: 0.03,
+                attack: 0.005,
+                decay: 0.05,
+                sustain: 0.1,
+                release: 0.03,
+                filterFreq: 400
+            });
+        }, 5);
+    };
+
+    // Subtle hover - barely audible warmth
+    const playHover = () => {
+        playProfessionalTone(600, 0.08, {
+            type: 'sine',
+            volume: 0.015,
+            attack: 0.02,
+            decay: 0.04,
+            sustain: 0.2,
+            release: 0.04,
+            filterFreq: 1200
+        });
+    };
+
+    // Soft keystroke - gentle typing feedback
+    const playType = () => {
+        const pitch = 800 + Math.random() * 200;
+        playProfessionalTone(pitch, 0.04, {
+            type: 'sine',
+            volume: 0.02,
+            attack: 0.002,
+            decay: 0.015,
+            sustain: 0.15,
+            release: 0.025,
+            filterFreq: 2500
+        });
+    };
+
+    // Triumphant success - musical chord progression
+    const playSuccess = () => {
+        // C Major chord arpeggio (C-E-G-C)
+        const notes = [
+            { freq: 523.25, delay: 0, vol: 0.05 },     // C5
+            { freq: 659.25, delay: 80, vol: 0.04 },    // E5
+            { freq: 783.99, delay: 160, vol: 0.04 },   // G5
+            { freq: 1046.50, delay: 240, vol: 0.05 }   // C6
+        ];
+        notes.forEach(({ freq, delay, vol }) => {
+            setTimeout(() => {
+                playProfessionalTone(freq, 0.35, {
+                    type: 'sine',
+                    volume: vol,
+                    attack: 0.02,
+                    decay: 0.1,
+                    sustain: 0.5,
+                    release: 0.2,
+                    filterFreq: 4000
+                });
+            }, delay);
+        });
+    };
+
+    // Smooth transition - gentle whoosh
+    const playTransition = () => {
+        playProfessionalTone(250, 0.25, {
+            type: 'sine',
+            volume: 0.025,
+            attack: 0.05,
+            decay: 0.1,
+            sustain: 0.3,
+            release: 0.1,
+            filterFreq: 800
+        });
+        setTimeout(() => {
+            playProfessionalTone(350, 0.2, {
+                type: 'sine',
+                volume: 0.02,
+                attack: 0.03,
+                decay: 0.08,
+                sustain: 0.25,
+                release: 0.1,
+                filterFreq: 1000
+            });
+        }, 60);
+    };
+
+    // Copy confirmation - crisp double-tap
+    const playCopy = () => {
+        playProfessionalTone(1400, 0.05, {
+            type: 'sine',
+            volume: 0.035,
+            attack: 0.003,
+            decay: 0.02,
+            sustain: 0.2,
+            release: 0.03,
+            filterFreq: 3500
+        });
+        setTimeout(() => {
+            playProfessionalTone(1800, 0.06, {
+                type: 'sine',
+                volume: 0.03,
+                attack: 0.003,
+                decay: 0.025,
+                sustain: 0.2,
+                release: 0.035,
+                filterFreq: 4000
+            });
+        }, 40);
+    };
+
+    return { playClick, playHover, playType, playSuccess, playTransition, playCopy };
+};
+
 // Demo services data - Real mock data from API with price/stock for sorting
 const demoServices = [
     { id: "ig", name: "Instagram + Threads", iconUrl: "https://smsbower.org/img/services/4.svg?timestamp=1748774536", flags: ["https://raw.githubusercontent.com/HatScripts/circle-flags/gh-pages/flags/bz.svg", "https://raw.githubusercontent.com/HatScripts/circle-flags/gh-pages/flags/cn.svg", "https://raw.githubusercontent.com/HatScripts/circle-flags/gh-pages/flags/bb.svg"], lowestPrice: 0.56, totalStock: 10247007 },
@@ -104,7 +505,7 @@ const demoOperators = [
     { id: 104, displayName: "Economy Route", price: 0.58, stock: 1205, successRate: 82 },
 ];
 
-// Demo simulation data
+// Demo simulation data with enhanced action choreography
 const demoSteps = [
     {
         id: 1,
@@ -114,12 +515,22 @@ const demoSteps = [
         icon: Globe,
         color: "hsl(180, 70%, 50%)",
         timestamp: "0:00",
-        duration: 4,
+        duration: 8,
         preview: { type: "services" },
         actions: [
             { type: "wait", duration: 600 },
-            { type: "scroll", duration: 300, top: 1200 },
-            { type: "select", target: "service", id: "nf" }
+            // Search box is in header, right side (~75% from left, ~8.5% from top of player)
+            { type: "moveCursor", x: 0.75, y: 0.085, duration: 700 },
+            { type: "hover", duration: 400 },
+            { type: "click" },
+            { type: "type", text: "Face", speed: 180 },
+            { type: "wait", duration: 700 },
+            // After filtering, Facebook appears as 1st card. Grid: 5 cols on desktop.
+            // Card 1 center: ~10% from left, row 1 center: ~42% from top (accounting for header)
+            { type: "moveCursor", x: 0.12, y: 0.42, duration: 800 },
+            { type: "hover", duration: 500 },
+            { type: "click" },
+            { type: "select", target: "service", id: "fb" }
         ]
     },
     {
@@ -129,12 +540,22 @@ const demoSteps = [
         description: "Numbers from 50+ global locations",
         icon: Package,
         color: "hsl(75, 100%, 50%)",
-        timestamp: "0:04",
-        duration: 3,
+        timestamp: "0:08",
+        duration: 7,
         preview: { type: "countries" },
         actions: [
+            { type: "wait", duration: 500 },
+            // Search box in header, right side
+            { type: "moveCursor", x: 0.75, y: 0.085, duration: 600 },
+            { type: "hover", duration: 350 },
+            { type: "click" },
+            { type: "type", text: "Ind", speed: 180 },
             { type: "wait", duration: 600 },
-            { type: "scroll", duration: 300, top: 1200 },
+            // Country grid is 2 columns on desktop. India appears as 1st result at TOP.
+            // Left column center: ~25% from left, first row: ~19% from top (right below header)
+            { type: "moveCursor", x: 0.25, y: 0.19, duration: 700 },
+            { type: "hover", duration: 450 },
+            { type: "click" },
             { type: "select", target: "country", id: "india" }
         ]
     },
@@ -145,13 +566,28 @@ const demoSteps = [
         description: "Pick top-rated operators with best prices",
         icon: Server,
         color: "hsl(280, 70%, 60%)",
-        timestamp: "0:07",
-        duration: 3,
+        timestamp: "0:15",
+        duration: 12,
         preview: { type: "providers" },
         actions: [
-            { type: "wait", duration: 100 },
-            { type: "scroll", duration: 500, top: 150 },
-            { type: "select", target: "operator", id: 102 }
+            { type: "wait", duration: 1200 },
+            // Provider grid has header + vertical list of operator cards
+            // First operator card (NexPremium): center of card ~50% x, ~25% y
+            { type: "moveCursor", x: 0.50, y: 0.28, duration: 1000 },
+            { type: "hover", duration: 800 },
+            { type: "wait", duration: 600 },
+            // Move to second operator card (GlobalConnect): ~50% x, ~40% y
+            { type: "moveCursor", x: 0.50, y: 0.42, duration: 900 },
+            { type: "hover", duration: 800 },
+            { type: "click" },
+            { type: "select", target: "operator", id: 102 },
+            { type: "wait", duration: 800 },
+            // Purchase/Buy button at bottom of card: ~50% x, ~75% y
+            { type: "moveCursor", x: 0.50, y: 0.72, duration: 800 },
+            { type: "hover", duration: 600 },
+            { type: "wait", duration: 400 },
+            { type: "click" },
+            { type: "wait", duration: 800 }
         ]
     },
     {
@@ -161,13 +597,24 @@ const demoSteps = [
         description: "Virtual number activated in under 3 seconds",
         icon: Zap,
         color: "hsl(200, 100%, 50%)",
-        timestamp: "0:10",
-        duration: 4,
+        timestamp: "0:27",
+        duration: 10,
         preview: { type: "number", number: "+1 (555) 847-2903", status: "Active", expires: "15:00" },
         actions: [
-            { type: "wait", duration: 100 },
-            { type: "wait", duration: 200 }, // Timing start simulate
-            { type: "copy", target: "number" }
+            { type: "wait", duration: 1500 },
+            { type: "focus", enabled: false },
+            // SMS Inbox view: Phone number is displayed prominently at top
+            // Phone number text area: ~35% x, ~15% y
+            { type: "moveCursor", x: 0.35, y: 0.12, duration: 1200 },
+            { type: "hover", duration: 800 },
+            { type: "wait", duration: 600 },
+            // Copy button next to phone number: ~55% x, ~12% y
+            { type: "moveCursor", x: 0.55, y: 0.12, duration: 800 },
+            { type: "hover", duration: 600 },
+            { type: "wait", duration: 400 },
+            { type: "click" },
+            { type: "copy", target: "number" },
+            { type: "wait", duration: 1200 }
         ]
     },
     {
@@ -177,13 +624,24 @@ const demoSteps = [
         description: "Messages delivered instantly to your dashboard",
         icon: MessageSquare,
         color: "hsl(320, 70%, 60%)",
-        timestamp: "0:14",
-        duration: 6,
+        timestamp: "0:37",
+        duration: 12,
         preview: { type: "sms", sender: "Google", message: "Your verification code is: 847293", code: "847293", time: "Just now" },
         actions: [
-            { type: "wait", duration: 100 },
-            { type: "scroll", duration: 400, top: 150 },
-            { type: "copy", target: "code" }
+            { type: "wait", duration: 1500 },
+            // SMS message card appears below the phone number section
+            // Message card center: ~50% x, ~55% y
+            { type: "moveCursor", x: 0.50, y: 0.52, duration: 1200 },
+            { type: "hover", duration: 1000 },
+            { type: "wait", duration: 800 },
+            // Verification code is highlighted in the message
+            // Copy code button next to the code: ~75% x, ~60% y
+            { type: "moveCursor", x: 0.75, y: 0.58, duration: 900 },
+            { type: "hover", duration: 700 },
+            { type: "wait", duration: 500 },
+            { type: "click" },
+            { type: "copy", target: "code" },
+            { type: "wait", duration: 1200 }
         ]
     },
     {
@@ -193,10 +651,16 @@ const demoSteps = [
         description: "One-click copy, instant verification",
         icon: CheckCircle2,
         color: "hsl(120, 70%, 50%)",
-        timestamp: "0:20",
-        duration: 5,
+        timestamp: "0:49",
+        duration: 8,
         preview: { type: "success", message: "Verification Complete!", details: "Account successfully verified" },
-        actions: []
+        actions: [
+            { type: "wait", duration: 1500 },
+            { type: "focus", enabled: false },
+            { type: "wait", duration: 1500 },
+            // Success animation plays automatically
+            { type: "wait", duration: 2000 }
+        ]
     }
 ];
 
@@ -233,8 +697,127 @@ export default function DemoPage() {
     const [currentActionIndex, setCurrentActionIndex] = useState(0);
     const [isScrolling, setIsScrolling] = useState(false);
     const [copiedNumber, setCopiedNumber] = useState(false);
+
+    // Animated cursor state
+    const [cursorPosition, setCursorPosition] = useState({ x: 0, y: 0 });
+    const [isCursorVisible, setIsCursorVisible] = useState(false);
+    const [isCursorHovering, setIsCursorHovering] = useState(false);
+    const [isCursorClicking, setIsCursorClicking] = useState(false);
+    const [showFocusOverlay, setShowFocusOverlay] = useState(false);
+    const [typingText, setTypingText] = useState("");
+
+    // Sound effects hook
+    const sounds = useDemoSounds(isMuted);
+
+    // Ref for immediate cancellation of actions
+    const isPlayingRef = useRef(false);
+    isPlayingRef.current = isPlaying;
+
+    // Player bounds for cursor containment
+    const [playerBounds, setPlayerBounds] = useState({ left: 0, top: 0, width: 800, height: 450 });
+
+    // Reset demo state (clear all selections)
+    const resetDemo = () => {
+        setActiveStep(0);
+        setCurrentActionIndex(0);
+        setProgress(0);
+        setSearchQuery("");
+        setTypingText("");
+        setSelectedService(null);
+        setSelectedCountry(null);
+        setSelectedOperator(null);
+        setIsCursorVisible(false);
+        setIsCursorHovering(false);
+        setIsCursorClicking(false);
+        setShowFocusOverlay(false);
+        setCopiedCode(false);
+        setCopiedNumber(false);
+    };
+
+    // Reset step-specific data when manually clicking a step (partial reset)
+    const resetStepData = () => {
+        setCurrentActionIndex(0);
+        setProgress(0);
+        setSearchQuery("");
+        setTypingText("");
+        setIsCursorVisible(false);
+        setIsCursorHovering(false);
+        setIsCursorClicking(false);
+        setShowFocusOverlay(false);
+        // Clear selections based on step they're navigating to
+        setSelectedService(null);
+        setSelectedCountry(null);
+        setSelectedOperator(null);
+        setCopiedCode(false);
+        setCopiedNumber(false);
+    };
+
     const containerRef = useRef<HTMLDivElement>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
+    const playerRef = useRef<HTMLDivElement>(null);
+
+
+    // Update player bounds on resize, scroll, and during playback
+    useEffect(() => {
+        let animationFrameId: number | null = null;
+        let isUpdating = false;
+
+        const updateBounds = () => {
+            if (playerRef.current && !isUpdating) {
+                isUpdating = true;
+                const rect = playerRef.current.getBoundingClientRect();
+                setPlayerBounds(prev => {
+                    // Only update if bounds actually changed (avoid unnecessary re-renders)
+                    if (prev.left !== rect.left || prev.top !== rect.top ||
+                        prev.width !== rect.width || prev.height !== rect.height) {
+                        return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+                    }
+                    return prev;
+                });
+                isUpdating = false;
+            }
+        };
+
+        // Continuous update during playback for smooth cursor positioning
+        const continuousUpdate = () => {
+            if (isPlaying && playerRef.current) {
+                updateBounds();
+                animationFrameId = requestAnimationFrame(continuousUpdate);
+            }
+        };
+
+        // Initial update
+        updateBounds();
+
+        // Start continuous updates if playing
+        if (isPlaying) {
+            continuousUpdate();
+        }
+
+        // Event listeners
+        window.addEventListener('resize', updateBounds);
+        window.addEventListener('scroll', updateBounds, { passive: true });
+        document.addEventListener('scroll', updateBounds, { passive: true, capture: true });
+
+        // ResizeObserver for container size changes
+        let resizeObserver: ResizeObserver | null = null;
+        if (playerRef.current && typeof ResizeObserver !== 'undefined') {
+            resizeObserver = new ResizeObserver(updateBounds);
+            resizeObserver.observe(playerRef.current);
+        }
+
+        return () => {
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+            }
+            window.removeEventListener('resize', updateBounds);
+            window.removeEventListener('scroll', updateBounds);
+            document.removeEventListener('scroll', updateBounds, { capture: true });
+            if (resizeObserver) {
+                resizeObserver.disconnect();
+            }
+        };
+    }, [activeStep, isPlaying]);
 
     // Mouse parallax for desktop
     const mouseX = useMotionValue(0);
@@ -266,25 +849,81 @@ export default function DemoPage() {
     }, [isMobile, prefersReducedMotion, mouseX, mouseY]);
 
     // Auto-advance actions and steps when playing
+    const isActionRunningRef = useRef(false);
+
     useEffect(() => {
-        if (!isPlaying) return;
+        if (!isPlaying) {
+            isActionRunningRef.current = false;
+            return;
+        }
+
+        // Prevent starting multiple action chains
+        if (isActionRunningRef.current) return;
+        isActionRunningRef.current = true;
 
         const currentStepData = demoSteps[activeStep] as any;
+        if (!currentStepData) {
+            isActionRunningRef.current = false;
+            return;
+        }
         const actions = currentStepData.actions || [];
 
+        // Cancellation-aware wait helper
+        const waitWithCancel = (ms: number): Promise<boolean> => {
+            return new Promise(resolve => {
+                const start = Date.now();
+                const check = () => {
+                    if (!isPlayingRef.current) {
+                        resolve(false); // Cancelled
+                        return;
+                    }
+                    if (Date.now() - start >= ms) {
+                        resolve(true); // Completed
+                        return;
+                    }
+                    requestAnimationFrame(check);
+                };
+                check();
+            });
+        };
+
         const runAction = async (index: number) => {
-            if (!isPlaying || activeStep >= demoSteps.length) return;
+            // Check cancellation before starting
+            if (!isPlayingRef.current || activeStep >= demoSteps.length) {
+                isActionRunningRef.current = false;
+                return;
+            }
+
+            // Show cursor when playing
+            setIsCursorVisible(true);
 
             if (index >= actions.length) {
                 // Done with actions for this step
+                setIsCursorHovering(false);
+                setIsCursorClicking(false);
+
                 if (activeStep < demoSteps.length - 1) {
-                    await new Promise(r => setTimeout(r, 800)); // Buffer before next step
-                    if (isPlaying) {
-                        setActiveStep(s => s + 1);
-                        setCurrentActionIndex(0);
+                    sounds.playTransition();
+                    const ok = await waitWithCancel(800);
+                    if (!ok || !isPlayingRef.current) {
+                        isActionRunningRef.current = false;
+                        return;
                     }
+
+                    // Reset ref before advancing so new step can start its actions
+                    isActionRunningRef.current = false;
+                    setActiveStep(s => s + 1);
+                    setCurrentActionIndex(0);
+                    setTypingText("");
+                    setSearchQuery("");
                 } else {
+                    sounds.playSuccess();
                     setIsPlaying(false);
+                    setIsCursorVisible(false);
+                    setShowFocusOverlay(false);
+                    isActionRunningRef.current = false;
+                    // Reset for next cycle
+                    setTimeout(() => resetDemo(), 1000);
                 }
                 return;
             }
@@ -293,16 +932,72 @@ export default function DemoPage() {
             const action = actions[index];
             const duration = action.duration || 0;
 
+            // Use playerBounds for accurate positioning
+            const bounds = playerBounds;
+
             if (action.type === "wait") {
-                await new Promise(r => setTimeout(r, duration));
+                const ok = await waitWithCancel(duration);
+                if (!ok) return;
+            } else if (action.type === "moveCursor") {
+                // Move cursor to relative position (0-1) within player
+                const targetX = bounds.left + (action.x || 0.5) * bounds.width;
+                const targetY = bounds.top + (action.y || 0.5) * bounds.height;
+                setCursorPosition({ x: targetX, y: targetY });
+                const ok = await waitWithCancel(action.duration || 500);
+                if (!ok) return;
+            } else if (action.type === "hover") {
+                // Show hover state with sound
+                if (!isPlayingRef.current) return;
+                setIsCursorHovering(true);
+                setShowFocusOverlay(true);
+                sounds.playHover();
+                const ok = await waitWithCancel(duration || 600);
+                if (!ok) return;
+            } else if (action.type === "click") {
+                // Perform click animation with sound
+                if (!isPlayingRef.current) return;
+                sounds.playClick();
+                setIsCursorClicking(true);
+                let ok = await waitWithCancel(180);
+                if (!ok) return;
+                setIsCursorClicking(false);
+                ok = await waitWithCancel(250);
+                if (!ok) return;
+                setIsCursorHovering(false);
+            } else if (action.type === "type") {
+                // Simulate typing character by character with sound
+                const text = action.text || "";
+                const speed = action.speed || 140;
+                setTypingText("");
+                for (let i = 0; i <= text.length; i++) {
+                    if (!isPlayingRef.current) return;
+                    setTypingText(text.slice(0, i));
+                    setSearchQuery(text.slice(0, i));
+                    if (i > 0) sounds.playType();
+                    const ok = await waitWithCancel(speed);
+                    if (!ok) return;
+                }
+                const ok = await waitWithCancel(500);
+                if (!ok) return;
             } else if (action.type === "scroll") {
+                if (!isPlayingRef.current) return;
                 setIsScrolling(true);
                 if (scrollRef.current) {
                     scrollRef.current.scrollTo({ top: action.top || 150, behavior: "smooth" });
                 }
-                await new Promise(r => setTimeout(r, duration));
+                const ok = await waitWithCancel(duration || 500);
+                if (!ok) return;
                 setIsScrolling(false);
             } else if (action.type === "select") {
+                // Show click before selection with sound
+                if (!isPlayingRef.current) return;
+                sounds.playClick();
+                setIsCursorClicking(true);
+                let ok = await waitWithCancel(200);
+                if (!ok) return;
+                setIsCursorClicking(false);
+
+                sounds.playTransition();
                 if (action.target === "service") {
                     const service = demoServices.find(s => s.id === action.id);
                     if (service) setSelectedService({ id: service.id, name: service.name, iconUrl: service.iconUrl });
@@ -311,8 +1006,18 @@ export default function DemoPage() {
                 } else if (action.target === "operator") {
                     setSelectedOperator(action.id);
                 }
-                await new Promise(r => setTimeout(r, 600));
+                setShowFocusOverlay(false);
+                ok = await waitWithCancel(700);
+                if (!ok) return;
             } else if (action.type === "copy") {
+                if (!isPlayingRef.current) return;
+                sounds.playClick();
+                setIsCursorClicking(true);
+                let ok = await waitWithCancel(200);
+                if (!ok) return;
+                setIsCursorClicking(false);
+
+                sounds.playCopy();
                 if (action.target === "number") {
                     setCopiedNumber(true);
                     setTimeout(() => setCopiedNumber(false), 2000);
@@ -320,16 +1025,24 @@ export default function DemoPage() {
                     setCopiedCode(true);
                     setTimeout(() => setCopiedCode(false), 2000);
                 }
-                await new Promise(r => setTimeout(r, 800));
+                ok = await waitWithCancel(800);
+                if (!ok) return;
+            } else if (action.type === "focus") {
+                // Show/hide focus overlay
+                if (!isPlayingRef.current) return;
+                setShowFocusOverlay(action.enabled !== false);
+                const ok = await waitWithCancel(duration || 400);
+                if (!ok) return;
             }
 
             // Update local step progress based on action index
             setProgress(((index + 1) / actions.length) * 100);
-            if (isPlaying) runAction(index + 1);
+            if (isPlayingRef.current) runAction(index + 1);
         };
 
         runAction(currentActionIndex);
-    }, [isPlaying, activeStep]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isPlaying, activeStep]); // Removed playerBounds - it changes too frequently during playback
 
     useEffect(() => {
         setProgress(0);
@@ -344,7 +1057,8 @@ export default function DemoPage() {
     const getGlobalTime = () => {
         const totalDuration = getGlobalTotalDuration();
         const completedDuration = demoSteps.slice(0, activeStep).reduce((acc, step: any) => acc + step.duration, 0);
-        const currentStepProgressSeconds = (progress / 100) * demoSteps[activeStep].duration;
+        const currentStepDuration = demoSteps[activeStep]?.duration || 0;
+        const currentStepProgressSeconds = (progress / 100) * currentStepDuration;
         const totalElapsed = completedDuration + currentStepProgressSeconds;
 
         const mins = Math.floor(totalElapsed / 60);
@@ -355,8 +1069,10 @@ export default function DemoPage() {
     // Calculate global progress percentage (0-100)
     const getGlobalProgress = () => {
         const totalDuration = getGlobalTotalDuration();
+        if (totalDuration === 0) return 0;
         const completedDuration = demoSteps.slice(0, activeStep).reduce((acc, step: any) => acc + step.duration, 0);
-        const currentProgressSeconds = (progress / 100) * demoSteps[activeStep].duration;
+        const currentStepDuration = demoSteps[activeStep]?.duration || 0;
+        const currentProgressSeconds = (progress / 100) * currentStepDuration;
         return ((completedDuration + currentProgressSeconds) / totalDuration) * 100;
     };
 
@@ -1067,6 +1783,16 @@ export default function DemoPage() {
     return (
         <div className="min-h-screen flex flex-col">
             <Navbar />
+
+            {/* Demo Cursor - visible during playback */}
+            <DemoCursor
+                position={cursorPosition}
+                isClicking={isCursorClicking}
+                isHovering={isCursorHovering}
+                isVisible={isCursorVisible && isPlaying && !isMobile}
+            />
+
+            {/* Focus Overlay - spotlight effect - rendered inside player below */}
             <main ref={containerRef} className="flex-1 bg-gradient-to-br from-[#0a0a0c] via-[#0d1f1f] to-[#0a0a0c] overflow-hidden">
                 {/* Premium Background */}
                 <div className="fixed inset-0 pointer-events-none z-0">
@@ -1156,7 +1882,7 @@ export default function DemoPage() {
                                     {/* Step cards */}
                                     <div className="space-y-2">
                                         {demoSteps.map((step, i) => (
-                                            <motion.button key={step.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.1 }} onClick={() => { setIsPlaying(false); setActiveStep(i); }}
+                                            <motion.button key={step.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.1 }} onClick={() => { setIsPlaying(false); resetStepData(); setActiveStep(i); }}
                                                 className={`w-full p-4 rounded-xl text-left flex items-center gap-4 transition-all ${activeStep === i ? "bg-white/[0.06] border border-[hsl(var(--neon-lime)/0.3)]" : "bg-white/[0.02] border border-transparent"}`}>
                                                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${activeStep === i ? "" : "opacity-50"}`} style={{ background: activeStep === i ? `${step.color}20` : "rgba(255,255,255,0.05)" }}>
                                                     <step.icon className="w-5 h-5" style={{ color: activeStep === i ? step.color : "#666" }} />
@@ -1174,16 +1900,23 @@ export default function DemoPage() {
                                 /* Desktop: Side-by-side layout */
                                 <div className="grid lg:grid-cols-10 gap-8">
                                     <div className="lg:col-span-7">
-                                        <div className="relative aspect-video rounded-3xl overflow-hidden" style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.5), 0 0 100px hsl(75,100%,50%,0.03)" }}>
+                                        <div ref={playerRef} className="relative aspect-video rounded-3xl overflow-hidden" style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.5), 0 0 100px hsl(75,100%,50%,0.03)" }}>
                                             <div className="absolute inset-0 bg-gradient-to-br from-[#1a1a1f] to-[#0d1f1f]">
                                                 <AnimatePresence mode="wait">
-                                                    <motion.div key={activeStep} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="absolute inset-0">
-                                                        {demoSteps[activeStep].preview.type === "services" && renderServiceGrid()}
-                                                        {demoSteps[activeStep].preview.type === "countries" && renderCountryGrid()}
-                                                        {demoSteps[activeStep].preview.type === "providers" && renderProviderGrid()}
-                                                        {demoSteps[activeStep].preview.type === "number" && renderSMSInbox()}
-                                                        {demoSteps[activeStep].preview.type === "sms" && renderSMSInbox()}
-                                                        {demoSteps[activeStep].preview.type === "success" && (
+                                                    <motion.div
+                                                        key={activeStep}
+                                                        initial={{ opacity: 0, filter: "blur(8px)", scale: 0.98 }}
+                                                        animate={{ opacity: 1, filter: "blur(0px)", scale: 1 }}
+                                                        exit={{ opacity: 0, filter: "blur(8px)", scale: 1.02 }}
+                                                        transition={{ duration: 0.5, ease: "easeOut" }}
+                                                        className="absolute inset-0"
+                                                    >
+                                                        {demoSteps[activeStep]?.preview.type === "services" && renderServiceGrid()}
+                                                        {demoSteps[activeStep]?.preview.type === "countries" && renderCountryGrid()}
+                                                        {demoSteps[activeStep]?.preview.type === "providers" && renderProviderGrid()}
+                                                        {demoSteps[activeStep]?.preview.type === "number" && renderSMSInbox()}
+                                                        {demoSteps[activeStep]?.preview.type === "sms" && renderSMSInbox()}
+                                                        {demoSteps[activeStep]?.preview.type === "success" && (
                                                             <div className="h-full flex items-center justify-center p-8">
                                                                 <div className="text-center">
                                                                     <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 200 }} className="w-24 h-24 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-6">
@@ -1197,6 +1930,13 @@ export default function DemoPage() {
                                                     </motion.div>
                                                 </AnimatePresence>
                                             </div>
+
+                                            {/* Focus Overlay - spotlight effect - constrained to player */}
+                                            <FocusOverlay
+                                                isActive={showFocusOverlay && isPlaying && !isMobile}
+                                                targetPosition={cursorPosition}
+                                                playerBounds={playerBounds}
+                                            />
 
                                             {/* Premium controls */}
                                             <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-6">
@@ -1214,11 +1954,11 @@ export default function DemoPage() {
                                                 </div>
                                                 <div className="flex items-center justify-between">
                                                     <div className="flex items-center gap-3">
-                                                        <button onClick={() => setActiveStep(s => s > 0 ? s - 1 : demoSteps.length - 1)} className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"><SkipBack className="w-4 h-4 text-white" /></button>
+                                                        <button onClick={() => { setIsPlaying(false); resetStepData(); setActiveStep(s => s > 0 ? s - 1 : demoSteps.length - 1); }} className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"><SkipBack className="w-4 h-4 text-white" /></button>
                                                         <button onClick={() => setIsPlaying(!isPlaying)} className="w-14 h-14 rounded-full bg-[hsl(var(--neon-lime))] hover:bg-[hsl(var(--neon-lime-soft))] flex items-center justify-center transition-all shadow-lg shadow-[hsl(var(--neon-lime)/0.3)]">
                                                             {isPlaying ? <Pause className="w-6 h-6 text-black" /> : <Play className="w-6 h-6 text-black ml-1" />}
                                                         </button>
-                                                        <button onClick={() => setActiveStep(s => (s + 1) % demoSteps.length)} className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"><SkipForward className="w-4 h-4 text-white" /></button>
+                                                        <button onClick={() => { setIsPlaying(false); resetStepData(); setActiveStep(s => (s + 1) % demoSteps.length); }} className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"><SkipForward className="w-4 h-4 text-white" /></button>
                                                         <button onClick={() => setIsMuted(!isMuted)} className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors ml-2">
                                                             {isMuted ? <VolumeX className="w-4 h-4 text-white" /> : <Volume2 className="w-4 h-4 text-white" />}
                                                         </button>
@@ -1236,7 +1976,7 @@ export default function DemoPage() {
                                     <div className="lg:col-span-3 space-y-3">
                                         <p className="text-xs text-gray-500 uppercase tracking-wider mb-3 px-2">Demo Steps</p>
                                         {demoSteps.map((step, i) => (
-                                            <button key={step.id} onClick={() => setActiveStep(i)} className={`w-full p-4 rounded-xl text-left transition-all group ${activeStep === i ? "bg-white/[0.06] border border-[hsl(var(--neon-lime)/0.3)]" : "bg-transparent hover:bg-white/[0.03] border border-transparent"}`}>
+                                            <button key={step.id} onClick={() => { setIsPlaying(false); resetStepData(); setActiveStep(i); }} className={`w-full p-4 rounded-xl text-left transition-all group ${activeStep === i ? "bg-white/[0.06] border border-[hsl(var(--neon-lime)/0.3)]" : "bg-transparent hover:bg-white/[0.03] border border-transparent"}`}>
                                                 <div className="flex items-start gap-4">
                                                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-all ${activeStep === i ? "scale-110" : "opacity-50 group-hover:opacity-70"}`} style={{ background: activeStep === i ? `${step.color}20` : "rgba(255,255,255,0.05)" }}>
                                                         <step.icon className="w-5 h-5" style={{ color: activeStep === i ? step.color : "#666" }} />

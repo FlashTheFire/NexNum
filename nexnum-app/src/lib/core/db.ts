@@ -22,7 +22,7 @@ function createPrismaClient(): PrismaClient {
 
     const pool = new Pool({
         connectionString,
-        max: process.env.NODE_ENV === 'development' ? 2 : 10, // Minimal pool for dev workers, larger for prod
+        max: process.env.NODE_ENV === 'development' ? 5 : 10, // Kept low for Supabase session pooler limits
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 10000, // 10s timeout
 

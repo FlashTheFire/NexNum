@@ -134,7 +134,7 @@ export const POST = apiHandler(async (request, { body }) => {
             activationId = activation.id
         }, {
             timeout: 30000, // 30s timeout for DB heavy operations
-            isolationLevel: Prisma.TransactionIsolationLevel.Serializable // High consistency
+            isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted // Row-level locking handled in WalletService.reserve
         })
 
         // ONLY track reservedAmount AFTER Phase 1 transaction is confirmed in DB
@@ -176,7 +176,10 @@ export const POST = apiHandler(async (request, { body }) => {
                         data: { state: 'FAILED' }
                     })
                 }
-            }, { timeout: 15000 })
+            }, {
+                timeout: 15000,
+                isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted
+            })
 
             await releaseNumberLock(lockId)
             // Return specific error
@@ -250,7 +253,10 @@ export const POST = apiHandler(async (request, { body }) => {
             }
 
             return newNumber
-        }, { timeout: 20000 })
+        }, {
+            timeout: 20000,
+            isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted
+        })
 
         // Polling is handled automatically by the MasterWorker (InboxWorker loop)
         // providing a stateless, database-driven mechanism for SMS synchronization.
