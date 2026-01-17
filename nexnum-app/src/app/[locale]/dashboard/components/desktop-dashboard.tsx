@@ -32,7 +32,7 @@ import { toast } from "sonner"
 import { DashboardBackground } from "./dashboard-background"
 import { PhoneMockup } from "./phone-mockup"
 import { NotificationsBtn } from "./shared"
-import { DashboardNumberCard } from "./DashboardNumberCard"
+import { ModernNumberCard } from "./ModernNumberCard"
 
 // Animation Variants
 const fadeIn = {
@@ -73,15 +73,16 @@ export function DesktopDashboard() {
     const { userProfile, activeNumbers, transactions } = useGlobalStore()
     const containerRef = useRef<HTMLDivElement>(null)
 
+    const t = useTranslations('dashboard')
+
     // Parallax & Scroll
     const { scrollY } = useScroll()
     const yHero = useTransform(scrollY, [0, 500], [0, 50])
 
     // Greeting
     const hour = new Date().getHours()
-    const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening"
+    const greeting = hour < 12 ? t('greeting.morning') : hour < 18 ? t('greeting.afternoon') : t('greeting.evening')
 
-    // Stats Logic
     // Stats Logic
     const totalSpent = transactions
         .filter(t => ['purchase', 'manual_debit'].includes(t.type))
@@ -92,10 +93,10 @@ export function DesktopDashboard() {
         .reduce((sum, t) => sum + Math.abs(t.amount), 0)
 
     const stats = [
-        { label: "Total Balance", value: formatPrice(userProfile?.balance || 0), icon: Wallet, color: "text-[hsl(var(--neon-lime))]", bg: "bg-[hsl(var(--neon-lime)/0.1)]", border: "border-[hsl(var(--neon-lime)/0.2)]" },
-        { label: "My Numbers", value: activeNumbers.length, icon: Phone, color: "text-cyan-400", bg: "bg-cyan-400/10", border: "border-cyan-400/20" },
-        { label: "Total Spent", value: formatPrice(totalSpent), icon: ShoppingCart, color: "text-purple-400", bg: "bg-purple-400/10", border: "border-purple-400/20" },
-        { label: "Total Deposited", value: formatPrice(totalDeposit), icon: TrendingUp, color: "text-emerald-400", bg: "bg-emerald-400/10", border: "border-emerald-400/20" },
+        { label: t('stats.balance'), value: formatPrice(userProfile?.balance || 0), icon: Wallet, color: "text-[hsl(var(--neon-lime))]", bg: "bg-[hsl(var(--neon-lime)/0.1)]", border: "border-[hsl(var(--neon-lime)/0.2)]" },
+        { label: t('stats.myNumbers'), value: activeNumbers.length, icon: Phone, color: "text-cyan-400", bg: "bg-cyan-400/10", border: "border-cyan-400/20" },
+        { label: t('stats.spent'), value: formatPrice(totalSpent), icon: ShoppingCart, color: "text-purple-400", bg: "bg-purple-400/10", border: "border-purple-400/20" },
+        { label: t('stats.deposited'), value: formatPrice(totalDeposit), icon: TrendingUp, color: "text-emerald-400", bg: "bg-emerald-400/10", border: "border-emerald-400/20" },
     ]
 
     return (
@@ -117,7 +118,7 @@ export function DesktopDashboard() {
                     >
                         <motion.div variants={fadeIn} className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.05] border border-white/[0.08]">
                             <span className="w-2 h-2 rounded-full bg-[hsl(var(--neon-lime))] animate-pulse" />
-                            <span className="text-xs font-medium text-gray-300">System Operational</span>
+                            <span className="text-xs font-medium text-gray-300">{t('status.operational')}</span>
                         </motion.div>
 
                         <motion.h1 variants={fadeIn} className="text-5xl lg:text-7xl font-bold tracking-tight text-white leading-[1.1]">
@@ -128,19 +129,19 @@ export function DesktopDashboard() {
                         </motion.h1>
 
                         <motion.p variants={fadeIn} className="text-lg text-gray-400 max-w-md leading-relaxed">
-                            Your secure gateway to global communication. Manage valid numbers, track usage, and scale your operations instantly.
+                            {t('hero.subtitle')}
                         </motion.p>
 
                         <motion.div variants={fadeIn} className="flex items-center gap-4">
                             <Link href="/dashboard/buy">
                                 <Button className="h-14 px-8 rounded-2xl bg-[hsl(var(--neon-lime))] text-black text-lg font-bold hover:bg-[hsl(72,100%,55%)] hover:scale-105 transition-all shadow-[0_0_20px_rgba(204,255,0,0.3)]">
                                     <Plus className="mr-2 h-5 w-5" />
-                                    New Number
+                                    {t('hero.newNumber')}
                                 </Button>
                             </Link>
                             <Link href="/dashboard/wallet">
                                 <Button variant="outline" className="h-14 px-8 rounded-2xl border-white/10 bg-white/[0.03] text-white hover:bg-white/[0.08] text-lg font-medium">
-                                    Top Up Wallet
+                                    {t('hero.topUp')}
                                 </Button>
                             </Link>
                         </motion.div>
@@ -168,11 +169,11 @@ export function DesktopDashboard() {
                             >
                                 <div className="flex items-center justify-between mb-4">
                                     <div className="p-2 rounded-xl bg-purple-500/20"><Globe className="h-5 w-5 text-purple-400" /></div>
-                                    <Badge variant="outline" className="border-purple-500/30 text-purple-400">Global</Badge>
+                                    <Badge variant="outline" className="border-purple-500/30 text-purple-400">{t('features.coverage.badge')}</Badge>
                                 </div>
                                 <div className="space-y-1">
-                                    <div className="text-sm text-gray-400">Total Coverage</div>
-                                    <div className="text-2xl font-bold">180+ Countries</div>
+                                    <div className="text-sm text-gray-400">{t('features.coverage.label')}</div>
+                                    <div className="text-2xl font-bold">{t('features.coverage.value')}</div>
                                 </div>
                             </motion.div>
 
@@ -183,11 +184,11 @@ export function DesktopDashboard() {
                             >
                                 <div className="flex items-center justify-between mb-4">
                                     <div className="p-2 rounded-xl bg-[hsl(var(--neon-lime)/0.2)]"><ShieldCheck className="h-5 w-5 text-[hsl(var(--neon-lime))]" /></div>
-                                    <Badge variant="outline" className="border-[hsl(var(--neon-lime)/0.3)] text-[hsl(var(--neon-lime))]">Secure</Badge>
+                                    <Badge variant="outline" className="border-[hsl(var(--neon-lime)/0.3)] text-[hsl(var(--neon-lime))]">{t('features.security.badge')}</Badge>
                                 </div>
                                 <div className="space-y-1">
-                                    <div className="text-sm text-gray-400">Verification</div>
-                                    <div className="text-2xl font-bold">Instant</div>
+                                    <div className="text-sm text-gray-400">{t('features.security.label')}</div>
+                                    <div className="text-2xl font-bold">{t('features.security.value')}</div>
                                 </div>
                             </motion.div>
                         </div>
@@ -257,16 +258,16 @@ export function DesktopDashboard() {
                             <div className="p-8 border-b border-white/[0.03] flex items-center justify-between">
                                 <div>
                                     <div className="flex items-center gap-2 mb-1">
-                                        <h3 className="text-xl font-bold text-white">My Numbers</h3>
+                                        <h3 className="text-xl font-bold text-white">{t('vault.title')}</h3>
                                         <Badge variant="outline" className="border-[hsl(var(--neon-lime)/0.3)] text-[hsl(var(--neon-lime))] text-[10px] uppercase">
-                                            Vault
+                                            {t('vault.badge')}
                                         </Badge>
                                     </div>
-                                    <p className="text-sm text-gray-400">Manage and monitor your active virtual lines.</p>
+                                    <p className="text-sm text-gray-400">{t('vault.description')}</p>
                                 </div>
                                 <Link href="/dashboard/vault">
                                     <Button variant="ghost" className="text-[hsl(var(--neon-lime))] hover:text-[hsl(var(--neon-lime))] hover:bg-[hsl(var(--neon-lime)/0.1)] gap-2 group/btn">
-                                        View Vault
+                                        {t('vault.viewVault')}
                                         <div className="bg-[hsl(var(--neon-lime)/0.2)] p-1 rounded-full group-hover/btn:bg-[hsl(var(--neon-lime))] group-hover/btn:text-black transition-colors">
                                             <ArrowRight className="h-3 w-3" />
                                         </div>
@@ -276,9 +277,9 @@ export function DesktopDashboard() {
 
                             <div className="p-8 bg-gradient-to-b from-transparent to-black/20 flex-1">
                                 {activeNumbers.length > 0 ? (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        {activeNumbers.slice(0, 4).map(num => (
-                                            <DashboardNumberCard
+                                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                                        {activeNumbers.slice(0, 6).map(num => (
+                                            <ModernNumberCard
                                                 key={num.id}
                                                 id={num.id}
                                                 number={(num as any).phoneNumber || (num as any).number}
@@ -290,7 +291,7 @@ export function DesktopDashboard() {
                                                 smsCount={num.smsCount}
                                                 expiresAt={num.expiresAt}
                                                 status={num.status}
-                                                latestSms={num.latestSms}
+                                                className="h-[200px]"
                                             />
                                         ))}
                                     </div>
@@ -299,11 +300,11 @@ export function DesktopDashboard() {
                                         <div className="w-20 h-20 rounded-full bg-[hsl(var(--neon-lime)/0.05)] flex items-center justify-center mb-6 border border-[hsl(var(--neon-lime)/0.1)] shadow-[0_0_30px_-10px_hsl(var(--neon-lime)/0.2)]">
                                             <Phone className="h-8 w-8 text-[hsl(var(--neon-lime))]" />
                                         </div>
-                                        <h4 className="text-xl font-bold text-white mb-2">No active numbers</h4>
-                                        <p className="text-gray-400 max-w-[250px] mb-8 leading-relaxed">Your vault is empty. Purchase a number to start receiving SMS instantly.</p>
+                                        <h4 className="text-xl font-bold text-white mb-2">{t('vault.emptyTitle')}</h4>
+                                        <p className="text-gray-400 max-w-[250px] mb-8 leading-relaxed">{t('vault.emptyDescription')}</p>
                                         <Link href="/dashboard/buy">
                                             <Button className="h-12 px-8 rounded-xl bg-[hsl(var(--neon-lime))] text-black font-bold hover:bg-[hsl(72,100%,60%)] shadow-lg shadow-[hsl(var(--neon-lime)/0.2)]">
-                                                Purchase Number
+                                                {t('vault.purchaseBtn')}
                                             </Button>
                                         </Link>
                                     </div>
@@ -320,34 +321,54 @@ export function DesktopDashboard() {
                         transition={{ delay: 0.2 }}
                         className="lg:col-span-1 space-y-6"
                     >
-                        {/* Quick Topup - Gradient Card */}
-                        <div className="relative group p-[1px] rounded-[32px] bg-gradient-to-br from-indigo-500/30 via-purple-500/10 to-transparent">
-                            <div className="relative rounded-[31px] bg-[#1e1b2e]/60 backdrop-blur-xl p-6 overflow-hidden">
-                                <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/20 rounded-full blur-[80px]" />
+                        {/* Quick Topup - Premium Neon Card */}
+                        <div className="relative group">
+                            <div className="relative rounded-[31px] bg-[#0c0e12]/90 backdrop-blur-3xl p-6 overflow-hidden border border-white/[0.05]">
+                                {/* Dynamic Background Effects */}
+                                <div className="absolute top-0 right-0 w-40 h-40 bg-[hsl(var(--neon-lime)/0.1)] rounded-full blur-[60px] opacity-60 group-hover:opacity-100 transition-all duration-500" />
+                                <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E")` }} />
 
-                                <h3 className="relative z-10 text-lg font-bold text-white mb-5 flex items-center gap-2">
-                                    <Sparkles className="h-4 w-4 text-indigo-400" />
-                                    Quick Top-up
-                                </h3>
+                                <div className="relative z-10">
+                                    <div className="flex items-center justify-between mb-6">
+                                        <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                                            <div className="p-2 rounded-xl bg-[hsl(var(--neon-lime)/0.1)] ring-1 ring-[hsl(var(--neon-lime)/0.2)]">
+                                                <Zap className="h-4 w-4 text-[hsl(var(--neon-lime))]" />
+                                            </div>
+                                            {t('quickTopUp.title')}
+                                        </h3>
+                                        <Badge variant="outline" className="border-[hsl(var(--neon-lime)/0.3)] text-[hsl(var(--neon-lime))] text-[10px] uppercase font-bold tracking-wider">
+                                            {t('quickTopUp.badge')}
+                                        </Badge>
+                                    </div>
 
-                                <div className="relative z-10 grid grid-cols-3 gap-3 mb-5">
-                                    {[10, 25, 50].map(amt => (
-                                        <Button key={amt} variant="outline" className="h-12 border-indigo-500/20 bg-indigo-500/5 hover:bg-indigo-500/20 text-indigo-300 hover:text-white hover:border-indigo-500/40 font-mono font-medium rounded-xl transition-all">
-                                            ${amt}
+                                    <div className="grid grid-cols-3 gap-3 mb-6">
+                                        {[10, 25, 50].map(amt => (
+                                            <button
+                                                key={amt}
+                                                className="group/btn relative h-14 rounded-2xl bg-white/[0.03] hover:bg-[hsl(var(--neon-lime)/0.1)] border border-white/[0.08] hover:border-[hsl(var(--neon-lime)/0.3)] transition-all duration-300 overflow-hidden"
+                                            >
+                                                <div className="absolute inset-0 bg-gradient-to-br from-white/[0.05] to-transparent opacity-0 group-hover/btn:opacity-100 transition-opacity" />
+                                                <span className="relative z-10 text-lg font-mono font-bold text-gray-300 group-hover/btn:text-white transition-colors">
+                                                    ${amt}
+                                                </span>
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    <Link href="/dashboard/wallet" className="block group/link">
+                                        <Button className="w-full h-14 bg-[hsl(var(--neon-lime))] text-black text-base font-bold rounded-2xl shadow-[0_0_20px_rgba(179,255,0,0.2)] hover:shadow-[0_0_30px_rgba(179,255,0,0.4)] hover:bg-[hsl(72,100%,60%)] transition-all duration-300 transform group-hover/link:scale-[1.02]">
+                                            <Wallet className="mr-2 h-5 w-5" />
+                                            {t('quickTopUp.action')}
+                                            <ArrowRight className="ml-2 h-4 w-4 opacity-50 group-hover/link:translate-x-1 transition-transform" />
                                         </Button>
-                                    ))}
+                                    </Link>
                                 </div>
-                                <Link href="/dashboard/wallet" className="relative z-10 block">
-                                    <Button className="w-full h-12 bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/25 rounded-xl font-semibold tracking-wide">
-                                        Add Funds
-                                    </Button>
-                                </Link>
                             </div>
                         </div>
 
                         {/* Recent Transactions - Clean List */}
                         <div className="relative rounded-[32px] bg-[#0d0d10] border border-white/[0.06] p-6 overflow-hidden">
-                            <h3 className="text-lg font-bold text-white mb-5 px-1">Recent Activity</h3>
+                            <h3 className="text-lg font-bold text-white mb-5 px-1">{t('activity.title')}</h3>
                             <div className="space-y-1">
                                 {transactions.slice(0, 4).map((tx, i) => (
                                     <div key={i} className="group flex items-center justify-between p-3 rounded-2xl hover:bg-white/[0.03] transition-colors cursor-default">
@@ -369,7 +390,7 @@ export function DesktopDashboard() {
                                     </div>
                                 ))}
                                 {transactions.length === 0 && (
-                                    <p className="text-sm text-gray-500 text-center py-4">No recent activity.</p>
+                                    <p className="text-sm text-gray-500 text-center py-4">{t('activity.empty')}</p>
                                 )}
                             </div>
                         </div>

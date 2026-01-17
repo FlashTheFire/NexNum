@@ -4,8 +4,10 @@ import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Zap, Menu, X, ChevronDown } from "lucide-react";
+import LanguageSwitcher from "@/components/common/LanguageSwitcher";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useTranslations } from "next-intl";
 
 interface NavbarProps {
     hideLogin?: boolean;
@@ -15,6 +17,8 @@ interface NavbarProps {
 export default function Navbar({ hideLogin = false, hideRegister = false }: NavbarProps) {
     const [scrolled, setScrolled] = useState(false);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const t = useTranslations('nav');
+    const tc = useTranslations('common');
 
     useEffect(() => {
         const handleScroll = () => {
@@ -25,9 +29,9 @@ export default function Navbar({ hideLogin = false, hideRegister = false }: Navb
     }, []);
 
     const navLinks = [
-        { name: "Features", href: "#features" },
-        { name: "How It Works", href: "#how-it-works" },
-        { name: "FAQ", href: "#faq" },
+        { name: t('features'), href: "#features" },
+        { name: t('howItWorks'), href: "#how-it-works" },
+        { name: t('faq'), href: "#faq" },
     ];
 
     return (
@@ -42,7 +46,7 @@ export default function Navbar({ hideLogin = false, hideRegister = false }: Navb
                     }`}
             >
                 <div className="container mx-auto px-4 lg:px-8">
-                    <div className="h-16 lg:h-[72px] flex items-center justify-between">
+                    <div className="h-16 lg:h-[72px] flex items-center justify-between relative">
                         {/* Logo */}
                         <Link href="/" className="flex items-center gap-3 group">
                             <div className="relative">
@@ -63,12 +67,12 @@ export default function Navbar({ hideLogin = false, hideRegister = false }: Navb
                                 <span className="font-bold text-xl tracking-tight text-white leading-none">
                                     Nex<span className="text-[hsl(var(--neon-lime))]">Num</span>
                                 </span>
-                                <span className="text-[10px] text-gray-500 tracking-widest uppercase">Virtual Numbers</span>
+                                <span className="text-[10px] text-gray-500 tracking-widest uppercase">{t('virtualNumbers')}</span>
                             </div>
                         </Link>
 
                         {/* Desktop Navigation */}
-                        <div className="hidden lg:flex items-center">
+                        <div className="hidden lg:flex items-center absolute left-1/2 -translate-x-1/2">
                             <div className="flex items-center gap-1 px-2 py-1.5 rounded-full bg-white/[0.03] border border-white/[0.06]">
                                 {navLinks.map((link) => (
                                     <Link
@@ -83,7 +87,7 @@ export default function Navbar({ hideLogin = false, hideRegister = false }: Navb
                                     href="/api-docs"
                                     className="px-4 py-2 text-sm font-medium text-gray-400 hover:text-white rounded-full hover:bg-white/[0.06] transition-all duration-200 flex items-center gap-1"
                                 >
-                                    Developers
+                                    {t('developers')}
                                     <ChevronDown className="w-3 h-3" />
                                 </Link>
                             </div>
@@ -91,6 +95,9 @@ export default function Navbar({ hideLogin = false, hideRegister = false }: Navb
 
                         {/* Desktop Actions */}
                         <div className="hidden lg:flex items-center gap-3">
+                            <div className="mr-1">
+                                <LanguageSwitcher />
+                            </div>
                             {!hideLogin && (
                                 <Link href="/login">
                                     <Button
@@ -100,7 +107,7 @@ export default function Navbar({ hideLogin = false, hideRegister = false }: Navb
                                             : "text-gray-300 hover:text-white hover:bg-white/[0.06] font-medium h-10 px-5"
                                         }
                                     >
-                                        Log in
+                                        {tc('login')}
                                     </Button>
                                 </Link>
                             )}
@@ -109,20 +116,23 @@ export default function Navbar({ hideLogin = false, hideRegister = false }: Navb
                                     <Button
                                         className="bg-[hsl(var(--neon-lime))] text-black hover:bg-[hsl(72,100%,55%)] font-semibold h-10 px-6 shadow-lg shadow-[hsl(var(--neon-lime)/0.25)] hover:shadow-[hsl(var(--neon-lime)/0.4)] transition-all duration-300"
                                     >
-                                        Get Started
+                                        {tc('getStarted')}
                                         <Zap className="w-4 h-4 ml-1.5" />
                                     </Button>
                                 </Link>
                             )}
                         </div>
 
-                        {/* Mobile Menu Button */}
-                        <button
-                            className="lg:hidden p-2.5 text-gray-400 hover:text-white rounded-xl hover:bg-white/[0.06] transition-all"
-                            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                        >
-                            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-                        </button>
+                        {/* Mobile Actions (Switcher + Menu) */}
+                        <div className="lg:hidden flex items-center gap-2">
+                            <LanguageSwitcher />
+                            <button
+                                className="p-2.5 text-gray-400 hover:text-white rounded-xl hover:bg-white/[0.06] transition-all"
+                                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                            >
+                                {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -169,9 +179,10 @@ export default function Navbar({ hideLogin = false, hideRegister = false }: Navb
                                             className="flex items-center px-4 py-3.5 text-base font-medium text-gray-300 hover:text-white hover:bg-white/[0.04] rounded-xl transition-all"
                                             onClick={() => setMobileMenuOpen(false)}
                                         >
-                                            Developers
+                                            {t('developers')}
                                         </Link>
                                     </motion.div>
+                                    {/* Language Switcher moved to header for mobile */}
                                 </div>
 
                                 <div className="flex flex-col gap-3 pt-6 mt-4 border-t border-white/[0.06]">
@@ -180,14 +191,14 @@ export default function Navbar({ hideLogin = false, hideRegister = false }: Navb
                                             variant="outline"
                                             className="w-full h-12 text-gray-300 border-white/10 hover:bg-white/[0.04] hover:text-white"
                                         >
-                                            Log in
+                                            {tc('login')}
                                         </Button>
                                     </Link>
                                     <Link href="/register" onClick={() => setMobileMenuOpen(false)}>
                                         <Button
                                             className="w-full h-12 bg-[hsl(var(--neon-lime))] text-black hover:bg-[hsl(72,100%,55%)] font-semibold"
                                         >
-                                            Get Started
+                                            {tc('getStarted')}
                                             <Zap className="w-4 h-4 ml-1.5" />
                                         </Button>
                                     </Link>

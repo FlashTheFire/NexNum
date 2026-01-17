@@ -1,9 +1,8 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
-import { motion, AnimatePresence } from "framer-motion"
+import { useEffect } from "react"
+import { Link, usePathname, useRouter } from "@/i18n/navigation"
+import { motion } from "framer-motion"
 import {
     LayoutDashboard,
     History,
@@ -11,38 +10,23 @@ import {
     Wallet,
     LogOut,
     ChevronLeft,
-    Phone,
     Settings,
     HelpCircle,
-    Sparkles,
-    Menu,
-    X,
-    ChevronRight,
     ArrowRight
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle, ThemeToggleIcon } from "@/components/common/theme-toggle"
 import { Navbar } from "@/components/common/navbar"
 import { useGlobalStore } from "@/store"
-import { cn, formatPrice } from "@/lib/utils/utils"
+import { cn } from "@/lib/utils/utils"
 import { useAuthStore } from "@/stores/authStore"
 import DashboardMobileActionBar from "@/components/common/DashboardMobileActionBar"
 import LoadingScreen from "@/components/ui/LoadingScreen"
 import { NotificationRequester } from "@/components/dashboard/notification-requester"
+import { useTranslations } from "next-intl"
 
-const navItems = [
-    { href: "/dashboard", label: "Overview", icon: LayoutDashboard, description: "Dashboard home" },
-    { href: "/dashboard/vault", label: "Number Vault", icon: Archive, description: "Your active numbers" },
-    { href: "/dashboard/history", label: "History", icon: History, description: "Transaction history" },
-    { href: "/dashboard/wallet", label: "Wallet", icon: Wallet, description: "Manage funds" },
-    // Admin Link will be conditionally rendered in the component, or we check role here?
-    // Better to check in component rendering loop or filter this list.
-]
+// Nav items will be defined inside component to use translations
 
-const bottomNavItems = [
-    { href: "/dashboard/settings", label: "Settings", icon: Settings },
-    { href: "/help", label: "Help", icon: HelpCircle },
-]
 
 export default function DashboardLayout({
     children,
@@ -53,6 +37,21 @@ export default function DashboardLayout({
     const router = useRouter()
     const { isAuthenticated, user, logout, checkAuth, isLoading } = useAuthStore()
     const { sidebarCollapsed, toggleSidebar, _hasHydrated, fetchBalance, fetchNumbers, fetchTransactions } = useGlobalStore()
+    const t = useTranslations('dashboard.nav')
+    const tLoading = useTranslations('dashboard')
+
+    const navItems = [
+        { href: "/dashboard", label: t('overview'), icon: LayoutDashboard },
+        { href: "/dashboard/vault", label: t('vault'), icon: Archive },
+        { href: "/dashboard/history", label: t('history'), icon: History },
+        { href: "/dashboard/wallet", label: t('wallet'), icon: Wallet },
+    ]
+
+    const bottomNavItems = [
+        { href: "/dashboard/settings", label: t('settings'), icon: Settings },
+        { href: "/help", label: t('help'), icon: HelpCircle },
+    ]
+
     useEffect(() => {
         checkAuth()
     }, [checkAuth])
@@ -97,7 +96,7 @@ export default function DashboardLayout({
     }
 
     if (isLoading) {
-        return <LoadingScreen status="Preparing Dashboard" />
+        return <LoadingScreen status={tLoading('loading')} />
     }
 
     if (!isAuthenticated) {
@@ -181,7 +180,7 @@ export default function DashboardLayout({
                                         </div>
                                         {!sidebarCollapsed && (
                                             <div className="flex-1 min-w-0">
-                                                <span className="text-sm font-bold text-[hsl(var(--neon-lime))]">Admin Panel</span>
+                                                <span className="text-sm font-bold text-[hsl(var(--neon-lime))]">{t('admin')}</span>
                                             </div>
                                         )}
                                     </motion.div>
@@ -203,7 +202,7 @@ export default function DashboardLayout({
                                         <ArrowRight className="h-4 w-4" />
                                     ) : (
                                         <div className="flex items-center gap-2">
-                                            <span className="text-xs uppercase tracking-wider">Collapse</span>
+                                            <span className="text-xs uppercase tracking-wider">{t('collapse')}</span>
                                             <ChevronLeft className="h-4 w-4" />
                                         </div>
                                     )}
@@ -226,7 +225,7 @@ export default function DashboardLayout({
                                 <LogOut className={cn("h-5 w-5 transition-colors", sidebarCollapsed && "ml-0.5")} />
                                 {!sidebarCollapsed && (
                                     <div className="flex-1 min-w-0">
-                                        <span className="text-sm font-medium">Logout</span>
+                                        <span className="text-sm font-medium">{t('logout')}</span>
                                     </div>
                                 )}
                             </motion.div>
@@ -242,7 +241,7 @@ export default function DashboardLayout({
                         )}>
                             {!sidebarCollapsed ? (
                                 <>
-                                    <span className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Theme</span>
+                                    <span className="text-xs text-muted-foreground uppercase tracking-wider font-medium">{t('theme')}</span>
                                     <ThemeToggle />
                                 </>
                             ) : (

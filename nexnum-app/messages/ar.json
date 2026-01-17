@@ -1,0 +1,215 @@
+{
+    "common": {
+        "login": "تسجيل الدخول",
+        "signup": "إنشاء حساب",
+        "buy": "شراء رقم",
+        "dashboard": "لوحة التحكم",
+        "logout": "تسجيل الخروج",
+        "learnMore": "اعرف المزيد",
+        "getStarted": "ابدأ الآن",
+        "contactSales": "تواصل مع المبيعات",
+        "allRightsReserved": "جميع الحقوق محفوظة.",
+        "privacyPolicy": "سياسة الخصوصية",
+        "termsOfService": "شروط الخدمة"
+    },
+    "nav": {
+        "features": "المميزات",
+        "howItWorks": "كيف يعمل",
+        "faq": "الأسئلة الشائعة",
+        "developers": "المطورين",
+        "virtualNumbers": "أرقام افتراضية"
+    },
+    "hero": {
+        "badge": "موثوق من قبل أكثر من 10,000+ مستخدم حول العالم",
+        "title1": "رسائل SMS آمنة",
+        "title2": "التحقق",
+        "subtitle": "احصل على وصول فوري إلى أرقام الهواتف الافتراضية للتحقق السلس من الحساب.",
+        "subtitleHighlight": "الخصوصية أولاً",
+        "subtitleEnd": "، آمن وسريع البرق.",
+        "cta": "ابدأ مجاناً",
+        "watchDemo": "شاهد العرض",
+        "instantActivation": "تفعيل فوري",
+        "countries": "50+ دولة",
+        "cryptoAccepted": "نقبل العملات المشفرة",
+        "appName": "NexNum",
+        "appTagline": "أرقام افتراضية برو",
+        "verificationCode": "رمز التحقق",
+        "now": "الآن",
+        "yourCode": "رمزك هو:",
+        "availableBalance": "الرصيد المتاح",
+        "synced": "متزامن",
+        "verifications": "عمليات تحقق",
+        "addFunds": "+ إضافة رصيد",
+        "activeNumber": "الرقم النشط",
+        "live": "مباشر",
+        "refresh": "تحديث",
+        "history": "السجل",
+        "getNewNumber": "احصل على رقم جديد",
+        "timeLeft": "متبقي"
+    },
+    "features": {
+        "title": "المميزات",
+        "heading": "كل ما تحتاجه",
+        "description": "مصمم للمستخدمين المهتمين بالخصوصية والمطورين الذين يحتاجون إلى خدمات موثوقة للتحقق عبر SMS.",
+        "instantActivation": {
+            "title": "تفعيل فوري",
+            "description": "احصل على رقمك الافتراضي فوراً بعد الشراء. لا انتظار، لا تحقق يدوي."
+        },
+        "globalCoverage": {
+            "title": "تغطية عالمية",
+            "description": "الوصول إلى أرقام من أكثر من 50 دولة بما في ذلك الولايات المتحدة والمملكة المتحدة وكندا والدول الأوروبية الرئيسية."
+        },
+        "privateSecure": {
+            "title": "خاص وآمن",
+            "description": "معلوماتك الشخصية لا ترتبط أبداً بهذه الأرقام. سرية تامة لأنشطتك عبر الإنترنت."
+        },
+        "flexiblePayment": {
+            "title": "دفع مرن",
+            "description": "ادفع ببطاقات الائتمان أو العملات المشفرة. نحن ندعم العملات المشفرة الرئيسية لأقصى قدر من الخصوصية."
+        },
+        "developerAPI": {
+            "title": "واجهة برمجة للمطورين",
+            "description": "قم بدمج خدمة التحقق SMS الخاصة بنا مباشرة في تطبيقاتك من خلال واجهة برمجة التطبيقات القوية."
+        },
+        "smsHistory": {
+            "title": "سجل SMS",
+            "description": "تتبع جميع الرسائل المستلمة في لوحة التحكم. يتم تخزين الرسائل بشكل آمن لمراجعتك."
+        }
+    },
+    "faq": {
+        "title": "الأسئلة الشائعة",
+        "subtitle": "لديك أسئلة؟ نحن هنا للمساعدة.",
+        "q1": {
+            "question": "هل تعمل هذه الأرقام مع جميع الخدمات؟",
+            "answer": "أرقامنا هي أرقام حقيقية تعتمد على بطاقات SIM، مما يعني أنها تعمل مع جميع الخدمات الرئيسية تقريباً بما في ذلك WhatsApp وTelegram وGoogle وFacebook والمزيد. ومع ذلك، قد يكون لبعض الخدمات قيود محددة."
+        },
+        "q2": {
+            "question": "كم من الوقت يمكنني الاحتفاظ بالرقم؟",
+            "answer": "تحتفظ بالرقم طوال فترة الإيجار المختارة. نحن نقدم خيارات تتراوح من 15 دقيقة إلى 30 يوماً حسب احتياجاتك."
+        },
+        "q3": {
+            "question": "هل معلومات الدفع الخاصة بي آمنة؟",
+            "answer": "بالتأكيد! نحن نستخدم تشفيراً على مستوى الصناعة ولا نخزن أبداً بيانات الدفع الكاملة. نحن ندعم أيضاً مدفوعات العملات المشفرة لأقصى قدر من الخصوصية."
+        },
+        "q4": {
+            "question": "هل يمكنني استقبال المكالمات؟",
+            "answer": "حالياً، خدمتنا محسنة للتحقق عبر SMS فقط. المكالمات الصوتية غير مدعومة في الوقت الحالي."
+        },
+        "q5": {
+            "question": "هل تقدمون استرداد الأموال؟",
+            "answer": "نعم، نحن نقدم استرداد الأموال إذا لم تتلق أي رسالة SMS خلال فترة الإيجار. يرجى التواصل مع الدعم مع تفاصيل طلبك."
+        }
+    },
+    "cta": {
+        "title": "هل أنت مستعد لحماية خصوصيتك؟",
+        "description": "انضم إلى آلاف المستخدمين الذين يثقون في NexNum لاحتياجات التحقق الخاصة بهم. احصل على رقمك الأول في أقل من 30 ثانية.",
+        "button": "ابدأ الآن"
+    },
+    "footer": {
+        "tagline": "أرقام هواتف افتراضية متميزة للتفعيل الفوري. آمنة وخاصة وعالمية.",
+        "product": {
+            "title": "المنتج",
+            "features": "المميزات",
+            "api": "واجهة البرمجة",
+            "coverage": "التغطية"
+        },
+        "company": {
+            "title": "الشركة",
+            "about": "عن الشركة",
+            "blog": "المدونة",
+            "careers": "الوظائف",
+            "legal": "قانوني"
+        },
+        "connect": {
+            "title": "تواصل معنا",
+            "twitter": "تويتر",
+            "github": "GitHub",
+            "discord": "Discord",
+            "contactUs": "اتصل بنا"
+        }
+    },
+    "auth": {
+        "welcomeBack": "مرحباً بعودتك",
+        "signinText": "سجّل الدخول لإدارة أرقامك الافتراضية",
+        "email": "البريد الإلكتروني",
+        "password": "كلمة المرور",
+        "forgotPassword": "نسيت كلمة المرور؟",
+        "signinBtn": "تسجيل الدخول",
+        "or": "أو المتابعة باستخدام",
+        "noAccount": "ليس لديك حساب؟",
+        "createAccount": "إنشاء حساب مجاني"
+    },
+    "dashboard": {
+        "nav": {
+            "overview": "لوحة القيادة",
+            "vault": "خزنة الأرقام",
+            "history": "السجل",
+            "wallet": "المحفظة",
+            "settings": "الإعدادات",
+            "help": "مساعدة",
+            "admin": "لوحة الإدارة",
+            "logout": "تسجيل خروج",
+            "theme": "السمة",
+            "collapse": "طي"
+        },
+        "loading": "جاري تحضير لوحة القيادة",
+        "greeting": {
+            "morning": "Good morning",
+            "afternoon": "Good afternoon",
+            "evening": "Good evening"
+        },
+        "status": {
+            "operational": "System Operational",
+            "analytics": "Analytics Active",
+            "secure": "Funds Secure"
+        },
+        "quickActions": {
+            "topUp": "Top Up",
+            "more": "More"
+        },
+        "hero": {
+            "subtitle": "Your secure gateway to global communication. Manage valid numbers, track usage, and scale your operations instantly.",
+            "newNumber": "New Number",
+            "topUp": "Top Up Wallet"
+        },
+        "stats": {
+            "balance": "Total Balance",
+            "myNumbers": "My Numbers",
+            "spent": "Total Spent",
+            "deposited": "Total Deposited"
+        },
+        "features": {
+            "coverage": {
+                "label": "Total Coverage",
+                "value": "180+ Countries",
+                "badge": "Global"
+            },
+            "security": {
+                "label": "Verification",
+                "value": "Instant",
+                "badge": "Secure"
+            }
+        },
+        "vault": {
+            "title": "My Numbers",
+            "badge": "Vault",
+            "description": "Manage and monitor your active virtual lines.",
+            "viewVault": "View Vault",
+            "emptyTitle": "No active numbers",
+            "emptyDescription": "Your vault is empty. Purchase a number to start receiving SMS instantly.",
+            "purchaseBtn": "Purchase Number",
+            "viewAll": "View All",
+            "viewAllNumbers": "View All Numbers",
+            "moreInVault": "+{count} more in Vault"
+        },
+        "quickTopUp": {
+            "title": "Quick Top-up",
+            "badge": "INSTANT",
+            "action": "Add Funds"
+        },
+        "activity": {
+            "title": "Recent Activity",
+            "empty": "No recent activity"
+        }
+    }
+}

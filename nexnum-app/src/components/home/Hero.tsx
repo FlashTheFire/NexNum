@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import { ArrowRight, CheckCircle2, Zap, Battery, Wifi, Signal } from "lucide-react";
 import FloatingAppIcon from "./FloatingAppIcon";
 import { useState, useEffect } from "react";
+import { useTranslations } from "next-intl";
 
 // Hook for real-time clock
 function useRealTime() {
@@ -66,6 +67,7 @@ function useBatteryStatus() {
 export default function Hero() {
     const currentTime = useRealTime();
     const battery = useBatteryStatus();
+    const t = useTranslations('hero');
 
     return (
         <section className="relative min-h-screen overflow-hidden hero-gradient film-grain vignette">
@@ -117,25 +119,25 @@ export default function Hero() {
                                     <span className="relative inline-flex rounded-full h-2 w-2 bg-[hsl(var(--neon-lime))]"></span>
                                 </span>
                                 <span className="text-sm font-medium text-[hsl(var(--neon-lime))]">
-                                    Trusted by 10,000+ users worldwide
+                                    {t('badge')}
                                 </span>
                             </motion.div>
 
                             {/* Main headline - Desktop */}
                             <h1 className="text-5xl lg:text-6xl xl:text-7xl font-extrabold tracking-tight mb-4 leading-[1.05]">
                                 <span className="inline-block text-white text-3d-effect">
-                                    Secure SMS
+                                    {t('title1')}
                                 </span>
                                 <br />
                                 <span className="text-[hsl(var(--neon-lime))] neon-text-glow">
-                                    Verification
+                                    {t('title2')}
                                 </span>
                             </h1>
 
                             {/* Subheadline - Desktop */}
                             <p className="text-xl text-gray-400 mb-10 max-w-lg leading-relaxed">
-                                Get instant access to virtual phone numbers for seamless account verification.
-                                <span className="text-white/80 font-medium"> Privacy-first</span>, secure, and lightning fast.
+                                {t('subtitle')}
+                                <span className="text-white/80 font-medium"> {t('subtitleHighlight')}</span>{t('subtitleEnd')}
                             </p>
 
                             {/* CTA buttons - Desktop */}
@@ -145,7 +147,7 @@ export default function Hero() {
                                         size="lg"
                                         className="h-14 px-10 text-base font-bold bg-[hsl(var(--neon-lime))] text-black hover:bg-[hsl(var(--neon-lime-soft))] neon-glow transition-all duration-300 shadow-xl shadow-[hsl(var(--neon-lime)/0.25)]"
                                     >
-                                        Get Started Free <ArrowRight className="ml-2 h-5 w-5" />
+                                        {t('cta')} <ArrowRight className="ml-2 h-5 w-5" />
                                     </Button>
                                 </Link>
                                 <Link href="/watch-demo">
@@ -159,7 +161,7 @@ export default function Hero() {
                                                 <path d="M8 5v14l11-7z" />
                                             </svg>
                                         </div>
-                                        Watch Demo
+                                        {t('watchDemo')}
                                     </Button>
                                 </Link>
                             </div>
@@ -170,19 +172,19 @@ export default function Hero() {
                                     <div className="w-5 h-5 rounded-full bg-[hsl(var(--neon-lime)/0.15)] flex items-center justify-center">
                                         <CheckCircle2 className="h-3 w-3 text-[hsl(var(--neon-lime))]" />
                                     </div>
-                                    <span>Instant Activation</span>
+                                    <span>{t('instantActivation')}</span>
                                 </div>
                                 <div className="flex items-center gap-2 text-gray-400">
                                     <div className="w-5 h-5 rounded-full bg-[hsl(var(--neon-lime)/0.15)] flex items-center justify-center">
                                         <CheckCircle2 className="h-3 w-3 text-[hsl(var(--neon-lime))]" />
                                     </div>
-                                    <span>50+ Countries</span>
+                                    <span>{t('countries')}</span>
                                 </div>
                                 <div className="flex items-center gap-2 text-gray-400">
                                     <div className="w-5 h-5 rounded-full bg-[hsl(var(--neon-lime)/0.15)] flex items-center justify-center">
                                         <CheckCircle2 className="h-3 w-3 text-[hsl(var(--neon-lime))]" />
                                     </div>
-                                    <span>Crypto Accepted</span>
+                                    <span>{t('cryptoAccepted')}</span>
                                 </div>
                             </div>
                         </motion.div>
@@ -405,8 +407,8 @@ export default function Hero() {
                                                     </div>
                                                 </div>
                                                 <div>
-                                                    <div className="text-white font-bold text-sm">NexNum</div>
-                                                    <div className="text-gray-500 text-[10px]">Virtual Numbers Pro</div>
+                                                    <div className="text-white font-bold text-sm">{t('appName')}</div>
+                                                    <div className="text-gray-500 text-[10px]">{t('appTagline')}</div>
                                                 </div>
                                             </div>
                                         </div>
@@ -424,10 +426,10 @@ export default function Hero() {
                                                 </div>
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center justify-between mb-0.5">
-                                                        <span className="text-white text-[10px] font-semibold">Verification Code</span>
-                                                        <span className="text-gray-400 text-[9px]">now</span>
+                                                        <span className="text-white text-[10px] font-semibold">{t('verificationCode')}</span>
+                                                        <span className="text-gray-400 text-[9px]">{t('now')}</span>
                                                     </div>
-                                                    <p className="text-gray-300 text-[10px] truncate">Your code is: <span className="font-mono font-bold text-[hsl(var(--neon-lime))]">847291</span></p>
+                                                    <p className="text-gray-300 text-[10px] truncate">{t('yourCode')} <span className="font-mono font-bold text-[hsl(var(--neon-lime))]">847291</span></p>
                                                 </div>
                                             </div>
                                         </motion.div>
@@ -435,28 +437,28 @@ export default function Hero() {
                                         {/* Balance card with glowing price */}
                                         <div className="rounded-xl bg-gradient-to-br from-white/8 to-white/3 border border-white/10 p-4 mb-3 shadow-lg">
                                             <div className="flex items-center justify-between mb-2">
-                                                <div className="text-gray-400 text-[10px]">Available Balance</div>
+                                                <div className="text-gray-400 text-[10px]">{t('availableBalance')}</div>
                                                 <div className="flex items-center gap-1">
                                                     <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                                                    <span className="text-green-400 text-[9px]">Synced</span>
+                                                    <span className="text-green-400 text-[9px]">{t('synced')}</span>
                                                 </div>
                                             </div>
                                             <div className="text-2xl font-bold text-[hsl(var(--neon-lime))] neon-text-glow mb-1">
                                                 $100.00
                                             </div>
                                             <div className="flex items-center justify-between">
-                                                <div className="text-gray-500 text-[10px]">≈ 50 verifications</div>
-                                                <button className="text-[hsl(var(--neon-lime))] text-[10px] font-medium">+ Add funds</button>
+                                                <div className="text-gray-500 text-[10px]">≈ 50 {t('verifications')}</div>
+                                                <button className="text-[hsl(var(--neon-lime))] text-[10px] font-medium">{t('addFunds')}</button>
                                             </div>
                                         </div>
 
                                         {/* Active number card */}
                                         <div className="rounded-xl bg-white/5 border border-white/10 p-3 mb-3">
                                             <div className="flex items-center justify-between mb-2">
-                                                <span className="text-gray-400 text-[10px]">Active Number</span>
+                                                <span className="text-gray-400 text-[10px]">{t('activeNumber')}</span>
                                                 <span className="text-green-400 text-[10px] flex items-center">
                                                     <span className="w-1.5 h-1.5 rounded-full bg-green-400 mr-1 animate-pulse" />
-                                                    Live
+                                                    {t('live')}
                                                 </span>
                                             </div>
                                             <div className="flex items-center justify-between mb-2">
@@ -470,7 +472,7 @@ export default function Hero() {
                                             <div className="flex items-center gap-1.5">
                                                 <span className="px-2 py-0.5 rounded-md bg-blue-500/20 text-blue-400 text-[9px] font-medium">🇺🇸 USA</span>
                                                 <span className="px-2 py-0.5 rounded-md bg-green-500/20 text-green-400 text-[9px] font-medium">WhatsApp</span>
-                                                <span className="px-2 py-0.5 rounded-md bg-orange-500/20 text-orange-400 text-[9px] font-medium">15m left</span>
+                                                <span className="px-2 py-0.5 rounded-md bg-orange-500/20 text-orange-400 text-[9px] font-medium">15m {t('timeLeft')}</span>
                                             </div>
                                         </div>
 
@@ -480,13 +482,13 @@ export default function Hero() {
                                                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                                 </svg>
-                                                Refresh
+                                                {t('refresh')}
                                             </button>
                                             <button className="flex-1 h-9 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center gap-1.5 text-white text-[10px] font-medium hover:bg-white/10 transition-colors">
                                                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                                 </svg>
-                                                History
+                                                {t('history')}
                                             </button>
                                         </div>
 
@@ -498,7 +500,7 @@ export default function Hero() {
                                                 className="h-11 w-full bg-gradient-to-r from-[hsl(var(--neon-lime))] to-[hsl(72,90%,55%)] rounded-xl flex items-center justify-center text-black font-bold text-xs shadow-lg shadow-[hsl(var(--neon-lime)/0.3)] cursor-pointer"
                                             >
                                                 <Zap className="w-3.5 h-3.5 mr-1.5" />
-                                                Get New Number
+                                                {t('getNewNumber')}
                                             </motion.div>
                                         </div>
 
@@ -534,7 +536,7 @@ export default function Hero() {
                                     size="lg"
                                     className="w-full h-12 text-xs font-bold bg-[hsl(var(--neon-lime))] text-black hover:bg-[hsl(var(--neon-lime-soft))] neon-glow transition-all duration-300 shadow-xl shadow-[hsl(var(--neon-lime)/0.25)]"
                                 >
-                                    Get Started Free
+                                    {t('cta')}
                                 </Button>
                             </Link>
                             <Link href="/watch-demo" className="w-full">
@@ -543,7 +545,7 @@ export default function Hero() {
                                     size="lg"
                                     className="w-full h-12 text-xs font-semibold border-white/20 text-white hover:bg-white/5 hover:border-white/30"
                                 >
-                                    Watch Demo
+                                    {t('watchDemo')}
                                 </Button>
                             </Link>
                         </div>
@@ -554,19 +556,19 @@ export default function Hero() {
                                 <div className="w-4 h-4 rounded-full bg-[hsl(var(--neon-lime)/0.15)] flex items-center justify-center">
                                     <CheckCircle2 className="h-2.5 w-2.5 text-[hsl(var(--neon-lime))]" />
                                 </div>
-                                <span>Instant Activation</span>
+                                <span>{t('instantActivation')}</span>
                             </div>
                             <div className="flex items-center gap-1.5 text-gray-400">
                                 <div className="w-4 h-4 rounded-full bg-[hsl(var(--neon-lime)/0.15)] flex items-center justify-center">
                                     <CheckCircle2 className="h-2.5 w-2.5 text-[hsl(var(--neon-lime))]" />
                                 </div>
-                                <span>Crypto Accepted</span>
+                                <span>{t('cryptoAccepted')}</span>
                             </div>
                             <div className="flex items-center gap-1.5 text-gray-400">
                                 <div className="w-4 h-4 rounded-full bg-[hsl(var(--neon-lime)/0.15)] flex items-center justify-center">
                                     <CheckCircle2 className="h-2.5 w-2.5 text-[hsl(var(--neon-lime))]" />
                                 </div>
-                                <span>50+ Countries</span>
+                                <span>{t('countries')}</span>
                             </div>
                         </div>
                     </motion.div>

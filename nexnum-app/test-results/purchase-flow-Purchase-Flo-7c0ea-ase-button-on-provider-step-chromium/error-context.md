@@ -1,0 +1,403 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - navigation [ref=e3]:
+      - generic [ref=e5]:
+        - link "NexNum Logo NexNum Virtual Numbers" [ref=e6] [cursor=pointer]:
+          - /url: /
+          - img "NexNum Logo" [ref=e9]
+          - generic [ref=e11]:
+            - generic [ref=e12]: NexNum
+            - generic [ref=e13]: Virtual Numbers
+        - generic [ref=e15]:
+          - link "Overview" [ref=e16] [cursor=pointer]:
+            - /url: /dashboard
+          - link "My Numbers" [ref=e17] [cursor=pointer]:
+            - /url: /dashboard/vault
+          - link "Wallet" [ref=e18] [cursor=pointer]:
+            - /url: /dashboard/wallet
+          - link "Developers" [ref=e19] [cursor=pointer]:
+            - /url: /api-docs
+            - text: Developers
+            - img [ref=e20]
+        - generic [ref=e22]:
+          - link "$20.00" [ref=e23] [cursor=pointer]:
+            - /url: /dashboard/wallet
+            - button "$20.00" [ref=e24]:
+              - img [ref=e25]
+              - generic [ref=e28]: $20.00
+          - button [ref=e30] [cursor=pointer]:
+            - img [ref=e31]
+          - button "Harsh" [ref=e34] [cursor=pointer]:
+            - generic [ref=e35]: Harsh
+            - img [ref=e36]
+    - generic [ref=e40]:
+      - complementary [ref=e41]:
+        - navigation [ref=e42]:
+          - generic [ref=e43]:
+            - link [ref=e45] [cursor=pointer]:
+              - /url: /dashboard
+              - img [ref=e47]
+            - link [ref=e53] [cursor=pointer]:
+              - /url: /dashboard/vault
+              - img [ref=e55]
+            - link [ref=e59] [cursor=pointer]:
+              - /url: /dashboard/history
+              - img [ref=e61]
+            - link [ref=e66] [cursor=pointer]:
+              - /url: /dashboard/wallet
+              - img [ref=e68]
+            - link [ref=e71] [cursor=pointer]:
+              - /url: /admin
+              - img [ref=e74]
+            - button [ref=e78] [cursor=pointer]:
+              - img [ref=e79]
+          - img [ref=e83] [cursor=pointer]
+        - button "Toggle theme" [ref=e88] [cursor=pointer]:
+          - img [ref=e90]
+      - main [ref=e92]:
+        - generic [ref=e94]:
+          - generic [ref=e95]:
+            - generic [ref=e96]:
+              - generic [ref=e97]:
+                - button [ref=e98] [cursor=pointer]:
+                  - img [ref=e99]
+                - heading "2 Select Country" [level=2] [ref=e101]:
+                  - generic [ref=e102]: "2"
+                  - text: Select Country
+              - generic [ref=e103]:
+                - generic [ref=e104]:
+                  - generic [ref=e105]: Service
+                  - generic [ref=e106]: /
+                  - generic [ref=e107]: Country
+                  - generic [ref=e108]: /
+                  - generic [ref=e109]: Details
+                - img "Service" [ref=e111]
+            - generic [ref=e112]:
+              - generic:
+                - img
+              - textbox "Search..." [ref=e113]
+              - button [ref=e115] [cursor=pointer]:
+                - img [ref=e116]
+          - generic [ref=e121]:
+            - heading "Select Country" [level=3] [ref=e123]: Select Country
+            - generic [ref=e126]:
+              - button "Select Iraq, price from $0.56" [ref=e127] [cursor=pointer]:
+                - img "Iraq" [ref=e130]
+                - generic [ref=e131]:
+                  - generic [ref=e132]:
+                    - heading "Iraq" [level=4] [ref=e133]
+                    - button "Pin sort to top" [ref=e134]:
+                      - img [ref=e135]
+                  - generic [ref=e138]:
+                    - img [ref=e139]
+                    - generic [ref=e143]: 1.2K
+                - generic [ref=e144]:
+                  - generic [ref=e145]: From
+                  - generic [ref=e146]: $0.56
+              - button "Select China, price from $0.57" [ref=e147] [cursor=pointer]:
+                - img "China" [ref=e150]
+                - generic [ref=e151]:
+                  - generic [ref=e152]:
+                    - heading "China" [level=4] [ref=e153]
+                    - button "Pin sort to top" [ref=e154]:
+                      - img [ref=e155]
+                  - generic [ref=e158]:
+                    - img [ref=e159]
+                    - generic [ref=e163]: 11.9K
+                - generic [ref=e164]:
+                  - generic [ref=e165]: From
+                  - generic [ref=e166]: $0.57
+              - button "Select Australia, price from $0.58" [ref=e167] [cursor=pointer]:
+                - img "Australia" [ref=e170]
+                - generic [ref=e171]:
+                  - generic [ref=e172]:
+                    - heading "Australia" [level=4] [ref=e173]
+                    - button "Pin sort to top" [ref=e174]:
+                      - img [ref=e175]
+                  - generic [ref=e178]:
+                    - img [ref=e179]
+                    - generic [ref=e183]: 18.7K
+                - generic [ref=e184]:
+                  - generic [ref=e185]: From
+                  - generic [ref=e186]: $0.58
+              - button "Select Argentina, price from $0.60" [ref=e187] [cursor=pointer]:
+                - img "Argentina" [ref=e190]
+                - generic [ref=e191]:
+                  - generic [ref=e192]:
+                    - heading "Argentina" [level=4] [ref=e193]
+                    - button "Pin sort to top" [ref=e194]:
+                      - img [ref=e195]
+                  - generic [ref=e198]:
+                    - img [ref=e199]
+                    - generic [ref=e203]: 1.5K
+                - generic [ref=e204]:
+                  - generic [ref=e205]: From
+                  - generic [ref=e206]: $0.60
+              - button "Select Brazil, price from $0.61" [ref=e207] [cursor=pointer]:
+                - img "Brazil" [ref=e210]
+                - generic [ref=e211]:
+                  - generic [ref=e212]:
+                    - heading "Brazil" [level=4] [ref=e213]
+                    - button "Pin sort to top" [ref=e214]:
+                      - img [ref=e215]
+                  - generic [ref=e218]:
+                    - img [ref=e219]
+                    - generic [ref=e223]: 481.9K
+                - generic [ref=e224]:
+                  - generic [ref=e225]: From
+                  - generic [ref=e226]: $0.61
+              - button "Select Hungary, price from $0.61" [ref=e227] [cursor=pointer]:
+                - img "Hungary" [ref=e230]
+                - generic [ref=e231]:
+                  - generic [ref=e232]:
+                    - heading "Hungary" [level=4] [ref=e233]
+                    - button "Pin sort to top" [ref=e234]:
+                      - img [ref=e235]
+                  - generic [ref=e238]:
+                    - img [ref=e239]
+                    - generic [ref=e243]: 70.1K
+                - generic [ref=e244]:
+                  - generic [ref=e245]: From
+                  - generic [ref=e246]: $0.61
+              - button "Select India, price from $0.61" [ref=e247] [cursor=pointer]:
+                - img "India" [ref=e250]
+                - generic [ref=e251]:
+                  - generic [ref=e252]:
+                    - heading "India" [level=4] [ref=e253]
+                    - button "Pin sort to top" [ref=e254]:
+                      - img [ref=e255]
+                  - generic [ref=e258]:
+                    - img [ref=e259]
+                    - generic [ref=e263]: 60.2K
+                - generic [ref=e264]:
+                  - generic [ref=e265]: From
+                  - generic [ref=e266]: $0.61
+              - button "Select Bolivia, price from $0.61" [ref=e267] [cursor=pointer]:
+                - img "Bolivia" [ref=e270]
+                - generic [ref=e271]:
+                  - generic [ref=e272]:
+                    - heading "Bolivia" [level=4] [ref=e273]
+                    - button "Pin sort to top" [ref=e274]:
+                      - img [ref=e275]
+                  - generic [ref=e278]:
+                    - img [ref=e279]
+                    - generic [ref=e283]: 30.2K
+                - generic [ref=e284]:
+                  - generic [ref=e285]: From
+                  - generic [ref=e286]: $0.61
+              - button "Select Barbados, price from $0.61" [ref=e287] [cursor=pointer]:
+                - img "Barbados" [ref=e290]
+                - generic [ref=e291]:
+                  - generic [ref=e292]:
+                    - heading "Barbados" [level=4] [ref=e293]
+                    - button "Pin sort to top" [ref=e294]:
+                      - img [ref=e295]
+                  - generic [ref=e298]:
+                    - img [ref=e299]
+                    - generic [ref=e303]: 9.1K
+                - generic [ref=e304]:
+                  - generic [ref=e305]: From
+                  - generic [ref=e306]: $0.61
+              - button "Select New Zealand, price from $0.61" [ref=e307] [cursor=pointer]:
+                - img "New Zealand" [ref=e310]
+                - generic [ref=e311]:
+                  - generic [ref=e312]:
+                    - heading "New Zealand" [level=4] [ref=e313]
+                    - button "Pin sort to top" [ref=e314]:
+                      - img [ref=e315]
+                  - generic [ref=e318]:
+                    - img [ref=e319]
+                    - generic [ref=e323]: 5.4K
+                - generic [ref=e324]:
+                  - generic [ref=e325]: From
+                  - generic [ref=e326]: $0.61
+              - button "Select Angola, price from $0.61" [ref=e327] [cursor=pointer]:
+                - img "Angola" [ref=e330]
+                - generic [ref=e331]:
+                  - generic [ref=e332]:
+                    - heading "Angola" [level=4] [ref=e333]
+                    - button "Pin sort to top" [ref=e334]:
+                      - img [ref=e335]
+                  - generic [ref=e338]:
+                    - img [ref=e339]
+                    - generic [ref=e343]: 1.4K
+                - generic [ref=e344]:
+                  - generic [ref=e345]: From
+                  - generic [ref=e346]: $0.61
+              - button "Select Albania, price from $0.61" [ref=e347] [cursor=pointer]:
+                - img "Albania" [ref=e350]
+                - generic [ref=e351]:
+                  - generic [ref=e352]:
+                    - heading "Albania" [level=4] [ref=e353]
+                    - button "Pin sort to top" [ref=e354]:
+                      - img [ref=e355]
+                  - generic [ref=e358]:
+                    - img [ref=e359]
+                    - generic [ref=e363]: 1.2K
+                - generic [ref=e364]:
+                  - generic [ref=e365]: From
+                  - generic [ref=e366]: $0.61
+              - button "Select Anguilla, price from $0.61" [ref=e367] [cursor=pointer]:
+                - img "Anguilla" [ref=e370]
+                - generic [ref=e371]:
+                  - generic [ref=e372]:
+                    - heading "Anguilla" [level=4] [ref=e373]
+                    - button "Pin sort to top" [ref=e374]:
+                      - img [ref=e375]
+                  - generic [ref=e378]:
+                    - img [ref=e379]
+                    - generic [ref=e383]: 1.1K
+                - generic [ref=e384]:
+                  - generic [ref=e385]: From
+                  - generic [ref=e386]: $0.61
+              - button "Select Botswana, price from $0.61" [ref=e387] [cursor=pointer]:
+                - img "Botswana" [ref=e390]
+                - generic [ref=e391]:
+                  - generic [ref=e392]:
+                    - heading "Botswana" [level=4] [ref=e393]
+                    - button "Pin sort to top" [ref=e394]:
+                      - img [ref=e395]
+                  - generic [ref=e398]:
+                    - img [ref=e399]
+                    - generic [ref=e403]: 1.1K
+                - generic [ref=e404]:
+                  - generic [ref=e405]: From
+                  - generic [ref=e406]: $0.61
+              - button "Select Bahamas, price from $0.61" [ref=e407] [cursor=pointer]:
+                - img "Bahamas" [ref=e410]
+                - generic [ref=e411]:
+                  - generic [ref=e412]:
+                    - heading "Bahamas" [level=4] [ref=e413]
+                    - button "Pin sort to top" [ref=e414]:
+                      - img [ref=e415]
+                  - generic [ref=e418]:
+                    - img [ref=e419]
+                    - generic [ref=e423]: 1.1K
+                - generic [ref=e424]:
+                  - generic [ref=e425]: From
+                  - generic [ref=e426]: $0.61
+              - button "Select Aruba, price from $0.61" [ref=e427] [cursor=pointer]:
+                - img "Aruba" [ref=e430]
+                - generic [ref=e431]:
+                  - generic [ref=e432]:
+                    - heading "Aruba" [level=4] [ref=e433]
+                    - button "Pin sort to top" [ref=e434]:
+                      - img [ref=e435]
+                  - generic [ref=e438]:
+                    - img [ref=e439]
+                    - generic [ref=e443]: 1.1K
+                - generic [ref=e444]:
+                  - generic [ref=e445]: From
+                  - generic [ref=e446]: $0.61
+              - button "Select Somalia, price from $0.61" [ref=e447] [cursor=pointer]:
+                - img "Somalia" [ref=e450]
+                - generic [ref=e451]:
+                  - generic [ref=e452]:
+                    - heading "Somalia" [level=4] [ref=e453]
+                    - button "Pin sort to top" [ref=e454]:
+                      - img [ref=e455]
+                  - generic [ref=e458]:
+                    - img [ref=e459]
+                    - generic [ref=e463]: 1.1K
+                - generic [ref=e464]:
+                  - generic [ref=e465]: From
+                  - generic [ref=e466]: $0.61
+              - button "Select Serbia, price from $0.61" [ref=e467] [cursor=pointer]:
+                - img "Serbia" [ref=e470]
+                - generic [ref=e471]:
+                  - generic [ref=e472]:
+                    - heading "Serbia" [level=4] [ref=e473]
+                    - button "Pin sort to top" [ref=e474]:
+                      - img [ref=e475]
+                  - generic [ref=e478]:
+                    - img [ref=e479]
+                    - generic [ref=e483]: 1.1K
+                - generic [ref=e484]:
+                  - generic [ref=e485]: From
+                  - generic [ref=e486]: $0.61
+              - button "Select Chad, price from $0.61" [ref=e487] [cursor=pointer]:
+                - img "Chad" [ref=e490]
+                - generic [ref=e491]:
+                  - generic [ref=e492]:
+                    - heading "Chad" [level=4] [ref=e493]
+                    - button "Pin sort to top" [ref=e494]:
+                      - img [ref=e495]
+                  - generic [ref=e498]:
+                    - img [ref=e499]
+                    - generic [ref=e503]: 1.0K
+                - generic [ref=e504]:
+                  - generic [ref=e505]: From
+                  - generic [ref=e506]: $0.61
+              - button "Select Brunei Darussalam, price from $0.61" [ref=e507] [cursor=pointer]:
+                - img "Brunei Darussalam" [ref=e510]
+                - generic [ref=e511]:
+                  - generic [ref=e512]:
+                    - heading "Brunei Darussalam" [level=4] [ref=e513]
+                    - button "Pin sort to top" [ref=e514]:
+                      - img [ref=e515]
+                  - generic [ref=e518]:
+                    - img [ref=e519]
+                    - generic [ref=e523]: 1.0K
+                - generic [ref=e524]:
+                  - generic [ref=e525]: From
+                  - generic [ref=e526]: $0.61
+              - button "Select Montserrat, price from $0.61" [ref=e527] [cursor=pointer]:
+                - img "Montserrat" [ref=e530]
+                - generic [ref=e531]:
+                  - generic [ref=e532]:
+                    - heading "Montserrat" [level=4] [ref=e533]
+                    - button "Pin sort to top" [ref=e534]:
+                      - img [ref=e535]
+                  - generic [ref=e538]:
+                    - img [ref=e539]
+                    - generic [ref=e543]: "996"
+                - generic [ref=e544]:
+                  - generic [ref=e545]: From
+                  - generic [ref=e546]: $0.61
+              - button "Select Hong Kong, price from $0.63" [ref=e547] [cursor=pointer]:
+                - img "Hong Kong" [ref=e550]
+                - generic [ref=e551]:
+                  - generic [ref=e552]:
+                    - heading "Hong Kong" [level=4] [ref=e553]
+                    - button "Pin sort to top" [ref=e554]:
+                      - img [ref=e555]
+                  - generic [ref=e558]:
+                    - img [ref=e559]
+                    - generic [ref=e563]: 30.6K
+                - generic [ref=e564]:
+                  - generic [ref=e565]: From
+                  - generic [ref=e566]: $0.63
+              - button "Select Netherlands, price from $0.63" [ref=e567] [cursor=pointer]:
+                - img "Netherlands" [ref=e570]
+                - generic [ref=e571]:
+                  - generic [ref=e572]:
+                    - heading "Netherlands" [level=4] [ref=e573]
+                    - button "Pin sort to top" [ref=e574]:
+                      - img [ref=e575]
+                  - generic [ref=e578]:
+                    - img [ref=e579]
+                    - generic [ref=e583]: 27.9K
+                - generic [ref=e584]:
+                  - generic [ref=e585]: From
+                  - generic [ref=e586]: $0.63
+              - button "Select United States, price from $0.63" [ref=e587] [cursor=pointer]:
+                - img "United States" [ref=e590]
+                - generic [ref=e591]:
+                  - generic [ref=e592]:
+                    - heading "United States" [level=4] [ref=e593]
+                    - button "Pin sort to top" [ref=e594]:
+                      - img [ref=e595]
+                  - generic [ref=e598]:
+                    - img [ref=e599]
+                    - generic [ref=e603]: 15.3K
+                - generic [ref=e604]:
+                  - generic [ref=e605]: From
+                  - generic [ref=e606]: $0.63
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=e613] [cursor=pointer]:
+    - img [ref=e614]
+  - alert [ref=e617]
+```

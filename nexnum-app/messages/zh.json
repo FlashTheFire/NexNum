@@ -1,0 +1,157 @@
+{
+    "common": {
+        "login": "登录",
+        "signup": "注册",
+        "buy": "购买号码",
+        "dashboard": "仪表板",
+        "logout": "登出",
+        "learnMore": "了解更多",
+        "getStarted": "开始使用",
+        "contactSales": "联系销售",
+        "allRightsReserved": "版权所有。",
+        "privacyPolicy": "隐私政策",
+        "termsOfService": "服务条款"
+    },
+    "nav": {
+        "features": "功能特点",
+        "howItWorks": "使用说明",
+        "faq": "常见问题",
+        "developers": "开发者",
+        "virtualNumbers": "虚拟号码"
+    },
+    "hero": {
+        "badge": "全球超过10,000+用户信赖",
+        "title1": "安全短信",
+        "title2": "验证",
+        "subtitle": "即时获取虚拟电话号码，实现无缝账户验证。",
+        "subtitleHighlight": "隐私优先",
+        "subtitleEnd": "，安全可靠，闪电般快速。",
+        "cta": "免费开始",
+        "watchDemo": "观看演示",
+        "instantActivation": "即时激活",
+        "countries": "50+国家",
+        "cryptoAccepted": "接受加密货币",
+        "appName": "NexNum",
+        "appTagline": "虚拟号码专业版",
+        "verificationCode": "验证码",
+        "now": "现在",
+        "yourCode": "您的验证码：",
+        "availableBalance": "可用余额",
+        "synced": "已同步",
+        "verifications": "次验证",
+        "addFunds": "+ 充值",
+        "activeNumber": "当前号码",
+        "live": "在线",
+        "refresh": "刷新",
+        "history": "历史",
+        "getNewNumber": "获取新号码",
+        "timeLeft": "剩余"
+    },
+    "features": {
+        "title": "功能特点",
+        "heading": "您所需的一切",
+        "description": "专为注重隐私的用户和需要可靠短信验证服务的开发者打造。",
+        "instantActivation": {
+            "title": "即时激活",
+            "description": "购买后立即获取虚拟号码。无需等待，无需手动验证。"
+        },
+        "globalCoverage": {
+            "title": "全球覆盖",
+            "description": "访问来自50多个国家的号码，包括美国、英国、加拿大和主要欧洲国家。"
+        },
+        "privateSecure": {
+            "title": "私密安全",
+            "description": "您的个人信息永远不会与这些号码关联。为您的在线活动提供完全匿名。"
+        },
+        "flexiblePayment": {
+            "title": "灵活支付",
+            "description": "使用信用卡或加密货币支付。我们支持主流加密货币，确保最大隐私。"
+        },
+        "developerAPI": {
+            "title": "开发者API",
+            "description": "通过我们强大的API将短信验证服务直接集成到您的应用程序中。"
+        },
+        "smsHistory": {
+            "title": "短信历史",
+            "description": "在仪表板中追踪所有收到的消息。消息安全存储供您查阅。"
+        }
+    },
+    "faq": {
+        "title": "常见问题",
+        "subtitle": "有问题？我们随时为您解答。",
+        "q1": {
+            "question": "这些号码适用于所有服务吗？",
+            "answer": "我们的号码是基于真实SIM卡的号码，这意味着它们几乎适用于所有主要服务，包括WhatsApp、Telegram、Google、Facebook等。但是，某些服务可能有特定限制。"
+        },
+        "q2": {
+            "question": "我可以保留号码多长时间？",
+            "answer": "您可以在选定的租用期内保留号码。我们提供从15分钟到30天的选项，根据您的需求而定。"
+        },
+        "q3": {
+            "question": "我的支付信息安全吗？",
+            "answer": "绝对安全！我们使用行业标准加密，从不存储您的完整支付信息。我们还支持加密货币支付，以确保最大隐私。"
+        },
+        "q4": {
+            "question": "我可以接听电话吗？",
+            "answer": "目前，我们的服务仅针对短信验证进行了优化。暂不支持语音通话。"
+        },
+        "q5": {
+            "question": "你们提供退款吗？",
+            "answer": "是的，如果您在租用期内未收到任何短信，我们提供退款。请联系支持并提供您的订单详情。"
+        }
+    },
+    "cta": {
+        "title": "准备好保护您的隐私了吗？",
+        "description": "加入数千名信任NexNum满足其验证需求的用户。在30秒内获取您的第一个号码。",
+        "button": "立即开始"
+    },
+    "footer": {
+        "tagline": "即时激活的优质虚拟电话号码。安全、私密、全球通用。",
+        "product": {
+            "title": "产品",
+            "features": "功能",
+            "api": "API",
+            "coverage": "覆盖范围"
+        },
+        "company": {
+            "title": "公司",
+            "about": "关于我们",
+            "blog": "博客",
+            "careers": "招聘",
+            "legal": "法律信息"
+        },
+        "connect": {
+            "title": "联系我们",
+            "twitter": "Twitter",
+            "github": "GitHub",
+            "discord": "Discord",
+            "contactUs": "联系我们"
+        }
+    },
+    "auth": {
+        "welcomeBack": "欢迎回来",
+        "signinText": "登录以管理您的虚拟号码",
+        "email": "电子邮件地址",
+        "password": "密码",
+        "forgotPassword": "忘记密码？",
+        "signinBtn": "登录",
+        "or": "或继续使用",
+        "noAccount": "没有账户？",
+        "createAccount": "创建免费账户"
+    },
+    "dashboard": {
+        "nav": {
+            "overview": "仪表板",
+            "vault": "号码库",
+            "history": "历史记录",
+            "wallet": "钱包",
+            "settings": "设置",
+            "help": "帮助",
+            "admin": "管理面板",
+            "logout": "登出",
+            "theme": "主题",
+            "collapse": "收起"
+        },
+        "loading": "正在准备仪表板"
+    }
+}

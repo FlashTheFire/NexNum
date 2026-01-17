@@ -3,6 +3,7 @@
 import { Globe, Shield, Zap, CreditCard, Code, History, LucideIcon } from "lucide-react";
 import { motion } from "framer-motion";
 import { useState, useRef, useEffect } from "react";
+import { useTranslations } from "next-intl";
 
 interface FeatureCardProps {
     icon: LucideIcon;
@@ -11,9 +12,10 @@ interface FeatureCardProps {
     index: number;
     accentColor?: string;
     isActive?: boolean;
+    learnMore: string;
 }
 
-function FeatureCard({ icon: Icon, title, description, index, accentColor = "hsl(var(--neon-lime))", isActive = false }: FeatureCardProps) {
+function FeatureCard({ icon: Icon, title, description, index, accentColor = "hsl(var(--neon-lime))", isActive = false, learnMore }: FeatureCardProps) {
     return (
         <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -90,7 +92,7 @@ function FeatureCard({ icon: Icon, title, description, index, accentColor = "hsl
                 {/* Optional micro-CTA */}
                 <div className={`mt-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300 ${isActive ? 'opacity-100' : ''}`}>
                     <span className="text-xs font-medium text-[hsl(var(--neon-lime))] flex items-center gap-1 cursor-pointer hover:gap-2 transition-all">
-                        Learn more
+                        {learnMore}
                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                         </svg>
@@ -101,42 +103,14 @@ function FeatureCard({ icon: Icon, title, description, index, accentColor = "hsl
     );
 }
 
-const features = [
-    {
-        icon: Zap,
-        title: "Instant Activation",
-        description: "Get your virtual number immediately after purchase. No waiting times, no manual verification needed."
-    },
-    {
-        icon: Globe,
-        title: "Global Coverage",
-        description: "Access numbers from over 50 countries including US, UK, Canada, and major European nations."
-    },
-    {
-        icon: Shield,
-        title: "Private & Secure",
-        description: "Your personal information is never linked to these numbers. Complete anonymity for your online activities."
-    },
-    {
-        icon: CreditCard,
-        title: "Flexible Payment",
-        description: "Pay with Credit Cards or Crypto. We support major cryptocurrencies for maximum privacy."
-    },
-    {
-        icon: Code,
-        title: "Developer API",
-        description: "Integrate our SMS verification service directly into your applications with our robust API."
-    },
-    {
-        icon: History,
-        title: "SMS History",
-        description: "Keep track of all received messages in your dashboard. Messages are stored securely for your review."
-    }
-];
+const featureKeys = ['instantActivation', 'globalCoverage', 'privateSecure', 'flexiblePayment', 'developerAPI', 'smsHistory'] as const;
+const featureIcons = [Zap, Globe, Shield, CreditCard, Code, History];
 
 export default function Features() {
     const [activeIndex, setActiveIndex] = useState(0);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
+    const t = useTranslations('features');
+    const tc = useTranslations('common');
 
     const handleScroll = () => {
         if (scrollContainerRef.current) {
@@ -150,7 +124,7 @@ export default function Features() {
             // Calculate which card is most centered
             const centerOffset = scrollLeft + (containerWidth / 2) - paddingOffset;
             const index = Math.floor(centerOffset / cardStride);
-            const safeIndex = Math.min(Math.max(index, 0), features.length - 1);
+            const safeIndex = Math.min(Math.max(index, 0), featureKeys.length - 1);
             if (safeIndex !== activeIndex) {
                 setActiveIndex(safeIndex);
             }
@@ -336,15 +310,15 @@ export default function Features() {
                         className="inline-flex items-center px-3 py-1.5 rounded-full border border-[hsl(var(--neon-lime)/0.3)] bg-[hsl(var(--neon-lime)/0.05)] mb-6"
                     >
                         <span className="text-xs font-medium text-[hsl(var(--neon-lime))] uppercase tracking-wider">
-                            Features
+                            {t('title')}
                         </span>
                     </motion.div>
 
                     <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-4 tracking-tight">
-                        Everything you need
+                        {t('heading')}
                     </h2>
                     <p className="text-base lg:text-lg text-gray-400 leading-relaxed">
-                        Built for privacy-conscious users and developers who need reliable SMS verification services.
+                        {t('description')}
                     </p>
                 </motion.div>
 
@@ -357,7 +331,7 @@ export default function Features() {
                         onScroll={handleScroll}
                         className="flex overflow-x-auto pb-12 -mx-4 px-4 snap-x snap-mandatory scrollbar-hide lg:grid lg:grid-cols-3 lg:gap-6 lg:overflow-visible lg:pb-0 lg:mx-0 lg:px-0 relative z-10 no-scrollbar"
                     >
-                        {features.map((feature, index) => (
+                        {featureKeys.map((key, index) => (
                             <div key={index} className="relative flex-shrink-0 w-[280px] sm:w-[320px] snap-center mr-4 lg:mr-0 lg:w-full h-full flex flex-col">
                                 {/* Horizontal connector to next card (for cards 0, 1, 3, 4 on desktop) */}
                                 {(index === 0 || index === 1 || index === 3 || index === 4) && (
@@ -390,17 +364,18 @@ export default function Features() {
                                 )}
 
                                 {/* Mobile-only connector lines between cards - Hide on last card */}
-                                {index < features.length - 1 && (
+                                {index < featureKeys.length - 1 && (
                                     <div className="absolute top-1/2 -right-4 w-4 h-[2px] bg-white/10 lg:hidden" />
                                 )}
 
                                 <div className="h-[280px]">
                                     <FeatureCard
-                                        icon={feature.icon}
-                                        title={feature.title}
-                                        description={feature.description}
+                                        icon={featureIcons[index]}
+                                        title={t(`${key}.title`)}
+                                        description={t(`${key}.description`)}
                                         index={index}
                                         isActive={index === activeIndex}
+                                        learnMore={tc('learnMore')}
                                     />
                                 </div>
                             </div>
@@ -426,7 +401,7 @@ export default function Features() {
                         )}
 
                         <div className="flex justify-center gap-1.5">
-                            {features.map((_, i) => (
+                            {featureKeys.map((_, i) => (
                                 <button
                                     key={i}
                                     onClick={() => scrollToSlide(i)}

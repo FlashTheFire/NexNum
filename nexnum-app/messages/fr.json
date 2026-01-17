@@ -1,0 +1,157 @@
+{
+    "common": {
+        "login": "Se Connecter",
+        "signup": "S'inscrire",
+        "buy": "Acheter un Numéro",
+        "dashboard": "Tableau de Bord",
+        "logout": "Se Déconnecter",
+        "learnMore": "En savoir plus",
+        "getStarted": "Commencer",
+        "contactSales": "Contacter les Ventes",
+        "allRightsReserved": "Tous droits réservés.",
+        "privacyPolicy": "Politique de Confidentialité",
+        "termsOfService": "Conditions d'Utilisation"
+    },
+    "nav": {
+        "features": "Fonctionnalités",
+        "howItWorks": "Comment ça marche",
+        "faq": "FAQ",
+        "developers": "Développeurs",
+        "virtualNumbers": "Numéros Virtuels"
+    },
+    "hero": {
+        "badge": "Plus de 10 000+ utilisateurs nous font confiance",
+        "title1": "SMS Sécurisé",
+        "title2": "Vérification",
+        "subtitle": "Accédez instantanément aux numéros de téléphone virtuels pour une vérification de compte transparente.",
+        "subtitleHighlight": "Confidentialité d'abord",
+        "subtitleEnd": ", sécurisé et ultra-rapide.",
+        "cta": "Commencer Gratuitement",
+        "watchDemo": "Voir la Démo",
+        "instantActivation": "Activation Instantanée",
+        "countries": "50+ Pays",
+        "cryptoAccepted": "Crypto Acceptée",
+        "appName": "NexNum",
+        "appTagline": "Numéros Virtuels Pro",
+        "verificationCode": "Code de Vérification",
+        "now": "maintenant",
+        "yourCode": "Votre code :",
+        "availableBalance": "Solde Disponible",
+        "synced": "Synchronisé",
+        "verifications": "vérifications",
+        "addFunds": "+ Ajouter des fonds",
+        "activeNumber": "Numéro Actif",
+        "live": "En ligne",
+        "refresh": "Actualiser",
+        "history": "Historique",
+        "getNewNumber": "Obtenir un Nouveau Numéro",
+        "timeLeft": "restant"
+    },
+    "features": {
+        "title": "Fonctionnalités",
+        "heading": "Tout ce dont vous avez besoin",
+        "description": "Conçu pour les utilisateurs soucieux de leur vie privée et les développeurs qui ont besoin de services de vérification SMS fiables.",
+        "instantActivation": {
+            "title": "Activation Instantanée",
+            "description": "Obtenez votre numéro virtuel immédiatement après l'achat. Pas de temps d'attente, pas de vérification manuelle."
+        },
+        "globalCoverage": {
+            "title": "Couverture Mondiale",
+            "description": "Accédez à des numéros de plus de 50 pays, dont les États-Unis, le Royaume-Uni, le Canada et les principales nations européennes."
+        },
+        "privateSecure": {
+            "title": "Privé et Sécurisé",
+            "description": "Vos informations personnelles ne sont jamais liées à ces numéros. Anonymat complet pour vos activités en ligne."
+        },
+        "flexiblePayment": {
+            "title": "Paiement Flexible",
+            "description": "Payez par Carte de Crédit ou Crypto. Nous acceptons les principales cryptomonnaies pour une confidentialité maximale."
+        },
+        "developerAPI": {
+            "title": "API Développeur",
+            "description": "Intégrez notre service de vérification SMS directement dans vos applications avec notre API robuste."
+        },
+        "smsHistory": {
+            "title": "Historique SMS",
+            "description": "Suivez tous les messages reçus dans votre tableau de bord. Les messages sont stockés en toute sécurité pour votre consultation."
+        }
+    },
+    "faq": {
+        "title": "Questions Fréquentes",
+        "subtitle": "Des questions ? Nous sommes là pour vous aider.",
+        "q1": {
+            "question": "Ces numéros fonctionnent-ils pour tous les services ?",
+            "answer": "Nos numéros sont de vrais numéros basés sur des cartes SIM, ce qui signifie qu'ils fonctionnent avec presque tous les services majeurs, y compris WhatsApp, Telegram, Google, Facebook et plus. Cependant, certains services peuvent avoir des restrictions spécifiques."
+        },
+        "q2": {
+            "question": "Combien de temps puis-je garder le numéro ?",
+            "answer": "Vous gardez le numéro pendant la durée de location sélectionnée. Nous offrons des options allant de 15 minutes à 30 jours selon vos besoins."
+        },
+        "q3": {
+            "question": "Mes informations de paiement sont-elles sécurisées ?",
+            "answer": "Absolument ! Nous utilisons un cryptage standard de l'industrie et ne stockons jamais vos informations de paiement complètes. Nous acceptons également les paiements en cryptomonnaie pour une confidentialité maximale."
+        },
+        "q4": {
+            "question": "Puis-je recevoir des appels ?",
+            "answer": "Actuellement, notre service est optimisé uniquement pour la vérification SMS. Les appels vocaux ne sont pas pris en charge pour le moment."
+        },
+        "q5": {
+            "question": "Proposez-vous des remboursements ?",
+            "answer": "Oui, nous offrons des remboursements si vous ne recevez aucun SMS pendant la période de location. Veuillez contacter le support avec les détails de votre commande."
+        }
+    },
+    "cta": {
+        "title": "Prêt à protéger votre vie privée ?",
+        "description": "Rejoignez des milliers d'utilisateurs qui font confiance à NexNum pour leurs besoins de vérification. Obtenez votre premier numéro en moins de 30 secondes.",
+        "button": "Commencer Maintenant"
+    },
+    "footer": {
+        "tagline": "Numéros de téléphone virtuels premium pour activation instantanée. Sécurisé, privé et mondial.",
+        "product": {
+            "title": "Produit",
+            "features": "Fonctionnalités",
+            "api": "API",
+            "coverage": "Couverture"
+        },
+        "company": {
+            "title": "Entreprise",
+            "about": "À Propos",
+            "blog": "Blog",
+            "careers": "Carrières",
+            "legal": "Mentions Légales"
+        },
+        "connect": {
+            "title": "Nous Contacter",
+            "twitter": "Twitter",
+            "github": "GitHub",
+            "discord": "Discord",
+            "contactUs": "Contactez-nous"
+        }
+    },
+    "auth": {
+        "welcomeBack": "Bon Retour",
+        "signinText": "Connectez-vous pour gérer vos numéros virtuels",
+        "email": "Adresse e-mail",
+        "password": "Mot de passe",
+        "forgotPassword": "Mot de passe oublié ?",
+        "signinBtn": "Se Connecter",
+        "or": "ou continuer avec",
+        "noAccount": "Vous n'avez pas de compte ?",
+        "createAccount": "Créer un compte gratuit"
+    },
+    "dashboard": {
+        "nav": {
+            "overview": "Aperçu",
+            "vault": "Coffre de Numéros",
+            "history": "Historique",
+            "wallet": "Portefeuille",
+            "settings": "Paramètres",
+            "help": "Aide",
+            "admin": "Panneau d'Administration",
+            "logout": "Se Déconnecter",
+            "theme": "Thème",
+            "collapse": "Réduire"
+        },
+        "loading": "Préparation du Tableau de Bord"
+    }
+}

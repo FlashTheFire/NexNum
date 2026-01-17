@@ -1,0 +1,157 @@
+{
+    "common": {
+        "login": "Entrar",
+        "signup": "Cadastrar",
+        "buy": "Comprar Número",
+        "dashboard": "Painel",
+        "logout": "Sair",
+        "learnMore": "Saiba mais",
+        "getStarted": "Começar",
+        "contactSales": "Contatar Vendas",
+        "allRightsReserved": "Todos os direitos reservados.",
+        "privacyPolicy": "Política de Privacidade",
+        "termsOfService": "Termos de Serviço"
+    },
+    "nav": {
+        "features": "Recursos",
+        "howItWorks": "Como Funciona",
+        "faq": "Perguntas",
+        "developers": "Desenvolvedores",
+        "virtualNumbers": "Números Virtuais"
+    },
+    "hero": {
+        "badge": "Mais de 10.000+ usuários confiam em nós",
+        "title1": "SMS Seguro",
+        "title2": "Verificação",
+        "subtitle": "Obtenha acesso instantâneo a números de telefone virtuais para verificação de conta perfeita.",
+        "subtitleHighlight": "Privacidade em primeiro lugar",
+        "subtitleEnd": ", seguro e ultrarrápido.",
+        "cta": "Começar Grátis",
+        "watchDemo": "Ver Demo",
+        "instantActivation": "Ativação Instantânea",
+        "countries": "50+ Países",
+        "cryptoAccepted": "Cripto Aceita",
+        "appName": "NexNum",
+        "appTagline": "Números Virtuais Pro",
+        "verificationCode": "Código de Verificação",
+        "now": "agora",
+        "yourCode": "Seu código:",
+        "availableBalance": "Saldo Disponível",
+        "synced": "Sincronizado",
+        "verifications": "verificações",
+        "addFunds": "+ Adicionar fundos",
+        "activeNumber": "Número Ativo",
+        "live": "Online",
+        "refresh": "Atualizar",
+        "history": "Histórico",
+        "getNewNumber": "Obter Novo Número",
+        "timeLeft": "restante"
+    },
+    "features": {
+        "title": "Recursos",
+        "heading": "Tudo o que você precisa",
+        "description": "Desenvolvido para usuários preocupados com privacidade e desenvolvedores que precisam de serviços confiáveis de verificação por SMS.",
+        "instantActivation": {
+            "title": "Ativação Instantânea",
+            "description": "Obtenha seu número virtual imediatamente após a compra. Sem tempo de espera, sem verificação manual."
+        },
+        "globalCoverage": {
+            "title": "Cobertura Global",
+            "description": "Acesse números de mais de 50 países, incluindo EUA, Reino Unido, Canadá e principais nações europeias."
+        },
+        "privateSecure": {
+            "title": "Privado e Seguro",
+            "description": "Suas informações pessoais nunca são vinculadas a esses números. Anonimato completo para suas atividades online."
+        },
+        "flexiblePayment": {
+            "title": "Pagamento Flexível",
+            "description": "Pague com Cartões de Crédito ou Cripto. Suportamos as principais criptomoedas para máxima privacidade."
+        },
+        "developerAPI": {
+            "title": "API para Desenvolvedores",
+            "description": "Integre nosso serviço de verificação SMS diretamente em suas aplicações com nossa API robusta."
+        },
+        "smsHistory": {
+            "title": "Histórico de SMS",
+            "description": "Acompanhe todas as mensagens recebidas no seu painel. As mensagens são armazenadas com segurança para sua revisão."
+        }
+    },
+    "faq": {
+        "title": "Perguntas Frequentes",
+        "subtitle": "Tem dúvidas? Estamos aqui para ajudar.",
+        "q1": {
+            "question": "Esses números funcionam para todos os serviços?",
+            "answer": "Nossos números são números reais baseados em cartões SIM, o que significa que funcionam com quase todos os serviços principais, incluindo WhatsApp, Telegram, Google, Facebook e mais. No entanto, alguns serviços podem ter restrições específicas."
+        },
+        "q2": {
+            "question": "Por quanto tempo posso manter o número?",
+            "answer": "Você mantém o número pelo período de aluguel selecionado. Oferecemos opções que vão de 15 minutos a 30 dias, dependendo de suas necessidades."
+        },
+        "q3": {
+            "question": "Minhas informações de pagamento estão seguras?",
+            "answer": "Absolutamente! Usamos criptografia padrão da indústria e nunca armazenamos suas informações de pagamento completas. Também suportamos pagamentos em criptomoeda para máxima privacidade."
+        },
+        "q4": {
+            "question": "Posso receber chamadas?",
+            "answer": "Atualmente, nosso serviço é otimizado apenas para verificação por SMS. Chamadas de voz não são suportadas no momento."
+        },
+        "q5": {
+            "question": "Vocês oferecem reembolsos?",
+            "answer": "Sim, oferecemos reembolsos se você não receber nenhum SMS dentro do período de aluguel. Por favor, entre em contato com o suporte com os detalhes do seu pedido."
+        }
+    },
+    "cta": {
+        "title": "Pronto para proteger sua privacidade?",
+        "description": "Junte-se a milhares de usuários que confiam na NexNum para suas necessidades de verificação. Obtenha seu primeiro número em menos de 30 segundos.",
+        "button": "Começar Agora"
+    },
+    "footer": {
+        "tagline": "Números de telefone virtuais premium para ativação instantânea. Seguro, privado e global.",
+        "product": {
+            "title": "Produto",
+            "features": "Recursos",
+            "api": "API",
+            "coverage": "Cobertura"
+        },
+        "company": {
+            "title": "Empresa",
+            "about": "Sobre",
+            "blog": "Blog",
+            "careers": "Carreiras",
+            "legal": "Legal"
+        },
+        "connect": {
+            "title": "Conectar",
+            "twitter": "Twitter",
+            "github": "GitHub",
+            "discord": "Discord",
+            "contactUs": "Fale Conosco"
+        }
+    },
+    "auth": {
+        "welcomeBack": "Bem-vindo de Volta",
+        "signinText": "Entre para gerenciar seus números virtuais",
+        "email": "Endereço de e-mail",
+        "password": "Senha",
+        "forgotPassword": "Esqueceu a senha?",
+        "signinBtn": "Entrar",
+        "or": "ou continuar com",
+        "noAccount": "Não tem uma conta?",
+        "createAccount": "Criar conta gratuita"
+    },
+    "dashboard": {
+        "nav": {
+            "overview": "Visão Geral",
+            "vault": "Cofre de Números",
+            "history": "Histórico",
+            "wallet": "Carteira",
+            "settings": "Configurações",
+            "help": "Ajuda",
+            "admin": "Painel de Administração",
+            "logout": "Sair",
+            "theme": "Tema",
+            "collapse": "Recolher"
+        },
+        "loading": "Preparando Painel"
+    }
+}

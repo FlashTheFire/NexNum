@@ -1,0 +1,142 @@
+{
+    "common": {
+        "login": "Giriş Yap",
+        "signup": "Kayıt Ol",
+        "buy": "Numara Satın Al",
+        "dashboard": "Kontrol Paneli",
+        "logout": "Çıkış Yap",
+        "learnMore": "Daha fazla bilgi",
+        "getStarted": "Başla",
+        "contactSales": "Satış ile İletişim",
+        "allRightsReserved": "Tüm hakları saklıdır.",
+        "privacyPolicy": "Gizlilik Politikası",
+        "termsOfService": "Hizmet Şartları"
+    },
+    "nav": {
+        "features": "Özellikler",
+        "howItWorks": "Nasıl Çalışır",
+        "faq": "SSS",
+        "developers": "Geliştiriciler",
+        "virtualNumbers": "Sanal Numaralar"
+    },
+    "hero": {
+        "badge": "Dünya çapında 10.000+ kullanıcı güveniyor",
+        "title1": "Güvenli SMS",
+        "title2": "Doğrulama",
+        "subtitle": "Sorunsuz hesap doğrulaması için sanal telefon numaralarına anında erişin.",
+        "subtitleHighlight": "Gizlilik öncelikli",
+        "subtitleEnd": ", güvenli ve yıldırım hızında.",
+        "cta": "Ücretsiz Başla",
+        "watchDemo": "Demo İzle",
+        "instantActivation": "Anında Aktivasyon",
+        "countries": "50+ Ülke",
+        "cryptoAccepted": "Kripto Kabul Edilir",
+        "appName": "NexNum",
+        "appTagline": "Sanal Numaralar Pro",
+        "verificationCode": "Doğrulama Kodu",
+        "now": "şimdi",
+        "yourCode": "Kodunuz:",
+        "availableBalance": "Mevcut Bakiye",
+        "synced": "Senkronize",
+        "verifications": "doğrulama",
+        "addFunds": "+ Bakiye Ekle",
+        "activeNumber": "Aktif Numara",
+        "live": "Canlı",
+        "refresh": "Yenile",
+        "history": "Geçmiş",
+        "getNewNumber": "Yeni Numara Al",
+        "timeLeft": "kaldı"
+    },
+    "features": {
+        "title": "Özellikler",
+        "heading": "İhtiyacınız olan her şey",
+        "description": "Gizliliğe önem veren kullanıcılar ve güvenilir SMS doğrulama hizmetlerine ihtiyaç duyan geliştiriciler için tasarlandı.",
+        "instantActivation": {
+            "title": "Anında Aktivasyon",
+            "description": "Satın alma işleminden hemen sonra sanal numaranızı alın. Bekleme süresi yok, manuel doğrulama yok."
+        },
+        "globalCoverage": {
+            "title": "Küresel Kapsama",
+            "description": "ABD, İngiltere, Kanada ve büyük Avrupa ülkeleri dahil 50'den fazla ülkeden numaralara erişin."
+        },
+        "privateSecure": {
+            "title": "Özel ve Güvenli",
+            "description": "Kişisel bilgileriniz asla bu numaralarla ilişkilendirilmez. Çevrimiçi aktiviteleriniz için tam anonimlik."
+        },
+        "flexiblePayment": {
+            "title": "Esnek Ödeme",
+            "description": "Kredi Kartları veya Kripto ile ödeyin. Maksimum gizlilik için büyük kripto para birimlerini destekliyoruz."
+        },
+        "developerAPI": {
+            "title": "Geliştirici API'si",
+            "description": "SMS doğrulama hizmetimizi güçlü API'miz ile doğrudan uygulamalarınıza entegre edin."
+        },
+        "smsHistory": {
+            "title": "SMS Geçmişi",
+            "description": "Panelinizdeki tüm alınan mesajları takip edin. Mesajlar incelemeniz için güvenli bir şekilde saklanır."
+        }
+    },
+    "faq": {
+        "title": "Sık Sorulan Sorular",
+        "subtitle": "Sorularınız mı var? Yardım etmek için buradayız.",
+        "q1": {
+            "question": "Bu numaralar tüm hizmetler için çalışır mı?",
+            "answer": "Numaralarımız gerçek SIM kart tabanlı numaralardır, bu da WhatsApp, Telegram, Google, Facebook ve daha fazlası dahil neredeyse tüm büyük hizmetlerle çalıştıkları anlamına gelir. Ancak, bazı hizmetlerin belirli kısıtlamaları olabilir."
+        },
+        "q2": {
+            "question": "Numarayı ne kadar süre tutabilirim?",
+            "answer": "Seçtiğiniz kiralama süresi boyunca numarayı tutarsınız. İhtiyaçlarınıza göre 15 dakikadan 30 güne kadar seçenekler sunuyoruz."
+        },
+        "q3": {
+            "question": "Ödeme bilgilerim güvende mi?",
+            "answer": "Kesinlikle! Endüstri standardı şifreleme kullanıyoruz ve tam ödeme bilgilerinizi asla saklamıyoruz. Maksimum gizlilik için kripto para ödemelerini de destekliyoruz."
+        },
+        "q4": {
+            "question": "Arama alabilir miyim?",
+            "answer": "Şu anda hizmetimiz yalnızca SMS doğrulama için optimize edilmiştir. Sesli aramalar şu anda desteklenmemektedir."
+        },
+        "q5": {
+            "question": "İade sunuyor musunuz?",
+            "answer": "Evet, kiralama süresi içinde herhangi bir SMS almazsanız iade sunuyoruz. Lütfen sipariş detaylarınızla destek ekibimizle iletişime geçin."
+        }
+    },
+    "cta": {
+        "title": "Gizliliğinizi korumaya hazır mısınız?",
+        "description": "Doğrulama ihtiyaçları için NexNum'a güvenen binlerce kullanıcıya katılın. İlk numaranızı 30 saniyeden kısa sürede alın.",
+        "button": "Şimdi Başla"
+    },
+    "footer": {
+        "tagline": "Anında aktivasyon için premium sanal telefon numaraları. Güvenli, özel ve küresel.",
+        "product": {
+            "title": "Ürün",
+            "features": "Özellikler",
+            "api": "API",
+            "coverage": "Kapsama"
+        },
+        "company": {
+            "title": "Şirket",
+            "about": "Hakkımızda",
+            "blog": "Blog",
+            "careers": "Kariyer",
+            "legal": "Yasal"
+        },
+        "connect": {
+            "title": "Bağlantı",
+            "twitter": "Twitter",
+            "github": "GitHub",
+            "discord": "Discord",
+            "contactUs": "Bize Ulaşın"
+        }
+    },
+    "auth": {
+        "welcomeBack": "Tekrar Hoş Geldiniz",
+        "signinText": "Sanal numaralarınızı yönetmek için giriş yapın",
+        "email": "E-posta adresi",
+        "password": "Şifre",
+        "forgotPassword": "Şifrenizi mi unuttunuz?",
+        "signinBtn": "Giriş Yap",
+        "or": "veya şununla devam et",
+        "noAccount": "Hesabınız yok mu?",
+        "createAccount": "Ücretsiz hesap oluştur"
+    }
+}

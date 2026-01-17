@@ -70,6 +70,7 @@ const ServiceCard = React.memo(({
 
     return (
         <motion.div
+            data-testid="service-card"
             variants={itemVariants}
             exit={{ opacity: 0, scale: 0.9 }}
             onClick={() => onSelect(service.id, service.name, service.iconUrl)}
