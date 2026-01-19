@@ -152,6 +152,266 @@
             "theme": "主题",
             "collapse": "收起"
         },
-        "loading": "正在准备仪表板"
+        "loading": "正在准备仪表板",
+        "greeting": {
+            "morning": "早上好",
+            "afternoon": "下午好",
+            "evening": "晚上好"
+        },
+        "status": {
+            "operational": "系统正常运行",
+            "analytics": "分析激活",
+            "secure": "资金安全",
+            "active": "活跃",
+            "completed": "已完成",
+            "expired": "已过期",
+            "cancelled": "已取消"
+        },
+        "quickActions": {
+            "topUp": "充值",
+            "more": "更多"
+        },
+        "hero": {
+            "subtitle": "您通往全球通信的安全网关。即时管理有效号码、跟踪使用情况并扩展您的运营。",
+            "newNumber": "新号码",
+            "topUp": "充值钱包"
+        },
+        "stats": {
+            "balance": "总余额",
+            "myNumbers": "我的号码",
+            "spent": "总支出",
+            "deposited": "总充值",
+            "activeRegions": "活跃区域"
+        },
+        "analytics": {
+            "weeklyUsage": "每周短信使用量"
+        },
+        "features": {
+            "coverage": {
+                "label": "总覆盖",
+                "value": "180+ 国家",
+                "badge": "全球"
+            },
+            "security": {
+                "label": "验证",
+                "value": "即时",
+                "badge": "安全"
+            }
+        },
+        "vault": {
+            "title": "我的号码",
+            "badge": "号码库",
+            "description": "管理和监控您的活跃虚拟线路。",
+            "viewVault": "查看号码库",
+            "emptyTitle": "无活跃号码",
+            "emptyDescription": "您的号码库是空的。购买号码以立即开始接收短信。",
+            "purchaseBtn": "购买号码",
+            "viewAll": "查看全部",
+            "viewAllNumbers": "查看所有号码",
+            "moreInVault": "号码库中还有 +{count} 个"
+        },
+        "quickTopUp": {
+            "title": "快速充值",
+            "badge": "即时",
+            "action": "添加资金"
+        },
+        "activity": {
+            "title": "最近活动",
+            "empty": "无最近活动"
+        }
+    },
+    "globalCoverage": {
+        "badge": "全球网络",
+        "title": "全球 运营商 覆盖",
+        "subtitle": "即时激活来自 180 多个国家的虚拟号码。我们的网络遍布各大洲，确保您在需要的地方始终拥有覆盖。",
+        "stats": {
+            "coverage": "覆盖国家",
+            "activation": "激活时间",
+            "instant": "即时",
+            "support": "提供支持",
+            "stock": "库存",
+            "services": "服务",
+            "from": "起价",
+            "providers": "提供商"
+        }
+    },
+    "smsPage": {
+        "title": "短信收件箱",
+        "subtitle": "实时消息查看器",
+        "status": {
+            "encrypted": "端到端加密",
+            "encryptedMobile": "已加密",
+            "listening": "监听中",
+            "connectionTerminated": "连接已终止",
+            "signalSearchActive": "信号搜索活跃",
+            "expired": "已过期",
+            "expiredSession": "此会话已过期。此通道无法接收更多信号。",
+            "monitoring": "正在积极监控加密通道以获取传入的验证码。",
+            "secureLink": "安全链接"
+        },
+        "actions": {
+            "nextNumber": "下一个号码",
+            "getting": "获取中...",
+            "keepNumber": "保留号码",
+            "searchCountry": "搜索国家",
+            "cancelNumber": "取消号码",
+            "cancelling": "取消中...",
+            "confirmRefund": "确认退款",
+            "downloadHistory": "下载历史记录",
+            "markRead": "全部标记为已读",
+            "backToDashboard": "返回仪表板"
+        },
+        "tips": {
+            "label": "专业提示",
+            "content": "消息每10秒自动刷新。点击任意验证码即可立即复制。"
+        },
+        "inbox": {
+            "title": "收到的消息",
+            "new": "新",
+            "received": "已接收",
+            "empty": {
+                "title": "号码未找到",
+                "description": "此号码不再活跃或不存在于您的帐户中。"
+            }
+        },
+        "pagination": {
+            "previous": "上一页",
+            "next": "下一页",
+            "pageInfo": "第 {current} 页 / 共 {total} 页"
+        },
+        "card": {
+            "expiresIn": "过期时间",
+            "status": "状态",
+            "statuses": {
+                "cancelled": "已取消",
+                "expired": "已过期",
+                "completed": "已完成",
+                "active": "活跃"
+            }
+        }
+    },
+    "Demo": {
+        "liveDemo": "实时演示",
+        "title": "体验{neon}验证",
+        "realTime": "实时",
+        "subtitle": "观看我们的平台实际运作 — 从号码选择到账户验证完成。",
+        "totalDuration": "1:05",
+        "step": "步骤 {current} / {total}",
+        "delivery": "送达",
+        "deliveryDesc": "平均时间",
+        "success": "成功率",
+        "successDesc": "完成率",
+        "uptime": "正常运行",
+        "uptimeDesc": "可用性",
+        "coverage": "覆盖",
+        "coverageDesc": "国家",
+        "quickAnswers": "快速解答",
+        "readyToTry": "准备好试试了吗？",
+        "startFree": "免费开始，无需信用卡。",
+        "startFreeTrial": "开始免费试用",
+        "signIn": "登录",
+        "verificationComplete": "验证完成！",
+        "accountVerified": "账户验证成功",
+        "demoSteps": "演示步骤",
+        "livePerformance": "实时性能",
+        "realTimeMetrics": "实时平台指标",
+        "steps": {
+            "1": {
+                "title": "选择服务",
+                "short": "服务",
+                "desc": "从100+平台中选择"
+            },
+            "2": {
+                "title": "全球覆盖",
+                "short": "国家",
+                "desc": "来自50+地区的号码"
+            },
+            "3": {
+                "title": "选择提供商",
+                "short": "提供商",
+                "desc": "选择顶级运营商"
+            },
+            "4": {
+                "title": "即时生成",
+                "short": "生成",
+                "desc": "3秒内激活"
+            },
+            "5": {
+                "title": "接收短信",
+                "short": "接收",
+                "desc": "即时送达"
+            },
+            "6": {
+                "title": "复制并验证",
+                "short": "验证",
+                "desc": "一键复制验证"
+            }
+        },
+        "ui": {
+            "search": "搜索...",
+            "selectService": "选择服务",
+            "selectCountry": "选择国家",
+            "selectProvider": "选择提供商",
+            "purchaseNumber": "购买号码",
+            "smsInbox": "短信收件箱",
+            "realTimeViewer": "实时消息查看器",
+            "secureChannel": "安全通道",
+            "receivedMessages": "已收消息",
+            "new": "新",
+            "waitingForMessages": "等待消息中",
+            "listeningDesc": "正在监听来自{service}的短信验证码...",
+            "expiresIn": "过期时间",
+            "received": "已收到",
+            "active": "活跃",
+            "copy": "复制",
+            "copied": "已复制",
+            "bestPrice": "最优价格",
+            "price": "价格",
+            "successRate": "成功率",
+            "from": "来自",
+            "available": "可用",
+            "viewAllServices": "查看所有服务",
+            "viewAllCountries": "查看全部54个国家",
+            "verificationCode": "您的{service}验证码是：{code}。请勿分享。",
+            "code": "验证码"
+        },
+        "faqs": {
+            "q1": "号码激活速度有多快？",
+            "a1": "号码即时激活，通常在1-3秒内完成。",
+            "q2": "支持哪些平台？",
+            "a2": "我们支持100多个平台，包括WhatsApp、Telegram、Google、Twitter、Instagram、Discord等。",
+            "q3": "API集成难吗？",
+            "a3": "完全不难。大多数开发者使用我们的SDK在30分钟内完成集成。",
+            "q4": "你们接受哪些付款方式？",
+            "a4": "我们接受加密货币、信用卡/借记卡和数字钱包。"
+        }
+    },
+    "ErrorPages": {
+        "notFound": {
+            "title": "404",
+            "subtitle": "注册表异常",
+            "description": "请求的协议坐标受限或不存在于主注册表中。",
+            "returnButton": "返回协议",
+            "homeLink": "返回首页",
+            "footer": "协议已保护 • 完整性已验证"
+        },
+        "error": {
+            "subtitle": "系统中断",
+            "title": "协议异常",
+            "description": "检测到未处理的状态。需要重新校准接口以确保安全。",
+            "errorCode": "SIG_AUTH_ERR",
+            "restartButton": "重启接口"
+        },
+        "globalError": {
+            "title": "严重错误",
+            "description": "应用程序遇到严重错误，无法继续。",
+            "reloadButton": "重新加载应用"
+        },
+        "maintenance": {
+            "badge": "系统优化中",
+            "title": "协议优化中",
+            "description": "基础设施同步中。连接中断15分钟。",
+            "footer": "协议已保护"
+        }
     }
 }

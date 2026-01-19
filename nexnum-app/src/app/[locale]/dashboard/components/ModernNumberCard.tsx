@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { motion, AnimatePresence } from "framer-motion"
 import { cn } from "@/lib/utils/utils"
+import { useTranslations } from "next-intl"
 
 interface ModernNumberCardProps {
     id: string
@@ -33,6 +34,7 @@ export function ModernNumberCard({
     className
 }: ModernNumberCardProps) {
     const [now, setNow] = useState(Date.now())
+    const t = useTranslations('dashboard.status')
 
     useEffect(() => {
         const interval = setInterval(() => setNow(Date.now()), 1000)
@@ -59,7 +61,7 @@ export function ModernNumberCard({
 
             {/* Main card body */}
             <div
-                className="relative h-full p-6 bg-[#12141a]/90 backdrop-blur-md border border-white/[0.04] rounded-2xl overflow-hidden transition-all duration-200 group-hover:border-white/[0.08] group-hover:bg-[#15181e]/90"
+                className="relative h-full p-4 bg-[#12141a]/90 backdrop-blur-md border border-white/[0.04] rounded-2xl overflow-hidden transition-all duration-200 group-hover:border-white/[0.08] group-hover:bg-[#15181e]/90"
                 style={{
                     clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 24px), calc(100% - 24px) 100%, 0 100%)'
                 }}
@@ -81,9 +83,9 @@ export function ModernNumberCard({
                 <div className="absolute inset-0 bg-gradient-to-br from-white/[0.02] via-transparent to-[hsl(var(--neon-lime)/0.02)] pointer-events-none" />
 
                 {/* Content */}
-                <div className="relative z-10 flex flex-col justify-between h-full pb-4">
+                <div className="relative z-10 flex flex-col justify-between h-full pb-3">
                     <div className="flex items-start justify-between mb-1">
-                        <div className="relative w-10 h-10 flex-shrink-0">
+                        <div className="relative w-9 h-9 flex-shrink-0">
                             <div className="relative w-full h-full rounded-lg overflow-hidden transition-all duration-300 ring-1 ring-white/10 group-hover:scale-105">
                                 {serviceIconUrl ? (
                                     <img
@@ -98,7 +100,7 @@ export function ModernNumberCard({
                                 )}
                                 <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none"></div>
                             </div>
-                            <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full border-2 border-[#151518] overflow-hidden shadow-md z-20">
+                            <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-[#151518] overflow-hidden shadow-md z-20">
                                 <img
                                     alt={countryName}
                                     className="w-full h-full rounded-full object-cover shadow-sm ring-1 ring-white/10"
@@ -109,32 +111,32 @@ export function ModernNumberCard({
                         {/* Dynamic Status Badge */}
                         <div className="flex flex-col items-end gap-1">
                             {(!status || !['received', 'expired', 'cancelled', 'completed', 'timeout'].includes(status)) && (
-                                <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-emerald-500/30 text-emerald-400 text-[10px] bg-emerald-500/10 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
-                                    Aᴄᴛɪᴠᴇ
+                                <div className="inline-flex items-center rounded-full border px-2 py-0.5 font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-emerald-500/30 text-emerald-400 text-[9px] uppercase tracking-wider bg-emerald-500/10 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
+                                    {t('active')}
                                 </div>
                             )}
                             {(status === 'received' || status === 'completed') && (
-                                <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-emerald-500/30 text-emerald-400 text-[10px] bg-emerald-500/10 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
-                                    Cᴏᴍᴘʟᴇᴛᴇᴅ
+                                <div className="inline-flex items-center rounded-full border px-2 py-0.5 font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-emerald-500/30 text-emerald-400 text-[9px] uppercase tracking-wider bg-emerald-500/10 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
+                                    {t('completed')}
                                 </div>
                             )}
                             {(status === 'expired' || status === 'timeout') && (
-                                <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-orange-500/30 text-orange-400 text-[10px] bg-orange-500/10">
-                                    Exᴘɪʀᴇᴅ
+                                <div className="inline-flex items-center rounded-full border px-2 py-0.5 font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-orange-500/30 text-orange-400 text-[9px] uppercase tracking-wider bg-orange-500/10">
+                                    {t('expired')}
                                 </div>
                             )}
                             {status === 'cancelled' && (
-                                <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-red-500/30 text-red-400 text-[10px] bg-red-500/10">
-                                    Cᴀɴᴄᴇʟʟᴇᴅ
+                                <div className="inline-flex items-center rounded-full border px-2 py-0.5 font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-red-500/30 text-red-400 text-[9px] uppercase tracking-wider bg-red-500/10">
+                                    {t('cancelled')}
                                 </div>
                             )}
                         </div>
                     </div>
 
-                    <div className="space-y-1.5 pl-2 sm:pl-0">
-                        <p className="text-2xl sm:text-3xl font-mono font-medium text-white tracking-wide truncate">{number}</p>
-                        <p className="text-sm text-gray-500 flex items-center gap-2">
-                            <span className="truncate max-w-[120px]">{serviceName}</span>
+                    <div className="space-y-1 pl-1">
+                        <p className="text-xl sm:text-2xl font-mono font-medium text-white tracking-wide truncate">{number}</p>
+                        <p className="text-xs text-gray-400 flex items-center gap-2">
+                            <span className="truncate max-w-[100px]">{serviceName}</span>
                             <span className="w-1 h-1 rounded-full bg-gray-600"></span>
                             <span className="text-[hsl(var(--neon-lime))]">{smsCount || 0} SMS</span>
                         </p>

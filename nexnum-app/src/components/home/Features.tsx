@@ -1,8 +1,8 @@
 "use client";
 
-import { Globe, Shield, Zap, CreditCard, Code, History, LucideIcon } from "lucide-react";
-import { motion } from "framer-motion";
-import { useState, useRef, useEffect } from "react";
+import { Globe, Shield, Zap, CreditCard, Code, History, LucideIcon, ChevronLeft, ChevronRight } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useTranslations } from "next-intl";
 
 interface FeatureCardProps {
@@ -108,33 +108,69 @@ const featureIcons = [Zap, Globe, Shield, CreditCard, Code, History];
 
 export default function Features() {
     const [activeIndex, setActiveIndex] = useState(0);
+    const [canScrollLeft, setCanScrollLeft] = useState(false);
+    const [canScrollRight, setCanScrollRight] = useState(true);
+    const [isHovering, setIsHovering] = useState(false);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const t = useTranslations('features');
     const tc = useTranslations('common');
 
-    const handleScroll = () => {
+    // Get card dimensions based on viewport
+    const getCardDimensions = useCallback(() => {
+        if (typeof window === 'undefined') return { cardWidth: 280, gap: 16, padding: 16 };
+        const width = window.innerWidth;
+        if (width >= 1536) return { cardWidth: 420, gap: 24, padding: 128 }; // 2xl: px-32
+        if (width >= 1280) return { cardWidth: 420, gap: 24, padding: 96 }; // xl: px-24
+        if (width >= 1024) return { cardWidth: 380, gap: 24, padding: 64 }; // lg: px-16
+        if (width >= 640) return { cardWidth: 320, gap: 16, padding: 32 }; // sm: px-8
+        return { cardWidth: 280, gap: 16, padding: 16 }; // mobile: px-4
+    }, []);
+
+    // Update scroll button states
+    const updateScrollState = useCallback(() => {
+        if (scrollContainerRef.current) {
+            const container = scrollContainerRef.current;
+            const scrollLeft = container.scrollLeft;
+            const maxScroll = container.scrollWidth - container.clientWidth;
+
+            setCanScrollLeft(scrollLeft > 10);
+            setCanScrollRight(scrollLeft < maxScroll - 10);
+        }
+    }, []);
+
+    const handleScroll = useCallback(() => {
         if (scrollContainerRef.current) {
             const container = scrollContainerRef.current;
             const scrollLeft = container.scrollLeft;
             const containerWidth = container.clientWidth;
-            // Card width + margin-right (16px)
-            const cardStride = 296; // 280 + 16
-            // Offset for initial padding (16px = px-4)
-            const paddingOffset = 16;
+            const { cardWidth, gap, padding } = getCardDimensions();
+            const cardStride = cardWidth + gap;
             // Calculate which card is most centered
-            const centerOffset = scrollLeft + (containerWidth / 2) - paddingOffset;
+            const centerOffset = scrollLeft + (containerWidth / 2) - padding;
             const index = Math.floor(centerOffset / cardStride);
             const safeIndex = Math.min(Math.max(index, 0), featureKeys.length - 1);
             if (safeIndex !== activeIndex) {
                 setActiveIndex(safeIndex);
             }
+            updateScrollState();
         }
-    };
+    }, [activeIndex, getCardDimensions, updateScrollState]);
 
-    const scrollToSlide = (index: number) => {
+    // Smooth scroll by cards for navigation arrows
+    const scrollByCards = useCallback((direction: 'left' | 'right') => {
         if (scrollContainerRef.current) {
-            const cardWidth = 280;
-            const gap = 16;
+            const { cardWidth, gap } = getCardDimensions();
+            const scrollAmount = (cardWidth + gap) * (direction === 'left' ? -1 : 1);
+            scrollContainerRef.current.scrollBy({
+                left: scrollAmount,
+                behavior: 'smooth'
+            });
+        }
+    }, [getCardDimensions]);
+
+    const scrollToSlide = useCallback((index: number) => {
+        if (scrollContainerRef.current) {
+            const { cardWidth, gap } = getCardDimensions();
             const position = index * (cardWidth + gap);
             scrollContainerRef.current.scrollTo({
                 left: position,
@@ -142,10 +178,74 @@ export default function Features() {
             });
             setActiveIndex(index);
         }
-    };
+    }, [getCardDimensions]);
+
+    // Handle horizontal wheel scroll on desktop
+    const handleWheel = useCallback((e: WheelEvent) => {
+        if (scrollContainerRef.current && window.innerWidth >= 1024) {
+            // Only intercept if hovering over the carousel and there's significant horizontal intent
+            // or if it's a pure vertical scroll we want to convert
+            const container = scrollContainerRef.current;
+            const atStart = container.scrollLeft <= 0;
+            const atEnd = container.scrollLeft >= container.scrollWidth - container.clientWidth - 5;
+
+            // If we're at the boundaries and scrolling further in that direction, let the page scroll
+            if ((atStart && e.deltaY < 0) || (atEnd && e.deltaY > 0)) {
+                return;
+            }
+
+            // Convert vertical scroll to horizontal
+            if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+                e.preventDefault();
+                container.scrollBy({
+                    left: e.deltaY * 1.5,
+                    behavior: 'auto'
+                });
+            }
+        }
+    }, []);
+
+    // Handle keyboard navigation
+    const handleKeyDown = useCallback((e: KeyboardEvent) => {
+        if (!isHovering) return;
+
+        if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            scrollByCards('left');
+        } else if (e.key === 'ArrowRight') {
+            e.preventDefault();
+            scrollByCards('right');
+        }
+    }, [isHovering, scrollByCards]);
+
+    // Setup event listeners
+    useEffect(() => {
+        const container = scrollContainerRef.current;
+
+        if (container) {
+            container.addEventListener('wheel', handleWheel, { passive: false });
+            updateScrollState();
+        }
+
+        window.addEventListener('keydown', handleKeyDown);
+
+        return () => {
+            if (container) {
+                container.removeEventListener('wheel', handleWheel);
+            }
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [handleWheel, handleKeyDown, updateScrollState]);
+
+    // Update scroll state on resize
+    useEffect(() => {
+        const handleResize = () => updateScrollState();
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, [updateScrollState]);
 
     return (
-        <section id="features" className="relative py-24 lg:py-32 overflow-hidden">
+        <section id="features" className="relative py-24 lg:py-32 overflow-x-clip overflow-y-visible">
             {/* === PREMIUM ANIMATED BACKGROUND === */}
 
             {/* Base gradient - dark charcoal */}
@@ -321,95 +421,170 @@ export default function Features() {
                         {t('description')}
                     </p>
                 </motion.div>
+            </div>
 
-                {/* Cards Grid with SVG Connectors */}
-                <div className="relative">
+            {/* Cards Horizontal Carousel - Full Width Break Out */}
+            <div
+                className="relative w-screen left-1/2 -translate-x-1/2 group/carousel"
+                onMouseEnter={() => setIsHovering(true)}
+                onMouseLeave={() => setIsHovering(false)}
+            >
+                {/* Desktop Navigation Arrows */}
+                <AnimatePresence>
+                    {canScrollLeft && (
+                        <motion.button
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: 20 }}
+                            transition={{ duration: 0.2 }}
+                            onClick={() => scrollByCards('left')}
+                            className="hidden lg:flex absolute left-4 xl:left-8 2xl:left-16 top-1/2 -translate-y-1/2 z-20
+                                w-12 h-12 xl:w-14 xl:h-14 items-center justify-center rounded-full
+                                bg-gradient-to-br from-white/[0.08] to-white/[0.03] backdrop-blur-sm
+                                border border-white/[0.1] hover:border-[hsl(var(--neon-lime)/0.4)]
+                                hover:bg-white/[0.1] hover:shadow-[0_0_30px_rgba(198,255,0,0.15)]
+                                transition-all duration-300 cursor-pointer
+                                focus:outline-none focus:ring-2 focus:ring-[hsl(var(--neon-lime)/0.5)] focus:ring-offset-2 focus:ring-offset-[#0a0a0c]"
+                            aria-label="Scroll left"
+                        >
+                            <ChevronLeft className="w-5 h-5 xl:w-6 xl:h-6 text-white/70 group-hover:text-[hsl(var(--neon-lime))] transition-colors" />
+                        </motion.button>
+                    )}
+                </AnimatePresence>
 
-                    {/* Cards Grid with Inline Connectors - Mobile Carousel / Desktop Grid */}
-                    <div
-                        ref={scrollContainerRef}
-                        onScroll={handleScroll}
-                        className="flex overflow-x-auto pb-12 -mx-4 px-4 snap-x snap-mandatory scrollbar-hide lg:grid lg:grid-cols-3 lg:gap-6 lg:overflow-visible lg:pb-0 lg:mx-0 lg:px-0 relative z-10 no-scrollbar"
-                    >
-                        {featureKeys.map((key, index) => (
-                            <div key={index} className="relative flex-shrink-0 w-[280px] sm:w-[320px] snap-center mr-4 lg:mr-0 lg:w-full h-full flex flex-col">
-                                {/* Horizontal connector to next card (for cards 0, 1, 3, 4 on desktop) */}
-                                {(index === 0 || index === 1 || index === 3 || index === 4) && (
-                                    <motion.div
-                                        className="hidden lg:block absolute top-1/2 -right-3 lg:-right-4 w-10 lg:w-14 h-[3px] -translate-y-1/2 -z-10 rounded-full"
-                                        style={{
-                                            background: "linear-gradient(90deg, rgba(198,255,0,0.5), rgba(198,255,0,0.15))",
-                                        }}
-                                        initial={{ scaleX: 0, opacity: 0 }}
-                                        whileInView={{ scaleX: 1, opacity: 1 }}
-                                        viewport={{ once: true }}
-                                        transition={{ duration: 0.4, delay: 0.5 + index * 0.1, ease: [0.18, 0.9, 0.22, 1] }}
-                                    />
-                                )}
+                <AnimatePresence>
+                    {canScrollRight && (
+                        <motion.button
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            transition={{ duration: 0.2 }}
+                            onClick={() => scrollByCards('right')}
+                            className="hidden lg:flex absolute right-4 xl:right-8 2xl:right-16 top-1/2 -translate-y-1/2 z-20
+                                w-12 h-12 xl:w-14 xl:h-14 items-center justify-center rounded-full
+                                bg-gradient-to-br from-white/[0.08] to-white/[0.03] backdrop-blur-sm
+                                border border-white/[0.1] hover:border-[hsl(var(--neon-lime)/0.4)]
+                                hover:bg-white/[0.1] hover:shadow-[0_0_30px_rgba(198,255,0,0.15)]
+                                transition-all duration-300 cursor-pointer
+                                focus:outline-none focus:ring-2 focus:ring-[hsl(var(--neon-lime)/0.5)] focus:ring-offset-2 focus:ring-offset-[#0a0a0c]"
+                            aria-label="Scroll right"
+                        >
+                            <ChevronRight className="w-5 h-5 xl:w-6 xl:h-6 text-white/70 group-hover:text-[hsl(var(--neon-lime))] transition-colors" />
+                        </motion.button>
+                    )}
+                </AnimatePresence>
 
-                                {/* Vertical connector to card below (for cards 0, 1, 2 on desktop) */}
-                                {(index === 0 || index === 1 || index === 2) && (
-                                    <motion.div
-                                        className="hidden lg:block absolute -bottom-3 lg:-bottom-4 left-1/2 w-[3px] h-10 lg:h-14 -translate-x-1/2 -z-10 rounded-full"
-                                        style={{
-                                            background: index === 1
-                                                ? "linear-gradient(180deg, rgba(198,255,0,0.6), rgba(198,255,0,0.2))"
-                                                : "linear-gradient(180deg, rgba(198,255,0,0.45), rgba(198,255,0,0.12))",
-                                        }}
-                                        initial={{ scaleY: 0, opacity: 0 }}
-                                        whileInView={{ scaleY: 1, opacity: 1 }}
-                                        viewport={{ once: true }}
-                                        transition={{ duration: 0.5, delay: 0.7 + index * 0.1, ease: [0.18, 0.9, 0.22, 1] }}
-                                    />
-                                )}
+                {/* Scroll Fade Edges - Desktop only */}
+                <div className="hidden lg:block absolute left-0 top-0 bottom-0 w-24 xl:w-32 bg-gradient-to-r from-[#0a0a0c] to-transparent z-10 pointer-events-none" />
+                <div className="hidden lg:block absolute right-0 top-0 bottom-0 w-24 xl:w-32 bg-gradient-to-l from-[#0a0a0c] to-transparent z-10 pointer-events-none" />
 
-                                {/* Mobile-only connector lines between cards - Hide on last card */}
-                                {index < featureKeys.length - 1 && (
-                                    <div className="absolute top-1/2 -right-4 w-4 h-[2px] bg-white/10 lg:hidden" />
-                                )}
+                {/* Horizontal Scrollable Carousel */}
+                <div
+                    ref={scrollContainerRef}
+                    onScroll={handleScroll}
+                    className="flex overflow-x-auto pb-12 px-4 sm:px-8 lg:px-16 xl:px-24 2xl:px-32 snap-x snap-mandatory scrollbar-hide relative z-10 no-scrollbar scroll-smooth"
+                    style={{
+                        scrollbarWidth: 'none',
+                        msOverflowStyle: 'none',
+                    }}
+                >
+                    {featureKeys.map((key, index) => (
+                        <div key={index} className="relative flex-shrink-0 w-[280px] sm:w-[320px] lg:w-[380px] xl:w-[420px] snap-center mr-4 lg:mr-6 h-full flex flex-col first:ml-0">
+                            {/* Connector lines between cards */}
+                            {index < featureKeys.length - 1 && (
+                                <motion.div
+                                    className="absolute top-1/2 -right-4 lg:-right-6 w-4 lg:w-6 h-[2px] lg:h-[3px] bg-gradient-to-r from-[hsl(var(--neon-lime)/0.4)] to-[hsl(var(--neon-lime)/0.1)] rounded-full"
+                                    initial={{ scaleX: 0, opacity: 0 }}
+                                    whileInView={{ scaleX: 1, opacity: 1 }}
+                                    viewport={{ once: true }}
+                                    transition={{ duration: 0.3, delay: 0.2 + index * 0.05 }}
+                                />
+                            )}
 
-                                <div className="h-[280px]">
-                                    <FeatureCard
-                                        icon={featureIcons[index]}
-                                        title={t(`${key}.title`)}
-                                        description={t(`${key}.description`)}
-                                        index={index}
-                                        isActive={index === activeIndex}
-                                        learnMore={tc('learnMore')}
-                                    />
-                                </div>
+                            <div className="h-[280px] lg:h-[300px]">
+                                <FeatureCard
+                                    icon={featureIcons[index]}
+                                    title={t(`${key}.title`)}
+                                    description={t(`${key}.description`)}
+                                    index={index}
+                                    isActive={index === activeIndex}
+                                    learnMore={tc('learnMore')}
+                                />
                             </div>
-                        ))}
+                        </div>
+                    ))}
 
-                        {/* Empty spacer for end of carousel */}
-                        <div className="w-1 flex-shrink-0 lg:hidden" />
-                    </div>
+                    {/* Right spacer for proper end padding */}
+                    <div className="w-4 sm:w-8 lg:w-16 xl:w-24 2xl:w-32 flex-shrink-0" />
+                </div>
 
-                    {/* Mobile Scroll Indicator & Swipe Hint */}
-                    <div className="flex flex-col items-center gap-3 mt-4 lg:hidden">
-                        {/* Animated Swipe Icon - Only show if not scrolled much */}
+                {/* Scroll Indicator & Swipe Hint */}
+                <div className="flex flex-col items-center gap-3 mt-6 px-4">
+                    {/* Animated Swipe Icon - Mobile only, show if not scrolled much */}
+                    <AnimatePresence>
                         {activeIndex < 1 && (
                             <motion.div
-                                initial={{ opacity: 0 }}
-                                whileInView={{ opacity: 0.6 }}
-                                className="flex items-center gap-2 text-[10px] text-gray-500 font-medium uppercase tracking-widest"
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 0.6, y: 0 }}
+                                exit={{ opacity: 0, y: -10 }}
+                                className="lg:hidden flex items-center gap-2 text-[10px] text-gray-500 font-medium uppercase tracking-widest"
                             >
                                 <motion.div animate={{ x: [-5, 5, -5] }} transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}>←</motion.div>
-                                Swipe
+                                <span>Swipe</span>
                                 <motion.div animate={{ x: [-5, 5, -5] }} transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}>→</motion.div>
                             </motion.div>
                         )}
+                    </AnimatePresence>
 
-                        <div className="flex justify-center gap-1.5">
-                            {featureKeys.map((_, i) => (
-                                <button
-                                    key={i}
-                                    onClick={() => scrollToSlide(i)}
-                                    className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${i === activeIndex ? 'bg-[hsl(var(--neon-lime))] w-4' : 'bg-white/10 hover:bg-white/30'}`}
-                                    aria-label={`Go to slide ${i + 1}`}
-                                />
-                            ))}
+                    {/* Desktop keyboard hint - show when hovering */}
+                    <AnimatePresence>
+                        {isHovering && activeIndex < 2 && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 0.5, y: 0 }}
+                                exit={{ opacity: 0, y: -10 }}
+                                className="hidden lg:flex items-center gap-3 text-xs text-gray-500 font-medium"
+                            >
+                                <span className="flex items-center gap-1.5">
+                                    <kbd className="px-2 py-0.5 rounded bg-white/[0.06] border border-white/10 text-[10px] font-mono">←</kbd>
+                                    <kbd className="px-2 py-0.5 rounded bg-white/[0.06] border border-white/10 text-[10px] font-mono">→</kbd>
+                                </span>
+                                <span className="text-gray-600">or scroll</span>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
+                    {/* Pagination Dots with enhanced styling */}
+                    <div className="flex justify-center items-center gap-2 lg:gap-2.5">
+                        {featureKeys.map((_, i) => (
+                            <motion.button
+                                key={i}
+                                onClick={() => scrollToSlide(i)}
+                                whileHover={{ scale: 1.2 }}
+                                whileTap={{ scale: 0.9 }}
+                                className={`rounded-full transition-all duration-300 ${i === activeIndex
+                                    ? 'bg-[hsl(var(--neon-lime))] h-2 lg:h-2.5 w-6 lg:w-8 shadow-[0_0_12px_rgba(198,255,0,0.6)]'
+                                    : 'bg-white/10 hover:bg-white/25 h-2 lg:h-2.5 w-2 lg:w-2.5'}`}
+                                aria-label={`Go to feature ${i + 1}`}
+                            />
+                        ))}
+                    </div>
+
+                    {/* Enhanced Progress bar for desktop */}
+                    <div className="hidden lg:flex items-center gap-3 mt-1">
+                        <span className="text-[10px] text-gray-500 font-mono tabular-nums">
+                            {String(activeIndex + 1).padStart(2, '0')}
+                        </span>
+                        <div className="w-32 xl:w-40 h-0.5 bg-white/[0.06] rounded-full overflow-hidden">
+                            <motion.div
+                                className="h-full bg-gradient-to-r from-[hsl(var(--neon-lime)/0.8)] to-[hsl(var(--neon-lime)/0.4)] rounded-full"
+                                animate={{ width: `${((activeIndex + 1) / featureKeys.length) * 100}%` }}
+                                transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
+                            />
                         </div>
+                        <span className="text-[10px] text-gray-500 font-mono tabular-nums">
+                            {String(featureKeys.length).padStart(2, '0')}
+                        </span>
                     </div>
                 </div>
             </div>

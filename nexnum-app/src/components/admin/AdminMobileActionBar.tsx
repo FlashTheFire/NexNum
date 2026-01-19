@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { Link, usePathname } from "@/i18n/navigation"
+import { useTranslations } from "next-intl"
 import { LayoutDashboard, ShoppingBag, Users, RefreshCw, Server } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
@@ -9,6 +9,8 @@ import { cn } from "@/lib/utils/utils";
 
 export default function AdminMobileActionBar() {
     const pathname = usePathname();
+    const t = useTranslations("admin.nav");
+
     const [isVisible, setIsVisible] = useState(true); // Always visible for Admin initially, or scroll logic
 
     // Optional: Scroll logic to hide/show, but User requested "floating bar" which usually implies persistent or smart visibility.
@@ -23,10 +25,10 @@ export default function AdminMobileActionBar() {
     }, []);
 
     const navItems = [
-        { href: "/admin", label: "Overview", icon: LayoutDashboard },
-        { href: "/admin/providers", label: "Providers", icon: Server },
-        { href: "/admin/inventory", label: "Inventory", icon: ShoppingBag },
-        { href: "/admin/users", label: "Users", icon: Users },
+        { href: "/admin", label: "overview", icon: LayoutDashboard },
+        { href: "/admin/providers", label: "providers", icon: Server },
+        { href: "/admin/inventory", label: "inventory", icon: ShoppingBag },
+        { href: "/admin/users", label: "users", icon: Users },
     ];
 
     return (
@@ -61,7 +63,7 @@ export default function AdminMobileActionBar() {
                                                 transition={{ duration: 0.2 }}
                                                 className="font-bold text-sm whitespace-nowrap overflow-hidden"
                                             >
-                                                {item.label}
+                                                {t(item.label)}
                                             </motion.span>
                                         )}
                                     </div>

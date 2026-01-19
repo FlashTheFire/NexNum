@@ -1,38 +1,28 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useRef } from "react"
 import Link from "next/link"
-import { motion, useScroll, useTransform, useSpring } from "framer-motion"
+import { useTranslations } from "next-intl"
+import { motion, useScroll, useTransform } from "framer-motion"
 import {
     Wallet,
     Phone,
     ArrowRight,
-    MessageSquare,
     TrendingUp,
-    CreditCard,
-    Gift,
-    Sparkles,
-    ChevronRight,
-    Plus,
-    Copy,
-    Check,
-    Clock,
     ShoppingCart,
+    Plus,
+    Zap,
     Globe,
-    ShieldCheck,
-    Zap
+    ShieldCheck
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useGlobalStore } from "@/store"
 import { useAuthStore } from "@/stores/authStore"
 import { formatPrice } from "@/lib/utils/utils"
-import { toast } from "sonner"
 import { DashboardBackground } from "./dashboard-background"
-import { PhoneMockup } from "./phone-mockup"
-import { NotificationsBtn } from "./shared"
 import { ModernNumberCard } from "./ModernNumberCard"
+
 
 // Animation Variants
 const fadeIn = {
@@ -45,29 +35,6 @@ const stagger = {
     visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
 }
 
-// Premium "Tech" Logical Separator
-const TechSeparator = () => (
-    <div className="relative w-full py-4 flex items-center justify-center overflow-hidden">
-        {/* Central Line */}
-        <div className="absolute inset-x-0 h-px bg-gradient-to-r from-transparent via-white/[0.1] to-transparent" />
-
-        {/* Logical Ruler Markings (CSS Pattern) */}
-        <div
-            className="absolute inset-x-0 h-2 opacity-20"
-            style={{
-                backgroundImage: 'linear-gradient(90deg, white 1px, transparent 1px)',
-                backgroundSize: '20px 100%',
-                maskImage: 'linear-gradient(to right, transparent, black 40%, black 60%, transparent)'
-            }}
-        />
-
-        {/* Central "Energy" Node */}
-        <div className="relative z-10 w-2 h-2 rounded-full bg-[hsl(var(--neon-lime))] shadow-[0_0_10px_hsl(var(--neon-lime))]">
-            <div className="absolute inset-0 animate-ping rounded-full bg-[hsl(var(--neon-lime))] opacity-50" />
-        </div>
-    </div>
-)
-
 export function DesktopDashboard() {
     const { user } = useAuthStore()
     const { userProfile, activeNumbers, transactions } = useGlobalStore()
@@ -79,11 +46,9 @@ export function DesktopDashboard() {
     const { scrollY } = useScroll()
     const yHero = useTransform(scrollY, [0, 500], [0, 50])
 
-    // Greeting
     const hour = new Date().getHours()
     const greeting = hour < 12 ? t('greeting.morning') : hour < 18 ? t('greeting.afternoon') : t('greeting.evening')
 
-    // Stats Logic
     const totalSpent = transactions
         .filter(t => ['purchase', 'manual_debit'].includes(t.type))
         .reduce((sum, t) => sum + Math.abs(t.amount), 0)
@@ -103,99 +68,56 @@ export function DesktopDashboard() {
         <div ref={containerRef} className="min-h-screen relative bg-[#0a0a0c] overflow-hidden selection:bg-[hsl(var(--neon-lime)/0.3)]">
             <DashboardBackground />
 
-            {/* Content Wrapper */}
             <div className="relative z-10 px-8 py-10 max-w-[1600px] mx-auto space-y-12">
 
-                {/* 1. Hero Section (Parallax Split) */}
-                <div className="grid grid-cols-12 gap-12 min-h-[500px] items-center">
+                {/* 1. Hero Section (Restored) */}
+                <div className="flex flex-col items-center justify-center min-h-[300px] mb-8">
                     {/* Left: Content (40%) */}
                     <motion.div
                         initial="hidden"
                         animate="visible"
                         variants={stagger}
-                        className="col-span-12 lg:col-span-5 space-y-8"
+                        className="w-full max-w-4xl space-y-4 flex flex-col items-center text-center"
                         style={{ y: yHero }}
                     >
-                        <motion.div variants={fadeIn} className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.05] border border-white/[0.08]">
-                            <span className="w-2 h-2 rounded-full bg-[hsl(var(--neon-lime))] animate-pulse" />
-                            <span className="text-xs font-medium text-gray-300">{t('status.operational')}</span>
+                        <motion.div variants={fadeIn} className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 backdrop-blur-md">
+                            <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                            </span>
+                            <span className="text-xs font-semibold text-emerald-100 tracking-wide uppercase">{t('status.operational')}</span>
                         </motion.div>
 
-                        <motion.h1 variants={fadeIn} className="text-5xl lg:text-7xl font-bold tracking-tight text-white leading-[1.1]">
-                            {greeting}, <br />
-                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[hsl(var(--neon-lime))] to-emerald-500">
+                        <motion.h1 variants={fadeIn} className="text-4xl lg:text-5xl font-bold tracking-tight text-white leading-[1.1] drop-shadow-2xl mt-2">
+                            {greeting},{" "}
+                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[hsl(var(--neon-lime))] via-emerald-400 to-emerald-500 filter drop-shadow-[0_0_20px_rgba(204,255,0,0.3)]">
                                 {user?.name?.split(' ')[0] || "Trader"}
                             </span>
                         </motion.h1>
 
-                        <motion.p variants={fadeIn} className="text-lg text-gray-400 max-w-md leading-relaxed">
+                        <motion.p variants={fadeIn} className="text-lg text-gray-400 max-w-lg leading-relaxed font-light">
                             {t('hero.subtitle')}
                         </motion.p>
 
-                        <motion.div variants={fadeIn} className="flex items-center gap-4">
+                        <motion.div variants={fadeIn} className="flex items-center justify-center gap-5">
                             <Link href="/dashboard/buy">
-                                <Button className="h-14 px-8 rounded-2xl bg-[hsl(var(--neon-lime))] text-black text-lg font-bold hover:bg-[hsl(72,100%,55%)] hover:scale-105 transition-all shadow-[0_0_20px_rgba(204,255,0,0.3)]">
+                                <Button className="h-11 px-6 rounded-xl bg-[hsl(var(--neon-lime))] text-black text-base font-bold hover:bg-[hsl(72,100%,60%)] active:scale-95 transition-all shadow-[0_0_20px_-5px_hsl(var(--neon-lime)/0.4)] hover:shadow-[0_0_30px_-5px_hsl(var(--neon-lime)/0.6)]">
                                     <Plus className="mr-2 h-5 w-5" />
                                     {t('hero.newNumber')}
                                 </Button>
                             </Link>
                             <Link href="/dashboard/wallet">
-                                <Button variant="outline" className="h-14 px-8 rounded-2xl border-white/10 bg-white/[0.03] text-white hover:bg-white/[0.08] text-lg font-medium">
+                                <Button variant="outline" className="h-11 px-6 rounded-xl border-white/10 bg-white/[0.03] text-white hover:bg-white/[0.08] hover:border-white/20 text-base font-medium backdrop-blur-sm transition-all">
                                     {t('hero.topUp')}
                                 </Button>
                             </Link>
                         </motion.div>
                     </motion.div>
 
-                    {/* Right: 3D Isometric View (60%) */}
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ duration: 1, delay: 0.2 }}
-                        className="col-span-12 lg:col-span-7 relative h-[600px] hidden lg:block perspective-1000"
-                    >
-                        {/* 3D Composition */}
-                        <div className="absolute inset-0 flex items-center justify-center">
-                            {/* Central Phone (Hero) */}
-                            <div className="relative z-20">
-                                <PhoneMockup />
-                            </div>
 
-                            {/* Floating "Islands" / Glass Panels */}
-                            <motion.div
-                                animate={{ y: [-10, 10, -10] }}
-                                transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-                                className="absolute top-20 right-20 z-10 p-6 rounded-3xl bg-black/40 backdrop-blur-xl border border-white/10 w-64 shadow-2xl"
-                            >
-                                <div className="flex items-center justify-between mb-4">
-                                    <div className="p-2 rounded-xl bg-purple-500/20"><Globe className="h-5 w-5 text-purple-400" /></div>
-                                    <Badge variant="outline" className="border-purple-500/30 text-purple-400">{t('features.coverage.badge')}</Badge>
-                                </div>
-                                <div className="space-y-1">
-                                    <div className="text-sm text-gray-400">{t('features.coverage.label')}</div>
-                                    <div className="text-2xl font-bold">{t('features.coverage.value')}</div>
-                                </div>
-                            </motion.div>
-
-                            <motion.div
-                                animate={{ y: [15, -15, 15] }}
-                                transition={{ duration: 7, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-                                className="absolute bottom-40 left-10 z-30 p-6 rounded-3xl bg-black/40 backdrop-blur-xl border border-white/10 w-56 shadow-2xl"
-                            >
-                                <div className="flex items-center justify-between mb-4">
-                                    <div className="p-2 rounded-xl bg-[hsl(var(--neon-lime)/0.2)]"><ShieldCheck className="h-5 w-5 text-[hsl(var(--neon-lime))]" /></div>
-                                    <Badge variant="outline" className="border-[hsl(var(--neon-lime)/0.3)] text-[hsl(var(--neon-lime))]">{t('features.security.badge')}</Badge>
-                                </div>
-                                <div className="space-y-1">
-                                    <div className="text-sm text-gray-400">{t('features.security.label')}</div>
-                                    <div className="text-2xl font-bold">{t('features.security.value')}</div>
-                                </div>
-                            </motion.div>
-                        </div>
-                    </motion.div>
                 </div>
 
-                {/* 2. Stats Grid (Glassmorphism) */}
+                {/* 2. Stats Grid (Restored) */}
                 <motion.div
                     variants={stagger}
                     initial="hidden"
@@ -209,14 +131,9 @@ export function DesktopDashboard() {
                             variants={fadeIn}
                             className="relative group h-full"
                         >
-                            {/* Gradient Border Wrapper */}
                             <div className={`absolute -inset-[1px] rounded-[24px] bg-gradient-to-br from-white/20 via-white/5 to-transparent opacity-50 group-hover:opacity-100 group-hover:via-[hsl(var(--neon-lime)/0.3)] transition-all duration-500`} />
-
-                            {/* Inner Card */}
                             <div className="relative h-full rounded-[24px] bg-[#0d0d10]/50 backdrop-blur-xl p-6 flex flex-col justify-between overflow-hidden">
-                                {/* Ambient Glow */}
                                 <div className={`absolute top-0 right-0 w-32 h-32 ${stat.bg.replace("bg-", "bg-").replace("/0.1", "/0.05")} rounded-full blur-[60px] group-hover:opacity-100 transition-opacity opacity-50`} />
-
                                 <div className="relative z-10 flex justify-between items-start mb-4">
                                     <div>
                                         <p className="text-sm font-medium text-gray-400 group-hover:text-gray-300 transition-colors">{stat.label}</p>
@@ -226,7 +143,6 @@ export function DesktopDashboard() {
                                         <stat.icon className="h-6 w-6" />
                                     </div>
                                 </div>
-
                                 <div className="relative z-10 w-full h-1 bg-white/5 rounded-full overflow-hidden mt-4">
                                     <motion.div
                                         initial={{ width: 0 }}
@@ -240,44 +156,34 @@ export function DesktopDashboard() {
                     ))}
                 </motion.div>
 
-                {/* 3. Main Content: Active Numbers & History */}
+                {/* 3. Main Content: Active Numbers & History (Restored) */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-
-                    {/* Active Numbers Card - Premium Glass */}
+                    {/* Active Numbers Card */}
                     <motion.div
                         initial={{ opacity: 0, y: 30 }}
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
                         className="lg:col-span-2 relative group"
                     >
-                        {/* Gradient Border for Large Card */}
                         <div className="absolute -inset-[1px] rounded-[32px] bg-gradient-to-b from-white/10 to-transparent opacity-60" />
-
                         <div className="relative h-full rounded-[31px] bg-[#0c0e12]/80 backdrop-blur-3xl overflow-hidden flex flex-col">
-                            {/* Inner content */}
                             <div className="p-8 border-b border-white/[0.03] flex items-center justify-between">
                                 <div>
                                     <div className="flex items-center gap-2 mb-1">
                                         <h3 className="text-xl font-bold text-white">{t('vault.title')}</h3>
-                                        <Badge variant="outline" className="border-[hsl(var(--neon-lime)/0.3)] text-[hsl(var(--neon-lime))] text-[10px] uppercase">
-                                            {t('vault.badge')}
-                                        </Badge>
+                                        <div className="px-2 py-0.5 rounded-full border border-[hsl(var(--neon-lime)/0.3)] text-[hsl(var(--neon-lime))] text-[10px] uppercase">{t('vault.badge')}</div>
                                     </div>
                                     <p className="text-sm text-gray-400">{t('vault.description')}</p>
                                 </div>
                                 <Link href="/dashboard/vault">
                                     <Button variant="ghost" className="text-[hsl(var(--neon-lime))] hover:text-[hsl(var(--neon-lime))] hover:bg-[hsl(var(--neon-lime)/0.1)] gap-2 group/btn">
-                                        {t('vault.viewVault')}
-                                        <div className="bg-[hsl(var(--neon-lime)/0.2)] p-1 rounded-full group-hover/btn:bg-[hsl(var(--neon-lime))] group-hover/btn:text-black transition-colors">
-                                            <ArrowRight className="h-3 w-3" />
-                                        </div>
+                                        {t('vault.viewVault')} <ArrowRight className="h-3 w-3" />
                                     </Button>
                                 </Link>
                             </div>
-
                             <div className="p-8 bg-gradient-to-b from-transparent to-black/20 flex-1">
                                 {activeNumbers.length > 0 ? (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                                         {activeNumbers.slice(0, 6).map(num => (
                                             <ModernNumberCard
                                                 key={num.id}
@@ -291,7 +197,7 @@ export function DesktopDashboard() {
                                                 smsCount={num.smsCount}
                                                 expiresAt={num.expiresAt}
                                                 status={num.status}
-                                                className="h-[200px]"
+                                                className="h-[140px]"
                                             />
                                         ))}
                                     </div>
@@ -313,7 +219,7 @@ export function DesktopDashboard() {
                         </div>
                     </motion.div>
 
-                    {/* Right Column: Quick Actions & Activity */}
+                    {/* Quick Actions & Activity */}
                     <motion.div
                         initial={{ opacity: 0, y: 30 }}
                         whileInView={{ opacity: 1, y: 0 }}
@@ -321,52 +227,35 @@ export function DesktopDashboard() {
                         transition={{ delay: 0.2 }}
                         className="lg:col-span-1 space-y-6"
                     >
-                        {/* Quick Topup - Premium Neon Card */}
+                        {/* Quick Topup */}
                         <div className="relative group">
                             <div className="relative rounded-[31px] bg-[#0c0e12]/90 backdrop-blur-3xl p-6 overflow-hidden border border-white/[0.05]">
-                                {/* Dynamic Background Effects */}
                                 <div className="absolute top-0 right-0 w-40 h-40 bg-[hsl(var(--neon-lime)/0.1)] rounded-full blur-[60px] opacity-60 group-hover:opacity-100 transition-all duration-500" />
-                                <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E")` }} />
-
                                 <div className="relative z-10">
                                     <div className="flex items-center justify-between mb-6">
                                         <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                                            <div className="p-2 rounded-xl bg-[hsl(var(--neon-lime)/0.1)] ring-1 ring-[hsl(var(--neon-lime)/0.2)]">
-                                                <Zap className="h-4 w-4 text-[hsl(var(--neon-lime))]" />
-                                            </div>
+                                            <div className="p-2 rounded-xl bg-[hsl(var(--neon-lime)/0.1)] ring-1 ring-[hsl(var(--neon-lime)/0.2)]"><Zap className="h-4 w-4 text-[hsl(var(--neon-lime))]" /></div>
                                             {t('quickTopUp.title')}
                                         </h3>
-                                        <Badge variant="outline" className="border-[hsl(var(--neon-lime)/0.3)] text-[hsl(var(--neon-lime))] text-[10px] uppercase font-bold tracking-wider">
-                                            {t('quickTopUp.badge')}
-                                        </Badge>
+                                        <Badge variant="outline" className="border-[hsl(var(--neon-lime)/0.3)] text-[hsl(var(--neon-lime))] text-[10px] uppercase font-bold tracking-wider">{t('quickTopUp.badge')}</Badge>
                                     </div>
-
                                     <div className="grid grid-cols-3 gap-3 mb-6">
                                         {[10, 25, 50].map(amt => (
-                                            <button
-                                                key={amt}
-                                                className="group/btn relative h-14 rounded-2xl bg-white/[0.03] hover:bg-[hsl(var(--neon-lime)/0.1)] border border-white/[0.08] hover:border-[hsl(var(--neon-lime)/0.3)] transition-all duration-300 overflow-hidden"
-                                            >
-                                                <div className="absolute inset-0 bg-gradient-to-br from-white/[0.05] to-transparent opacity-0 group-hover/btn:opacity-100 transition-opacity" />
-                                                <span className="relative z-10 text-lg font-mono font-bold text-gray-300 group-hover/btn:text-white transition-colors">
-                                                    ${amt}
-                                                </span>
+                                            <button key={amt} className="group/btn relative h-14 rounded-2xl bg-white/[0.03] hover:bg-[hsl(var(--neon-lime)/0.1)] border border-white/[0.08] hover:border-[hsl(var(--neon-lime)/0.3)] transition-all duration-300 overflow-hidden">
+                                                <span className="relative z-10 text-lg font-mono font-bold text-gray-300 group-hover/btn:text-white transition-colors">${amt}</span>
                                             </button>
                                         ))}
                                     </div>
-
-                                    <Link href="/dashboard/wallet" className="block group/link">
-                                        <Button className="w-full h-14 bg-[hsl(var(--neon-lime))] text-black text-base font-bold rounded-2xl shadow-[0_0_20px_rgba(179,255,0,0.2)] hover:shadow-[0_0_30px_rgba(179,255,0,0.4)] hover:bg-[hsl(72,100%,60%)] transition-all duration-300 transform group-hover/link:scale-[1.02]">
-                                            <Wallet className="mr-2 h-5 w-5" />
-                                            {t('quickTopUp.action')}
-                                            <ArrowRight className="ml-2 h-4 w-4 opacity-50 group-hover/link:translate-x-1 transition-transform" />
+                                    <Link href="/dashboard/wallet">
+                                        <Button className="w-full h-14 bg-[hsl(var(--neon-lime))] text-black text-base font-bold rounded-2xl hover:bg-[hsl(72,100%,60%)] transition-all">
+                                            <Wallet className="mr-2 h-5 w-5" /> {t('quickTopUp.action')}
                                         </Button>
                                     </Link>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Recent Transactions - Clean List */}
+                        {/* Activity */}
                         <div className="relative rounded-[32px] bg-[#0d0d10] border border-white/[0.06] p-6 overflow-hidden">
                             <h3 className="text-lg font-bold text-white mb-5 px-1">{t('activity.title')}</h3>
                             <div className="space-y-1">
@@ -385,16 +274,12 @@ export function DesktopDashboard() {
                                             <span className={`block text-sm font-mono font-bold ${['topup', 'manual_credit', 'referral_bonus', 'refund'].includes(tx.type) ? 'text-emerald-400' : 'text-white'}`}>
                                                 {['topup', 'manual_credit', 'referral_bonus', 'refund'].includes(tx.type) ? '+' : ''}{formatPrice(tx.amount)}
                                             </span>
-                                            <span className="text-[10px] text-gray-600 uppercase tracking-wider font-medium">{tx.status || 'Done'}</span>
                                         </div>
                                     </div>
                                 ))}
-                                {transactions.length === 0 && (
-                                    <p className="text-sm text-gray-500 text-center py-4">{t('activity.empty')}</p>
-                                )}
+                                {transactions.length === 0 && <p className="text-sm text-gray-500 text-center py-4">{t('activity.empty')}</p>}
                             </div>
                         </div>
-
                     </motion.div>
                 </div>
             </div>

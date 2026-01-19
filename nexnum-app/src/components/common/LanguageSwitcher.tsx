@@ -53,6 +53,7 @@ export default function LanguageSwitcher() {
                     isOpen ? "bg-white/[0.08] shadow-[0_0_15px_rgba(255,255,255,0.1)]" : "bg-transparent"
                 )}
                 aria-label="Select Language"
+                onClick={() => setIsOpen(!isOpen)}
             >
                 <div className="relative w-6 h-6 filter drop-shadow-lg scale-110">
                     <Image

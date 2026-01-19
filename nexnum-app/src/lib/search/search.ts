@@ -61,9 +61,9 @@ export interface OfferDocument {
     countryName: string;
     flagUrl: string;
 
-    // Provider Info
-    provider: string;
-    displayName: string;
+
+    // Provider Info (slug only - lookup displayName from DB at query time)
+    provider: string;  // Internal slug (e.g., "grizzlysms", "5sim")
     logoUrl?: string;
 
     // Operator/Server Info (for purchase routing)
@@ -78,6 +78,7 @@ export interface OfferDocument {
 
     // Metadata
     lastSyncedAt: number;
+    isActive?: boolean;
 }
 
 
@@ -232,7 +233,7 @@ export async function searchCountries(
             .join(' OR ')
 
         let result = await index.search(query, {
-            filter: serviceFilter,
+            filter: `${serviceFilter} AND isActive = true`,
             limit: 10000,
             attributesToRetrieve: ['countryCode', 'countryName', 'flagUrl', 'provider', 'price', 'stock'],
         })
@@ -362,7 +363,7 @@ export async function searchAdminCountries(
         const result = await index.search(query, {
             filter: providerFilter,
             limit: 10000,
-            attributesToRetrieve: ['countryCode', 'countryName', 'flagUrl', 'provider', 'serviceSlug', 'price', 'stock', 'lastSyncedAt', 'id'],
+            attributesToRetrieve: ['countryCode', 'countryName', 'flagUrl', 'provider', 'serviceSlug', 'price', 'stock', 'lastSyncedAt', 'id', 'isActive'],
         })
 
         const groups = new Map<string, {
@@ -370,7 +371,7 @@ export async function searchAdminCountries(
             canonicalName: string
             displayName: string
             flagUrl: string
-            providers: Map<string, { provider: string; externalId: string; stock: number; minPrice: number; maxPrice: number }>
+            providers: Map<string, { provider: string; externalId: string; stock: number; minPrice: number; maxPrice: number; isActive: boolean }>
             services: Set<string>
             totalStock: number
             priceRange: { min: number; max: number }
@@ -401,13 +402,14 @@ export async function searchAdminCountries(
             if (hit.price > group.priceRange.max) group.priceRange.max = hit.price
 
             if (!group.providers.has(hit.provider)) {
-                const externalId = (hit.id && typeof hit.id === 'string') ? hit.id.split('_').pop() || '' : code
+                const externalId = (hit.serviceSlug || '').split('_').pop() || hit.serviceSlug // Use full slug as externalId for service
                 group.providers.set(hit.provider, {
                     provider: hit.provider,
                     externalId: externalId,
                     stock: hit.stock || 0,
                     minPrice: hit.price,
-                    maxPrice: hit.price
+                    maxPrice: hit.price,
+                    isActive: hit.isActive !== false
                 })
             } else {
                 const p = group.providers.get(hit.provider)!
@@ -462,7 +464,7 @@ export async function searchRawInventory(
         const result = await index.search(query, {
             filter: providerFilter,
             limit: 10000,
-            attributesToRetrieve: ['countryCode', 'countryName', 'flagUrl', 'provider', 'serviceSlug', 'serviceName', 'price', 'stock', 'lastSyncedAt', 'id'],
+            attributesToRetrieve: ['countryCode', 'countryName', 'flagUrl', 'provider', 'serviceSlug', 'serviceName', 'price', 'stock', 'lastSyncedAt', 'id', 'isActive'],
         })
 
         const seen = new Map<string, any>()
@@ -486,7 +488,8 @@ export async function searchRawInventory(
                         name: hit.countryName,
                         iconUrl: hit.flagUrl,
                         provider: hit.provider,
-                        lastSyncedAt: new Date(hit.lastSyncedAt)
+                        lastSyncedAt: new Date(hit.lastSyncedAt),
+                        isActive: hit.isActive !== false
                     })
                 } else {
                     seen.set(key, {
@@ -496,7 +499,8 @@ export async function searchRawInventory(
                         slug: getSlugFromName(canonicalName),
                         provider: hit.provider,
                         lastSyncedAt: new Date(hit.lastSyncedAt),
-                        _count: { pricing: hit.stock ? 1 : 0 }
+                        _count: { pricing: hit.stock ? 1 : 0 },
+                        isActive: hit.isActive !== false
                     })
                 }
             }
@@ -529,7 +533,7 @@ export async function initSearchIndexes() {
 
         await offersIndex.updateSettings({
             searchableAttributes: ['serviceName', 'serviceSlug', 'countryName', 'countryCode', 'provider', 'displayName'],
-            filterableAttributes: ['serviceSlug', 'serviceName', 'countryCode', 'countryName', 'provider', 'operatorId', 'price', 'stock', 'lastSyncedAt'],
+            filterableAttributes: ['serviceSlug', 'serviceName', 'countryCode', 'countryName', 'provider', 'operatorId', 'price', 'stock', 'lastSyncedAt', 'isActive'],
             sortableAttributes: ['price', 'stock', 'lastSyncedAt'],
             rankingRules: ['words', 'typo', 'proximity', 'attribute', 'sort', 'exactness', 'stock:desc', 'lastSyncedAt:desc'],
             distinctAttribute: null,
@@ -615,8 +619,9 @@ export async function searchServices(
         const limit = options?.limit || 50
         const page = options?.page || 1
 
-        // Get all matching offers to aggregate
+        // Get all matching offers to aggregate (Active Only)
         const result = await index.search(query, {
+            filter: `isActive = true`,
             limit: 5000, // Get enough for aggregation
             attributesToRetrieve: ['serviceSlug', 'serviceName', 'iconUrl', 'countryCode', 'countryName', 'flagUrl', 'provider', 'price', 'stock'],
         })
@@ -778,13 +783,13 @@ export async function searchAdminServices(
         const result = await index.search(query, {
             filter: providerFilter,
             limit: 10000,
-            attributesToRetrieve: ['serviceSlug', 'serviceName', 'provider', 'countryCode', 'price', 'stock', 'lastSyncedAt', 'id'],
+            attributesToRetrieve: ['serviceSlug', 'serviceName', 'provider', 'countryCode', 'price', 'stock', 'lastSyncedAt', 'id', 'isActive'],
         })
 
         const groups = new Map<string, {
             canonicalName: string
             canonicalSlug: string
-            providers: Map<string, { provider: string; externalId: string; stock: number; minPrice: number; maxPrice: number }>
+            providers: Map<string, { provider: string; externalId: string; stock: number; minPrice: number; maxPrice: number; isActive: boolean }>
             countries: Set<string>
             totalStock: number
             priceRange: { min: number; max: number }
@@ -824,7 +829,8 @@ export async function searchAdminServices(
                     externalId: hit.serviceSlug, // Keep visual external ID for debug
                     stock: hit.stock || 0,
                     minPrice: hit.price,
-                    maxPrice: hit.price
+                    maxPrice: hit.price,
+                    isActive: hit.isActive !== false
                 })
             } else {
                 const p = group.providers.get(hit.provider)!

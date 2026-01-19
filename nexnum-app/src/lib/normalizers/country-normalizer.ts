@@ -20,9 +20,11 @@ const FLAG_BASE = "https://raw.githubusercontent.com/HatScripts/circle-flags/gh-
  */
 
 // Name -> ISO map (Generated from universal countries-metadata.json)
+// New format: { code, name: { en, ar, ... }, region, subRegion, latitude, longitude }
 const NAME_TO_ISO: Record<string, string> = {}
 countriesMetadata.forEach(c => {
-    NAME_TO_ISO[c.name.toLowerCase()] = c['alpha-2']
+    // Use English name as the primary key
+    NAME_TO_ISO[c.name.en.toLowerCase()] = c.code.toLowerCase()
 })
 
 export function getCountryIsoCode(input: string): string | undefined {
@@ -148,7 +150,11 @@ export function aggregateCountries(
         const key = normalized.canonical.toLowerCase()
 
         if (!groups.has(key)) {
-            const meta = countriesMetadata.find(cm => cm.name.toLowerCase() === key || cm['alpha-2'] === key)
+            // New metadata format: name is object with language keys
+            const meta = countriesMetadata.find(cm =>
+                cm.name.en.toLowerCase() === key ||
+                cm.code.toLowerCase() === key
+            )
             groups.set(key, {
                 canonicalName: normalized.canonical,
                 displayName: normalized.canonical,
@@ -156,8 +162,8 @@ export function aggregateCountries(
                 variants: [],
                 variantCount: 0,
                 region: meta?.region,
-                subRegion: meta?.['sub-region'],
-                intermediateRegion: meta?.['intermediate-region'],
+                subRegion: meta?.subRegion,
+                intermediateRegion: undefined, // No longer in new format
                 providers: [],
                 lastSyncedAt: new Date(c.lastSyncedAt)
             })

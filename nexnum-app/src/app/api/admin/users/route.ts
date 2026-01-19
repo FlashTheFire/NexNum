@@ -35,6 +35,7 @@ export async function GET(request: Request) {
                     wallet: {
                         select: {
                             id: true,
+                            balance: true,
                             transactions: {
                                 orderBy: { createdAt: 'desc' },
                                 take: 20,
@@ -82,10 +83,7 @@ export async function GET(request: Request) {
                 return NextResponse.json({ error: 'User not found' }, { status: 404 })
             }
 
-            const walletBalance = user.wallet?.transactions.reduce(
-                (sum, tx) => sum + Number(tx.amount),
-                0
-            ) ?? 0
+            const walletBalance = Number(user.wallet?.balance ?? 0)
 
             return NextResponse.json({
                 user: {
@@ -124,7 +122,9 @@ export async function GET(request: Request) {
             const allUsers = await prisma.user.findMany({
                 where,
                 take: 1000,
-                orderBy: { [sortBy]: sortOrder },
+                orderBy: sortBy === 'walletBalance'
+                    ? { wallet: { balance: sortOrder } }
+                    : { [sortBy]: sortOrder },
                 select: {
                     id: true,
                     email: true,
@@ -135,7 +135,7 @@ export async function GET(request: Request) {
                     _count: { select: { numbers: true } },
                     wallet: {
                         select: {
-                            transactions: { select: { amount: true } }
+                            balance: true
                         }
                     }
                 }
@@ -147,7 +147,7 @@ export async function GET(request: Request) {
                 name: user.name,
                 role: user.role,
                 status: user.isBanned ? 'Banned' : 'Active',
-                balance: user.wallet?.transactions.reduce((sum, tx) => sum + Number(tx.amount), 0) ?? 0,
+                balance: Number(user.wallet?.balance ?? 0),
                 numbers: user._count.numbers,
                 joinedAt: user.createdAt.toISOString(),
             }))
@@ -160,7 +160,9 @@ export async function GET(request: Request) {
             where,
             take: limit,
             skip,
-            orderBy: { [sortBy]: sortOrder },
+            orderBy: sortBy === 'walletBalance'
+                ? { wallet: { balance: sortOrder } }
+                : { [sortBy]: sortOrder },
             select: {
                 id: true,
                 email: true,
@@ -178,9 +180,7 @@ export async function GET(request: Request) {
                 wallet: {
                     select: {
                         id: true,
-                        transactions: {
-                            select: { amount: true }
-                        }
+                        balance: true
                     }
                 }
             }
@@ -188,10 +188,7 @@ export async function GET(request: Request) {
 
         // Transform users to include computed fields
         const transformedUsers = users.map(user => {
-            const walletBalance = user.wallet?.transactions.reduce(
-                (sum, tx) => sum + Number(tx.amount),
-                0
-            ) ?? 0
+            const walletBalance = Number(user.wallet?.balance ?? 0)
 
             return {
                 id: user.id,

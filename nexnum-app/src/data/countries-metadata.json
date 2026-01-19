@@ -1,1745 +1,4484 @@
 [
   {
-    "name": "Afghanistan",
-    "alpha-2": "af",
+    "code": "AD",
+    "name": {
+      "en": "Andorra",
+      "ar": "Andorra",
+      "es": "Andorra",
+      "fr": "Andorra",
+      "hi": "Andorra",
+      "pt": "Andorra",
+      "ru": "Andorra",
+      "tr": "Andorra",
+      "zh": "Andorra"
+    },
+    "region": "Europe",
+    "subRegion": "Southern Europe",
+    "latitude": 42.546245,
+    "longitude": 1.601554
+  },
+  {
+    "code": "AE",
+    "name": {
+      "en": "UAE",
+      "ar": "الإمارات العربية المتحدة",
+      "es": "Emiratos Árabes Unidos",
+      "fr": "Émirats arabes unis",
+      "hi": "संयुक्त अरब अमीरात",
+      "pt": "Emirados Árabes Unidos",
+      "ru": "ОАЭ",
+      "tr": "Birleşik Arap Emirlikleri",
+      "zh": "阿联酋"
+    },
     "region": "Asia",
-    "sub-region": "Southern Asia",
-    "intermediate-region": ""
+    "subRegion": "Western Asia",
+    "latitude": 23.424076,
+    "longitude": 53.847818
   },
   {
-    "name": "\u00c5land Islands",
-    "alpha-2": "ax",
+    "code": "AF",
+    "name": {
+      "en": "Afghanistan",
+      "ar": "Afghanistan",
+      "es": "Afghanistan",
+      "fr": "Afghanistan",
+      "hi": "Afghanistan",
+      "pt": "Afghanistan",
+      "ru": "Afghanistan",
+      "tr": "Afghanistan",
+      "zh": "Afghanistan"
+    },
+    "region": "Asia",
+    "subRegion": "Southern Asia",
+    "latitude": 33.93911,
+    "longitude": 67.709953
+  },
+  {
+    "code": "AG",
+    "name": {
+      "en": "Antigua and Barbuda",
+      "ar": "Antigua and Barbuda",
+      "es": "Antigua and Barbuda",
+      "fr": "Antigua and Barbuda",
+      "hi": "Antigua and Barbuda",
+      "pt": "Antigua and Barbuda",
+      "ru": "Antigua and Barbuda",
+      "tr": "Antigua and Barbuda",
+      "zh": "Antigua and Barbuda"
+    },
+    "region": "Americas",
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 17.060816,
+    "longitude": -61.796428
+  },
+  {
+    "code": "AI",
+    "name": {
+      "en": "Anguilla",
+      "ar": "Anguilla",
+      "es": "Anguilla",
+      "fr": "Anguilla",
+      "hi": "Anguilla",
+      "pt": "Anguilla",
+      "ru": "Anguilla",
+      "tr": "Anguilla",
+      "zh": "Anguilla"
+    },
+    "region": "Americas",
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 18.220554,
+    "longitude": -63.068615
+  },
+  {
+    "code": "AL",
+    "name": {
+      "en": "Albania",
+      "ar": "Albania",
+      "es": "Albania",
+      "fr": "Albania",
+      "hi": "Albania",
+      "pt": "Albania",
+      "ru": "Albania",
+      "tr": "Albania",
+      "zh": "Albania"
+    },
     "region": "Europe",
-    "sub-region": "Northern Europe",
-    "intermediate-region": ""
+    "subRegion": "Southern Europe",
+    "latitude": 41.153332,
+    "longitude": 20.168331
   },
   {
-    "name": "Albania",
-    "alpha-2": "al",
-    "region": "Europe",
-    "sub-region": "Southern Europe",
-    "intermediate-region": ""
+    "code": "AM",
+    "name": {
+      "en": "Armenia",
+      "ar": "Armenia",
+      "es": "Armenia",
+      "fr": "Armenia",
+      "hi": "Armenia",
+      "pt": "Armenia",
+      "ru": "Armenia",
+      "tr": "Armenia",
+      "zh": "Armenia"
+    },
+    "region": "Asia",
+    "subRegion": "Western Asia",
+    "latitude": 40.069099,
+    "longitude": 45.038189
   },
   {
-    "name": "Algeria",
-    "alpha-2": "dz",
+    "code": "AO",
+    "name": {
+      "en": "Angola",
+      "ar": "Angola",
+      "es": "Angola",
+      "fr": "Angola",
+      "hi": "Angola",
+      "pt": "Angola",
+      "ru": "Angola",
+      "tr": "Angola",
+      "zh": "Angola"
+    },
     "region": "Africa",
-    "sub-region": "Northern Africa",
-    "intermediate-region": ""
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": -11.202692,
+    "longitude": 17.873887
   },
   {
-    "name": "American Samoa",
-    "alpha-2": "as",
+    "code": "AQ",
+    "name": {
+      "en": "Antarctica",
+      "ar": "Antarctica",
+      "es": "Antarctica",
+      "fr": "Antarctica",
+      "hi": "Antarctica",
+      "pt": "Antarctica",
+      "ru": "Antarctica",
+      "tr": "Antarctica",
+      "zh": "Antarctica"
+    },
+    "region": "Other",
+    "subRegion": "",
+    "latitude": -75.250973,
+    "longitude": -0.071389
+  },
+  {
+    "code": "AR",
+    "name": {
+      "en": "Argentina",
+      "ar": "الأرجنتين",
+      "es": "Argentina",
+      "fr": "Argentine",
+      "hi": "अर्जेंटीना",
+      "pt": "Argentina",
+      "ru": "Аргентина",
+      "tr": "Arjantin",
+      "zh": "阿根廷"
+    },
+    "region": "Americas",
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": -38.416097,
+    "longitude": -63.616672
+  },
+  {
+    "code": "AS",
+    "name": {
+      "en": "American Samoa",
+      "ar": "American Samoa",
+      "es": "American Samoa",
+      "fr": "American Samoa",
+      "hi": "American Samoa",
+      "pt": "American Samoa",
+      "ru": "American Samoa",
+      "tr": "American Samoa",
+      "zh": "American Samoa"
+    },
     "region": "Oceania",
-    "sub-region": "Polynesia",
-    "intermediate-region": ""
+    "subRegion": "Polynesia",
+    "latitude": -14.270972,
+    "longitude": -170.132217
   },
   {
-    "name": "Andorra",
-    "alpha-2": "ad",
+    "code": "AT",
+    "name": {
+      "en": "Austria",
+      "ar": "النمسا",
+      "es": "Austria",
+      "fr": "Autriche",
+      "hi": "ऑस्ट्रिया",
+      "pt": "Áustria",
+      "ru": "Австрия",
+      "tr": "Avusturya",
+      "zh": "奥地利"
+    },
     "region": "Europe",
-    "sub-region": "Southern Europe",
-    "intermediate-region": ""
+    "subRegion": "Western Europe",
+    "latitude": 47.516231,
+    "longitude": 14.550072
   },
   {
-    "name": "Angola",
-    "alpha-2": "ao",
-    "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Middle Africa"
-  },
-  {
-    "name": "Anguilla",
-    "alpha-2": "ai",
-    "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "Caribbean"
-  },
-  {
-    "name": "Antarctica",
-    "alpha-2": "aq",
-    "region": "",
-    "sub-region": "",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Antigua and Barbuda",
-    "alpha-2": "ag",
-    "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "Caribbean"
-  },
-  {
-    "name": "Argentina",
-    "alpha-2": "ar",
-    "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "South America"
-  },
-  {
-    "name": "Armenia",
-    "alpha-2": "am",
-    "region": "Asia",
-    "sub-region": "Western Asia",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Aruba",
-    "alpha-2": "aw",
-    "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "Caribbean"
-  },
-  {
-    "name": "Australia",
-    "alpha-2": "au",
+    "code": "AU",
+    "name": {
+      "en": "Australia",
+      "ar": "أستراليا",
+      "es": "Australia",
+      "fr": "Australie",
+      "hi": "ऑस्ट्रेलिया",
+      "pt": "Austrália",
+      "ru": "Австралия",
+      "tr": "Avustralya",
+      "zh": "澳大利亚"
+    },
     "region": "Oceania",
-    "sub-region": "Australia and New Zealand",
-    "intermediate-region": ""
+    "subRegion": "Australia and New Zealand",
+    "latitude": -25.274398,
+    "longitude": 133.775136
   },
   {
-    "name": "Austria",
-    "alpha-2": "at",
+    "code": "AW",
+    "name": {
+      "en": "Aruba",
+      "ar": "Aruba",
+      "es": "Aruba",
+      "fr": "Aruba",
+      "hi": "Aruba",
+      "pt": "Aruba",
+      "ru": "Aruba",
+      "tr": "Aruba",
+      "zh": "Aruba"
+    },
+    "region": "Americas",
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 12.52111,
+    "longitude": -69.968338
+  },
+  {
+    "code": "AX",
+    "name": {
+      "en": "Åland Islands",
+      "ar": "Åland Islands",
+      "es": "Åland Islands",
+      "fr": "Åland Islands",
+      "hi": "Åland Islands",
+      "pt": "Åland Islands",
+      "ru": "Åland Islands",
+      "tr": "Åland Islands",
+      "zh": "Åland Islands"
+    },
     "region": "Europe",
-    "sub-region": "Western Europe",
-    "intermediate-region": ""
+    "subRegion": "Northern Europe",
+    "latitude": 0,
+    "longitude": 0
   },
   {
-    "name": "Azerbaijan",
-    "alpha-2": "az",
+    "code": "AZ",
+    "name": {
+      "en": "Azerbaijan",
+      "ar": "Azerbaijan",
+      "es": "Azerbaijan",
+      "fr": "Azerbaijan",
+      "hi": "Azerbaijan",
+      "pt": "Azerbaijan",
+      "ru": "Azerbaijan",
+      "tr": "Azerbaijan",
+      "zh": "Azerbaijan"
+    },
     "region": "Asia",
-    "sub-region": "Western Asia",
-    "intermediate-region": ""
+    "subRegion": "Western Asia",
+    "latitude": 40.143105,
+    "longitude": 47.576927
   },
   {
-    "name": "Bahamas",
-    "alpha-2": "bs",
-    "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "Caribbean"
-  },
-  {
-    "name": "Bahrain",
-    "alpha-2": "bh",
-    "region": "Asia",
-    "sub-region": "Western Asia",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Bangladesh",
-    "alpha-2": "bd",
-    "region": "Asia",
-    "sub-region": "Southern Asia",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Barbados",
-    "alpha-2": "bb",
-    "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "Caribbean"
-  },
-  {
-    "name": "Belarus",
-    "alpha-2": "by",
+    "code": "BA",
+    "name": {
+      "en": "Bosnia and Herzegovina",
+      "ar": "Bosnia and Herzegovina",
+      "es": "Bosnia and Herzegovina",
+      "fr": "Bosnia and Herzegovina",
+      "hi": "Bosnia and Herzegovina",
+      "pt": "Bosnia and Herzegovina",
+      "ru": "Bosnia and Herzegovina",
+      "tr": "Bosnia and Herzegovina",
+      "zh": "Bosnia and Herzegovina"
+    },
     "region": "Europe",
-    "sub-region": "Eastern Europe",
-    "intermediate-region": ""
+    "subRegion": "Southern Europe",
+    "latitude": 43.915886,
+    "longitude": 17.679076
   },
   {
-    "name": "Belgium",
-    "alpha-2": "be",
+    "code": "BB",
+    "name": {
+      "en": "Barbados",
+      "ar": "Barbados",
+      "es": "Barbados",
+      "fr": "Barbados",
+      "hi": "Barbados",
+      "pt": "Barbados",
+      "ru": "Barbados",
+      "tr": "Barbados",
+      "zh": "Barbados"
+    },
+    "region": "Americas",
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 13.193887,
+    "longitude": -59.543198
+  },
+  {
+    "code": "BD",
+    "name": {
+      "en": "Bangladesh",
+      "ar": "بنغلاديش",
+      "es": "Bangladés",
+      "fr": "Bangladesh",
+      "hi": "बांग्लादेश",
+      "pt": "Bangladexe",
+      "ru": "Бангладеш",
+      "tr": "Bangladeş",
+      "zh": "孟加拉国"
+    },
+    "region": "Asia",
+    "subRegion": "Southern Asia",
+    "latitude": 23.684994,
+    "longitude": 90.356331
+  },
+  {
+    "code": "BE",
+    "name": {
+      "en": "Belgium",
+      "ar": "بلجيكا",
+      "es": "Bélgica",
+      "fr": "Belgique",
+      "hi": "बेल्जियम",
+      "pt": "Bélgica",
+      "ru": "Бельгия",
+      "tr": "Belçika",
+      "zh": "比利时"
+    },
     "region": "Europe",
-    "sub-region": "Western Europe",
-    "intermediate-region": ""
+    "subRegion": "Western Europe",
+    "latitude": 50.503887,
+    "longitude": 4.469936
   },
   {
-    "name": "Belize",
-    "alpha-2": "bz",
-    "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "Central America"
-  },
-  {
-    "name": "Benin",
-    "alpha-2": "bj",
+    "code": "BF",
+    "name": {
+      "en": "Burkina Faso",
+      "ar": "Burkina Faso",
+      "es": "Burkina Faso",
+      "fr": "Burkina Faso",
+      "hi": "Burkina Faso",
+      "pt": "Burkina Faso",
+      "ru": "Burkina Faso",
+      "tr": "Burkina Faso",
+      "zh": "Burkina Faso"
+    },
     "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Western Africa"
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": 12.238333,
+    "longitude": -1.561593
   },
   {
-    "name": "Bermuda",
-    "alpha-2": "bm",
-    "region": "Americas",
-    "sub-region": "Northern America",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Bhutan",
-    "alpha-2": "bt",
-    "region": "Asia",
-    "sub-region": "Southern Asia",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Bolivia, Plurinational State of",
-    "alpha-2": "bo",
-    "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "South America"
-  },
-  {
-    "name": "Bonaire, Sint Eustatius and Saba",
-    "alpha-2": "bq",
-    "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "Caribbean"
-  },
-  {
-    "name": "Bosnia and Herzegovina",
-    "alpha-2": "ba",
+    "code": "BG",
+    "name": {
+      "en": "Bulgaria",
+      "ar": "Bulgaria",
+      "es": "Bulgaria",
+      "fr": "Bulgaria",
+      "hi": "Bulgaria",
+      "pt": "Bulgaria",
+      "ru": "Bulgaria",
+      "tr": "Bulgaria",
+      "zh": "Bulgaria"
+    },
     "region": "Europe",
-    "sub-region": "Southern Europe",
-    "intermediate-region": ""
+    "subRegion": "Eastern Europe",
+    "latitude": 42.733883,
+    "longitude": 25.48583
   },
   {
-    "name": "Botswana",
-    "alpha-2": "bw",
-    "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Southern Africa"
-  },
-  {
-    "name": "Bouvet Island",
-    "alpha-2": "bv",
-    "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "South America"
-  },
-  {
-    "name": "Brazil",
-    "alpha-2": "br",
-    "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "South America"
-  },
-  {
-    "name": "British Indian Ocean Territory",
-    "alpha-2": "io",
-    "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Eastern Africa"
-  },
-  {
-    "name": "Brunei Darussalam",
-    "alpha-2": "bn",
+    "code": "BH",
+    "name": {
+      "en": "Bahrain",
+      "ar": "Bahrain",
+      "es": "Bahrain",
+      "fr": "Bahrain",
+      "hi": "Bahrain",
+      "pt": "Bahrain",
+      "ru": "Bahrain",
+      "tr": "Bahrain",
+      "zh": "Bahrain"
+    },
     "region": "Asia",
-    "sub-region": "South-eastern Asia",
-    "intermediate-region": ""
+    "subRegion": "Western Asia",
+    "latitude": 25.930414,
+    "longitude": 50.637772
   },
   {
-    "name": "Bulgaria",
-    "alpha-2": "bg",
+    "code": "BI",
+    "name": {
+      "en": "Burundi",
+      "ar": "Burundi",
+      "es": "Burundi",
+      "fr": "Burundi",
+      "hi": "Burundi",
+      "pt": "Burundi",
+      "ru": "Burundi",
+      "tr": "Burundi",
+      "zh": "Burundi"
+    },
+    "region": "Africa",
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": -3.373056,
+    "longitude": 29.918886
+  },
+  {
+    "code": "BJ",
+    "name": {
+      "en": "Benin",
+      "ar": "Benin",
+      "es": "Benin",
+      "fr": "Benin",
+      "hi": "Benin",
+      "pt": "Benin",
+      "ru": "Benin",
+      "tr": "Benin",
+      "zh": "Benin"
+    },
+    "region": "Africa",
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": 9.30769,
+    "longitude": 2.315834
+  },
+  {
+    "code": "BL",
+    "name": {
+      "en": "Saint Barthélemy",
+      "ar": "Saint Barthélemy",
+      "es": "Saint Barthélemy",
+      "fr": "Saint Barthélemy",
+      "hi": "Saint Barthélemy",
+      "pt": "Saint Barthélemy",
+      "ru": "Saint Barthélemy",
+      "tr": "Saint Barthélemy",
+      "zh": "Saint Barthélemy"
+    },
+    "region": "Americas",
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 0,
+    "longitude": 0
+  },
+  {
+    "code": "BM",
+    "name": {
+      "en": "Bermuda",
+      "ar": "Bermuda",
+      "es": "Bermuda",
+      "fr": "Bermuda",
+      "hi": "Bermuda",
+      "pt": "Bermuda",
+      "ru": "Bermuda",
+      "tr": "Bermuda",
+      "zh": "Bermuda"
+    },
+    "region": "Americas",
+    "subRegion": "Northern America",
+    "latitude": 32.321384,
+    "longitude": -64.75737
+  },
+  {
+    "code": "BN",
+    "name": {
+      "en": "Brunei Darussalam",
+      "ar": "Brunei Darussalam",
+      "es": "Brunei Darussalam",
+      "fr": "Brunei Darussalam",
+      "hi": "Brunei Darussalam",
+      "pt": "Brunei Darussalam",
+      "ru": "Brunei Darussalam",
+      "tr": "Brunei Darussalam",
+      "zh": "Brunei Darussalam"
+    },
+    "region": "Asia",
+    "subRegion": "South-eastern Asia",
+    "latitude": 4.535277,
+    "longitude": 114.727669
+  },
+  {
+    "code": "BO",
+    "name": {
+      "en": "Bolivia, Plurinational State of",
+      "ar": "Bolivia, Plurinational State of",
+      "es": "Bolivia, Plurinational State of",
+      "fr": "Bolivia, Plurinational State of",
+      "hi": "Bolivia, Plurinational State of",
+      "pt": "Bolivia, Plurinational State of",
+      "ru": "Bolivia, Plurinational State of",
+      "tr": "Bolivia, Plurinational State of",
+      "zh": "Bolivia, Plurinational State of"
+    },
+    "region": "Americas",
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": -16.290154,
+    "longitude": -63.588653
+  },
+  {
+    "code": "BQ",
+    "name": {
+      "en": "Bonaire, Sint Eustatius and Saba",
+      "ar": "Bonaire, Sint Eustatius and Saba",
+      "es": "Bonaire, Sint Eustatius and Saba",
+      "fr": "Bonaire, Sint Eustatius and Saba",
+      "hi": "Bonaire, Sint Eustatius and Saba",
+      "pt": "Bonaire, Sint Eustatius and Saba",
+      "ru": "Bonaire, Sint Eustatius and Saba",
+      "tr": "Bonaire, Sint Eustatius and Saba",
+      "zh": "Bonaire, Sint Eustatius and Saba"
+    },
+    "region": "Americas",
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 0,
+    "longitude": 0
+  },
+  {
+    "code": "BR",
+    "name": {
+      "en": "Brazil",
+      "ar": "البرازيل",
+      "es": "Brasil",
+      "fr": "Brésil",
+      "hi": "ब्राज़ील",
+      "pt": "Brasil",
+      "ru": "Бразилия",
+      "tr": "Brezilya",
+      "zh": "巴西"
+    },
+    "region": "Americas",
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": -14.235004,
+    "longitude": -51.92528
+  },
+  {
+    "code": "BS",
+    "name": {
+      "en": "Bahamas",
+      "ar": "Bahamas",
+      "es": "Bahamas",
+      "fr": "Bahamas",
+      "hi": "Bahamas",
+      "pt": "Bahamas",
+      "ru": "Bahamas",
+      "tr": "Bahamas",
+      "zh": "Bahamas"
+    },
+    "region": "Americas",
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 25.03428,
+    "longitude": -77.39628
+  },
+  {
+    "code": "BT",
+    "name": {
+      "en": "Bhutan",
+      "ar": "Bhutan",
+      "es": "Bhutan",
+      "fr": "Bhutan",
+      "hi": "Bhutan",
+      "pt": "Bhutan",
+      "ru": "Bhutan",
+      "tr": "Bhutan",
+      "zh": "Bhutan"
+    },
+    "region": "Asia",
+    "subRegion": "Southern Asia",
+    "latitude": 27.514162,
+    "longitude": 90.433601
+  },
+  {
+    "code": "BV",
+    "name": {
+      "en": "Bouvet Island",
+      "ar": "Bouvet Island",
+      "es": "Bouvet Island",
+      "fr": "Bouvet Island",
+      "hi": "Bouvet Island",
+      "pt": "Bouvet Island",
+      "ru": "Bouvet Island",
+      "tr": "Bouvet Island",
+      "zh": "Bouvet Island"
+    },
+    "region": "Americas",
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": -54.423199,
+    "longitude": 3.413194
+  },
+  {
+    "code": "BW",
+    "name": {
+      "en": "Botswana",
+      "ar": "Botswana",
+      "es": "Botswana",
+      "fr": "Botswana",
+      "hi": "Botswana",
+      "pt": "Botswana",
+      "ru": "Botswana",
+      "tr": "Botswana",
+      "zh": "Botswana"
+    },
+    "region": "Africa",
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": -22.328474,
+    "longitude": 24.684866
+  },
+  {
+    "code": "BY",
+    "name": {
+      "en": "Belarus",
+      "ar": "Belarus",
+      "es": "Belarus",
+      "fr": "Belarus",
+      "hi": "Belarus",
+      "pt": "Belarus",
+      "ru": "Belarus",
+      "tr": "Belarus",
+      "zh": "Belarus"
+    },
     "region": "Europe",
-    "sub-region": "Eastern Europe",
-    "intermediate-region": ""
+    "subRegion": "Eastern Europe",
+    "latitude": 53.709807,
+    "longitude": 27.953389
   },
   {
-    "name": "Burkina Faso",
-    "alpha-2": "bf",
-    "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Western Africa"
-  },
-  {
-    "name": "Burundi",
-    "alpha-2": "bi",
-    "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Eastern Africa"
-  },
-  {
-    "name": "Cabo Verde",
-    "alpha-2": "cv",
-    "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Western Africa"
-  },
-  {
-    "name": "Cambodia",
-    "alpha-2": "kh",
-    "region": "Asia",
-    "sub-region": "South-eastern Asia",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Cameroon",
-    "alpha-2": "cm",
-    "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Middle Africa"
-  },
-  {
-    "name": "Canada",
-    "alpha-2": "ca",
+    "code": "BZ",
+    "name": {
+      "en": "Belize",
+      "ar": "Belize",
+      "es": "Belize",
+      "fr": "Belize",
+      "hi": "Belize",
+      "pt": "Belize",
+      "ru": "Belize",
+      "tr": "Belize",
+      "zh": "Belize"
+    },
     "region": "Americas",
-    "sub-region": "Northern America",
-    "intermediate-region": ""
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 17.189877,
+    "longitude": -88.49765
   },
   {
-    "name": "Cayman Islands",
-    "alpha-2": "ky",
+    "code": "CA",
+    "name": {
+      "en": "Canada",
+      "ar": "كندا",
+      "es": "Canadá",
+      "fr": "Canada",
+      "hi": "कनाडा",
+      "pt": "Canadá",
+      "ru": "Канада",
+      "tr": "Kanada",
+      "zh": "加拿大"
+    },
     "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "Caribbean"
+    "subRegion": "Northern America",
+    "latitude": 56.130366,
+    "longitude": -106.346771
   },
   {
-    "name": "Central African Republic",
-    "alpha-2": "cf",
-    "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Middle Africa"
-  },
-  {
-    "name": "Chad",
-    "alpha-2": "td",
-    "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Middle Africa"
-  },
-  {
-    "name": "Chile",
-    "alpha-2": "cl",
-    "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "South America"
-  },
-  {
-    "name": "China",
-    "alpha-2": "cn",
-    "region": "Asia",
-    "sub-region": "Eastern Asia",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Christmas Island",
-    "alpha-2": "cx",
+    "code": "CC",
+    "name": {
+      "en": "Cocos (Keeling) Islands",
+      "ar": "Cocos (Keeling) Islands",
+      "es": "Cocos (Keeling) Islands",
+      "fr": "Cocos (Keeling) Islands",
+      "hi": "Cocos (Keeling) Islands",
+      "pt": "Cocos (Keeling) Islands",
+      "ru": "Cocos (Keeling) Islands",
+      "tr": "Cocos (Keeling) Islands",
+      "zh": "Cocos (Keeling) Islands"
+    },
     "region": "Oceania",
-    "sub-region": "Australia and New Zealand",
-    "intermediate-region": ""
+    "subRegion": "Australia and New Zealand",
+    "latitude": -12.164165,
+    "longitude": 96.870956
   },
   {
-    "name": "Cocos (Keeling) Islands",
-    "alpha-2": "cc",
+    "code": "CD",
+    "name": {
+      "en": "Congo, Democratic Republic of the",
+      "ar": "Congo, Democratic Republic of the",
+      "es": "Congo, Democratic Republic of the",
+      "fr": "Congo, Democratic Republic of the",
+      "hi": "Congo, Democratic Republic of the",
+      "pt": "Congo, Democratic Republic of the",
+      "ru": "Congo, Democratic Republic of the",
+      "tr": "Congo, Democratic Republic of the",
+      "zh": "Congo, Democratic Republic of the"
+    },
+    "region": "Africa",
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": -4.038333,
+    "longitude": 21.758664
+  },
+  {
+    "code": "CF",
+    "name": {
+      "en": "Central African Republic",
+      "ar": "Central African Republic",
+      "es": "Central African Republic",
+      "fr": "Central African Republic",
+      "hi": "Central African Republic",
+      "pt": "Central African Republic",
+      "ru": "Central African Republic",
+      "tr": "Central African Republic",
+      "zh": "Central African Republic"
+    },
+    "region": "Africa",
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": 6.611111,
+    "longitude": 20.939444
+  },
+  {
+    "code": "CG",
+    "name": {
+      "en": "Congo",
+      "ar": "Congo",
+      "es": "Congo",
+      "fr": "Congo",
+      "hi": "Congo",
+      "pt": "Congo",
+      "ru": "Congo",
+      "tr": "Congo",
+      "zh": "Congo"
+    },
+    "region": "Africa",
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": -0.228021,
+    "longitude": 15.827659
+  },
+  {
+    "code": "CH",
+    "name": {
+      "en": "Switzerland",
+      "ar": "سويسرا",
+      "es": "Suiza",
+      "fr": "Suisse",
+      "hi": "स्विट्जरलैंड",
+      "pt": "Suíça",
+      "ru": "Швейцария",
+      "tr": "İsviçre",
+      "zh": "瑞士"
+    },
+    "region": "Europe",
+    "subRegion": "Western Europe",
+    "latitude": 46.818188,
+    "longitude": 8.227512
+  },
+  {
+    "code": "CI",
+    "name": {
+      "en": "Côte d'Ivoire",
+      "ar": "Côte d'Ivoire",
+      "es": "Côte d'Ivoire",
+      "fr": "Côte d'Ivoire",
+      "hi": "Côte d'Ivoire",
+      "pt": "Côte d'Ivoire",
+      "ru": "Côte d'Ivoire",
+      "tr": "Côte d'Ivoire",
+      "zh": "Côte d'Ivoire"
+    },
+    "region": "Africa",
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": 7.539989,
+    "longitude": -5.54708
+  },
+  {
+    "code": "CK",
+    "name": {
+      "en": "Cook Islands",
+      "ar": "Cook Islands",
+      "es": "Cook Islands",
+      "fr": "Cook Islands",
+      "hi": "Cook Islands",
+      "pt": "Cook Islands",
+      "ru": "Cook Islands",
+      "tr": "Cook Islands",
+      "zh": "Cook Islands"
+    },
     "region": "Oceania",
-    "sub-region": "Australia and New Zealand",
-    "intermediate-region": ""
+    "subRegion": "Polynesia",
+    "latitude": -21.236736,
+    "longitude": -159.777671
   },
   {
-    "name": "Colombia",
-    "alpha-2": "co",
+    "code": "CL",
+    "name": {
+      "en": "Chile",
+      "ar": "تشيلي",
+      "es": "Chile",
+      "fr": "Chili",
+      "hi": "चिली",
+      "pt": "Chile",
+      "ru": "Чили",
+      "tr": "Şili",
+      "zh": "智利"
+    },
     "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "South America"
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": -35.675147,
+    "longitude": -71.542969
   },
   {
-    "name": "Comoros",
-    "alpha-2": "km",
+    "code": "CM",
+    "name": {
+      "en": "Cameroon",
+      "ar": "Cameroon",
+      "es": "Cameroon",
+      "fr": "Cameroon",
+      "hi": "Cameroon",
+      "pt": "Cameroon",
+      "ru": "Cameroon",
+      "tr": "Cameroon",
+      "zh": "Cameroon"
+    },
     "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Eastern Africa"
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": 7.369722,
+    "longitude": 12.354722
   },
   {
-    "name": "Congo",
-    "alpha-2": "cg",
+    "code": "CN",
+    "name": {
+      "en": "China",
+      "ar": "الصين",
+      "es": "China",
+      "fr": "Chine",
+      "hi": "चीन",
+      "pt": "China",
+      "ru": "Китай",
+      "tr": "Çin",
+      "zh": "中国"
+    },
+    "region": "Asia",
+    "subRegion": "Eastern Asia",
+    "latitude": 35.86166,
+    "longitude": 104.195397
+  },
+  {
+    "code": "CO",
+    "name": {
+      "en": "Colombia",
+      "ar": "كولومبيا",
+      "es": "Colombia",
+      "fr": "Colombie",
+      "hi": "कोलंबिया",
+      "pt": "Colômbia",
+      "ru": "Колумбия",
+      "tr": "Kolombiya",
+      "zh": "哥伦比亚"
+    },
+    "region": "Americas",
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 4.570868,
+    "longitude": -74.297333
+  },
+  {
+    "code": "CR",
+    "name": {
+      "en": "Costa Rica",
+      "ar": "Costa Rica",
+      "es": "Costa Rica",
+      "fr": "Costa Rica",
+      "hi": "Costa Rica",
+      "pt": "Costa Rica",
+      "ru": "Costa Rica",
+      "tr": "Costa Rica",
+      "zh": "Costa Rica"
+    },
+    "region": "Americas",
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 9.748917,
+    "longitude": -83.753428
+  },
+  {
+    "code": "CU",
+    "name": {
+      "en": "Cuba",
+      "ar": "Cuba",
+      "es": "Cuba",
+      "fr": "Cuba",
+      "hi": "Cuba",
+      "pt": "Cuba",
+      "ru": "Cuba",
+      "tr": "Cuba",
+      "zh": "Cuba"
+    },
+    "region": "Americas",
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 21.521757,
+    "longitude": -77.781167
+  },
+  {
+    "code": "CV",
+    "name": {
+      "en": "Cabo Verde",
+      "ar": "Cabo Verde",
+      "es": "Cabo Verde",
+      "fr": "Cabo Verde",
+      "hi": "Cabo Verde",
+      "pt": "Cabo Verde",
+      "ru": "Cabo Verde",
+      "tr": "Cabo Verde",
+      "zh": "Cabo Verde"
+    },
     "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Middle Africa"
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": 16.002082,
+    "longitude": -24.013197
   },
   {
-    "name": "Congo, Democratic Republic of the",
-    "alpha-2": "cd",
-    "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Middle Africa"
+    "code": "CW",
+    "name": {
+      "en": "Curaçao",
+      "ar": "Curaçao",
+      "es": "Curaçao",
+      "fr": "Curaçao",
+      "hi": "Curaçao",
+      "pt": "Curaçao",
+      "ru": "Curaçao",
+      "tr": "Curaçao",
+      "zh": "Curaçao"
+    },
+    "region": "Americas",
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 0,
+    "longitude": 0
   },
   {
-    "name": "Cook Islands",
-    "alpha-2": "ck",
+    "code": "CX",
+    "name": {
+      "en": "Christmas Island",
+      "ar": "Christmas Island",
+      "es": "Christmas Island",
+      "fr": "Christmas Island",
+      "hi": "Christmas Island",
+      "pt": "Christmas Island",
+      "ru": "Christmas Island",
+      "tr": "Christmas Island",
+      "zh": "Christmas Island"
+    },
     "region": "Oceania",
-    "sub-region": "Polynesia",
-    "intermediate-region": ""
+    "subRegion": "Australia and New Zealand",
+    "latitude": -10.447525,
+    "longitude": 105.690449
   },
   {
-    "name": "Costa Rica",
-    "alpha-2": "cr",
-    "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "Central America"
-  },
-  {
-    "name": "C\u00f4te d'Ivoire",
-    "alpha-2": "ci",
-    "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Western Africa"
-  },
-  {
-    "name": "Croatia",
-    "alpha-2": "hr",
-    "region": "Europe",
-    "sub-region": "Southern Europe",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Cuba",
-    "alpha-2": "cu",
-    "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "Caribbean"
-  },
-  {
-    "name": "Cura\u00e7ao",
-    "alpha-2": "cw",
-    "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "Caribbean"
-  },
-  {
-    "name": "Cyprus",
-    "alpha-2": "cy",
+    "code": "CY",
+    "name": {
+      "en": "Cyprus",
+      "ar": "Cyprus",
+      "es": "Cyprus",
+      "fr": "Cyprus",
+      "hi": "Cyprus",
+      "pt": "Cyprus",
+      "ru": "Cyprus",
+      "tr": "Cyprus",
+      "zh": "Cyprus"
+    },
     "region": "Asia",
-    "sub-region": "Western Asia",
-    "intermediate-region": ""
+    "subRegion": "Western Asia",
+    "latitude": 35.126413,
+    "longitude": 33.429859
   },
   {
-    "name": "Czechia",
-    "alpha-2": "cz",
+    "code": "CZ",
+    "name": {
+      "en": "Czech Republic",
+      "ar": "التشيك",
+      "es": "República Checa",
+      "fr": "Tchéquie",
+      "hi": "चेक गणराज्य",
+      "pt": "Chéquia",
+      "ru": "Чехия",
+      "tr": "Çekya",
+      "zh": "捷克"
+    },
     "region": "Europe",
-    "sub-region": "Eastern Europe",
-    "intermediate-region": ""
+    "subRegion": "Eastern Europe",
+    "latitude": 49.817492,
+    "longitude": 15.472962
   },
   {
-    "name": "Denmark",
-    "alpha-2": "dk",
+    "code": "DE",
+    "name": {
+      "en": "Germany",
+      "ar": "ألمانيا",
+      "es": "Alemania",
+      "fr": "Allemagne",
+      "hi": "जर्मनी",
+      "pt": "Alemanha",
+      "ru": "Германия",
+      "tr": "Almanya",
+      "zh": "德国"
+    },
     "region": "Europe",
-    "sub-region": "Northern Europe",
-    "intermediate-region": ""
+    "subRegion": "Western Europe",
+    "latitude": 51.165691,
+    "longitude": 10.451526
   },
   {
-    "name": "Djibouti",
-    "alpha-2": "dj",
+    "code": "DJ",
+    "name": {
+      "en": "Djibouti",
+      "ar": "Djibouti",
+      "es": "Djibouti",
+      "fr": "Djibouti",
+      "hi": "Djibouti",
+      "pt": "Djibouti",
+      "ru": "Djibouti",
+      "tr": "Djibouti",
+      "zh": "Djibouti"
+    },
     "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Eastern Africa"
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": 11.825138,
+    "longitude": 42.590275
   },
   {
-    "name": "Dominica",
-    "alpha-2": "dm",
-    "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "Caribbean"
-  },
-  {
-    "name": "Dominican Republic",
-    "alpha-2": "do",
-    "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "Caribbean"
-  },
-  {
-    "name": "Ecuador",
-    "alpha-2": "ec",
-    "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "South America"
-  },
-  {
-    "name": "Egypt",
-    "alpha-2": "eg",
-    "region": "Africa",
-    "sub-region": "Northern Africa",
-    "intermediate-region": ""
-  },
-  {
-    "name": "El Salvador",
-    "alpha-2": "sv",
-    "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "Central America"
-  },
-  {
-    "name": "Equatorial Guinea",
-    "alpha-2": "gq",
-    "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Middle Africa"
-  },
-  {
-    "name": "Eritrea",
-    "alpha-2": "er",
-    "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Eastern Africa"
-  },
-  {
-    "name": "Estonia",
-    "alpha-2": "ee",
+    "code": "DK",
+    "name": {
+      "en": "Denmark",
+      "ar": "الدنمارك",
+      "es": "Dinamarca",
+      "fr": "Danemark",
+      "hi": "डेनमार्क",
+      "pt": "Dinamarca",
+      "ru": "Дания",
+      "tr": "Danimarka",
+      "zh": "丹麦"
+    },
     "region": "Europe",
-    "sub-region": "Northern Europe",
-    "intermediate-region": ""
+    "subRegion": "Northern Europe",
+    "latitude": 56.26392,
+    "longitude": 9.501785
   },
   {
-    "name": "Eswatini",
-    "alpha-2": "sz",
-    "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Southern Africa"
-  },
-  {
-    "name": "Ethiopia",
-    "alpha-2": "et",
-    "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Eastern Africa"
-  },
-  {
-    "name": "Falkland Islands (Malvinas)",
-    "alpha-2": "fk",
+    "code": "DM",
+    "name": {
+      "en": "Dominica",
+      "ar": "Dominica",
+      "es": "Dominica",
+      "fr": "Dominica",
+      "hi": "Dominica",
+      "pt": "Dominica",
+      "ru": "Dominica",
+      "tr": "Dominica",
+      "zh": "Dominica"
+    },
     "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "South America"
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 15.414999,
+    "longitude": -61.370976
   },
   {
-    "name": "Faroe Islands",
-    "alpha-2": "fo",
+    "code": "DO",
+    "name": {
+      "en": "Dominican Republic",
+      "ar": "Dominican Republic",
+      "es": "Dominican Republic",
+      "fr": "Dominican Republic",
+      "hi": "Dominican Republic",
+      "pt": "Dominican Republic",
+      "ru": "Dominican Republic",
+      "tr": "Dominican Republic",
+      "zh": "Dominican Republic"
+    },
+    "region": "Americas",
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 18.735693,
+    "longitude": -70.162651
+  },
+  {
+    "code": "DZ",
+    "name": {
+      "en": "Algeria",
+      "ar": "Algeria",
+      "es": "Algeria",
+      "fr": "Algeria",
+      "hi": "Algeria",
+      "pt": "Algeria",
+      "ru": "Algeria",
+      "tr": "Algeria",
+      "zh": "Algeria"
+    },
+    "region": "Africa",
+    "subRegion": "Northern Africa",
+    "latitude": 28.033886,
+    "longitude": 1.659626
+  },
+  {
+    "code": "EC",
+    "name": {
+      "en": "Ecuador",
+      "ar": "Ecuador",
+      "es": "Ecuador",
+      "fr": "Ecuador",
+      "hi": "Ecuador",
+      "pt": "Ecuador",
+      "ru": "Ecuador",
+      "tr": "Ecuador",
+      "zh": "Ecuador"
+    },
+    "region": "Americas",
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": -1.831239,
+    "longitude": -78.183406
+  },
+  {
+    "code": "EE",
+    "name": {
+      "en": "Estonia",
+      "ar": "Estonia",
+      "es": "Estonia",
+      "fr": "Estonia",
+      "hi": "Estonia",
+      "pt": "Estonia",
+      "ru": "Estonia",
+      "tr": "Estonia",
+      "zh": "Estonia"
+    },
     "region": "Europe",
-    "sub-region": "Northern Europe",
-    "intermediate-region": ""
+    "subRegion": "Northern Europe",
+    "latitude": 58.595272,
+    "longitude": 25.013607
   },
   {
-    "name": "Fiji",
-    "alpha-2": "fj",
+    "code": "EG",
+    "name": {
+      "en": "Egypt",
+      "ar": "مصر",
+      "es": "Egipto",
+      "fr": "Égypte",
+      "hi": "मिस्र",
+      "pt": "Egito",
+      "ru": "Египет",
+      "tr": "Mısır",
+      "zh": "埃及"
+    },
+    "region": "Africa",
+    "subRegion": "Northern Africa",
+    "latitude": 26.820553,
+    "longitude": 30.802498
+  },
+  {
+    "code": "EH",
+    "name": {
+      "en": "Western Sahara",
+      "ar": "Western Sahara",
+      "es": "Western Sahara",
+      "fr": "Western Sahara",
+      "hi": "Western Sahara",
+      "pt": "Western Sahara",
+      "ru": "Western Sahara",
+      "tr": "Western Sahara",
+      "zh": "Western Sahara"
+    },
+    "region": "Africa",
+    "subRegion": "Northern Africa",
+    "latitude": 24.215527,
+    "longitude": -12.885834
+  },
+  {
+    "code": "ER",
+    "name": {
+      "en": "Eritrea",
+      "ar": "Eritrea",
+      "es": "Eritrea",
+      "fr": "Eritrea",
+      "hi": "Eritrea",
+      "pt": "Eritrea",
+      "ru": "Eritrea",
+      "tr": "Eritrea",
+      "zh": "Eritrea"
+    },
+    "region": "Africa",
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": 15.179384,
+    "longitude": 39.782334
+  },
+  {
+    "code": "ES",
+    "name": {
+      "en": "Spain",
+      "ar": "إسبانيا",
+      "es": "España",
+      "fr": "Espagne",
+      "hi": "स्पेन",
+      "pt": "Espanha",
+      "ru": "Испания",
+      "tr": "İspanya",
+      "zh": "西班牙"
+    },
+    "region": "Europe",
+    "subRegion": "Southern Europe",
+    "latitude": 40.463667,
+    "longitude": -3.74922
+  },
+  {
+    "code": "ET",
+    "name": {
+      "en": "Ethiopia",
+      "ar": "Ethiopia",
+      "es": "Ethiopia",
+      "fr": "Ethiopia",
+      "hi": "Ethiopia",
+      "pt": "Ethiopia",
+      "ru": "Ethiopia",
+      "tr": "Ethiopia",
+      "zh": "Ethiopia"
+    },
+    "region": "Africa",
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": 9.145,
+    "longitude": 40.489673
+  },
+  {
+    "code": "FI",
+    "name": {
+      "en": "Finland",
+      "ar": "فنلندا",
+      "es": "Finlandia",
+      "fr": "Finlande",
+      "hi": "फ़िनलैंड",
+      "pt": "Finlândia",
+      "ru": "Финляндия",
+      "tr": "Finlandiya",
+      "zh": "芬兰"
+    },
+    "region": "Europe",
+    "subRegion": "Northern Europe",
+    "latitude": 61.92411,
+    "longitude": 25.748151
+  },
+  {
+    "code": "FJ",
+    "name": {
+      "en": "Fiji",
+      "ar": "Fiji",
+      "es": "Fiji",
+      "fr": "Fiji",
+      "hi": "Fiji",
+      "pt": "Fiji",
+      "ru": "Fiji",
+      "tr": "Fiji",
+      "zh": "Fiji"
+    },
     "region": "Oceania",
-    "sub-region": "Melanesia",
-    "intermediate-region": ""
+    "subRegion": "Melanesia",
+    "latitude": -16.578193,
+    "longitude": 179.414413
   },
   {
-    "name": "Finland",
-    "alpha-2": "fi",
-    "region": "Europe",
-    "sub-region": "Northern Europe",
-    "intermediate-region": ""
-  },
-  {
-    "name": "France",
-    "alpha-2": "fr",
-    "region": "Europe",
-    "sub-region": "Western Europe",
-    "intermediate-region": ""
-  },
-  {
-    "name": "French Guiana",
-    "alpha-2": "gf",
+    "code": "FK",
+    "name": {
+      "en": "Falkland Islands (Malvinas)",
+      "ar": "Falkland Islands (Malvinas)",
+      "es": "Falkland Islands (Malvinas)",
+      "fr": "Falkland Islands (Malvinas)",
+      "hi": "Falkland Islands (Malvinas)",
+      "pt": "Falkland Islands (Malvinas)",
+      "ru": "Falkland Islands (Malvinas)",
+      "tr": "Falkland Islands (Malvinas)",
+      "zh": "Falkland Islands (Malvinas)"
+    },
     "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "South America"
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": -51.796253,
+    "longitude": -59.523613
   },
   {
-    "name": "French Polynesia",
-    "alpha-2": "pf",
+    "code": "FM",
+    "name": {
+      "en": "Micronesia, Federated States of",
+      "ar": "Micronesia, Federated States of",
+      "es": "Micronesia, Federated States of",
+      "fr": "Micronesia, Federated States of",
+      "hi": "Micronesia, Federated States of",
+      "pt": "Micronesia, Federated States of",
+      "ru": "Micronesia, Federated States of",
+      "tr": "Micronesia, Federated States of",
+      "zh": "Micronesia, Federated States of"
+    },
     "region": "Oceania",
-    "sub-region": "Polynesia",
-    "intermediate-region": ""
+    "subRegion": "Micronesia",
+    "latitude": 7.425554,
+    "longitude": 150.550812
   },
   {
-    "name": "French Southern Territories",
-    "alpha-2": "tf",
+    "code": "FO",
+    "name": {
+      "en": "Faroe Islands",
+      "ar": "Faroe Islands",
+      "es": "Faroe Islands",
+      "fr": "Faroe Islands",
+      "hi": "Faroe Islands",
+      "pt": "Faroe Islands",
+      "ru": "Faroe Islands",
+      "tr": "Faroe Islands",
+      "zh": "Faroe Islands"
+    },
+    "region": "Europe",
+    "subRegion": "Northern Europe",
+    "latitude": 61.892635,
+    "longitude": -6.911806
+  },
+  {
+    "code": "FR",
+    "name": {
+      "en": "France",
+      "ar": "فرنسا",
+      "es": "Francia",
+      "fr": "France",
+      "hi": "फ्रांस",
+      "pt": "França",
+      "ru": "Франция",
+      "tr": "Fransa",
+      "zh": "法国"
+    },
+    "region": "Europe",
+    "subRegion": "Western Europe",
+    "latitude": 46.227638,
+    "longitude": 2.213749
+  },
+  {
+    "code": "GA",
+    "name": {
+      "en": "Gabon",
+      "ar": "Gabon",
+      "es": "Gabon",
+      "fr": "Gabon",
+      "hi": "Gabon",
+      "pt": "Gabon",
+      "ru": "Gabon",
+      "tr": "Gabon",
+      "zh": "Gabon"
+    },
     "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Eastern Africa"
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": -0.803689,
+    "longitude": 11.609444
   },
   {
-    "name": "Gabon",
-    "alpha-2": "ga",
-    "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Middle Africa"
+    "code": "GB",
+    "name": {
+      "en": "United Kingdom",
+      "ar": "المملكة المتحدة",
+      "es": "Reino Unido",
+      "fr": "Royaume-Uni",
+      "hi": "यूनाइटेड किंगडम",
+      "pt": "Reino Unido",
+      "ru": "Великобритания",
+      "tr": "Birleşik Krallık",
+      "zh": "英国"
+    },
+    "region": "Europe",
+    "subRegion": "Northern Europe",
+    "latitude": 55.378051,
+    "longitude": -3.435973
   },
   {
-    "name": "Gambia",
-    "alpha-2": "gm",
-    "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Western Africa"
+    "code": "GD",
+    "name": {
+      "en": "Grenada",
+      "ar": "Grenada",
+      "es": "Grenada",
+      "fr": "Grenada",
+      "hi": "Grenada",
+      "pt": "Grenada",
+      "ru": "Grenada",
+      "tr": "Grenada",
+      "zh": "Grenada"
+    },
+    "region": "Americas",
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 12.262776,
+    "longitude": -61.604171
   },
   {
-    "name": "Georgia",
-    "alpha-2": "ge",
+    "code": "GE",
+    "name": {
+      "en": "Georgia",
+      "ar": "Georgia",
+      "es": "Georgia",
+      "fr": "Georgia",
+      "hi": "Georgia",
+      "pt": "Georgia",
+      "ru": "Georgia",
+      "tr": "Georgia",
+      "zh": "Georgia"
+    },
     "region": "Asia",
-    "sub-region": "Western Asia",
-    "intermediate-region": ""
+    "subRegion": "Western Asia",
+    "latitude": 42.315407,
+    "longitude": 43.356892
   },
   {
-    "name": "Germany",
-    "alpha-2": "de",
+    "code": "GF",
+    "name": {
+      "en": "French Guiana",
+      "ar": "French Guiana",
+      "es": "French Guiana",
+      "fr": "French Guiana",
+      "hi": "French Guiana",
+      "pt": "French Guiana",
+      "ru": "French Guiana",
+      "tr": "French Guiana",
+      "zh": "French Guiana"
+    },
+    "region": "Americas",
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 3.933889,
+    "longitude": -53.125782
+  },
+  {
+    "code": "GG",
+    "name": {
+      "en": "Guernsey",
+      "ar": "Guernsey",
+      "es": "Guernsey",
+      "fr": "Guernsey",
+      "hi": "Guernsey",
+      "pt": "Guernsey",
+      "ru": "Guernsey",
+      "tr": "Guernsey",
+      "zh": "Guernsey"
+    },
     "region": "Europe",
-    "sub-region": "Western Europe",
-    "intermediate-region": ""
+    "subRegion": "Northern Europe",
+    "latitude": 49.465691,
+    "longitude": -2.585278
   },
   {
-    "name": "Ghana",
-    "alpha-2": "gh",
+    "code": "GH",
+    "name": {
+      "en": "Ghana",
+      "ar": "Ghana",
+      "es": "Ghana",
+      "fr": "Ghana",
+      "hi": "Ghana",
+      "pt": "Ghana",
+      "ru": "Ghana",
+      "tr": "Ghana",
+      "zh": "Ghana"
+    },
     "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Western Africa"
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": 7.946527,
+    "longitude": -1.023194
   },
   {
-    "name": "Gibraltar",
-    "alpha-2": "gi",
+    "code": "GI",
+    "name": {
+      "en": "Gibraltar",
+      "ar": "Gibraltar",
+      "es": "Gibraltar",
+      "fr": "Gibraltar",
+      "hi": "Gibraltar",
+      "pt": "Gibraltar",
+      "ru": "Gibraltar",
+      "tr": "Gibraltar",
+      "zh": "Gibraltar"
+    },
     "region": "Europe",
-    "sub-region": "Southern Europe",
-    "intermediate-region": ""
+    "subRegion": "Southern Europe",
+    "latitude": 36.137741,
+    "longitude": -5.345374
   },
   {
-    "name": "Greece",
-    "alpha-2": "gr",
+    "code": "GL",
+    "name": {
+      "en": "Greenland",
+      "ar": "Greenland",
+      "es": "Greenland",
+      "fr": "Greenland",
+      "hi": "Greenland",
+      "pt": "Greenland",
+      "ru": "Greenland",
+      "tr": "Greenland",
+      "zh": "Greenland"
+    },
+    "region": "Americas",
+    "subRegion": "Northern America",
+    "latitude": 71.706936,
+    "longitude": -42.604303
+  },
+  {
+    "code": "GM",
+    "name": {
+      "en": "Gambia",
+      "ar": "Gambia",
+      "es": "Gambia",
+      "fr": "Gambia",
+      "hi": "Gambia",
+      "pt": "Gambia",
+      "ru": "Gambia",
+      "tr": "Gambia",
+      "zh": "Gambia"
+    },
+    "region": "Africa",
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": 13.443182,
+    "longitude": -15.310139
+  },
+  {
+    "code": "GN",
+    "name": {
+      "en": "Guinea",
+      "ar": "Guinea",
+      "es": "Guinea",
+      "fr": "Guinea",
+      "hi": "Guinea",
+      "pt": "Guinea",
+      "ru": "Guinea",
+      "tr": "Guinea",
+      "zh": "Guinea"
+    },
+    "region": "Africa",
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": 9.945587,
+    "longitude": -9.696645
+  },
+  {
+    "code": "GP",
+    "name": {
+      "en": "Guadeloupe",
+      "ar": "Guadeloupe",
+      "es": "Guadeloupe",
+      "fr": "Guadeloupe",
+      "hi": "Guadeloupe",
+      "pt": "Guadeloupe",
+      "ru": "Guadeloupe",
+      "tr": "Guadeloupe",
+      "zh": "Guadeloupe"
+    },
+    "region": "Americas",
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 16.995971,
+    "longitude": -62.067641
+  },
+  {
+    "code": "GQ",
+    "name": {
+      "en": "Equatorial Guinea",
+      "ar": "Equatorial Guinea",
+      "es": "Equatorial Guinea",
+      "fr": "Equatorial Guinea",
+      "hi": "Equatorial Guinea",
+      "pt": "Equatorial Guinea",
+      "ru": "Equatorial Guinea",
+      "tr": "Equatorial Guinea",
+      "zh": "Equatorial Guinea"
+    },
+    "region": "Africa",
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": 1.650801,
+    "longitude": 10.267895
+  },
+  {
+    "code": "GR",
+    "name": {
+      "en": "Greece",
+      "ar": "اليونان",
+      "es": "Grecia",
+      "fr": "Grèce",
+      "hi": "यूनान",
+      "pt": "Grécia",
+      "ru": "Греция",
+      "tr": "Yunanistan",
+      "zh": "希腊"
+    },
     "region": "Europe",
-    "sub-region": "Southern Europe",
-    "intermediate-region": ""
+    "subRegion": "Southern Europe",
+    "latitude": 39.074208,
+    "longitude": 21.824312
   },
   {
-    "name": "Greenland",
-    "alpha-2": "gl",
+    "code": "GS",
+    "name": {
+      "en": "South Georgia and the South Sandwich Islands",
+      "ar": "South Georgia and the South Sandwich Islands",
+      "es": "South Georgia and the South Sandwich Islands",
+      "fr": "South Georgia and the South Sandwich Islands",
+      "hi": "South Georgia and the South Sandwich Islands",
+      "pt": "South Georgia and the South Sandwich Islands",
+      "ru": "South Georgia and the South Sandwich Islands",
+      "tr": "South Georgia and the South Sandwich Islands",
+      "zh": "South Georgia and the South Sandwich Islands"
+    },
     "region": "Americas",
-    "sub-region": "Northern America",
-    "intermediate-region": ""
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": -54.429579,
+    "longitude": -36.587909
   },
   {
-    "name": "Grenada",
-    "alpha-2": "gd",
+    "code": "GT",
+    "name": {
+      "en": "Guatemala",
+      "ar": "Guatemala",
+      "es": "Guatemala",
+      "fr": "Guatemala",
+      "hi": "Guatemala",
+      "pt": "Guatemala",
+      "ru": "Guatemala",
+      "tr": "Guatemala",
+      "zh": "Guatemala"
+    },
     "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "Caribbean"
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 15.783471,
+    "longitude": -90.230759
   },
   {
-    "name": "Guadeloupe",
-    "alpha-2": "gp",
-    "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "Caribbean"
-  },
-  {
-    "name": "Guam",
-    "alpha-2": "gu",
+    "code": "GU",
+    "name": {
+      "en": "Guam",
+      "ar": "Guam",
+      "es": "Guam",
+      "fr": "Guam",
+      "hi": "Guam",
+      "pt": "Guam",
+      "ru": "Guam",
+      "tr": "Guam",
+      "zh": "Guam"
+    },
     "region": "Oceania",
-    "sub-region": "Micronesia",
-    "intermediate-region": ""
+    "subRegion": "Micronesia",
+    "latitude": 13.444304,
+    "longitude": 144.793731
   },
   {
-    "name": "Guatemala",
-    "alpha-2": "gt",
-    "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "Central America"
-  },
-  {
-    "name": "Guernsey",
-    "alpha-2": "gg",
-    "region": "Europe",
-    "sub-region": "Northern Europe",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Guinea",
-    "alpha-2": "gn",
+    "code": "GW",
+    "name": {
+      "en": "Guinea-Bissau",
+      "ar": "Guinea-Bissau",
+      "es": "Guinea-Bissau",
+      "fr": "Guinea-Bissau",
+      "hi": "Guinea-Bissau",
+      "pt": "Guinea-Bissau",
+      "ru": "Guinea-Bissau",
+      "tr": "Guinea-Bissau",
+      "zh": "Guinea-Bissau"
+    },
     "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Western Africa"
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": 11.803749,
+    "longitude": -15.180413
   },
   {
-    "name": "Guinea-Bissau",
-    "alpha-2": "gw",
-    "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Western Africa"
-  },
-  {
-    "name": "Guyana",
-    "alpha-2": "gy",
+    "code": "GY",
+    "name": {
+      "en": "Guyana",
+      "ar": "Guyana",
+      "es": "Guyana",
+      "fr": "Guyana",
+      "hi": "Guyana",
+      "pt": "Guyana",
+      "ru": "Guyana",
+      "tr": "Guyana",
+      "zh": "Guyana"
+    },
     "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "South America"
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 4.860416,
+    "longitude": -58.93018
   },
   {
-    "name": "Haiti",
-    "alpha-2": "ht",
-    "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "Caribbean"
+    "code": "HK",
+    "name": {
+      "en": "Hong Kong",
+      "ar": "هونغ كونغ",
+      "es": "Hong Kong",
+      "fr": "Hong Kong",
+      "hi": "हांगकांग",
+      "pt": "Hong Kong",
+      "ru": "Гонконг",
+      "tr": "Hong Kong",
+      "zh": "香港"
+    },
+    "region": "Asia",
+    "subRegion": "Eastern Asia",
+    "latitude": 22.396428,
+    "longitude": 114.109497
   },
   {
-    "name": "Heard Island and McDonald Islands",
-    "alpha-2": "hm",
+    "code": "HM",
+    "name": {
+      "en": "Heard Island and McDonald Islands",
+      "ar": "Heard Island and McDonald Islands",
+      "es": "Heard Island and McDonald Islands",
+      "fr": "Heard Island and McDonald Islands",
+      "hi": "Heard Island and McDonald Islands",
+      "pt": "Heard Island and McDonald Islands",
+      "ru": "Heard Island and McDonald Islands",
+      "tr": "Heard Island and McDonald Islands",
+      "zh": "Heard Island and McDonald Islands"
+    },
     "region": "Oceania",
-    "sub-region": "Australia and New Zealand",
-    "intermediate-region": ""
+    "subRegion": "Australia and New Zealand",
+    "latitude": -53.08181,
+    "longitude": 73.504158
   },
   {
-    "name": "Holy See",
-    "alpha-2": "va",
-    "region": "Europe",
-    "sub-region": "Southern Europe",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Honduras",
-    "alpha-2": "hn",
+    "code": "HN",
+    "name": {
+      "en": "Honduras",
+      "ar": "Honduras",
+      "es": "Honduras",
+      "fr": "Honduras",
+      "hi": "Honduras",
+      "pt": "Honduras",
+      "ru": "Honduras",
+      "tr": "Honduras",
+      "zh": "Honduras"
+    },
     "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "Central America"
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 15.199999,
+    "longitude": -86.241905
   },
   {
-    "name": "Hong Kong",
-    "alpha-2": "hk",
-    "region": "Asia",
-    "sub-region": "Eastern Asia",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Hungary",
-    "alpha-2": "hu",
+    "code": "HR",
+    "name": {
+      "en": "Croatia",
+      "ar": "Croatia",
+      "es": "Croatia",
+      "fr": "Croatia",
+      "hi": "Croatia",
+      "pt": "Croatia",
+      "ru": "Croatia",
+      "tr": "Croatia",
+      "zh": "Croatia"
+    },
     "region": "Europe",
-    "sub-region": "Eastern Europe",
-    "intermediate-region": ""
+    "subRegion": "Southern Europe",
+    "latitude": 45.1,
+    "longitude": 15.2
   },
   {
-    "name": "Iceland",
-    "alpha-2": "is",
-    "region": "Europe",
-    "sub-region": "Northern Europe",
-    "intermediate-region": ""
-  },
-  {
-    "name": "India",
-    "alpha-2": "in",
-    "region": "Asia",
-    "sub-region": "Southern Asia",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Indonesia",
-    "alpha-2": "id",
-    "region": "Asia",
-    "sub-region": "South-eastern Asia",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Iran, Islamic Republic of",
-    "alpha-2": "ir",
-    "region": "Asia",
-    "sub-region": "Southern Asia",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Iraq",
-    "alpha-2": "iq",
-    "region": "Asia",
-    "sub-region": "Western Asia",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Ireland",
-    "alpha-2": "ie",
-    "region": "Europe",
-    "sub-region": "Northern Europe",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Isle of Man",
-    "alpha-2": "im",
-    "region": "Europe",
-    "sub-region": "Northern Europe",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Israel",
-    "alpha-2": "il",
-    "region": "Asia",
-    "sub-region": "Western Asia",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Italy",
-    "alpha-2": "it",
-    "region": "Europe",
-    "sub-region": "Southern Europe",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Jamaica",
-    "alpha-2": "jm",
+    "code": "HT",
+    "name": {
+      "en": "Haiti",
+      "ar": "Haiti",
+      "es": "Haiti",
+      "fr": "Haiti",
+      "hi": "Haiti",
+      "pt": "Haiti",
+      "ru": "Haiti",
+      "tr": "Haiti",
+      "zh": "Haiti"
+    },
     "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "Caribbean"
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 18.971187,
+    "longitude": -72.285215
   },
   {
-    "name": "Japan",
-    "alpha-2": "jp",
-    "region": "Asia",
-    "sub-region": "Eastern Asia",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Jersey",
-    "alpha-2": "je",
+    "code": "HU",
+    "name": {
+      "en": "Hungary",
+      "ar": "المجر",
+      "es": "Hungría",
+      "fr": "Hongrie",
+      "hi": "हंगरी",
+      "pt": "Hungria",
+      "ru": "Венгрия",
+      "tr": "Macaristan",
+      "zh": "匈牙利"
+    },
     "region": "Europe",
-    "sub-region": "Northern Europe",
-    "intermediate-region": ""
+    "subRegion": "Eastern Europe",
+    "latitude": 47.162494,
+    "longitude": 19.503304
   },
   {
-    "name": "Jordan",
-    "alpha-2": "jo",
+    "code": "ID",
+    "name": {
+      "en": "Indonesia",
+      "ar": "إندونيسيا",
+      "es": "Indonesia",
+      "fr": "Indonésie",
+      "hi": "इंडोनेशिया",
+      "pt": "Indonésia",
+      "ru": "Индонезия",
+      "tr": "Endonezya",
+      "zh": "印度尼西亚"
+    },
     "region": "Asia",
-    "sub-region": "Western Asia",
-    "intermediate-region": ""
+    "subRegion": "South-eastern Asia",
+    "latitude": -0.789275,
+    "longitude": 113.921327
   },
   {
-    "name": "Kazakhstan",
-    "alpha-2": "kz",
+    "code": "IE",
+    "name": {
+      "en": "Ireland",
+      "ar": "أيرلندا",
+      "es": "Irlanda",
+      "fr": "Irlande",
+      "hi": "आयरलैंड",
+      "pt": "Irlanda",
+      "ru": "Ирландия",
+      "tr": "İrlanda",
+      "zh": "爱尔兰"
+    },
+    "region": "Europe",
+    "subRegion": "Northern Europe",
+    "latitude": 53.41291,
+    "longitude": -8.24389
+  },
+  {
+    "code": "IL",
+    "name": {
+      "en": "Israel",
+      "ar": "إسرائيل",
+      "es": "Israel",
+      "fr": "Israël",
+      "hi": "इज़राइल",
+      "pt": "Israel",
+      "ru": "Израиль",
+      "tr": "İsrail",
+      "zh": "以色列"
+    },
     "region": "Asia",
-    "sub-region": "Central Asia",
-    "intermediate-region": ""
+    "subRegion": "Western Asia",
+    "latitude": 31.046051,
+    "longitude": 34.851612
   },
   {
-    "name": "Kenya",
-    "alpha-2": "ke",
+    "code": "IM",
+    "name": {
+      "en": "Isle of Man",
+      "ar": "Isle of Man",
+      "es": "Isle of Man",
+      "fr": "Isle of Man",
+      "hi": "Isle of Man",
+      "pt": "Isle of Man",
+      "ru": "Isle of Man",
+      "tr": "Isle of Man",
+      "zh": "Isle of Man"
+    },
+    "region": "Europe",
+    "subRegion": "Northern Europe",
+    "latitude": 54.236107,
+    "longitude": -4.548056
+  },
+  {
+    "code": "IN",
+    "name": {
+      "en": "India",
+      "ar": "الهند",
+      "es": "India",
+      "fr": "Inde",
+      "hi": "भारत",
+      "pt": "Índia",
+      "ru": "Индия",
+      "tr": "Hindistan",
+      "zh": "印度"
+    },
+    "region": "Asia",
+    "subRegion": "Southern Asia",
+    "latitude": 20.593684,
+    "longitude": 78.96288
+  },
+  {
+    "code": "IO",
+    "name": {
+      "en": "British Indian Ocean Territory",
+      "ar": "British Indian Ocean Territory",
+      "es": "British Indian Ocean Territory",
+      "fr": "British Indian Ocean Territory",
+      "hi": "British Indian Ocean Territory",
+      "pt": "British Indian Ocean Territory",
+      "ru": "British Indian Ocean Territory",
+      "tr": "British Indian Ocean Territory",
+      "zh": "British Indian Ocean Territory"
+    },
     "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Eastern Africa"
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": -6.343194,
+    "longitude": 71.876519
   },
   {
-    "name": "Kiribati",
-    "alpha-2": "ki",
+    "code": "IQ",
+    "name": {
+      "en": "Iraq",
+      "ar": "Iraq",
+      "es": "Iraq",
+      "fr": "Iraq",
+      "hi": "Iraq",
+      "pt": "Iraq",
+      "ru": "Iraq",
+      "tr": "Iraq",
+      "zh": "Iraq"
+    },
+    "region": "Asia",
+    "subRegion": "Western Asia",
+    "latitude": 33.223191,
+    "longitude": 43.679291
+  },
+  {
+    "code": "IR",
+    "name": {
+      "en": "Iran",
+      "ar": "إيران",
+      "es": "Irán",
+      "fr": "Iran",
+      "hi": "ईरान",
+      "pt": "Irã",
+      "ru": "Иран",
+      "tr": "İran",
+      "zh": "伊朗"
+    },
+    "region": "Asia",
+    "subRegion": "Southern Asia",
+    "latitude": 32.427908,
+    "longitude": 53.688046
+  },
+  {
+    "code": "IS",
+    "name": {
+      "en": "Iceland",
+      "ar": "Iceland",
+      "es": "Iceland",
+      "fr": "Iceland",
+      "hi": "Iceland",
+      "pt": "Iceland",
+      "ru": "Iceland",
+      "tr": "Iceland",
+      "zh": "Iceland"
+    },
+    "region": "Europe",
+    "subRegion": "Northern Europe",
+    "latitude": 64.963051,
+    "longitude": -19.020835
+  },
+  {
+    "code": "IT",
+    "name": {
+      "en": "Italy",
+      "ar": "إيطاليا",
+      "es": "Italia",
+      "fr": "Italie",
+      "hi": "इटली",
+      "pt": "Itália",
+      "ru": "Италия",
+      "tr": "İtalya",
+      "zh": "意大利"
+    },
+    "region": "Europe",
+    "subRegion": "Southern Europe",
+    "latitude": 41.87194,
+    "longitude": 12.56738
+  },
+  {
+    "code": "JE",
+    "name": {
+      "en": "Jersey",
+      "ar": "Jersey",
+      "es": "Jersey",
+      "fr": "Jersey",
+      "hi": "Jersey",
+      "pt": "Jersey",
+      "ru": "Jersey",
+      "tr": "Jersey",
+      "zh": "Jersey"
+    },
+    "region": "Europe",
+    "subRegion": "Northern Europe",
+    "latitude": 49.214439,
+    "longitude": -2.13125
+  },
+  {
+    "code": "JM",
+    "name": {
+      "en": "Jamaica",
+      "ar": "Jamaica",
+      "es": "Jamaica",
+      "fr": "Jamaica",
+      "hi": "Jamaica",
+      "pt": "Jamaica",
+      "ru": "Jamaica",
+      "tr": "Jamaica",
+      "zh": "Jamaica"
+    },
+    "region": "Americas",
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 18.109581,
+    "longitude": -77.297508
+  },
+  {
+    "code": "JO",
+    "name": {
+      "en": "Jordan",
+      "ar": "Jordan",
+      "es": "Jordan",
+      "fr": "Jordan",
+      "hi": "Jordan",
+      "pt": "Jordan",
+      "ru": "Jordan",
+      "tr": "Jordan",
+      "zh": "Jordan"
+    },
+    "region": "Asia",
+    "subRegion": "Western Asia",
+    "latitude": 30.585164,
+    "longitude": 36.238414
+  },
+  {
+    "code": "JP",
+    "name": {
+      "en": "Japan",
+      "ar": "اليابان",
+      "es": "Japón",
+      "fr": "Japon",
+      "hi": "जापान",
+      "pt": "Japão",
+      "ru": "Япония",
+      "tr": "Japonya",
+      "zh": "日本"
+    },
+    "region": "Asia",
+    "subRegion": "Eastern Asia",
+    "latitude": 36.204824,
+    "longitude": 138.252924
+  },
+  {
+    "code": "KE",
+    "name": {
+      "en": "Kenya",
+      "ar": "Kenya",
+      "es": "Kenya",
+      "fr": "Kenya",
+      "hi": "Kenya",
+      "pt": "Kenya",
+      "ru": "Kenya",
+      "tr": "Kenya",
+      "zh": "Kenya"
+    },
+    "region": "Africa",
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": -0.023559,
+    "longitude": 37.906193
+  },
+  {
+    "code": "KG",
+    "name": {
+      "en": "Kyrgyzstan",
+      "ar": "Kyrgyzstan",
+      "es": "Kyrgyzstan",
+      "fr": "Kyrgyzstan",
+      "hi": "Kyrgyzstan",
+      "pt": "Kyrgyzstan",
+      "ru": "Kyrgyzstan",
+      "tr": "Kyrgyzstan",
+      "zh": "Kyrgyzstan"
+    },
+    "region": "Asia",
+    "subRegion": "Central Asia",
+    "latitude": 41.20438,
+    "longitude": 74.766098
+  },
+  {
+    "code": "KH",
+    "name": {
+      "en": "Cambodia",
+      "ar": "Cambodia",
+      "es": "Cambodia",
+      "fr": "Cambodia",
+      "hi": "Cambodia",
+      "pt": "Cambodia",
+      "ru": "Cambodia",
+      "tr": "Cambodia",
+      "zh": "Cambodia"
+    },
+    "region": "Asia",
+    "subRegion": "South-eastern Asia",
+    "latitude": 12.565679,
+    "longitude": 104.990963
+  },
+  {
+    "code": "KI",
+    "name": {
+      "en": "Kiribati",
+      "ar": "Kiribati",
+      "es": "Kiribati",
+      "fr": "Kiribati",
+      "hi": "Kiribati",
+      "pt": "Kiribati",
+      "ru": "Kiribati",
+      "tr": "Kiribati",
+      "zh": "Kiribati"
+    },
     "region": "Oceania",
-    "sub-region": "Micronesia",
-    "intermediate-region": ""
+    "subRegion": "Micronesia",
+    "latitude": -3.370417,
+    "longitude": -168.734039
   },
   {
-    "name": "Korea, Democratic People's Republic of",
-    "alpha-2": "kp",
+    "code": "KM",
+    "name": {
+      "en": "Comoros",
+      "ar": "Comoros",
+      "es": "Comoros",
+      "fr": "Comoros",
+      "hi": "Comoros",
+      "pt": "Comoros",
+      "ru": "Comoros",
+      "tr": "Comoros",
+      "zh": "Comoros"
+    },
+    "region": "Africa",
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": -11.875001,
+    "longitude": 43.872219
+  },
+  {
+    "code": "KN",
+    "name": {
+      "en": "Saint Kitts and Nevis",
+      "ar": "Saint Kitts and Nevis",
+      "es": "Saint Kitts and Nevis",
+      "fr": "Saint Kitts and Nevis",
+      "hi": "Saint Kitts and Nevis",
+      "pt": "Saint Kitts and Nevis",
+      "ru": "Saint Kitts and Nevis",
+      "tr": "Saint Kitts and Nevis",
+      "zh": "Saint Kitts and Nevis"
+    },
+    "region": "Americas",
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 17.357822,
+    "longitude": -62.782998
+  },
+  {
+    "code": "KP",
+    "name": {
+      "en": "Korea, Democratic People's Republic of",
+      "ar": "Korea, Democratic People's Republic of",
+      "es": "Korea, Democratic People's Republic of",
+      "fr": "Korea, Democratic People's Republic of",
+      "hi": "Korea, Democratic People's Republic of",
+      "pt": "Korea, Democratic People's Republic of",
+      "ru": "Korea, Democratic People's Republic of",
+      "tr": "Korea, Democratic People's Republic of",
+      "zh": "Korea, Democratic People's Republic of"
+    },
     "region": "Asia",
-    "sub-region": "Eastern Asia",
-    "intermediate-region": ""
+    "subRegion": "Eastern Asia",
+    "latitude": 40.339852,
+    "longitude": 127.510093
   },
   {
-    "name": "Korea, Republic of",
-    "alpha-2": "kr",
+    "code": "KR",
+    "name": {
+      "en": "South Korea",
+      "ar": "كوريا الجنوبية",
+      "es": "Corea del Sur",
+      "fr": "Corée du Sud",
+      "hi": "दक्षिण कोरिया",
+      "pt": "Coreia do Sul",
+      "ru": "Южная Корея",
+      "tr": "Güney Kore",
+      "zh": "韩国"
+    },
     "region": "Asia",
-    "sub-region": "Eastern Asia",
-    "intermediate-region": ""
+    "subRegion": "Eastern Asia",
+    "latitude": 35.907757,
+    "longitude": 127.766922
   },
   {
-    "name": "Kuwait",
-    "alpha-2": "kw",
+    "code": "KW",
+    "name": {
+      "en": "Kuwait",
+      "ar": "Kuwait",
+      "es": "Kuwait",
+      "fr": "Kuwait",
+      "hi": "Kuwait",
+      "pt": "Kuwait",
+      "ru": "Kuwait",
+      "tr": "Kuwait",
+      "zh": "Kuwait"
+    },
     "region": "Asia",
-    "sub-region": "Western Asia",
-    "intermediate-region": ""
+    "subRegion": "Western Asia",
+    "latitude": 29.31166,
+    "longitude": 47.481766
   },
   {
-    "name": "Kyrgyzstan",
-    "alpha-2": "kg",
+    "code": "KY",
+    "name": {
+      "en": "Cayman Islands",
+      "ar": "Cayman Islands",
+      "es": "Cayman Islands",
+      "fr": "Cayman Islands",
+      "hi": "Cayman Islands",
+      "pt": "Cayman Islands",
+      "ru": "Cayman Islands",
+      "tr": "Cayman Islands",
+      "zh": "Cayman Islands"
+    },
+    "region": "Americas",
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 19.513469,
+    "longitude": -80.566956
+  },
+  {
+    "code": "KZ",
+    "name": {
+      "en": "Kazakhstan",
+      "ar": "Kazakhstan",
+      "es": "Kazakhstan",
+      "fr": "Kazakhstan",
+      "hi": "Kazakhstan",
+      "pt": "Kazakhstan",
+      "ru": "Kazakhstan",
+      "tr": "Kazakhstan",
+      "zh": "Kazakhstan"
+    },
     "region": "Asia",
-    "sub-region": "Central Asia",
-    "intermediate-region": ""
+    "subRegion": "Central Asia",
+    "latitude": 48.019573,
+    "longitude": 66.923684
   },
   {
-    "name": "Lao People's Democratic Republic",
-    "alpha-2": "la",
+    "code": "LA",
+    "name": {
+      "en": "Lao People's Democratic Republic",
+      "ar": "Lao People's Democratic Republic",
+      "es": "Lao People's Democratic Republic",
+      "fr": "Lao People's Democratic Republic",
+      "hi": "Lao People's Democratic Republic",
+      "pt": "Lao People's Democratic Republic",
+      "ru": "Lao People's Democratic Republic",
+      "tr": "Lao People's Democratic Republic",
+      "zh": "Lao People's Democratic Republic"
+    },
     "region": "Asia",
-    "sub-region": "South-eastern Asia",
-    "intermediate-region": ""
+    "subRegion": "South-eastern Asia",
+    "latitude": 19.85627,
+    "longitude": 102.495496
   },
   {
-    "name": "Latvia",
-    "alpha-2": "lv",
+    "code": "LB",
+    "name": {
+      "en": "Lebanon",
+      "ar": "Lebanon",
+      "es": "Lebanon",
+      "fr": "Lebanon",
+      "hi": "Lebanon",
+      "pt": "Lebanon",
+      "ru": "Lebanon",
+      "tr": "Lebanon",
+      "zh": "Lebanon"
+    },
+    "region": "Asia",
+    "subRegion": "Western Asia",
+    "latitude": 33.854721,
+    "longitude": 35.862285
+  },
+  {
+    "code": "LC",
+    "name": {
+      "en": "Saint Lucia",
+      "ar": "Saint Lucia",
+      "es": "Saint Lucia",
+      "fr": "Saint Lucia",
+      "hi": "Saint Lucia",
+      "pt": "Saint Lucia",
+      "ru": "Saint Lucia",
+      "tr": "Saint Lucia",
+      "zh": "Saint Lucia"
+    },
+    "region": "Americas",
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 13.909444,
+    "longitude": -60.978893
+  },
+  {
+    "code": "LI",
+    "name": {
+      "en": "Liechtenstein",
+      "ar": "Liechtenstein",
+      "es": "Liechtenstein",
+      "fr": "Liechtenstein",
+      "hi": "Liechtenstein",
+      "pt": "Liechtenstein",
+      "ru": "Liechtenstein",
+      "tr": "Liechtenstein",
+      "zh": "Liechtenstein"
+    },
     "region": "Europe",
-    "sub-region": "Northern Europe",
-    "intermediate-region": ""
+    "subRegion": "Western Europe",
+    "latitude": 47.166,
+    "longitude": 9.555373
   },
   {
-    "name": "Lebanon",
-    "alpha-2": "lb",
+    "code": "LK",
+    "name": {
+      "en": "Sri Lanka",
+      "ar": "Sri Lanka",
+      "es": "Sri Lanka",
+      "fr": "Sri Lanka",
+      "hi": "Sri Lanka",
+      "pt": "Sri Lanka",
+      "ru": "Sri Lanka",
+      "tr": "Sri Lanka",
+      "zh": "Sri Lanka"
+    },
     "region": "Asia",
-    "sub-region": "Western Asia",
-    "intermediate-region": ""
+    "subRegion": "Southern Asia",
+    "latitude": 7.873054,
+    "longitude": 80.771797
   },
   {
-    "name": "Lesotho",
-    "alpha-2": "ls",
+    "code": "LR",
+    "name": {
+      "en": "Liberia",
+      "ar": "Liberia",
+      "es": "Liberia",
+      "fr": "Liberia",
+      "hi": "Liberia",
+      "pt": "Liberia",
+      "ru": "Liberia",
+      "tr": "Liberia",
+      "zh": "Liberia"
+    },
     "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Southern Africa"
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": 6.428055,
+    "longitude": -9.429499
   },
   {
-    "name": "Liberia",
-    "alpha-2": "lr",
+    "code": "LS",
+    "name": {
+      "en": "Lesotho",
+      "ar": "Lesotho",
+      "es": "Lesotho",
+      "fr": "Lesotho",
+      "hi": "Lesotho",
+      "pt": "Lesotho",
+      "ru": "Lesotho",
+      "tr": "Lesotho",
+      "zh": "Lesotho"
+    },
     "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Western Africa"
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": -29.609988,
+    "longitude": 28.233608
   },
   {
-    "name": "Libya",
-    "alpha-2": "ly",
-    "region": "Africa",
-    "sub-region": "Northern Africa",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Liechtenstein",
-    "alpha-2": "li",
+    "code": "LT",
+    "name": {
+      "en": "Lithuania",
+      "ar": "Lithuania",
+      "es": "Lithuania",
+      "fr": "Lithuania",
+      "hi": "Lithuania",
+      "pt": "Lithuania",
+      "ru": "Lithuania",
+      "tr": "Lithuania",
+      "zh": "Lithuania"
+    },
     "region": "Europe",
-    "sub-region": "Western Europe",
-    "intermediate-region": ""
+    "subRegion": "Northern Europe",
+    "latitude": 55.169438,
+    "longitude": 23.881275
   },
   {
-    "name": "Lithuania",
-    "alpha-2": "lt",
+    "code": "LU",
+    "name": {
+      "en": "Luxembourg",
+      "ar": "Luxembourg",
+      "es": "Luxembourg",
+      "fr": "Luxembourg",
+      "hi": "Luxembourg",
+      "pt": "Luxembourg",
+      "ru": "Luxembourg",
+      "tr": "Luxembourg",
+      "zh": "Luxembourg"
+    },
     "region": "Europe",
-    "sub-region": "Northern Europe",
-    "intermediate-region": ""
+    "subRegion": "Western Europe",
+    "latitude": 49.815273,
+    "longitude": 6.129583
   },
   {
-    "name": "Luxembourg",
-    "alpha-2": "lu",
+    "code": "LV",
+    "name": {
+      "en": "Latvia",
+      "ar": "Latvia",
+      "es": "Latvia",
+      "fr": "Latvia",
+      "hi": "Latvia",
+      "pt": "Latvia",
+      "ru": "Latvia",
+      "tr": "Latvia",
+      "zh": "Latvia"
+    },
     "region": "Europe",
-    "sub-region": "Western Europe",
-    "intermediate-region": ""
+    "subRegion": "Northern Europe",
+    "latitude": 56.879635,
+    "longitude": 24.603189
   },
   {
-    "name": "Macao",
-    "alpha-2": "mo",
-    "region": "Asia",
-    "sub-region": "Eastern Asia",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Madagascar",
-    "alpha-2": "mg",
+    "code": "LY",
+    "name": {
+      "en": "Libya",
+      "ar": "Libya",
+      "es": "Libya",
+      "fr": "Libya",
+      "hi": "Libya",
+      "pt": "Libya",
+      "ru": "Libya",
+      "tr": "Libya",
+      "zh": "Libya"
+    },
     "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Eastern Africa"
+    "subRegion": "Northern Africa",
+    "latitude": 26.3351,
+    "longitude": 17.228331
   },
   {
-    "name": "Malawi",
-    "alpha-2": "mw",
+    "code": "MA",
+    "name": {
+      "en": "Morocco",
+      "ar": "المغرب",
+      "es": "Marruecos",
+      "fr": "Maroc",
+      "hi": "मोरक्को",
+      "pt": "Marrocos",
+      "ru": "Марокко",
+      "tr": "Fas",
+      "zh": "摩洛哥"
+    },
     "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Eastern Africa"
+    "subRegion": "Northern Africa",
+    "latitude": 31.791702,
+    "longitude": -7.09262
   },
   {
-    "name": "Malaysia",
-    "alpha-2": "my",
-    "region": "Asia",
-    "sub-region": "South-eastern Asia",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Maldives",
-    "alpha-2": "mv",
-    "region": "Asia",
-    "sub-region": "Southern Asia",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Mali",
-    "alpha-2": "ml",
-    "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Western Africa"
-  },
-  {
-    "name": "Malta",
-    "alpha-2": "mt",
+    "code": "MC",
+    "name": {
+      "en": "Monaco",
+      "ar": "Monaco",
+      "es": "Monaco",
+      "fr": "Monaco",
+      "hi": "Monaco",
+      "pt": "Monaco",
+      "ru": "Monaco",
+      "tr": "Monaco",
+      "zh": "Monaco"
+    },
     "region": "Europe",
-    "sub-region": "Southern Europe",
-    "intermediate-region": ""
+    "subRegion": "Western Europe",
+    "latitude": 43.750298,
+    "longitude": 7.412841
   },
   {
-    "name": "Marshall Islands",
-    "alpha-2": "mh",
+    "code": "MD",
+    "name": {
+      "en": "Moldova, Republic of",
+      "ar": "Moldova, Republic of",
+      "es": "Moldova, Republic of",
+      "fr": "Moldova, Republic of",
+      "hi": "Moldova, Republic of",
+      "pt": "Moldova, Republic of",
+      "ru": "Moldova, Republic of",
+      "tr": "Moldova, Republic of",
+      "zh": "Moldova, Republic of"
+    },
+    "region": "Europe",
+    "subRegion": "Eastern Europe",
+    "latitude": 47.411631,
+    "longitude": 28.369885
+  },
+  {
+    "code": "ME",
+    "name": {
+      "en": "Montenegro",
+      "ar": "Montenegro",
+      "es": "Montenegro",
+      "fr": "Montenegro",
+      "hi": "Montenegro",
+      "pt": "Montenegro",
+      "ru": "Montenegro",
+      "tr": "Montenegro",
+      "zh": "Montenegro"
+    },
+    "region": "Europe",
+    "subRegion": "Southern Europe",
+    "latitude": 42.708678,
+    "longitude": 19.37439
+  },
+  {
+    "code": "MF",
+    "name": {
+      "en": "Saint Martin (French part)",
+      "ar": "Saint Martin (French part)",
+      "es": "Saint Martin (French part)",
+      "fr": "Saint Martin (French part)",
+      "hi": "Saint Martin (French part)",
+      "pt": "Saint Martin (French part)",
+      "ru": "Saint Martin (French part)",
+      "tr": "Saint Martin (French part)",
+      "zh": "Saint Martin (French part)"
+    },
+    "region": "Americas",
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 0,
+    "longitude": 0
+  },
+  {
+    "code": "MG",
+    "name": {
+      "en": "Madagascar",
+      "ar": "Madagascar",
+      "es": "Madagascar",
+      "fr": "Madagascar",
+      "hi": "Madagascar",
+      "pt": "Madagascar",
+      "ru": "Madagascar",
+      "tr": "Madagascar",
+      "zh": "Madagascar"
+    },
+    "region": "Africa",
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": -18.766947,
+    "longitude": 46.869107
+  },
+  {
+    "code": "MH",
+    "name": {
+      "en": "Marshall Islands",
+      "ar": "Marshall Islands",
+      "es": "Marshall Islands",
+      "fr": "Marshall Islands",
+      "hi": "Marshall Islands",
+      "pt": "Marshall Islands",
+      "ru": "Marshall Islands",
+      "tr": "Marshall Islands",
+      "zh": "Marshall Islands"
+    },
     "region": "Oceania",
-    "sub-region": "Micronesia",
-    "intermediate-region": ""
+    "subRegion": "Micronesia",
+    "latitude": 7.131474,
+    "longitude": 171.184478
   },
   {
-    "name": "Martinique",
-    "alpha-2": "mq",
-    "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "Caribbean"
+    "code": "MK",
+    "name": {
+      "en": "North Macedonia",
+      "ar": "North Macedonia",
+      "es": "North Macedonia",
+      "fr": "North Macedonia",
+      "hi": "North Macedonia",
+      "pt": "North Macedonia",
+      "ru": "North Macedonia",
+      "tr": "North Macedonia",
+      "zh": "North Macedonia"
+    },
+    "region": "Europe",
+    "subRegion": "Southern Europe",
+    "latitude": 41.608635,
+    "longitude": 21.745275
   },
   {
-    "name": "Mauritania",
-    "alpha-2": "mr",
+    "code": "ML",
+    "name": {
+      "en": "Mali",
+      "ar": "Mali",
+      "es": "Mali",
+      "fr": "Mali",
+      "hi": "Mali",
+      "pt": "Mali",
+      "ru": "Mali",
+      "tr": "Mali",
+      "zh": "Mali"
+    },
     "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Western Africa"
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": 17.570692,
+    "longitude": -3.996166
   },
   {
-    "name": "Mauritius",
-    "alpha-2": "mu",
-    "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Eastern Africa"
+    "code": "MM",
+    "name": {
+      "en": "Myanmar",
+      "ar": "Myanmar",
+      "es": "Myanmar",
+      "fr": "Myanmar",
+      "hi": "Myanmar",
+      "pt": "Myanmar",
+      "ru": "Myanmar",
+      "tr": "Myanmar",
+      "zh": "Myanmar"
+    },
+    "region": "Asia",
+    "subRegion": "South-eastern Asia",
+    "latitude": 21.913965,
+    "longitude": 95.956223
   },
   {
-    "name": "Mayotte",
-    "alpha-2": "yt",
-    "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Eastern Africa"
+    "code": "MN",
+    "name": {
+      "en": "Mongolia",
+      "ar": "Mongolia",
+      "es": "Mongolia",
+      "fr": "Mongolia",
+      "hi": "Mongolia",
+      "pt": "Mongolia",
+      "ru": "Mongolia",
+      "tr": "Mongolia",
+      "zh": "Mongolia"
+    },
+    "region": "Asia",
+    "subRegion": "Eastern Asia",
+    "latitude": 46.862496,
+    "longitude": 103.846656
   },
   {
-    "name": "Mexico",
-    "alpha-2": "mx",
-    "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "Central America"
+    "code": "MO",
+    "name": {
+      "en": "Macao",
+      "ar": "Macao",
+      "es": "Macao",
+      "fr": "Macao",
+      "hi": "Macao",
+      "pt": "Macao",
+      "ru": "Macao",
+      "tr": "Macao",
+      "zh": "Macao"
+    },
+    "region": "Asia",
+    "subRegion": "Eastern Asia",
+    "latitude": 22.198745,
+    "longitude": 113.543873
   },
   {
-    "name": "Micronesia, Federated States of",
-    "alpha-2": "fm",
+    "code": "MP",
+    "name": {
+      "en": "Northern Mariana Islands",
+      "ar": "Northern Mariana Islands",
+      "es": "Northern Mariana Islands",
+      "fr": "Northern Mariana Islands",
+      "hi": "Northern Mariana Islands",
+      "pt": "Northern Mariana Islands",
+      "ru": "Northern Mariana Islands",
+      "tr": "Northern Mariana Islands",
+      "zh": "Northern Mariana Islands"
+    },
     "region": "Oceania",
-    "sub-region": "Micronesia",
-    "intermediate-region": ""
+    "subRegion": "Micronesia",
+    "latitude": 17.33083,
+    "longitude": 145.38469
   },
   {
-    "name": "Moldova, Republic of",
-    "alpha-2": "md",
-    "region": "Europe",
-    "sub-region": "Eastern Europe",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Monaco",
-    "alpha-2": "mc",
-    "region": "Europe",
-    "sub-region": "Western Europe",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Mongolia",
-    "alpha-2": "mn",
-    "region": "Asia",
-    "sub-region": "Eastern Asia",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Montenegro",
-    "alpha-2": "me",
-    "region": "Europe",
-    "sub-region": "Southern Europe",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Montserrat",
-    "alpha-2": "ms",
+    "code": "MQ",
+    "name": {
+      "en": "Martinique",
+      "ar": "Martinique",
+      "es": "Martinique",
+      "fr": "Martinique",
+      "hi": "Martinique",
+      "pt": "Martinique",
+      "ru": "Martinique",
+      "tr": "Martinique",
+      "zh": "Martinique"
+    },
     "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "Caribbean"
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 14.641528,
+    "longitude": -61.024174
   },
   {
-    "name": "Morocco",
-    "alpha-2": "ma",
+    "code": "MR",
+    "name": {
+      "en": "Mauritania",
+      "ar": "Mauritania",
+      "es": "Mauritania",
+      "fr": "Mauritania",
+      "hi": "Mauritania",
+      "pt": "Mauritania",
+      "ru": "Mauritania",
+      "tr": "Mauritania",
+      "zh": "Mauritania"
+    },
     "region": "Africa",
-    "sub-region": "Northern Africa",
-    "intermediate-region": ""
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": 21.00789,
+    "longitude": -10.940835
   },
   {
-    "name": "Mozambique",
-    "alpha-2": "mz",
+    "code": "MS",
+    "name": {
+      "en": "Montserrat",
+      "ar": "Montserrat",
+      "es": "Montserrat",
+      "fr": "Montserrat",
+      "hi": "Montserrat",
+      "pt": "Montserrat",
+      "ru": "Montserrat",
+      "tr": "Montserrat",
+      "zh": "Montserrat"
+    },
+    "region": "Americas",
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 16.742498,
+    "longitude": -62.187366
+  },
+  {
+    "code": "MT",
+    "name": {
+      "en": "Malta",
+      "ar": "Malta",
+      "es": "Malta",
+      "fr": "Malta",
+      "hi": "Malta",
+      "pt": "Malta",
+      "ru": "Malta",
+      "tr": "Malta",
+      "zh": "Malta"
+    },
+    "region": "Europe",
+    "subRegion": "Southern Europe",
+    "latitude": 35.937496,
+    "longitude": 14.375416
+  },
+  {
+    "code": "MU",
+    "name": {
+      "en": "Mauritius",
+      "ar": "Mauritius",
+      "es": "Mauritius",
+      "fr": "Mauritius",
+      "hi": "Mauritius",
+      "pt": "Mauritius",
+      "ru": "Mauritius",
+      "tr": "Mauritius",
+      "zh": "Mauritius"
+    },
     "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Eastern Africa"
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": -20.348404,
+    "longitude": 57.552152
   },
   {
-    "name": "Myanmar",
-    "alpha-2": "mm",
+    "code": "MV",
+    "name": {
+      "en": "Maldives",
+      "ar": "Maldives",
+      "es": "Maldives",
+      "fr": "Maldives",
+      "hi": "Maldives",
+      "pt": "Maldives",
+      "ru": "Maldives",
+      "tr": "Maldives",
+      "zh": "Maldives"
+    },
     "region": "Asia",
-    "sub-region": "South-eastern Asia",
-    "intermediate-region": ""
+    "subRegion": "Southern Asia",
+    "latitude": 3.202778,
+    "longitude": 73.22068
   },
   {
-    "name": "Namibia",
-    "alpha-2": "na",
+    "code": "MW",
+    "name": {
+      "en": "Malawi",
+      "ar": "Malawi",
+      "es": "Malawi",
+      "fr": "Malawi",
+      "hi": "Malawi",
+      "pt": "Malawi",
+      "ru": "Malawi",
+      "tr": "Malawi",
+      "zh": "Malawi"
+    },
     "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Southern Africa"
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": -13.254308,
+    "longitude": 34.301525
   },
   {
-    "name": "Nauru",
-    "alpha-2": "nr",
+    "code": "MX",
+    "name": {
+      "en": "Mexico",
+      "ar": "المكسيك",
+      "es": "México",
+      "fr": "Mexique",
+      "hi": "मेक्सिको",
+      "pt": "México",
+      "ru": "Мексика",
+      "tr": "Meksika",
+      "zh": "墨西哥"
+    },
+    "region": "Americas",
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 23.634501,
+    "longitude": -102.552784
+  },
+  {
+    "code": "MY",
+    "name": {
+      "en": "Malaysia",
+      "ar": "ماليزيا",
+      "es": "Malasia",
+      "fr": "Malaisie",
+      "hi": "मलेशिया",
+      "pt": "Malásia",
+      "ru": "Малайзия",
+      "tr": "Malezya",
+      "zh": "马来西亚"
+    },
+    "region": "Asia",
+    "subRegion": "South-eastern Asia",
+    "latitude": 4.210484,
+    "longitude": 101.975766
+  },
+  {
+    "code": "MZ",
+    "name": {
+      "en": "Mozambique",
+      "ar": "Mozambique",
+      "es": "Mozambique",
+      "fr": "Mozambique",
+      "hi": "Mozambique",
+      "pt": "Mozambique",
+      "ru": "Mozambique",
+      "tr": "Mozambique",
+      "zh": "Mozambique"
+    },
+    "region": "Africa",
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": -18.665695,
+    "longitude": 35.529562
+  },
+  {
+    "code": "NA",
+    "name": {
+      "en": "Namibia",
+      "ar": "Namibia",
+      "es": "Namibia",
+      "fr": "Namibia",
+      "hi": "Namibia",
+      "pt": "Namibia",
+      "ru": "Namibia",
+      "tr": "Namibia",
+      "zh": "Namibia"
+    },
+    "region": "Africa",
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": -22.95764,
+    "longitude": 18.49041
+  },
+  {
+    "code": "NC",
+    "name": {
+      "en": "New Caledonia",
+      "ar": "New Caledonia",
+      "es": "New Caledonia",
+      "fr": "New Caledonia",
+      "hi": "New Caledonia",
+      "pt": "New Caledonia",
+      "ru": "New Caledonia",
+      "tr": "New Caledonia",
+      "zh": "New Caledonia"
+    },
     "region": "Oceania",
-    "sub-region": "Micronesia",
-    "intermediate-region": ""
+    "subRegion": "Melanesia",
+    "latitude": -20.904305,
+    "longitude": 165.618042
   },
   {
-    "name": "Nepal",
-    "alpha-2": "np",
-    "region": "Asia",
-    "sub-region": "Southern Asia",
-    "intermediate-region": ""
+    "code": "NE",
+    "name": {
+      "en": "Niger",
+      "ar": "Niger",
+      "es": "Niger",
+      "fr": "Niger",
+      "hi": "Niger",
+      "pt": "Niger",
+      "ru": "Niger",
+      "tr": "Niger",
+      "zh": "Niger"
+    },
+    "region": "Africa",
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": 17.607789,
+    "longitude": 8.081666
   },
   {
-    "name": "Netherlands, Kingdom of the",
-    "alpha-2": "nl",
-    "region": "Europe",
-    "sub-region": "Western Europe",
-    "intermediate-region": ""
-  },
-  {
-    "name": "New Caledonia",
-    "alpha-2": "nc",
+    "code": "NF",
+    "name": {
+      "en": "Norfolk Island",
+      "ar": "Norfolk Island",
+      "es": "Norfolk Island",
+      "fr": "Norfolk Island",
+      "hi": "Norfolk Island",
+      "pt": "Norfolk Island",
+      "ru": "Norfolk Island",
+      "tr": "Norfolk Island",
+      "zh": "Norfolk Island"
+    },
     "region": "Oceania",
-    "sub-region": "Melanesia",
-    "intermediate-region": ""
+    "subRegion": "Australia and New Zealand",
+    "latitude": -29.040835,
+    "longitude": 167.954712
   },
   {
-    "name": "New Zealand",
-    "alpha-2": "nz",
+    "code": "NG",
+    "name": {
+      "en": "Nigeria",
+      "ar": "نيجيريا",
+      "es": "Nigeria",
+      "fr": "Nigéria",
+      "hi": "नाइजीरिया",
+      "pt": "Nigéria",
+      "ru": "Нигерия",
+      "tr": "Nijerya",
+      "zh": "尼日利亚"
+    },
+    "region": "Africa",
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": 9.081999,
+    "longitude": 8.675277
+  },
+  {
+    "code": "NI",
+    "name": {
+      "en": "Nicaragua",
+      "ar": "Nicaragua",
+      "es": "Nicaragua",
+      "fr": "Nicaragua",
+      "hi": "Nicaragua",
+      "pt": "Nicaragua",
+      "ru": "Nicaragua",
+      "tr": "Nicaragua",
+      "zh": "Nicaragua"
+    },
+    "region": "Americas",
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 12.865416,
+    "longitude": -85.207229
+  },
+  {
+    "code": "NL",
+    "name": {
+      "en": "Netherlands",
+      "ar": "هولندا",
+      "es": "Países Bajos",
+      "fr": "Pays-Bas",
+      "hi": "नीदरलैंड",
+      "pt": "Países Baixos",
+      "ru": "Нидерланды",
+      "tr": "Hollanda",
+      "zh": "荷兰"
+    },
+    "region": "Europe",
+    "subRegion": "Western Europe",
+    "latitude": 52.132633,
+    "longitude": 5.291266
+  },
+  {
+    "code": "NO",
+    "name": {
+      "en": "Norway",
+      "ar": "النرويج",
+      "es": "Noruega",
+      "fr": "Norvège",
+      "hi": "नॉर्वे",
+      "pt": "Noruega",
+      "ru": "Норвегия",
+      "tr": "Norveç",
+      "zh": "挪威"
+    },
+    "region": "Europe",
+    "subRegion": "Northern Europe",
+    "latitude": 60.472024,
+    "longitude": 8.468946
+  },
+  {
+    "code": "NP",
+    "name": {
+      "en": "Nepal",
+      "ar": "Nepal",
+      "es": "Nepal",
+      "fr": "Nepal",
+      "hi": "Nepal",
+      "pt": "Nepal",
+      "ru": "Nepal",
+      "tr": "Nepal",
+      "zh": "Nepal"
+    },
+    "region": "Asia",
+    "subRegion": "Southern Asia",
+    "latitude": 28.394857,
+    "longitude": 84.124008
+  },
+  {
+    "code": "NR",
+    "name": {
+      "en": "Nauru",
+      "ar": "Nauru",
+      "es": "Nauru",
+      "fr": "Nauru",
+      "hi": "Nauru",
+      "pt": "Nauru",
+      "ru": "Nauru",
+      "tr": "Nauru",
+      "zh": "Nauru"
+    },
     "region": "Oceania",
-    "sub-region": "Australia and New Zealand",
-    "intermediate-region": ""
+    "subRegion": "Micronesia",
+    "latitude": -0.522778,
+    "longitude": 166.931503
   },
   {
-    "name": "Nicaragua",
-    "alpha-2": "ni",
-    "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "Central America"
-  },
-  {
-    "name": "Niger",
-    "alpha-2": "ne",
-    "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Western Africa"
-  },
-  {
-    "name": "Nigeria",
-    "alpha-2": "ng",
-    "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Western Africa"
-  },
-  {
-    "name": "Niue",
-    "alpha-2": "nu",
+    "code": "NU",
+    "name": {
+      "en": "Niue",
+      "ar": "Niue",
+      "es": "Niue",
+      "fr": "Niue",
+      "hi": "Niue",
+      "pt": "Niue",
+      "ru": "Niue",
+      "tr": "Niue",
+      "zh": "Niue"
+    },
     "region": "Oceania",
-    "sub-region": "Polynesia",
-    "intermediate-region": ""
+    "subRegion": "Polynesia",
+    "latitude": -19.054445,
+    "longitude": -169.867233
   },
   {
-    "name": "Norfolk Island",
-    "alpha-2": "nf",
+    "code": "NZ",
+    "name": {
+      "en": "New Zealand",
+      "ar": "نيوزيلندا",
+      "es": "Nueva Zelanda",
+      "fr": "Nouvelle-Zélande",
+      "hi": "न्यूज़ीलैंड",
+      "pt": "Nova Zelândia",
+      "ru": "Новая Зеландия",
+      "tr": "Yeni Zelanda",
+      "zh": "新西兰"
+    },
     "region": "Oceania",
-    "sub-region": "Australia and New Zealand",
-    "intermediate-region": ""
+    "subRegion": "Australia and New Zealand",
+    "latitude": -40.900557,
+    "longitude": 174.885971
   },
   {
-    "name": "North Macedonia",
-    "alpha-2": "mk",
-    "region": "Europe",
-    "sub-region": "Southern Europe",
-    "intermediate-region": ""
+    "code": "OM",
+    "name": {
+      "en": "Oman",
+      "ar": "Oman",
+      "es": "Oman",
+      "fr": "Oman",
+      "hi": "Oman",
+      "pt": "Oman",
+      "ru": "Oman",
+      "tr": "Oman",
+      "zh": "Oman"
+    },
+    "region": "Asia",
+    "subRegion": "Western Asia",
+    "latitude": 21.512583,
+    "longitude": 55.923255
   },
   {
-    "name": "Northern Mariana Islands",
-    "alpha-2": "mp",
+    "code": "PA",
+    "name": {
+      "en": "Panama",
+      "ar": "Panama",
+      "es": "Panama",
+      "fr": "Panama",
+      "hi": "Panama",
+      "pt": "Panama",
+      "ru": "Panama",
+      "tr": "Panama",
+      "zh": "Panama"
+    },
+    "region": "Americas",
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 8.537981,
+    "longitude": -80.782127
+  },
+  {
+    "code": "PE",
+    "name": {
+      "en": "Peru",
+      "ar": "بيرو",
+      "es": "Perú",
+      "fr": "Pérou",
+      "hi": "पेरू",
+      "pt": "Peru",
+      "ru": "Перу",
+      "tr": "Peru",
+      "zh": "秘鲁"
+    },
+    "region": "Americas",
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": -9.189967,
+    "longitude": -75.015152
+  },
+  {
+    "code": "PF",
+    "name": {
+      "en": "French Polynesia",
+      "ar": "French Polynesia",
+      "es": "French Polynesia",
+      "fr": "French Polynesia",
+      "hi": "French Polynesia",
+      "pt": "French Polynesia",
+      "ru": "French Polynesia",
+      "tr": "French Polynesia",
+      "zh": "French Polynesia"
+    },
     "region": "Oceania",
-    "sub-region": "Micronesia",
-    "intermediate-region": ""
+    "subRegion": "Polynesia",
+    "latitude": -17.679742,
+    "longitude": -149.406843
   },
   {
-    "name": "Norway",
-    "alpha-2": "no",
-    "region": "Europe",
-    "sub-region": "Northern Europe",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Oman",
-    "alpha-2": "om",
-    "region": "Asia",
-    "sub-region": "Western Asia",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Pakistan",
-    "alpha-2": "pk",
-    "region": "Asia",
-    "sub-region": "Southern Asia",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Palau",
-    "alpha-2": "pw",
+    "code": "PG",
+    "name": {
+      "en": "Papua New Guinea",
+      "ar": "Papua New Guinea",
+      "es": "Papua New Guinea",
+      "fr": "Papua New Guinea",
+      "hi": "Papua New Guinea",
+      "pt": "Papua New Guinea",
+      "ru": "Papua New Guinea",
+      "tr": "Papua New Guinea",
+      "zh": "Papua New Guinea"
+    },
     "region": "Oceania",
-    "sub-region": "Micronesia",
-    "intermediate-region": ""
+    "subRegion": "Melanesia",
+    "latitude": -6.314993,
+    "longitude": 143.95555
   },
   {
-    "name": "Palestine, State of",
-    "alpha-2": "ps",
+    "code": "PH",
+    "name": {
+      "en": "Philippines",
+      "ar": "الفلبين",
+      "es": "Filipinas",
+      "fr": "Philippines",
+      "hi": "फिलीपींस",
+      "pt": "Filipinas",
+      "ru": "Филиппины",
+      "tr": "Filipinler",
+      "zh": "菲律宾"
+    },
     "region": "Asia",
-    "sub-region": "Western Asia",
-    "intermediate-region": ""
+    "subRegion": "South-eastern Asia",
+    "latitude": 12.879721,
+    "longitude": 121.774017
   },
   {
-    "name": "Panama",
-    "alpha-2": "pa",
+    "code": "PK",
+    "name": {
+      "en": "Pakistan",
+      "ar": "باكستان",
+      "es": "Pakistán",
+      "fr": "Pakistan",
+      "hi": "पाकिस्तान",
+      "pt": "Paquistão",
+      "ru": "Пакистан",
+      "tr": "Pakistan",
+      "zh": "巴基斯坦"
+    },
+    "region": "Asia",
+    "subRegion": "Southern Asia",
+    "latitude": 30.375321,
+    "longitude": 69.345116
+  },
+  {
+    "code": "PL",
+    "name": {
+      "en": "Poland",
+      "ar": "بولندا",
+      "es": "Polonia",
+      "fr": "Pologne",
+      "hi": "पोलैंड",
+      "pt": "Polónia",
+      "ru": "Польша",
+      "tr": "Polonya",
+      "zh": "波兰"
+    },
+    "region": "Europe",
+    "subRegion": "Eastern Europe",
+    "latitude": 51.919438,
+    "longitude": 19.145136
+  },
+  {
+    "code": "PM",
+    "name": {
+      "en": "Saint Pierre and Miquelon",
+      "ar": "Saint Pierre and Miquelon",
+      "es": "Saint Pierre and Miquelon",
+      "fr": "Saint Pierre and Miquelon",
+      "hi": "Saint Pierre and Miquelon",
+      "pt": "Saint Pierre and Miquelon",
+      "ru": "Saint Pierre and Miquelon",
+      "tr": "Saint Pierre and Miquelon",
+      "zh": "Saint Pierre and Miquelon"
+    },
     "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "Central America"
+    "subRegion": "Northern America",
+    "latitude": 46.941936,
+    "longitude": -56.27111
   },
   {
-    "name": "Papua New Guinea",
-    "alpha-2": "pg",
+    "code": "PN",
+    "name": {
+      "en": "Pitcairn",
+      "ar": "Pitcairn",
+      "es": "Pitcairn",
+      "fr": "Pitcairn",
+      "hi": "Pitcairn",
+      "pt": "Pitcairn",
+      "ru": "Pitcairn",
+      "tr": "Pitcairn",
+      "zh": "Pitcairn"
+    },
     "region": "Oceania",
-    "sub-region": "Melanesia",
-    "intermediate-region": ""
+    "subRegion": "Polynesia",
+    "latitude": -24.703615,
+    "longitude": -127.439308
   },
   {
-    "name": "Paraguay",
-    "alpha-2": "py",
+    "code": "PR",
+    "name": {
+      "en": "Puerto Rico",
+      "ar": "Puerto Rico",
+      "es": "Puerto Rico",
+      "fr": "Puerto Rico",
+      "hi": "Puerto Rico",
+      "pt": "Puerto Rico",
+      "ru": "Puerto Rico",
+      "tr": "Puerto Rico",
+      "zh": "Puerto Rico"
+    },
     "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "South America"
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 18.220833,
+    "longitude": -66.590149
   },
   {
-    "name": "Peru",
-    "alpha-2": "pe",
-    "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "South America"
-  },
-  {
-    "name": "Philippines",
-    "alpha-2": "ph",
+    "code": "PS",
+    "name": {
+      "en": "Palestine, State of",
+      "ar": "Palestine, State of",
+      "es": "Palestine, State of",
+      "fr": "Palestine, State of",
+      "hi": "Palestine, State of",
+      "pt": "Palestine, State of",
+      "ru": "Palestine, State of",
+      "tr": "Palestine, State of",
+      "zh": "Palestine, State of"
+    },
     "region": "Asia",
-    "sub-region": "South-eastern Asia",
-    "intermediate-region": ""
+    "subRegion": "Western Asia",
+    "latitude": 31.952162,
+    "longitude": 35.233154
   },
   {
-    "name": "Pitcairn",
-    "alpha-2": "pn",
+    "code": "PT",
+    "name": {
+      "en": "Portugal",
+      "ar": "البرتغال",
+      "es": "Portugal",
+      "fr": "Portugal",
+      "hi": "पुर्तगाल",
+      "pt": "Portugal",
+      "ru": "Португалия",
+      "tr": "Portekiz",
+      "zh": "葡萄牙"
+    },
+    "region": "Europe",
+    "subRegion": "Southern Europe",
+    "latitude": 39.399872,
+    "longitude": -8.224454
+  },
+  {
+    "code": "PW",
+    "name": {
+      "en": "Palau",
+      "ar": "Palau",
+      "es": "Palau",
+      "fr": "Palau",
+      "hi": "Palau",
+      "pt": "Palau",
+      "ru": "Palau",
+      "tr": "Palau",
+      "zh": "Palau"
+    },
     "region": "Oceania",
-    "sub-region": "Polynesia",
-    "intermediate-region": ""
+    "subRegion": "Micronesia",
+    "latitude": 7.51498,
+    "longitude": 134.58252
   },
   {
-    "name": "Poland",
-    "alpha-2": "pl",
-    "region": "Europe",
-    "sub-region": "Eastern Europe",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Portugal",
-    "alpha-2": "pt",
-    "region": "Europe",
-    "sub-region": "Southern Europe",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Puerto Rico",
-    "alpha-2": "pr",
+    "code": "PY",
+    "name": {
+      "en": "Paraguay",
+      "ar": "Paraguay",
+      "es": "Paraguay",
+      "fr": "Paraguay",
+      "hi": "Paraguay",
+      "pt": "Paraguay",
+      "ru": "Paraguay",
+      "tr": "Paraguay",
+      "zh": "Paraguay"
+    },
     "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "Caribbean"
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": -23.442503,
+    "longitude": -58.443832
   },
   {
-    "name": "Qatar",
-    "alpha-2": "qa",
+    "code": "QA",
+    "name": {
+      "en": "Qatar",
+      "ar": "Qatar",
+      "es": "Qatar",
+      "fr": "Qatar",
+      "hi": "Qatar",
+      "pt": "Qatar",
+      "ru": "Qatar",
+      "tr": "Qatar",
+      "zh": "Qatar"
+    },
     "region": "Asia",
-    "sub-region": "Western Asia",
-    "intermediate-region": ""
+    "subRegion": "Western Asia",
+    "latitude": 25.354826,
+    "longitude": 51.183884
   },
   {
-    "name": "R\u00e9union",
-    "alpha-2": "re",
+    "code": "RE",
+    "name": {
+      "en": "Réunion",
+      "ar": "Réunion",
+      "es": "Réunion",
+      "fr": "Réunion",
+      "hi": "Réunion",
+      "pt": "Réunion",
+      "ru": "Réunion",
+      "tr": "Réunion",
+      "zh": "Réunion"
+    },
     "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Eastern Africa"
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": -21.115141,
+    "longitude": 55.536384
   },
   {
-    "name": "Romania",
-    "alpha-2": "ro",
+    "code": "RO",
+    "name": {
+      "en": "Romania",
+      "ar": "رومانيا",
+      "es": "Rumania",
+      "fr": "Roumanie",
+      "hi": "रोमानिया",
+      "pt": "Romênia",
+      "ru": "Румыния",
+      "tr": "Romanya",
+      "zh": "罗马尼亚"
+    },
     "region": "Europe",
-    "sub-region": "Eastern Europe",
-    "intermediate-region": ""
+    "subRegion": "Eastern Europe",
+    "latitude": 45.943161,
+    "longitude": 24.96676
   },
   {
-    "name": "Russian Federation",
-    "alpha-2": "ru",
+    "code": "RS",
+    "name": {
+      "en": "Serbia",
+      "ar": "Serbia",
+      "es": "Serbia",
+      "fr": "Serbia",
+      "hi": "Serbia",
+      "pt": "Serbia",
+      "ru": "Serbia",
+      "tr": "Serbia",
+      "zh": "Serbia"
+    },
     "region": "Europe",
-    "sub-region": "Eastern Europe",
-    "intermediate-region": ""
+    "subRegion": "Southern Europe",
+    "latitude": 44.016521,
+    "longitude": 21.005859
   },
   {
-    "name": "Rwanda",
-    "alpha-2": "rw",
+    "code": "RU",
+    "name": {
+      "en": "Russia",
+      "ar": "روسيا",
+      "es": "Rusia",
+      "fr": "Russie",
+      "hi": "रूस",
+      "pt": "Rússia",
+      "ru": "Россия",
+      "tr": "Rusya",
+      "zh": "俄罗斯"
+    },
+    "region": "Europe",
+    "subRegion": "Eastern Europe",
+    "latitude": 61.52401,
+    "longitude": 105.318756
+  },
+  {
+    "code": "RW",
+    "name": {
+      "en": "Rwanda",
+      "ar": "Rwanda",
+      "es": "Rwanda",
+      "fr": "Rwanda",
+      "hi": "Rwanda",
+      "pt": "Rwanda",
+      "ru": "Rwanda",
+      "tr": "Rwanda",
+      "zh": "Rwanda"
+    },
     "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Eastern Africa"
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": -1.940278,
+    "longitude": 29.873888
   },
   {
-    "name": "Saint Barth\u00e9lemy",
-    "alpha-2": "bl",
-    "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "Caribbean"
+    "code": "SA",
+    "name": {
+      "en": "Saudi Arabia",
+      "ar": "المملكة العربية السعودية",
+      "es": "Arabia Saudita",
+      "fr": "Arabie Saoudite",
+      "hi": "सऊदी अरब",
+      "pt": "Arábia Saudita",
+      "ru": "Саудовская Аравия",
+      "tr": "Suudi Arabistan",
+      "zh": "沙特阿拉伯"
+    },
+    "region": "Asia",
+    "subRegion": "Western Asia",
+    "latitude": 23.885942,
+    "longitude": 45.079162
   },
   {
-    "name": "Saint Helena, Ascension and Tristan da Cunha",
-    "alpha-2": "sh",
-    "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Western Africa"
-  },
-  {
-    "name": "Saint Kitts and Nevis",
-    "alpha-2": "kn",
-    "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "Caribbean"
-  },
-  {
-    "name": "Saint Lucia",
-    "alpha-2": "lc",
-    "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "Caribbean"
-  },
-  {
-    "name": "Saint Martin (French part)",
-    "alpha-2": "mf",
-    "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "Caribbean"
-  },
-  {
-    "name": "Saint Pierre and Miquelon",
-    "alpha-2": "pm",
-    "region": "Americas",
-    "sub-region": "Northern America",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Saint Vincent and the Grenadines",
-    "alpha-2": "vc",
-    "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "Caribbean"
-  },
-  {
-    "name": "Samoa",
-    "alpha-2": "ws",
+    "code": "SB",
+    "name": {
+      "en": "Solomon Islands",
+      "ar": "Solomon Islands",
+      "es": "Solomon Islands",
+      "fr": "Solomon Islands",
+      "hi": "Solomon Islands",
+      "pt": "Solomon Islands",
+      "ru": "Solomon Islands",
+      "tr": "Solomon Islands",
+      "zh": "Solomon Islands"
+    },
     "region": "Oceania",
-    "sub-region": "Polynesia",
-    "intermediate-region": ""
+    "subRegion": "Melanesia",
+    "latitude": -9.64571,
+    "longitude": 160.156194
   },
   {
-    "name": "San Marino",
-    "alpha-2": "sm",
+    "code": "SC",
+    "name": {
+      "en": "Seychelles",
+      "ar": "Seychelles",
+      "es": "Seychelles",
+      "fr": "Seychelles",
+      "hi": "Seychelles",
+      "pt": "Seychelles",
+      "ru": "Seychelles",
+      "tr": "Seychelles",
+      "zh": "Seychelles"
+    },
+    "region": "Africa",
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": -4.679574,
+    "longitude": 55.491977
+  },
+  {
+    "code": "SD",
+    "name": {
+      "en": "Sudan",
+      "ar": "Sudan",
+      "es": "Sudan",
+      "fr": "Sudan",
+      "hi": "Sudan",
+      "pt": "Sudan",
+      "ru": "Sudan",
+      "tr": "Sudan",
+      "zh": "Sudan"
+    },
+    "region": "Africa",
+    "subRegion": "Northern Africa",
+    "latitude": 12.862807,
+    "longitude": 30.217636
+  },
+  {
+    "code": "SE",
+    "name": {
+      "en": "Sweden",
+      "ar": "السويد",
+      "es": "Suecia",
+      "fr": "Suède",
+      "hi": "स्वीडन",
+      "pt": "Suécia",
+      "ru": "Швеция",
+      "tr": "İsveç",
+      "zh": "瑞典"
+    },
     "region": "Europe",
-    "sub-region": "Southern Europe",
-    "intermediate-region": ""
+    "subRegion": "Northern Europe",
+    "latitude": 60.128161,
+    "longitude": 18.643501
   },
   {
-    "name": "Sao Tome and Principe",
-    "alpha-2": "st",
-    "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Middle Africa"
-  },
-  {
-    "name": "Saudi Arabia",
-    "alpha-2": "sa",
+    "code": "SG",
+    "name": {
+      "en": "Singapore",
+      "ar": "سنغافورة",
+      "es": "Singapur",
+      "fr": "Singapour",
+      "hi": "सिंगापुर",
+      "pt": "Singapura",
+      "ru": "Сингапур",
+      "tr": "Singapur",
+      "zh": "新加坡"
+    },
     "region": "Asia",
-    "sub-region": "Western Asia",
-    "intermediate-region": ""
+    "subRegion": "South-eastern Asia",
+    "latitude": 1.352083,
+    "longitude": 103.819836
   },
   {
-    "name": "Senegal",
-    "alpha-2": "sn",
+    "code": "SH",
+    "name": {
+      "en": "Saint Helena, Ascension and Tristan da Cunha",
+      "ar": "Saint Helena, Ascension and Tristan da Cunha",
+      "es": "Saint Helena, Ascension and Tristan da Cunha",
+      "fr": "Saint Helena, Ascension and Tristan da Cunha",
+      "hi": "Saint Helena, Ascension and Tristan da Cunha",
+      "pt": "Saint Helena, Ascension and Tristan da Cunha",
+      "ru": "Saint Helena, Ascension and Tristan da Cunha",
+      "tr": "Saint Helena, Ascension and Tristan da Cunha",
+      "zh": "Saint Helena, Ascension and Tristan da Cunha"
+    },
     "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Western Africa"
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": -24.143474,
+    "longitude": -10.030696
   },
   {
-    "name": "Serbia",
-    "alpha-2": "rs",
+    "code": "SI",
+    "name": {
+      "en": "Slovenia",
+      "ar": "Slovenia",
+      "es": "Slovenia",
+      "fr": "Slovenia",
+      "hi": "Slovenia",
+      "pt": "Slovenia",
+      "ru": "Slovenia",
+      "tr": "Slovenia",
+      "zh": "Slovenia"
+    },
     "region": "Europe",
-    "sub-region": "Southern Europe",
-    "intermediate-region": ""
+    "subRegion": "Southern Europe",
+    "latitude": 46.151241,
+    "longitude": 14.995463
   },
   {
-    "name": "Seychelles",
-    "alpha-2": "sc",
+    "code": "SJ",
+    "name": {
+      "en": "Svalbard and Jan Mayen",
+      "ar": "Svalbard and Jan Mayen",
+      "es": "Svalbard and Jan Mayen",
+      "fr": "Svalbard and Jan Mayen",
+      "hi": "Svalbard and Jan Mayen",
+      "pt": "Svalbard and Jan Mayen",
+      "ru": "Svalbard and Jan Mayen",
+      "tr": "Svalbard and Jan Mayen",
+      "zh": "Svalbard and Jan Mayen"
+    },
+    "region": "Europe",
+    "subRegion": "Northern Europe",
+    "latitude": 77.553604,
+    "longitude": 23.670272
+  },
+  {
+    "code": "SK",
+    "name": {
+      "en": "Slovakia",
+      "ar": "Slovakia",
+      "es": "Slovakia",
+      "fr": "Slovakia",
+      "hi": "Slovakia",
+      "pt": "Slovakia",
+      "ru": "Slovakia",
+      "tr": "Slovakia",
+      "zh": "Slovakia"
+    },
+    "region": "Europe",
+    "subRegion": "Eastern Europe",
+    "latitude": 48.669026,
+    "longitude": 19.699024
+  },
+  {
+    "code": "SL",
+    "name": {
+      "en": "Sierra Leone",
+      "ar": "Sierra Leone",
+      "es": "Sierra Leone",
+      "fr": "Sierra Leone",
+      "hi": "Sierra Leone",
+      "pt": "Sierra Leone",
+      "ru": "Sierra Leone",
+      "tr": "Sierra Leone",
+      "zh": "Sierra Leone"
+    },
     "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Eastern Africa"
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": 8.460555,
+    "longitude": -11.779889
   },
   {
-    "name": "Sierra Leone",
-    "alpha-2": "sl",
+    "code": "SM",
+    "name": {
+      "en": "San Marino",
+      "ar": "San Marino",
+      "es": "San Marino",
+      "fr": "San Marino",
+      "hi": "San Marino",
+      "pt": "San Marino",
+      "ru": "San Marino",
+      "tr": "San Marino",
+      "zh": "San Marino"
+    },
+    "region": "Europe",
+    "subRegion": "Southern Europe",
+    "latitude": 43.94236,
+    "longitude": 12.457777
+  },
+  {
+    "code": "SN",
+    "name": {
+      "en": "Senegal",
+      "ar": "Senegal",
+      "es": "Senegal",
+      "fr": "Senegal",
+      "hi": "Senegal",
+      "pt": "Senegal",
+      "ru": "Senegal",
+      "tr": "Senegal",
+      "zh": "Senegal"
+    },
     "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Western Africa"
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": 14.497401,
+    "longitude": -14.452362
   },
   {
-    "name": "Singapore",
-    "alpha-2": "sg",
-    "region": "Asia",
-    "sub-region": "South-eastern Asia",
-    "intermediate-region": ""
+    "code": "SO",
+    "name": {
+      "en": "Somalia",
+      "ar": "Somalia",
+      "es": "Somalia",
+      "fr": "Somalia",
+      "hi": "Somalia",
+      "pt": "Somalia",
+      "ru": "Somalia",
+      "tr": "Somalia",
+      "zh": "Somalia"
+    },
+    "region": "Africa",
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": 5.152149,
+    "longitude": 46.199616
   },
   {
-    "name": "Sint Maarten (Dutch part)",
-    "alpha-2": "sx",
+    "code": "SR",
+    "name": {
+      "en": "Suriname",
+      "ar": "Suriname",
+      "es": "Suriname",
+      "fr": "Suriname",
+      "hi": "Suriname",
+      "pt": "Suriname",
+      "ru": "Suriname",
+      "tr": "Suriname",
+      "zh": "Suriname"
+    },
     "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "Caribbean"
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 3.919305,
+    "longitude": -56.027783
   },
   {
-    "name": "Slovakia",
-    "alpha-2": "sk",
-    "region": "Europe",
-    "sub-region": "Eastern Europe",
-    "intermediate-region": ""
+    "code": "SS",
+    "name": {
+      "en": "South Sudan",
+      "ar": "South Sudan",
+      "es": "South Sudan",
+      "fr": "South Sudan",
+      "hi": "South Sudan",
+      "pt": "South Sudan",
+      "ru": "South Sudan",
+      "tr": "South Sudan",
+      "zh": "South Sudan"
+    },
+    "region": "Africa",
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": 0,
+    "longitude": 0
   },
   {
-    "name": "Slovenia",
-    "alpha-2": "si",
-    "region": "Europe",
-    "sub-region": "Southern Europe",
-    "intermediate-region": ""
+    "code": "ST",
+    "name": {
+      "en": "Sao Tome and Principe",
+      "ar": "Sao Tome and Principe",
+      "es": "Sao Tome and Principe",
+      "fr": "Sao Tome and Principe",
+      "hi": "Sao Tome and Principe",
+      "pt": "Sao Tome and Principe",
+      "ru": "Sao Tome and Principe",
+      "tr": "Sao Tome and Principe",
+      "zh": "Sao Tome and Principe"
+    },
+    "region": "Africa",
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": 0.18636,
+    "longitude": 6.613081
   },
   {
-    "name": "Solomon Islands",
-    "alpha-2": "sb",
+    "code": "SV",
+    "name": {
+      "en": "El Salvador",
+      "ar": "El Salvador",
+      "es": "El Salvador",
+      "fr": "El Salvador",
+      "hi": "El Salvador",
+      "pt": "El Salvador",
+      "ru": "El Salvador",
+      "tr": "El Salvador",
+      "zh": "El Salvador"
+    },
+    "region": "Americas",
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 13.794185,
+    "longitude": -88.89653
+  },
+  {
+    "code": "SX",
+    "name": {
+      "en": "Sint Maarten (Dutch part)",
+      "ar": "Sint Maarten (Dutch part)",
+      "es": "Sint Maarten (Dutch part)",
+      "fr": "Sint Maarten (Dutch part)",
+      "hi": "Sint Maarten (Dutch part)",
+      "pt": "Sint Maarten (Dutch part)",
+      "ru": "Sint Maarten (Dutch part)",
+      "tr": "Sint Maarten (Dutch part)",
+      "zh": "Sint Maarten (Dutch part)"
+    },
+    "region": "Americas",
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 0,
+    "longitude": 0
+  },
+  {
+    "code": "SY",
+    "name": {
+      "en": "Syrian Arab Republic",
+      "ar": "Syrian Arab Republic",
+      "es": "Syrian Arab Republic",
+      "fr": "Syrian Arab Republic",
+      "hi": "Syrian Arab Republic",
+      "pt": "Syrian Arab Republic",
+      "ru": "Syrian Arab Republic",
+      "tr": "Syrian Arab Republic",
+      "zh": "Syrian Arab Republic"
+    },
+    "region": "Asia",
+    "subRegion": "Western Asia",
+    "latitude": 34.802075,
+    "longitude": 38.996815
+  },
+  {
+    "code": "SZ",
+    "name": {
+      "en": "Eswatini",
+      "ar": "Eswatini",
+      "es": "Eswatini",
+      "fr": "Eswatini",
+      "hi": "Eswatini",
+      "pt": "Eswatini",
+      "ru": "Eswatini",
+      "tr": "Eswatini",
+      "zh": "Eswatini"
+    },
+    "region": "Africa",
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": -26.522503,
+    "longitude": 31.465866
+  },
+  {
+    "code": "TC",
+    "name": {
+      "en": "Turks and Caicos Islands",
+      "ar": "Turks and Caicos Islands",
+      "es": "Turks and Caicos Islands",
+      "fr": "Turks and Caicos Islands",
+      "hi": "Turks and Caicos Islands",
+      "pt": "Turks and Caicos Islands",
+      "ru": "Turks and Caicos Islands",
+      "tr": "Turks and Caicos Islands",
+      "zh": "Turks and Caicos Islands"
+    },
+    "region": "Americas",
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 21.694025,
+    "longitude": -71.797928
+  },
+  {
+    "code": "TD",
+    "name": {
+      "en": "Chad",
+      "ar": "Chad",
+      "es": "Chad",
+      "fr": "Chad",
+      "hi": "Chad",
+      "pt": "Chad",
+      "ru": "Chad",
+      "tr": "Chad",
+      "zh": "Chad"
+    },
+    "region": "Africa",
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": 15.454166,
+    "longitude": 18.732207
+  },
+  {
+    "code": "TF",
+    "name": {
+      "en": "French Southern Territories",
+      "ar": "French Southern Territories",
+      "es": "French Southern Territories",
+      "fr": "French Southern Territories",
+      "hi": "French Southern Territories",
+      "pt": "French Southern Territories",
+      "ru": "French Southern Territories",
+      "tr": "French Southern Territories",
+      "zh": "French Southern Territories"
+    },
+    "region": "Africa",
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": -49.280366,
+    "longitude": 69.348557
+  },
+  {
+    "code": "TG",
+    "name": {
+      "en": "Togo",
+      "ar": "Togo",
+      "es": "Togo",
+      "fr": "Togo",
+      "hi": "Togo",
+      "pt": "Togo",
+      "ru": "Togo",
+      "tr": "Togo",
+      "zh": "Togo"
+    },
+    "region": "Africa",
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": 8.619543,
+    "longitude": 0.824782
+  },
+  {
+    "code": "TH",
+    "name": {
+      "en": "Thailand",
+      "ar": "تايلاند",
+      "es": "Tailandia",
+      "fr": "Thaïlande",
+      "hi": "थाईलैंड",
+      "pt": "Tailândia",
+      "ru": "Таиланд",
+      "tr": "Tayland",
+      "zh": "泰国"
+    },
+    "region": "Asia",
+    "subRegion": "South-eastern Asia",
+    "latitude": 15.870032,
+    "longitude": 100.992541
+  },
+  {
+    "code": "TJ",
+    "name": {
+      "en": "Tajikistan",
+      "ar": "Tajikistan",
+      "es": "Tajikistan",
+      "fr": "Tajikistan",
+      "hi": "Tajikistan",
+      "pt": "Tajikistan",
+      "ru": "Tajikistan",
+      "tr": "Tajikistan",
+      "zh": "Tajikistan"
+    },
+    "region": "Asia",
+    "subRegion": "Central Asia",
+    "latitude": 38.861034,
+    "longitude": 71.276093
+  },
+  {
+    "code": "TK",
+    "name": {
+      "en": "Tokelau",
+      "ar": "Tokelau",
+      "es": "Tokelau",
+      "fr": "Tokelau",
+      "hi": "Tokelau",
+      "pt": "Tokelau",
+      "ru": "Tokelau",
+      "tr": "Tokelau",
+      "zh": "Tokelau"
+    },
     "region": "Oceania",
-    "sub-region": "Melanesia",
-    "intermediate-region": ""
+    "subRegion": "Polynesia",
+    "latitude": -8.967363,
+    "longitude": -171.855881
   },
   {
-    "name": "Somalia",
-    "alpha-2": "so",
-    "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Eastern Africa"
-  },
-  {
-    "name": "South Africa",
-    "alpha-2": "za",
-    "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Southern Africa"
-  },
-  {
-    "name": "South Georgia and the South Sandwich Islands",
-    "alpha-2": "gs",
-    "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "South America"
-  },
-  {
-    "name": "South Sudan",
-    "alpha-2": "ss",
-    "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Eastern Africa"
-  },
-  {
-    "name": "Spain",
-    "alpha-2": "es",
-    "region": "Europe",
-    "sub-region": "Southern Europe",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Sri Lanka",
-    "alpha-2": "lk",
+    "code": "TL",
+    "name": {
+      "en": "Timor-Leste",
+      "ar": "Timor-Leste",
+      "es": "Timor-Leste",
+      "fr": "Timor-Leste",
+      "hi": "Timor-Leste",
+      "pt": "Timor-Leste",
+      "ru": "Timor-Leste",
+      "tr": "Timor-Leste",
+      "zh": "Timor-Leste"
+    },
     "region": "Asia",
-    "sub-region": "Southern Asia",
-    "intermediate-region": ""
+    "subRegion": "South-eastern Asia",
+    "latitude": -8.874217,
+    "longitude": 125.727539
   },
   {
-    "name": "Sudan",
-    "alpha-2": "sd",
+    "code": "TM",
+    "name": {
+      "en": "Turkmenistan",
+      "ar": "Turkmenistan",
+      "es": "Turkmenistan",
+      "fr": "Turkmenistan",
+      "hi": "Turkmenistan",
+      "pt": "Turkmenistan",
+      "ru": "Turkmenistan",
+      "tr": "Turkmenistan",
+      "zh": "Turkmenistan"
+    },
+    "region": "Asia",
+    "subRegion": "Central Asia",
+    "latitude": 38.969719,
+    "longitude": 59.556278
+  },
+  {
+    "code": "TN",
+    "name": {
+      "en": "Tunisia",
+      "ar": "Tunisia",
+      "es": "Tunisia",
+      "fr": "Tunisia",
+      "hi": "Tunisia",
+      "pt": "Tunisia",
+      "ru": "Tunisia",
+      "tr": "Tunisia",
+      "zh": "Tunisia"
+    },
     "region": "Africa",
-    "sub-region": "Northern Africa",
-    "intermediate-region": ""
+    "subRegion": "Northern Africa",
+    "latitude": 33.886917,
+    "longitude": 9.537499
   },
   {
-    "name": "Suriname",
-    "alpha-2": "sr",
-    "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "South America"
-  },
-  {
-    "name": "Svalbard and Jan Mayen",
-    "alpha-2": "sj",
-    "region": "Europe",
-    "sub-region": "Northern Europe",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Sweden",
-    "alpha-2": "se",
-    "region": "Europe",
-    "sub-region": "Northern Europe",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Switzerland",
-    "alpha-2": "ch",
-    "region": "Europe",
-    "sub-region": "Western Europe",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Syrian Arab Republic",
-    "alpha-2": "sy",
-    "region": "Asia",
-    "sub-region": "Western Asia",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Taiwan, Province of China",
-    "alpha-2": "tw",
-    "region": null,
-    "sub-region": null,
-    "intermediate-region": null
-  },
-  {
-    "name": "Tajikistan",
-    "alpha-2": "tj",
-    "region": "Asia",
-    "sub-region": "Central Asia",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Tanzania, United Republic of",
-    "alpha-2": "tz",
-    "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Eastern Africa"
-  },
-  {
-    "name": "Thailand",
-    "alpha-2": "th",
-    "region": "Asia",
-    "sub-region": "South-eastern Asia",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Timor-Leste",
-    "alpha-2": "tl",
-    "region": "Asia",
-    "sub-region": "South-eastern Asia",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Togo",
-    "alpha-2": "tg",
-    "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Western Africa"
-  },
-  {
-    "name": "Tokelau",
-    "alpha-2": "tk",
+    "code": "TO",
+    "name": {
+      "en": "Tonga",
+      "ar": "Tonga",
+      "es": "Tonga",
+      "fr": "Tonga",
+      "hi": "Tonga",
+      "pt": "Tonga",
+      "ru": "Tonga",
+      "tr": "Tonga",
+      "zh": "Tonga"
+    },
     "region": "Oceania",
-    "sub-region": "Polynesia",
-    "intermediate-region": ""
+    "subRegion": "Polynesia",
+    "latitude": -21.178986,
+    "longitude": -175.198242
   },
   {
-    "name": "Tonga",
-    "alpha-2": "to",
-    "region": "Oceania",
-    "sub-region": "Polynesia",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Trinidad and Tobago",
-    "alpha-2": "tt",
-    "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "Caribbean"
-  },
-  {
-    "name": "Tunisia",
-    "alpha-2": "tn",
-    "region": "Africa",
-    "sub-region": "Northern Africa",
-    "intermediate-region": ""
-  },
-  {
-    "name": "T\u00fcrkiye",
-    "alpha-2": "tr",
+    "code": "TR",
+    "name": {
+      "en": "Turkey",
+      "ar": "تركيا",
+      "es": "Turquía",
+      "fr": "Turquie",
+      "hi": "तुर्की",
+      "pt": "Turquia",
+      "ru": "Турция",
+      "tr": "Türkiye",
+      "zh": "土耳其"
+    },
     "region": "Asia",
-    "sub-region": "Western Asia",
-    "intermediate-region": ""
+    "subRegion": "Western Asia",
+    "latitude": 38.963745,
+    "longitude": 35.243322
   },
   {
-    "name": "Turkmenistan",
-    "alpha-2": "tm",
-    "region": "Asia",
-    "sub-region": "Central Asia",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Turks and Caicos Islands",
-    "alpha-2": "tc",
+    "code": "TT",
+    "name": {
+      "en": "Trinidad and Tobago",
+      "ar": "Trinidad and Tobago",
+      "es": "Trinidad and Tobago",
+      "fr": "Trinidad and Tobago",
+      "hi": "Trinidad and Tobago",
+      "pt": "Trinidad and Tobago",
+      "ru": "Trinidad and Tobago",
+      "tr": "Trinidad and Tobago",
+      "zh": "Trinidad and Tobago"
+    },
     "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "Caribbean"
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 10.691803,
+    "longitude": -61.222503
   },
   {
-    "name": "Tuvalu",
-    "alpha-2": "tv",
+    "code": "TV",
+    "name": {
+      "en": "Tuvalu",
+      "ar": "Tuvalu",
+      "es": "Tuvalu",
+      "fr": "Tuvalu",
+      "hi": "Tuvalu",
+      "pt": "Tuvalu",
+      "ru": "Tuvalu",
+      "tr": "Tuvalu",
+      "zh": "Tuvalu"
+    },
     "region": "Oceania",
-    "sub-region": "Polynesia",
-    "intermediate-region": ""
+    "subRegion": "Polynesia",
+    "latitude": -7.109535,
+    "longitude": 177.64933
   },
   {
-    "name": "Uganda",
-    "alpha-2": "ug",
+    "code": "TW",
+    "name": {
+      "en": "Taiwan",
+      "ar": "تايوان",
+      "es": "Taiwán",
+      "fr": "Taïwan",
+      "hi": "ताइवान",
+      "pt": "Taiwan",
+      "ru": "Тайвань",
+      "tr": "Tayvan",
+      "zh": "台湾"
+    },
+    "region": "Other",
+    "subRegion": "",
+    "latitude": 23.69781,
+    "longitude": 120.960515
+  },
+  {
+    "code": "TZ",
+    "name": {
+      "en": "Tanzania, United Republic of",
+      "ar": "Tanzania, United Republic of",
+      "es": "Tanzania, United Republic of",
+      "fr": "Tanzania, United Republic of",
+      "hi": "Tanzania, United Republic of",
+      "pt": "Tanzania, United Republic of",
+      "ru": "Tanzania, United Republic of",
+      "tr": "Tanzania, United Republic of",
+      "zh": "Tanzania, United Republic of"
+    },
     "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Eastern Africa"
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": -6.369028,
+    "longitude": 34.888822
   },
   {
-    "name": "Ukraine",
-    "alpha-2": "ua",
+    "code": "UA",
+    "name": {
+      "en": "Ukraine",
+      "ar": "أوكرانيا",
+      "es": "Ucrania",
+      "fr": "Ukraine",
+      "hi": "यूक्रेन",
+      "pt": "Ucrânia",
+      "ru": "Украина",
+      "tr": "Ukrayna",
+      "zh": "乌克兰"
+    },
     "region": "Europe",
-    "sub-region": "Eastern Europe",
-    "intermediate-region": ""
+    "subRegion": "Eastern Europe",
+    "latitude": 48.379433,
+    "longitude": 31.16558
   },
   {
-    "name": "United Arab Emirates",
-    "alpha-2": "ae",
+    "code": "UG",
+    "name": {
+      "en": "Uganda",
+      "ar": "Uganda",
+      "es": "Uganda",
+      "fr": "Uganda",
+      "hi": "Uganda",
+      "pt": "Uganda",
+      "ru": "Uganda",
+      "tr": "Uganda",
+      "zh": "Uganda"
+    },
+    "region": "Africa",
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": 1.373333,
+    "longitude": 32.290275
+  },
+  {
+    "code": "UM",
+    "name": {
+      "en": "United States Minor Outlying Islands",
+      "ar": "United States Minor Outlying Islands",
+      "es": "United States Minor Outlying Islands",
+      "fr": "United States Minor Outlying Islands",
+      "hi": "United States Minor Outlying Islands",
+      "pt": "United States Minor Outlying Islands",
+      "ru": "United States Minor Outlying Islands",
+      "tr": "United States Minor Outlying Islands",
+      "zh": "United States Minor Outlying Islands"
+    },
+    "region": "Oceania",
+    "subRegion": "Micronesia",
+    "latitude": 0,
+    "longitude": 0
+  },
+  {
+    "code": "US",
+    "name": {
+      "en": "United States",
+      "ar": "الولايات المتحدة",
+      "es": "Estados Unidos",
+      "fr": "États-Unis",
+      "hi": "संयुक्त राज्य अमेरिका",
+      "pt": "Estados Unidos",
+      "ru": "Соединённые Штаты",
+      "tr": "Amerika Birleşik Devletleri",
+      "zh": "美国"
+    },
+    "region": "Americas",
+    "subRegion": "Northern America",
+    "latitude": 37.09024,
+    "longitude": -95.712891
+  },
+  {
+    "code": "UY",
+    "name": {
+      "en": "Uruguay",
+      "ar": "Uruguay",
+      "es": "Uruguay",
+      "fr": "Uruguay",
+      "hi": "Uruguay",
+      "pt": "Uruguay",
+      "ru": "Uruguay",
+      "tr": "Uruguay",
+      "zh": "Uruguay"
+    },
+    "region": "Americas",
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": -32.522779,
+    "longitude": -55.765835
+  },
+  {
+    "code": "UZ",
+    "name": {
+      "en": "Uzbekistan",
+      "ar": "Uzbekistan",
+      "es": "Uzbekistan",
+      "fr": "Uzbekistan",
+      "hi": "Uzbekistan",
+      "pt": "Uzbekistan",
+      "ru": "Uzbekistan",
+      "tr": "Uzbekistan",
+      "zh": "Uzbekistan"
+    },
     "region": "Asia",
-    "sub-region": "Western Asia",
-    "intermediate-region": ""
+    "subRegion": "Central Asia",
+    "latitude": 41.377491,
+    "longitude": 64.585262
   },
   {
-    "name": "United Kingdom of Great Britain and Northern Ireland",
-    "alpha-2": "gb",
+    "code": "VA",
+    "name": {
+      "en": "Holy See",
+      "ar": "Holy See",
+      "es": "Holy See",
+      "fr": "Holy See",
+      "hi": "Holy See",
+      "pt": "Holy See",
+      "ru": "Holy See",
+      "tr": "Holy See",
+      "zh": "Holy See"
+    },
     "region": "Europe",
-    "sub-region": "Northern Europe",
-    "intermediate-region": ""
+    "subRegion": "Southern Europe",
+    "latitude": 41.902916,
+    "longitude": 12.453389
   },
   {
-    "name": "United States of America",
-    "alpha-2": "us",
+    "code": "VC",
+    "name": {
+      "en": "Saint Vincent and the Grenadines",
+      "ar": "Saint Vincent and the Grenadines",
+      "es": "Saint Vincent and the Grenadines",
+      "fr": "Saint Vincent and the Grenadines",
+      "hi": "Saint Vincent and the Grenadines",
+      "pt": "Saint Vincent and the Grenadines",
+      "ru": "Saint Vincent and the Grenadines",
+      "tr": "Saint Vincent and the Grenadines",
+      "zh": "Saint Vincent and the Grenadines"
+    },
     "region": "Americas",
-    "sub-region": "Northern America",
-    "intermediate-region": ""
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 12.984305,
+    "longitude": -61.287228
   },
   {
-    "name": "United States Minor Outlying Islands",
-    "alpha-2": "um",
-    "region": "Oceania",
-    "sub-region": "Micronesia",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Uruguay",
-    "alpha-2": "uy",
+    "code": "VE",
+    "name": {
+      "en": "Venezuela, Bolivarian Republic of",
+      "ar": "Venezuela, Bolivarian Republic of",
+      "es": "Venezuela, Bolivarian Republic of",
+      "fr": "Venezuela, Bolivarian Republic of",
+      "hi": "Venezuela, Bolivarian Republic of",
+      "pt": "Venezuela, Bolivarian Republic of",
+      "ru": "Venezuela, Bolivarian Republic of",
+      "tr": "Venezuela, Bolivarian Republic of",
+      "zh": "Venezuela, Bolivarian Republic of"
+    },
     "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "South America"
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 6.42375,
+    "longitude": -66.58973
   },
   {
-    "name": "Uzbekistan",
-    "alpha-2": "uz",
+    "code": "VG",
+    "name": {
+      "en": "Virgin Islands (British)",
+      "ar": "Virgin Islands (British)",
+      "es": "Virgin Islands (British)",
+      "fr": "Virgin Islands (British)",
+      "hi": "Virgin Islands (British)",
+      "pt": "Virgin Islands (British)",
+      "ru": "Virgin Islands (British)",
+      "tr": "Virgin Islands (British)",
+      "zh": "Virgin Islands (British)"
+    },
+    "region": "Americas",
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 18.420695,
+    "longitude": -64.639968
+  },
+  {
+    "code": "VI",
+    "name": {
+      "en": "Virgin Islands (U.S.)",
+      "ar": "Virgin Islands (U.S.)",
+      "es": "Virgin Islands (U.S.)",
+      "fr": "Virgin Islands (U.S.)",
+      "hi": "Virgin Islands (U.S.)",
+      "pt": "Virgin Islands (U.S.)",
+      "ru": "Virgin Islands (U.S.)",
+      "tr": "Virgin Islands (U.S.)",
+      "zh": "Virgin Islands (U.S.)"
+    },
+    "region": "Americas",
+    "subRegion": "Latin America and the Caribbean",
+    "latitude": 18.335765,
+    "longitude": -64.896335
+  },
+  {
+    "code": "VN",
+    "name": {
+      "en": "Vietnam",
+      "ar": "فيتنام",
+      "es": "Vietnam",
+      "fr": "Viêt Nam",
+      "hi": "वियतनाम",
+      "pt": "Vietnã",
+      "ru": "Вьетнам",
+      "tr": "Vietnam",
+      "zh": "越南"
+    },
     "region": "Asia",
-    "sub-region": "Central Asia",
-    "intermediate-region": ""
+    "subRegion": "South-eastern Asia",
+    "latitude": 14.058324,
+    "longitude": 108.277199
   },
   {
-    "name": "Vanuatu",
-    "alpha-2": "vu",
+    "code": "VU",
+    "name": {
+      "en": "Vanuatu",
+      "ar": "Vanuatu",
+      "es": "Vanuatu",
+      "fr": "Vanuatu",
+      "hi": "Vanuatu",
+      "pt": "Vanuatu",
+      "ru": "Vanuatu",
+      "tr": "Vanuatu",
+      "zh": "Vanuatu"
+    },
     "region": "Oceania",
-    "sub-region": "Melanesia",
-    "intermediate-region": ""
+    "subRegion": "Melanesia",
+    "latitude": -15.376706,
+    "longitude": 166.959158
   },
   {
-    "name": "Venezuela, Bolivarian Republic of",
-    "alpha-2": "ve",
-    "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "South America"
-  },
-  {
-    "name": "Viet Nam",
-    "alpha-2": "vn",
-    "region": "Asia",
-    "sub-region": "South-eastern Asia",
-    "intermediate-region": ""
-  },
-  {
-    "name": "Virgin Islands (British)",
-    "alpha-2": "vg",
-    "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "Caribbean"
-  },
-  {
-    "name": "Virgin Islands (U.S.)",
-    "alpha-2": "vi",
-    "region": "Americas",
-    "sub-region": "Latin America and the Caribbean",
-    "intermediate-region": "Caribbean"
-  },
-  {
-    "name": "Wallis and Futuna",
-    "alpha-2": "wf",
+    "code": "WF",
+    "name": {
+      "en": "Wallis and Futuna",
+      "ar": "Wallis and Futuna",
+      "es": "Wallis and Futuna",
+      "fr": "Wallis and Futuna",
+      "hi": "Wallis and Futuna",
+      "pt": "Wallis and Futuna",
+      "ru": "Wallis and Futuna",
+      "tr": "Wallis and Futuna",
+      "zh": "Wallis and Futuna"
+    },
     "region": "Oceania",
-    "sub-region": "Polynesia",
-    "intermediate-region": ""
+    "subRegion": "Polynesia",
+    "latitude": -13.768752,
+    "longitude": -177.156097
   },
   {
-    "name": "Western Sahara",
-    "alpha-2": "eh",
-    "region": "Africa",
-    "sub-region": "Northern Africa",
-    "intermediate-region": ""
+    "code": "WS",
+    "name": {
+      "en": "Samoa",
+      "ar": "Samoa",
+      "es": "Samoa",
+      "fr": "Samoa",
+      "hi": "Samoa",
+      "pt": "Samoa",
+      "ru": "Samoa",
+      "tr": "Samoa",
+      "zh": "Samoa"
+    },
+    "region": "Oceania",
+    "subRegion": "Polynesia",
+    "latitude": -13.759029,
+    "longitude": -172.104629
   },
   {
-    "name": "Yemen",
-    "alpha-2": "ye",
+    "code": "YE",
+    "name": {
+      "en": "Yemen",
+      "ar": "Yemen",
+      "es": "Yemen",
+      "fr": "Yemen",
+      "hi": "Yemen",
+      "pt": "Yemen",
+      "ru": "Yemen",
+      "tr": "Yemen",
+      "zh": "Yemen"
+    },
     "region": "Asia",
-    "sub-region": "Western Asia",
-    "intermediate-region": ""
+    "subRegion": "Western Asia",
+    "latitude": 15.552727,
+    "longitude": 48.516388
   },
   {
-    "name": "Zambia",
-    "alpha-2": "zm",
+    "code": "YT",
+    "name": {
+      "en": "Mayotte",
+      "ar": "Mayotte",
+      "es": "Mayotte",
+      "fr": "Mayotte",
+      "hi": "Mayotte",
+      "pt": "Mayotte",
+      "ru": "Mayotte",
+      "tr": "Mayotte",
+      "zh": "Mayotte"
+    },
     "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Eastern Africa"
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": -12.8275,
+    "longitude": 45.166244
   },
   {
-    "name": "Zimbabwe",
-    "alpha-2": "zw",
+    "code": "ZA",
+    "name": {
+      "en": "South Africa",
+      "ar": "جنوب أفريقيا",
+      "es": "Sudáfrica",
+      "fr": "Afrique du Sud",
+      "hi": "दक्षिण अफ्रीका",
+      "pt": "África do Sul",
+      "ru": "Южная Африка",
+      "tr": "Güney Afrika",
+      "zh": "南非"
+    },
     "region": "Africa",
-    "sub-region": "Sub-Saharan Africa",
-    "intermediate-region": "Eastern Africa"
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": -30.559482,
+    "longitude": 22.937506
+  },
+  {
+    "code": "ZM",
+    "name": {
+      "en": "Zambia",
+      "ar": "Zambia",
+      "es": "Zambia",
+      "fr": "Zambia",
+      "hi": "Zambia",
+      "pt": "Zambia",
+      "ru": "Zambia",
+      "tr": "Zambia",
+      "zh": "Zambia"
+    },
+    "region": "Africa",
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": -13.133897,
+    "longitude": 27.849332
+  },
+  {
+    "code": "ZW",
+    "name": {
+      "en": "Zimbabwe",
+      "ar": "Zimbabwe",
+      "es": "Zimbabwe",
+      "fr": "Zimbabwe",
+      "hi": "Zimbabwe",
+      "pt": "Zimbabwe",
+      "ru": "Zimbabwe",
+      "tr": "Zimbabwe",
+      "zh": "Zimbabwe"
+    },
+    "region": "Africa",
+    "subRegion": "Sub-Saharan Africa",
+    "latitude": -19.015438,
+    "longitude": 29.154857
   }
 ]

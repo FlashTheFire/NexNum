@@ -161,7 +161,14 @@
         "status": {
             "operational": "System Operational",
             "analytics": "Analytics Active",
-            "secure": "Funds Secure"
+            "secure": "Funds Secure",
+            "active": "Active",
+            "completed": "Completed",
+            "expired": "Expired",
+            "cancelled": "Cancelled"
+        },
+        "analytics": {
+            "weeklyUsage": "Weekly SMS Usage"
         },
         "quickActions": {
             "topUp": "Top Up",
@@ -176,7 +183,8 @@
             "balance": "Total Balance",
             "myNumbers": "My Numbers",
             "spent": "Total Spent",
-            "deposited": "Total Deposited"
+            "deposited": "Total Deposited",
+            "activeRegions": "Active Regions"
         },
         "features": {
             "coverage": {
@@ -210,6 +218,282 @@
         "activity": {
             "title": "Recent Activity",
             "empty": "No recent activity"
+        }
+    },
+    "globalCoverage": {
+        "badge": "Worldwide Network",
+        "title": "Global Provider Coverage",
+        "subtitle": "Access virtual numbers from 180+ countries with instant activation. Our network spans across every continent, ensuring you always have coverage where you need it.",
+        "stats": {
+            "coverage": "Countries Covered",
+            "activation": "Activation Time",
+            "instant": "Instant",
+            "support": "Support Available",
+            "stock": "Stock",
+            "services": "Services",
+            "from": "From",
+            "providers": "Providers"
+        }
+    },
+    "smsPage": {
+        "title": "SMS Inbox",
+        "subtitle": "Real-time message viewer",
+        "status": {
+            "encrypted": "End-to-End Encrypted",
+            "encryptedMobile": "Encrypted",
+            "listening": "Listening",
+            "connectionTerminated": "Connection Terminated",
+            "signalSearchActive": "Signal Search Active",
+            "expired": "Expired",
+            "expiredSession": "This session has expired. No further signals can be received on this channel.",
+            "monitoring": "Actively monitoring encrypted channels for inbound verification codes.",
+            "secureLink": "Secure Link"
+        },
+        "actions": {
+            "nextNumber": "Next Number",
+            "getting": "Getting...",
+            "keepNumber": "Keep Number",
+            "searchCountry": "Search Country",
+            "cancelNumber": "Cancel Number",
+            "cancelling": "Cancelling...",
+            "confirmRefund": "Confirm Refund",
+            "downloadHistory": "Download History",
+            "markRead": "Mark all as read",
+            "backToDashboard": "Back to Dashboard"
+        },
+        "tips": {
+            "label": "Pro Tip",
+            "content": "Messages auto-refresh every 10s. Click on any verification code to copy it instantly."
+        },
+        "inbox": {
+            "title": "Received Messages",
+            "new": "New",
+            "received": "Received",
+            "empty": {
+                "title": "Number Not Found",
+                "description": "This number is no longer active or doesn't exist in your account."
+            }
+        },
+        "pagination": {
+            "previous": "Previous",
+            "next": "Next",
+            "pageInfo": "Page {current} of {total}"
+        },
+        "card": {
+            "expiresIn": "Expires in",
+            "status": "Status",
+            "statuses": {
+                "cancelled": "CANCELLED",
+                "expired": "EXPIRED",
+                "completed": "COMPLETED",
+                "active": "Active"
+            }
+        }
+    },
+    "admin": {
+        "title": "Command Center",
+        "subtitle": "Real-time analytics and system monitoring",
+        "nav": {
+            "overview": "Overview",
+            "users": "Users",
+            "providers": "Providers",
+            "inventory": "Inventory",
+            "transactions": "Transactions",
+            "settings": "Settings",
+            "exit": "Exit to App"
+        },
+        "status": {
+            "optimal": "SYSTEM OPTIMAL"
+        },
+        "tabs": {
+            "analytics": "Analytics",
+            "activity": "Activity"
+        },
+        "users": {
+            "title": "User Management",
+            "subtitle": "Manage accounts and permissions",
+            "stats": {
+                "total": "Total",
+                "active": "Active",
+                "admins": "Admins",
+                "banned": "Banned"
+            },
+            "actions": {
+                "export": "Export",
+                "filter": "Filter",
+                "clear": "Clear",
+                "search": "Search...",
+                "details": "Details",
+                "ban": "Ban",
+                "unban": "Unban",
+                "promote": "Promote",
+                "demote": "Demote"
+            },
+            "table": {
+                "user": "User",
+                "role": "Role",
+                "balance": "Balance",
+                "joined": "Joined",
+                "actions": "Actions"
+            }
+        },
+        "inventory": {
+            "title": "Inventory Control",
+            "subtitle": "Manage provider Countries & Services data",
+            "providers": {
+                "sync": "Sync",
+                "syncing": "Syncing..."
+            },
+            "tabs": {
+                "countries": "Countries",
+                "services": "Services"
+            },
+            "actions": {
+                "search": "Search {tab}...",
+                "smartView": "Smart View",
+                "prev": "Previous",
+                "next": "Next",
+                "page": "Page {current} of {total}"
+            },
+            "table": {
+                "name": "Name",
+                "providers": "Providers",
+                "lastSynced": "Last Synced",
+                "provider": "Provider",
+                "externalId": "External ID",
+                "synced": "Synced",
+                "serviceName": "Service Name",
+                "bestPrice": "Best Price",
+                "lowPrice": "Low Price",
+                "code": "Code",
+                "stock": "stock",
+                "services": "services",
+                "items": "items"
+            }
+        }
+    },
+    "Demo": {
+        "liveDemo": "Live Demo",
+        "title": "Experience {neon} Verification",
+        "realTime": "Real-Time",
+        "subtitle": "Watch our platform in action — from number selection to verified account.",
+        "totalDuration": "1:05",
+        "step": "Step {current} of {total}",
+        "delivery": "Delivery",
+        "deliveryDesc": "Average time",
+        "success": "Success",
+        "successDesc": "Completion rate",
+        "uptime": "Uptime",
+        "uptimeDesc": "Availability",
+        "coverage": "Coverage",
+        "coverageDesc": "Countries",
+        "quickAnswers": "Quick Answers",
+        "readyToTry": "Ready to Try It?",
+        "startFree": "Start free. No credit card required.",
+        "startFreeTrial": "Start Free Trial",
+        "signIn": "Sign In",
+        "verificationComplete": "Verification Complete!",
+        "accountVerified": "Account successfully verified",
+        "demoSteps": "Demo Steps",
+        "livePerformance": "Live Performance",
+        "realTimeMetrics": "Real-Time Platform Metrics",
+        "steps": {
+            "1": {
+                "title": "Select Service",
+                "short": "Service",
+                "desc": "Choose from 100+ platforms"
+            },
+            "2": {
+                "title": "Global Coverage",
+                "short": "Country",
+                "desc": "Numbers from 50+ locations"
+            },
+            "3": {
+                "title": "Provider Selection",
+                "short": "Provider",
+                "desc": "Pick top-rated operators"
+            },
+            "4": {
+                "title": "Instant Generation",
+                "short": "Generate",
+                "desc": "Activated in under 3 seconds"
+            },
+            "5": {
+                "title": "SMS Reception",
+                "short": "Receive",
+                "desc": "Delivered instantly to you"
+            },
+            "6": {
+                "title": "Copy & Verify",
+                "short": "Verify",
+                "desc": "One-click copy verification"
+            }
+        },
+        "ui": {
+            "search": "Search...",
+            "selectService": "Select Service",
+            "selectCountry": "Select Country",
+            "selectProvider": "Select Provider",
+            "purchaseNumber": "Purchase Number",
+            "smsInbox": "SMS Inbox",
+            "realTimeViewer": "Real-time message viewer",
+            "secureChannel": "Secure Channel",
+            "receivedMessages": "Received Messages",
+            "new": "New",
+            "waitingForMessages": "Waiting for Messages",
+            "listeningDesc": "We're listening for incoming SMS codes from {service}...",
+            "expiresIn": "Expires in",
+            "received": "Received",
+            "active": "Active",
+            "copy": "Copy",
+            "copied": "Copied",
+            "bestPrice": "BEST PRICE",
+            "price": "Price",
+            "successRate": "Success Rate",
+            "from": "From",
+            "available": "available",
+            "viewAllServices": "View All Services",
+            "viewAllCountries": "View all 54 countries",
+            "verificationCode": "Your {service} verification code is: {code}. Please do not share it with anyone.",
+            "code": "Code"
+        },
+        "faqs": {
+            "q1": "How fast are numbers activated?",
+            "a1": "Numbers are activated instantly, typically within 1-3 seconds.",
+            "q2": "Which platforms are supported?",
+            "a2": "We support 100+ platforms including WhatsApp, Telegram, Google, Twitter, Instagram, Discord, and more.",
+            "q3": "Is the API difficult to integrate?",
+            "a3": "Not at all. Most developers integrate it in under 30 minutes with our SDKs.",
+            "q4": "What payment methods do you accept?",
+            "a4": "We accept cryptocurrencies, credit/debit cards, and digital wallets."
+        }
+    },
+    "ErrorPages": {
+        "notFound": {
+            "title": "404",
+            "subtitle": "Registry Exception",
+            "description": "The requested protocol coordinate is either restricted or does not exist within the primary registry.",
+            "returnButton": "Return to Protocol",
+            "homeLink": "Fallback to Home",
+            "footer": "Protocol Secured • Integrity Verified"
+        },
+        "error": {
+            "subtitle": "System Interruption",
+            "title": "Protocol Exception",
+            "description": "An unhandled state has been detected. Interface re-calibration required for security.",
+            "errorCode": "SIG_AUTH_ERR",
+            "restartButton": "Restart Interface"
+        },
+        "globalError": {
+            "title": "Critical Error",
+            "description": "The application encountered a critical error and cannot continue.",
+            "reloadButton": "Reload Application"
+        },
+        "maintenance": {
+            "badge": "System Optimizing",
+            "title": "Refining Protocol",
+            "description": "Infrastructure synchronization active. Connectivity blackout in effect for 15m.",
+            "footer": "Protocol Secured"
         }
     }
 }

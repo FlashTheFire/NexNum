@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { searchProviders } from "@/lib/search/search";
+import { prisma } from "@/lib/core/db";
 
 /**
  * GET /api/search/providers
@@ -32,23 +33,39 @@ export async function GET(req: Request) {
 
         const result = await searchProviders(serviceSlug, countryCode, { page, limit, sort });
 
-        // Map to API response format (id/provider hidden for security)
-        const items = result.providers.map(p => ({
-            displayName: p.displayName,
-            logoUrl: p.logoUrl,
-            serviceName: p.serviceName,
-            serviceSlug: p.serviceSlug,
-            countryName: p.countryName,
-            countryCode: p.countryCode,
-            flagUrl: p.flagUrl,
-            price: p.price,
-            stock: p.stock,
-            successRate: p.successRate,
-            // Operator info
-            operatorId: p.operatorId,
-            operatorDisplayName: p.operatorDisplayName || '',
-            iconUrl: (p as any).iconUrl, // Standardized icon name
-        }));
+        // Get unique provider slugs from results
+        const providerSlugs = [...new Set(result.providers.map(p => p.provider))];
+
+        // Fetch provider display info from database (displayName, logoUrl)
+        const providerInfoMap = new Map<string, { displayName: string; logoUrl: string | null }>();
+        if (providerSlugs.length > 0) {
+            const providers = await prisma.provider.findMany({
+                where: { name: { in: providerSlugs } },
+                select: { name: true, displayName: true, logoUrl: true }
+            });
+            providers.forEach(p => providerInfoMap.set(p.name, { displayName: p.displayName, logoUrl: p.logoUrl }));
+        }
+
+        // Map to API response format (id/provider slug hidden for security)
+        const items = result.providers.map(p => {
+            const providerInfo = providerInfoMap.get(p.provider);
+            return {
+                displayName: providerInfo?.displayName || p.provider, // Fallback to slug if not found
+                logoUrl: providerInfo?.logoUrl || null,
+                serviceName: p.serviceName,
+                serviceSlug: p.serviceSlug,
+                countryName: p.countryName,
+                countryCode: p.countryCode,
+                flagUrl: p.flagUrl,
+                price: p.price,
+                stock: p.stock,
+                successRate: p.successRate,
+                // Operator info
+                operatorId: p.operatorId,
+                operatorDisplayName: p.operatorDisplayName || '',
+                iconUrl: (p as any).iconUrl, // Standardized icon name
+            };
+        });
 
         return NextResponse.json({
             items,
@@ -67,3 +84,4 @@ export async function GET(req: Request) {
         );
     }
 }
+

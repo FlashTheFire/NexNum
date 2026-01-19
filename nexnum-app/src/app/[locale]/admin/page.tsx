@@ -4,6 +4,7 @@ import { useState } from "react"
 import { motion } from "framer-motion"
 import { BarChart3, Activity, Download, Settings } from "lucide-react"
 import dynamic from "next/dynamic"
+import { useTranslations } from "next-intl"
 
 // Lazy load heavy components
 const AnalyticsDashboard = dynamic(
@@ -48,11 +49,12 @@ function TimelineLoading() {
 type TabType = 'analytics' | 'activity'
 
 export default function AdminDashboard() {
+    const t = useTranslations("admin")
     const [activeTab, setActiveTab] = useState<TabType>('analytics')
 
     const tabs = [
-        { id: 'analytics' as TabType, label: 'Analytics', icon: BarChart3 },
-        { id: 'activity' as TabType, label: 'Activity', icon: Activity },
+        { id: 'analytics' as TabType, label: t('tabs.analytics'), icon: BarChart3 },
+        { id: 'activity' as TabType, label: t('tabs.activity'), icon: Activity },
     ]
 
     return (
@@ -66,14 +68,14 @@ export default function AdminDashboard() {
                         className="text-3xl font-bold text-white tracking-tight flex items-center gap-3"
                     >
                         <span className="w-2 h-8 bg-gradient-to-b from-violet-500 to-violet-700 rounded-full shadow-[0_0_15px_rgba(139,92,246,0.5)]" />
-                        Command Center
+                        {t('title')}
                     </motion.h1>
                     <motion.p
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1, transition: { delay: 0.1 } }}
                         className="text-gray-400 mt-2 text-sm max-w-md"
                     >
-                        Real-time analytics and system monitoring
+                        {t('subtitle')}
                     </motion.p>
                 </div>
 
@@ -85,7 +87,7 @@ export default function AdminDashboard() {
                 >
                     <span className="px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                        SYSTEM OPTIMAL
+                        {t('status.optimal')}
                     </span>
                     <button className="p-2 rounded-lg bg-gray-800 border border-gray-700 text-gray-400 hover:text-white hover:border-gray-600 transition-colors">
                         <Download className="w-4 h-4" />
@@ -110,8 +112,8 @@ export default function AdminDashboard() {
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
                             className={`flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium transition-all ${isActive
-                                    ? 'bg-violet-600 text-white shadow-lg shadow-violet-500/20'
-                                    : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                                ? 'bg-violet-600 text-white shadow-lg shadow-violet-500/20'
+                                : 'text-gray-400 hover:text-white hover:bg-gray-800'
                                 }`}
                         >
                             <Icon className="w-4 h-4" />

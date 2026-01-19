@@ -26,11 +26,13 @@ import { Badge } from "@/components/ui/badge"
 import { useGlobalStore } from "@/store"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils/utils"
+import { useTranslations } from "next-intl"
 
 // Import new premium components
 import { SMSBackground, SMSNumberCard, SMSMessageCard } from "./components"
 import { useSMS } from "@/hooks/use-sms"
 import LoadingScreen from "@/components/ui/LoadingScreen"
+import LanguageSwitcher from "@/components/common/LanguageSwitcher"
 
 const staggerContainer = {
     hidden: { opacity: 0 },
@@ -56,6 +58,7 @@ export default function SMSPage() {
     const [isNextLoading, setIsNextLoading] = useState(false)
     const [isCancelLoading, setIsCancelLoading] = useState(false)
     const [showCancelConfirm, setShowCancelConfirm] = useState(false)
+    const t = useTranslations('smsPage')
 
     const identifier = decodeURIComponent(params.number as string)
     const virtualNumber = activeNumbers.find(n => n.id === identifier || n.number === identifier)
@@ -273,16 +276,16 @@ export default function SMSPage() {
                                 <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-red-500/10 to-orange-500/10 flex items-center justify-center border border-red-500/20">
                                     <Phone className="h-10 w-10 text-red-500/50" />
                                 </div>
-                                <h2 className="text-2xl font-bold mb-2 text-white">Number Not Found</h2>
+                                <h2 className="text-2xl font-bold mb-2 text-white">{t('inbox.empty.title')}</h2>
                                 <p className="text-gray-500 mb-6">
-                                    This number is no longer active or doesn't exist in your account.
+                                    {t('inbox.empty.description')}
                                 </p>
                                 <Button
                                     onClick={() => router.push("/dashboard")}
                                     className="gap-2 rounded-xl bg-[hsl(var(--neon-lime))] text-black hover:bg-[hsl(72,100%,55%)]"
                                 >
                                     <ArrowLeft className="h-4 w-4" />
-                                    Back to Dashboard
+                                    {t('actions.backToDashboard')}
                                 </Button>
                             </CardContent>
                         </Card>
@@ -306,6 +309,7 @@ export default function SMSPage() {
                     {/* Header - Full Width */}
                     <div className="sticky top-0 md:top-4 z-40 bg-[#0a0a0c]/95 backdrop-blur-xl border-b border-white/5 py-2 -mx-4 px-4 md:mx-0 md:bg-[#0a0a0c]/80 md:border md:rounded-2xl md:px-5 md:py-3 mb-6 flex items-center justify-between gap-3 shadow-lg transition-all">
                         <div className="flex items-center gap-3">
+                            {/* ... left side content ... */}
                             <button
                                 onClick={() => router.push("/dashboard")}
                                 className="p-1.5 hover:bg-white/10 rounded-full transition-colors -ml-1 group"
@@ -318,20 +322,26 @@ export default function SMSPage() {
                                         <span className={cn("absolute inline-flex h-full w-full rounded-full opacity-75", isExpired ? "bg-gray-500" : "animate-ping bg-[hsl(var(--neon-lime))]")}></span>
                                         <span className={cn("relative inline-flex rounded-full h-2.5 w-2.5", isExpired ? "bg-gray-500" : "bg-[hsl(var(--neon-lime))]")}></span>
                                     </span>
-                                    SMS Inbox
+                                    {/* SMS Inbox Title */}
+                                    {t('title')}
                                 </h1>
                                 <p className="text-sm text-gray-500 mt-1">
-                                    Real-time message viewer
+                                    {t('subtitle')}
                                 </p>
                             </div>
                         </div>
 
 
-                        {/* Right: Status Badge (Replacing Refresh) */}
-                        <div className="flex items-center bg-zinc-900 rounded-full border border-white/5 px-3 py-1.5 gap-2">
-                            <Shield className="h-3.5 w-3.5 text-[hsl(var(--neon-lime))]" />
-                            <span className="text-xs font-medium text-zinc-400 hidden sm:inline">End-to-End Encrypted</span>
-                            <span className="text-xs font-medium text-zinc-400 sm:hidden">Encrypted</span>
+                        {/* Right: Actions */}
+                        <div className="flex items-center gap-3">
+                            <LanguageSwitcher />
+
+                            {/* Status Badge */}
+                            <div className="flex items-center bg-zinc-900 rounded-full border border-white/5 px-3 py-1.5 gap-2">
+                                <Shield className="h-3.5 w-3.5 text-[hsl(var(--neon-lime))]" />
+                                <span className="text-xs font-medium text-zinc-400 hidden sm:inline">{t('status.encrypted')}</span>
+                                <span className="text-xs font-medium text-zinc-400 sm:hidden">{t('status.encryptedMobile')}</span>
+                            </div>
                         </div>
                     </div>
 
@@ -375,7 +385,7 @@ export default function SMSPage() {
                                             ) : (
                                                 <Plus className="mr-2 h-4 w-4 text-emerald-400" />
                                             )}
-                                            {isNextLoading ? "Getting..." : "Next Number"}
+                                            {isNextLoading ? t('actions.getting') : t('actions.nextNumber')}
                                         </button>
                                     ) : (
                                         <button
@@ -387,7 +397,7 @@ export default function SMSPage() {
                                             )}
                                         >
                                             <ArrowLeft className="mr-2 h-4 w-4" />
-                                            Keep Number
+                                            {t('actions.keepNumber')}
                                         </button>
                                     )}
                                 </div>
@@ -401,7 +411,7 @@ export default function SMSPage() {
                                             className="w-full h-full inline-flex items-center justify-center text-sm font-medium rounded-xl bg-card/40 border border-blue-500/20 backdrop-blur-sm transition-all text-white hover:bg-blue-500/10 active:scale-[0.98] group"
                                         >
                                             <Search className="mr-2 h-4 w-4 text-blue-400" />
-                                            Search Country
+                                            {t('actions.searchCountry')}
                                         </button>
                                     ) : !showCancelConfirm ? (
                                         <button
@@ -417,7 +427,7 @@ export default function SMSPage() {
                                             ) : (
                                                 <XCircle className="mr-2 h-4 w-4 text-red-400" />
                                             )}
-                                            {isCancelLoading ? "Cancelling..." : "Cancel Number"}
+                                            {isCancelLoading ? t('actions.cancelling') : t('actions.cancelNumber')}
                                         </button>
                                     ) : (
                                         <button
@@ -433,7 +443,7 @@ export default function SMSPage() {
                                             ) : (
                                                 <Check className="mr-2 h-4 w-4" />
                                             )}
-                                            Confirm Refund
+                                            {t('actions.confirmRefund')}
                                         </button>
                                     )}
                                 </div>
@@ -446,9 +456,9 @@ export default function SMSPage() {
                                             <Sparkles className="h-4.5 w-4.5" />
                                         </div>
                                         <div>
-                                            <p className="text-sm font-medium text-amber-100 mb-1">Pro Tip</p>
+                                            <p className="text-sm font-medium text-amber-100 mb-1">{t('tips.label')}</p>
                                             <p className="text-xs leading-relaxed text-amber-500/70">
-                                                Messages auto-refresh every 10s. Click on any verification code to copy it instantly.
+                                                {t('tips.content')}
                                             </p>
                                         </div>
                                     </CardContent>
@@ -469,10 +479,10 @@ export default function SMSPage() {
                                     <div className="flex items-center gap-3">
                                         <CardTitle className={cn("flex items-center gap-3 text-lg font-medium", isExpired ? "text-gray-500" : "text-white")}>
                                             <Inbox className={cn("h-5 w-5", isExpired ? "text-gray-600" : "text-gray-400")} />
-                                            Received Messages
+                                            {t('inbox.title')}
                                         </CardTitle>
                                         <Badge variant="secondary" className="bg-white/[0.06] text-gray-300 pointer-events-none">
-                                            {messages.length} New
+                                            {messages.length} {t('inbox.new')}
                                         </Badge>
                                     </div>
 
@@ -514,7 +524,7 @@ export default function SMSPage() {
                                                             className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors text-left"
                                                         >
                                                             <Check className="h-4 w-4" />
-                                                            Mark all as read
+                                                            {t('actions.markRead')}
                                                         </button>
                                                         <div className="h-px bg-white/5 my-1" />
                                                         <button
@@ -522,7 +532,7 @@ export default function SMSPage() {
                                                             className="w-full flex items-center gap-2 px-3 py-2 text-sm text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 rounded-lg transition-colors text-left"
                                                         >
                                                             <ArrowDownRight className="h-4 w-4" />
-                                                            Download History
+                                                            {t('actions.downloadHistory')}
                                                         </button>
                                                     </div>
                                                 </motion.div>
@@ -593,7 +603,7 @@ export default function SMSPage() {
                                                             "text-[10px] tracking-[0.2em] font-bold uppercase",
                                                             isExpired ? "text-zinc-600" : "text-[hsl(var(--neon-lime))]"
                                                         )} style={{ fontVariant: 'small-caps' }}>
-                                                            {isExpired ? "Expired" : "Listening"}
+                                                            {isExpired ? t('status.expired') : t('status.listening')}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -602,7 +612,7 @@ export default function SMSPage() {
                                                     "text-xl font-bold mb-3 tracking-tight transition-colors duration-500",
                                                     isExpired ? "text-zinc-500" : "text-white"
                                                 )}>
-                                                    {isExpired ? "Connection Terminated" : "Signal Search Active"}
+                                                    {isExpired ? t('status.connectionTerminated') : t('status.signalSearchActive')}
                                                 </h3>
 
                                                 <div className={cn(
@@ -610,13 +620,13 @@ export default function SMSPage() {
                                                     isExpired ? "text-zinc-700" : "text-zinc-400"
                                                 )}>
                                                     {isExpired ? (
-                                                        <p>This session has expired. No further signals can be received on this channel.</p>
+                                                        <p>{t('status.expiredSession')}</p>
                                                     ) : (
                                                         <div className="space-y-2">
-                                                            <p>Actively monitoring encrypted channels for inbound verification codes.</p>
+                                                            <p>{t('status.monitoring')}</p>
                                                             <div className="flex items-center justify-center gap-3">
                                                                 <span className="h-px w-8 bg-[hsl(var(--neon-lime)/0.2)]" />
-                                                                <span className="text-[10px] text-[hsl(var(--neon-lime))] font-bold tracking-[0.3em] uppercase opacity-60">Secure Link</span>
+                                                                <span className="text-[10px] text-[hsl(var(--neon-lime))] font-bold tracking-[0.3em] uppercase opacity-60">{t('status.secureLink')}</span>
                                                                 <span className="h-px w-8 bg-[hsl(var(--neon-lime)/0.2)]" />
                                                             </div>
                                                         </div>
@@ -643,10 +653,10 @@ export default function SMSPage() {
                                                 className="text-gray-400 hover:text-white"
                                             >
                                                 <ArrowLeft className="w-4 h-4 mr-2" />
-                                                Previous
+                                                {t('pagination.previous')}
                                             </Button>
                                             <span className="text-xs text-gray-500">
-                                                Page {currentPage} of {totalPages}
+                                                {t('pagination.pageInfo', { current: currentPage, total: totalPages })}
                                             </span>
                                             <Button
                                                 variant="ghost"
@@ -655,7 +665,7 @@ export default function SMSPage() {
                                                 disabled={currentPage === totalPages}
                                                 className="text-gray-400 hover:text-white"
                                             >
-                                                Next
+                                                {t('pagination.next')}
                                                 <ArrowUpRight className="w-4 h-4 ml-2" />
                                             </Button>
                                         </div>

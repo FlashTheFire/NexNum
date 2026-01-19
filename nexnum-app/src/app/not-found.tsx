@@ -5,8 +5,10 @@ import Link from "next/link"
 import Image from "next/image"
 import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useTranslations } from "next-intl"
 
 export default function NotFound() {
+    const t = useTranslations('ErrorPages.notFound')
     const logoSize = "w-24 h-24"
 
     return (
@@ -73,33 +75,33 @@ export default function NotFound() {
                     className="flex flex-col items-center w-full"
                 >
                     <h1 className="text-6xl font-bold text-white mb-4 tracking-tighter">
-                        404
+                        {t('title')}
                     </h1>
 
                     <div className="flex items-center gap-4 mb-8">
                         <div className="h-px w-6 bg-white/10" />
                         <span className="text-[10px] font-mono font-medium text-[hsl(var(--neon-lime))/0.8] tracking-[0.5em] uppercase">
-                            Registry Exception
+                            {t('subtitle')}
                         </span>
                         <div className="h-px w-6 bg-white/10" />
                     </div>
 
                     <p className="text-gray-500 text-sm leading-relaxed mb-12 max-w-xs mx-auto font-light tracking-wide">
-                        The requested protocol coordinate is either restricted or does not exist within the primary registry.
+                        {t('description')}
                     </p>
 
                     <div className="flex flex-col sm:flex-row items-center gap-6 w-full justify-center">
                         <Link href="/dashboard" className="w-full sm:w-auto">
                             <Button className="h-12 w-full sm:w-auto px-10 rounded-full bg-white text-black font-semibold text-xs tracking-widest uppercase hover:bg-[hsl(var(--neon-lime))] transition-all duration-300 group shadow-2xl shadow-white/5 border-none">
                                 <span className="flex items-center gap-2">
-                                    Return to Protocol
+                                    {t('returnButton')}
                                     <ArrowLeft className="w-3.5 h-3.5 rotate-180 group-hover:translate-x-1 transition-transform" />
                                 </span>
                             </Button>
                         </Link>
 
                         <Link href="/" className="text-[10px] font-mono text-white/30 hover:text-[hsl(var(--neon-lime))] tracking-[0.3em] uppercase transition-colors duration-300 py-2">
-                            Fallback to Home
+                            {t('homeLink')}
                         </Link>
                     </div>
                 </motion.div>
@@ -108,9 +110,10 @@ export default function NotFound() {
             {/* Signature Decal */}
             <div className="absolute bottom-12 flex flex-col items-center gap-3 opacity-10 select-none z-10 grayscale">
                 <span className="text-[8px] font-mono tracking-[0.8em] text-white/50 uppercase">
-                    Protocol Secured • Integrity Verified
+                    {t('footer')}
                 </span>
             </div>
         </div>
     )
 }
+

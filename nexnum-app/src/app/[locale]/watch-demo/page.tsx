@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils/utils";
+import { useTranslations } from "next-intl";
 
 // Animated Cursor Component for Professional Demo
 const DemoCursor = ({
@@ -505,182 +506,8 @@ const demoOperators = [
     { id: 104, displayName: "Economy Route", price: 0.58, stock: 1205, successRate: 82 },
 ];
 
-// Demo simulation data with enhanced action choreography
-const demoSteps = [
-    {
-        id: 1,
-        title: "Select Service",
-        shortTitle: "Service",
-        description: "Choose from 100+ supported platforms",
-        icon: Globe,
-        color: "hsl(180, 70%, 50%)",
-        timestamp: "0:00",
-        duration: 8,
-        preview: { type: "services" },
-        actions: [
-            { type: "wait", duration: 600 },
-            // Search box is in header, right side (~75% from left, ~8.5% from top of player)
-            { type: "moveCursor", x: 0.75, y: 0.085, duration: 700 },
-            { type: "hover", duration: 400 },
-            { type: "click" },
-            { type: "type", text: "Face", speed: 180 },
-            { type: "wait", duration: 700 },
-            // After filtering, Facebook appears as 1st card. Grid: 5 cols on desktop.
-            // Card 1 center: ~10% from left, row 1 center: ~42% from top (accounting for header)
-            { type: "moveCursor", x: 0.12, y: 0.42, duration: 800 },
-            { type: "hover", duration: 500 },
-            { type: "click" },
-            { type: "select", target: "service", id: "fb" }
-        ]
-    },
-    {
-        id: 2,
-        title: "Global Coverage",
-        shortTitle: "Country",
-        description: "Numbers from 50+ global locations",
-        icon: Package,
-        color: "hsl(75, 100%, 50%)",
-        timestamp: "0:08",
-        duration: 7,
-        preview: { type: "countries" },
-        actions: [
-            { type: "wait", duration: 500 },
-            // Search box in header, right side
-            { type: "moveCursor", x: 0.75, y: 0.085, duration: 600 },
-            { type: "hover", duration: 350 },
-            { type: "click" },
-            { type: "type", text: "Ind", speed: 180 },
-            { type: "wait", duration: 600 },
-            // Country grid is 2 columns on desktop. India appears as 1st result at TOP.
-            // Left column center: ~25% from left, first row: ~19% from top (right below header)
-            { type: "moveCursor", x: 0.25, y: 0.19, duration: 700 },
-            { type: "hover", duration: 450 },
-            { type: "click" },
-            { type: "select", target: "country", id: "india" }
-        ]
-    },
-    {
-        id: 3,
-        title: "Provider Selection",
-        shortTitle: "Provider",
-        description: "Pick top-rated operators with best prices",
-        icon: Server,
-        color: "hsl(280, 70%, 60%)",
-        timestamp: "0:15",
-        duration: 12,
-        preview: { type: "providers" },
-        actions: [
-            { type: "wait", duration: 1200 },
-            // Provider grid has header + vertical list of operator cards
-            // First operator card (NexPremium): center of card ~50% x, ~25% y
-            { type: "moveCursor", x: 0.50, y: 0.28, duration: 1000 },
-            { type: "hover", duration: 800 },
-            { type: "wait", duration: 600 },
-            // Move to second operator card (GlobalConnect): ~50% x, ~40% y
-            { type: "moveCursor", x: 0.50, y: 0.42, duration: 900 },
-            { type: "hover", duration: 800 },
-            { type: "click" },
-            { type: "select", target: "operator", id: 102 },
-            { type: "wait", duration: 800 },
-            // Purchase/Buy button at bottom of card: ~50% x, ~75% y
-            { type: "moveCursor", x: 0.50, y: 0.72, duration: 800 },
-            { type: "hover", duration: 600 },
-            { type: "wait", duration: 400 },
-            { type: "click" },
-            { type: "wait", duration: 800 }
-        ]
-    },
-    {
-        id: 4,
-        title: "Instant Generation",
-        shortTitle: "Generate",
-        description: "Virtual number activated in under 3 seconds",
-        icon: Zap,
-        color: "hsl(200, 100%, 50%)",
-        timestamp: "0:27",
-        duration: 10,
-        preview: { type: "number", number: "+1 (555) 847-2903", status: "Active", expires: "15:00" },
-        actions: [
-            { type: "wait", duration: 1500 },
-            { type: "focus", enabled: false },
-            // SMS Inbox view: Phone number is displayed prominently at top
-            // Phone number text area: ~35% x, ~15% y
-            { type: "moveCursor", x: 0.35, y: 0.12, duration: 1200 },
-            { type: "hover", duration: 800 },
-            { type: "wait", duration: 600 },
-            // Copy button next to phone number: ~55% x, ~12% y
-            { type: "moveCursor", x: 0.55, y: 0.12, duration: 800 },
-            { type: "hover", duration: 600 },
-            { type: "wait", duration: 400 },
-            { type: "click" },
-            { type: "copy", target: "number" },
-            { type: "wait", duration: 1200 }
-        ]
-    },
-    {
-        id: 5,
-        title: "SMS Reception",
-        shortTitle: "Receive",
-        description: "Messages delivered instantly to your dashboard",
-        icon: MessageSquare,
-        color: "hsl(320, 70%, 60%)",
-        timestamp: "0:37",
-        duration: 12,
-        preview: { type: "sms", sender: "Google", message: "Your verification code is: 847293", code: "847293", time: "Just now" },
-        actions: [
-            { type: "wait", duration: 1500 },
-            // SMS message card appears below the phone number section
-            // Message card center: ~50% x, ~55% y
-            { type: "moveCursor", x: 0.50, y: 0.52, duration: 1200 },
-            { type: "hover", duration: 1000 },
-            { type: "wait", duration: 800 },
-            // Verification code is highlighted in the message
-            // Copy code button next to the code: ~75% x, ~60% y
-            { type: "moveCursor", x: 0.75, y: 0.58, duration: 900 },
-            { type: "hover", duration: 700 },
-            { type: "wait", duration: 500 },
-            { type: "click" },
-            { type: "copy", target: "code" },
-            { type: "wait", duration: 1200 }
-        ]
-    },
-    {
-        id: 6,
-        title: "Copy & Verify",
-        shortTitle: "Verify",
-        description: "One-click copy, instant verification",
-        icon: CheckCircle2,
-        color: "hsl(120, 70%, 50%)",
-        timestamp: "0:49",
-        duration: 8,
-        preview: { type: "success", message: "Verification Complete!", details: "Account successfully verified" },
-        actions: [
-            { type: "wait", duration: 1500 },
-            { type: "focus", enabled: false },
-            { type: "wait", duration: 1500 },
-            // Success animation plays automatically
-            { type: "wait", duration: 2000 }
-        ]
-    }
-];
-
-// Live benchmark data
-const benchmarks = [
-    { label: "Delivery", value: "2.3s", subtext: "Average time" },
-    { label: "Success", value: "99.7%", subtext: "Completion rate" },
-    { label: "Uptime", value: "99.99%", subtext: "Availability" },
-    { label: "Coverage", value: "54", subtext: "Countries" }
-];
-
-// FAQ
-const faqs = [
-    { q: "How fast are numbers activated?", a: "Numbers are activated instantly, typically within 1-3 seconds. Our distributed infrastructure ensures minimal latency." },
-    { q: "Which platforms are supported?", a: "We support 100+ platforms including WhatsApp, Telegram, Google, Twitter, Instagram, Discord, and many more." },
-    { q: "Is the API difficult to integrate?", a: "Not at all. Most developers integrate it in under 30 minutes with our SDKs for Node.js, Python, PHP, and more." },
-    { q: "What payment methods do you accept?", a: "We accept cryptocurrencies (BTC, ETH, USDT), credit/debit cards, and various digital wallets." }
-];
-
 export default function DemoPage() {
+    const t = useTranslations('Demo');
     const [activeStep, setActiveStep] = useState(0);
     const [isPlaying, setIsPlaying] = useState(false);
     const [isMuted, setIsMuted] = useState(true);
@@ -708,6 +535,32 @@ export default function DemoPage() {
 
     // Sound effects hook
     const sounds = useDemoSounds(isMuted);
+
+    // Translated demo steps
+    const demoSteps = [
+        { id: 1, title: t('steps.1.title'), shortTitle: t('steps.1.short'), description: t('steps.1.desc'), icon: Globe, color: "hsl(180, 70%, 50%)", timestamp: "0:00", duration: 8, preview: { type: "services" }, actions: [{ type: "wait", duration: 600 }, { type: "moveCursor", x: 0.75, y: 0.085, duration: 700 }, { type: "hover", duration: 400 }, { type: "click" }, { type: "type", text: "Face", speed: 180 }, { type: "wait", duration: 700 }, { type: "moveCursor", x: 0.12, y: 0.42, duration: 800 }, { type: "hover", duration: 500 }, { type: "click" }, { type: "select", target: "service", id: "fb" }] },
+        { id: 2, title: t('steps.2.title'), shortTitle: t('steps.2.short'), description: t('steps.2.desc'), icon: Package, color: "hsl(75, 100%, 50%)", timestamp: "0:08", duration: 7, preview: { type: "countries" }, actions: [{ type: "wait", duration: 500 }, { type: "moveCursor", x: 0.75, y: 0.085, duration: 600 }, { type: "hover", duration: 350 }, { type: "click" }, { type: "type", text: "Ind", speed: 180 }, { type: "wait", duration: 600 }, { type: "moveCursor", x: 0.25, y: 0.19, duration: 700 }, { type: "hover", duration: 450 }, { type: "click" }, { type: "select", target: "country", id: "india" }] },
+        { id: 3, title: t('steps.3.title'), shortTitle: t('steps.3.short'), description: t('steps.3.desc'), icon: Server, color: "hsl(280, 70%, 60%)", timestamp: "0:15", duration: 12, preview: { type: "providers" }, actions: [{ type: "wait", duration: 1200 }, { type: "moveCursor", x: 0.50, y: 0.28, duration: 1000 }, { type: "hover", duration: 800 }, { type: "wait", duration: 600 }, { type: "moveCursor", x: 0.50, y: 0.42, duration: 900 }, { type: "hover", duration: 800 }, { type: "click" }, { type: "select", target: "operator", id: 102 }, { type: "wait", duration: 800 }, { type: "moveCursor", x: 0.50, y: 0.72, duration: 800 }, { type: "hover", duration: 600 }, { type: "wait", duration: 400 }, { type: "click" }, { type: "wait", duration: 800 }] },
+        { id: 4, title: t('steps.4.title'), shortTitle: t('steps.4.short'), description: t('steps.4.desc'), icon: Zap, color: "hsl(200, 100%, 50%)", timestamp: "0:27", duration: 10, preview: { type: "number", number: "+1 (555) 847-2903", status: "Active", expires: "15:00" }, actions: [{ type: "wait", duration: 1500 }, { type: "focus", enabled: false }, { type: "moveCursor", x: 0.35, y: 0.12, duration: 1200 }, { type: "hover", duration: 800 }, { type: "wait", duration: 600 }, { type: "moveCursor", x: 0.55, y: 0.12, duration: 800 }, { type: "hover", duration: 600 }, { type: "wait", duration: 400 }, { type: "click" }, { type: "copy", target: "number" }, { type: "wait", duration: 1200 }] },
+        { id: 5, title: t('steps.5.title'), shortTitle: t('steps.5.short'), description: t('steps.5.desc'), icon: MessageSquare, color: "hsl(320, 70%, 60%)", timestamp: "0:37", duration: 12, preview: { type: "sms", sender: "Google", message: "Your verification code is: 847293", code: "847293", time: "Just now" }, actions: [{ type: "wait", duration: 1500 }, { type: "moveCursor", x: 0.50, y: 0.52, duration: 1200 }, { type: "hover", duration: 1000 }, { type: "wait", duration: 800 }, { type: "moveCursor", x: 0.75, y: 0.58, duration: 900 }, { type: "hover", duration: 700 }, { type: "wait", duration: 500 }, { type: "click" }, { type: "copy", target: "code" }, { type: "wait", duration: 1200 }] },
+        { id: 6, title: t('steps.6.title'), shortTitle: t('steps.6.short'), description: t('steps.6.desc'), icon: CheckCircle2, color: "hsl(120, 70%, 50%)", timestamp: "0:49", duration: 8, preview: { type: "success", message: t('verificationComplete'), details: t('accountVerified') }, actions: [{ type: "wait", duration: 1500 }, { type: "focus", enabled: false }, { type: "wait", duration: 1500 }, { type: "wait", duration: 2000 }] }
+    ];
+
+    // Translated benchmarks
+    const benchmarks = [
+        { label: t('delivery'), value: "2.3s", subtext: t('deliveryDesc') },
+        { label: t('success'), value: "99.7%", subtext: t('successDesc') },
+        { label: t('uptime'), value: "99.99%", subtext: t('uptimeDesc') },
+        { label: t('coverage'), value: "54", subtext: t('coverageDesc') }
+    ];
+
+    // Translated FAQs
+    const faqs = [
+        { q: t('faqs.q1'), a: t('faqs.a1') },
+        { q: t('faqs.q2'), a: t('faqs.a2') },
+        { q: t('faqs.q3'), a: t('faqs.a3') },
+        { q: t('faqs.q4'), a: t('faqs.a4') }
+    ];
 
     // Ref for immediate cancellation of actions
     const isPlayingRef = useRef(false);
@@ -1812,13 +1665,13 @@ export default function DemoPage() {
                         <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="text-center mb-8 lg:mb-12">
                             <div className="inline-flex items-center px-3 py-1.5 rounded-full border border-[hsl(var(--neon-lime)/0.4)] bg-[hsl(var(--neon-lime)/0.08)] backdrop-blur-sm mb-4 lg:mb-6">
                                 <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse mr-2" />
-                                <span className="text-xs lg:text-sm font-medium text-[hsl(var(--neon-lime))]">Live Demo</span>
+                                <span className="text-xs lg:text-sm font-medium text-[hsl(var(--neon-lime))]">{t('liveDemo')}</span>
                             </div>
                             <h1 className="text-2xl sm:text-3xl lg:text-5xl font-bold text-white mb-3 lg:mb-4">
-                                Experience <span className="text-[hsl(var(--neon-lime))]">Real-Time</span> Verification
+                                Experience <span className="text-[hsl(var(--neon-lime))]">{t('realTime')}</span> Verification
                             </h1>
                             <p className="text-gray-400 text-sm lg:text-lg max-w-xl mx-auto">
-                                Watch our platform in action — from number selection to verified account.
+                                {t('subtitle')}
                             </p>
                         </motion.div>
                     </section>
@@ -1846,8 +1699,8 @@ export default function DemoPage() {
                                                                 <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring" }} className="w-20 h-20 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-4">
                                                                     <CheckCircle2 className="w-10 h-10 text-green-400" />
                                                                 </motion.div>
-                                                                <p className="text-lg font-bold text-white mb-1">Verification Complete!</p>
-                                                                <p className="text-gray-400 text-sm">Account successfully verified</p>
+                                                                <p className="text-lg font-bold text-white mb-1">{t('verificationComplete')}</p>
+                                                                <p className="text-gray-400 text-sm">{t('accountVerified')}</p>
                                                             </div>
                                                         </div>
                                                     )}
@@ -1922,8 +1775,8 @@ export default function DemoPage() {
                                                                     <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 200 }} className="w-24 h-24 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-6">
                                                                         <CheckCircle2 className="w-12 h-12 text-green-400" />
                                                                     </motion.div>
-                                                                    <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }} className="text-2xl font-bold text-white mb-2">Verification Complete!</motion.p>
-                                                                    <p className="text-gray-400">Account successfully verified</p>
+                                                                    <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }} className="text-2xl font-bold text-white mb-2">{t('verificationComplete')}</motion.p>
+                                                                    <p className="text-gray-400">{t('accountVerified')}</p>
                                                                 </div>
                                                             </div>
                                                         )}
@@ -2003,9 +1856,9 @@ export default function DemoPage() {
                             <motion.div initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-8">
                                 <div className="inline-flex items-center gap-2 text-[hsl(var(--neon-lime))] mb-2">
                                     <TrendingUp className="w-4 h-4" />
-                                    <span className="text-xs font-medium uppercase tracking-wider">Live Performance</span>
+                                    <span className="text-xs font-medium uppercase tracking-wider">{t('livePerformance')}</span>
                                 </div>
-                                <h2 className="text-xl lg:text-3xl font-bold text-white">Real-Time Platform Metrics</h2>
+                                <h2 className="text-xl lg:text-3xl font-bold text-white">{t('realTimeMetrics')}</h2>
                             </motion.div>
 
                             <div className={`grid ${isMobile ? "grid-cols-2" : "sm:grid-cols-4"} gap-3 lg:gap-4 max-w-3xl mx-auto`}>
@@ -2024,7 +1877,7 @@ export default function DemoPage() {
                     <section id="faq" className="py-12 lg:py-16">
                         <div className="container mx-auto px-4">
                             <motion.div initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-8">
-                                <h2 className="text-xl lg:text-3xl font-bold text-white">Quick Answers</h2>
+                                <h2 className="text-xl lg:text-3xl font-bold text-white">{t('quickAnswers')}</h2>
                             </motion.div>
 
                             <div className="max-w-2xl mx-auto space-y-2 lg:space-y-3">
@@ -2054,16 +1907,16 @@ export default function DemoPage() {
                                 <div className="relative rounded-2xl lg:rounded-3xl overflow-hidden p-6 lg:p-10" style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)", border: "1px solid rgba(255,255,255,0.1)" }}>
                                     <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-1/2" style={{ background: "radial-gradient(ellipse at top, hsl(75,100%,50%,0.1) 0%, transparent 70%)", filter: "blur(40px)" }} />
                                     <div className="relative z-10">
-                                        <h2 className="text-xl lg:text-2xl font-bold text-white mb-3">Ready to Try It?</h2>
-                                        <p className="text-gray-400 text-sm mb-6">Start free. No credit card required.</p>
+                                        <h2 className="text-xl lg:text-2xl font-bold text-white mb-3">{t('readyToTry')}</h2>
+                                        <p className="text-gray-400 text-sm mb-6">{t('startFree')}</p>
                                         <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                                             <Link href="/register" className="w-full sm:w-auto">
                                                 <Button size="lg" className="w-full sm:w-auto h-12 px-6 text-sm font-bold bg-[hsl(var(--neon-lime))] text-black hover:bg-[hsl(var(--neon-lime-soft))] neon-glow transition-all shadow-lg shadow-[hsl(var(--neon-lime)/0.25)] group">
-                                                    Start Free Trial <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                                                    {t('startFreeTrial')} <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
                                                 </Button>
                                             </Link>
                                             <Link href="/login" className="w-full sm:w-auto">
-                                                <Button variant="outline" size="lg" className="w-full sm:w-auto h-12 px-6 border-white/20 text-white hover:bg-white/5">Sign In</Button>
+                                                <Button variant="outline" size="lg" className="w-full sm:w-auto h-12 px-6 border-white/20 text-white hover:bg-white/5">{t('signIn')}</Button>
                                             </Link>
                                         </div>
                                     </div>

@@ -1,8 +1,8 @@
 "use client"
 
-import { usePathname } from "next/navigation"
-import Link from "next/link"
+import { Link, usePathname } from "@/i18n/navigation"
 import { motion } from "framer-motion"
+import { useTranslations } from "next-intl"
 import {
     LayoutDashboard,
     Users,
@@ -16,16 +16,18 @@ import {
 } from "lucide-react"
 
 const menuItems = [
-    { icon: LayoutDashboard, label: "Overview", href: "/admin" },
-    { icon: Users, label: "Users", href: "/admin/users" },
-    { icon: Server, label: "Providers", href: "/admin/providers" },
-    { icon: ShoppingBag, label: "Inventory", href: "/admin/inventory" },
-    { icon: CreditCard, label: "Transactions", href: "/admin/transactions" },
-    { icon: Settings, label: "Settings", href: "/admin/settings" },
+    { icon: LayoutDashboard, label: "overview", href: "/admin" },
+    { icon: Users, label: "users", href: "/admin/users" },
+    { icon: Server, label: "providers", href: "/admin/providers" },
+    { icon: ShoppingBag, label: "inventory", href: "/admin/inventory" },
+    { icon: CreditCard, label: "transactions", href: "/admin/transactions" },
+    { icon: Settings, label: "settings", href: "/admin/settings" },
 ]
 
 export const AdminSidebar = () => {
     const pathname = usePathname()
+    const t = useTranslations("admin.nav")
+
 
     return (
         <div className="fixed left-0 top-0 bottom-0 w-20 md:w-64 bg-[#0a0a0c]/80 backdrop-blur-xl border-r border-white/5 z-50 flex flex-col hidden md:flex">
@@ -65,18 +67,17 @@ export const AdminSidebar = () => {
                             />
 
                             <span className={`hidden md:block ml-3 relative z-10 text-sm font-medium transition-colors ${isActive ? 'text-white' : 'text-gray-400 group-hover:text-white'}`}>
-                                {item.label}
+                                {t(item.label)}
                             </span>
                         </Link>
                     )
                 })}
             </div>
 
-            {/* Footer */}
             <div className="p-4 border-t border-white/5">
                 <Link href="/dashboard" className="flex items-center justify-center md:justify-start px-2 md:px-4 py-3 rounded-xl hover:bg-white/5 text-gray-500 hover:text-white transition-colors">
                     <ArrowLeft size={20} />
-                    <span className="hidden md:block ml-3 text-sm font-medium">Exit to App</span>
+                    <span className="hidden md:block ml-3 text-sm font-medium">{t("exit")}</span>
                 </Link>
             </div>
         </div>

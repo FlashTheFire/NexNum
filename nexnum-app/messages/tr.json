@@ -138,5 +138,280 @@
         "or": "veya şununla devam et",
         "noAccount": "Hesabınız yok mu?",
         "createAccount": "Ücretsiz hesap oluştur"
+    },
+    "dashboard": {
+        "nav": {
+            "overview": "Kontrol Paneli",
+            "vault": "Numara Kasası",
+            "history": "Geçmiş",
+            "wallet": "Cüzdan",
+            "settings": "Ayarlar",
+            "help": "Yardım",
+            "admin": "Yönetici Paneli",
+            "logout": "Çıkış Yap",
+            "theme": "Tema",
+            "collapse": "Daralt"
+        },
+        "loading": "Panel Hazırlanıyor",
+        "greeting": {
+            "morning": "Günaydın",
+            "afternoon": "Tünaydın",
+            "evening": "İyi akşamlar"
+        },
+        "status": {
+            "operational": "Sistem Çalışıyor",
+            "analytics": "Analiz Aktif",
+            "secure": "Fonlar Güvende",
+            "active": "Aktif",
+            "completed": "Tamamlandı",
+            "expired": "Süresi Doldu",
+            "cancelled": "İptal Edildi"
+        },
+        "quickActions": {
+            "topUp": "Yükle",
+            "more": "Daha Fazla"
+        },
+        "hero": {
+            "subtitle": "Küresel iletişime güvenli kapınız. Geçerli numaraları yönetin, kullanımı takip edin ve operasyonlarınızı anında ölçeklendirin.",
+            "newNumber": "Yeni Numara",
+            "topUp": "Cüzdanı Yükle"
+        },
+        "stats": {
+            "balance": "Toplam Bakiye",
+            "myNumbers": "Numaralarım",
+            "spent": "Toplam Harcanan",
+            "deposited": "Toplam Yüklenen",
+            "activeRegions": "Aktif Bölgeler"
+        },
+        "analytics": {
+            "weeklyUsage": "Haftalık SMS Kullanımı"
+        },
+        "features": {
+            "coverage": {
+                "label": "Toplam Kapsama",
+                "value": "180+ Ülke",
+                "badge": "Küresel"
+            },
+            "security": {
+                "label": "Doğrulama",
+                "value": "Anında",
+                "badge": "Güvenli"
+            }
+        },
+        "vault": {
+            "title": "Numaralarım",
+            "badge": "Kasa",
+            "description": "Aktif sanal hatlarınızı yönetin ve izleyin.",
+            "viewVault": "Kasayı Görüntüle",
+            "emptyTitle": "Aktif numara yok",
+            "emptyDescription": "Kasanız boş. SMS almaya başlamak için hemen bir numara satın alın.",
+            "purchaseBtn": "Numara Satın Al",
+            "viewAll": "Tümünü Gör",
+            "viewAllNumbers": "Tüm Numaraları Gör",
+            "moreInVault": "Kasada +{count} daha fazla"
+        },
+        "quickTopUp": {
+            "title": "Hızlı Yükleme",
+            "badge": "ANINDA",
+            "action": "Fon Ekle"
+        },
+        "activity": {
+            "title": "Son Aktivite",
+            "empty": "Son aktivite yok"
+        }
+    },
+    "globalCoverage": {
+        "badge": "Dünya Çapında Ağ",
+        "title": "Küresel Sağlayıcı Kapsamı",
+        "subtitle": "180'den fazla ülkeden anında etkinleştirme ile sanal numaralara erişin. Ağımız her kıtaya yayılmıştır ve ihtiyacınız olan her yerde her zaman kapsama alanınız olmasını sağlar.",
+        "stats": {
+            "coverage": "Kapsanan Ülkeler",
+            "activation": "Etkinleştirme Süresi",
+            "instant": "Anında",
+            "support": "Destek Mevcut",
+            "stock": "Stok",
+            "services": "Servisler",
+            "from": "Fiyat",
+            "providers": "Sağlayıcılar"
+        }
+    },
+    "smsPage": {
+        "title": "SMS Gelen Kutusu",
+        "subtitle": "Gerçek zamanlı mesaj görüntüleyici",
+        "status": {
+            "encrypted": "Uçtan Uca Şifreli",
+            "encryptedMobile": "Şifreli",
+            "listening": "Dinleniyor",
+            "connectionTerminated": "Bağlantı Sonlandırıldı",
+            "signalSearchActive": "Sinyal Arama Aktif",
+            "expired": "Süresi Doldu",
+            "expiredSession": "Bu oturumun süresi doldu. Bu kanalda daha fazla sinyal alınamaz.",
+            "monitoring": "Gelen doğrulama kodları için şifreli kanallar aktif olarak izleniyor.",
+            "secureLink": "Güvenli Bağlantı"
+        },
+        "actions": {
+            "nextNumber": "Sonraki Numara",
+            "getting": "Alınıyor...",
+            "keepNumber": "Numarayı Tut",
+            "searchCountry": "Ülke Ara",
+            "cancelNumber": "Numarayı İptal Et",
+            "cancelling": "İptal Ediliyor...",
+            "confirmRefund": "İadeyi Onayla",
+            "downloadHistory": "Geçmişi İndir",
+            "markRead": "Tümünü okundu işaretle",
+            "backToDashboard": "Panele Dön"
+        },
+        "tips": {
+            "label": "İpucu",
+            "content": "Mesajlar her 10 saniyede bir otomatik yenilenir. Kopyalamak için herhangi bir koda tıklayın."
+        },
+        "inbox": {
+            "title": "Alınan Mesajlar",
+            "new": "Yeni",
+            "received": "Alındı",
+            "empty": {
+                "title": "Numara Bulunamadı",
+                "description": "Bu numara artık aktif değil veya hesabınızda mevcut değil."
+            }
+        },
+        "pagination": {
+            "previous": "Önceki",
+            "next": "Sonraki",
+            "pageInfo": "Sayfa {current} / {total}"
+        },
+        "card": {
+            "expiresIn": "Sona Erme",
+            "status": "Durum",
+            "statuses": {
+                "cancelled": "İPTAL EDİLDİ",
+                "expired": "SÜRESİ DOLDU",
+                "completed": "TAMAMLANDI",
+                "active": "Aktif"
+            }
+        }
+    },
+    "Demo": {
+        "liveDemo": "Canlı Demo",
+        "title": "{neon} Doğrulamayı Deneyimleyin",
+        "realTime": "Gerçek Zamanlı",
+        "subtitle": "Platformumuzu iş başında görün — numara seçiminden doğrulanmış hesaba.",
+        "totalDuration": "1:05",
+        "step": "Adım {current} / {total}",
+        "delivery": "Teslimat",
+        "deliveryDesc": "Ortalama süre",
+        "success": "Başarı",
+        "successDesc": "Tamamlanma oranı",
+        "uptime": "Çalışma Süresi",
+        "uptimeDesc": "Erişilebilirlik",
+        "coverage": "Kapsama",
+        "coverageDesc": "Ülkeler",
+        "quickAnswers": "Hızlı Cevaplar",
+        "readyToTry": "Denemeye Hazır mısınız?",
+        "startFree": "Ücretsiz başlayın. Kredi kartı gerekmez.",
+        "startFreeTrial": "Ücretsiz Denemeyi Başlat",
+        "signIn": "Giriş Yap",
+        "verificationComplete": "Doğrulama Tamamlandı!",
+        "accountVerified": "Hesap başarıyla doğrulandı",
+        "demoSteps": "Demo Adımları",
+        "livePerformance": "Canlı Performans",
+        "realTimeMetrics": "Gerçek Zamanlı Platform Metrikleri",
+        "steps": {
+            "1": {
+                "title": "Servis Seç",
+                "short": "Servis",
+                "desc": "100+ platformdan seçin"
+            },
+            "2": {
+                "title": "Küresel Kapsama",
+                "short": "Ülke",
+                "desc": "50+ lokasyondan numaralar"
+            },
+            "3": {
+                "title": "Sağlayıcı Seçimi",
+                "short": "Sağlayıcı",
+                "desc": "En iyi operatörleri seçin"
+            },
+            "4": {
+                "title": "Anında Üretim",
+                "short": "Üret",
+                "desc": "3 saniyede aktif"
+            },
+            "5": {
+                "title": "SMS Alımı",
+                "short": "Al",
+                "desc": "Anında teslim"
+            },
+            "6": {
+                "title": "Kopyala ve Doğrula",
+                "short": "Doğrula",
+                "desc": "Tek tıkla kopyala"
+            }
+        },
+        "ui": {
+            "search": "Ara...",
+            "selectService": "Servis Seç",
+            "selectCountry": "Ülke Seç",
+            "selectProvider": "Sağlayıcı Seç",
+            "purchaseNumber": "Numara Satın Al",
+            "smsInbox": "SMS Gelen Kutusu",
+            "realTimeViewer": "Gerçek zamanlı mesaj görüntüleyici",
+            "secureChannel": "Güvenli Kanal",
+            "receivedMessages": "Alınan Mesajlar",
+            "new": "Yeni",
+            "waitingForMessages": "Mesajlar Bekleniyor",
+            "listeningDesc": "{service}'den gelen SMS kodları dinleniyor...",
+            "expiresIn": "Sona eriyor",
+            "received": "Alındı",
+            "active": "Aktif",
+            "copy": "Kopyala",
+            "copied": "Kopyalandı",
+            "bestPrice": "EN İYİ FİYAT",
+            "price": "Fiyat",
+            "successRate": "Başarı Oranı",
+            "from": "Kaynak",
+            "available": "mevcut",
+            "viewAllServices": "Tüm Servisleri Gör",
+            "viewAllCountries": "54 ülkenin tümünü gör",
+            "verificationCode": "{service} doğrulama kodunuz: {code}. Kimseyle paylaşmayın.",
+            "code": "Kod"
+        },
+        "faqs": {
+            "q1": "Numaralar ne kadar hızlı aktive edilir?",
+            "a1": "Numaralar anında aktive edilir, genellikle 1-3 saniye içinde.",
+            "q2": "Hangi platformlar destekleniyor?",
+            "a2": "WhatsApp, Telegram, Google, Twitter, Instagram, Discord dahil 100+ platformu destekliyoruz.",
+            "q3": "API'yi entegre etmek zor mu?",
+            "a3": "Hiç de değil. Çoğu geliştirici SDK'larımızla 30 dakikadan kısa sürede entegre ediyor.",
+            "q4": "Hangi ödeme yöntemlerini kabul ediyorsunuz?",
+            "a4": "Kripto paralar, kredi/banka kartları ve dijital cüzdanları kabul ediyoruz."
+        }
+    },
+    "ErrorPages": {
+        "notFound": {
+            "title": "404",
+            "subtitle": "Kayıt İstisnası",
+            "description": "İstenen protokol koordinatı kısıtlı veya birincil kayıtta mevcut değil.",
+            "returnButton": "Protokole Dön",
+            "homeLink": "Ana Sayfaya Git",
+            "footer": "Protokol Güvende • Bütünlük Doğrulandı"
+        },
+        "error": {
+            "subtitle": "Sistem Kesintisi",
+            "title": "Protokol İstisnası",
+            "description": "İşlenmeyen bir durum algılandı. Güvenlik için arayüz yeniden kalibrasyonu gerekli.",
+            "errorCode": "SIG_AUTH_ERR",
+            "restartButton": "Arayüzü Yeniden Başlat"
+        },
+        "globalError": {
+            "title": "Kritik Hata",
+            "description": "Uygulama kritik bir hatayla karşılaştı ve devam edilemiyor.",
+            "reloadButton": "Uygulamayı Yeniden Yükle"
+        },
+        "maintenance": {
+            "badge": "Sistem Optimizasyonu",
+            "title": "Protokol İyileştiriliyor",
+            "description": "Altyapı senkronizasyonu aktif. 15 dakika bağlantı kesintisi.",
+            "footer": "Protokol Güvende"
+        }
     }
 }

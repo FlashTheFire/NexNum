@@ -6,6 +6,7 @@ import FAQ from "@/components/home/FAQ";
 import CTA from "@/components/home/CTA";
 import MobileActionBar from "@/components/common/MobileActionBar";
 import ServiceTicker from "@/components/home/ServiceTicker";
+import { GlobalCoverageMap } from "@/components/home/GlobalCoverageMap";
 
 export default function Home() {
     return (
@@ -15,6 +16,7 @@ export default function Home() {
                 <Hero />
                 <ServiceTicker />
                 <Features />
+                <GlobalCoverageMap />
                 <FAQ />
                 <CTA />
             </main>

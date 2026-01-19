@@ -225,13 +225,16 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
         // Maps for quick lookup (externalId -> dbId)
         const countryIdMap = new Map<string, string>()
         const serviceIdMap = new Map<string, string>()
+        // Visibility maps: externalId -> isActive (for filtering hidden items from MeiliSearch)
+        const countryVisibilityMap = new Map<string, boolean>()
+        const serviceVisibilityMap = new Map<string, boolean>()
 
         if (skipMetadataSync) {
             console.log(`[SYNC] ${provider.name}: Using DB metadata (${hoursSinceMetadata.toFixed(1)}h old, ${existingCountryCount} countries)`)
             // Load existing IDs from DB
             const dbCountries = await prisma.providerCountry.findMany({
                 where: { providerId: provider.id },
-                select: { id: true, externalId: true, name: true, flagUrl: true }
+                select: { id: true, externalId: true, name: true, flagUrl: true, isActive: true }
             })
 
             // VALIDATION: Check for stale data (countries with 'Unknown' names or missing phoneCode)
@@ -245,17 +248,20 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
             } else {
                 dbCountries.forEach(c => {
                     countryIdMap.set(c.externalId, c.id)
+                    countryVisibilityMap.set(c.externalId, c.isActive)
                     countries.push({ code: c.externalId, name: c.name, flagUrl: c.flagUrl })
                 })
                 countriesCount = dbCountries.length
 
                 const dbServices = await prisma.providerService.findMany({
                     where: { providerId: provider.id },
-                    select: { id: true, externalId: true, name: true, iconUrl: true }
+                    select: { id: true, externalId: true, name: true, iconUrl: true, isActive: true }
                 })
                 dbServices.forEach(s => {
                     serviceIdMap.set(s.externalId, s.id)
+                    serviceVisibilityMap.set(s.externalId, s.isActive)
                     serviceMap.set(s.externalId, s.name)
+                    serviceMap.set(s.externalId.toLowerCase(), s.name)
                     if (s.iconUrl) {
                         iconUrlMap.set(s.externalId, s.iconUrl)
                         iconUrlMap.set(s.externalId.toLowerCase(), s.iconUrl)
@@ -404,7 +410,13 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
 
                     const countryOffers: OfferDocument[] = prices
                         .filter(p => p.count > 0)
+                        // Note: We no longer filter out hidden items here so Admin can see them.
+                        // Instead, we mark them as isActive=false. User search filters them out.
                         .map(p => {
+                            const isCountryVisible = countryVisibilityMap.get(country.code) !== false
+                            const isServiceVisible = serviceVisibilityMap.get(p.service) !== false &&
+                                serviceVisibilityMap.get(p.service.toLowerCase()) !== false
+                            const isActive = isCountryVisible && isServiceVisible
                             // Robust service name lookup:
                             // 1. Try exact match
                             // 2. Try lowercase match 
@@ -454,8 +466,7 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
                             // Include operator in ID to make each offer unique per operator
                             return {
                                 id: `${provider.name}_${p.country}_${p.service}_${externalOp}`.toLowerCase().replace(/[^a-z0-9_]/g, ''),
-                                provider: provider.name,
-                                displayName: provider.displayName,
+                                provider: provider.name,  // Internal slug only - displayName fetched from DB at query time
                                 countryCode: p.country, // STRICT: Use raw ID from pricing data
                                 countryName: canonicalCtyName,
                                 flagUrl: getCountryFlagUrlSync(canonicalCtyName) || country.flagUrl || '',
@@ -468,7 +479,8 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
                                 operatorDisplayName: '', // Default empty, can be edited in admin settings
                                 price: Number(sellPrice.toFixed(2)),
                                 stock: p.count,
-                                lastSyncedAt: Date.now()
+                                lastSyncedAt: Date.now(),
+                                isActive: isActive // Include visibility status
                             }
                         })
 

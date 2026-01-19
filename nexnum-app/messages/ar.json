@@ -154,62 +154,264 @@
         },
         "loading": "جاري تحضير لوحة القيادة",
         "greeting": {
-            "morning": "Good morning",
-            "afternoon": "Good afternoon",
-            "evening": "Good evening"
+            "morning": "صباح الخير",
+            "afternoon": "مساء الخير",
+            "evening": "مساء الخير"
         },
         "status": {
-            "operational": "System Operational",
-            "analytics": "Analytics Active",
-            "secure": "Funds Secure"
+            "operational": "النظام يعمل",
+            "analytics": "التحليلات نشطة",
+            "secure": "الأموال آمنة",
+            "active": "نشط",
+            "completed": "مكتمل",
+            "expired": "منتهي الصلاحية",
+            "cancelled": "ملغى"
         },
         "quickActions": {
-            "topUp": "Top Up",
-            "more": "More"
+            "topUp": "شحن الرصيد",
+            "more": "المزيد"
         },
         "hero": {
-            "subtitle": "Your secure gateway to global communication. Manage valid numbers, track usage, and scale your operations instantly.",
-            "newNumber": "New Number",
-            "topUp": "Top Up Wallet"
+            "subtitle": "بوابتك الآمنة للتواصل العالمي. قم بإدارة الأرقام الصالحة، وتتبع الاستخدام، وقم بتوسيع عملياتك على الفور.",
+            "newNumber": "رقم جديد",
+            "topUp": "شحن المحفظة"
         },
         "stats": {
-            "balance": "Total Balance",
-            "myNumbers": "My Numbers",
-            "spent": "Total Spent",
-            "deposited": "Total Deposited"
+            "balance": "إجمالي الرصيد",
+            "myNumbers": "أرقامي",
+            "spent": "إجمالي المصروفات",
+            "deposited": "إجمالي الإيداعات",
+            "activeRegions": "المناطق النشطة"
+        },
+        "analytics": {
+            "weeklyUsage": "استخدام SMS الأسبوعي"
         },
         "features": {
             "coverage": {
-                "label": "Total Coverage",
-                "value": "180+ Countries",
-                "badge": "Global"
+                "label": "التغطية الشاملة",
+                "value": "180+ دولة",
+                "badge": "عالمي"
             },
             "security": {
-                "label": "Verification",
-                "value": "Instant",
-                "badge": "Secure"
+                "label": "التحقق",
+                "value": "فوري",
+                "badge": "آمن"
             }
         },
         "vault": {
-            "title": "My Numbers",
-            "badge": "Vault",
-            "description": "Manage and monitor your active virtual lines.",
-            "viewVault": "View Vault",
-            "emptyTitle": "No active numbers",
-            "emptyDescription": "Your vault is empty. Purchase a number to start receiving SMS instantly.",
-            "purchaseBtn": "Purchase Number",
-            "viewAll": "View All",
-            "viewAllNumbers": "View All Numbers",
-            "moreInVault": "+{count} more in Vault"
+            "title": "أرقامي",
+            "badge": "الخزنة",
+            "description": "قم بإدارة ومراقبة خطوطك الافتراضية النشطة.",
+            "viewVault": "عرض الخزنة",
+            "emptyTitle": "لا توجد أرقام نشطة",
+            "emptyDescription": "خزنتك فارغة. قم بشراء رقم للبدء في تلقي الرسائل القصيرة على الفور.",
+            "purchaseBtn": "شراء رقم",
+            "viewAll": "عرض الكل",
+            "viewAllNumbers": "عرض جميع الأرقام",
+            "moreInVault": "+{count} المزيد في الخزنة"
         },
         "quickTopUp": {
-            "title": "Quick Top-up",
-            "badge": "INSTANT",
-            "action": "Add Funds"
+            "title": "شحن سريع",
+            "badge": "فوري",
+            "action": "إضافة أموال"
         },
         "activity": {
-            "title": "Recent Activity",
-            "empty": "No recent activity"
+            "title": "النشاط الأخير",
+            "empty": "لا يوجد نشاط حديث"
+        }
+    },
+    "globalCoverage": {
+        "badge": "شبكة عالمية",
+        "title": "تغطية المزود العالمي",
+        "subtitle": "الوصول إلى أرقام افتراضية من أكثر من 180 دولة مع تفعيل فوري. تمتد شبكتنا عبر كل قارة، مما يضمن حصولك دائمًا على تغطية حيثما احتجت إليها.",
+        "stats": {
+            "coverage": "الدول المغطاة",
+            "activation": "وقت التفعيل",
+            "instant": "فوري",
+            "support": "الدعم متاح",
+            "stock": "المخزون",
+            "services": "الخدمات",
+            "from": "منذ",
+            "providers": "المزودين"
+        }
+    },
+    "smsPage": {
+        "title": "صندوق الرسائل والوارد",
+        "subtitle": "عارض الرسائل في الوقت الفعلي",
+        "status": {
+            "encrypted": "مشفر من طرف لطرف",
+            "encryptedMobile": "مشفر",
+            "listening": "جاري الاستماع",
+            "connectionTerminated": "انقطع الاتصال",
+            "signalSearchActive": "جاري البحث عن إشارة",
+            "expired": "منتهي",
+            "expiredSession": "انتهت صلاحية هذه الجلسة. لا يمكن استقبال المزيد من الإشارات على هذه القناة.",
+            "monitoring": "نراقب القنوات المشفرة بفعالية بحثاً عن رموز التحقق الواردة.",
+            "secureLink": "رابط آمن"
+        },
+        "actions": {
+            "nextNumber": "الرقم التالي",
+            "getting": "جاري الجلب...",
+            "keepNumber": "الاحتفاظ بالرقم",
+            "searchCountry": "البحث عن دولة",
+            "cancelNumber": "إلغاء الرقم",
+            "cancelling": "جاري الإلغاء...",
+            "confirmRefund": "تأكيد واسترداد",
+            "downloadHistory": "تنزيل السجل",
+            "markRead": "تحديد الكل كمقروء",
+            "backToDashboard": "العودة إلى لوحة التحكم"
+        },
+        "tips": {
+            "label": "نصيحة",
+            "content": "يتم تحديث الرسائل تلقائياً كل 10 ثوانٍ. انقر على أي رمز تحقق لنسخه فوراً."
+        },
+        "inbox": {
+            "title": "الرسائل المستلمة",
+            "new": "جديد",
+            "received": "تم الاستلام",
+            "empty": {
+                "title": "الرقم غير موجود",
+                "description": "هذا الرقم لم يعد نشطاً أو غير موجود في حسابك."
+            }
+        },
+        "pagination": {
+            "previous": "السابق",
+            "next": "التالي",
+            "pageInfo": "صفحة {current} من {total}"
+        },
+        "card": {
+            "expiresIn": "ينتهي خلال",
+            "status": "الحالة",
+            "statuses": {
+                "cancelled": "ملغي",
+                "expired": "منتهي",
+                "completed": "مكتمل",
+                "active": "نشط"
+            }
+        }
+    },
+    "Demo": {
+        "liveDemo": "عرض توضيحي مباشر",
+        "title": "اختبر التحقق {neon}",
+        "realTime": "في الوقت الفعلي",
+        "subtitle": "شاهد منصتنا أثناء العمل — من اختيار الرقم إلى الحساب المؤكد.",
+        "totalDuration": "1:05",
+        "step": "الخطوة {current} من {total}",
+        "delivery": "التوصيل",
+        "deliveryDesc": "متوسط الوقت",
+        "success": "النجاح",
+        "successDesc": "معدل الإنجاز",
+        "uptime": "وقت التشغيل",
+        "uptimeDesc": "التوفر",
+        "coverage": "التغطية",
+        "coverageDesc": "الدول",
+        "quickAnswers": "إجابات سريعة",
+        "readyToTry": "هل أنت مستعد للتجربة؟",
+        "startFree": "ابدأ مجاناً. لا حاجة لبطاقة ائتمان.",
+        "startFreeTrial": "بدء النسخة التجريبية المجانية",
+        "signIn": "تسجيل الدخول",
+        "verificationComplete": "اكتمل التحقق!",
+        "accountVerified": "تم التحقق من الحساب بنجاح",
+        "demoSteps": "خطوات العرض",
+        "livePerformance": "الأداء المباشر",
+        "realTimeMetrics": "مقاييس المنصة في الوقت الفعلي",
+        "steps": {
+            "1": {
+                "title": "اختر الخدمة",
+                "short": "الخدمة",
+                "desc": "اختر من أكثر من 100 منصة"
+            },
+            "2": {
+                "title": "التغطية العالمية",
+                "short": "الدولة",
+                "desc": "أرقام من أكثر من 50 موقعاً"
+            },
+            "3": {
+                "title": "اختيار المزود",
+                "short": "المزود",
+                "desc": "اختر أفضل المشغلين تقييماً"
+            },
+            "4": {
+                "title": "التوليد الفوري",
+                "short": "توليد",
+                "desc": "يتم التفعيل في أقل من 3 ثوانٍ"
+            },
+            "5": {
+                "title": "استقبال SMS",
+                "short": "استلام",
+                "desc": "يتم التوصيل فوراً إليك"
+            },
+            "6": {
+                "title": "نسخ والتحقق",
+                "short": "تحقق",
+                "desc": "نسخ التحقق بنقرة واحدة"
+            }
+        },
+        "ui": {
+            "search": "بحث...",
+            "selectService": "اختر الخدمة",
+            "selectCountry": "اختر الدولة",
+            "selectProvider": "اختر المزود",
+            "purchaseNumber": "شراء رقم",
+            "smsInbox": "صندوق الوارد SMS",
+            "realTimeViewer": "عارض الرسائل في الوقت الفعلي",
+            "secureChannel": "قناة آمنة",
+            "receivedMessages": "الرسائل المستلمة",
+            "new": "جديد",
+            "waitingForMessages": "في انتظار الرسائل",
+            "listeningDesc": "نحن نستمع لرموز SMS الواردة من {service}...",
+            "expiresIn": "ينتهي خلال",
+            "received": "مستلم",
+            "active": "نشط",
+            "copy": "نسخ",
+            "copied": "تم النسخ",
+            "bestPrice": "أفضل سعر",
+            "price": "السعر",
+            "successRate": "معدل النجاح",
+            "from": "من",
+            "available": "متاح",
+            "viewAllServices": "عرض جميع الخدمات",
+            "viewAllCountries": "عرض جميع الدول الـ 54",
+            "verificationCode": "رمز التحقق الخاص بك من {service} هو: {code}. يرجى عدم مشاركته مع أي شخص.",
+            "code": "الرمز"
+        },
+        "faqs": {
+            "q1": "ما مدى سرعة تفعيل الأرقام؟",
+            "a1": "يتم تفعيل الأرقام فوراً، عادةً في غضون 1-3 ثوانٍ.",
+            "q2": "ما المنصات المدعومة؟",
+            "a2": "نحن ندعم أكثر من 100 منصة بما في ذلك WhatsApp وTelegram وGoogle وTwitter وInstagram وDiscord والمزيد.",
+            "q3": "هل من الصعب دمج واجهة برمجة التطبيقات؟",
+            "a3": "أبداً. معظم المطورين يدمجونها في أقل من 30 دقيقة باستخدام حزم SDK الخاصة بنا.",
+            "q4": "ما طرق الدفع التي تقبلونها؟",
+            "a4": "نحن نقبل العملات المشفرة وبطاقات الائتمان/الخصم والمحافظ الرقمية."
+        }
+    },
+    "ErrorPages": {
+        "notFound": {
+            "title": "404",
+            "subtitle": "استثناء السجل",
+            "description": "إحداثيات البروتوكول المطلوبة إما مقيدة أو غير موجودة في السجل الأساسي.",
+            "returnButton": "العودة إلى البروتوكول",
+            "homeLink": "الرجوع للصفحة الرئيسية",
+            "footer": "البروتوكول مؤمن • السلامة مُتحقق منها"
+        },
+        "error": {
+            "subtitle": "انقطاع النظام",
+            "title": "استثناء البروتوكول",
+            "description": "تم اكتشاف حالة غير معالجة. إعادة معايرة الواجهة مطلوبة للأمان.",
+            "errorCode": "SIG_AUTH_ERR",
+            "restartButton": "إعادة تشغيل الواجهة"
+        },
+        "globalError": {
+            "title": "خطأ حرج",
+            "description": "واجه التطبيق خطأً حرجًا ولا يمكنه المتابعة.",
+            "reloadButton": "إعادة تحميل التطبيق"
+        },
+        "maintenance": {
+            "badge": "تحسين النظام",
+            "title": "تحسين البروتوكول",
+            "description": "مزامنة البنية التحتية نشطة. انقطاع الاتصال لمدة 15 دقيقة.",
+            "footer": "البروتوكول مؤمن"
         }
     }
 }

@@ -10,6 +10,10 @@ export type AuditAction =
     | 'WALLET_TOPUP'
     | 'SYNC_TRIGGERED'
     | 'SETTINGS_CHANGE'
+    // Inventory Management
+    | 'UNHIDE_COUNTRY' | 'HIDE_COUNTRY' | 'DELETE_COUNTRY' | 'DELETE_COUNTRY_PERMANENT' | 'UPDATE_COUNTRY'
+    | 'UNHIDE_SERVICE' | 'HIDE_SERVICE' | 'DELETE_SERVICE' | 'DELETE_SERVICE_PERMANENT' | 'UPDATE_SERVICE'
+    | `BULK_${string}_COUNTRIES` | `BULK_${string}_SERVICES`
 
 interface AuditLogParams {
     userId: string

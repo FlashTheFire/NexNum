@@ -152,6 +152,266 @@
             "theme": "Thème",
             "collapse": "Réduire"
         },
-        "loading": "Préparation du Tableau de Bord"
+        "loading": "Préparation du Tableau de Bord",
+        "greeting": {
+            "morning": "Bonjour",
+            "afternoon": "Bonne après-midi",
+            "evening": "Bonsoir"
+        },
+        "status": {
+            "operational": "Système Opérationnel",
+            "analytics": "Analytique Active",
+            "secure": "Fonds Sécurisés",
+            "active": "Actif",
+            "completed": "Terminé",
+            "expired": "Expiré",
+            "cancelled": "Annulé"
+        },
+        "quickActions": {
+            "topUp": "Recharger",
+            "more": "Plus"
+        },
+        "hero": {
+            "subtitle": "Votre passerelle sécurisée vers la communication mondiale. Gérez des numéros valides, suivez l'utilisation et faites évoluer vos opérations instantanément.",
+            "newNumber": "Nouveau Numéro",
+            "topUp": "Recharger le Portefeuille"
+        },
+        "stats": {
+            "balance": "Solde Total",
+            "myNumbers": "Mes Numéros",
+            "spent": "Total Dépensé",
+            "deposited": "Total Déposé",
+            "activeRegions": "Régions Actives"
+        },
+        "analytics": {
+            "weeklyUsage": "Utilisation SMS Hebdomadaire"
+        },
+        "features": {
+            "coverage": {
+                "label": "Couverture Totale",
+                "value": "180+ Pays",
+                "badge": "Mondial"
+            },
+            "security": {
+                "label": "Vérification",
+                "value": "Instantanée",
+                "badge": "Sécurisé"
+            }
+        },
+        "vault": {
+            "title": "Mes Numéros",
+            "badge": "Coffre",
+            "description": "Gérez et surveillez vos lignes virtuelles actives.",
+            "viewVault": "Voir le Coffre",
+            "emptyTitle": "Aucun numéro actif",
+            "emptyDescription": "Votre coffre est vide. Achetez un numéro pour commencer à recevoir des SMS instantanément.",
+            "purchaseBtn": "Acheter un Numéro",
+            "viewAll": "Voir Tout",
+            "viewAllNumbers": "Voir Tous les Numéros",
+            "moreInVault": "+{count} de plus dans le Coffre"
+        },
+        "quickTopUp": {
+            "title": "Recharge Rapide",
+            "badge": "INSTANTANÉ",
+            "action": "Ajouter des Fonds"
+        },
+        "activity": {
+            "title": "Activité Récente",
+            "empty": "Aucune activité récente"
+        }
+    },
+    "globalCoverage": {
+        "badge": "Réseau Mondial",
+        "title": "Couverture Fournisseurs Globaux",
+        "subtitle": "Accédez à des numéros virtuels de plus de 180 pays avec une activation instantanée. Notre réseau s'étend sur tous les continents, vous garantissant une couverture là où vous en avez besoin.",
+        "stats": {
+            "coverage": "Pays Couverts",
+            "activation": "Temps d'Activation",
+            "instant": "Instantané",
+            "support": "Support Disponible",
+            "stock": "Stock",
+            "services": "Services",
+            "from": "À partir de",
+            "providers": "Fournisseurs"
+        }
+    },
+    "smsPage": {
+        "title": "Boîte de réception SMS",
+        "subtitle": "Visualiseur de messages en temps réel",
+        "status": {
+            "encrypted": "Chiffré de bout en bout",
+            "encryptedMobile": "Chiffré",
+            "listening": "À l'écoute",
+            "connectionTerminated": "Connexion Terminée",
+            "signalSearchActive": "Recherche de Signal Active",
+            "expired": "Expiré",
+            "expiredSession": "Cette session a expiré. Aucun signal supplémentaire ne peut être reçu sur ce canal.",
+            "monitoring": "Surveillance active des canaux chiffrés pour les codes de vérification entrants.",
+            "secureLink": "Lien Sécurisé"
+        },
+        "actions": {
+            "nextNumber": "Numéro Suivant",
+            "getting": "Obtention...",
+            "keepNumber": "Garder le Numéro",
+            "searchCountry": "Rechercher un Pays",
+            "cancelNumber": "Annuler le Numéro",
+            "cancelling": "Annulation...",
+            "confirmRefund": "Confirmer le Remboursement",
+            "downloadHistory": "Télécharger l'Historique",
+            "markRead": "Tout marquer comme lu",
+            "backToDashboard": "Retour au Tableau de Bord"
+        },
+        "tips": {
+            "label": "Conseil Pro",
+            "content": "Les messages s'actualisent automatiquement toutes les 10s. Cliquez sur n'importe quel code pour le copier instantanément."
+        },
+        "inbox": {
+            "title": "Messages Reçus",
+            "new": "Nouveau",
+            "received": "Reçu",
+            "empty": {
+                "title": "Numéro Non Trouvé",
+                "description": "Ce numéro n'est plus actif ou n'existe pas dans votre compte."
+            }
+        },
+        "pagination": {
+            "previous": "Précédent",
+            "next": "Suivant",
+            "pageInfo": "Page {current} sur {total}"
+        },
+        "card": {
+            "expiresIn": "Expire dans",
+            "status": "Statut",
+            "statuses": {
+                "cancelled": "ANNULÉ",
+                "expired": "EXPIRÉ",
+                "completed": "COMPLETÉ",
+                "active": "Actif"
+            }
+        }
+    },
+    "Demo": {
+        "liveDemo": "Démo en Direct",
+        "title": "Découvrez la Vérification {neon}",
+        "realTime": "en Temps Réel",
+        "subtitle": "Voyez notre plateforme en action — de la sélection du numéro au compte vérifié.",
+        "totalDuration": "1:05",
+        "step": "Étape {current} sur {total}",
+        "delivery": "Livraison",
+        "deliveryDesc": "Temps moyen",
+        "success": "Succès",
+        "successDesc": "Taux de complétion",
+        "uptime": "Disponibilité",
+        "uptimeDesc": "Temps de fonctionnement",
+        "coverage": "Couverture",
+        "coverageDesc": "Pays",
+        "quickAnswers": "Réponses Rapides",
+        "readyToTry": "Prêt à Essayer ?",
+        "startFree": "Commencez gratuitement. Pas de carte bancaire requise.",
+        "startFreeTrial": "Démarrer l'Essai Gratuit",
+        "signIn": "Se Connecter",
+        "verificationComplete": "Vérification Terminée !",
+        "accountVerified": "Compte vérifié avec succès",
+        "demoSteps": "Étapes de la Démo",
+        "livePerformance": "Performance en Direct",
+        "realTimeMetrics": "Métriques de la Plateforme en Temps Réel",
+        "steps": {
+            "1": {
+                "title": "Sélectionner le Service",
+                "short": "Service",
+                "desc": "Choisissez parmi 100+ plateformes"
+            },
+            "2": {
+                "title": "Couverture Mondiale",
+                "short": "Pays",
+                "desc": "Numéros de 50+ emplacements"
+            },
+            "3": {
+                "title": "Sélection du Fournisseur",
+                "short": "Fournisseur",
+                "desc": "Choisissez les meilleurs opérateurs"
+            },
+            "4": {
+                "title": "Génération Instantanée",
+                "short": "Générer",
+                "desc": "Activé en moins de 3 secondes"
+            },
+            "5": {
+                "title": "Réception SMS",
+                "short": "Recevoir",
+                "desc": "Livré instantanément"
+            },
+            "6": {
+                "title": "Copier et Vérifier",
+                "short": "Vérifier",
+                "desc": "Copie en un clic"
+            }
+        },
+        "ui": {
+            "search": "Rechercher...",
+            "selectService": "Sélectionner le Service",
+            "selectCountry": "Sélectionner le Pays",
+            "selectProvider": "Sélectionner le Fournisseur",
+            "purchaseNumber": "Acheter le Numéro",
+            "smsInbox": "Boîte de Réception SMS",
+            "realTimeViewer": "Visualiseur de messages en temps réel",
+            "secureChannel": "Canal Sécurisé",
+            "receivedMessages": "Messages Reçus",
+            "new": "Nouveau",
+            "waitingForMessages": "En Attente de Messages",
+            "listeningDesc": "Nous écoutons les codes SMS entrants de {service}...",
+            "expiresIn": "Expire dans",
+            "received": "Reçu",
+            "active": "Actif",
+            "copy": "Copier",
+            "copied": "Copié",
+            "bestPrice": "MEILLEUR PRIX",
+            "price": "Prix",
+            "successRate": "Taux de Succès",
+            "from": "À partir de",
+            "available": "disponible",
+            "viewAllServices": "Voir Tous les Services",
+            "viewAllCountries": "Voir les 54 pays",
+            "verificationCode": "Votre code de vérification {service} est : {code}. Ne le partagez pas.",
+            "code": "Code"
+        },
+        "faqs": {
+            "q1": "À quelle vitesse les numéros sont-ils activés ?",
+            "a1": "Les numéros sont activés instantanément, généralement en 1-3 secondes.",
+            "q2": "Quelles plateformes sont supportées ?",
+            "a2": "Nous supportons 100+ plateformes dont WhatsApp, Telegram, Google, Twitter, Instagram, Discord et plus.",
+            "q3": "L'API est-elle difficile à intégrer ?",
+            "a3": "Pas du tout. La plupart des développeurs l'intègrent en moins de 30 minutes avec nos SDKs.",
+            "q4": "Quels modes de paiement acceptez-vous ?",
+            "a4": "Nous acceptons les cryptomonnaies, les cartes de crédit/débit et les portefeuilles numériques."
+        }
+    },
+    "ErrorPages": {
+        "notFound": {
+            "title": "404",
+            "subtitle": "Exception de Registre",
+            "description": "La coordonnée de protocole demandée est restreinte ou n'existe pas dans le registre principal.",
+            "returnButton": "Retour au Protocole",
+            "homeLink": "Retour à l'Accueil",
+            "footer": "Protocole Sécurisé • Intégrité Vérifiée"
+        },
+        "error": {
+            "subtitle": "Interruption Système",
+            "title": "Exception de Protocole",
+            "description": "Un état non géré a été détecté. Recalibrage de l'interface requis pour la sécurité.",
+            "errorCode": "SIG_AUTH_ERR",
+            "restartButton": "Redémarrer l'Interface"
+        },
+        "globalError": {
+            "title": "Erreur Critique",
+            "description": "L'application a rencontré une erreur critique et ne peut pas continuer.",
+            "reloadButton": "Recharger l'Application"
+        },
+        "maintenance": {
+            "badge": "Optimisation du Système",
+            "title": "Affinement du Protocole",
+            "description": "Synchronisation de l'infrastructure active. Coupure de connectivité pendant 15 minutes.",
+            "footer": "Protocole Sécurisé"
+        }
     }
 }

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
+import { useTranslations } from "next-intl"
 import { motion, AnimatePresence } from "framer-motion"
 import { useGlobalStore } from "@/store"
 import { useAuthStore } from "@/stores/authStore"
@@ -24,11 +25,7 @@ import { DashboardBackground } from "./dashboard-background"
 import { DashboardNumberCard } from "./DashboardNumberCard"
 
 // Quick Actions Configuration
-const quickActions = [
-    { label: "New Number", icon: ShoppingCart, href: "/dashboard/buy", color: "text-[hsl(var(--neon-lime))]", bg: "bg-[hsl(var(--neon-lime)/0.1)]" },
-    { label: "Top Up", icon: Wallet, href: "/dashboard/wallet", color: "text-cyan-400", bg: "bg-cyan-400/10" },
-    { label: "History", icon: Clock, href: "/dashboard/history", color: "text-purple-400", bg: "bg-purple-400/10" },
-]
+
 
 export function MobileDashboard() {
     const { user } = useAuthStore()
@@ -43,9 +40,11 @@ export function MobileDashboard() {
         return () => clearInterval(interval)
     }, [])
 
+    const t = useTranslations('dashboard')
+
     // Greeting
     const hour = new Date().getHours()
-    const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening"
+    const greeting = hour < 12 ? t('greeting.morning') : hour < 18 ? t('greeting.afternoon') : t('greeting.evening')
 
     // Carousel Logic
     const [activeMetric, setActiveMetric] = useState(0)
@@ -55,7 +54,7 @@ export function MobileDashboard() {
 
     const metrics = [
         {
-            label: "Main Balance",
+            label: t('stats.balance'),
             value: formatPrice(userProfile?.balance || 0),
             icon: Wallet,
             color: "text-[hsl(var(--neon-lime))]",
@@ -63,7 +62,7 @@ export function MobileDashboard() {
             glowColor: "hsl(var(--neon-lime))"
         },
         {
-            label: "Total Spent",
+            label: t('stats.spent'),
             value: formatPrice(totalSpent),
             icon: ShoppingCart,
             color: "text-purple-400",
@@ -71,7 +70,7 @@ export function MobileDashboard() {
             glowColor: "#c084fc"
         },
         {
-            label: "Total Deposit",
+            label: t('stats.deposited'),
             value: formatPrice(totalDeposit),
             icon: ArrowUpRight,
             color: "text-emerald-400",
@@ -81,6 +80,12 @@ export function MobileDashboard() {
     ]
 
     const ActiveIcon = metrics[activeMetric].icon
+
+    const quickActionsLinks = [
+        { label: t('hero.newNumber'), icon: ShoppingCart, href: "/dashboard/buy", color: "text-[hsl(var(--neon-lime))]", bg: "bg-[hsl(var(--neon-lime)/0.1)]" },
+        { label: t('quickActions.topUp'), icon: Wallet, href: "/dashboard/wallet", color: "text-cyan-400", bg: "bg-cyan-400/10" },
+        { label: t('nav.history'), icon: Clock, href: "/dashboard/history", color: "text-purple-400", bg: "bg-purple-400/10" },
+    ]
 
     return (
         <div className="min-h-screen relative overflow-x-hidden pb-20">
@@ -207,7 +212,7 @@ export function MobileDashboard() {
                                             className="text-xs font-medium tracking-wide uppercase"
                                             style={{ color: metrics[activeMetric].hexColor }}
                                         >
-                                            {activeMetric === 0 ? "System Operational" : activeMetric === 1 ? "Analytics Active" : "Funds Secure"}
+                                            {activeMetric === 0 ? t('status.operational') : activeMetric === 1 ? t('status.analytics') : t('status.secure')}
                                         </motion.span>
                                     </div>
                                     <div className="text-[10px] text-gray-500 font-mono pl-4">ID: 9X-214</div>
@@ -241,7 +246,7 @@ export function MobileDashboard() {
                     transition={{ delay: 0.3 }}
                     className="grid grid-cols-4 gap-4" // Use 4 cols, maybe stretch last one or center
                 >
-                    {quickActions.map((action, i) => (
+                    {quickActionsLinks.map((action, i) => (
                         <Link href={action.href} key={i} className="flex flex-col items-center gap-2 group">
                             <div className={`w-14 h-14 rounded-2xl ${action.bg} flex items-center justify-center border border-white/[0.05] group-active:scale-95 transition-transform`}>
                                 <action.icon className={`h-6 w-6 ${action.color}`} />
@@ -253,7 +258,7 @@ export function MobileDashboard() {
                         <div className="w-14 h-14 rounded-2xl bg-white/[0.05] flex items-center justify-center border border-white/[0.05] group-active:scale-95 transition-transform">
                             <MoreHorizontal className="h-6 w-6 text-white" />
                         </div>
-                        <span className="text-xs font-medium text-gray-400 group-hover:text-white transition-colors">More</span>
+                        <span className="text-xs font-medium text-gray-400 group-hover:text-white transition-colors">{t('quickActions.more')}</span>
                     </Link>
                 </motion.div>
 
@@ -265,10 +270,10 @@ export function MobileDashboard() {
                     className="space-y-4"
                 >
                     <div className="flex items-center justify-between px-1">
-                        <h3 className="text-lg font-semibold text-white">My Numbers</h3>
+                        <h3 className="text-lg font-semibold text-white">{t('vault.title')}</h3>
                         <Link href="/dashboard/vault">
                             <Button variant="link" className="text-[hsl(var(--neon-lime))] text-xs h-auto p-0 hover:no-underline">
-                                View All <ArrowUpRight className="ml-1 h-3 w-3" />
+                                {t('vault.viewAll')} <ArrowUpRight className="ml-1 h-3 w-3" />
                             </Button>
                         </Link>
                     </div>
@@ -426,8 +431,8 @@ export function MobileDashboard() {
                                                 <ArrowUpRight className="w-5 h-5 text-[hsl(var(--neon-lime))]" />
                                             </div>
                                             <div className="text-center">
-                                                <p className="text-sm font-bold text-white group-hover:text-[hsl(var(--neon-lime))] transition-colors">View All Numbers</p>
-                                                <p className="text-xs text-gray-500 mt-1">+{activeNumbers.length - 5} more in Vault</p>
+                                                <p className="text-sm font-bold text-white group-hover:text-[hsl(var(--neon-lime))] transition-colors">{t('vault.viewAllNumbers')}</p>
+                                                <p className="text-xs text-gray-500 mt-1">{t('vault.moreInVault', { count: activeNumbers.length - 5 })}</p>
                                             </div>
                                         </div>
                                     </Link>
@@ -477,10 +482,10 @@ export function MobileDashboard() {
                             <div className="w-12 h-12 rounded-full bg-white/[0.03] flex items-center justify-center mb-3">
                                 <Phone className="h-6 w-6 text-gray-500" />
                             </div>
-                            <p className="text-sm text-muted-foreground mb-3">No active numbers yet.</p>
+                            <p className="text-sm text-muted-foreground mb-3">{t('vault.emptyTitle')}</p>
                             <Link href="/dashboard/buy">
                                 <Button size="sm" className="bg-[hsl(var(--neon-lime))] text-black hover:bg-[hsl(72,100%,55%)] font-semibold">
-                                    Get a Number
+                                    {t('vault.purchaseBtn')}
                                 </Button>
                             </Link>
                         </div>
@@ -495,10 +500,10 @@ export function MobileDashboard() {
                     className="space-y-4"
                 >
                     <div className="flex items-center justify-between px-1">
-                        <h3 className="text-lg font-semibold text-white">Recent Activity</h3>
+                        <h3 className="text-lg font-semibold text-white">{t('activity.title')}</h3>
                         <Link href="/dashboard/history">
                             <Button variant="link" className="text-[hsl(var(--neon-lime))] text-xs h-auto p-0 hover:no-underline">
-                                View All <ArrowUpRight className="ml-1 h-3 w-3" />
+                                {t('vault.viewAll')} <ArrowUpRight className="ml-1 h-3 w-3" />
                             </Button>
                         </Link>
                     </div>
@@ -523,7 +528,7 @@ export function MobileDashboard() {
                             </div>
                         ))}
                         {transactions.length === 0 && (
-                            <p className="text-sm text-muted-foreground px-2">No recent activity.</p>
+                            <p className="text-sm text-muted-foreground px-2">{t('activity.empty')}</p>
                         )}
                     </div>
                 </motion.div>

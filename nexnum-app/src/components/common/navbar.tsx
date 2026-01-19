@@ -26,6 +26,7 @@ import { useAuthStore } from "@/stores/authStore"
 import { formatPrice, cn } from "@/lib/utils/utils"
 import { useNotifications, formatNotificationTime } from "@/hooks/use-notifications"
 import { NotificationDropdown } from "@/components/common/notification-dropdown"
+import LanguageSwitcher from "@/components/common/LanguageSwitcher"
 
 export function Navbar() {
     const pathname = usePathname()
@@ -119,6 +120,11 @@ export function Navbar() {
                                     {/* Desktop Notification Bell */}
                                     <NotificationDropdown />
 
+                                    {/* Language Switcher */}
+                                    <div className="mr-1">
+                                        <LanguageSwitcher />
+                                    </div>
+
                                     {/* Profile / Logout Button */}
                                     <button
                                         onClick={() => logout()}
@@ -148,6 +154,7 @@ export function Navbar() {
                         {/* Mobile Actions (Notification + Menu) */}
                         <div className="flex items-center gap-2 lg:hidden relative">
                             <NotificationDropdown />
+                            <LanguageSwitcher />
 
                             <button
                                 className="p-2.5 text-gray-400 hover:text-white rounded-xl hover:bg-white/[0.06] transition-all"

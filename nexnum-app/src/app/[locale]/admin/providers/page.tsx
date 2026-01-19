@@ -291,7 +291,7 @@ function ProviderCard({ provider, onRefresh, onEdit }: { provider: Provider; onR
                                 {provider.isActive ? 'Active' : 'Inactive'}
                             </span>
                         </div>
-                        <p className="text-[10px] text-white/30 mt-0.5 truncate">Priority {provider.priority} • {provider.syncCount} syncs completed</p>
+                        <p className="text-[10px] text-white/30 mt-0.5 truncate">@{provider.name} • Priority {provider.priority} • {provider.syncCount} syncs completed</p>
                     </div>
                     <Button
                         variant="ghost"
@@ -344,6 +344,7 @@ function ProviderCard({ provider, onRefresh, onEdit }: { provider: Provider; onR
                         </div>
                         <div className="min-w-0">
                             <h3 className="font-semibold text-white text-base group-hover:text-blue-400 transition-colors truncate">{provider.displayName}</h3>
+                            <code className="text-[10px] text-white/30 font-mono">@{provider.name}</code>
                             <div className="flex items-center gap-1.5 text-xs text-white/40 mt-0.5">
                                 <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${provider.isActive ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]' : 'bg-red-500'}`} />
                                 {provider.isActive ? 'Active' : 'Inactive'}

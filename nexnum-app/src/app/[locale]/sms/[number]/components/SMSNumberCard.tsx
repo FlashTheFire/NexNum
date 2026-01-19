@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils/utils'
 import { getCountryFlagUrlSync } from "@/lib/normalizers/country-flags"
+import { useTranslations } from 'next-intl'
 
 interface SMSNumberCardProps {
     phoneNumber: string
@@ -46,6 +47,7 @@ export const SMSNumberCard = memo(function SMSNumberCard({
     const [copied, setCopied] = useState(false)
     const [pulseMessage, setPulseMessage] = useState(false)
     const prevMessageCount = useRef(messageCount)
+    const t = useTranslations('smsPage.card')
 
     // Pulse on new message
     useEffect(() => {
@@ -76,12 +78,12 @@ export const SMSNumberCard = memo(function SMSNumberCard({
 
     // Dynamic Status Config
     const getStatusConfig = () => {
-        if (status === 'cancelled') return { color: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/20', label: 'Cancelled', icon: 'bg-red-500' }
+        if (status === 'cancelled') return { color: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/20', label: t('statuses.cancelled'), icon: 'bg-red-500' }
         // NEW SLEEK EXPIRED STATE: Monochrome/Desaturated
-        if (status === 'expired' || isExpired) return { color: 'text-gray-400', bg: 'bg-white/5', border: 'border-white/10', label: 'Expired', icon: 'bg-gray-500' }
-        if (status === 'completed') return { color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', label: 'Completed', icon: 'bg-emerald-500' }
+        if (status === 'expired' || isExpired) return { color: 'text-gray-400', bg: 'bg-white/5', border: 'border-white/10', label: t('statuses.expired'), icon: 'bg-gray-500' }
+        if (status === 'completed') return { color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', label: t('statuses.completed'), icon: 'bg-emerald-500' }
         // Default Active
-        return { color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', label: 'Active', icon: 'bg-emerald-500' }
+        return { color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', label: t('statuses.active'), icon: 'bg-emerald-500' }
     }
     const statusConfig = getStatusConfig()
 
@@ -247,13 +249,13 @@ export const SMSNumberCard = memo(function SMSNumberCard({
 
                             <p className="text-[10px] text-gray-500 flex items-center gap-1.5 uppercase tracking-wider font-semibold">
                                 <Clock className="w-3 h-3" />
-                                <span>{isExpired ? 'Status' : 'Expires in'}</span>
+                                <span>{isExpired ? t('status') : t('expiresIn')}</span>
                             </p>
                             <p className={cn(
                                 "text-xl md:text-2xl font-mono font-medium tracking-tight drop-shadow-sm truncate",
                                 isExpired ? "text-gray-600" : (isLowTime ? "text-red-400" : "text-white group-hover/stat:text-[hsl(var(--neon-lime))] transition-colors")
                             )}>
-                                {isExpired ? (status === 'cancelled' ? 'CANCELLED' : (status === 'completed' ? 'COMPLETED' : 'EXPIRED')) : `${minutesLeft}:${secondsLeft.toString().padStart(2, '0')}`}
+                                {isExpired ? (status === 'cancelled' ? t('statuses.cancelled') : (status === 'completed' ? t('statuses.completed') : t('statuses.expired'))) : `${minutesLeft}:${secondsLeft.toString().padStart(2, '0')}`}
                             </p>
                             {/* Price Badge (Absolute Bottom Right of Box) */}
                             {price > 0 && (

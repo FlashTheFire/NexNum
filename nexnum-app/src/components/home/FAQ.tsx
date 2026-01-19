@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import {
     Accordion,
     AccordionContent,
@@ -10,6 +11,12 @@ import { useTranslations } from "next-intl";
 
 export default function FAQ() {
     const t = useTranslations('faq');
+    const [isMounted, setIsMounted] = useState(false);
+
+    // Fix hydration mismatch with Radix UI Accordion
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
 
     const faqKeys = ['q1', 'q2', 'q3', 'q4', 'q5'] as const;
 
@@ -23,18 +30,29 @@ export default function FAQ() {
                     </p>
                 </div>
 
-                <Accordion type="single" collapsible className="w-full">
-                    {faqKeys.map((key, index) => (
-                        <AccordionItem key={index} value={`item-${index}`}>
-                            <AccordionTrigger className="text-left text-lg font-medium">
-                                {t(`${key}.question`)}
-                            </AccordionTrigger>
-                            <AccordionContent className="text-muted-foreground">
-                                {t(`${key}.answer`)}
-                            </AccordionContent>
-                        </AccordionItem>
-                    ))}
-                </Accordion>
+                {isMounted ? (
+                    <Accordion type="single" collapsible className="w-full">
+                        {faqKeys.map((key, index) => (
+                            <AccordionItem key={index} value={`item-${index}`}>
+                                <AccordionTrigger className="text-left text-lg font-medium">
+                                    {t(`${key}.question`)}
+                                </AccordionTrigger>
+                                <AccordionContent className="text-muted-foreground">
+                                    {t(`${key}.answer`)}
+                                </AccordionContent>
+                            </AccordionItem>
+                        ))}
+                    </Accordion>
+                ) : (
+                    // Skeleton placeholder during SSR
+                    <div className="space-y-4">
+                        {faqKeys.map((_, index) => (
+                            <div key={index} className="border-b py-4">
+                                <div className="h-6 bg-muted/20 rounded animate-pulse w-3/4" />
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
         </section>
     );

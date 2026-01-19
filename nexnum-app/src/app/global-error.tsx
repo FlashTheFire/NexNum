@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { AlertTriangle } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 
 export default function GlobalError({
     error,
@@ -10,6 +11,8 @@ export default function GlobalError({
     error: Error & { digest?: string }
     reset: () => void
 }) {
+    const t = useTranslations('ErrorPages.globalError')
+
     useEffect(() => {
         console.error('Global Error:', error)
     }, [error])
@@ -23,16 +26,16 @@ export default function GlobalError({
                             <AlertTriangle className="h-10 w-10 text-red-500" />
                         </div>
 
-                        <h1 className="text-3xl font-bold">Critical Error</h1>
+                        <h1 className="text-3xl font-bold">{t('title')}</h1>
                         <p className="text-gray-400">
-                            The application encountered a critical error and cannot continue.
+                            {t('description')}
                         </p>
 
                         <button
                             onClick={reset}
                             className="px-6 py-3 bg-[hsl(var(--neon-lime))] text-black font-bold rounded-xl hover:opacity-90 transition-opacity"
                         >
-                            Reload Application
+                            {t('reloadButton')}
                         </button>
                     </div>
                 </div>
@@ -40,3 +43,4 @@ export default function GlobalError({
         </html>
     )
 }
+

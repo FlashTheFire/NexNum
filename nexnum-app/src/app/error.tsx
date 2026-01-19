@@ -4,6 +4,7 @@ import { useEffect } from "react"
 import { motion } from "framer-motion"
 import { RefreshCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useTranslations } from "next-intl"
 
 export default function Error({
     error,
@@ -12,6 +13,8 @@ export default function Error({
     error: Error & { digest?: string }
     reset: () => void
 }) {
+    const t = useTranslations('ErrorPages.error')
+
     useEffect(() => {
         console.error(error)
     }, [error])
@@ -76,23 +79,23 @@ export default function Error({
                     <div className="flex items-center gap-4 mb-6">
                         <div className="h-px w-6 bg-red-500/20" />
                         <span className="text-[10px] font-mono font-medium text-red-500/80 tracking-[0.5em] uppercase">
-                            System Interruption
+                            {t('subtitle')}
                         </span>
                         <div className="h-px w-6 bg-red-500/20" />
                     </div>
 
                     <h1 className="text-4xl md:text-5xl font-bold text-white mb-6 tracking-wide md:whitespace-nowrap">
-                        Pʀᴏᴛᴏᴄᴏʟ Exᴄᴇᴘᴛɪᴏɴ
+                        {t('title')}
                     </h1>
 
                     <p className="text-gray-500 text-sm leading-relaxed mb-12 max-w-xs mx-auto font-light tracking-wide">
-                        An unhandled state has been detected. Interface re-calibration required for security.
+                        {t('description')}
                     </p>
 
                     {error.digest && (
                         <div className="mb-12">
                             <code className="text-[9px] font-mono text-white/20 select-all tracking-tight bg-red-500/5 px-4 py-2 rounded-full border border-red-500/10">
-                                SIG_AUTH_ERR: {error.digest}
+                                {t('errorCode')}: {error.digest}
                             </code>
                         </div>
                     )}
@@ -103,7 +106,7 @@ export default function Error({
                     >
                         <span className="flex items-center gap-2">
                             <RefreshCcw className="h-3.5 w-3.5 group-hover:rotate-180 transition-transform duration-700" />
-                            Restart Interface
+                            {t('restartButton')}
                         </span>
                     </Button>
                 </motion.div>
@@ -111,3 +114,4 @@ export default function Error({
         </div>
     )
 }
+

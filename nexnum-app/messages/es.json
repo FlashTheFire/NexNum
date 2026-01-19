@@ -152,6 +152,266 @@
             "theme": "Tema",
             "collapse": "Colapsar"
         },
-        "loading": "Preparando Dashboard"
+        "loading": "Preparando Dashboard",
+        "greeting": {
+            "morning": "Buenos días",
+            "afternoon": "Buenas tardes",
+            "evening": "Buenas noches"
+        },
+        "status": {
+            "operational": "Sistema Operativo",
+            "analytics": "Analítica Activa",
+            "secure": "Fondos Seguros",
+            "active": "Activo",
+            "completed": "Completado",
+            "expired": "Expirado",
+            "cancelled": "Cancelado"
+        },
+        "quickActions": {
+            "topUp": "Recargar",
+            "more": "Más"
+        },
+        "hero": {
+            "subtitle": "Tu puerta de entrada segura a la comunicación global. Gestiona números válidos, rastrea el uso y escala tus operaciones al instante.",
+            "newNumber": "Nuevo Número",
+            "topUp": "Recargar Billetera"
+        },
+        "stats": {
+            "balance": "Saldo Total",
+            "myNumbers": "Mis Números",
+            "spent": "Total Gastado",
+            "deposited": "Total Depositado",
+            "activeRegions": "Regiones Activas"
+        },
+        "analytics": {
+            "weeklyUsage": "Uso Semanal de SMS"
+        },
+        "features": {
+            "coverage": {
+                "label": "Cobertura Total",
+                "value": "180+ Países",
+                "badge": "Global"
+            },
+            "security": {
+                "label": "Verificación",
+                "value": "Instantánea",
+                "badge": "Seguro"
+            }
+        },
+        "vault": {
+            "title": "Mis Números",
+            "badge": "Bóveda",
+            "description": "Gestiona y monitorea tus líneas virtuales activas.",
+            "viewVault": "Ver Bóveda",
+            "emptyTitle": "Sin números activos",
+            "emptyDescription": "Tu bóveda está vacía. Compra un número para comenzar a recibir SMS al instante.",
+            "purchaseBtn": "Comprar Número",
+            "viewAll": "Ver Todo",
+            "viewAllNumbers": "Ver Todos los Números",
+            "moreInVault": "+{count} más en Bóveda"
+        },
+        "quickTopUp": {
+            "title": "Recarga Rápida",
+            "badge": "INSTANTÁNEO",
+            "action": "Añadir Fondos"
+        },
+        "activity": {
+            "title": "Actividad Reciente",
+            "empty": "Sin actividad reciente"
+        }
+    },
+    "globalCoverage": {
+        "badge": "Red Mundial",
+        "title": "Cobertura Global Proveedores",
+        "subtitle": "Acceda a números virtuales de más de 180 países con activación instantánea. Nuestra red se extiende por todos los continentes, asegurando que siempre tenga cobertura donde la necesite.",
+        "stats": {
+            "coverage": "Países Cubiertos",
+            "activation": "Tiempo de Activación",
+            "instant": "Instantáneo",
+            "support": "Soporte Disponible",
+            "stock": "Stock",
+            "services": "Servicios",
+            "from": "Desde",
+            "providers": "Proveedores"
+        }
+    },
+    "smsPage": {
+        "title": "Bandeja de SMS",
+        "subtitle": "Visor de mensajes en tiempo real",
+        "status": {
+            "encrypted": "Cifrado de extremo a extremo",
+            "encryptedMobile": "Cifrado",
+            "listening": "Escuchando",
+            "connectionTerminated": "Conexión Terminada",
+            "signalSearchActive": "Búsqueda de Señal Activa",
+            "expired": "Expirado",
+            "expiredSession": "Esta sesión ha expirado. No se pueden recibir más señales en este canal.",
+            "monitoring": "Monitoreando activamente canales cifrados para códigos de verificación entrantes.",
+            "secureLink": "Enlace Seguro"
+        },
+        "actions": {
+            "nextNumber": "Siguiente Número",
+            "getting": "Obteniendo...",
+            "keepNumber": "Mantener Número",
+            "searchCountry": "Buscar País",
+            "cancelNumber": "Cancelar Número",
+            "cancelling": "Cancelando...",
+            "confirmRefund": "Confirmar Reembolso",
+            "downloadHistory": "Descargar Historial",
+            "markRead": "Marcar todo como leído",
+            "backToDashboard": "Volver al Panel"
+        },
+        "tips": {
+            "label": "Consejo Pro",
+            "content": "Los mensajes se actualizan automáticamente cada 10s. Haz clic en cualquier código para copiarlo al instante."
+        },
+        "inbox": {
+            "title": "Mensajes Recibidos",
+            "new": "Nuevos",
+            "received": "Recibidos",
+            "empty": {
+                "title": "Número No Encontrado",
+                "description": "Este número ya no está activo o no existe en tu cuenta."
+            }
+        },
+        "pagination": {
+            "previous": "Anterior",
+            "next": "Siguiente",
+            "pageInfo": "Página {current} de {total}"
+        },
+        "card": {
+            "expiresIn": "Expira en",
+            "status": "Estado",
+            "statuses": {
+                "cancelled": "CANCELADO",
+                "expired": "EXPIRADO",
+                "completed": "COMPLETADO",
+                "active": "Activo"
+            }
+        }
+    },
+    "Demo": {
+        "liveDemo": "Demo en Vivo",
+        "title": "Experimenta la Verificación {neon}",
+        "realTime": "en Tiempo Real",
+        "subtitle": "Mira nuestra plataforma en acción — desde la selección del número hasta la cuenta verificada.",
+        "totalDuration": "1:05",
+        "step": "Paso {current} de {total}",
+        "delivery": "Entrega",
+        "deliveryDesc": "Tiempo promedio",
+        "success": "Éxito",
+        "successDesc": "Tasa de finalización",
+        "uptime": "Disponibilidad",
+        "uptimeDesc": "Tiempo activo",
+        "coverage": "Cobertura",
+        "coverageDesc": "Países",
+        "quickAnswers": "Respuestas Rápidas",
+        "readyToTry": "¿Listo para Probarlo?",
+        "startFree": "Comienza gratis. Sin tarjeta de crédito.",
+        "startFreeTrial": "Iniciar Prueba Gratis",
+        "signIn": "Iniciar Sesión",
+        "verificationComplete": "¡Verificación Completa!",
+        "accountVerified": "Cuenta verificada exitosamente",
+        "demoSteps": "Pasos de la Demo",
+        "livePerformance": "Rendimiento en Vivo",
+        "realTimeMetrics": "Métricas de la Plataforma en Tiempo Real",
+        "steps": {
+            "1": {
+                "title": "Seleccionar Servicio",
+                "short": "Servicio",
+                "desc": "Elige entre 100+ plataformas"
+            },
+            "2": {
+                "title": "Cobertura Global",
+                "short": "País",
+                "desc": "Números de 50+ ubicaciones"
+            },
+            "3": {
+                "title": "Selección de Proveedor",
+                "short": "Proveedor",
+                "desc": "Elige operadores mejor valorados"
+            },
+            "4": {
+                "title": "Generación Instantánea",
+                "short": "Generar",
+                "desc": "Activado en menos de 3 segundos"
+            },
+            "5": {
+                "title": "Recepción de SMS",
+                "short": "Recibir",
+                "desc": "Entregado al instante"
+            },
+            "6": {
+                "title": "Copiar y Verificar",
+                "short": "Verificar",
+                "desc": "Copia con un clic"
+            }
+        },
+        "ui": {
+            "search": "Buscar...",
+            "selectService": "Seleccionar Servicio",
+            "selectCountry": "Seleccionar País",
+            "selectProvider": "Seleccionar Proveedor",
+            "purchaseNumber": "Comprar Número",
+            "smsInbox": "Bandeja de SMS",
+            "realTimeViewer": "Visor de mensajes en tiempo real",
+            "secureChannel": "Canal Seguro",
+            "receivedMessages": "Mensajes Recibidos",
+            "new": "Nuevo",
+            "waitingForMessages": "Esperando Mensajes",
+            "listeningDesc": "Escuchando códigos SMS entrantes de {service}...",
+            "expiresIn": "Expira en",
+            "received": "Recibido",
+            "active": "Activo",
+            "copy": "Copiar",
+            "copied": "Copiado",
+            "bestPrice": "MEJOR PRECIO",
+            "price": "Precio",
+            "successRate": "Tasa de Éxito",
+            "from": "Desde",
+            "available": "disponible",
+            "viewAllServices": "Ver Todos los Servicios",
+            "viewAllCountries": "Ver los 54 países",
+            "verificationCode": "Tu código de verificación de {service} es: {code}. No lo compartas.",
+            "code": "Código"
+        },
+        "faqs": {
+            "q1": "¿Qué tan rápido se activan los números?",
+            "a1": "Los números se activan instantáneamente, típicamente en 1-3 segundos.",
+            "q2": "¿Qué plataformas son compatibles?",
+            "a2": "Soportamos 100+ plataformas incluyendo WhatsApp, Telegram, Google, Twitter, Instagram, Discord y más.",
+            "q3": "¿Es difícil integrar la API?",
+            "a3": "Para nada. La mayoría de desarrolladores la integran en menos de 30 minutos con nuestros SDKs.",
+            "q4": "¿Qué métodos de pago aceptan?",
+            "a4": "Aceptamos criptomonedas, tarjetas de crédito/débito y billeteras digitales."
+        }
+    },
+    "ErrorPages": {
+        "notFound": {
+            "title": "404",
+            "subtitle": "Excepción de Registro",
+            "description": "La coordenada de protocolo solicitada está restringida o no existe en el registro principal.",
+            "returnButton": "Volver al Protocolo",
+            "homeLink": "Ir al Inicio",
+            "footer": "Protocolo Asegurado • Integridad Verificada"
+        },
+        "error": {
+            "subtitle": "Interrupción del Sistema",
+            "title": "Excepción de Protocolo",
+            "description": "Se detectó un estado no controlado. Se requiere recalibración de interfaz por seguridad.",
+            "errorCode": "SIG_AUTH_ERR",
+            "restartButton": "Reiniciar Interfaz"
+        },
+        "globalError": {
+            "title": "Error Crítico",
+            "description": "La aplicación encontró un error crítico y no puede continuar.",
+            "reloadButton": "Recargar Aplicación"
+        },
+        "maintenance": {
+            "badge": "Sistema Optimizando",
+            "title": "Refinando Protocolo",
+            "description": "Sincronización de infraestructura activa. Corte de conectividad por 15 minutos.",
+            "footer": "Protocolo Asegurado"
+        }
     }
 }
