@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { AlertTriangle } from 'lucide-react'
+import * as Sentry from '@sentry/nextjs'
 
 // Note: This root-level global-error page cannot use next-intl hooks
 // because it's outside the [locale] segment and has no i18n provider context.
@@ -15,6 +16,7 @@ export default function GlobalError({
 }) {
     useEffect(() => {
         console.error('Global Error:', error)
+        Sentry.captureException(error)
     }, [error])
 
     return (

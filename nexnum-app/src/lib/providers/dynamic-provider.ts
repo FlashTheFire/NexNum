@@ -8,6 +8,7 @@ import { prisma } from '../core/db'
 import { currencyService } from '../currency/currency-service'
 import CircuitBreaker from 'opossum'
 import { logger } from '@/lib/core/logger'
+import { redis } from '@/lib/core/redis'
 
 declare var process: any;
 declare var require: any;
@@ -251,6 +252,10 @@ export class DynamicProvider implements SmsProvider {
         let urlObj: URL | null = null
         let maskedHeaders: Record<string, string> = {}
         const startTime = Date.now()
+
+        // Decrypt Auth Key on the fly
+        const { decrypt } = await import('@/lib/security/encryption')
+        const rawAuthKey = this.config.authKey ? decrypt(this.config.authKey) : ''
 
         try {
 
@@ -1754,8 +1759,19 @@ export class DynamicProvider implements SmsProvider {
             if ('getPrices' in (this.fallback || {})) {
                 return (this.fallback as any).getPrices(countryCode, serviceCode)
             }
-            // For legacy providers without explicit getPrices, we normally fall back to getServices
-            // but here we just return empty or let dynamic handle it if configured
+        }
+
+        // Cache Key Strategy: provider:prices:{name}:{country}:{service}
+        const cacheKey = `provider:prices:${this.name}:${countryCode || 'all'}:${serviceCode || 'all'}`
+
+        try {
+            const cached = await redis.get(cacheKey)
+            if (cached) {
+                // logger.debug(`[DynamicProvider:${this.name}] Cache HIT for prices`, { key: cacheKey })
+                return JSON.parse(cached) as PriceData[]
+            }
+        } catch (e) {
+            logger.warn(`[DynamicProvider:${this.name}] Cache read failed`, { error: e })
         }
 
         const params: Record<string, string> = {}
@@ -1826,10 +1842,20 @@ export class DynamicProvider implements SmsProvider {
                         cost: best.cost,
                         count: best.count
                     })
-                    // console.log(`[PriceOptim:${this.name}] ${group[0].service}: "${best.operator}" (${(best.score * 100).toFixed(0)}%)`)
                 }
             }
         }
+
+        // Cache the final results
+        try {
+            // Cache even if empty to prevent spamming provider (Negative Caching)
+            // Use same TTL or shorter? Let's use 300s for now as per plan, 
+            // or maybe 60s for empty? Let's stick to 300s for simplicity and load reduction.
+            await redis.set(cacheKey, JSON.stringify(results), 'EX', 300)
+        } catch (e) {
+            logger.warn(`[DynamicProvider:${this.name}] Cache write failed`, { error: e })
+        }
+
         return results
     }
 

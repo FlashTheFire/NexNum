@@ -1,0 +1,457 @@
+openapi: 3.0.3
+info:
+  title: NexNum Public API
+  description: |
+    # Introduction
+    The NexNum API allows you to programmatically interact with the NexNum SMS verification platform. 
+    You can manage phone numbers, retrieve SMS messages, and monitor your account balance.
+    
+    ## Authentication
+    All API requests require authentication via an API key. Include your key in the request header:
+    ```
+    Authorization: Bearer nxn_live_xxxxxxxxxxxx
+    ```
+    or
+    ```
+    X-API-Key: nxn_live_xxxxxxxxxxxx
+    ```
+    
+    ## Rate Limits
+    Rate limits depend on your API key tier:
+    - **Free**: 60 requests/minute
+    - **Pro**: 300 requests/minute
+    - **Enterprise**: 1000 requests/minute
+    
+    Rate limit headers are included in every response:
+    - `X-RateLimit-Limit`: Your limit
+    - `X-RateLimit-Remaining`: Requests remaining
+    - `X-RateLimit-Reset`: Unix timestamp when limit resets
+    
+  version: 1.0.0
+  contact:
+    name: NexNum Support
+    email: support@nexnum.io
+  license:
+    name: Proprietary
+    url: https://nexnum.io/terms
+
+servers:
+  - url: https://nexnum.io/api/v1
+    description: Production server
+  - url: http://localhost:3000/api/v1
+    description: Development server
+
+security:
+  - BearerAuth: []
+  - ApiKeyAuth: []
+
+tags:
+  - name: Balance
+    description: Account balance operations
+  - name: Numbers
+    description: Phone number management
+  - name: SMS
+    description: SMS message retrieval
+
+paths:
+  /balance:
+    get:
+      tags:
+        - Balance
+      summary: Get account balance
+      description: Returns the current balance and currency for the authenticated user.
+      operationId: getBalance
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BalanceResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /numbers:
+    get:
+      tags:
+        - Numbers
+      summary: List all numbers
+      description: Returns all active and reserved phone numbers owned by the authenticated user.
+      operationId: listNumbers
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NumberListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /numbers/{id}:
+    get:
+      tags:
+        - Numbers
+      summary: Get number details
+      description: Returns detailed information about a specific phone number including all received SMS messages.
+      operationId: getNumber
+      parameters:
+        - $ref: '#/components/parameters/NumberId'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NumberDetailResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+        - Numbers
+      summary: Cancel number and refund
+      description: |
+        Cancels an active number and processes a refund if eligible.
+        
+        **Eligibility Requirements:**
+        - Number must be in `active` or `pending` status
+        - No SMS messages have been received on the number
+        - Number has not already been cancelled
+      operationId: cancelNumber
+      parameters:
+        - $ref: '#/components/parameters/NumberId'
+      responses:
+        '200':
+          description: Number cancelled successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CancelResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Conflict - cannot cancel (e.g., SMS received, already cancelled)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /sms:
+    get:
+      tags:
+        - SMS
+      summary: List SMS messages
+      description: Returns recent SMS messages across all numbers or filtered by number ID.
+      operationId: listSms
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of messages to return (max 100)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: numberId
+          in: query
+          description: Filter messages by specific number ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SmsListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /sms/{id}:
+    get:
+      tags:
+        - SMS
+      summary: Get SMS details
+      description: Returns detailed information about a specific SMS message.
+      operationId: getSms
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: SMS message ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SmsDetailResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: API Key
+      description: "Format: `Bearer nxn_live_xxxxxxxxxxxx`"
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: "Your NexNum API key (e.g., `nxn_live_xxxxxxxxxxxx`)"
+
+  parameters:
+    NumberId:
+      name: id
+      in: path
+      required: true
+      description: Phone number ID (UUID)
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    Unauthorized:
+      description: Authentication failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error:
+              message: "API key required"
+              code: "MISSING_API_KEY"
+              status: 401
+    Forbidden:
+      description: Access denied
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            message:
+              type: string
+            code:
+              type: string
+            status:
+              type: integer
+
+    BalanceResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            balance:
+              type: number
+              format: float
+              example: 25.50
+            currency:
+              type: string
+              example: "USD"
+
+    NumberListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            numbers:
+              type: array
+              items:
+                $ref: '#/components/schemas/NumberSummary'
+
+    NumberSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        phoneNumber:
+          type: string
+          example: "+14155551234"
+        parsed:
+          type: object
+          properties:
+            countryCode:
+              type: string
+              example: "+1"
+            nationalNumber:
+              type: string
+              example: "4155551234"
+        country:
+          type: object
+          properties:
+            code:
+              type: string
+              example: "US"
+            name:
+              type: string
+              example: "United States"
+        service:
+          type: object
+          properties:
+            code:
+              type: string
+              example: "telegram"
+            name:
+              type: string
+              example: "Telegram"
+        status:
+          type: string
+          enum: [active, reserved, expired, cancelled]
+        expiresAt:
+          type: string
+          format: date-time
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/SmsMessage'
+
+    NumberDetailResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/NumberDetail'
+
+    NumberDetail:
+      allOf:
+        - $ref: '#/components/schemas/NumberSummary'
+        - type: object
+          properties:
+            provider:
+              type: string
+              example: "5sim"
+
+    CancelResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            status:
+              type: string
+              example: "cancelled"
+            refunded:
+              type: boolean
+              example: true
+            amount:
+              type: number
+              format: float
+              example: 0.50
+
+    SmsListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            messages:
+              type: array
+              items:
+                $ref: '#/components/schemas/SmsWithNumber'
+
+    SmsMessage:
+      type: object
+      properties:
+        sender:
+          type: string
+          example: "Telegram"
+        content:
+          type: string
+          example: "Your verification code is 123456"
+        code:
+          type: string
+          nullable: true
+          example: "123456"
+        receivedAt:
+          type: string
+          format: date-time
+
+    SmsWithNumber:
+      allOf:
+        - $ref: '#/components/schemas/SmsMessage'
+        - type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            number:
+              type: object
+              properties:
+                id:
+                  type: string
+                  format: uuid
+                phoneNumber:
+                  type: string
+                service:
+                  type: string
+                country:
+                  type: string
+
+    SmsDetailResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/SmsWithNumber'

@@ -173,32 +173,51 @@ export async function GET(req: Request) {
         });
 
         if (targetsToFetch.codes.length > 0) {
-            // Safe SQL string creation
-            const codeListSql = targetsToFetch.codes.map(c => `'${c}'`).join(',');
-            const nameListSql = targetsToFetch.names.map(n => `'${n}'`).join(',');
+            // SECURITY: Use parameterized query instead of string concatenation
+            // Note: These values come from hardcoded PRIORITY_TARGETS, but using params is safer pattern
+            const priorityStats = await prisma.providerCountry.findMany({
+                where: {
+                    OR: [
+                        { code: { in: targetsToFetch.codes, mode: 'insensitive' } },
+                        { name: { in: targetsToFetch.names, mode: 'insensitive' } }
+                    ]
+                },
+                select: {
+                    code: true,
+                    name: true,
+                    flagUrl: true,
+                    id: true
+                }
+            });
 
-            // Use LEFT JOIN to ensure we get the country even if no stock/pricing exists
-            const priorityStats = await prisma.$queryRawUnsafe<any[]>(`
-                SELECT 
-                    pc.code AS country_code,
-                    pc.name AS country_name,
-                    pc."flag_url" AS flag_url,
-                    COALESCE(COUNT(DISTINCT pp."service_id"), 0)::int AS total_services,
-                    COALESCE(SUM(pp.stock), 0)::bigint AS total_stock,
-                    COALESCE(COUNT(DISTINCT pp."provider_id"), 0)::int AS total_providers,
-                    COALESCE(ROUND(MIN(pp."sellPrice")::numeric, 2), 0) AS lowest_price,
-                    COALESCE(ROUND(AVG(pp."sellPrice")::numeric, 2), 0) AS avg_price
-                FROM provider_countries pc
-                LEFT JOIN provider_pricing pp ON pc.id = pp."country_id" AND pp.deleted = false
-                WHERE (
-                    UPPER(pc.code) IN (${codeListSql}) 
-                    OR UPPER(pc.name) IN (${nameListSql})
-                )
-                GROUP BY pc.id, pc.code, pc.name, pc."flag_url"
-            `);
+            // For each priority country, get basic stats
+            for (const pc of priorityStats) {
+                const stats = await prisma.providerPricing.aggregate({
+                    where: {
+                        countryId: pc.id,
+                        deleted: false
+                    },
+                    _count: { serviceId: true },
+                    _sum: { stock: true },
+                    _min: { sellPrice: true },
+                    _avg: { sellPrice: true }
+                });
 
-            if (priorityStats.length > 0) {
-                countryStats.push(...priorityStats);
+                const providerCount = await prisma.providerPricing.groupBy({
+                    by: ['providerId'],
+                    where: { countryId: pc.id, deleted: false }
+                });
+
+                countryStats.push({
+                    country_code: pc.code,
+                    country_name: pc.name,
+                    flag_url: pc.flagUrl,
+                    total_services: stats._count?.serviceId || 0,
+                    total_stock: stats._sum?.stock || 0,
+                    total_providers: providerCount.length,
+                    lowest_price: stats._min?.sellPrice || 0,
+                    avg_price: stats._avg?.sellPrice || 0
+                });
             }
         }
 

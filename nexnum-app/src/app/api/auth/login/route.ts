@@ -4,11 +4,22 @@ import { generateToken, setAuthCookie } from '@/lib/auth/jwt'
 import { loginSchema } from '@/lib/api/validation'
 import bcrypt from 'bcryptjs'
 import { apiHandler } from '@/lib/api/api-handler'
+import { verifyCaptcha } from '@/lib/security/captcha'
 
 export const POST = apiHandler(async (request, { body }) => {
     // Body is already validated by apiHandler using loginSchema
     if (!body) throw new Error('Body is required')
-    const { email, password } = body
+    const { email, password, captchaToken } = body
+
+    // Verify CAPTCHA
+    const ip = request.headers.get('x-forwarded-for') || 'unknown'
+    const captchaResult = await verifyCaptcha(captchaToken, ip)
+    if (!captchaResult.success) {
+        return NextResponse.json(
+            { error: captchaResult.error },
+            { status: 400 }
+        )
+    }
 
     // Find user
     const user = await prisma.user.findUnique({
@@ -32,19 +43,49 @@ export const POST = apiHandler(async (request, { body }) => {
         )
     }
 
+    // Check for 2FA
+    if (user.twoFactorEnabled) {
+        // Generate temporary token for 2FA validation
+        const tempToken = await generateToken({
+            userId: user.id,
+            email: user.email,
+            name: user.name,
+            role: '2FA_PENDING',
+            version: user.tokenVersion
+        })
+
+        // Audit Log (2FA Challenge)
+        await prisma.auditLog.create({
+            data: {
+                userId: user.id,
+                action: 'LOGIN_2FA_CHALLENGE',
+                resourceType: 'user',
+                resourceId: user.id,
+                ipAddress: ip,
+            }
+        })
+
+        return NextResponse.json({
+            success: true,
+            requires2Fa: true,
+            tempToken
+        })
+    }
+
     // Generate JWT token
     const token = await generateToken({
         userId: user.id,
         email: user.email,
         name: user.name,
         role: user.role,
+        version: user.tokenVersion
     })
 
     // Set auth cookie
     await setAuthCookie(token)
 
     // Audit log
-    const ip = request.headers.get('x-forwarded-for') || 'unknown'
+    // ip is already defined above
     await prisma.auditLog.create({
         data: {
             userId: user.id,
@@ -67,5 +108,9 @@ export const POST = apiHandler(async (request, { body }) => {
     })
 }, {
     schema: loginSchema,
-    rateLimit: 'auth'
+    rateLimit: 'auth',
+    security: {
+        requireBrowserCheck: true,
+        browserCheckLevel: 'basic'
+    }
 })

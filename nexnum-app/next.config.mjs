@@ -12,7 +12,7 @@ const withBundleAnalyzer = bundleAnalyzer({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     // Performance optimizations
-    // output: 'standalone',
+    output: 'standalone',
     reactStrictMode: true,
     poweredByHeader: false,
 

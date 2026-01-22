@@ -12,11 +12,13 @@ export const registerSchema = z.object({
         .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
         .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
         .regex(/[0-9]/, 'Password must contain at least one number'),
+    captchaToken: z.string().optional(),
 })
 
 export const loginSchema = z.object({
     email: z.string().email('Invalid email address'),
     password: z.string().min(1, 'Password is required'),
+    captchaToken: z.string().optional(),
 })
 
 // ============================================

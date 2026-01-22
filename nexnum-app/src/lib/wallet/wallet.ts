@@ -87,15 +87,35 @@ export class WalletService {
         const client = tx || prisma
         const decAmount = new Prisma.Decimal(amount)
 
-        // Get wallet ID (optimize if passed?)
-        const wallet = await client.wallet.findUnique({ where: { userId }, select: { id: true } })
+        // Get wallet with full state for guards
+        const wallet = await client.wallet.findUnique({
+            where: { userId },
+            select: { id: true, balance: true, reserved: true }
+        })
         if (!wallet) throw new Error('Wallet not found')
+
+        // GUARD: Check reserved amount (warn but don't block - handles race conditions)
+        if (wallet.reserved.lessThan(decAmount)) {
+            console.warn(`[Wallet] WARN: Reserved (${wallet.reserved}) < Commit (${decAmount}). Proceeding anyway.`)
+            // Don't throw - this can happen with concurrent transactions
+            // The balance check below is the critical guard
+        }
+
+        // GUARD: Balance must be >= amount being committed (CRITICAL)
+        if (wallet.balance.lessThan(decAmount)) {
+            throw new Error('WALLET_INTEGRITY: Balance is less than commit amount')
+        }
+
+        // Calculate decrement amounts (cap to actual reserved to prevent negative)
+        const reservedDecrement = wallet.reserved.lessThan(decAmount)
+            ? wallet.reserved
+            : decAmount
 
         // Atomic Confirm
         await client.wallet.update({
             where: { id: wallet.id },
             data: {
-                reserved: { decrement: decAmount },
+                reserved: { decrement: reservedDecrement },
                 balance: { decrement: decAmount }
             }
         })

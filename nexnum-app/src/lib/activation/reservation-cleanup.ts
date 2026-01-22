@@ -11,6 +11,7 @@
 
 import { prisma } from '@/lib/core/db'
 import { publishOutboxEvent } from './outbox'
+import { logger } from '@/lib/core/logger'
 
 // Configuration
 const CLEANUP_INTERVAL_MS = 30000 // 30 seconds
@@ -49,7 +50,7 @@ async function cleanupExpiredReservations(): Promise<CleanupResult> {
             return result
         }
 
-        console.log(`[RESERVATION-CLEANUP] Found ${expiredReservations.length} expired reservations`)
+        logger.info(`[RESERVATION-CLEANUP] Found ${expiredReservations.length} expired reservations`)
 
         for (const reservation of expiredReservations) {
             try {
@@ -83,15 +84,15 @@ async function cleanupExpiredReservations(): Promise<CleanupResult> {
                 result.stockRestored += reservation.quantity
 
             } catch (error) {
-                console.error(`[RESERVATION-CLEANUP] Failed to expire reservation ${reservation.id}:`, error)
+                logger.error(`[RESERVATION-CLEANUP] Failed to expire reservation ${reservation.id}`, { error })
                 result.errors++
             }
         }
 
-        console.log(`[RESERVATION-CLEANUP] Expired ${result.expiredReservations} reservations, restored ${result.stockRestored} stock`)
+        logger.info(`[RESERVATION-CLEANUP] Expired ${result.expiredReservations} reservations, restored ${result.stockRestored} stock`)
 
     } catch (error) {
-        console.error('[RESERVATION-CLEANUP] Batch error:', error)
+        logger.error('[RESERVATION-CLEANUP] Batch error', { error })
     }
 
     return {
@@ -123,7 +124,7 @@ async function cleanupExpiredNumbers(): Promise<number> {
 
         if (expiredNumbers.length === 0) return 0
 
-        console.log(`[NUMBER-CLEANUP] Processing ${expiredNumbers.length} potentially expired numbers`)
+        logger.info(`[NUMBER-CLEANUP] Processing ${expiredNumbers.length} potentially expired numbers`)
 
         for (const num of expiredNumbers) {
             try {
@@ -151,7 +152,7 @@ async function cleanupExpiredNumbers(): Promise<number> {
                                 }
                             }
 
-                            console.log(`[NUMBER-CLEANUP] Number ${num.phoneNumber} saved by late SMS!`)
+                            logger.info(`[NUMBER-CLEANUP] Number ${num.phoneNumber} saved by late SMS!`)
                             continue
                         }
 
@@ -171,15 +172,15 @@ async function cleanupExpiredNumbers(): Promise<number> {
                                     data: { state: 'RECEIVED' }
                                 })
                             }
-                            console.log(`[NUMBER-CLEANUP] Number ${num.phoneNumber} saved by local DB messages!`)
+                            logger.info(`[NUMBER-CLEANUP] Number ${num.phoneNumber} saved by local DB messages!`)
                             continue
                         }
 
                         // 2. Active Cancellation
                         await smsProvider.cancelNumber(num.activationId)
-                        console.log(`[NUMBER-CLEANUP] Cancelled at provider: ${num.activationId}`)
+                        logger.info(`[NUMBER-CLEANUP] Cancelled at provider: ${num.activationId}`)
                     } catch (err: any) {
-                        console.warn(`[NUMBER-CLEANUP] Provider check/cancel failed for ${num.id}:`, err.message)
+                        logger.warn(`[NUMBER-CLEANUP] Provider check/cancel failed for ${num.id}: ${err.message}`)
                         // Continue anyway, we need to clear our DB
                     }
                 }
@@ -207,11 +208,11 @@ async function cleanupExpiredNumbers(): Promise<number> {
 
                 expiredCount++
             } catch (e) {
-                console.error(`[NUMBER-CLEANUP] Failed to expire number ${num.id}:`, e)
+                logger.error(`[NUMBER-CLEANUP] Failed to expire number ${num.id}`, { error: e })
             }
         }
     } catch (error) {
-        console.error('[NUMBER-CLEANUP] Batch error:', error)
+        logger.error('[NUMBER-CLEANUP] Batch error', { error })
     }
 
     return expiredCount
@@ -231,7 +232,7 @@ async function purgeOldReservations(olderThanDays = 7): Promise<number> {
     })
 
     if (result.count > 0) {
-        console.log(`[RESERVATION-CLEANUP] Purged ${result.count} old reservations`)
+        logger.info(`[RESERVATION-CLEANUP] Purged ${result.count} old reservations`)
     }
 
     return result.count
@@ -252,7 +253,7 @@ async function runCleanup(): Promise<void> {
             await purgeOldReservations()
         }
     } catch (error) {
-        console.error('[RESERVATION-CLEANUP] Error:', error)
+        logger.error('[RESERVATION-CLEANUP] Error', { error })
     }
 }
 
@@ -261,12 +262,12 @@ async function runCleanup(): Promise<void> {
  */
 export function startReservationCleanup(): void {
     if (isRunning) {
-        console.log('[RESERVATION-CLEANUP] Already running')
+        logger.debug('[RESERVATION-CLEANUP] Already running')
         return
     }
 
     isRunning = true
-    console.log(`[RESERVATION-CLEANUP] Starting worker (interval: ${CLEANUP_INTERVAL_MS}ms)`)
+    logger.info(`[RESERVATION-CLEANUP] Starting worker (interval: ${CLEANUP_INTERVAL_MS}ms)`)
 
     // Initial run
     runCleanup()
@@ -286,7 +287,7 @@ export function stopReservationCleanup(): void {
         clearInterval(cleanupInterval)
         cleanupInterval = null
     }
-    console.log('[RESERVATION-CLEANUP] Worker stopped')
+    logger.info('[RESERVATION-CLEANUP] Worker stopped')
 }
 
 /**

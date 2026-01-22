@@ -140,16 +140,21 @@ export class EmailService {
             // 2. Render React component to HTML
             const html = await render(component)
 
-            // 3. Mock sending if no keys configured
+            // 3. Mock sending if no keys configured (DEV ONLY)
             if (keyPool.totalKeys === 0) {
-                console.log('📧 [Email Mock] --------------------------------')
+                if (process.env.NODE_ENV === 'production') {
+                    console.error('[EmailService] CRITICAL: No Resend API keys in production!')
+                    return { success: false, error: 'Email service not configured' }
+                }
+
+                console.log('📧 [Email Mock - DEV ONLY] -----------------------')
                 console.log(`From: ${from}`)
                 console.log(`To: ${to}`)
                 console.log(`Subject: ${subject}`)
                 console.log('--- HTML Preview (truncated) ---')
                 console.log(html.substring(0, 500) + '...')
                 console.log('------------------------------------------------')
-                return { success: true, id: 'mock-id' }
+                return { success: true, id: 'mock-dev-only' }
             }
 
             // 4. Attempt to send with key rotation

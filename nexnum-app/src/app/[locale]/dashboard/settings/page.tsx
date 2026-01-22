@@ -27,6 +27,7 @@ import { useGlobalStore } from "@/store"
 import { useAuthStore } from "@/stores/authStore"
 import { cn } from "@/lib/utils/utils"
 import { NotificationSettings } from "@/components/dashboard/settings/NotificationSettings"
+import { TwoFactorSetup } from "@/components/dashboard/settings/TwoFactorSetup"
 import { useCurrency } from "@/providers/CurrencyProvider"
 
 // Tab Configuration
@@ -269,19 +270,10 @@ export default function SettingsPage() {
 
                                 {/* 2FA Toggle */}
                                 <Card className="border-white/10 bg-card/30 backdrop-blur-xl">
-                                    <CardContent className="flex items-center justify-between p-6">
-                                        <div className="space-y-1">
-                                            <h3 className="font-semibold flex items-center gap-2">
-                                                <Smartphone className="h-4 w-4 text-emerald-400" />
-                                                Two-Factor Authentication
-                                            </h3>
-                                            <p className="text-sm text-muted-foreground">Add an extra layer of security to your account</p>
-                                        </div>
-                                        <Switch
-                                            checked={twoFactor}
-                                            onCheckedChange={setTwoFactor}
-                                        />
-                                    </CardContent>
+                                    <TwoFactorSetup
+                                        enabled={twoFactor}
+                                        onStatusChange={setTwoFactor}
+                                    />
                                 </Card>
                             </motion.div>
                         )}

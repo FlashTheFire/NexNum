@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { AlertTriangle, RefreshCcw, Home } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DashboardBackground } from './components/dashboard-background'
+import { captureError } from '@/lib/monitoring/sentry'
 
 export default function Error({
     error,
@@ -15,6 +16,7 @@ export default function Error({
     useEffect(() => {
         // Log to Sentry
         console.error('Dashboard Error:', error)
+        captureError(error, { digest: error.digest })
     }, [error])
 
     return (

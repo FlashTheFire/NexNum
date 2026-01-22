@@ -8,5 +8,6 @@ export default defineConfig({
         alias: {
             '@': '/src',
         },
+        exclude: ['**/node_modules/**', '**/dist/**', 'e2e/**'],
     },
 })

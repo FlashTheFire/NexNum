@@ -1,7 +1,13 @@
 import { SignJWT, jwtVerify, type JWTPayload } from 'jose'
 import { cookies } from 'next/headers'
+import { prisma } from '@/lib/core/db'
 
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'dev-secret-change-in-production')
+// SECURITY: No fallback secret - must be configured via environment variable
+const JWT_SECRET_RAW = process.env.JWT_SECRET
+if (!JWT_SECRET_RAW && process.env.NODE_ENV === 'production') {
+    throw new Error('CRITICAL: JWT_SECRET environment variable is required in production')
+}
+const JWT_SECRET = new TextEncoder().encode(JWT_SECRET_RAW || 'dev-only-not-for-production')
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d'  // Extended from 15m to 7 days
 
 export interface TokenPayload extends JWTPayload {
@@ -9,6 +15,7 @@ export interface TokenPayload extends JWTPayload {
     email: string
     name: string
     role: string // 'USER' | 'ADMIN'
+    version: number
 }
 
 // Generate JWT token
@@ -40,24 +47,44 @@ export function getTokenFromHeaders(headers: Headers): string | null {
 // Get current user from cookies or headers
 export async function getCurrentUser(headers: Headers): Promise<TokenPayload | null> {
     // Try Authorization header first
+    let payload: TokenPayload | null = null
     const headerToken = getTokenFromHeaders(headers)
     if (headerToken) {
-        const payload = await verifyToken(headerToken)
-        if (payload) return payload
+        payload = await verifyToken(headerToken)
     }
 
     // Try cookie
-    try {
-        const cookieStore = await cookies()
-        const cookieToken = cookieStore.get('token')?.value
-        if (cookieToken) {
-            return verifyToken(cookieToken)
+    if (!payload) {
+        try {
+            const cookieStore = await cookies()
+            const cookieToken = cookieStore.get('token')?.value
+            if (cookieToken) {
+                payload = await verifyToken(cookieToken)
+            }
+        } catch {
+            // cookies() not available in some contexts
         }
-    } catch {
-        // cookies() not available in some contexts
     }
 
-    return null
+    if (!payload) return null
+
+    // Check against DB for token version (Logout Everywhere)
+    try {
+        const user = await prisma.user.findUnique({
+            where: { id: payload.userId },
+            select: { tokenVersion: true, isBanned: true }
+        })
+
+        if (!user) return null
+        if (user.isBanned) return null
+        if (user.tokenVersion !== payload.version) return null
+
+        return payload
+    } catch (dbError) {
+        console.error('Session verification failed:', dbError)
+        // Fail closed for security (or open if DB down? Security usually prefers closed)
+        return null
+    }
 }
 
 // Set auth cookie

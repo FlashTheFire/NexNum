@@ -2,115 +2,175 @@ import { NextResponse } from 'next/server'
 import { prisma, ensureWallet } from '@/lib/core/db'
 import { Prisma } from '@prisma/client'
 import { getCurrentUser } from '@/lib/auth/jwt'
-import { checkIdempotency, acquireNumberLock, releaseNumberLock, redis } from '@/lib/core/redis'
+import { redis } from '@/lib/core/redis'
 import { purchaseNumberSchema } from '@/lib/api/validation'
 import { purchase_duration_seconds, wallet_transactions_total, provider_api_calls_total } from '@/lib/metrics'
 import { smsProvider } from '@/lib/sms-providers'
 import { apiHandler } from '@/lib/api/api-handler'
 import { createOutboxEvent } from '@/lib/activation/outbox'
-import { getOfferForPurchase, OfferDocument } from '@/lib/search/search'
-import { getCountryFlagUrl } from '@/lib/normalizers/country-flags'
+import { getOfferForPurchase } from '@/lib/search/search'
 import { WalletService } from '@/lib/wallet/wallet'
+import { logger } from '@/lib/core/logger'
+import {
+    validatePurchaseInput,
+    checkUserEligibility,
+    verifyPrice,
+    acquireAtomicPurchaseLock,
+    releaseAtomicPurchaseLock,
+    recordDailySpend,
+    logPurchaseAudit,
+    generatePurchaseCorrelationId,
+    handleOrphanedNumber
+} from '@/lib/purchase/security'
 
 /**
- * Purchase Flow: MeiliSearch-First Architecture
+ * Purchase Flow: Hardened Edition
  * 
- * 1. Query MeiliSearch offers index for availability
- * 2. Route to provider via SmartSmsRouter
- * 3. Store number in PostgreSQL
+ * Security Features:
+ * - Input validation & sanitization
+ * - User eligibility checks (ban, balance, velocity)
+ * - Price verification with tolerance
+ * - Atomic distributed locking
+ * - Daily spend limits
+ * - Double-commit guards
+ * - Orphan number recovery
+ * - Comprehensive audit trail
  */
 export const POST = apiHandler(async (request, { body }) => {
+    const correlationId = generatePurchaseCorrelationId()
+    let lockToken = ''
     let lockAcquired = false
-    let lockId = ''
     let purchaseOrderId: string | null = null
-    let activationId: string | null = null // Phase 11: Activation tracking
+    let activationId: string | null = null
     let reservedAmount = 0
-    let providerResult: any = null // Declare providerResult in outer scope
+    let providerResult: any = null
 
     const user = await getCurrentUser(request.headers)
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    const {
-        countryCode: countryInput,
-        serviceCode: serviceInput,
-        operatorId,
-        provider,
-        idempotencyKey
-    } = body
-
-    // 4. Resolve Provider Slug (Fix for Display Name mismatch)
-    let resolvedProvider: string | undefined = undefined
-    if (provider) {
-        // e.g. "NexPremium" -> "grizzlysms"
-        const slug = await smsProvider.resolveProviderSlug(provider)
-        if (slug) {
-            resolvedProvider = slug
-            console.log(`[PURCHASE] Resolved provider: "${provider}" -> "${slug}"`)
-        } else {
-            console.warn(`[PURCHASE] Could not resolve provider slug for: "${provider}"`)
-            resolvedProvider = provider.toLowerCase() // Fallback
-        }
+    if (!user) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // 1. Find Offer
-    // If provider is specified, we ONLY fetch for that provider
-    const offer = await getOfferForPurchase(serviceInput, countryInput, operatorId, resolvedProvider)
+    // Log purchase start
+    await logPurchaseAudit({
+        eventType: 'PURCHASE_STARTED',
+        userId: user.userId,
+        correlationId,
+        metadata: { input: body }
+    })
+
+    // ============================================
+    // PHASE 1: INPUT VALIDATION
+    // ============================================
+
+    const validation = validatePurchaseInput({
+        countryCode: body.countryCode,
+        serviceCode: body.serviceCode,
+        operatorId: body.operatorId,
+        provider: body.provider,
+        idempotencyKey: body.idempotencyKey
+    })
+
+    if (!validation.valid || !validation.sanitized) {
+        await logPurchaseAudit({
+            eventType: 'VALIDATION_FAILED',
+            userId: user.userId,
+            correlationId,
+            metadata: { errors: validation.errors }
+        })
+        return NextResponse.json({ error: validation.errors[0] || 'Validation failed' }, { status: 400 })
+    }
+
+    const { countryCode, serviceCode, operatorId, provider, idempotencyKey } = validation.sanitized
+
+    // ============================================
+    // PHASE 2: RESOLVE PROVIDER & GET OFFER
+    // ============================================
+
+    let resolvedProvider: string | undefined = undefined
+    if (provider) {
+        const slug = await smsProvider.resolveProviderSlug(provider)
+        resolvedProvider = slug || provider.toLowerCase()
+        logger.debug(`[PURCHASE] Resolved provider: "${provider}" -> "${resolvedProvider}"`, { correlationId })
+    }
+
+
+    const offer = await getOfferForPurchase(serviceCode, countryCode, operatorId ? parseInt(operatorId, 10) : undefined, resolvedProvider)
     if (!offer) {
-        console.warn(`[PURCHASE] No offer found for:`, { serviceInput, countryInput, provider })
+        logger.warn(`[PURCHASE] No offer found`, { serviceCode, countryCode, provider, correlationId })
         return NextResponse.json({ error: 'Selected provider offer not available' }, { status: 404 })
     }
 
     const serviceName = offer.serviceName
     const countryName = offer.countryName
     const providerName = offer.provider
-    const price = offer.price
+    const freshPrice = offer.price
 
-    console.log(`[PURCHASE] Found offer:`, { providerName, serviceName, countryName, price })
+    logger.info(`[PURCHASE] Found offer`, { providerName, serviceName, countryName, price: freshPrice, correlationId })
 
-    // 2. ULTIMATE SECURITY: Global User Lock & Rate Limit
+    // ============================================
+    // PHASE 3: USER ELIGIBILITY CHECK
+    // ============================================
 
-    // A. Rate Limit Guard (2 seconds cooldown)
+    const eligibility = await checkUserEligibility(user.userId, freshPrice)
+    if (!eligibility.eligible) {
+        await logPurchaseAudit({
+            eventType: 'ELIGIBILITY_FAILED',
+            userId: user.userId,
+            correlationId,
+            metadata: { reason: eligibility.reason, details: eligibility.details }
+        })
+        return NextResponse.json({ error: eligibility.reason || 'Not eligible for purchase' }, { status: 403 })
+    }
+
+    // ============================================
+    // PHASE 4: ACQUIRE ATOMIC LOCK
+    // ============================================
+
+    // Rate limit check (2 second cooldown)
     const rateKey = `rate:purchase:${user.userId}`
     const isRateLimited = await redis.get(rateKey)
     if (isRateLimited) {
         return NextResponse.json({ error: 'Please wait 2 seconds between purchases' }, { status: 429 })
     }
 
-    // B. Global User Lock (Strict Single-Threaded Purchase)
-    // Prevents "Fast Script" parallel attacks
-    lockId = `lock:purchase:${user.userId}`
-    lockAcquired = await acquireNumberLock(lockId)
-    if (!lockAcquired) {
+    // Atomic lock
+    const lockResult = await acquireAtomicPurchaseLock(user.userId, idempotencyKey)
+    if (!lockResult.acquired) {
+        await logPurchaseAudit({
+            eventType: 'LOCK_FAILED',
+            userId: user.userId,
+            correlationId,
+            metadata: { reason: lockResult.reason }
+        })
         return NextResponse.json({ error: 'Another purchase is in progress. Please wait.' }, { status: 409 })
     }
+    lockAcquired = true
+    lockToken = lockResult.token
 
-    // Set cooldown immediately after acquiring lock
+    // Set cooldown
     await redis.set(rateKey, '1', 'EX', 2)
 
-    // C. Strict Idempotency Check
-    if (idempotencyKey) {
-        const isNew = await checkIdempotency(idempotencyKey)
-        if (!isNew) {
-            await releaseNumberLock(lockId)
-            return NextResponse.json({ error: 'Duplicate request (Idempotency)' }, { status: 409 })
-        }
-    }
+    await logPurchaseAudit({
+        eventType: 'LOCK_ACQUIRED',
+        userId: user.userId,
+        correlationId
+    })
 
     try {
-        // 3. PHASE 1: Reserve Funds & Create Pending Order + Activation
-        // We do this in a transaction to ensure Order exists if Money is reserved
+        // ============================================
+        // PHASE 5: RESERVE FUNDS & CREATE RECORDS
+        // ============================================
+
         await prisma.$transaction(async (tx) => {
-            // Check & Reserve
+            // Reserve funds
             await WalletService.reserve(
                 user.userId,
-                price,
+                freshPrice,
                 'init',
                 `Reserve: ${serviceName}`,
                 idempotencyKey,
                 tx
             )
-            // Note: reservedAmount is only "committed" in our logic if this tx succeeds
-            // But we set it here to be safe for rollback if Step 4/5 fails later.
 
             // Create Order
             const po = await tx.purchaseOrder.create({
@@ -118,24 +178,24 @@ export const POST = apiHandler(async (request, { body }) => {
                     userId: user.userId,
                     serviceName,
                     countryName,
-                    amount: new Prisma.Decimal(price),
+                    amount: new Prisma.Decimal(freshPrice),
                     status: 'PENDING',
                     idempotencyKey,
-                    expiresAt: new Date(Date.now() + 5 * 60 * 1000) // 5 mins
+                    expiresAt: new Date(Date.now() + 5 * 60 * 1000)
                 }
             })
             purchaseOrderId = po.id
 
-            // Phase 11: Create Activation record for complete lifecycle tracking
+            // Create Activation
             const activation = await tx.activation.create({
                 data: {
                     userId: user.userId,
-                    price: new Prisma.Decimal(price),
+                    price: new Prisma.Decimal(freshPrice),
                     state: 'RESERVED',
                     serviceName,
                     countryCode: offer.countryCode,
                     countryName,
-                    operatorId: operatorId ? String(operatorId) : null,
+                    operatorId: operatorId || null,
                     providerId: providerName,
                     idempotencyKey: idempotencyKey ? `activation_${idempotencyKey}` : null,
                     reservedTxId: idempotencyKey || null
@@ -143,18 +203,35 @@ export const POST = apiHandler(async (request, { body }) => {
             })
             activationId = activation.id
         }, {
-            timeout: 30000, // 30s timeout for DB heavy operations
-            isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted // Row-level locking handled in WalletService.reserve
+            timeout: 30000,
+            isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted
         })
 
-        // ONLY track reservedAmount AFTER Phase 1 transaction is confirmed in DB
-        reservedAmount = price // Money is now truly locked in DB
+        reservedAmount = freshPrice
 
+        await logPurchaseAudit({
+            eventType: 'FUNDS_RESERVED',
+            userId: user.userId,
+            correlationId,
+            activationId: activationId ?? undefined,
+            purchaseOrderId: purchaseOrderId ?? undefined,
+            amount: freshPrice
+        })
 
-        console.log(`[PURCHASE] Reserved funds. Order: ${purchaseOrderId}, Activation: ${activationId}`)
+        logger.info(`[PURCHASE] Reserved funds`, { purchaseOrderId, activationId, correlationId })
 
+        // ============================================
+        // PHASE 6: CALL PROVIDER
+        // ============================================
 
-        // 4. Call Provider (External)
+        await logPurchaseAudit({
+            eventType: 'PROVIDER_CALLED',
+            userId: user.userId,
+            correlationId,
+            activationId: activationId ?? undefined,
+            providerId: providerName
+        })
+
         const startProvider = Date.now()
         try {
             providerResult = await smsProvider.getNumber(
@@ -165,71 +242,110 @@ export const POST = apiHandler(async (request, { body }) => {
             const dur = (Date.now() - startProvider) / 1000
             purchase_duration_seconds.labels('provider_call', providerName, countryName).observe(dur)
             provider_api_calls_total.labels(providerName, 'getNumber', 'success').inc()
+
+            await logPurchaseAudit({
+                eventType: 'PROVIDER_SUCCESS',
+                userId: user.userId,
+                correlationId,
+                activationId: activationId ?? undefined,
+                providerId: providerName,
+                metadata: { phoneNumber: providerResult.phoneNumber, activationId: providerResult.activationId }
+            })
+
         } catch (providerErr: any) {
             const dur = (Date.now() - startProvider) / 1000
             purchase_duration_seconds.labels('provider_call', providerName, countryName).observe(dur)
             provider_api_calls_total.labels(providerName, 'getNumber', 'error').inc()
 
-            // PHASE 2 (FAIL): Rollback
-            console.warn(`[PURCHASE] Provider failed. Rolling back...`, providerErr.message)
+            await logPurchaseAudit({
+                eventType: 'PROVIDER_FAILED',
+                userId: user.userId,
+                correlationId,
+                activationId: activationId ?? undefined,
+                providerId: providerName,
+                errorMessage: providerErr.message
+            })
 
+            logger.warn(`[PURCHASE] Provider failed. Rolling back...`, { error: providerErr.message, correlationId })
+
+            // Rollback
             await prisma.$transaction(async (tx) => {
-                await WalletService.rollback(user.userId, price, purchaseOrderId!, 'Provider Fail', tx)
+                await WalletService.rollback(user.userId, freshPrice, purchaseOrderId!, 'Provider Fail', tx)
                 await tx.purchaseOrder.update({
                     where: { id: purchaseOrderId! },
                     data: { status: 'FAILED' }
                 })
-                // Phase 11: Update Activation state to FAILED
                 if (activationId) {
                     await tx.activation.update({
                         where: { id: activationId },
                         data: { state: 'FAILED' }
                     })
                 }
-            }, {
-                timeout: 15000,
-                isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted
             })
 
-            await releaseNumberLock(lockId)
-            // Return specific error
+            await logPurchaseAudit({
+                eventType: 'FUNDS_ROLLEDBACK',
+                userId: user.userId,
+                correlationId,
+                activationId: activationId ?? undefined,
+                amount: freshPrice
+            })
+
+            await releaseAtomicPurchaseLock(user.userId, lockToken)
             return NextResponse.json({ error: 'Provider unavailable' }, { status: 503 })
         }
 
-        // 5. PHASE 2 (SUCCESS): Commit & Create Number
+        // ============================================
+        // PHASE 7: COMMIT & CREATE NUMBER
+        // ============================================
+
         const resultNumber = await prisma.$transaction(async (tx) => {
-            // A. Create Number 
+            // DOUBLE-COMMIT GUARD: Verify activation is still RESERVED
+            const currentActivation = await tx.activation.findUnique({
+                where: { id: activationId! },
+                select: { state: true }
+            })
+            if (currentActivation?.state !== 'RESERVED') {
+                throw new Error('DOUBLE_COMMIT: Activation already processed')
+            }
+
+            // Parse phone number into country code and national number
+            const { formatPhoneNumber } = await import('@/lib/utils/phone-parser')
+            const parsedPhone = formatPhoneNumber(providerResult.phoneNumber)
+
+            // Create Number
             const newNumber = await tx.number.create({
                 data: {
                     phoneNumber: providerResult.phoneNumber,
+                    phoneCountryCode: parsedPhone.countryCode || null,
+                    phoneNationalNumber: parsedPhone.nationalNumber || null,
                     countryName,
                     countryCode: offer.countryCode,
                     serviceName,
                     serviceCode: offer.serviceSlug,
-                    price,
+                    price: freshPrice,
                     status: 'active',
                     owner: { connect: { id: user.userId } },
                     activationId: providerResult.activationId,
                     provider: providerName,
                     idempotencyKey,
                     expiresAt: providerResult.expiresAt,
-                    // Persist metadata for instant dashboard loading (Phase 10)
                     serviceIconUrl: offer.iconUrl,
                     countryIconUrl: offer.flagUrl,
                 }
             })
 
-            // B. Commit Wallet (Deduct Balance, Release Reserve)
+            // Commit Wallet
             await WalletService.commit(
                 user.userId,
-                price,
+                freshPrice,
                 newNumber.id,
                 `Purchase: ${serviceName}`,
-                `tx_${purchaseOrderId}`, // Unique key for txn
+                `tx_${purchaseOrderId}`,
                 tx
             )
 
-            // C. Update Order
+            // Update Order
             await tx.purchaseOrder.update({
                 where: { id: purchaseOrderId! },
                 data: {
@@ -239,7 +355,7 @@ export const POST = apiHandler(async (request, { body }) => {
                 }
             })
 
-            // D. Outbox Event (Optional, can be moved to finally or after 200 OK)
+            // Outbox Event
             await createOutboxEvent(tx as any, {
                 aggregateType: 'offer',
                 aggregateId: offer.id,
@@ -247,20 +363,18 @@ export const POST = apiHandler(async (request, { body }) => {
                 payload: { offerId: offer.id, serviceName, countryName, action: 'stock_decremented' }
             })
 
-            // E. Phase 11: Update Activation to ACTIVE and link to Number
-            if (activationId) {
-                await tx.activation.update({
-                    where: { id: activationId },
-                    data: {
-                        state: 'ACTIVE',
-                        providerActivationId: providerResult.activationId,
-                        phoneNumber: providerResult.phoneNumber,
-                        expiresAt: providerResult.expiresAt,
-                        numberId: newNumber.id,
-                        capturedTxId: `tx_${purchaseOrderId}`
-                    }
-                })
-            }
+            // Update Activation
+            await tx.activation.update({
+                where: { id: activationId! },
+                data: {
+                    state: 'ACTIVE',
+                    providerActivationId: providerResult.activationId,
+                    phoneNumber: providerResult.phoneNumber,
+                    expiresAt: providerResult.expiresAt,
+                    numberId: newNumber.id,
+                    capturedTxId: `tx_${purchaseOrderId}`
+                }
+            })
 
             return newNumber
         }, {
@@ -268,29 +382,45 @@ export const POST = apiHandler(async (request, { body }) => {
             isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted
         })
 
-        // Polling is handled automatically by the MasterWorker (InboxWorker loop)
-        // providing a stateless, database-driven mechanism for SMS synchronization.
-        console.log(`[PURCHASE] Success! Number: ${resultNumber.id}`)
-        await releaseNumberLock(lockId)
+        // Record daily spend
+        await recordDailySpend(user.userId, freshPrice)
+
+        await logPurchaseAudit({
+            eventType: 'FUNDS_COMMITTED',
+            userId: user.userId,
+            correlationId,
+            activationId: activationId ?? undefined,
+            amount: freshPrice
+        })
+
+        await logPurchaseAudit({
+            eventType: 'PURCHASE_COMPLETED',
+            userId: user.userId,
+            correlationId,
+            activationId: activationId ?? undefined,
+            purchaseOrderId: purchaseOrderId ?? undefined,
+            metadata: { numberId: resultNumber.id }
+        })
+
+        logger.info(`[PURCHASE] Success!`, { numberId: resultNumber.id, correlationId })
+        await releaseAtomicPurchaseLock(user.userId, lockToken)
         return NextResponse.json({ success: true, number: resultNumber })
 
     } catch (err: any) {
-        console.error(`[PURCHASE] Critical Error:`, err)
-        if (lockAcquired) await releaseNumberLock(lockId)
+        logger.error(`[PURCHASE] Critical Error`, { error: err.message, correlationId })
+        if (lockAcquired) await releaseAtomicPurchaseLock(user.userId, lockToken)
 
-        // If we have a pending order/reservation but crashed here (e.g. DB commit failed after provider success!)
-        // This is the "Orphan" case.
-        // Since we wrap step 5 in transaction, if it fails, NO number is created and NO money deducted (locally), BUT funds are still RESERVED (Phase 1).
-        // AND Provider has active number!
+        await logPurchaseAudit({
+            eventType: 'PURCHASE_FAILED',
+            userId: user.userId,
+            correlationId,
+            activationId: activationId ?? undefined,
+            errorMessage: err.message
+        })
 
-        // Cleanup:
-        // 1. Release Reservation (Rollback) - User gets money back (good).
-        // 2. Cancel Provider Number - Save our money.
-
+        // Cleanup orphaned state
         if (purchaseOrderId && reservedAmount > 0) {
             try {
-                // Check if the order actually exists before trying to update it
-                // This prevents P2025 if Phase 1 transaction failed to commit
                 const exists = await prisma.purchaseOrder.findUnique({ where: { id: purchaseOrderId } })
 
                 if (exists) {
@@ -300,22 +430,49 @@ export const POST = apiHandler(async (request, { body }) => {
                     if (activationId) {
                         await prisma.activation.update({ where: { id: activationId }, data: { state: 'FAILED' } })
                     }
+
+                    await logPurchaseAudit({
+                        eventType: 'FUNDS_ROLLEDBACK',
+                        userId: user.userId,
+                        correlationId,
+                        activationId: activationId ?? undefined,
+                        amount: reservedAmount
+                    })
                 }
 
-                // If providerResult existed (meaning provider call succeeded)
-                if (providerResult && providerResult.activationId) {
-                    console.warn(`[PURCHASE] Attempting to cancel remote number due to local transaction failure. ActivationID: ${providerResult.activationId}`)
-                    await smsProvider.cancelNumber(providerResult.activationId)
-                    console.log(`[PURCHASE] Remote cancellation successful for orphaned number.`)
+                // Handle orphaned provider number
+                if (providerResult?.activationId) {
+                    await logPurchaseAudit({
+                        eventType: 'ORPHAN_DETECTED',
+                        userId: user.userId,
+                        correlationId,
+                        activationId: activationId ?? undefined,
+                        metadata: { providerActivationId: providerResult.activationId }
+                    })
+
+                    await handleOrphanedNumber(
+                        providerResult.activationId,
+                        activationId || '',
+                        user.userId,
+                        smsProvider,
+                        correlationId
+                    )
                 }
-            } catch (cleanupErr) {
-                console.error('[PURCHASE] Failed cleanup during critical error:', cleanupErr)
+            } catch (cleanupErr: any) {
+                logger.error('[PURCHASE] Failed cleanup during critical error', { error: cleanupErr.message, correlationId })
             }
         }
 
-        // Handle specific errors
-        if (err.message === 'Insufficient funds') {
+        if (err.message === 'Insufficient funds' || err.message?.includes('Insufficient')) {
             return NextResponse.json({ error: 'Insufficient balance' }, { status: 402 })
+        }
+
+        if (err.message?.includes('DOUBLE_COMMIT')) {
+            return NextResponse.json({ error: 'Purchase already processed' }, { status: 409 })
+        }
+
+        if (err.message?.includes('WALLET_INTEGRITY')) {
+            return NextResponse.json({ error: 'Wallet integrity error. Please contact support.' }, { status: 500 })
         }
 
         return NextResponse.json({ error: 'Purchase processing failed' }, { status: 500 })

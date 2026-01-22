@@ -18,7 +18,15 @@ model User {
   updatedAt               DateTime                 @updatedAt @map("updated_at")
   role                    Role                     @default(USER)
   isBanned                Boolean                  @default(false) @map("is_banned")
+  emailVerified           DateTime?                @map("email_verified")
+  tokenVersion            Int                      @default(1) @map("token_version")
   preferredCurrency       String?                  @map("preferred_currency") // e.g. "USD", "EUR", "POINTS"
+  
+  // 2FA Fields
+  twoFactorEnabled      Boolean  @default(false)
+  twoFactorSecret       String?
+  twoFactorBackupCodes  String[] @default([])
+
   auditLogs               AuditLog[]
   numbers                 Number[]
   wallet                  Wallet?
@@ -27,6 +35,10 @@ model User {
   notifications           Notification[]
   pushSubscriptions       PushSubscription[]
   notificationPreferences NotificationPreferences?
+  apiKeys                 ApiKey[]
+  webhooks                Webhook[]
+  passwordResets          PasswordReset[]
+  emailVerificationTokens EmailVerificationToken[]
 
   @@map("users")
 }
@@ -137,24 +149,29 @@ model PurchaseOrder {
 }
 
 model Number {
-  id             String       @id @default(uuid())
-  phoneNumber    String       @map("phone_number")
-  countryCode    String       @map("country_code")
-  countryName    String?      @map("country_name")
-  countryIconUrl String?      @map("country_icon_url")
-  serviceName    String?      @map("service_name")
-  serviceCode    String?      @map("service_code")
-  serviceIconUrl String?      @map("service_icon_url")
-  price          Decimal      @db.Decimal(8, 2)
-  status         String       @default("available")
-  ownerId        String?      @map("owner_id")
-  activationId   String?      @map("activation_id")
-  provider       String?
-  idempotencyKey String?      @unique @map("idempotency_key") // For purchase safety
+  id                   String       @id @default(uuid())
+  phoneNumber          String       @map("phone_number")
+  phoneCountryCode     String?      @map("phone_country_code")    // Phone country code (e.g., "+1", "+91")
+  phoneNationalNumber  String?      @map("phone_national_number") // National number without country code
+  countryCode          String       @map("country_code")
+  countryName          String?      @map("country_name")
+  countryIconUrl       String?      @map("country_icon_url")
+  serviceName          String?      @map("service_name")
+  serviceCode          String?      @map("service_code")
+  serviceIconUrl       String?      @map("service_icon_url")
+  price                Decimal      @db.Decimal(8, 2)
+  status               String       @default("available")
+  ownerId              String?      @map("owner_id")
+  activationId         String?      @map("activation_id")
+  provider             String?
+  idempotencyKey       String?      @unique @map("idempotency_key") // For purchase safety
   expiresAt      DateTime?    @map("expires_at")
   purchasedAt    DateTime?    @map("purchased_at")
   pollCount      Int          @default(0) @map("poll_count")
   nextPollAt     DateTime?    @default(now()) @map("next_poll_at")
+  lastPolledAt   DateTime?    @map("last_polled_at")
+  errorCount     Int          @default(0) @map("error_count")
+  lastError      String?      @map("last_error")
   createdAt      DateTime     @default(now()) @map("created_at")
   updatedAt      DateTime?    @updatedAt @map("updated_at")
   owner          User?        @relation(fields: [ownerId], references: [id])
@@ -300,6 +317,7 @@ model Provider {
 
   @@index([isActive])
   @@index([priority])
+  @@index([isActive, priority]) // Fast selection of active providers ordered by priority
   @@map("providers")
 }
 
@@ -372,6 +390,7 @@ model ProviderPricing {
   @@index([serviceId])
   @@index([sellPrice])
   @@index([stock])
+  @@index([deleted, stock, serviceId]) // Aggregate calculation speedup
   @@map("provider_pricing")
 }
 
@@ -501,6 +520,8 @@ model ServiceAggregate {
   lastUpdatedAt DateTime @default(now()) @map("last_updated_at")
 
   @@index([lowestPrice])
+  @@index([totalStock]) // Sort by stock
+  @@index([serviceName]) // Sort by name
   @@map("service_aggregates")
 }
 
@@ -616,3 +637,110 @@ model SystemSettings {
 }
 
 // ============================================
+// API KEY & WEBHOOK SYSTEM
+// ============================================
+
+model ApiKey {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  name        String    // Human-readable name ("Production Key", "Test Key")
+  keyHash     String    @unique @map("key_hash") // SHA-256 hash of full key
+  prefix      String    // First 8 chars for identification (e.g., "nxn_live_")
+  permissions String[]  // ["read", "write", "numbers", "sms", "wallet"]
+  tier        ApiTier   @default(FREE)
+  rateLimit   Int       @default(60) @map("rate_limit") // requests per minute
+  usageCount  BigInt    @default(0) @map("usage_count") // total lifetime usage
+  lastUsedAt  DateTime? @map("last_used_at")
+  lastUsedIp  String?   @map("last_used_ip")
+  expiresAt   DateTime? @map("expires_at")
+  isActive    Boolean   @default(true) @map("is_active")
+  ipWhitelist String[]  @map("ip_whitelist") // Empty = allow all
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([prefix])
+  @@index([isActive])
+  @@map("api_keys")
+}
+
+enum ApiTier {
+  FREE       // 60 req/min, basic features
+  PRO        // 300 req/min, all features
+  ENTERPRISE // 1000 req/min, priority support
+}
+
+model Webhook {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  url         String    // HTTPS endpoint
+  secret      String    // For HMAC-SHA256 signing
+  events      String[]  // ["sms.received", "number.expired", "balance.low"]
+  isActive    Boolean   @default(true) @map("is_active")
+  failCount   Int       @default(0) @map("fail_count") // Consecutive failures
+  lastTriedAt DateTime? @map("last_tried_at")
+  lastSuccessAt DateTime? @map("last_success_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveries WebhookDelivery[]
+
+  @@index([userId])
+  @@index([isActive])
+  @@map("webhooks")
+}
+
+model WebhookDelivery {
+  id           String   @id @default(uuid())
+  webhookId    String   @map("webhook_id")
+  event        String   // e.g., "sms.received"
+  payload      Json     // Full event payload
+  status       String   @default("pending") // pending, delivered, failed
+  responseCode Int?     @map("response_code")
+  responseBody String?  @map("response_body") @db.Text
+  durationMs   Int?     @map("duration_ms")
+  attempts     Int      @default(0)
+  nextRetryAt  DateTime? @map("next_retry_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  deliveredAt  DateTime? @map("delivered_at")
+
+  webhook Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId])
+  @@index([status])
+  @@index([nextRetryAt])
+  @@map("webhook_deliveries")
+}
+
+model PasswordReset {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  token     String    @unique // Secure random token
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  ipAddress String?   @map("ip_address")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("password_resets")
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  token     String    @unique
+  expiresAt DateTime  @map("expires_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("email_verification_tokens")
+}

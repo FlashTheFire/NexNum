@@ -58,7 +58,7 @@ interface GlobalState {
 
     // Actions - Mutations via API
     topUp: (amount: number) => Promise<{ success: boolean; error?: string }>
-    purchaseNumber: (countryCode: string, serviceCode: string, provider?: string, testMode?: boolean) => Promise<{ success: boolean; number?: api.PhoneNumber; error?: string }>
+    purchaseNumber: (countryCode: string, serviceCode: string, provider?: string) => Promise<{ success: boolean; number?: api.PhoneNumber; error?: string }>
     cancelNumber: (id: string) => Promise<{ success: boolean; error?: string }>
     pollSms: (numberId: string) => Promise<api.SmsMessage[]>
     updateNumber: (id: string, data: Partial<ActiveNumber>) => void
@@ -197,7 +197,7 @@ export const useGlobalStore = create<GlobalState>()(
             },
 
             // Purchase number via API
-            purchaseNumber: async (countryCode: string, serviceCode: string, provider?: string, testMode?: boolean) => {
+            purchaseNumber: async (countryCode: string, serviceCode: string, provider?: string) => {
                 // OPTIMISTIC UPDATE
                 const tempId = 'temp-' + Date.now()
                 const optimisticNumber: ActiveNumber = {
@@ -218,7 +218,7 @@ export const useGlobalStore = create<GlobalState>()(
                 }))
 
                 try {
-                    const result = await api.purchaseNumber(countryCode, serviceCode, provider, testMode)
+                    const result = await api.purchaseNumber(countryCode, serviceCode, provider)
 
                     if (result.success && result.number) {
                         // REPLACE optimistic with real

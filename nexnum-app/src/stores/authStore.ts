@@ -7,9 +7,12 @@ interface AuthState {
     isLoading: boolean;
     error: string | null;
     lastAuthCheck: number;
+    requires2Fa: boolean;
+    tempToken: string | null;
 
     // Actions
     login: (email: string, password: string) => Promise<boolean>;
+    verify2Fa: (token: string) => Promise<boolean>;
     register: (name: string, email: string, password: string) => Promise<boolean>;
     logout: () => Promise<void>;
     checkAuth: () => Promise<void>;
@@ -83,6 +86,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     isAuthenticated: false,
     isLoading: true,
     error: null,
+    requires2Fa: false,
+    tempToken: null,
     lastAuthCheck: 0, // Timestamp of last successful verification
 
     login: async (email: string, password: string) => {
@@ -107,6 +112,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 return false;
             }
 
+            // Check for 2FA Challenge
+            if (data.requires2Fa) {
+                set({
+                    requires2Fa: true,
+                    tempToken: data.tempToken,
+                    isLoading: false,
+                    error: null
+                });
+                return true; // Return true to indicate "success" in terms of request, but component checks requires2Fa
+            }
+
             // Save token and user to cache
             saveToken(data.token);
             saveUser(data.user);
@@ -117,6 +133,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 isAuthenticated: true,
                 isLoading: false,
                 error: null,
+                requires2Fa: false,
+                tempToken: null,
                 lastAuthCheck: Date.now(), // update timestamp
             });
 
@@ -126,6 +144,54 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 isLoading: false,
                 error: 'Network error. Please try again.'
             });
+            return false;
+        }
+    },
+
+    verify2Fa: async (token: string) => {
+        set({ isLoading: true, error: null });
+        const { tempToken } = get();
+
+        if (!tempToken) {
+            set({ isLoading: false, error: 'Session expired. Please login again.' });
+            return false;
+        }
+
+        try {
+            const response = await fetch('/api/auth/2fa/validate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token, tempToken })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                set({ isLoading: false, error: data.error || 'Invalid code' });
+                return false;
+            }
+
+            // Success
+            // Assuming validate route returns token in data.token
+            const authToken = data.token;
+
+            saveToken(authToken);
+            saveUser(data.data.user);
+
+            set({
+                user: data.data.user,
+                token: authToken,
+                isAuthenticated: true,
+                isLoading: false,
+                error: null,
+                requires2Fa: false,
+                tempToken: null,
+                lastAuthCheck: Date.now()
+            });
+
+            return true;
+        } catch (error) {
+            set({ isLoading: false, error: 'Network error' });
             return false;
         }
     },
@@ -204,23 +270,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const token = getToken();
         const cachedUser = getCachedUser();
         const { lastAuthCheck, isAuthenticated } = get();
-
-        // If no token, we might still be authenticated via HTTP-only cookies (e.g. Google Auth)
-        // So we DON'T return early. Instead we let the fetch('/api/auth/me') happen.
-        // If that fails, THEN we clear state.
-
-        /* 
-        if (!token) {
-            set({
-                user: null,
-                token: null,
-                isAuthenticated: false,
-                isLoading: false,
-                lastAuthCheck: 0,
-            });
-            return;
-        }
-        */
 
         // THROTTLE: If already authenticated and checked recently (< 45s), skip
         const now = Date.now();
@@ -326,6 +375,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 token,
                 isAuthenticated: true,
                 isLoading: false,
+                error: null // Clear errors on hydration
             });
         } else {
             set({

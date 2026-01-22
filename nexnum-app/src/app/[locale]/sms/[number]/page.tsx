@@ -187,8 +187,7 @@ export default function SMSPage() {
             const result = await purchaseNumber(
                 displayNumber.countryCode,
                 displayNumber.serviceCode || displayNumber.serviceName,
-                undefined, // provider (optional)
-                true // testMode for safety
+                undefined // provider (optional)
             )
 
             if (result.success && result.number) {
@@ -353,6 +352,8 @@ export default function SMSPage() {
                             <motion.div variants={fadeInLeft}>
                                 <SMSNumberCard
                                     phoneNumber={displayNumber.number || displayNumber.phoneNumber}
+                                    phoneCountryCode={displayNumber.phoneCountryCode}
+                                    phoneNationalNumber={displayNumber.phoneNationalNumber}
                                     serviceName={displayNumber.serviceName}
                                     countryName={displayNumber.countryName}
                                     countryCode={displayNumber.countryCode}

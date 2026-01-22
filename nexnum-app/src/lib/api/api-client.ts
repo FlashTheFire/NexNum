@@ -144,15 +144,12 @@ export async function getServices(countryCode: string): Promise<Service[]> {
 export async function purchaseNumber(
     countryCode: string,
     serviceCode: string,
-    provider?: string,
-    testMode?: boolean
+    provider?: string
 ): Promise<{ success: boolean; number?: PhoneNumber; error?: string }> {
     try {
         const idempotencyKey = crypto.randomUUID()
 
-        // AUTO-MOCK in development if not specified
-        const finalTestMode = testMode ?? (process.env.NODE_ENV === 'development')
-
+        // SECURITY: Removed testMode - always use real providers
         const response = await fetch('/api/numbers/purchase', {
             method: 'POST',
             headers: {
@@ -163,8 +160,7 @@ export async function purchaseNumber(
                 countryCode,
                 serviceCode,
                 provider,
-                idempotencyKey,
-                testMode: finalTestMode
+                idempotencyKey
             }),
         })
         const data = await response.json()

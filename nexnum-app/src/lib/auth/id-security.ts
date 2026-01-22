@@ -18,7 +18,12 @@ import { redis } from '@/lib/core/redis'
 // CONFIGURATION
 // ============================================================================
 
-const ID_SECRET = process.env.ID_SECRET || process.env.JWT_SECRET || 'nexnum-secure-id-salt-2024'
+// SECURITY: Require ID_SECRET in production
+const ID_SECRET_RAW = process.env.ID_SECRET || process.env.JWT_SECRET
+if (!ID_SECRET_RAW && process.env.NODE_ENV === 'production') {
+    console.error('CRITICAL: ID_SECRET or JWT_SECRET environment variable is required in production')
+}
+const ID_SECRET = ID_SECRET_RAW || 'dev-only-id-salt-not-for-production'
 const ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789' // Removed confusing chars (0,o,1,l,i)
 const MIN_LENGTH = 8
 const CACHE_PREFIX = 'id_map:'

@@ -92,6 +92,14 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
     try {
+        // SECURITY: Block in production - this is a dev-only seeding tool
+        if (process.env.NODE_ENV === 'production') {
+            return NextResponse.json({
+                success: false,
+                message: 'This endpoint is disabled in production. Use the Admin UI to add providers.'
+            }, { status: 403 })
+        }
+
         const { slug, name, baseUrl, apiKey, providerType, endpoints, mappings } = REAL_PROVIDER_CONFIG
 
         // 1. Validation

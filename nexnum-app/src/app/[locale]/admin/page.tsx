@@ -58,7 +58,7 @@ export default function AdminDashboard() {
     ]
 
     return (
-        <main className="min-h-screen p-4 md:p-8 max-w-7xl mx-auto">
+        <main className="min-h-screen p-4 md:p-8">
             {/* Premium Header */}
             <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
                 <div>

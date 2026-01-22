@@ -295,13 +295,13 @@ async function getWorkerMetrics(): Promise<WorkerMetrics> {
         // Count completed today
         const completedResult = await prisma.$queryRaw<{ count: bigint }[]>`
             SELECT COUNT(*) as count FROM pgboss.job 
-            WHERE state = 'completed' AND completedon >= ${today}
+            WHERE state = 'completed'
         `.catch(() => [{ count: BigInt(0) }])
 
         // Count failed today
         const failedResult = await prisma.$queryRaw<{ count: bigint }[]>`
             SELECT COUNT(*) as count FROM pgboss.job 
-            WHERE state = 'failed' AND completedon >= ${today}
+            WHERE state = 'failed'
         `.catch(() => [{ count: BigInt(0) }])
 
         // Queue depth (created but not yet active)
