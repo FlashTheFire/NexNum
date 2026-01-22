@@ -475,14 +475,13 @@ export default function Features() {
                 </AnimatePresence>
 
                 {/* Scroll Fade Edges - Desktop only */}
-                <div className="hidden lg:block absolute left-0 top-0 bottom-0 w-24 xl:w-32 bg-gradient-to-r from-[#0a0a0c] to-transparent z-10 pointer-events-none" />
-                <div className="hidden lg:block absolute right-0 top-0 bottom-0 w-24 xl:w-32 bg-gradient-to-l from-[#0a0a0c] to-transparent z-10 pointer-events-none" />
+                {/* Scroll Fade Edges - Removed as requested */}
 
                 {/* Horizontal Scrollable Carousel */}
                 <div
                     ref={scrollContainerRef}
                     onScroll={handleScroll}
-                    className="flex overflow-x-auto pb-12 px-4 sm:px-8 lg:px-16 xl:px-24 2xl:px-32 snap-x snap-mandatory scrollbar-hide relative z-10 no-scrollbar scroll-smooth"
+                    className="flex overflow-x-auto pt-12 pb-12 px-4 sm:px-8 lg:px-16 xl:px-24 2xl:px-32 snap-x snap-mandatory scrollbar-hide relative z-10 no-scrollbar scroll-smooth"
                     style={{
                         scrollbarWidth: 'none',
                         msOverflowStyle: 'none',

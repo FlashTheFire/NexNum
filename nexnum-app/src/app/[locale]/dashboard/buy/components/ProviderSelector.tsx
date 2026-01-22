@@ -53,10 +53,8 @@ export interface Provider {
     price: number;
     stock: number;
     successRate?: number;
-    logoUrl?: string;
     // Operator info
     operatorId: number;
-    operatorDisplayName: string;
 }
 
 interface ProviderSelectorProps {

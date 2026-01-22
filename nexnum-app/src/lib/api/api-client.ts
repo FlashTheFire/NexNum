@@ -42,14 +42,34 @@ export async function getWalletBalance(): Promise<{ success: boolean; data?: Wal
     }
 }
 
+// Helper to get CSRF token (from cookie or endpoint)
+// We try to get it from the endpoint to be safe, similar to auth-api
+async function getCsrfToken() {
+    try {
+        const res = await fetch('/api/csrf', { cache: 'no-store' })
+        if (!res.ok) return null
+        const data = await res.json()
+        return data.token
+    } catch (e) {
+        console.error('Failed to fetch CSRF token', e)
+        return null
+    }
+}
+
+// ... existing authHeaders ...
+
+// Update topUpWallet
 export async function topUpWallet(amount: number): Promise<{ success: boolean; newBalance?: number; error?: string }> {
     try {
         const idempotencyKey = crypto.randomUUID()
+        const csrfToken = await getCsrfToken()
+
         const response = await fetch('/api/wallet/topup', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 ...authHeaders(),
+                'X-CSRF-Token': csrfToken || ''
             },
             body: JSON.stringify({ amount, idempotencyKey }),
         })
@@ -148,6 +168,7 @@ export async function purchaseNumber(
 ): Promise<{ success: boolean; number?: PhoneNumber; error?: string }> {
     try {
         const idempotencyKey = crypto.randomUUID()
+        const csrfToken = await getCsrfToken()
 
         // SECURITY: Removed testMode - always use real providers
         const response = await fetch('/api/numbers/purchase', {
@@ -155,6 +176,7 @@ export async function purchaseNumber(
             headers: {
                 'Content-Type': 'application/json',
                 ...authHeaders(),
+                'X-CSRF-Token': csrfToken || ''
             },
             body: JSON.stringify({
                 countryCode,
@@ -204,9 +226,14 @@ export async function getNumberDetails(id: string): Promise<PhoneNumber | null> 
 
 export async function cancelNumber(id: string): Promise<{ success: boolean; refundAmount?: number; error?: string }> {
     try {
+        const csrfToken = await getCsrfToken()
+
         const response = await fetch(`/api/numbers/${id}/cancel`, {
             method: 'POST',
-            headers: authHeaders(),
+            headers: {
+                ...authHeaders(),
+                'X-CSRF-Token': csrfToken || ''
+            },
         })
         const data = await response.json()
         if (!response.ok) {

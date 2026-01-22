@@ -103,7 +103,7 @@ flowchart TB
     subgraph Data["💾 Data Layer"]
         DB[(PostgreSQL<br/>via Supabase)]
         REDIS[(Redis<br/>Rate Limits)]
-        MEILI[(MeiliSearch<br/>Search Index)]
+        MEILISEARCH[(MeiliSearch<br/>Search Index)]
     end
     
     subgraph Jobs["⚙️ Background Jobs"]
@@ -118,7 +118,7 @@ flowchart TB
     DP --> P1 & P2 & P3 & MORE
     ROUTES --> DB
     MW --> REDIS
-    ROUTES --> MEILI
+    ROUTES --> MEILISEARCH
     LIFECYCLE --> DB
     BOSS --> LIFECYCLE
 ```

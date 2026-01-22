@@ -271,7 +271,7 @@ export class DynamicProvider implements SmsProvider {
             }
 
             // Replace path params including authKey
-            const allParams = { ...params, authKey: this.config.authKey || '' }
+            const allParams = { ...params, authKey: rawAuthKey || '' }
             for (const [key, value] of Object.entries(allParams)) {
                 if (url.includes(`{${key}}`)) {
                     url = url.replace(new RegExp(`{${key}}`, 'g'), String(value))
@@ -324,8 +324,8 @@ export class DynamicProvider implements SmsProvider {
             }
 
             // Step 2b: Add Auth Query Param if configured
-            if (this.config.authType === 'query_param' && this.config.authQueryParam && this.config.authKey) {
-                resolvedQueryParams[this.config.authQueryParam] = this.config.authKey
+            if (this.config.authType === 'query_param' && this.config.authQueryParam && rawAuthKey) {
+                resolvedQueryParams[this.config.authQueryParam] = rawAuthKey
             }
 
             // Step 2c: Add remaining unhandled params (for GET requests without explicit config)
@@ -357,10 +357,10 @@ export class DynamicProvider implements SmsProvider {
                 ...epConfig.headers
             }
 
-            if (this.config.authType === 'bearer' && this.config.authKey) {
-                headers['Authorization'] = `Bearer ${this.config.authKey}`
-            } else if (this.config.authType === 'header' && this.config.authHeader && this.config.authKey) {
-                headers[this.config.authHeader] = this.config.authKey
+            if (this.config.authType === 'bearer' && rawAuthKey) {
+                headers['Authorization'] = `Bearer ${rawAuthKey}`
+            } else if (this.config.authType === 'header' && this.config.authHeader && rawAuthKey) {
+                headers[this.config.authHeader] = rawAuthKey
             }
 
             // 4. Rate Limiting Enforcer (Reservation Token Bucket)

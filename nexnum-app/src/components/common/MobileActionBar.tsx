@@ -31,10 +31,10 @@ export default function MobileActionBar() {
                     <div className="bg-[#0a0a0c]/80 backdrop-blur-2xl border border-white/10 rounded-2xl p-3 shadow-2xl shadow-black/40 flex items-center justify-between gap-4">
                         {/* Quick Links */}
                         <div className="flex items-center gap-1 pl-1">
-                            <Link href="#pricing" className="p-2.5 rounded-xl hover:bg-white/5 transition-colors group">
+                            <Link href="/services" className="p-2.5 rounded-xl hover:bg-white/5 transition-colors group">
                                 <CreditCard className="w-5 h-5 text-gray-400 group-hover:text-[hsl(var(--neon-lime))] transition-colors" />
                             </Link>
-                            <Link href="/help" className="p-2.5 rounded-xl hover:bg-white/5 transition-colors group">
+                            <Link href="/#faq" className="p-2.5 rounded-xl hover:bg-white/5 transition-colors group">
                                 <HelpCircle className="w-5 h-5 text-gray-400 group-hover:text-[hsl(var(--neon-lime))] transition-colors" />
                             </Link>
                         </div>

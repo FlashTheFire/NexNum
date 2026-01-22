@@ -51,7 +51,6 @@ export async function GET(req: Request) {
             const providerInfo = providerInfoMap.get(p.provider);
             return {
                 displayName: providerInfo?.displayName || p.provider, // Fallback to slug if not found
-                logoUrl: providerInfo?.logoUrl || null,
                 serviceName: p.serviceName,
                 serviceSlug: p.serviceSlug,
                 countryName: p.countryName,
@@ -62,7 +61,6 @@ export async function GET(req: Request) {
                 successRate: p.successRate,
                 // Operator info
                 operatorId: p.operatorId,
-                operatorDisplayName: p.operatorDisplayName || '',
                 iconUrl: (p as any).iconUrl, // Standardized icon name
             };
         });

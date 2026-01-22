@@ -8,6 +8,8 @@ import MobileActionBar from "@/components/common/MobileActionBar";
 import ServiceTicker from "@/components/home/ServiceTicker";
 import { GlobalCoverageMap } from "@/components/home/GlobalCoverageMap";
 
+import Testimonials from "@/components/home/Testimonials";
+
 export default function Home() {
     return (
         <div className="min-h-screen flex flex-col">
@@ -17,6 +19,7 @@ export default function Home() {
                 <ServiceTicker />
                 <Features />
                 <GlobalCoverageMap />
+                <Testimonials />
                 <FAQ />
                 <CTA />
             </main>

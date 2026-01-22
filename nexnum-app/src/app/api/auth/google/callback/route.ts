@@ -86,7 +86,8 @@ export async function GET(request: Request) {
             userId: user.id,
             email: user.email,
             name: user.name,
-            role: user.role
+            role: user.role,
+            version: user.tokenVersion
         })
 
         await setAuthCookie(token)

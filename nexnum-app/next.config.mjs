@@ -11,6 +11,30 @@ const withBundleAnalyzer = bundleAnalyzer({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+    // CDN & Caching Optimization
+    async headers() {
+        return [
+            {
+                source: '/(.*).(png|jpg|jpeg|svg|webp|ico)',
+                headers: [
+                    {
+                        key: 'Cache-Control',
+                        value: 'public, max-age=31536000, immutable',
+                    },
+                ],
+            },
+            {
+                source: '/fonts/(.*)',
+                headers: [
+                    {
+                        key: 'Cache-Control',
+                        value: 'public, max-age=31536000, immutable',
+                    },
+                ],
+            },
+        ]
+    },
+    // ... other config
     // Performance optimizations
     output: 'standalone',
     reactStrictMode: true,

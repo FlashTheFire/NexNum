@@ -29,9 +29,10 @@ export default function Navbar({ hideLogin = false, hideRegister = false }: Navb
     }, []);
 
     const navLinks = [
-        { name: t('features'), href: "#features" },
-        { name: t('howItWorks'), href: "#how-it-works" },
-        { name: t('faq'), href: "#faq" },
+        { name: t('features'), href: "/#features" },
+        { name: t('services'), href: "/services" },
+        { name: t('howItWorks'), href: "/#how-it-works" },
+        { name: t('faq'), href: "/#faq" },
     ];
 
     return (

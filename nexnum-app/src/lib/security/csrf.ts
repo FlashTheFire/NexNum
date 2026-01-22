@@ -14,7 +14,7 @@
 import { cookies } from 'next/headers'
 import { randomBytes, createHmac } from 'crypto'
 
-const CSRF_COOKIE_NAME = '__Host-csrf-token'
+const CSRF_COOKIE_NAME = process.env.NODE_ENV === 'production' ? '__Host-csrf-token' : 'csrf-token'
 const CSRF_HEADER_NAME = 'x-csrf-token'
 const CSRF_SECRET = process.env.CSRF_SECRET || process.env.JWT_SECRET || 'dev-csrf-secret'
 const CSRF_TOKEN_EXPIRY = 60 * 60 * 1000 // 1 hour

@@ -94,23 +94,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ isLoading: true, error: null });
 
         try {
-            const response = await fetch('/api/auth/login', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ email, password }),
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                set({
-                    isLoading: false,
-                    error: data.error || 'Login failed'
-                });
-                return false;
-            }
+            // Use the API helper which handles CSRF
+            const { login } = await import('@/lib/api/auth-api');
+            const data = await login({ email, password });
 
             // Check for 2FA Challenge
             if (data.requires2Fa) {
@@ -120,7 +106,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                     isLoading: false,
                     error: null
                 });
-                return true; // Return true to indicate "success" in terms of request, but component checks requires2Fa
+                return true;
             }
 
             // Save token and user to cache
@@ -135,14 +121,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 error: null,
                 requires2Fa: false,
                 tempToken: null,
-                lastAuthCheck: Date.now(), // update timestamp
+                lastAuthCheck: Date.now(),
             });
 
             return true;
-        } catch (error) {
+        } catch (error: any) {
             set({
                 isLoading: false,
-                error: 'Network error. Please try again.'
+                error: error.message || 'Network error. Please try again.'
             });
             return false;
         }
@@ -200,23 +186,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ isLoading: true, error: null });
 
         try {
-            const response = await fetch('/api/auth/register', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ name, email, password }),
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                set({
-                    isLoading: false,
-                    error: data.error || 'Registration failed'
-                });
-                return false;
-            }
+            // Use the API helper which handles CSRF
+            const { register } = await import('@/lib/api/auth-api');
+            const data = await register({ name, email, password });
 
             // Save token and user to cache
             saveToken(data.token);
@@ -228,14 +200,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 isAuthenticated: true,
                 isLoading: false,
                 error: null,
-                lastAuthCheck: Date.now(), // update timestamp
+                lastAuthCheck: Date.now(),
             });
 
             return true;
-        } catch (error) {
+        } catch (error: any) {
             set({
                 isLoading: false,
-                error: 'Network error. Please try again.'
+                error: error.message || 'Network error. Please try again.'
             });
             return false;
         }
@@ -245,10 +217,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         try {
             const token = get().token || getToken();
 
+            // Fetch CSRF token first
+            let csrfToken = null;
+            try {
+                const csrfRes = await fetch('/api/csrf', { cache: 'no-store' });
+                if (csrfRes.ok) {
+                    const csrfData = await csrfRes.json();
+                    csrfToken = csrfData.token;
+                }
+            } catch (e) {
+                // Ignore CSRF fetch error
+            }
+
             await fetch('/api/auth/logout', {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
+                    'X-CSRF-Token': csrfToken || ''
                 },
             });
         } catch (error) {
