@@ -64,6 +64,36 @@ export const reservation_stuck_count = register('nexnum_reservation_stuck_count'
     registers: [registry]
 }))
 
+// --- SYSTEM METRICS ---
+
+export const system_memory_usage = register('nexnum_system_memory_usage', () => new Gauge({
+    name: 'nexnum_system_memory_usage',
+    help: 'System memory usage in bytes',
+    labelNames: ['type'], // heapUsed, heapTotal, rss, etc.
+    registers: [registry]
+}))
+
+export const process_cpu_usage = register('nexnum_process_cpu_usage', () => new Gauge({
+    name: 'nexnum_process_cpu_usage',
+    help: 'Process CPU usage percentage',
+    registers: [registry]
+}))
+
+export const system_uptime = register('nexnum_system_uptime', () => new Gauge({
+    name: 'nexnum_system_uptime',
+    help: 'System uptime in seconds',
+    registers: [registry]
+}))
+
+// --- AUTH METRICS ---
+
+export const auth_events_total = register('nexnum_auth_events_total', () => new Counter({
+    name: 'nexnum_auth_events_total',
+    help: 'Total authentication events',
+    labelNames: ['event', 'status'], // event: login, register, etc.
+    registers: [registry]
+}))
+
 // --- LIFECYCLE MANAGER METRICS ---
 
 export const lifecycle_jobs_total = register('nexnum_lifecycle_jobs_total', () => new Counter({

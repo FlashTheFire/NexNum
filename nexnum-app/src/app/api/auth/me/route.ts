@@ -40,6 +40,8 @@ export async function GET(request: Request) {
                 name: dbUser.name,
                 email: dbUser.email,
                 role: dbUser.role,
+                // @ts-ignore - Prisma linter sync issue
+                preferredCurrency: dbUser.preferredCurrency,
                 createdAt: dbUser.createdAt,
             },
             wallet: {
@@ -54,5 +56,41 @@ export async function GET(request: Request) {
             { error: 'Internal server error' },
             { status: 500 }
         )
+    }
+}
+
+export async function PATCH(request: Request) {
+    try {
+        const user = await getCurrentUser(request.headers)
+        if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+        const body = await request.json()
+        const { name, email, preferredCurrency } = body
+
+        const updatedUser = await prisma.user.update({
+            where: { id: user.userId },
+            data: {
+                name: name !== undefined ? name : undefined,
+                email: email !== undefined ? email : undefined,
+                // @ts-ignore - Prisma linter sync issue
+                preferredCurrency: preferredCurrency !== undefined ? preferredCurrency : undefined,
+            }
+        })
+
+        return NextResponse.json({
+            success: true,
+            user: {
+                id: updatedUser.id,
+                name: updatedUser.name,
+                email: updatedUser.email,
+                role: updatedUser.role,
+                // @ts-ignore - Prisma linter sync issue
+                preferredCurrency: updatedUser.preferredCurrency,
+                createdAt: updatedUser.createdAt,
+            }
+        })
+    } catch (error) {
+        console.error('Update user error:', error)
+        return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
 }

@@ -4,7 +4,8 @@ import { WebhookPayload, WebhookVerificationResult } from '@/lib/sms/types'
 import { WebhookVerifier } from '@/lib/webhooks/verify'
 import { Provider } from '@prisma/client'
 // Retrying import fix
-import { prisma } from '@/lib/core/db'
+import { prisma } from '../core/db'
+import { currencyService } from '../currency/currency-service'
 import CircuitBreaker from 'opossum'
 import { logger } from '@/lib/core/logger'
 
@@ -1584,12 +1585,25 @@ export class DynamicProvider implements SmsProvider {
             throw new Error(`Failed to parse number response. Missing: ${missing.join(', ')}. Got: ${JSON.stringify(mapped)}`)
         }
 
+        // CURRENCY & MARGIN LOGIC (Real-time)
+        let normalizedPrice: number | null = null
+        if ((mapped.price ?? mapped.cost) !== undefined) {
+            const rawPrice = Number(mapped.price ?? mapped.cost ?? 0)
+            const baseCost = await currencyService.normalizeProviderPrice(rawPrice, this.config.name)
+
+            const multiplier = Number(this.config.priceMultiplier || 1.0)
+            const markupUsd = Number(this.config.fixedMarkup || 0.0)
+            const markupPoints = await currencyService.convert(markupUsd, 'USD', 'POINTS')
+
+            normalizedPrice = Number(((baseCost * multiplier) + markupPoints).toFixed(2))
+        }
+
         return {
             activationId: String(mapped.id || mapped.activationId || mapped.orderId),
             phoneNumber: String(mapped.phone || mapped.phoneNumber || mapped.number),
             countryCode,
             serviceCode,
-            price: (mapped.price ?? mapped.cost) !== undefined ? Number(mapped.price ?? mapped.cost ?? 0) : null,
+            price: normalizedPrice,
             expiresAt: new Date(Date.now() + 15 * 60 * 1000)
         }
     }

@@ -18,6 +18,7 @@ model User {
   updatedAt               DateTime                 @updatedAt @map("updated_at")
   role                    Role                     @default(USER)
   isBanned                Boolean                  @default(false) @map("is_banned")
+  preferredCurrency       String?                  @map("preferred_currency") // e.g. "USD", "EUR", "POINTS"
   auditLogs               AuditLog[]
   numbers                 Number[]
   wallet                  Wallet?
@@ -259,6 +260,14 @@ model Provider {
   priceMultiplier Decimal @default(1.0) @map("price_multiplier") @db.Decimal(5, 2)
   fixedMarkup     Decimal @default(0.0) @map("fixed_markup") @db.Decimal(8, 2)
   currency        String  @default("USD")
+
+  // --- Advanced Normalization ---
+  normalizationMode String  @default("AUTO") @map("normalization_mode") // enum: AUTO, MANUAL, API, SMART_AUTO
+  normalizationRate Decimal? @map("normalization_rate") @db.Decimal(18, 8)
+  apiPair           String? @map("api_pair") // e.g., "USDT/RUB"
+  depositSpent     Decimal? @map("deposit_spent") @db.Decimal(18, 8)
+  depositReceived  Decimal? @map("deposit_received") @db.Decimal(18, 8)
+  depositCurrency  String   @default("USD") @map("deposit_currency")
 
   // --- Balance Alert ---
   balance         Decimal   @default(0.0) @db.Decimal(10, 2)
@@ -571,3 +580,39 @@ model ProviderEvent {
   @@index([processed])
   @@map("provider_events")
 }
+
+// ============================================
+// CURRENCY & SETTINGS
+// ============================================
+
+model Currency {
+  code          String   @id // USD, EUR, INR, RUB
+  name          String   // US Dollar, Euro
+  symbol        String   // $, €, ₹
+  rate          Decimal  @db.Decimal(10, 4) // Exchange rate relative to Base Anchor (USD)
+  isBase        Boolean  @default(false) @map("is_base") // Is this the technical anchor? (usually USD)
+  isActive      Boolean  @default(true) @map("is_active")
+  autoUpdate    Boolean  @default(true) @map("auto_update") // Should we auto-update this rate?
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("currencies")
+}
+
+model SystemSettings {
+  id              String  @id @default("default")
+
+  // Currency Logic
+  baseCurrency    String  @default("USD") @map("base_currency") // The technical anchor (e.g., USD)
+  displayCurrency String  @default("USD") @map("display_currency") // Default for new users (e.g., POINTS)
+
+  // Points System (if active)
+  pointsEnabled   Boolean @default(false) @map("points_enabled")
+  pointsName      String  @default("Points") @map("points_name")
+  pointsRate      Decimal @default(100.0) @map("points_rate") // 1 USD = 100 Points
+
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  
+  @@map("system_settings")
+}
+
+// ============================================

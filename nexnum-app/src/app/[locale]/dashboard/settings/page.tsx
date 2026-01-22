@@ -27,6 +27,7 @@ import { useGlobalStore } from "@/store"
 import { useAuthStore } from "@/stores/authStore"
 import { cn } from "@/lib/utils/utils"
 import { NotificationSettings } from "@/components/dashboard/settings/NotificationSettings"
+import { useCurrency } from "@/providers/CurrencyProvider"
 
 // Tab Configuration
 const tabs = [
@@ -44,22 +45,41 @@ const fadeInScale = {
 }
 
 export default function SettingsPage() {
-    const { user, updateUser } = useAuthStore()
+    const { user, updateUser, token } = useAuthStore()
+    const { currencies, settings: currencySettings } = useCurrency()
     const [activeTab, setActiveTab] = useState("general")
     const [isLoading, setIsLoading] = useState(false)
 
-    // Mock States for Forms
-    const [name, setName] = useState(user?.name || "Alex Chen")
-    const [email, setEmail] = useState(user?.email || "alex.chen@example.com")
+    // Form States
+    const [name, setName] = useState(user?.name || "")
+    const [email, setEmail] = useState(user?.email || "")
+    const [preferredCurrency, setPreferredCurrency] = useState(user?.preferredCurrency || "POINTS")
     const [twoFactor, setTwoFactor] = useState(false)
 
-    const handleSave = () => {
+    const handleSave = async () => {
         setIsLoading(true)
-        setTimeout(() => {
+        try {
+            const res = await fetch('/api/auth/me', {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ name, email, preferredCurrency })
+            })
+
+            const data = await res.json()
+            if (res.ok) {
+                updateUser(data.user)
+                toast.success("Settings Updated Successfully")
+            } else {
+                toast.error(data.error || "Update failed")
+            }
+        } catch (e) {
+            toast.error("Network error")
+        } finally {
             setIsLoading(false)
-            updateUser(name, email)
-            toast.success("Settings Updated Successfully")
-        }, 1500)
+        }
     }
 
     return (
@@ -186,11 +206,20 @@ export default function SettingsPage() {
                                         <div className="space-y-2">
                                             <Label>Currency</Label>
                                             <div className="relative">
-                                                <span className="absolute left-3 top-2.5 text-sm font-bold text-muted-foreground">$</span>
-                                                <select className="w-full h-10 pl-9 pr-3 rounded-md border border-white/10 bg-black/20 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500/50">
-                                                    <option>USD ($)</option>
-                                                    <option>EUR (€)</option>
-                                                    <option>GBP (£)</option>
+                                                <span className="absolute left-3 top-2.5 text-sm font-bold text-muted-foreground">
+                                                    {currencies[preferredCurrency]?.symbol || (preferredCurrency === 'POINTS' ? 'P' : '$')}
+                                                </span>
+                                                <select
+                                                    value={preferredCurrency}
+                                                    onChange={(e) => setPreferredCurrency(e.target.value)}
+                                                    className="w-full h-10 pl-9 pr-3 rounded-md border border-white/10 bg-black/20 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500/50"
+                                                >
+                                                    <option value="POINTS">{currencySettings?.pointsName || 'Points'}</option>
+                                                    {Object.values(currencies).map(curr => (
+                                                        <option key={curr.code} value={curr.code}>
+                                                            {curr.name} ({curr.symbol})
+                                                        </option>
+                                                    ))}
                                                 </select>
                                             </div>
                                         </div>

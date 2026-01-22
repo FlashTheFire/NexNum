@@ -45,7 +45,6 @@ async function reindexInventory() {
             countryName: p.country.name,                   // Will be normalized in indexOffers
             flagUrl: p.country.flagUrl || '',
             provider: p.provider.name,
-            displayName: p.provider.displayName,
             operatorId: index + 1,
             externalOperator: p.operator || undefined,
             operatorDisplayName: '',

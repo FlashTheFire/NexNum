@@ -143,7 +143,7 @@ export async function GET(req: Request) {
             JOIN provider_countries pc ON pp."country_id" = pc.id
             WHERE pp.deleted = false 
               AND pp.stock > 0
-              AND UPPER(pc.name) NOT IN ('CAPE VERDE', 'AMERICAN SAMOA', 'AMERICAN SAMO') -- Exclude requested countries
+              AND UPPER(pc.name) NOT IN ('CAPE VERDE', 'AMERICAN SAMOA', 'AMERICAN SAMO', 'SWAZILAND', 'ESWATINI') -- Exclude requested countries
             GROUP BY pc.id, pc.code, pc.name, pc."flag_url"
             ORDER BY total_stock DESC
             LIMIT ${limit}
@@ -212,7 +212,7 @@ export async function GET(req: Request) {
             JOIN provider_countries pc ON pp."country_id" = pc.id
             WHERE pp.deleted = false 
               AND pp.stock > 0
-              AND UPPER(pc.name) NOT IN ('CAPE VERDE', 'AMERICAN SAMOA', 'AMERICAN SAMO')
+              AND UPPER(pc.name) NOT IN ('CAPE VERDE', 'AMERICAN SAMOA', 'AMERICAN SAMO', 'SWAZILAND', 'ESWATINI')
         `;
 
         // Map to response format with coordinates from unified metadata

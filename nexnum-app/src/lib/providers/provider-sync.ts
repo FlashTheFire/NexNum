@@ -26,6 +26,7 @@ import { resolveToCanonicalName, getSlugFromName } from '@/lib/normalizers/servi
 import { getCountryIsoCode } from '@/lib/normalizers/country-normalizer'
 import { getCountryFlagUrlSync } from '@/lib/normalizers/country-flags'
 import { isValidImageUrl } from '@/lib/utils/utils'
+import { currencyService } from '@/lib/currency/currency-service'
 
 // ============================================
 // TYPES
@@ -408,81 +409,81 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
                 if (prices.length > 0) {
                     const countryDbId = countryIdMap.get(country.code)
 
-                    const countryOffers: OfferDocument[] = prices
-                        .filter(p => p.count > 0)
-                        // Note: We no longer filter out hidden items here so Admin can see them.
-                        // Instead, we mark them as isActive=false. User search filters them out.
-                        .map(p => {
-                            const isCountryVisible = countryVisibilityMap.get(country.code) !== false
-                            const isServiceVisible = serviceVisibilityMap.get(p.service) !== false &&
-                                serviceVisibilityMap.get(p.service.toLowerCase()) !== false
-                            const isActive = isCountryVisible && isServiceVisible
-                            // Robust service name lookup:
-                            // 1. Try exact match
-                            // 2. Try lowercase match 
-                            // 3. Try ProviderService name from DB
-                            // 4. Fallback to code (should log warning)
-                            let svcName = serviceMap.get(p.service)
-                            if (!svcName) svcName = serviceMap.get(p.service.toLowerCase())
-                            if (!svcName) {
-                                // Check if we have it from the provider's own service list
-                                // This was populated during service upsert phase above
-                                svcName = serviceMap.get(p.service) || p.service
-                                // Only log if it looks like an unmapped numeric code
-                                if (/^\d+$/.test(p.service)) {
-                                    console.warn(`[SYNC] Service code "${p.service}" has no mapped name. Please add to ServiceLookup.`)
-                                }
+                    const countryOffers: OfferDocument[] = []
+
+                    for (const p of prices) {
+                        if (p.count <= 0) continue
+
+                        const isCountryVisible = countryVisibilityMap.get(country.code) !== false
+                        const isServiceVisible = serviceVisibilityMap.get(p.service) !== false &&
+                            serviceVisibilityMap.get(p.service.toLowerCase()) !== false
+                        const isActive = isCountryVisible && isServiceVisible
+
+                        let svcName = serviceMap.get(p.service)
+                        if (!svcName) svcName = serviceMap.get(p.service.toLowerCase())
+                        if (!svcName) {
+                            svcName = serviceMap.get(p.service) || p.service
+                            if (/^\d+$/.test(p.service)) {
+                                console.warn(`[SYNC] Service code "${p.service}" has no mapped name. Please add to ServiceLookup.`)
                             }
-                            const rawPrice = Number(p.cost)
-                            const sellPrice = (rawPrice * Number(provider.priceMultiplier)) + Number(provider.fixedMarkup)
+                        }
 
-                            // OPERATOR MAPPING: Generate internal sequential ID
-                            const externalOp = p.operator != null ? String(p.operator) : 'default'
-                            const opKey = `${provider.name}_${externalOp}`
-                            if (!operatorMap.has(opKey)) {
-                                operatorMap.set(opKey, operatorCounter++)
-                            }
-                            const internalOpId = operatorMap.get(opKey)!
+                        // CURRENCY & MARGIN LOGIC
+                        const providerRawCost = Number(p.cost)
+                        const baseCost = await currencyService.normalizeProviderPrice(providerRawCost, provider.name)
 
-                            // Prepare DB pricing record
-                            const serviceDbId = serviceIdMap.get(p.service)
-                            if (countryDbId && serviceDbId) {
-                                pricingBatch.push({
-                                    providerId: provider.id,
-                                    countryId: countryDbId,
-                                    serviceId: serviceDbId,
-                                    operator: p.operator != null ? String(p.operator) : null,
-                                    cost: rawPrice,
-                                    sellPrice: Number(sellPrice.toFixed(2)),
-                                    stock: p.count,
-                                    lastSyncAt: new Date()
-                                })
-                            }
+                        const multiplier = Number(provider.priceMultiplier || 1.0)
+                        const markupUsd = Number(provider.fixedMarkup || 0.0)
+                        const markupPoints = await currencyService.convert(markupUsd, 'USD', 'POINTS')
 
-                            // preparing OfferDocument for MeiliSearch - use library for 100% consistency
-                            const canonicalSvcName = resolveToCanonicalName(svcName)
-                            const canonicalCtyName = resolveToCanonicalName(country.name || 'Unknown')
+                        const sellPrice = (baseCost * multiplier) + markupPoints
 
-                            // Include operator in ID to make each offer unique per operator
-                            return {
-                                id: `${provider.name}_${p.country}_${p.service}_${externalOp}`.toLowerCase().replace(/[^a-z0-9_]/g, ''),
-                                provider: provider.name,  // Internal slug only - displayName fetched from DB at query time
-                                countryCode: p.country, // STRICT: Use raw ID from pricing data
-                                countryName: canonicalCtyName,
-                                flagUrl: getCountryFlagUrlSync(canonicalCtyName) || country.flagUrl || '',
-                                serviceSlug: p.service, // STRICT: Use raw ID from pricing data (e.g. "wr")
-                                serviceName: canonicalSvcName,
-                                iconUrl: iconUrlMap.get(p.service) || iconUrlMap.get(p.service.toLowerCase()),
-                                // Operator fields
-                                operatorId: internalOpId,
-                                externalOperator: externalOp !== 'default' ? externalOp : undefined,
-                                operatorDisplayName: '', // Default empty, can be edited in admin settings
-                                price: Number(sellPrice.toFixed(2)),
+                        // OPERATOR MAPPING
+                        const externalOp = p.operator != null ? String(p.operator) : 'default'
+                        const opKey = `${provider.name}_${externalOp}`
+                        if (!operatorMap.has(opKey)) {
+                            operatorMap.set(opKey, operatorCounter++)
+                        }
+                        const internalOpId = operatorMap.get(opKey)!
+
+                        // Prepare DB pricing record
+                        const serviceDbId = serviceIdMap.get(p.service)
+                        if (countryDbId && serviceDbId) {
+                            pricingBatch.push({
+                                providerId: provider.id,
+                                countryId: countryDbId,
+                                serviceId: serviceDbId,
+                                operator: p.operator != null ? String(p.operator) : null,
+                                cost: Number(baseCost.toFixed(4)),
+                                providerRawCost: Number(providerRawCost.toFixed(6)),
+                                sellPrice: Number(sellPrice.toFixed(2)),
                                 stock: p.count,
-                                lastSyncedAt: Date.now(),
-                                isActive: isActive // Include visibility status
-                            }
+                                lastSyncAt: new Date()
+                            })
+                        }
+
+                        // Prepare OfferDocument for MeiliSearch
+                        const canonicalSvcName = resolveToCanonicalName(svcName)
+                        const canonicalCtyName = resolveToCanonicalName(country.name || 'Unknown')
+
+                        countryOffers.push({
+                            id: `${provider.name}_${p.country}_${p.service}_${externalOp}`.toLowerCase().replace(/[^a-z0-9_]/g, ''),
+                            provider: provider.name,
+                            countryCode: p.country,
+                            countryName: canonicalCtyName,
+                            flagUrl: getCountryFlagUrlSync(canonicalCtyName) || country.flagUrl || '',
+                            serviceSlug: p.service,
+                            serviceName: canonicalSvcName,
+                            iconUrl: iconUrlMap.get(p.service) || iconUrlMap.get(p.service.toLowerCase()),
+                            operatorId: internalOpId,
+                            externalOperator: externalOp !== 'default' ? externalOp : undefined,
+                            operatorDisplayName: '',
+                            price: Number(sellPrice.toFixed(2)),
+                            stock: p.count,
+                            lastSyncedAt: Date.now(),
+                            isActive: isActive
                         })
+                    }
 
                     if (countryOffers.length > 0) {
                         allOffers.push(...countryOffers)
@@ -545,6 +546,14 @@ export async function syncProviderData(providerName: string): Promise<SyncResult
 
 export async function syncAllProviders(): Promise<SyncResult[]> {
     console.log(`[SYNC] Starting full sync at ${new Date().toISOString()}`)
+
+    // Refresh exchange rates first to ensure accurate margins
+    try {
+        await currencyService.syncRates()
+    } catch (e) {
+        console.error(`[SYNC] Failed to sync exchange rates:`, e)
+    }
+
     const results: SyncResult[] = []
     const providers = await prisma.provider.findMany({ where: { isActive: true } })
     for (const provider of providers) {

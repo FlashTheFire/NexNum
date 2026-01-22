@@ -689,7 +689,18 @@ export default function InventoryPage() {
                                                                     </div>
 
                                                                     {/* Actions */}
-                                                                    <div className="flex items-center gap-1 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                    <div className="flex items-center gap-1 ml-2 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                                                                        <Button
+                                                                            variant="ghost"
+                                                                            size="sm"
+                                                                            className="h-6 w-6 p-0 text-blue-400/60 hover:text-blue-400 hover:bg-blue-500/10"
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation()
+                                                                                toast.info("Edit feature coming soon")
+                                                                            }}
+                                                                        >
+                                                                            <Edit size={12} />
+                                                                        </Button>
                                                                         <Button
                                                                             variant="ghost"
                                                                             size="sm"
@@ -920,7 +931,18 @@ export default function InventoryPage() {
                                                 </div>
 
                                                 {/* Actions */}
-                                                <div className="flex items-center gap-1 ml-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <div className="flex items-center gap-1 ml-4 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-7 w-7 p-0 text-blue-400/60 hover:text-blue-400 hover:bg-blue-500/10"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            toast.info("Edit feature coming soon")
+                                                        }}
+                                                    >
+                                                        <Edit size={13} />
+                                                    </Button>
                                                     <Button
                                                         variant="ghost"
                                                         size="sm"
@@ -1067,7 +1089,18 @@ export default function InventoryPage() {
                                                                 </div>
 
                                                                 {/* Actions */}
-                                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                <div className="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="sm"
+                                                                        className="h-6 w-6 p-0 text-blue-400/60 hover:text-blue-400 hover:bg-blue-500/10"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation()
+                                                                            toast.info("Edit feature coming soon")
+                                                                        }}
+                                                                    >
+                                                                        <Edit size={12} />
+                                                                    </Button>
                                                                     <Button
                                                                         variant="ghost"
                                                                         size="sm"

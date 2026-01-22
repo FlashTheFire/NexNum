@@ -8,7 +8,7 @@ import {
     MoreHorizontal, CheckCircle, XCircle, AlertCircle, ChevronRight, ChevronDown, Copy, Check,
     Trash2, Edit, Save, Play, Terminal, Upload, Image, DollarSign, FileCode,
     Wallet, MapPin, Smartphone, Phone, BarChart3, Ban, Plug, Sparkles, Info, Wand2,
-    Lock, Key, Link, FileText, X, Eye, Settings, Package
+    Lock, Key, Link, FileText, X, Eye, Settings, Package, Zap
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -43,6 +43,13 @@ interface Provider {
     priceMultiplier: number
     fixedMarkup: number
     currency: string
+    // Normalization
+    normalizationMode: string
+    normalizationRate?: number
+    apiPair?: string
+    depositSpent?: number
+    depositReceived?: number
+    depositCurrency?: string
 }
 
 
@@ -302,6 +309,30 @@ function ProviderCard({ provider, onRefresh, onEdit }: { provider: Provider; onR
                     >
                         <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
                     </Button>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-9 w-9 p-0 bg-red-500/10 hover:bg-red-500/20 text-red-400 shrink-0 rounded-lg"
+                        onClick={async (e) => {
+                            e.stopPropagation();
+                            if (confirm('Are you sure you want to delete this provider? This action cannot be undone.')) {
+                                try {
+                                    const res = await fetch(`/api/admin/providers/${provider.id}`, { method: 'DELETE' });
+                                    if (res.ok) {
+                                        toast.success("Provider deleted");
+                                        onRefresh();
+                                    } else {
+                                        const data = await res.json();
+                                        toast.error(data.error || "Delete failed");
+                                    }
+                                } catch (e) {
+                                    toast.error("Delete request failed");
+                                }
+                            }
+                        }}
+                    >
+                        <Trash2 className="w-4 h-4" />
+                    </Button>
                 </div>
 
                 {/* Status bar */}
@@ -351,9 +382,31 @@ function ProviderCard({ provider, onRefresh, onEdit }: { provider: Provider; onR
                             </div>
                         </div>
                     </div>
-                    <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <div className="h-8 w-8 flex items-center justify-center text-white/40 bg-white/5 rounded-full">
+                    <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="h-8 w-8 flex items-center justify-center text-white/40 bg-white/5 rounded-full hover:bg-white/10 hover:text-white" onClick={(e) => { e.stopPropagation(); onEdit(); }}>
                             <Edit className="w-4 h-4" />
+                        </div>
+                        <div
+                            className="h-8 w-8 flex items-center justify-center text-red-400/60 bg-red-500/5 rounded-full hover:bg-red-500/10 hover:text-red-400"
+                            onClick={async (e) => {
+                                e.stopPropagation();
+                                if (confirm('Are you sure you want to delete this provider? This action cannot be undone.')) {
+                                    try {
+                                        const res = await fetch(`/api/admin/providers/${provider.id}`, { method: 'DELETE' });
+                                        if (res.ok) {
+                                            toast.success("Provider deleted");
+                                            onRefresh();
+                                        } else {
+                                            const data = await res.json();
+                                            toast.error(data.error || "Delete failed");
+                                        }
+                                    } catch (e) {
+                                        toast.error("Delete request failed");
+                                    }
+                                }
+                            }}
+                        >
+                            <Trash2 className="w-4 h-4" />
                         </div>
                     </div>
                 </div>
@@ -421,8 +474,21 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
         endpoints: '{\n  "getCountries": { "method": "GET", "path": "" }\n}',
         mappings: '{\n  "getCountries": { "type": "json_object", "rootPath": "$" }\n}',
         isActive: false, priority: 0, providerType: 'rest',
-        priceMultiplier: '1.0', fixedMarkup: '0.00', currency: 'USD'
+        priceMultiplier: '1.0', fixedMarkup: '0.00', currency: 'USD',
+        normalizationMode: 'AUTO', normalizationRate: '', apiPair: '', depositSpent: '', depositReceived: '', depositCurrency: 'USD'
     })
+
+    const [availableCurrencies, setAvailableCurrencies] = useState<any[]>([])
+
+    useEffect(() => {
+        // Fetch currencies for the dropdowns
+        fetch('/api/public/currency')
+            .then(res => res.json())
+            .then(data => {
+                if (data.currencies) setAvailableCurrencies(Object.values(data.currencies))
+            })
+            .catch(e => console.error("Failed to fetch currencies", e))
+    }, [])
 
     const [mappingMode, setMappingMode] = useState<'visual' | 'raw'>('visual')
     const [endpointMode, setEndpointMode] = useState<'visual' | 'raw'>('visual')
@@ -438,6 +504,7 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
     const [testResults, setTestResults] = useState<Record<string, any>>({}) // Multi-test results
     const [expandedTest, setExpandedTest] = useState<string | null>(null) // Which test row is expanded
     const [selectedMapping, setSelectedMapping] = useState<string>('') // Legacy prop, can reuse if needed or remove
+    const [isFetchingBalance, setIsFetchingBalance] = useState(false)
 
     // Logo upload states
     const [logoPreview, setLogoPreview] = useState<string | null>(provider?.logoUrl || null)
@@ -463,7 +530,13 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                 providerType: provider.providerType || 'rest',
                 priceMultiplier: String(provider.priceMultiplier || 1.0),
                 fixedMarkup: String(provider.fixedMarkup || 0.00),
-                currency: provider.currency || 'USD'
+                currency: provider.currency || 'USD',
+                normalizationMode: provider.normalizationMode || 'AUTO',
+                normalizationRate: provider.normalizationRate ? String(provider.normalizationRate) : '',
+                apiPair: provider.apiPair || '',
+                depositSpent: provider.depositSpent ? String(provider.depositSpent) : '',
+                depositReceived: provider.depositReceived ? String(provider.depositReceived) : '',
+                depositCurrency: (provider as any).depositCurrency || 'USD'
             })
             // Reset test state on provider open
             setTestAction('test')
@@ -474,6 +547,47 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
             setEndpointMode('visual')
         }
     }, [provider])
+
+    const fetchBalance = async () => {
+        if (!provider?.id) return
+        setIsFetchingBalance(true)
+        try {
+            const res = await fetch(`/api/admin/providers/${provider.id}/test`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'getBalance' })
+            })
+            const data = await res.json()
+            if (data.success && data.data) {
+                // data.data is stringified JSON: "{\"balance\": 123}"
+                try {
+                    const inner = JSON.parse(data.data)
+                    const bal = inner.balance !== undefined ? inner.balance : inner
+                    if (bal !== undefined) {
+                        setFormData(prev => ({ ...prev, depositReceived: String(bal) }))
+                        toast.success(`Balance updated: ${bal}`)
+                    } else {
+                        toast.error('Balance not found in response')
+                    }
+                } catch (e) {
+                    // Check if data.data is just a number string
+                    if (!isNaN(Number(data.data))) {
+                        setFormData(prev => ({ ...prev, depositReceived: String(data.data) }))
+                        toast.success(`Balance updated: ${data.data}`)
+                    } else {
+                        toast.error('Failed to parse balance response')
+                    }
+                }
+            } else {
+                toast.error(data.error || 'Failed to fetch balance')
+            }
+        } catch (e) {
+            console.error(e)
+            toast.error('Error fetching balance')
+        } finally {
+            setIsFetchingBalance(false)
+        }
+    }
 
     const handleWizardComplete = async (wizardData: any) => {
         setIsSaving(true)
@@ -1270,23 +1384,159 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                         <DollarSign className="w-6 h-6 text-white" />
                                     </div>
                                     <div className="flex-1">
-                                        <h4 className="text-base font-bold text-white mb-1">Pricing Calculator</h4>
-                                        <p className="text-xs text-white/50">Configure profit margins for this provider</p>
+                                        <h4 className="text-base font-bold text-white mb-1">Pricing & Normalization</h4>
+                                        <p className="text-xs text-white/50">Configure exchange rates and profit margins</p>
                                     </div>
                                 </div>
 
                                 {/* Formula Display */}
                                 <div className="mt-4 p-3 bg-black/30 rounded-xl border border-white/5">
-                                    <div className="flex items-center gap-2 text-xs font-mono">
-                                        <span className="text-white/40">Final Price</span>
-                                        <span className="text-white/20">=</span>
-                                        <span className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded">Provider Cost</span>
-                                        <span className="text-white/40">×</span>
-                                        <span className="px-2 py-1 bg-emerald-500/20 text-emerald-400 rounded">{formData.priceMultiplier || '1'}x</span>
-                                        <span className="text-white/40">+</span>
-                                        <span className="px-2 py-1 bg-purple-500/20 text-purple-400 rounded">${formData.fixedMarkup || '0'}</span>
+                                    <div className="flex items-center gap-2 text-[10px] md:text-xs font-mono overflow-x-auto scrollbar-hide pb-1">
+                                        <span className="text-white/40 shrink-0">Final</span>
+                                        <span className="text-white/20 shrink-0">=</span>
+                                        <span className="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded shrink-0">Raw Cost</span>
+                                        <span className="text-white/20 shrink-0">÷</span>
+                                        <span className="px-1.5 py-0.5 bg-orange-500/20 text-orange-400 rounded shrink-0">Rate</span>
+                                        <span className="text-white/40 shrink-0">×</span>
+                                        <span className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 rounded shrink-0">{formData.priceMultiplier || '1'}x</span>
+                                        <span className="text-white/40 shrink-0">+</span>
+                                        <span className="px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded shrink-0">${formData.fixedMarkup || '0'}</span>
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+
+                        {/* NORMALIZATION SECTION */}
+                        <div className="space-y-4 pt-4 border-t border-white/5">
+                            <div className="flex items-center gap-2 mb-2">
+                                <div className="w-8 h-8 rounded-lg bg-orange-500/20 flex items-center justify-center">
+                                    <RefreshCw className="w-4 h-4 text-orange-400" />
+                                </div>
+                                <div>
+                                    <h4 className="text-sm font-bold text-white">Cost Normalization</h4>
+                                    <p className="text-[10px] text-white/40">Normalize provider's {formData.currency} cost to internal USD anchor</p>
+                                </div>
+                            </div>
+
+                            {/* Mode Selector - Compact */}
+                            <div className="grid grid-cols-4 gap-2">
+                                {[
+                                    { id: 'AUTO', label: 'Auto', icon: Globe },
+                                    { id: 'MANUAL', label: 'Manual', icon: Edit },
+                                    { id: 'API', label: 'Market', icon: Link },
+                                    { id: 'SMART_AUTO', label: 'Smart', icon: Zap }
+                                ].map(mode => (
+                                    <button
+                                        key={mode.id}
+                                        onClick={() => setFormData({ ...formData, normalizationMode: mode.id })}
+                                        className={`py-2 px-1 rounded-lg border text-center transition-all ${formData.normalizationMode === mode.id
+                                            ? 'bg-orange-500/20 border-orange-500/50 text-white shadow-lg shadow-orange-500/10'
+                                            : 'bg-white/5 border-white/5 text-white/40 hover:bg-white/10'
+                                            }`}
+                                    >
+                                        <mode.icon className={`w-3.5 h-3.5 mx-auto mb-1 ${formData.normalizationMode === mode.id ? 'text-orange-400' : 'text-white/20'}`} />
+                                        <div className="text-[9px] font-bold truncate">{mode.label}</div>
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Mode Specific Settings - Inline */}
+                            <div className="mt-4">
+                                {formData.normalizationMode === 'MANUAL' && (
+                                    <div className="p-4 bg-orange-500/5 rounded-xl border border-orange-500/20 space-y-3">
+                                        <label className="text-xs font-medium text-white/60">Manual Exchange Rate (1 {formData.depositCurrency} = ? {formData.currency})</label>
+                                        <div className="relative">
+                                            <Input
+                                                type="number"
+                                                value={formData.normalizationRate}
+                                                onChange={e => setFormData({ ...formData, normalizationRate: e.target.value })}
+                                                className="bg-black/40 border-white/10 pl-9 h-10 text-sm"
+                                                placeholder="e.g. 95.5"
+                                            />
+                                            <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {formData.normalizationMode === 'API' && (
+                                    <div className="p-4 bg-purple-500/5 rounded-xl border border-purple-500/20 space-y-3">
+                                        <label className="text-xs font-medium text-white/60">Market API Corridor</label>
+                                        <Input
+                                            value={formData.apiPair}
+                                            onChange={e => setFormData({ ...formData, apiPair: e.target.value })}
+                                            className="bg-black/40 border-white/10 font-mono h-10 text-sm"
+                                            placeholder="e.g. USDT/RUB"
+                                        />
+                                    </div>
+                                )}
+
+                                {formData.normalizationMode === 'SMART_AUTO' && (
+                                    <div className="p-4 bg-emerald-500/5 rounded-xl border border-emerald-500/20 space-y-4">
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="space-y-1.5">
+                                                <label className="text-[10px] uppercase font-bold text-white/40 tracking-wider">Deposit Spent</label>
+                                                <div className="flex gap-2">
+                                                    {/* Amount Input */}
+                                                    <div className="relative flex-1">
+                                                        <Input
+                                                            type="number"
+                                                            value={formData.depositSpent}
+                                                            onChange={e => setFormData({ ...formData, depositSpent: e.target.value })}
+                                                            className="bg-black/40 border-white/10 h-9 text-xs pr-2"
+                                                            placeholder="100.00"
+                                                        />
+                                                    </div>
+                                                    {/* Currency Selector */}
+                                                    <select
+                                                        value={formData.depositCurrency}
+                                                        onChange={e => setFormData({ ...formData, depositCurrency: e.target.value })}
+                                                        className="w-16 h-9 px-1 bg-emerald-500/20 border border-emerald-500/30 rounded-md text-xs font-bold text-emerald-400 text-center focus:ring-1 focus:ring-emerald-500 focus:outline-none cursor-pointer"
+                                                    >
+                                                        <option value="USD" className="bg-[#0a0a0c]">USD</option>
+                                                        <option value="EUR" className="bg-[#0a0a0c]">EUR</option>
+                                                        <option value="RUB" className="bg-[#0a0a0c]">RUB</option>
+                                                        <option value="INR" className="bg-[#0a0a0c]">INR</option>
+                                                        <option value="USDT" className="bg-[#0a0a0c]">USDT</option>
+                                                        <option value="GBP" className="bg-[#0a0a0c]">GBP</option>
+                                                        {availableCurrencies.filter((c: any) => !['USD', 'EUR', 'RUB', 'INR', 'USDT', 'GBP'].includes(c.code)).map((c: any) => (
+                                                            <option key={c.code} value={c.code} className="bg-[#0a0a0c]">{c.code}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <label className="text-[10px] uppercase font-bold text-white/40 tracking-wider">Received ({formData.currency})</label>
+                                                <div className="relative">
+                                                    <Input
+                                                        type="number"
+                                                        value={formData.depositReceived}
+                                                        onChange={e => setFormData({ ...formData, depositReceived: e.target.value })}
+                                                        className="bg-black/40 border-white/10 pl-8 pr-12 h-9 text-xs"
+                                                    />
+                                                    <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-white/20" />
+
+                                                    <button
+                                                        onClick={fetchBalance}
+                                                        disabled={isFetchingBalance}
+                                                        className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/10 rounded-md transition-colors disabled:opacity-50"
+                                                        title="Fetch current balance from API"
+                                                    >
+                                                        <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 ${isFetchingBalance ? 'animate-spin' : ''}`} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {Number(formData.depositSpent) > 0 && Number(formData.depositReceived) > 0 && (
+                                            <div className="p-3 bg-black/40 rounded-lg border border-white/5 text-center">
+                                                <div className="text-[10px] text-white/40 mb-1">Effective ROI Rate</div>
+                                                <div className="text-lg font-mono font-bold text-emerald-400">
+                                                    1 {formData.depositCurrency} = {(Number(formData.depositReceived) / Number(formData.depositSpent)).toFixed(4)} {formData.currency}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -1403,33 +1653,106 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                             </div>
                         </div>
 
-                        {/* Example Calculator */}
-                        <div className="p-4 bg-gradient-to-r from-white/5 to-transparent rounded-xl border border-white/5">
-                            <h5 className="text-xs font-medium text-white/60 mb-3 flex items-center gap-2">
-                                <Terminal className="w-3 h-3" />
-                                Live Example
-                            </h5>
-                            <div className="flex items-center gap-3 text-sm">
-                                <div className="flex-1 p-3 bg-black/30 rounded-lg text-center">
-                                    <div className="text-white/40 text-[10px] mb-1">Provider</div>
-                                    <div className="text-white font-mono">$1.00</div>
-                                </div>
-                                <span className="text-white/20">→</span>
-                                <div className="flex-1 p-3 bg-emerald-500/10 rounded-lg text-center border border-emerald-500/20">
-                                    <div className="text-emerald-400/60 text-[10px] mb-1">User Pays</div>
-                                    <div className="text-emerald-400 font-mono font-bold">
-                                        ${((1 * parseFloat(formData.priceMultiplier || '1')) + parseFloat(formData.fixedMarkup || '0')).toFixed(2)}
+                        {/* Live Pricing Calculator */}
+                        {(() => {
+                            const pCurrencyCode = formData.currency || 'USD';
+                            const pCurrency = Object.values(availableCurrencies || {}).find((c: any) => c.code === pCurrencyCode);
+                            const pSymbol = pCurrency?.symbol || pCurrencyCode;
+
+                            // 1. Determine Provider Amount (Base Example)
+                            // Use 100 for weak currencies, 1 for strong
+                            const providerAmount = ['RUB', 'INR', 'JPY', 'KZT'].includes(pCurrencyCode) ? 100.00 : 1.00;
+
+                            // 2. Calculate Normalized Cost (in USD)
+                            let costUSD = providerAmount;
+                            let rateUsed = 1.0;
+
+                            if (formData.normalizationMode === 'SMART_AUTO') {
+                                const spent = parseFloat(formData.depositSpent) || 0;
+                                const received = parseFloat(formData.depositReceived) || 0;
+                                const depCode = formData.depositCurrency || 'USD';
+                                // Note: Using Object.values again just to be safe if it's still an object or array mixture
+                                const depCurrencyObj = Object.values(availableCurrencies || {}).find((c: any) => c.code === depCode);
+                                const depRate = depCurrencyObj?.rate || 1.0;
+
+                                if (spent > 0 && received > 0) {
+                                    const spentUSD = spent / depRate;
+                                    // Effective Rate = Units / USD
+                                    rateUsed = received / (spentUSD || 1);
+                                    costUSD = providerAmount / rateUsed;
+                                }
+                            }
+                            else if (formData.normalizationMode === 'MANUAL') {
+                                rateUsed = parseFloat(formData.normalizationRate) || 1.0;
+                                costUSD = providerAmount / rateUsed;
+                            }
+                            else {
+                                // AUTO: Use standard exchange rate
+                                rateUsed = pCurrency?.rate || 1.0;
+                                costUSD = providerAmount / rateUsed;
+                            }
+
+                            // 3. Pricing
+                            const mult = parseFloat(formData.priceMultiplier || '1');
+                            const fixed = parseFloat(formData.fixedMarkup || '0');
+                            const userPrice = (costUSD * mult) + fixed;
+                            const profit = userPrice - costUSD;
+                            const margin = userPrice > 0 ? (profit / userPrice) * 100 : 0;
+
+                            return (
+                                <div className="p-4 bg-gradient-to-r from-white/5 to-transparent rounded-xl border border-white/5">
+                                    <h5 className="text-xs font-medium text-white/60 mb-3 flex items-center gap-2">
+                                        <Terminal className="w-3 h-3" />
+                                        Live Pricing Preview
+                                    </h5>
+                                    <div className="grid grid-cols-4 gap-2 text-sm">
+                                        {/* 1. Provider Price */}
+                                        <div className="p-2 bg-black/30 rounded-lg text-center flex flex-col justify-center">
+                                            <div className="text-white/40 text-[10px] mb-1">Provider</div>
+                                            <div className="text-white font-mono text-xs truncate">
+                                                {pSymbol}{providerAmount.toFixed(2)}
+                                            </div>
+                                            <div className="text-[9px] text-white/20">{pCurrencyCode}</div>
+                                        </div>
+
+                                        {/* 2. Normalized Cost (The new part) */}
+                                        <div className="p-2 bg-blue-500/10 rounded-lg text-center border border-blue-500/20 relative flex flex-col justify-center">
+                                            <div className="absolute -left-2 top-1/2 -translate-y-1/2 text-white/10 text-[10px]">→</div>
+                                            <div className="text-blue-400/60 text-[10px] mb-1">Net Cost</div>
+                                            <div className="text-blue-400 font-mono text-xs font-bold truncate">
+                                                ${costUSD.toFixed(3)}
+                                            </div>
+                                            <div className="text-[9px] text-blue-400/30">USD</div>
+                                        </div>
+
+                                        {/* 3. User Pays */}
+                                        <div className="p-2 bg-emerald-500/10 rounded-lg text-center border border-emerald-500/20 relative flex flex-col justify-center">
+                                            <div className="absolute -left-2 top-1/2 -translate-y-1/2 text-white/10 text-[10px]">→</div>
+                                            <div className="text-emerald-400/60 text-[10px] mb-1">User Pays</div>
+                                            <div className="text-emerald-400 font-mono text-xs font-bold truncate">
+                                                ${userPrice.toFixed(2)}
+                                            </div>
+                                        </div>
+
+                                        {/* 4. Profit */}
+                                        <div className="p-2 bg-purple-500/10 rounded-lg text-center border border-purple-500/20 relative flex flex-col justify-center">
+                                            <div className="absolute -left-2 top-1/2 -translate-y-1/2 text-white/10 text-[10px]">→</div>
+                                            <div className="text-purple-400/60 text-[10px] mb-1">Profit</div>
+                                            <div className="text-purple-400 font-mono text-xs font-bold truncate">
+                                                ${profit.toFixed(2)}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Explanation Footer */}
+                                    <div className="mt-3 text-[10px] text-white/30 text-center flex items-center justify-center gap-4">
+                                        <span>Cost: ${costUSD.toFixed(4)}</span>
+                                        <span>•</span>
+                                        <span>Margin: {margin.toFixed(1)}%</span>
                                     </div>
                                 </div>
-                                <span className="text-white/20">→</span>
-                                <div className="flex-1 p-3 bg-purple-500/10 rounded-lg text-center border border-purple-500/20">
-                                    <div className="text-purple-400/60 text-[10px] mb-1">Profit</div>
-                                    <div className="text-purple-400 font-mono font-bold">
-                                        ${(((1 * parseFloat(formData.priceMultiplier || '1')) + parseFloat(formData.fixedMarkup || '0')) - 1).toFixed(2)}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                            );
+                        })()}
                     </div>
                 )}
 
@@ -1664,7 +1987,6 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                         <div className="h-8" />
                     </div>
                 )}
-
 
                 {activeTab === 'test' && (
                     <div className="space-y-5">
@@ -2065,6 +2387,6 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                     </Button>
                 </div>
             </div>
-        </motion.div>
+        </motion.div >
     )
 }

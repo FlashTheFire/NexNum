@@ -299,8 +299,11 @@
             "providers": "Providers",
             "inventory": "Inventory",
             "transactions": "Transactions",
+            "currencies": "Currencies",
+            "finance": "Finance",
+            "monitoring": "Monitoring",
             "settings": "Settings",
-            "exit": "Exit to App"
+            "exit": "Exit Admin"
         },
         "status": {
             "optimal": "SYSTEM OPTIMAL"

@@ -38,13 +38,23 @@ export const POST = apiHandler(async (request, { body }) => {
         idempotencyKey
     } = body
 
-    console.log(`[PURCHASE] Attempting purchase:`, {
-        input: { countryInput, serviceInput, operatorId, provider }
-    })
+    // 4. Resolve Provider Slug (Fix for Display Name mismatch)
+    let resolvedProvider: string | undefined = undefined
+    if (provider) {
+        // e.g. "NexPremium" -> "grizzlysms"
+        const slug = await smsProvider.resolveProviderSlug(provider)
+        if (slug) {
+            resolvedProvider = slug
+            console.log(`[PURCHASE] Resolved provider: "${provider}" -> "${slug}"`)
+        } else {
+            console.warn(`[PURCHASE] Could not resolve provider slug for: "${provider}"`)
+            resolvedProvider = provider.toLowerCase() // Fallback
+        }
+    }
 
     // 1. Find Offer
     // If provider is specified, we ONLY fetch for that provider
-    const offer = await getOfferForPurchase(serviceInput, countryInput, operatorId, provider)
+    const offer = await getOfferForPurchase(serviceInput, countryInput, operatorId, resolvedProvider)
     if (!offer) {
         console.warn(`[PURCHASE] No offer found for:`, { serviceInput, countryInput, provider })
         return NextResponse.json({ error: 'Selected provider offer not available' }, { status: 404 })
@@ -52,7 +62,7 @@ export const POST = apiHandler(async (request, { body }) => {
 
     const serviceName = offer.serviceName
     const countryName = offer.countryName
-    const providerName = provider || offer.provider
+    const providerName = offer.provider
     const price = offer.price
 
     console.log(`[PURCHASE] Found offer:`, { providerName, serviceName, countryName, price })

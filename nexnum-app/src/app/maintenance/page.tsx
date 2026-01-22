@@ -1,13 +1,12 @@
 "use client"
 
 import { motion } from "framer-motion"
-import { Lock, Clock, Terminal, Activity } from "lucide-react"
-
 import { TechnicalHUD } from "@/components/ui/technical-hud"
-import { useTranslations } from "next-intl"
+
+// Note: This root-level maintenance page cannot use next-intl hooks
+// because it's outside the [locale] segment and has no i18n provider context.
 
 export default function MaintenancePage() {
-    const t = useTranslations('ErrorPages.maintenance')
     const logoSize = "w-24 h-24"
 
     return (
@@ -34,7 +33,7 @@ export default function MaintenancePage() {
                     <div className="md:hidden flex items-center gap-4">
                         <div className="h-px w-6 bg-white/10" />
                         <span className="text-[10px] font-mono font-medium text-[hsl(var(--neon-lime))/0.8] tracking-[0.5em] uppercase">
-                            {t('badge')}
+                            System Maintenance
                         </span>
                         <div className="h-px w-6 bg-white/10" />
                     </div>
@@ -95,11 +94,11 @@ export default function MaintenancePage() {
                     animate={{ opacity: 1, scale: 1 }}
                     className="text-5xl md:text-8xl font-bold md:font-black text-white mb-6 md:mb-8 tracking-wide md:tracking-tighter md:italic drop-shadow-2xl md:drop-shadow-[0_10px_30px_rgba(0,0,0,0.5)] md:whitespace-nowrap"
                 >
-                    {t('title')}
+                    Under Maintenance
                 </motion.h1>
 
                 <p className="text-gray-500 text-sm md:text-xs leading-relaxed mb-12 md:mb-24 font-light tracking-wide md:tracking-[0.4em] max-w-xs md:max-w-xl mx-auto opacity-80 md:opacity-50 md:uppercase font-sans md:font-mono md:italic">
-                    {t('description')}
+                    We&apos;re performing scheduled maintenance. We&apos;ll be back shortly.
                 </p>
 
 
@@ -114,11 +113,10 @@ export default function MaintenancePage() {
                     <span>MEMORY_CACHE: OPTIMIZED</span>
                 </div>
                 <div className="md:hidden text-[8px] font-mono tracking-[0.8em] text-white uppercase">
-                    {t('footer')}
+                    NexNum
                 </div>
                 <span className="hidden md:block text-[8px] font-mono text-white uppercase tracking-[1.5em] font-bold">NEXNUM_INFRASTRUCTURE_V2.1</span>
             </div>
         </div>
     )
 }
-

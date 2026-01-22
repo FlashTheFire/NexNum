@@ -532,7 +532,7 @@ export async function initSearchIndexes() {
         const offersIndex = meili.index(INDEXES.OFFERS)
 
         await offersIndex.updateSettings({
-            searchableAttributes: ['serviceName', 'serviceSlug', 'countryName', 'countryCode', 'provider', 'displayName'],
+            searchableAttributes: ['serviceName', 'serviceSlug', 'countryName', 'countryCode', 'provider'],
             filterableAttributes: ['serviceSlug', 'serviceName', 'countryCode', 'countryName', 'provider', 'operatorId', 'price', 'stock', 'lastSyncedAt', 'isActive'],
             sortableAttributes: ['price', 'stock', 'lastSyncedAt'],
             rankingRules: ['words', 'typo', 'proximity', 'attribute', 'sort', 'exactness', 'stock:desc', 'lastSyncedAt:desc'],
@@ -1061,8 +1061,13 @@ export async function getOfferForPurchase(
         if (canonicalNameFromMap) {
             serviceNameToFilter = canonicalNameFromMap
         } else {
+            let slugFilter = `serviceSlug = "${rawServiceInput}"`
+            if (provider) {
+                slugFilter += ` AND provider = "${provider}"`
+            }
+
             const slugDiscovery = await index.search('', {
-                filter: `serviceSlug = "${rawServiceInput}"`,
+                filter: slugFilter,
                 limit: 1,
                 attributesToRetrieve: ['serviceName'],
             })
@@ -1073,6 +1078,7 @@ export async function getOfferForPurchase(
                 const textSearch = await index.search(rawServiceInput, {
                     limit: 1,
                     attributesToRetrieve: ['serviceName'],
+                    filter: provider ? `provider = "${provider}"` : undefined
                 })
                 serviceNameToFilter = textSearch.hits.length > 0
                     ? (textSearch.hits[0] as OfferDocument).serviceName
@@ -1091,6 +1097,7 @@ export async function getOfferForPurchase(
             const countryLookup = await index.search(cleanedInput, {
                 limit: 10,
                 attributesToRetrieve: ['countryName'],
+                filter: provider ? `provider = "${provider}"` : undefined
             })
 
             if (countryLookup.hits.length > 0) {
@@ -1106,8 +1113,13 @@ export async function getOfferForPurchase(
                     .join(' ')
             }
         } else {
+            let codeFilter = `countryCode = "${rawCountryInput}"`
+            if (provider) {
+                codeFilter += ` AND provider = "${provider}"`
+            }
+
             const countryLookup = await index.search('', {
-                filter: `countryCode = "${rawCountryInput}"`,
+                filter: codeFilter,
                 limit: 1,
                 attributesToRetrieve: ['countryName'],
             })
@@ -1123,7 +1135,7 @@ export async function getOfferForPurchase(
             filter += ` AND operatorId = ${operatorId}`
         }
         if (provider) {
-            filter += ` AND provider = "${provider}"`
+            filter += ` AND provider = "${provider.toLowerCase()}"`
         }
 
         console.log(`[PURCHASE] Looking up offer with filter:`, { serviceNameToFilter, countryNameToFilter, operatorId, provider })

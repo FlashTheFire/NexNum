@@ -5,6 +5,7 @@ import { Toaster } from "sonner";
 import JsonLd from "@/components/seo/JsonLd";
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages, setRequestLocale } from 'next-intl/server';
+import { CurrencyProvider } from '@/providers/CurrencyProvider';
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -98,9 +99,11 @@ export default async function LocaleLayout({
         <html lang={locale} className="dark" suppressHydrationWarning>
             <body className={inter.className}>
                 <NextIntlClientProvider messages={messages}>
-                    <JsonLd />
-                    {children}
-                    <Toaster position="top-right" theme="dark" closeButton richColors />
+                    <CurrencyProvider>
+                        <JsonLd />
+                        {children}
+                        <Toaster position="top-right" theme="dark" closeButton richColors />
+                    </CurrencyProvider>
                 </NextIntlClientProvider>
             </body>
         </html>

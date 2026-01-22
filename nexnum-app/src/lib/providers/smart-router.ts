@@ -39,6 +39,20 @@ export class SmartSmsRouter implements SmsProvider {
     }
 
     /**
+     * Resolve generic provider name/display name to internal slug
+     * e.g. "NexPremium" -> "grizzlysms"
+     */
+    async resolveProviderSlug(input: string): Promise<string | null> {
+        if (!input) return null
+        const providers = await this.getActiveProviders()
+        const match = providers.find(p =>
+            p.name.toLowerCase() === input.toLowerCase() ||
+            p.config.displayName.toLowerCase() === input.toLowerCase()
+        )
+        return match ? match.name : null
+    }
+
+    /**
      * Get healthy providers (filter by circuit breaker state)
      */
     private async getHealthyProviders(): Promise<DynamicProvider[]> {

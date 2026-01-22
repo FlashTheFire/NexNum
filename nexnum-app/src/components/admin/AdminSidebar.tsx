@@ -12,7 +12,8 @@ import {
     ArrowLeft,
     RefreshCw,
     CreditCard,
-    Server
+    Server,
+    Activity
 } from "lucide-react"
 
 const menuItems = [
@@ -21,6 +22,8 @@ const menuItems = [
     { icon: Server, label: "providers", href: "/admin/providers" },
     { icon: ShoppingBag, label: "inventory", href: "/admin/inventory" },
     { icon: CreditCard, label: "transactions", href: "/admin/transactions" },
+    { icon: RefreshCw, label: "currencies", href: "/admin/finance/currency" },
+    { icon: Activity, label: "monitoring", href: "/admin/monitoring" },
     { icon: Settings, label: "settings", href: "/admin/settings" },
 ]
 

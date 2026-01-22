@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 
 interface AuthState {
-    user: { id: string; name: string; email: string; role?: string } | null;
+    user: { id: string; name: string; email: string; role?: string; preferredCurrency?: string } | null;
     token: string | null;
     isAuthenticated: boolean;
     isLoading: boolean;
@@ -13,7 +13,7 @@ interface AuthState {
     register: (name: string, email: string, password: string) => Promise<boolean>;
     logout: () => Promise<void>;
     checkAuth: () => Promise<void>;
-    updateUser: (name: string, email: string) => void;
+    updateUser: (data: { name?: string; email?: string; preferredCurrency?: string }) => void;
     clearError: () => void;
     hydrateFromCache: () => void;  // New: restore from cache immediately
 }
@@ -50,14 +50,14 @@ const clearToken = () => {
 };
 
 // Helper to save user to localStorage (for faster hydration)
-const saveUser = (user: { id: string; name: string; email: string; role?: string }) => {
+const saveUser = (user: { id: string; name: string; email: string; role?: string; preferredCurrency?: string }) => {
     if (typeof window !== 'undefined') {
         localStorage.setItem(USER_KEY, JSON.stringify(user));
     }
 };
 
 // Helper to get cached user from localStorage
-const getCachedUser = (): { id: string; name: string; email: string; role?: string } | null => {
+const getCachedUser = (): { id: string; name: string; email: string; role?: string; preferredCurrency?: string } | null => {
     if (typeof window !== 'undefined') {
         const userData = localStorage.getItem(USER_KEY);
         const timestamp = localStorage.getItem(AUTH_TIMESTAMP_KEY);
@@ -302,10 +302,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
     },
 
-    updateUser: (name: string, email: string) => {
+    updateUser: (data: { name?: string; email?: string; preferredCurrency?: string }) => {
         const currentUser = get().user;
         if (currentUser) {
-            const updatedUser = { ...currentUser, name, email };
+            const updatedUser = { ...currentUser, ...data };
             saveUser(updatedUser);  // Update cache
             set({ user: updatedUser });
         }

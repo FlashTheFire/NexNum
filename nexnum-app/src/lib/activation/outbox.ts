@@ -122,7 +122,6 @@ async function handleOfferUpdate(pricingId: string) {
         countryName: canonicalCountry,
         flagUrl: pricing.country.flagUrl || '',
         provider: pricing.provider.name,
-        displayName: pricing.provider.displayName,
         price: Number(pricing.sellPrice),
         stock: pricing.stock,
         lastSyncedAt: Date.now(),

@@ -60,6 +60,26 @@ export async function POST(req: Request) {
         const settings = await SettingsService.getSettings()
         const pricing = settings.pricing
 
+        // Sanitise numeric/decimal fields
+        const sanitizedBody = { ...body }
+        const numericFields = [
+            'priceMultiplier', 'fixedMarkup', 'priority',
+            'normalizationRate', 'depositSpent', 'depositReceived'
+        ]
+
+        numericFields.forEach(field => {
+            if (sanitizedBody[field] !== undefined) {
+                if (sanitizedBody[field] === '' || sanitizedBody[field] === null) {
+                    // Default values if empty
+                    if (field === 'priceMultiplier') sanitizedBody[field] = pricing.defaultMarkup
+                    else if (field === 'priority') sanitizedBody[field] = 0
+                    else sanitizedBody[field] = 0.0
+                } else {
+                    sanitizedBody[field] = Number(sanitizedBody[field])
+                }
+            }
+        })
+
         const provider = await prisma.provider.create({
             data: {
                 name,
@@ -75,10 +95,17 @@ export async function POST(req: Request) {
                 logoUrl: body.logoUrl,
                 websiteUrl: body.websiteUrl,
                 isActive: false,
-                priority: 0,
-                priceMultiplier: body.priceMultiplier || pricing.defaultMarkup,
-                fixedMarkup: body.fixedMarkup || pricing.fixedMarkup,
-                currency: body.currency || pricing.currency
+                priority: sanitizedBody.priority || 0,
+                priceMultiplier: sanitizedBody.priceMultiplier || pricing.defaultMarkup,
+                fixedMarkup: sanitizedBody.fixedMarkup || pricing.fixedMarkup,
+                currency: body.currency || pricing.currency,
+                normalizationMode: body.normalizationMode || 'AUTO',
+                normalizationRate: sanitizedBody.normalizationRate || 1.0,
+                apiPair: body.apiPair || '',
+                depositSpent: sanitizedBody.depositSpent || 0.0,
+                depositReceived: sanitizedBody.depositReceived || 0.0,
+                // @ts-ignore - Prisma type sync
+                depositCurrency: body.depositCurrency || 'USD'
             }
         })
 

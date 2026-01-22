@@ -42,13 +42,39 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     try {
         const body = await req.json()
 
+        // Sanitise numeric/decimal fields
+        const sanitizedBody = { ...body }
+        const numericFields = [
+            'priceMultiplier', 'fixedMarkup', 'priority',
+            'normalizationRate', 'depositSpent', 'depositReceived'
+        ]
+
+        numericFields.forEach(field => {
+            if (sanitizedBody[field] !== undefined) {
+                if (sanitizedBody[field] === '' || sanitizedBody[field] === null) {
+                    // Default values if empty
+                    if (field === 'priceMultiplier') sanitizedBody[field] = 1.0
+                    else if (field === 'priority') sanitizedBody[field] = 0
+                    else sanitizedBody[field] = 0.0
+                } else {
+                    sanitizedBody[field] = Number(sanitizedBody[field])
+                }
+            }
+        })
+
         // Get original for audit comparison
         const original = await prisma.provider.findUnique({ where: { id } })
 
         const provider = await prisma.provider.update({
             where: { id },
             data: {
-                ...body,
+                normalizationMode: body.normalizationMode,
+                normalizationRate: sanitizedBody.normalizationRate,
+                apiPair: body.apiPair,
+                depositSpent: sanitizedBody.depositSpent,
+                depositReceived: sanitizedBody.depositReceived,
+                // @ts-ignore
+                depositCurrency: body.depositCurrency,
                 updatedAt: new Date()
             }
         })
