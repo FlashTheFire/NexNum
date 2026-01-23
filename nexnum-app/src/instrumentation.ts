@@ -7,9 +7,13 @@ export async function register() {
         await import('../sentry.server.config')
 
         const { runMasterWorker } = await import('@/workers/master-worker')
+        const { startQueueWorker } = await import('@/worker-entry') // Unified Worker Entry
         const { logger } = await import('@/lib/core/logger')
 
         logger.splash()
+
+        // Start Heavy Worker (Queue & Sync) - Fire and forget to not block startup
+        startQueueWorker().catch(e => logger.error('Failed to start heavy worker', e))
 
         // Wait for splash to clear terminal before showing startup logs
         setTimeout(() => {

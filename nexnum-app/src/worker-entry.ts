@@ -1,6 +1,4 @@
-import dotenv from 'dotenv';
-// Load environment variables immediately
-dotenv.config();
+// Adapting for Single-Process execution via instrumentation.ts
 
 import { queue, QUEUES } from './lib/core/queue';
 import { prisma } from './lib/core/db';
@@ -8,8 +6,8 @@ import { logger } from './lib/core/logger';
 import { DynamicProvider } from './lib/providers/dynamic-provider';
 import { DynamicWebhookHandler } from './lib/webhooks/handlers/dynamic';
 
-async function startWorker() {
-    logger.info('[Worker] Starting background worker service...');
+export async function startQueueWorker() {
+    logger.info('[Worker] Starting background queue & sync services...');
 
     try {
         // 1. Connect to Queue
@@ -67,7 +65,8 @@ async function startWorker() {
             }
         });
 
-        // JOB: Inbox Polling (Legacy/Fallback)
+        // JOB: Inbox Polling (Legacy/Fallback) - KEPT for compatibility, though MasterWorker also polls.
+        // If MasterWorker is running, this might be redundant, but safe to keep as it's separate loop.
         const { processInboxBatch } = await import('./workers/inbox-worker');
 
         // Polling Loop
@@ -75,9 +74,9 @@ async function startWorker() {
             try {
                 const result = await processInboxBatch();
                 if (result.processed > 0 || result.activeNumbers > 0) {
-                    setTimeout(runPolling, 2000);
+                    setTimeout(runPolling, 2000); // 2s turbo mode
                 } else {
-                    setTimeout(runPolling, 10000);
+                    setTimeout(runPolling, 10000); // 10s idle
                 }
             } catch (e) {
                 logger.error('[Worker] Polling loop crashed:', e);
@@ -88,7 +87,7 @@ async function startWorker() {
         runPolling();
         logger.info('[Worker] Inbox polling loop started');
 
-        // JOB: Smart Sync Scheduler (Auto-Run Every 6 Hours)
+        // JOB: Smart Sync Scheduler (Auto-Run Every 24 Hours)
         // This replaces the manual CLI script with a fully automated server-side loop.
         const { syncAllProviders, verifyAssetIntegrity } = await import('./lib/providers/provider-sync');
 
@@ -117,21 +116,20 @@ async function startWorker() {
             } catch (e) {
                 logger.error('[SmartSync] Critical failure during scheduled sync:', e);
             } finally {
-                // Schedule next run in 6 hours
-                const delay = 6 * 60 * 60 * 1000;
-                logger.info(`[SmartSync] Next sync scheduled in ${delay / 1000 / 60} minutes.`);
+                // Schedule next run in 24 hours
+                const delay = 24 * 60 * 60 * 1000;
+                logger.info(`[SmartSync] Next sync scheduled in ${(delay / 1000 / 60 / 60).toFixed(1)} hours.`);
                 setTimeout(runSmartSyncScheduler, delay);
             }
         };
 
-        // Start initial sync after 1 minute (to allow worker to stabilize)
-        setTimeout(runSmartSyncScheduler, 60 * 1000);
-        logger.info('[Worker] Smart Sync scheduler initialized');
+        // Start initial sync after 24 hours (User requested no auto-start)
+        const initialDelay = 24 * 60 * 60 * 1000;
+        setTimeout(runSmartSyncScheduler, initialDelay);
+        logger.info(`[Worker] Smart Sync scheduler initialized (First run in 24 hours)`);
 
     } catch (e) {
         logger.error('[Worker] Fatal startup error:', e);
-        process.exit(1);
+        // Do NOT exit process in Next.js instrumentation
     }
 }
-
-startWorker();

@@ -367,6 +367,7 @@ export default function ProviderWizard({ onComplete, onCancel }: WizardProps) {
                                         >
                                             {/* Provider Template Cards */}
                                             {[
+                                                { key: 'mock-sms', logo: '/providers/mock.png', name: 'Mock SMS', desc: 'Local Dev Simulation', color: 'from-violet-500/20 to-fuchsia-500/20', border: 'border-violet-500/20 hover:border-violet-500/50' },
                                                 { key: '5sim', logo: '/providers/5sim.png', name: '5sim', desc: 'Virtual numbers worldwide', color: 'from-blue-500/20 to-cyan-500/20', border: 'border-blue-500/20 hover:border-blue-500/50' },
                                                 { key: 'grizzlysms', logo: '/providers/grizzlysms.png', name: 'GrizzlySMS', desc: 'SMS-Activate compatible', color: 'from-amber-500/20 to-orange-500/20', border: 'border-amber-500/20 hover:border-amber-500/50' },
                                                 { key: 'smsbower', logo: '/providers/smsbower.png', name: 'SMSBower', desc: 'Affordable SMS service', color: 'from-green-500/20 to-emerald-500/20', border: 'border-green-500/20 hover:border-green-500/50' },
@@ -927,7 +928,7 @@ export default function ProviderWizard({ onComplete, onCancel }: WizardProps) {
                         ) : (
                             <Button
                                 onClick={handleSubmit}
-                                className="bg-[hsl(var(--neon-lime))] text-black hover:bg-[hsl(var(--neon-lime))/0.9] px-8 shadow-[0_0_20px_hsl(var(--neon-lime)/0.3)]"
+                                className="bg-[hsl(var(--neon-lime))] text-black hover:bg-[hsl(var(--neon-lime))] hover:opacity-90 px-8 shadow-[0_0_20px_hsl(var(--neon-lime)/0.3)] transition-all"
                             >
                                 <CheckCircle size={16} className="ml-2" /> Complete Setup
                             </Button>

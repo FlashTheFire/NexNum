@@ -123,3 +123,91 @@ export const lifecycle_queue_size = register('nexnum_lifecycle_queue_size', () =
     labelNames: ['status'],
     registers: [registry]
 }))
+
+// --- BATCH POLLING METRICS ---
+
+export const batch_poll_duration_seconds = register('nexnum_batch_poll_duration_seconds', () => new Histogram({
+    name: 'nexnum_batch_poll_duration_seconds',
+    help: 'Duration of batch polling operations',
+    labelNames: ['provider'],
+    buckets: [0.1, 0.25, 0.5, 1, 2, 5, 10, 30],
+    registers: [registry]
+}))
+
+export const batch_poll_items_total = register('nexnum_batch_poll_items_total', () => new Counter({
+    name: 'nexnum_batch_poll_items_total',
+    help: 'Total items processed in batch polls',
+    labelNames: ['provider', 'result'], // result: 'success', 'error', 'pending'
+    registers: [registry]
+}))
+
+export const batch_poll_api_calls_saved = register('nexnum_batch_poll_api_calls_saved', () => new Counter({
+    name: 'nexnum_batch_poll_api_calls_saved',
+    help: 'API calls saved by batch polling (vs individual)',
+    labelNames: ['provider'],
+    registers: [registry]
+}))
+
+export const active_orders_gauge = register('nexnum_active_orders_gauge', () => new Gauge({
+    name: 'nexnum_active_orders_gauge',
+    help: 'Current number of active orders',
+    labelNames: ['provider', 'status'],
+    registers: [registry]
+}))
+
+// --- ORDER STATE MACHINE METRICS ---
+
+export const order_state_transitions_total = register('nexnum_order_state_transitions_total', () => new Counter({
+    name: 'nexnum_order_state_transitions_total',
+    help: 'Total order state transitions',
+    labelNames: ['from_state', 'to_state', 'provider'],
+    registers: [registry]
+}))
+
+export const order_processing_duration_seconds = register('nexnum_order_processing_duration_seconds', () => new Histogram({
+    name: 'nexnum_order_processing_duration_seconds',
+    help: 'Duration from order creation to completion/expiry',
+    labelNames: ['provider', 'final_state'],
+    buckets: [10, 30, 60, 120, 300, 600, 900, 1200], // 10s to 20min
+    registers: [registry]
+}))
+
+export const sms_delivery_latency_seconds = register('nexnum_sms_delivery_latency_seconds', () => new Histogram({
+    name: 'nexnum_sms_delivery_latency_seconds',
+    help: 'Time from number purchase to first SMS received',
+    labelNames: ['provider', 'service'],
+    buckets: [5, 10, 30, 60, 120, 300, 600],
+    registers: [registry]
+}))
+
+// --- WALLET OPERATION METRICS ---
+
+export const wallet_operation_duration_seconds = register('nexnum_wallet_operation_duration_seconds', () => new Histogram({
+    name: 'nexnum_wallet_operation_duration_seconds',
+    help: 'Duration of wallet operations',
+    labelNames: ['operation'], // reserve, commit, rollback, refund
+    buckets: [0.01, 0.05, 0.1, 0.25, 0.5, 1],
+    registers: [registry]
+}))
+
+export const wallet_balance_reserved_total = register('nexnum_wallet_balance_reserved_total', () => new Counter({
+    name: 'nexnum_wallet_balance_reserved_total',
+    help: 'Total amount reserved in wallet operations',
+    registers: [registry]
+}))
+
+export const wallet_refunds_total = register('nexnum_wallet_refunds_total', () => new Counter({
+    name: 'nexnum_wallet_refunds_total',
+    help: 'Total refunds processed',
+    labelNames: ['reason'], // timeout, cancelled, failed
+    registers: [registry]
+}))
+
+// --- MULTI-SMS METRICS ---
+
+export const multi_sms_sequences_total = register('nexnum_multi_sms_sequences_total', () => new Counter({
+    name: 'nexnum_multi_sms_sequences_total',
+    help: 'Total multi-SMS sequences processed',
+    labelNames: ['provider', 'sms_count'],
+    registers: [registry]
+}))

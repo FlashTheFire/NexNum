@@ -475,7 +475,10 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
         mappings: '{\n  "getCountries": { "type": "json_object", "rootPath": "$" }\n}',
         isActive: false, priority: 0, providerType: 'rest',
         priceMultiplier: '1.0', fixedMarkup: '0.00', currency: 'USD',
-        normalizationMode: 'AUTO', normalizationRate: '', apiPair: '', depositSpent: '', depositReceived: '', depositCurrency: 'USD'
+        normalizationMode: 'AUTO', normalizationRate: '', apiPair: '', depositSpent: '', depositReceived: '', depositCurrency: 'USD',
+        // Dynamic Engine Settings (schema fields)
+        useDynamicMetadata: false,
+        dynamicFunctions: {} as Record<string, boolean>
     })
 
     const [availableCurrencies, setAvailableCurrencies] = useState<any[]>([])
@@ -536,7 +539,10 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                 apiPair: provider.apiPair || '',
                 depositSpent: provider.depositSpent ? String(provider.depositSpent) : '',
                 depositReceived: provider.depositReceived ? String(provider.depositReceived) : '',
-                depositCurrency: (provider as any).depositCurrency || 'USD'
+                depositCurrency: (provider as any).depositCurrency || 'USD',
+                // Dynamic Engine Settings (schema fields)
+                useDynamicMetadata: (provider as any).useDynamicMetadata || false,
+                dynamicFunctions: (provider as any).dynamicFunctions || {}
             })
             // Reset test state on provider open
             setTestAction('test')
@@ -1064,69 +1070,96 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
 
                         {/* Dynamic Engine Functions */}
                         {(() => {
-                            const currentMappings = safeParse(formData.mappings)
-                            const dynamicFns = currentMappings?.dynamicFunctions || {}
-                            const allFunctions = ['getBalance', 'getCountries', 'getServices', 'getPrices', 'getNumber', 'getStatus', 'setStatus', 'cancelNumber']
-                            const enabledCount = allFunctions.filter(fn => dynamicFns[fn]).length
+                            // Read from TOP-LEVEL schema fields (not mappings blob)
+                            const dynamicFns = formData.dynamicFunctions || {}
+                            const useDynamicMeta = formData.useDynamicMetadata || false
+
+                            // Function groups for logical organization
+                            const functionGroups = [
+                                {
+                                    title: 'Metadata Functions',
+                                    description: 'Fetch provider data (countries, services, prices)',
+                                    color: 'blue',
+                                    functions: [
+                                        { key: 'getCountries', label: 'Countries', icon: Globe, desc: 'List available countries' },
+                                        { key: 'getServices', label: 'Services', icon: Package, desc: 'List services by country' },
+                                        { key: 'getPrices', label: 'Prices', icon: BarChart3, desc: 'Get pricing data' },
+                                        { key: 'getBalance', label: 'Balance', icon: DollarSign, desc: 'Check account balance' },
+                                    ]
+                                },
+                                {
+                                    title: 'Transaction Functions',
+                                    description: 'Number purchase and status management',
+                                    color: 'emerald',
+                                    functions: [
+                                        { key: 'getNumber', label: 'Buy Number', icon: Phone, desc: 'Purchase activation' },
+                                        { key: 'getStatus', label: 'Get Status', icon: Eye, desc: 'Check SMS status' },
+                                        { key: 'setStatus', label: 'Set Status', icon: Settings, desc: 'Confirm/reject SMS' },
+                                        { key: 'cancelNumber', label: 'Cancel', icon: XCircle, desc: 'Cancel and refund' },
+                                    ]
+                                }
+                            ]
+
+                            const allFunctions = functionGroups.flatMap(g => g.functions.map(f => f.key))
+                            const enabledCount = allFunctions.filter(fn => dynamicFns[fn] || useDynamicMeta).length
                             const allEnabled = enabledCount === allFunctions.length
-                            const someEnabled = enabledCount > 0
+
+                            const toggleFunction = (fnKey: string) => {
+                                const newDynamicFns = { ...dynamicFns, [fnKey]: !dynamicFns[fnKey] }
+                                setFormData({ ...formData, dynamicFunctions: newDynamicFns })
+                            }
+
+                            const toggleAll = () => {
+                                if (allEnabled) {
+                                    // Turn all OFF
+                                    setFormData({ ...formData, dynamicFunctions: {}, useDynamicMetadata: false })
+                                } else {
+                                    // Turn all ON
+                                    const allOn = allFunctions.reduce((acc, fn) => ({ ...acc, [fn]: true }), {})
+                                    setFormData({ ...formData, dynamicFunctions: allOn, useDynamicMetadata: true })
+                                }
+                            }
 
                             return (
-                                <div className="p-4 bg-gradient-to-r from-blue-500/5 to-cyan-500/5 rounded-xl border border-blue-500/20 space-y-4">
+                                <div className="p-4 bg-gradient-to-r from-indigo-500/5 to-purple-500/5 rounded-xl border border-indigo-500/20 space-y-4">
+                                    {/* Header */}
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                                                <Sparkles className="w-4 h-4 text-blue-400" />
+                                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500/30 to-purple-500/30 flex items-center justify-center border border-indigo-500/20">
+                                                <Zap className="w-5 h-5 text-indigo-400" />
                                             </div>
                                             <div>
                                                 <div className="flex items-center gap-2">
-                                                    <label className="text-sm font-medium text-white">Dynamic Engine</label>
-                                                    <div className="px-1.5 py-0.5 rounded bg-blue-500/20 border border-blue-500/30 text-[8px] font-bold text-blue-400 uppercase tracking-wider">Experimental</div>
-                                                    {someEnabled && !allEnabled && (
-                                                        <div className="px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-500/30 text-[8px] font-bold text-amber-400 tracking-wider">
-                                                            {enabledCount}/{allFunctions.length}
+                                                    <label className="text-sm font-bold text-white">Dynamic Config Engine</label>
+                                                    {enabledCount > 0 && (
+                                                        <div className="px-2 py-0.5 rounded-full bg-indigo-500/20 border border-indigo-500/30 text-[10px] font-bold text-indigo-400">
+                                                            {enabledCount}/{allFunctions.length} Active
                                                         </div>
                                                     )}
                                                 </div>
-                                                <p className="text-[10px] text-white/40">
-                                                    Select which functions use the dynamic config engine
+                                                <p className="text-[10px] text-white/40 max-w-xs">
+                                                    Enable dynamic parsing for API endpoints using JSON mappings instead of legacy adapters
                                                 </p>
                                             </div>
                                         </div>
-                                        {/* Controls */}
-                                        <div className="flex items-center gap-2">
-                                            {/* Expand/Collapse Button */}
+                                        {/* Master Toggle */}
+                                        <div className="flex items-center gap-3">
                                             <button
                                                 onClick={() => setIsDynamicExpanded(!isDynamicExpanded)}
-                                                className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
+                                                className="p-2 rounded-lg hover:bg-white/10 transition-colors"
                                             >
                                                 <ChevronDown className={`w-4 h-4 text-white/40 transition-transform ${isDynamicExpanded ? '' : '-rotate-90'}`} />
                                             </button>
-
-                                            <span className="text-[10px] text-white/40 hidden md:inline">All</span>
                                             <button
-                                                onClick={() => {
-                                                    // If any are enabled, turn all OFF. If none enabled, turn all ON.
-                                                    const newDynamicFunctions = someEnabled
-                                                        ? {}
-                                                        : { getBalance: true, getCountries: true, getServices: true, getPrices: true, getNumber: true, getStatus: true, setStatus: true, cancelNumber: true }
-                                                    setFormData({
-                                                        ...formData,
-                                                        mappings: JSON.stringify({
-                                                            ...currentMappings,
-                                                            dynamicFunctions: newDynamicFunctions,
-                                                            useDynamicMetadata: !someEnabled
-                                                        }, null, 2)
-                                                    })
-                                                }}
-                                                className={`relative shrink-0 w-11 h-6 rounded-full transition-colors ${someEnabled ? 'bg-blue-500' : 'bg-white/10'}`}
+                                                onClick={toggleAll}
+                                                className={`relative w-12 h-6 rounded-full transition-all ${allEnabled ? 'bg-gradient-to-r from-indigo-500 to-purple-500' : 'bg-white/10'}`}
                                             >
-                                                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${someEnabled ? 'left-6' : 'left-1'}`} />
+                                                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow-md transition-all ${allEnabled ? 'left-7' : 'left-1'}`} />
                                             </button>
                                         </div>
                                     </div>
 
-                                    {/* Individual Function Toggles - Collapsible */}
+                                    {/* Function Groups - Collapsible */}
                                     <AnimatePresence>
                                         {isDynamicExpanded && (
                                             <motion.div
@@ -1134,69 +1167,68 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                                 animate={{ opacity: 1, height: 'auto' }}
                                                 exit={{ opacity: 0, height: 0 }}
                                                 transition={{ duration: 0.2 }}
-                                                className="overflow-hidden"
+                                                className="overflow-hidden space-y-4"
                                             >
-                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                                    {[
-                                                        { key: 'getBalance', label: 'Balance', icon: DollarSign, desc: 'Check funds', color: 'emerald' },
-                                                        { key: 'getCountries', label: 'Countries', icon: Globe, desc: 'List all', color: 'blue' },
-                                                        { key: 'getServices', label: 'Services', icon: Package, desc: 'By country', color: 'violet' },
-                                                        { key: 'getPrices', label: 'Prices', icon: BarChart3, desc: 'Get pricing', color: 'amber' },
-                                                        { key: 'getNumber', label: 'Buy Number', icon: Phone, desc: 'Purchase', color: 'green' },
-                                                        { key: 'getStatus', label: 'Get Status', icon: Eye, desc: 'Check SMS', color: 'cyan' },
-                                                        { key: 'setStatus', label: 'Set Status', icon: Settings, desc: 'Confirm/Cancel', color: 'orange' },
-                                                        { key: 'cancelNumber', label: 'Cancel', icon: XCircle, desc: 'Refund', color: 'red' },
-                                                    ].map((fn) => {
-                                                        const Icon = fn.icon
-                                                        const isEnabled = dynamicFns[fn.key] ?? currentMappings?.useDynamicMetadata ?? false
-                                                        const colorMap: Record<string, { bg: string; border: string; text: string; active: string }> = {
-                                                            emerald: { bg: 'from-emerald-500/20 to-emerald-600/10', border: 'border-emerald-500/30', text: 'text-emerald-400', active: 'bg-emerald-500' },
-                                                            blue: { bg: 'from-blue-500/20 to-blue-600/10', border: 'border-blue-500/30', text: 'text-blue-400', active: 'bg-blue-500' },
-                                                            violet: { bg: 'from-violet-500/20 to-violet-600/10', border: 'border-violet-500/30', text: 'text-violet-400', active: 'bg-violet-500' },
-                                                            amber: { bg: 'from-amber-500/20 to-amber-600/10', border: 'border-amber-500/30', text: 'text-amber-400', active: 'bg-amber-500' },
-                                                            green: { bg: 'from-green-500/20 to-green-600/10', border: 'border-green-500/30', text: 'text-green-400', active: 'bg-green-500' },
-                                                            cyan: { bg: 'from-cyan-500/20 to-cyan-600/10', border: 'border-cyan-500/30', text: 'text-cyan-400', active: 'bg-cyan-500' },
-                                                            orange: { bg: 'from-orange-500/20 to-orange-600/10', border: 'border-orange-500/30', text: 'text-orange-400', active: 'bg-orange-500' },
-                                                            red: { bg: 'from-red-500/20 to-red-600/10', border: 'border-red-500/30', text: 'text-red-400', active: 'bg-red-500' },
-                                                        }
-                                                        const colorClasses = colorMap[fn.color] || colorMap.blue
+                                                {functionGroups.map((group) => (
+                                                    <div key={group.title} className="space-y-2">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className={`w-1.5 h-4 rounded-full ${group.color === 'blue' ? 'bg-blue-500' : 'bg-emerald-500'}`} />
+                                                            <span className="text-xs font-semibold text-white/70">{group.title}</span>
+                                                            <span className="text-[9px] text-white/30">{group.description}</span>
+                                                        </div>
+                                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                                            {group.functions.map((fn) => {
+                                                                const Icon = fn.icon
+                                                                const isEnabled = dynamicFns[fn.key] ?? useDynamicMeta
+                                                                const bgColor = group.color === 'blue'
+                                                                    ? 'from-blue-500/20 to-indigo-500/10'
+                                                                    : 'from-emerald-500/20 to-teal-500/10'
+                                                                const borderColor = group.color === 'blue'
+                                                                    ? 'border-blue-500/40'
+                                                                    : 'border-emerald-500/40'
+                                                                const textColor = group.color === 'blue'
+                                                                    ? 'text-blue-400'
+                                                                    : 'text-emerald-400'
 
-                                                        return (
-                                                            <button
-                                                                key={fn.key}
-                                                                onClick={() => {
-                                                                    const newVal = !isEnabled
-                                                                    setFormData({
-                                                                        ...formData,
-                                                                        mappings: JSON.stringify({
-                                                                            ...currentMappings,
-                                                                            dynamicFunctions: { ...dynamicFns, [fn.key]: newVal }
-                                                                        }, null, 2)
-                                                                    })
-                                                                }}
-                                                                className={`relative p-3 rounded-xl border transition-all ${isEnabled
-                                                                    ? `bg-gradient-to-br ${colorClasses.bg} ${colorClasses.border} shadow-lg`
-                                                                    : 'bg-white/5 border-white/10 hover:bg-white/10'
-                                                                    }`}
-                                                            >
-                                                                <div className="flex items-center gap-2">
-                                                                    <div className={`w-6 h-6 rounded-lg flex items-center justify-center ${isEnabled ? colorClasses.bg : 'bg-white/10'
-                                                                        }`}>
-                                                                        <Icon className={`w-3 h-3 ${isEnabled ? colorClasses.text : 'text-white/40'}`} />
-                                                                    </div>
-                                                                    <div className="text-left flex-1 min-w-0">
-                                                                        <div className={`text-xs font-medium truncate ${isEnabled ? 'text-white' : 'text-white/60'}`}>
-                                                                            {fn.label}
+                                                                return (
+                                                                    <button
+                                                                        key={fn.key}
+                                                                        onClick={() => toggleFunction(fn.key)}
+                                                                        className={`relative p-3 rounded-lg border transition-all ${isEnabled
+                                                                            ? `bg-gradient-to-br ${bgColor} ${borderColor} shadow-sm`
+                                                                            : 'bg-white/[0.03] border-white/10 hover:bg-white/5'
+                                                                            }`}
+                                                                    >
+                                                                        <div className="flex items-center gap-2">
+                                                                            <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${isEnabled ? `bg-gradient-to-br ${bgColor}` : 'bg-white/10'}`}>
+                                                                                <Icon className={`w-3.5 h-3.5 ${isEnabled ? textColor : 'text-white/40'}`} />
+                                                                            </div>
+                                                                            <div className="text-left flex-1 min-w-0">
+                                                                                <div className={`text-[11px] font-semibold truncate ${isEnabled ? 'text-white' : 'text-white/50'}`}>
+                                                                                    {fn.label}
+                                                                                </div>
+                                                                                <div className="text-[8px] text-white/30 truncate">{fn.desc}</div>
+                                                                            </div>
+                                                                            {/* Status indicator */}
+                                                                            <div className={`w-2.5 h-2.5 rounded-full shrink-0 transition-colors ${isEnabled
+                                                                                ? group.color === 'blue' ? 'bg-blue-500' : 'bg-emerald-500'
+                                                                                : 'bg-white/10'
+                                                                                }`} />
                                                                         </div>
-                                                                        <div className="text-[9px] text-white/40 truncate">{fn.desc}</div>
-                                                                    </div>
-                                                                    {/* Mini toggle indicator */}
-                                                                    <div className={`w-3 h-3 rounded-full shrink-0 ${isEnabled ? colorClasses.active : 'bg-white/20'
-                                                                        }`} />
-                                                                </div>
-                                                            </button>
-                                                        )
-                                                    })}
+                                                                    </button>
+                                                                )
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                ))}
+
+                                                {/* Info Banner */}
+                                                <div className="flex items-start gap-2 p-3 bg-white/[0.02] rounded-lg border border-white/5">
+                                                    <Info className="w-4 h-4 text-white/30 shrink-0 mt-0.5" />
+                                                    <p className="text-[10px] text-white/40 leading-relaxed">
+                                                        <span className="text-white/60 font-medium">Legacy mode:</span> Disabled functions use built-in adapters.
+                                                        <span className="text-white/60 font-medium"> Dynamic mode:</span> Enabled functions parse API responses using JSON mappings configured in the Mappings tab.
+                                                    </p>
                                                 </div>
                                             </motion.div>
                                         )}

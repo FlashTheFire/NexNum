@@ -78,14 +78,21 @@ export function hasLegacyProvider(name: string): boolean {
  * Check if the provider should use the dynamic configuration engine
  */
 export function hasDynamicConfig(provider: Provider): boolean {
-    // If it's not a legacy provider, it's dynamic
+    // If it's not a legacy provider, it must use dynamic
     if (!hasLegacyProvider(provider.name)) return true
 
-    // If it IS a legacy provider, check if dynamic mode is forced via mappings
+    // Check TOP-LEVEL schema fields (new approach)
+    const useDynamicMetadata = (provider as any).useDynamicMetadata
+    const dynamicFunctions = (provider as any).dynamicFunctions as Record<string, boolean> | null
+
+    if (useDynamicMetadata === true) return true
+    if (dynamicFunctions && Object.values(dynamicFunctions).some(v => v === true)) {
+        return true
+    }
+
+    // Check legacy mappings blob for backwards compatibility
     const mappings = provider.mappings as any
     if (mappings?.useDynamic === true) return true
-
-    // Check granular toggles
     if (mappings?.dynamicFunctions && Object.values(mappings.dynamicFunctions).some(v => v === true)) {
         return true
     }

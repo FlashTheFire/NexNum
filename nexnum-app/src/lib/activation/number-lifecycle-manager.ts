@@ -413,16 +413,29 @@ class NumberLifecycleManager {
     private async handlePoll(data: LifecycleJobData): Promise<void> {
         const { numberId, activationId, userId, attempt = 0 } = data
 
-        // Check if number still active
+        // Check if number still active and get context for adaptive polling
         const number = await prisma.number.findUnique({
             where: { id: numberId },
-            select: { id: true, status: true },
+            select: {
+                id: true,
+                status: true,
+                purchasedAt: true,
+                smsMessages: { select: { id: true } }
+            },
         })
 
         if (!number || number.status !== 'active') {
             logger.debug('[Lifecycle] Number no longer active, stopping poll', { numberId })
             return
         }
+
+        // Calculate order age for adaptive polling
+        const orderAgeSeconds = number.purchasedAt
+            ? Math.floor((Date.now() - number.purchasedAt.getTime()) / 1000)
+            : attempt * 5 // Fallback estimate
+
+        const smsCount = number.smsMessages?.length || 0
+        const circuitOpen = this.circuitBreaker?.opened || false
 
         try {
             // Use circuit breaker for provider call
@@ -432,29 +445,69 @@ class NumberLifecycleManager {
                 // SMS received!
                 await this.onSmsReceived(data, status.messages)
             } else {
-                // No SMS yet - re-queue poll with jitter
-                const jitter = Math.random() * 2
+                // No SMS yet - use adaptive polling strategy
+                const { getNextPollDelay } = await import('./unified-poll-manager')
+
+                const pollDecision = getNextPollDelay({
+                    orderAgeSeconds,
+                    smsCount,
+                    pollAttempt: attempt,
+                    circuitOpen: false,
+                    lastPollError: false
+                })
+
+                logger.debug('[Lifecycle] Adaptive poll scheduled', {
+                    numberId,
+                    phase: pollDecision.phase,
+                    delay: pollDecision.delaySeconds.toFixed(1),
+                    orderAge: orderAgeSeconds,
+                    attempt
+                })
+
                 await this.boss!.send(CONFIG.QUEUE_POLL, {
                     ...data,
                     attempt: attempt + 1,
                 }, {
-                    startAfter: CONFIG.POLL_INTERVAL_SECONDS + jitter,
+                    startAfter: pollDecision.delaySeconds,
                 })
             }
         } catch (error: any) {
             // Circuit breaker may throw if open
             if (error.message?.includes('Breaker is open')) {
-                logger.warn('[Lifecycle] Circuit open, will retry', { numberId })
-                // Re-queue with backoff
-                const delay = Math.min(
-                    CONFIG.BACKOFF_BASE_SECONDS * Math.pow(2, attempt) + Math.random(),
-                    30
-                )
+                logger.warn('[Lifecycle] Circuit open, using adaptive backoff', { numberId })
+
+                const { getNextPollDelay } = await import('./unified-poll-manager')
+                const pollDecision = getNextPollDelay({
+                    orderAgeSeconds,
+                    smsCount,
+                    pollAttempt: attempt,
+                    circuitOpen: true,
+                    lastPollError: false
+                })
+
                 await this.boss!.send(CONFIG.QUEUE_POLL, { ...data, attempt: attempt + 1 }, {
-                    startAfter: delay
+                    startAfter: pollDecision.delaySeconds
                 })
             } else {
-                throw error
+                // Other error - use error backoff
+                const { getNextPollDelay } = await import('./unified-poll-manager')
+                const pollDecision = getNextPollDelay({
+                    orderAgeSeconds,
+                    smsCount,
+                    pollAttempt: attempt,
+                    circuitOpen: false,
+                    lastPollError: true
+                })
+
+                logger.warn('[Lifecycle] Poll error, retrying', {
+                    numberId,
+                    error: error.message,
+                    retryIn: pollDecision.delaySeconds
+                })
+
+                await this.boss!.send(CONFIG.QUEUE_POLL, { ...data, attempt: attempt + 1 }, {
+                    startAfter: pollDecision.delaySeconds
+                })
             }
         }
     }
@@ -528,24 +581,31 @@ class NumberLifecycleManager {
     ): Promise<void> {
         const { numberId, activationId, userId } = jobData
 
-        // 1. Store SMS messages
-        for (const msg of messages) {
-            const existing = await prisma.smsMessage.findFirst({
-                where: { numberId, code: msg.code },
-            })
+        // Get provider ID for the number
+        const number = await prisma.number.findUnique({
+            where: { id: numberId },
+            select: { provider: true }
+        })
 
-            if (!existing) {
-                await prisma.smsMessage.create({
-                    data: {
-                        numberId,
-                        code: msg.code,
-                        content: msg.text,
-                    },
-                })
-            }
+        let providerId = ''
+        if (number?.provider) {
+            const provider = await prisma.provider.findFirst({
+                where: { name: number.provider },
+                select: { id: true }
+            })
+            providerId = provider?.id || ''
         }
 
-        // 2. Extend timeout
+        // 1. Use MultiSmsHandler for proper storage and auto-request
+        const { MultiSmsHandler } = await import('@/lib/sms/multi-sms-handler')
+        const result = await MultiSmsHandler.handleSmsReceived(
+            numberId,
+            activationId,
+            providerId,
+            messages
+        )
+
+        // 2. Extend timeout (always, to give time for more SMS)
         await this.extendTimeout(numberId, activationId, userId)
 
         // 3. Queue notification job
@@ -559,7 +619,9 @@ class NumberLifecycleManager {
 
         logger.info('[Lifecycle] SMS received and processed', {
             numberId,
-            messageCount: messages.length
+            messageCount: messages.length,
+            stored: result.stored,
+            requestedNext: result.requestedNext
         })
     }
 

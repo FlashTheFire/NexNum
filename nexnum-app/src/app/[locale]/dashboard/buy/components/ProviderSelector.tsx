@@ -227,6 +227,8 @@ export default function ProviderSelector({
             >
                 <AnimatePresence mode="popLayout">
                     {providers.map((provider, index) => {
+                        // Debug render
+                        // console.log('Rendering provider:', provider.displayName, index)
                         const isSelected = selectedId === provider.operatorId;
                         const isBestPrice = index === 0 && sortOption === "price_asc";
                         const isHighStock = provider.stock > 1000;
@@ -237,7 +239,7 @@ export default function ProviderSelector({
                                 layout
                                 variants={itemVariants}
                                 exit={{ opacity: 0, scale: 0.95 }}
-                                key={`${provider.displayName}_${provider.operatorId}`}
+                                key={`${provider.displayName}_${provider.operatorId}_${index}`}
                                 onClick={() => handleSelect(provider)}
                                 className={cn(
                                     "relative group cursor-pointer rounded-xl border p-3 transition-all duration-300 overflow-hidden",

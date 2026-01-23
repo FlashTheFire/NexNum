@@ -1322,6 +1322,14 @@ export class DynamicProvider implements SmsProvider {
             while ((match = regex.exec(text)) !== null) {
                 const item: any = {}
 
+                // Construct a unify source object for field resolution
+                const source: any = { ...match.groups }
+                // Add indexed groups
+                match.forEach((val: string, idx: number) => { source[String(idx)] = val })
+
+                // Resolve fields dynamically (supports conditionalFields)
+                const fields = this.resolveEffectiveFields(source, mapConfig)
+
                 // Support for Named Capture Groups (Modern/Readable)
                 if (match.groups) {
                     // Method A: Auto-map named groups if no explicit fields are defined
@@ -1330,7 +1338,7 @@ export class DynamicProvider implements SmsProvider {
                     }
                     // Method B: Map specific fields to named groups
                     else {
-                        for (const [targetField, sourceGroupStr] of Object.entries(mapConfig.fields)) {
+                        for (const [targetField, sourceGroupStr] of Object.entries(fields)) {
                             // Support fallback chains "price|cost"
                             const possibleGroups = sourceGroupStr.split('|').map(s => s.trim())
                             let value = undefined
@@ -1356,8 +1364,8 @@ export class DynamicProvider implements SmsProvider {
                     }
                 }
                 // Fallback: Numbered Capture Groups (Legacy)
-                else if (mapConfig.fields) {
-                    for (const [field, groupIndex] of Object.entries(mapConfig.fields)) {
+                else {
+                    for (const [field, groupIndex] of Object.entries(fields)) {
                         const idx = parseInt(groupIndex)
                         if (!isNaN(idx) && match[idx]) {
                             item[field] = match[idx]
@@ -1715,13 +1723,141 @@ export class DynamicProvider implements SmsProvider {
         return { status, messages }
     }
 
+    /**
+     * Batch status check for multiple activations
+     * Reduces API calls when polling many numbers
+     * 
+     * @param activationIds - Array of activation IDs to check
+     * @returns Map of activationId -> StatusResult
+     */
+    async getStatusBatch(activationIds: string[]): Promise<Map<string, StatusResult>> {
+        const results = new Map<string, StatusResult>()
+
+        if (activationIds.length === 0) return results
+
+        // Check if provider supports batch endpoint
+        const endpoints = this.config.endpoints as Record<string, EndpointConfig>
+        const hasBatchEndpoint = !!endpoints['getStatusBatch']
+
+        if (hasBatchEndpoint) {
+            // Provider supports batch - make single request
+            try {
+                const response = await this.request('getStatusBatch', {
+                    ids: activationIds.join(','),
+                    activationIds: activationIds // Some providers use array
+                })
+
+                const items = this.parseResponse(response, 'getStatusBatch')
+
+                // Map results back to activation IDs
+                for (const item of items) {
+                    const id = item.id || item.activationId
+                    if (id && activationIds.includes(id)) {
+                        results.set(id, {
+                            status: this.mapStatus(item.status, 'getStatusBatch'),
+                            messages: this.extractMessages(item, id)
+                        })
+                    }
+                }
+
+                // Fill in missing with 'pending'
+                for (const id of activationIds) {
+                    if (!results.has(id)) {
+                        results.set(id, { status: 'pending', messages: [] })
+                    }
+                }
+
+                return results
+            } catch (error) {
+                logger.warn('[DynamicProvider] Batch status failed, falling back to individual', {
+                    provider: this.name,
+                    error
+                })
+            }
+        }
+
+        // Fallback: parallel individual requests with concurrency limit
+        const CONCURRENCY = 10
+        const chunks = this.chunkArray(activationIds, CONCURRENCY)
+
+        for (const chunk of chunks) {
+            const chunkResults = await Promise.allSettled(
+                chunk.map(id => this.getStatus(id).then(r => ({ id, result: r })))
+            )
+
+            for (const result of chunkResults) {
+                if (result.status === 'fulfilled') {
+                    results.set(result.value.id, result.value.result)
+                } else {
+                    const id = chunk[chunkResults.indexOf(result)]
+                    results.set(id, { status: 'pending', messages: [] })
+                }
+            }
+        }
+
+        return results
+    }
+
+    /**
+     * Helper: Map raw status to NumberStatus using config
+     */
+    private mapStatus(rawStatus: string, mappingKey: string): NumberStatus {
+        const mappings = this.config.mappings as Record<string, MappingConfig>
+        const mapConfig = mappings[mappingKey] || mappings['getStatus']
+
+        if (mapConfig?.statusMapping) {
+            const normalized = String(rawStatus).trim().toUpperCase()
+            const statusMap = mapConfig.statusMapping as Record<string, NumberStatus>
+            return statusMap[normalized] || statusMap[rawStatus] || 'pending'
+        }
+
+        return 'pending'
+    }
+
+    /**
+     * Helper: Extract SMS messages from status response
+     */
+    private extractMessages(item: any, activationId: string): Array<{ id: string; sender: string; content: string; code?: string; receivedAt: Date }> {
+        const messages: Array<{ id: string; sender: string; content: string; code?: string; receivedAt: Date }> = []
+
+        if (item.sms || item.code || item.message) {
+            const smsList = Array.isArray(item.sms) ? item.sms : [item.sms || item]
+            messages.push(...smsList.filter(Boolean).map((s: any) => {
+                const code = s.code || s.text || s.message || ''
+                const stableId = s.id || `sms_${activationId}_${code}`
+
+                return {
+                    id: String(stableId),
+                    sender: s.sender || s.from || 'System',
+                    content: s.text || s.content || s.message || '',
+                    code: s.code,
+                    receivedAt: new Date()
+                }
+            }))
+        }
+
+        return messages
+    }
+
+    /**
+     * Helper: Chunk array for concurrency control
+     */
+    private chunkArray<T>(array: T[], size: number): T[][] {
+        const chunks: T[][] = []
+        for (let i = 0; i < array.length; i += size) {
+            chunks.push(array.slice(i, i + size))
+        }
+        return chunks
+    }
+
     async cancelNumber(activationId: string): Promise<void> {
 
 
         if (!this.shouldUseDynamic('cancelNumber') && this.fallback?.cancelNumber) {
             return this.fallback.cancelNumber(activationId)
         }
-        await this.request('cancelNumber', { id: activationId })
+        const response = await this.request('cancelNumber', { id: activationId })
+        this.checkForErrors(response, 'cancelNumber', (this.config.mappings as any)?.cancelNumber)
     }
 
     /**

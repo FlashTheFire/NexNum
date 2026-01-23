@@ -79,8 +79,17 @@ async function downloadImageToLocal(url: string, destPath: string): Promise<bool
                             }
 
                             // 3. Write File
-                            fs.writeFileSync(finalPath, buffer);
-                            resolve(true);
+                            try {
+                                const dir = path.dirname(finalPath);
+                                if (!fs.existsSync(dir)) {
+                                    fs.mkdirSync(dir, { recursive: true });
+                                }
+                                fs.writeFileSync(finalPath, buffer);
+                                resolve(true);
+                            } catch (writeErr) {
+                                console.warn(`[ICON_SYNC] Failed to write file ${path.basename(finalPath)}:`, writeErr);
+                                resolve(false);
+                            }
                         });
                         return;
                     }
