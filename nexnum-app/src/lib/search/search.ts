@@ -71,7 +71,7 @@ export interface OfferDocument {
     // Operator/Server Info (for purchase routing)
     operatorId: number;           // Our internal sequential ID (1, 2, 3...) - safe for users
     externalOperator?: string;    // Provider's raw operator ID (backend only, not exposed to users)
-    operatorDisplayName: string;  // Custom display name for operator (default: "")
+    // operatorDisplayName removed as per user request
 
     // Pricing
     price: number;
@@ -576,6 +576,12 @@ export async function getServiceIconUrlByName(serviceName: string): Promise<stri
         const localIconPath = path.join(process.cwd(), 'public/icons/services', `${serviceSlug}.webp`)
         if (fs.existsSync(localIconPath)) {
             return `/icons/services/${serviceSlug}.webp`
+        }
+
+        // Fallback to SVG if WebP missing
+        const localSvgPath = path.join(process.cwd(), 'public/icons/services', `${serviceSlug}.svg`)
+        if (fs.existsSync(localSvgPath)) {
+            return `/icons/services/${serviceSlug}.svg`
         }
 
         const index = meili.index(INDEXES.OFFERS)

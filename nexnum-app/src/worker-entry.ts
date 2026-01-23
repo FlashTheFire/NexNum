@@ -88,6 +88,46 @@ async function startWorker() {
         runPolling();
         logger.info('[Worker] Inbox polling loop started');
 
+        // JOB: Smart Sync Scheduler (Auto-Run Every 6 Hours)
+        // This replaces the manual CLI script with a fully automated server-side loop.
+        const { syncAllProviders, verifyAssetIntegrity } = await import('./lib/providers/provider-sync');
+
+        const runSmartSyncScheduler = async () => {
+            try {
+                logger.info('[SmartSync] Starting scheduled Global Sync...');
+
+                // 1. Pre-Flight Asset Scrub
+                const preCheck = await verifyAssetIntegrity();
+                if (preCheck.removed > 0) {
+                    logger.warn(`[SmartSync] Pre-flight scrub removed ${preCheck.removed} corrupt assets.`);
+                }
+
+                // 2. Main Sync
+                const results = await syncAllProviders();
+                const failureCount = results.filter(r => r.error).length;
+
+                logger.info(`[SmartSync] Sync completed. Success: ${results.length - failureCount}, Failed: ${failureCount}`);
+
+                // 3. Post-Sync Check
+                const postCheck = await verifyAssetIntegrity();
+                if (postCheck.removed > 0) {
+                    logger.warn(`[SmartSync] Post-sync scrub removed ${postCheck.removed} bad assets.`);
+                }
+
+            } catch (e) {
+                logger.error('[SmartSync] Critical failure during scheduled sync:', e);
+            } finally {
+                // Schedule next run in 6 hours
+                const delay = 6 * 60 * 60 * 1000;
+                logger.info(`[SmartSync] Next sync scheduled in ${delay / 1000 / 60} minutes.`);
+                setTimeout(runSmartSyncScheduler, delay);
+            }
+        };
+
+        // Start initial sync after 1 minute (to allow worker to stabilize)
+        setTimeout(runSmartSyncScheduler, 60 * 1000);
+        logger.info('[Worker] Smart Sync scheduler initialized');
+
     } catch (e) {
         logger.error('[Worker] Fatal startup error:', e);
         process.exit(1);

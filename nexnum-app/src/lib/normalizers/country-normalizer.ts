@@ -24,8 +24,12 @@ const FLAG_BASE = "/flags"
 const NAME_TO_ISO: Record<string, string> = {}
 countriesMetadata.forEach(c => {
     // Use English name as the primary key
-    NAME_TO_ISO[c.name.en.toLowerCase()] = c.code.toLowerCase()
+    if (c.name?.en && c.code) {
+        NAME_TO_ISO[c.name.en.toLowerCase()] = c.code.toLowerCase()
+    }
 })
+
+
 
 export function getCountryIsoCode(input: string): string | undefined {
     if (!input) return undefined
@@ -40,12 +44,13 @@ export function getCountryIsoCode(input: string): string | undefined {
     const fromName = NAME_TO_ISO[normalized]
     if (fromName) return fromName
 
-    // 3. Check for name aliases in COUNTRY_NAME_MAP
     const alias = COUNTRY_NAME_MAP[normalized]
     if (alias) {
         const fromAlias = NAME_TO_ISO[alias.toLowerCase()]
         if (fromAlias) return fromAlias
     }
+
+
 
     return undefined
 }

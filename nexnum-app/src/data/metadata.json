@@ -66,16 +66,30 @@
                 "tk"
             ]
         },
-        "tinder": {
-            "displayName": "Tinder",
+        "dream11": {
+            "displayName": "Dream11",
             "slugAliases": [
-                "td"
+                "dream11"
             ]
         },
-        "uber": {
-            "displayName": "Uber",
+        "baidu": {
+            "displayName": "Baidu",
             "slugAliases": [
-                "ub"
+                "baidu"
+            ]
+        },
+        "dominos": {
+            "displayName": "Dominos Pizza",
+            "slugAliases": [
+                "dominospizza",
+                "dominos"
+            ]
+        },
+        "openai": {
+            "displayName": "OpenAI",
+            "slugAliases": [
+                "openai",
+                "chatgpt"
             ]
         }
     },

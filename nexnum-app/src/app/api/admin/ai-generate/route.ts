@@ -69,84 +69,45 @@ interface ProviderConfig {
   
   // Map of Key -> EndpointConfig
   endpoints: {
-    [key in 'getCountries' | 'getServices' | 'getNumber' | 'getStatus' | 'cancelNumber' | 'getBalance' | 'getPrices']: {
-      method: 'GET' | 'POST';
-      path: string; // Path ONLY. Do NOT include "?". Use queryParams for that.
-      
-      // ENHANCED: queryParams now supports $variable syntax with fallbacks!
-      // Variables are resolved from the params passed to the method call.
-      // Syntax: "$varName" or "$varName|fallbackVar" 
-      // Examples:
-      //   "product": "$service"        - Takes value from 'service' param
-      //   "product": "$product|service" - Tries 'product' first, then 'service'
-      //   "country_id": "$country"      - Takes value from 'country' param
-      // If variable not found, param is OMITTED (optional by default)
-      queryParams?: Record<string, string>;
-    }
+    [key in 'getCountries' | 'getServices' | 'getNumber' | 'getStatus' | 'cancelNumber' | 'getBalance' | 'getPrices']: EndpointConfig;
   };
 
-  // Map of Key -> MappingConfig (ENHANCED WITH NEW TYPES)
+  // --- BUSINESS LOGIC & DYNAMIC ENGINE SETTINGS ---
+  
+  // Controls if 'getCountries'/'getServices' use the dynamic engine (true) or legacy hardcoded logic (false)
+  useDynamicMetadata: boolean;
+
+  // Granular control: Which specific functions should use the dynamic engine?
+  // Only needed if you want to mix-and-match (e.g. legacy auth but dynamic pricing)
+  dynamicFunctions?: {
+    getCountries?: boolean;
+    getServices?: boolean;
+    getPrices?: boolean;
+    getBalance?: boolean;
+    getStatus?: boolean;
+  };
+
+  // Map of Key -> MappingConfig
   mappings: {
-    [key in 'getCountries' | 'getServices' | 'getNumber' | 'getStatus' | 'cancelNumber' | 'getBalance' | 'getPrices']: {
-      // ALL AVAILABLE RESPONSE TYPES:
-      type: 
-        | 'json_object'           // Single JSON object response
-        | 'json_array'            // Array of objects
-        | 'json_dictionary'       // Object with keys as IDs (recursive)
-        | 'json_value'            // Single primitive value (number, string, boolean)
-        | 'json_array_positional' // Array with position-based field mapping
-        | 'json_keyed_value'      // Key=ID, Value=primitive or object
-        | 'json_nested_array'     // 2D array (table-like data)
-        | 'text_regex'            // Plain text parsed with regex
-        | 'text_lines';           // Line-separated text
-      
-      rootPath?: string; // Optional JMESPath/DotPath for JSON
-      regex?: string; // REQUIRED for text_regex. Use Named Capture Groups!
-      
-      // Standard field mappings (supports fallback chains: "cost|price|amount")
-      fields: Record<string, string>;
-      
-      // NEW: For json_value - target field name for single value
-      valueField?: string; // e.g., "balance" wraps value as { balance: 123.45 }
-      
-      // NEW: For json_array_positional - map array indices to field names
-      positionFields?: Record<string, string>; // e.g., { "0": "id", "1": "phone", "2": "price" }
-      
-      // NEW: For json_keyed_value - dictionary key becomes this field
-      keyField?: string; // e.g., "activationId"
-      
-      // NEW: For json_nested_array - first row contains headers
-      headerRow?: boolean; // If true, first array element is field names
-      
-      // Multi-level extraction config (for nested structures)
-      nestingLevels?: {
-        extractOperators?: boolean;
-        providersKey?: string;
-      };
-      
-      // Field fallback chains (alternative to pipe syntax)
-      fieldFallbacks?: {
-        [targetField: string]: string[];
-      };
-    }
+    [key in 'getCountries' | 'getServices' | 'getNumber' | 'getStatus' | 'cancelNumber' | 'getBalance' | 'getPrices']: MappingConfig;
   };
 }
-\`\`\`
+}
 `
 
-const SYSTEM_PROMPT_LEGACY = `You are a Legacy Systems Integration Expert specialized in Text/Regex APIs.
-Your goal is to generate a **PRODUCTION-GRADE** configuration for the "DynamicProvider" engine using Regex.
+const SYSTEM_PROMPT_LEGACY = `You are a Legacy Systems Integration Expert specialized in Text / Regex APIs.
+Your goal is to generate a ** PRODUCTION - GRADE ** configuration for the "DynamicProvider" engine using Regex.
 
-${STRICT_OUTPUT_SCHEMA}
+  ${STRICT_OUTPUT_SCHEMA}
 
 ${PROVIDER_CONTEXT_DOCS}
 
-### UNIVERSAL ARCHITECTURAL STANDARDS (LEGACY/TEXT)
+### UNIVERSAL ARCHITECTURAL STANDARDS(LEGACY / TEXT)
 
-1. **REGEX BEST PRACTICES**:
-   - MUST use "text_regex" type.
-   - Use Python/JS compatible Regex.
-   - **ALWAYS** use Named Capture Groups for clarity: \`(?<id>\\d+)\`
+1. ** REGEX BEST PRACTICES **:
+- MUST use "text_regex" type.
+   - Use Python / JS compatible Regex.
+   - ** ALWAYS ** use Named Capture Groups for clarity: \`(?<id>\\d+)\`
    - Escape backslashes properly: \`\\d+\` becomes \`\\\\d+\` in JSON string.
 
 2. **FALLBAK CHAINS (NEW)**:

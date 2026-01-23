@@ -21,10 +21,12 @@ export const CANONICAL_SERVICE_NAME_MAP: Record<string, string> = {}
 export const CANONICAL_SERVICE_NAMES: Record<string, string> = {}
 export const CANONICAL_DISPLAY_NAMES: Record<string, string> = {}
 export const CANONICAL_SERVICE_ICONS: Record<string, string> = {}
+const DISPLAY_NAME_TO_KEY: Record<string, string> = {}
 
 for (const [key, config] of Object.entries(SERVICE_OVERRIDES)) {
     CANONICAL_SERVICE_NAME_MAP[key.toLowerCase()] = config.displayName
     CANONICAL_DISPLAY_NAMES[key] = config.displayName
+    DISPLAY_NAME_TO_KEY[config.displayName.toLowerCase()] = key // Optimization
     if (config.slugAliases) {
         for (const alias of config.slugAliases) {
             CANONICAL_SERVICE_NAMES[alias] = key
@@ -101,6 +103,32 @@ export function resolveToCanonicalName(input: string): string {
         .split(' ')
         .map(word => word.charAt(0).toUpperCase() + word.slice(1))
         .join(' ')
+}
+
+/**
+ * Resolve input to the internal canonical key (e.g. "google", "telegram")
+ * This is the best identifier for icons and internal logic.
+ */
+export function getCanonicalKey(input: string): string | undefined {
+    if (!input) return undefined
+    const normalizedInput = normalizeServiceName(input)
+
+    // 1. Direct hit on key
+    if (SERVICE_OVERRIDES[normalizedInput as keyof typeof SERVICE_OVERRIDES]) {
+        return normalizedInput
+    }
+
+    // 2. Hit on alias
+    if (CANONICAL_SERVICE_NAMES[normalizedInput]) {
+        return CANONICAL_SERVICE_NAMES[normalizedInput]
+    }
+
+    // 3. Hit on display name (O(1) Lookup)
+    if (DISPLAY_NAME_TO_KEY[input.toLowerCase()]) {
+        return DISPLAY_NAME_TO_KEY[input.toLowerCase()]
+    }
+
+    return undefined
 }
 
 /**

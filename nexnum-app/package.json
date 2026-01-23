@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbo",
+    "dev": "concurrently -k -p \" \" -n \"NEXT,WORKER\" -c \"blue.bold,magenta.bold\" \"next dev --turbo\" \"npm run worker\"",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

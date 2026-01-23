@@ -68,13 +68,44 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         const provider = await prisma.provider.update({
             where: { id },
             data: {
-                normalizationMode: body.normalizationMode,
-                normalizationRate: sanitizedBody.normalizationRate,
-                apiPair: body.apiPair,
-                depositSpent: sanitizedBody.depositSpent,
-                depositReceived: sanitizedBody.depositReceived,
-                // @ts-ignore
-                depositCurrency: body.depositCurrency,
+                // Core Identity
+                ...(body.name !== undefined && { name: body.name }),
+                ...(body.displayName !== undefined && { displayName: body.displayName }),
+                ...(body.description !== undefined && { description: body.description }),
+                ...(body.logoUrl !== undefined && { logoUrl: body.logoUrl }),
+                ...(body.websiteUrl !== undefined && { websiteUrl: body.websiteUrl }),
+
+                // API Configuration
+                ...(body.apiBaseUrl !== undefined && { apiBaseUrl: body.apiBaseUrl }),
+                ...(body.authType !== undefined && { authType: body.authType }),
+                ...(body.authHeader !== undefined && { authHeader: body.authHeader }),
+                ...(body.authQueryParam !== undefined && { authQueryParam: body.authQueryParam }),
+
+                // Dynamic Engine Settings (NEW!)
+                ...(body.useDynamicMetadata !== undefined && { useDynamicMetadata: body.useDynamicMetadata }),
+                ...(body.dynamicFunctions !== undefined && { dynamicFunctions: body.dynamicFunctions }),
+
+                // Endpoint/Mapping Configuration
+                ...(body.endpoints !== undefined && { endpoints: body.endpoints }),
+                ...(body.mappings !== undefined && { mappings: body.mappings }),
+
+                // Business Logic
+                ...(body.currency !== undefined && { currency: body.currency }),
+                ...(sanitizedBody.priceMultiplier !== undefined && { priceMultiplier: sanitizedBody.priceMultiplier }),
+                ...(sanitizedBody.fixedMarkup !== undefined && { fixedMarkup: sanitizedBody.fixedMarkup }),
+                ...(sanitizedBody.priority !== undefined && { priority: sanitizedBody.priority }),
+
+                // Normalization
+                ...(body.normalizationMode !== undefined && { normalizationMode: body.normalizationMode }),
+                ...(sanitizedBody.normalizationRate !== undefined && { normalizationRate: sanitizedBody.normalizationRate }),
+                ...(body.apiPair !== undefined && { apiPair: body.apiPair }),
+                ...(sanitizedBody.depositSpent !== undefined && { depositSpent: sanitizedBody.depositSpent }),
+                ...(sanitizedBody.depositReceived !== undefined && { depositReceived: sanitizedBody.depositReceived }),
+                ...(body.depositCurrency !== undefined && { depositCurrency: body.depositCurrency }),
+
+                // Status
+                ...(body.isActive !== undefined && { isActive: body.isActive }),
+
                 updatedAt: new Date()
             }
         })

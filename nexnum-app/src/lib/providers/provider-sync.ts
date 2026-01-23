@@ -14,6 +14,7 @@ import { Provider } from '@prisma/client'
 import { DynamicProvider } from './dynamic-provider'
 import fs from 'fs'
 import path from 'path'
+import https from 'https'
 import pLimit from 'p-limit'
 import { indexOffers, OfferDocument, deleteOffersByProvider } from '@/lib/search/search'
 import { logAdminAction } from '@/lib/core/auditLog'
@@ -24,11 +25,135 @@ import { RateLimitedQueue } from '@/lib/utils/async-utils'
 // Import legacy providers from centralized location
 import { getLegacyProvider, hasLegacyProvider } from './provider-factory'
 import { refreshAllServiceAggregates } from '@/lib/search/service-aggregates'
-import { resolveToCanonicalName, getSlugFromName } from '@/lib/normalizers/service-identity'
-import { getCountryIsoCode } from '@/lib/normalizers/country-normalizer'
+import { resolveToCanonicalName, getSlugFromName, getCanonicalKey, CANONICAL_SERVICE_NAMES, CANONICAL_DISPLAY_NAMES } from '@/lib/normalizers/service-identity'
+import { getCountryIsoCode, normalizeCountryName } from '@/lib/normalizers/country-normalizer'
 import { getCountryFlagUrlSync } from '@/lib/normalizers/country-flags'
 import { isValidImageUrl } from '@/lib/utils/utils'
 import { currencyService } from '@/lib/currency/currency-service'
+import crypto from 'crypto';
+
+// ============================================
+// CONSTANTS
+// ============================================
+
+// Known bad hashes to block permanently (Shared between download and verify)
+export const BANNED_HASHES = new Set([
+    'be311539f1b49d644e5a70c1f0023c05a7eebabd282287305e8ca49587087702' // 5sim Bad Bear
+]);
+
+// Helper: Download image to local path
+async function downloadImageToLocal(url: string, destPath: string): Promise<boolean> {
+    const fileName = path.basename(destPath).toLowerCase();
+
+    return new Promise((resolve) => {
+        try {
+            https.get(url, { timeout: 5000, headers: { 'User-Agent': 'NexNum-Bot/1.0' } }, (res) => {
+                const contentType = res.headers['content-type']
+
+                // Content Type Handling
+                if (res.statusCode === 200 && contentType) {
+                    let finalPath = destPath
+
+                    // If server returns SVG, force .svg extension
+                    if (contentType.includes('image/svg+xml')) {
+                        if (finalPath.endsWith('.webp')) {
+                            finalPath = finalPath.replace(/\.webp$/, '.svg')
+                        }
+                    }
+
+                    // General Validation
+                    if (contentType.includes('image') || contentType.includes('application/octet-stream')) {
+                        const chunks: Buffer[] = [];
+                        res.on('data', (chunk) => chunks.push(chunk));
+                        res.on('end', () => {
+                            const buffer = Buffer.concat(chunks);
+
+                            // 1. CALCULATE HASH
+                            const hash = crypto.createHash('sha256').update(buffer).digest('hex');
+
+                            // 2. HASH CHECK - Ban known bad hashes
+                            if (BANNED_HASHES.has(hash)) {
+                                console.log(`[ICON_BANNED] Hash match for ${fileName} (${hash}). Deleting and ignoring.`);
+                                resolve(false);
+                                return;
+                            }
+
+                            // 3. Write File
+                            fs.writeFileSync(finalPath, buffer);
+                            resolve(true);
+                        });
+                        return;
+                    }
+                }
+
+                // Fallback / Error
+                res.resume();
+                resolve(false)
+            }).on('error', () => {
+                resolve(false)
+            })
+        } catch (e) {
+            resolve(false)
+        }
+    })
+}
+
+// ============================================
+// ASSET INTEGRITY
+// ============================================
+
+export async function verifyAssetIntegrity(): Promise<{ removed: number, scanned: number }> {
+    const ICONS_DIR = path.join(process.cwd(), 'public/icons/services');
+    let removed = 0;
+    let scanned = 0;
+
+    if (!fs.existsSync(ICONS_DIR)) return { removed: 0, scanned: 0 };
+
+    const files = fs.readdirSync(ICONS_DIR);
+    console.log(`[ASSETS] Scanning ${files.length} assets for integrity...`);
+
+    for (const file of files) {
+        scanned++;
+        const filePath = path.join(ICONS_DIR, file);
+
+        try {
+            const stats = fs.statSync(filePath);
+
+            // 1. Check for 0-byte files
+            if (stats.size === 0) {
+                fs.unlinkSync(filePath);
+                removed++;
+                continue;
+            }
+
+            // 2. Check content (Magic Bytes & Hash)
+            // Optimization: Read first few bytes for magic check, full read only if needed or suspicious size
+            const buffer = fs.readFileSync(filePath);
+
+            // HTML masquerading as Image check
+            const head = buffer.slice(0, 10).toString('utf-8').trim();
+            if (head.startsWith('<html') || head.startsWith('<!DOCT')) {
+                console.log(`[ASSET_CLEAN] Deleting HTML masquerade: ${file}`);
+                fs.unlinkSync(filePath);
+                removed++;
+                continue;
+            }
+
+            // Hash Check
+            const hash = crypto.createHash('sha256').update(buffer).digest('hex');
+            if (BANNED_HASHES.has(hash)) {
+                console.log(`[ASSET_CLEAN] Deleting banned hash: ${file}`);
+                fs.unlinkSync(filePath);
+                removed++;
+            }
+
+        } catch (e) {
+            console.warn(`[ASSETS] Error checking ${file}:`, e);
+        }
+    }
+
+    return { removed, scanned };
+}
 
 // ============================================
 // TYPES
@@ -49,7 +174,7 @@ export interface SyncOptions {
 }
 
 // Providers that use legacy logic for metadata fetching
-const LEGACY_METADATA_PROVIDERS = ['5sim', 'grizzlysms', 'herosms', 'smsbower']
+const LEGACY_METADATA_PROVIDERS = ['5sim', 'grizzlysms', 'herosms']
 
 // ============================================
 // HELPERS
@@ -57,23 +182,16 @@ const LEGACY_METADATA_PROVIDERS = ['5sim', 'grizzlysms', 'herosms', 'smsbower']
 
 const limit = pLimit(10) // Limit DB upserts concurrency
 
-// ... (imports)
-
-// ...
-
 async function upsertCountryLookup(code: string, name: string, flagUrl?: string | null) {
     try {
         const validFlagUrl = isValidImageUrl(flagUrl) ? flagUrl : null
         await prisma.countryLookup.upsert({
             where: { code },
-            // Pass empty string or null for phoneCode column if it exists in DB schema but we want to ignore it
             create: { code, name, flagUrl: validFlagUrl },
             update: { name, flagUrl: validFlagUrl || undefined }
         })
     } catch (e) { }
 }
-
-// ... 
 
 /**
  * Get countries using legacy provider adapter
@@ -109,10 +227,6 @@ async function getCountriesLegacy(provider: Provider, engine: DynamicProvider): 
     }))
 }
 
-// ...
-
-
-
 async function upsertServiceLookup(code: string, name: string, iconUrl?: string | null) {
     try {
         const canonicalName = resolveToCanonicalName(name)
@@ -139,16 +253,6 @@ async function upsertServiceLookup(code: string, name: string, iconUrl?: string 
 // LEGACY FETCHERS (Using centralized providers)
 // ============================================
 
-/**
- * Get countries using legacy provider adapter
- * Delegates to sms-providers/*.ts implementations
- */
-
-
-/**
- * Get services using legacy provider adapter
- * Delegates to sms-providers/*.ts implementations
- */
 async function getServicesLegacy(provider: Provider, engine: DynamicProvider): Promise<void> {
     const slug = provider.name.toLowerCase()
 
@@ -170,8 +274,6 @@ async function getServicesLegacy(provider: Provider, engine: DynamicProvider): P
             }
         }
     }
-
-    // Fallback handled by caller
 }
 
 
@@ -187,7 +289,6 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
 
     try {
         // Pre-load ALL service names from ServiceLookup table for fallback
-        // This ensures serviceName is populated even if service code isn't in getServices()
         const allServiceLookups = await prisma.serviceLookup.findMany({
             select: { code: true, name: true }
         })
@@ -220,8 +321,6 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
         }
 
         // 1. Countries (Hybrid: Legacy or Dynamic)
-        // CHECK TOGGLE: If useDynamicMetadata is true, FORCE dynamic engine.
-        // Otherwise, use legacy if applicable, or fallback to dynamic.
         const useDynamicMetadata = (provider.mappings as any)?.useDynamicMetadata === true
 
         // Initialize arrays
@@ -245,7 +344,6 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
 
         if (skipMetadataSync) {
             console.log(`[SYNC] ${provider.name}: Using DB metadata (${hoursSinceMetadata.toFixed(1)}h old, ${existingCountryCount} countries)`)
-            // Load existing IDs from DB
             const dbCountries = await prisma.providerCountry.findMany({
                 where: { providerId: provider.id },
                 select: { id: true, externalId: true, name: true, flagUrl: true, isActive: true }
@@ -256,7 +354,6 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
             if (hasStaleData) {
                 console.log(`[SYNC] ${provider.name}: Stale data detected (Unknown/missing names). Forcing fresh fetch...`)
                 skipMetadataSync = false
-                // Clear the existing bad data
                 await prisma.providerCountry.deleteMany({ where: { providerId: provider.id } })
                 await prisma.providerService.deleteMany({ where: { providerId: provider.id } })
             } else {
@@ -296,53 +393,72 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
             }
             countriesCount = countries.length
 
-            // APPLY FILTER
-            if (options?.filterCountryCode) {
-                const target = options.filterCountryCode.toLowerCase()
-                countries = countries.filter(c =>
-                    String(c.id).toLowerCase() === target ||
-                    String(c.code).toLowerCase() === target
-                )
-                console.log(`[SYNC] ${provider.name}: Filtered to ${countries.length} matching countries (${target})`)
-            }
+            const existingCountryData = await prisma.providerCountry.findMany({
+                where: { providerId: provider.id },
+                select: { externalId: true, id: true, name: true, code: true, flagUrl: true }
+            })
+            const countryDiffMap = new Map(existingCountryData.map(c => [c.externalId, c]))
 
-            countriesCount = countries.length
+            const countriesToUpsert: typeof countries = []
 
-            // Upsert countries to DB
-            console.log(`[SYNC] ${provider.name}: Upserting ${countries.length} countries to DB...`)
             for (const c of countries) {
-                // externalId is the provider's raw ID - always use c.id, never undefined
                 const externalId = String(c.id || c.code || 'unknown')
                 const canonicalName = resolveToCanonicalName(c.name || 'Unknown')
                 const canonicalCode = getCountryIsoCode(c.code || c.id) || getSlugFromName(canonicalName)
-
-                // Flag URL: prefer provider's mapped flagUrl, then metadata, then legacy c.flag
                 const metaFlagUrl = getCountryFlagUrlSync(c.code || c.id)
                 const validFlagUrl = c.flagUrl || metaFlagUrl || (isValidImageUrl((c as any).flag) ? (c as any).flag : null)
-                const record = await prisma.providerCountry.upsert({
-                    where: { providerId_externalId: { providerId: provider.id, externalId } },
-                    create: {
-                        providerId: provider.id,
-                        externalId,
-                        code: canonicalCode,
-                        name: canonicalName,
-                        flagUrl: validFlagUrl,
-                        lastSyncAt: new Date()
-                    },
-                    update: {
-                        name: canonicalName,
-                        code: canonicalCode,
-                        flagUrl: validFlagUrl,
-                        lastSyncAt: new Date()
+
+                const existing = countryDiffMap.get(externalId)
+                if (existing) {
+                    // Check for changes
+                    if (existing.name !== canonicalName || existing.code !== canonicalCode || existing.flagUrl !== validFlagUrl) {
+                        countriesToUpsert.push(c)
+                    } else {
+                        // UNCHANGED: Just map ID
+                        countryIdMap.set(externalId, existing.id)
                     }
-                })
-                countryIdMap.set(externalId, record.id)
+                } else {
+                    // NEW
+                    countriesToUpsert.push(c)
+                }
+            }
+
+            if (countriesToUpsert.length > 0) {
+                console.log(`[SYNC] ${provider.name}: Smart Sync -> Upserting ${countriesToUpsert.length} changed/new countries (Skipped ${countries.length - countriesToUpsert.length})...`)
+                const countryPromises = countriesToUpsert.map(c => limit(async () => {
+                    const externalId = String(c.id || c.code || 'unknown')
+                    const canonicalName = resolveToCanonicalName(c.name || 'Unknown')
+                    const canonicalCode = getCountryIsoCode(c.code || c.id) || getSlugFromName(canonicalName)
+                    const metaFlagUrl = getCountryFlagUrlSync(c.code || c.id)
+                    const validFlagUrl = c.flagUrl || metaFlagUrl || (isValidImageUrl((c as any).flag) ? (c as any).flag : null)
+
+                    const record = await prisma.providerCountry.upsert({
+                        where: { providerId_externalId: { providerId: provider.id, externalId } },
+                        create: {
+                            providerId: provider.id,
+                            externalId,
+                            code: canonicalCode,
+                            name: canonicalName,
+                            flagUrl: validFlagUrl,
+                            lastSyncAt: new Date()
+                        },
+                        update: {
+                            name: canonicalName,
+                            code: canonicalCode,
+                            flagUrl: validFlagUrl,
+                            lastSyncAt: new Date()
+                        }
+                    })
+                    countryIdMap.set(externalId, record.id)
+                }))
+                await Promise.all(countryPromises)
+            } else {
+                console.log(`[SYNC] ${provider.name}: Smart Sync -> No country metadata changes detected.`)
             }
 
             // Fetch services
             if (!useDynamicMetadata && LEGACY_METADATA_PROVIDERS.includes(provider.name.toLowerCase())) {
                 await getServicesLegacy(provider, engine)
-                // Load from global lookup since legacy writes there
                 const dbServices = await prisma.serviceLookup.findMany()
                 services = dbServices.map(s => ({ code: s.code, name: s.name, iconUrl: s.iconUrl }))
             } else {
@@ -358,17 +474,30 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
             }
             servicesCount = services.length
 
-            // Upsert services to DB
-            console.log(`[SYNC] ${provider.name}: Upserting ${services.length} services to DB...`)
+            // SMART SYNC: Detect changes (Services) - Critical Optimization (5000+ items)
+            const existingServiceData = await prisma.providerService.findMany({
+                where: { providerId: provider.id },
+                select: { externalId: true, id: true, name: true, code: true, iconUrl: true }
+            })
+            const serviceDiffMap = new Map(existingServiceData.map(s => [s.externalId, s]))
+
+            const servicesToUpsert: typeof services = []
+
             for (const s of services) {
-                // Use id first (from adapters), fallback to code (from DB lookups)
                 const serviceCode = s.id || s.code
                 if (!serviceCode) continue
 
-                const canonicalName = resolveToCanonicalName(s.name || 'Unknown')
+                // Pre-calculate canonical values for comparison
+                let canonicalName = resolveToCanonicalName(s.name || 'Unknown')
+                if (serviceCode && CANONICAL_SERVICE_NAMES[serviceCode.toLowerCase()]) {
+                    const key = CANONICAL_SERVICE_NAMES[serviceCode.toLowerCase()]
+                    if (CANONICAL_DISPLAY_NAMES[key]) {
+                        canonicalName = CANONICAL_DISPLAY_NAMES[key]
+                    }
+                }
                 const canonicalCode = getSlugFromName(canonicalName)
 
-                // Add to maps
+                // Maps population (Required for Price Sync regardless of DB write)
                 serviceMap.set(serviceCode, canonicalName)
                 serviceMap.set(serviceCode.toLowerCase(), canonicalName)
 
@@ -378,29 +507,77 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                     iconUrlMap.set(serviceCode.toLowerCase(), validIconUrl)
                 }
 
-                // Resolve local path for DB consistency
-                const localPath = `/icons/services/${canonicalCode}.webp`
+                // Canonical Key Check for local path
+                const canonKey = getCanonicalKey(serviceCode) || getCanonicalKey(s.name || '') || getSlugFromName(canonicalName)
+                const localPath = `/icons/services/${canonKey}.webp`
                 const fullPath = path.join(process.cwd(), 'public', localPath)
+
+                // AGGRESSIVE DOWNLOAD: If missing locally but we have a URL, fetch it now!
+                if (!fs.existsSync(fullPath) && validIconUrl) {
+                    // Fire and forget download to restore missing icons
+                    downloadImageToLocal(validIconUrl, fullPath).catch(err =>
+                        console.warn(`[ICON_SYNC] Failed to download ${canonKey}:`, err)
+                    )
+                }
+
                 const finalIconUrl = fs.existsSync(fullPath) ? localPath : (validIconUrl || null)
 
-                const record = await prisma.providerService.upsert({
-                    where: { providerId_externalId: { providerId: provider.id, externalId: serviceCode } },
-                    create: {
-                        providerId: provider.id,
-                        externalId: serviceCode,
-                        code: canonicalCode,
-                        name: canonicalName,
-                        iconUrl: finalIconUrl,
-                        lastSyncAt: new Date()
-                    },
-                    update: {
-                        name: canonicalName,
-                        code: canonicalCode,
-                        iconUrl: finalIconUrl,
-                        lastSyncAt: new Date()
+                const existing = serviceDiffMap.get(serviceCode)
+
+                if (existing) {
+                    // Check Changes
+                    if (existing.name !== canonicalName || existing.code !== canonicalCode || existing.iconUrl !== finalIconUrl) {
+                        servicesToUpsert.push(s)
+                    } else {
+                        // Unchanged
+                        serviceIdMap.set(serviceCode, existing.id)
                     }
-                })
-                serviceIdMap.set(serviceCode, record.id)
+                } else {
+                    // New
+                    servicesToUpsert.push(s)
+                }
+            }
+
+            if (servicesToUpsert.length > 0) {
+                console.log(`[SYNC] ${provider.name}: Smart Sync -> Upserting ${servicesToUpsert.length} changed/new services (Skipped ${services.length - servicesToUpsert.length})...`)
+                const servicePromises = servicesToUpsert.map(s => limit(async () => {
+                    const serviceCode = s.id || s.code
+                    if (!serviceCode) return
+
+                    let canonicalName = resolveToCanonicalName(s.name || 'Unknown')
+                    if (serviceCode && CANONICAL_SERVICE_NAMES[serviceCode.toLowerCase()]) {
+                        const key = CANONICAL_SERVICE_NAMES[serviceCode.toLowerCase()]
+                        if (CANONICAL_DISPLAY_NAMES[key]) {
+                            canonicalName = CANONICAL_DISPLAY_NAMES[key]
+                        }
+                    }
+                    const canonicalCode = getSlugFromName(canonicalName)
+
+                    const finalIconUrl = s.iconUrl // Store original in DB for ref
+
+                    const record = await prisma.providerService.upsert({
+                        where: { providerId_externalId: { providerId: provider.id, externalId: serviceCode } },
+                        create: {
+                            providerId: provider.id,
+                            externalId: serviceCode,
+                            code: canonicalCode,
+                            name: canonicalName,
+                            iconUrl: finalIconUrl,
+                            isActive: true, // Default to active
+                            lastSyncAt: new Date()
+                        },
+                        update: {
+                            name: canonicalName,
+                            code: canonicalCode,
+                            iconUrl: finalIconUrl,
+                            lastSyncAt: new Date()
+                        }
+                    })
+                    serviceIdMap.set(serviceCode, record.id)
+                }))
+                await Promise.all(servicePromises)
+            } else {
+                console.log(`[SYNC] ${provider.name}: Smart Sync -> No service metadata changes detected.`)
             }
 
             // Update metadata sync timestamp
@@ -408,6 +585,20 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                 where: { id: provider.id },
                 data: { lastMetadataSyncAt: new Date() }
             })
+        }
+
+        // UNIVERSAL FILTER: Apply country filter regardless of source (DB or API)
+        if (options?.filterCountryCode) {
+            const target = options.filterCountryCode.toLowerCase()
+            countries = countries.filter(c => {
+                const canonicalName = resolveToCanonicalName(c.name || '').toLowerCase()
+                // Check all possible identifiers
+                return String(c.id || '').toLowerCase() === target ||
+                    String(c.code || '').toLowerCase() === target ||
+                    canonicalName === target ||
+                    getSlugFromName(canonicalName) === target
+            })
+            console.log(`[SYNC] ${provider.name}: Global Filter Applied -> ${countries.length} matching countries (${target})`)
         }
 
         // 3. Sync Prices (DEEP SEARCH ENGINE) - Always use Dynamic Engine
@@ -425,6 +616,36 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
             await prisma.providerPricing.deleteMany({ where: { providerId: provider.id } })
             await deleteOffersByProvider(provider.name)
         }
+
+        // PERFORMANCE OPTIMIZATION: Pre-fetch currency rates & settings ONCE
+        const systemSettings = await currencyService.getSettings()
+        const providerCurrency = (provider.currency || 'USD').toUpperCase()
+        const depositCurrency = (provider.depositCurrency || 'USD').toUpperCase()
+
+        await currencyService['ensureRates']()
+        const ratesCache = currencyService['ratesCache'] // Access internal cache directly or via helper if made public
+
+        // Helper: Sync conversion (USD anchor)
+        const getRateToUSD = (code: string) => {
+            if (code === 'USD') return 1.0
+            return ratesCache.get(code.toUpperCase()) || 1.0
+        }
+
+        // Calculate Provider Effective Rate (Provider Units per 1 USD)
+        let effectiveProviderRate = 1.0
+        const normMode = String(provider.normalizationMode || 'AUTO')
+
+        if (normMode === 'MANUAL') {
+            effectiveProviderRate = Number(provider.normalizationRate || 1.0)
+        } else if (normMode === 'SMART_AUTO' && provider.depositSpent && provider.depositReceived && Number(provider.depositSpent) > 0) {
+            const spentRate = getRateToUSD(depositCurrency)
+            const spentInUSD = Number(provider.depositSpent) / spentRate
+            effectiveProviderRate = Number(provider.depositReceived) / (spentInUSD || 1.0)
+        } else {
+            effectiveProviderRate = getRateToUSD(providerCurrency)
+        }
+
+        const pointsRate = Number(systemSettings.pointsRate)
 
         const allOffers: OfferDocument[] = []
         const pricingBatch: any[] = []
@@ -461,15 +682,16 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                             }
                         }
 
-                        // CURRENCY & MARGIN LOGIC
+                        // CURRENCY & MARGIN LOGIC (Optimized Sync)
                         const providerRawCost = Number(p.cost)
-                        const baseCost = await currencyService.normalizeProviderPrice(providerRawCost, provider.name)
+                        const baseCostUSD = providerRawCost / (effectiveProviderRate || 1.0)
+                        const baseCostPoints = baseCostUSD * pointsRate
 
                         const multiplier = Number(provider.priceMultiplier || 1.0)
                         const markupUsd = Number(provider.fixedMarkup || 0.0)
-                        const markupPoints = await currencyService.convert(markupUsd, 'USD', 'POINTS')
+                        const markupPoints = markupUsd * pointsRate
 
-                        const sellPrice = (baseCost * multiplier) + markupPoints
+                        const sellPrice = (baseCostPoints * multiplier) + markupPoints
 
                         // OPERATOR MAPPING
                         const externalOp = p.operator != null ? String(p.operator) : 'default'
@@ -487,7 +709,7 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                                 countryId: countryDbId,
                                 serviceId: serviceDbId,
                                 operator: p.operator != null ? String(p.operator) : null,
-                                cost: Number(baseCost.toFixed(4)),
+                                cost: Number(baseCostUSD.toFixed(4)),
                                 providerRawCost: Number(providerRawCost.toFixed(6)),
                                 sellPrice: Number(sellPrice.toFixed(2)),
                                 stock: p.count,
@@ -497,32 +719,39 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
 
                         // Prepare OfferDocument for MeiliSearch
                         const canonicalSvcName = resolveToCanonicalName(svcName)
-                        const canonicalCtyName = resolveToCanonicalName(country.name || 'Unknown')
+                        const canonicalCtyName = normalizeCountryName(country.name || 'Unknown')
 
                         countryOffers.push({
                             id: `${provider.name}_${p.country}_${p.service}_${externalOp}`.toLowerCase().replace(/[^a-z0-9_]/g, ''),
                             provider: provider.name,
                             countryCode: p.country,
                             countryName: canonicalCtyName,
-                            flagUrl: getCountryFlagUrlSync(canonicalCtyName) || country.flagUrl || '',
+                            flagUrl: getCountryFlagUrlSync(canonicalCtyName) || getCountryFlagUrlSync(country.name || '') || getCountryFlagUrlSync(p.country) || '',
                             serviceSlug: p.service,
                             serviceName: canonicalSvcName,
                             iconUrl: (() => {
                                 // 1. Determine local path first
-                                const serviceSlug = getSlugFromName(canonicalSvcName)
-                                const localPath = `/icons/services/${serviceSlug}.webp`
+                                const canonKey = getCanonicalKey(p.service) || getCanonicalKey(svcName) || getSlugFromName(canonicalSvcName) || p.service.toLowerCase()
+                                const localPath = `/icons/services/${canonKey}.webp`
                                 const fullPath = path.join(process.cwd(), 'public', localPath)
 
+                                // Check existence synchronously
                                 if (fs.existsSync(fullPath)) {
                                     return localPath
                                 }
 
-                                // 2. Fallback to mapped iconUrl from provider
-                                return iconUrlMap.get(p.service) || iconUrlMap.get(p.service.toLowerCase())
+                                // 2. If missing but provider has URL, try to download via side-effect (fire-and-forget)
+                                const providerIcon = iconUrlMap.get(p.service) || iconUrlMap.get(p.service.toLowerCase())
+                                if (providerIcon && isValidImageUrl(providerIcon)) {
+                                    downloadImageToLocal(providerIcon, fullPath).catch(() => { })
+                                }
+
+                                // 3. Fallback to Dicebear (Professional Placeholder)
+                                const nameForIcon = canonKey || p.service
+                                return `https://api.dicebear.com/7.x/initials/svg?seed=${nameForIcon}&backgroundColor=000000&chars=2`
                             })(),
                             operatorId: internalOpId,
                             externalOperator: externalOp !== 'default' ? externalOp : undefined,
-                            operatorDisplayName: '',
                             price: Number(sellPrice.toFixed(2)),
                             stock: p.count,
                             lastSyncedAt: Date.now(),
@@ -663,4 +892,3 @@ export function stopSyncScheduler() {
         syncIntervalId = null
     }
 }
-

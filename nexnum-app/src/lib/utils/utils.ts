@@ -35,5 +35,5 @@ export function formatDate(date: Date | string) {
 
 export function isValidImageUrl(url?: string | null): boolean {
     if (!url) return false
-    return url.startsWith('http://') || url.startsWith('https://')
+    return url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/')
 }

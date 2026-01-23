@@ -224,17 +224,18 @@ export class DynamicProvider implements SmsProvider {
     private shouldUseDynamic(fnName: string): boolean {
         const mappings = this.config.mappings as any
 
-        // Granular toggle check
-        if (mappings?.dynamicFunctions && mappings.dynamicFunctions[fnName] === true) {
+        // Granular toggle check (Schema Field)
+        const dynamicFunctions = this.config.dynamicFunctions as Record<string, boolean> | null
+        if (dynamicFunctions && dynamicFunctions[fnName] === true) {
             return true
         }
 
         // Global override for ALL metadata functions (legacy support config)
         if (fnName === 'getCountries' || fnName === 'getServices') {
-            if (mappings?.useDynamicMetadata === true) return true
+            if (this.config.useDynamicMetadata === true) return true
         }
 
-        // Global override for ALL functions
+        // Global override for ALL functions (Legacy mappings fallback)
         if (mappings?.useDynamic === true) return true
 
         // Default behavior:
@@ -985,7 +986,7 @@ export class DynamicProvider implements SmsProvider {
             if (keys.length > 0 && typeof root[keys[0]] === 'object') {
                 // Object of objects = dictionary
                 if (effectiveType !== 'json_dictionary') {
-                    console.log(`[DynamicProvider:${this.name}] Auto-switching to json_dictionary (object of objects)`)
+                    if (process.env.DEBUG) console.log(`[DynamicProvider:${this.name}] Auto-switching to json_dictionary (object of objects)`)
                     effectiveType = 'json_dictionary'
                 }
             }

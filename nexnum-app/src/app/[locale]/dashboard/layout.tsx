@@ -36,7 +36,19 @@ export default function DashboardLayout({
     const pathname = usePathname()
     const router = useRouter()
     const { isAuthenticated, user, logout, checkAuth, isLoading } = useAuthStore()
-    const { sidebarCollapsed, toggleSidebar, _hasHydrated, fetchBalance, fetchNumbers, fetchTransactions } = useGlobalStore()
+    const { sidebarCollapsed, toggleSidebar, _hasHydrated } = useGlobalStore(
+        (state) => ({
+            sidebarCollapsed: state.sidebarCollapsed,
+            toggleSidebar: state.toggleSidebar,
+            _hasHydrated: state._hasHydrated
+        })
+    )
+
+    // Select actions separately to ensure stability and avoid re-renders on state changes
+    const fetchBalance = useGlobalStore((state) => state.fetchBalance)
+    const fetchNumbers = useGlobalStore((state) => state.fetchNumbers)
+    const fetchTransactions = useGlobalStore((state) => state.fetchTransactions)
+
     const t = useTranslations('dashboard.nav')
     const tLoading = useTranslations('dashboard')
 
@@ -56,7 +68,7 @@ export default function DashboardLayout({
         checkAuth()
     }, [checkAuth])
 
-    // Initial fetch
+    // Initial fetch - Run ONCE when auth is ready
     useEffect(() => {
         if (isAuthenticated && !isLoading) {
             fetchBalance()
@@ -66,7 +78,10 @@ export default function DashboardLayout({
             }
             fetchTransactions()
         }
-    }, [isAuthenticated, isLoading, pathname, fetchBalance, fetchNumbers, fetchTransactions])
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isAuthenticated, isLoading, pathname])
+    // ^ Removed fetch actions from dependency array as they are stable. 
+    // Kept pathname to re-fetch when navigating to/from dashboard root.
 
     // Background Polling (Logical & Professional Advance)
     useEffect(() => {
@@ -82,7 +97,8 @@ export default function DashboardLayout({
         }, 20000) // 20 seconds
 
         return () => clearInterval(interval)
-    }, [isAuthenticated, isLoading, pathname, fetchBalance, fetchNumbers])
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isAuthenticated, isLoading, pathname])
 
     useEffect(() => {
         if (!isLoading && !isAuthenticated) {
