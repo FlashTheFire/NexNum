@@ -12,6 +12,8 @@
 import { prisma } from '@/lib/core/db'
 import { Provider } from '@prisma/client'
 import { DynamicProvider } from './dynamic-provider'
+import fs from 'fs'
+import path from 'path'
 import pLimit from 'p-limit'
 import { indexOffers, OfferDocument, deleteOffersByProvider } from '@/lib/search/search'
 import { logAdminAction } from '@/lib/core/auditLog'
@@ -39,6 +41,11 @@ interface SyncResult {
     prices: number
     error?: string
     duration: number
+}
+
+export interface SyncOptions {
+    filterCountryCode?: string // e.g. "95" or "in"
+    skipWipe?: boolean        // If true, don't wipe individual provider data (handled globally)
 }
 
 // Providers that use legacy logic for metadata fetching
@@ -112,10 +119,16 @@ async function upsertServiceLookup(code: string, name: string, iconUrl?: string 
         const canonicalCode = getSlugFromName(canonicalName)
 
         const validIconUrl = isValidImageUrl(iconUrl) ? iconUrl : null
+
+        // Prioritize local icon path if it exists
+        const localPath = `/icons/services/${canonicalCode}.webp`
+        const fullPath = path.join(process.cwd(), 'public', localPath)
+        const finalIconUrl = fs.existsSync(fullPath) ? localPath : (validIconUrl || undefined)
+
         await prisma.serviceLookup.upsert({
             where: { code: canonicalCode },
-            create: { code: canonicalCode, name: canonicalName, iconUrl: validIconUrl },
-            update: { name: canonicalName, iconUrl: validIconUrl || undefined }
+            create: { code: canonicalCode, name: canonicalName, iconUrl: finalIconUrl },
+            update: { name: canonicalName, iconUrl: finalIconUrl }
         })
     } catch (e) {
         // Suppress unique constraint race conditions
@@ -166,7 +179,7 @@ async function getServicesLegacy(provider: Provider, engine: DynamicProvider): P
 // DYNAMIC SYNC (UNIFIED)
 // ============================================
 
-async function syncDynamic(provider: Provider): Promise<SyncResult> {
+async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<SyncResult> {
     const startTime = Date.now()
     let countriesCount = 0, servicesCount = 0, pricesCount = 0, error: string | undefined
     const serviceMap = new Map<string, string>()          // code -> name
@@ -283,6 +296,18 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
             }
             countriesCount = countries.length
 
+            // APPLY FILTER
+            if (options?.filterCountryCode) {
+                const target = options.filterCountryCode.toLowerCase()
+                countries = countries.filter(c =>
+                    String(c.id).toLowerCase() === target ||
+                    String(c.code).toLowerCase() === target
+                )
+                console.log(`[SYNC] ${provider.name}: Filtered to ${countries.length} matching countries (${target})`)
+            }
+
+            countriesCount = countries.length
+
             // Upsert countries to DB
             console.log(`[SYNC] ${provider.name}: Upserting ${countries.length} countries to DB...`)
             for (const c of countries) {
@@ -352,6 +377,12 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
                     iconUrlMap.set(serviceCode, validIconUrl)
                     iconUrlMap.set(serviceCode.toLowerCase(), validIconUrl)
                 }
+
+                // Resolve local path for DB consistency
+                const localPath = `/icons/services/${canonicalCode}.webp`
+                const fullPath = path.join(process.cwd(), 'public', localPath)
+                const finalIconUrl = fs.existsSync(fullPath) ? localPath : (validIconUrl || null)
+
                 const record = await prisma.providerService.upsert({
                     where: { providerId_externalId: { providerId: provider.id, externalId: serviceCode } },
                     create: {
@@ -359,13 +390,13 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
                         externalId: serviceCode,
                         code: canonicalCode,
                         name: canonicalName,
-                        iconUrl: validIconUrl,
+                        iconUrl: finalIconUrl,
                         lastSyncAt: new Date()
                     },
                     update: {
                         name: canonicalName,
                         code: canonicalCode,
-                        iconUrl: validIconUrl,
+                        iconUrl: finalIconUrl,
                         lastSyncAt: new Date()
                     }
                 })
@@ -383,15 +414,17 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
         console.log(`[SYNC] ${provider.name}: Starting price sync for ${countries.length} countries...`)
 
         // Clear existing pricing for this provider before re-indexing
-        // Use raw SQL to delete reservations referencing this provider's pricing (avoids parameter limit)
-        await prisma.$executeRaw`
-            DELETE FROM offer_reservations 
-            WHERE pricing_id IN (
-                SELECT id FROM provider_pricing WHERE provider_id = ${provider.id}
-            )
-        `
-        await prisma.providerPricing.deleteMany({ where: { providerId: provider.id } })
-        await deleteOffersByProvider(provider.name)
+        if (!options?.skipWipe) {
+            // Use raw SQL to delete reservations referencing this provider's pricing (avoids parameter limit)
+            await prisma.$executeRaw`
+                DELETE FROM offer_reservations 
+                WHERE pricing_id IN (
+                    SELECT id FROM provider_pricing WHERE provider_id = ${provider.id}
+                )
+            `
+            await prisma.providerPricing.deleteMany({ where: { providerId: provider.id } })
+            await deleteOffersByProvider(provider.name)
+        }
 
         const allOffers: OfferDocument[] = []
         const pricingBatch: any[] = []
@@ -474,7 +507,19 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
                             flagUrl: getCountryFlagUrlSync(canonicalCtyName) || country.flagUrl || '',
                             serviceSlug: p.service,
                             serviceName: canonicalSvcName,
-                            iconUrl: iconUrlMap.get(p.service) || iconUrlMap.get(p.service.toLowerCase()),
+                            iconUrl: (() => {
+                                // 1. Determine local path first
+                                const serviceSlug = getSlugFromName(canonicalSvcName)
+                                const localPath = `/icons/services/${serviceSlug}.webp`
+                                const fullPath = path.join(process.cwd(), 'public', localPath)
+
+                                if (fs.existsSync(fullPath)) {
+                                    return localPath
+                                }
+
+                                // 2. Fallback to mapped iconUrl from provider
+                                return iconUrlMap.get(p.service) || iconUrlMap.get(p.service.toLowerCase())
+                            })(),
                             operatorId: internalOpId,
                             externalOperator: externalOp !== 'default' ? externalOp : undefined,
                             operatorDisplayName: '',
@@ -535,10 +580,10 @@ async function syncDynamic(provider: Provider): Promise<SyncResult> {
 // MAIN EXPORTS
 // ============================================
 
-export async function syncProviderData(providerName: string): Promise<SyncResult> {
+export async function syncProviderData(providerName: string, options?: SyncOptions): Promise<SyncResult> {
     const provider = await prisma.provider.findUnique({ where: { name: providerName } })
     if (provider) {
-        return await syncDynamic(provider)
+        return await syncDynamic(provider, options)
     } else {
         throw new Error(`Provider ${providerName} not found via DB`)
     }
@@ -565,12 +610,22 @@ export async function syncAllProviders(): Promise<SyncResult[]> {
         }
     }
 
-    // Refresh precomputed aggregates for fast list responses
+    // 4. Refresh precomputed aggregates for fast list responses
     console.log(`[SYNC] Refreshing service aggregates...`)
     try {
         await refreshAllServiceAggregates()
     } catch (e) {
         console.error(`[SYNC] Failed to refresh aggregates:`, e)
+    }
+
+    // 5. Sync Service Icons (Universal Advanced Manager)
+    console.log(`[SYNC] Starting advanced icon synchronization...`)
+    try {
+        const { ProviderIconManager } = await import('./icon-manager')
+        const iconManager = new ProviderIconManager()
+        await iconManager.syncAllProviders()
+    } catch (e) {
+        console.error(`[SYNC] Failed to sync service icons:`, e)
     }
 
     console.log(`[SYNC] Full sync completed`)

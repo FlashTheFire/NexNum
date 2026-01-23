@@ -105,6 +105,11 @@ type MappingConfig = {
         [targetField: string]: string[] // Try each path in order
     }
 
+    // NEW: Template for constructing icon URLs dynamically
+    // Example: "https://provider.com/icons/{{id}}.png"
+    // Supports {{field}} placeholders from the extracted item
+    iconUrlTemplate?: string
+
     // Conditional extraction based on structure detection
     conditionalFields?: {
         /** If this path exists in the data, use these field mappings */
@@ -1465,6 +1470,8 @@ export class DynamicProvider implements SmsProvider {
         // Apply Transformations
         if (this.config.mappings && context.mappingKey) {
             const mapConfig = (this.config.mappings as any)[context.mappingKey]
+
+            // 1. Field-level transformations
             if (mapConfig?.transform) {
                 for (const [field, rule] of Object.entries(mapConfig.transform)) {
                     if (result[field] !== undefined && result[field] !== null) {
@@ -1479,6 +1486,33 @@ export class DynamicProvider implements SmsProvider {
                             result[field] = rule.replace('{value}', String(val))
                         }
                     }
+                }
+            }
+
+            // 2. NEW: Apply iconUrlTemplate (Universal Dynamic Logic) - Fallback ONLY
+            if (mapConfig?.iconUrlTemplate) {
+                // Only apply if iconUrl is missing or looks like a fragment (not a URL)
+                const currentIcon = result.iconUrl
+                const isFullUrl = typeof currentIcon === 'string' && currentIcon.startsWith('http')
+
+                if (!isFullUrl) {
+                    const template = mapConfig.iconUrlTemplate
+                    result.iconUrl = template.replace(/{{([^}]+)}}/g, (match, fieldName) => {
+                        const cleanFieldName = fieldName.trim()
+                        // Try to get from mapped result first
+                        if (result[cleanFieldName] !== undefined && result[cleanFieldName] !== null) {
+                            return String(result[cleanFieldName])
+                        }
+                        // Fallback to raw item
+                        if (item[cleanFieldName] !== undefined && item[cleanFieldName] !== null) {
+                            return String(item[cleanFieldName])
+                        }
+                        // Fallback to context
+                        if (context[cleanFieldName] !== undefined && context[cleanFieldName] !== null) {
+                            return String(context[cleanFieldName])
+                        }
+                        return match // Keep placeholder if not found
+                    })
                 }
             }
         }

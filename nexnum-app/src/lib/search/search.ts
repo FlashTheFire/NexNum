@@ -595,17 +595,16 @@ export async function getServiceIconUrlByName(serviceName: string): Promise<stri
             })
         }
 
-        // Find best icon (prefer non-dicebear)
+        // Find best icon (prefer local, then professional provider icons, allow dicebear as fallback)
         for (const hit of result.hits) {
-            if (hit.iconUrl && hit.iconUrl.startsWith('http') && !hit.iconUrl.includes('dicebear')) {
-                return hit.iconUrl
+            if (hit.iconUrl && hit.iconUrl.startsWith('http')) {
+                // Return immediately if it's a professional icon
+                if (!hit.iconUrl.includes('dicebear')) return hit.iconUrl;
             }
         }
 
-        // Return any icon as fallback
-        if (result.hits.length > 0 && result.hits[0].iconUrl) {
-            return result.hits[0].iconUrl
-        }
+        // Final fallback: just return the first one available (including dicebear)
+        return result.hits[0]?.iconUrl;
     } catch (error) {
         console.error('Failed to lookup service icon:', error)
     }

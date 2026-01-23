@@ -131,19 +131,20 @@ const ServiceCard = React.memo(({
                     "group-hover:scale-110 group-hover:rotate-2",
                     isSelected && "ring-2 ring-[hsl(var(--neon-lime))] ring-offset-2 ring-offset-[#0a0a0c]"
                 )}>
-                    {(service.iconUrl?.includes('dicebear') || !service.iconUrl) ? (
+                    {(!service.iconUrl || service.iconUrl.includes('dicebear')) ? (
                         <div className="relative w-full h-full flex items-center justify-center bg-white/5">
+                            {/* Professional Background Blur for placeholder */}
                             <img
                                 src={service.iconUrl || `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(service.name)}&backgroundColor=0ea5e9,6366f1,8b5cf6,ec4899`}
                                 alt=""
-                                className="absolute inset-0 w-full h-full object-cover blur-[2px] scale-150 opacity-50 contrast-125 brightness-110"
+                                className="absolute inset-0 w-full h-full object-cover blur-[4px] scale-150 opacity-40 contrast-125 brightness-110"
                             />
                             <img
                                 src="/placeholder-icon.png"
                                 alt={service.name}
                                 className={cn(
-                                    "relative z-10 w-[70%] h-[70%] object-contain opacity-80 drop-shadow-lg",
-                                    !isSelected && "group-hover:opacity-100 group-hover:scale-105 transition-all"
+                                    "relative z-10 w-[60%] h-[60%] object-contain opacity-70 contrast-125 drop-shadow-md",
+                                    !isSelected && "group-hover:opacity-100 group-hover:scale-110 transition-all"
                                 )}
                             />
                         </div>

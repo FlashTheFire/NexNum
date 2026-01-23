@@ -17,8 +17,7 @@
             "displayName": "Any Other",
             "slugAliases": [
                 "other"
-            ],
-            "iconUrl": "https://i.ibb.co/v4jQgdBT/image.png"
+            ]
         },
         "tata-1mg": {
             "displayName": "Tata 1mg",
@@ -26,16 +25,14 @@
                 "1mg",
                 "bby",
                 "tata1mg"
-            ],
-            "iconUrl": "https://grizzlysms.com/api/storage/image/50266.webp"
+            ]
         },
         "tata-neu": {
             "displayName": "Tata Neu",
             "slugAliases": [
                 "ace",
                 "tataneu"
-            ],
-            "iconUrl": "https://grizzlysms.com/api/storage/image/15663.webp"
+            ]
         },
         "telegram": {
             "displayName": "Telegram",
