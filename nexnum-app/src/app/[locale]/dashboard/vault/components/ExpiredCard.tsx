@@ -53,12 +53,12 @@ export const ExpiredCard = memo(({ number }: ExpiredCardProps) => {
                         </div>
                         <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-[#111318] overflow-hidden">
                             <img
-                                src={number.countryIconUrl || `https://raw.githubusercontent.com/HatScripts/circle-flags/gh-pages/flags/un.svg`}
+                                src={number.countryIconUrl || `/flags/un.svg`}
                                 alt={number.countryName}
                                 className="w-full h-full object-cover"
                                 loading="lazy"
                                 onError={(e) => {
-                                    e.currentTarget.src = 'https://raw.githubusercontent.com/HatScripts/circle-flags/gh-pages/flags/un.svg'
+                                    e.currentTarget.src = '/flags/un.svg'
                                 }}
                             />
                         </div>

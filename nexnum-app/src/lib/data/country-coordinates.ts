@@ -278,7 +278,7 @@ export const COUNTRY_COORDINATES: Record<string, CountryCoordinate> = {
  */
 export function getFlagUrl(code: string): string {
     const normalizedCode = code.toLowerCase();
-    return `https://raw.githubusercontent.com/HatScripts/circle-flags/gh-pages/flags/${normalizedCode}.svg`;
+    return `/flags/${normalizedCode}.svg`;
 }
 
 /**

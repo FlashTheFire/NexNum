@@ -8,7 +8,8 @@ import { prisma } from '../core/db'
 import { currencyService } from '../currency/currency-service'
 import CircuitBreaker from 'opossum'
 import { logger } from '@/lib/core/logger'
-import { redis } from '@/lib/core/redis'
+import { redis, cacheGet, CACHE_KEYS, CACHE_TTL } from '@/lib/core/redis'
+import { CIRCUIT_OPTS } from '@/lib/core/circuit-breaker'
 
 declare var process: any;
 declare var require: any;
@@ -175,12 +176,13 @@ export class DynamicProvider implements SmsProvider {
     // Circuit Breaker Registry (Static to share across instances of same provider)
     private static breakers = new Map<string, CircuitBreaker>()
 
+
+
     private getBreaker() {
         if (!DynamicProvider.breakers.has(this.name)) {
             const breaker = new CircuitBreaker(async (fn: () => Promise<any>) => fn(), {
-                timeout: 45000, // Slightly higher than internal 30s timeout
-                errorThresholdPercentage: 50,
-                resetTimeout: 15000 // 15s cooldown
+                ...CIRCUIT_OPTS,
+                name: `DynamicProvider:${this.name}`, // Unique name for metrics
             })
 
             breaker.on('open', () => logger.warn(`[DynamicProvider:${this.name}] Circuit OPEN - Failing fast`))
@@ -1493,66 +1495,76 @@ export class DynamicProvider implements SmsProvider {
      * - flag: optional icon URL
      */
     async getCountries(): Promise<Country[]> {
-        if (!this.shouldUseDynamic('getCountries') && this.fallback?.getCountries) {
-            return this.fallback.getCountries()
-        }
-        const response = await this.request('getCountries')
-        const items = this.parseResponse(response, 'getCountries')
+        // Use cache-aside pattern
+        const cacheKey = CACHE_KEYS.countryList(this.name)
 
-        // Import image proxy
-        const { proxyImage } = await import('@/lib/utils/image-proxy')
-
-        return Promise.all(items.map(async (i, idx) => {
-            const id = String(i.id ?? idx)
-            const code = String(i.code ?? i.id ?? '').toLowerCase()
-
-            // Proxy flag URL to hide provider URLs
-            let flagUrl = i.flagUrl ?? i.flag ?? i.icon ?? undefined
-            if (flagUrl) {
-                const result = await proxyImage(flagUrl)
-                flagUrl = result.url || flagUrl
+        return cacheGet(cacheKey, async () => {
+            if (!this.shouldUseDynamic('getCountries') && this.fallback?.getCountries) {
+                return this.fallback.getCountries()
             }
+            const response = await this.request('getCountries')
+            const items = this.parseResponse(response, 'getCountries')
 
-            return {
-                id,
-                code: code !== id && code ? code : undefined,
-                name: String(i.name ?? i.country ?? 'Unknown'),
-                flagUrl
-            }
-        }))
+            // Import image proxy
+            const { proxyImage } = await import('@/lib/utils/image-proxy')
+
+            return Promise.all(items.map(async (i, idx) => {
+                const id = String(i.id ?? idx)
+                const code = String(i.code ?? i.id ?? '').toLowerCase()
+
+                // Proxy flag URL to hide provider URLs
+                let flagUrl = i.flagUrl ?? i.flag ?? i.icon ?? undefined
+                if (flagUrl) {
+                    const result = await proxyImage(flagUrl)
+                    flagUrl = result.url || flagUrl
+                }
+
+                return {
+                    id,
+                    code: code !== id && code ? code : undefined,
+                    name: String(i.name ?? i.country ?? 'Unknown'),
+                    flagUrl
+                }
+            }))
+        }, CACHE_TTL.COUNTRIES)
     }
 
     /**
      * Get services from provider
      */
     async getServices(countryCode: string): Promise<Service[]> {
-        // Optimization: If fallback is used for countries, it might handle services without countryCode better
-        if (!this.shouldUseDynamic('getServices') && this.fallback?.getServices) {
-            return this.fallback.getServices(countryCode)
-        }
+        // Use cache-aside pattern
+        const cacheKey = CACHE_KEYS.serviceList(this.name) + `:${countryCode}`
 
-        const response = await this.request('getServices', { country: countryCode })
-        const items = this.parseResponse(response, 'getServices')
-
-        return Promise.all(items.map(async (s, idx) => {
-            const id = String(s.id ?? s.code ?? idx)
-            const code = String(s.code ?? s.id ?? '')
-
-            // Proxy icon URL to hide provider URLs
-            const { proxyImage } = await import('@/lib/utils/image-proxy')
-            let iconUrl = s.iconUrl ?? s.icon ?? undefined
-            if (iconUrl) {
-                const result = await proxyImage(iconUrl)
-                iconUrl = result.url || iconUrl
+        return cacheGet(cacheKey, async () => {
+            // Optimization: If fallback is used for countries, it might handle services without countryCode better
+            if (!this.shouldUseDynamic('getServices') && this.fallback?.getServices) {
+                return this.fallback.getServices(countryCode)
             }
 
-            return {
-                id,
-                code: code !== id ? code : undefined,
-                name: String(s.name ?? 'Unknown'),
-                iconUrl
-            }
-        }))
+            const response = await this.request('getServices', { country: countryCode })
+            const items = this.parseResponse(response, 'getServices')
+
+            return Promise.all(items.map(async (s, idx) => {
+                const id = String(s.id ?? s.code ?? idx)
+                const code = String(s.code ?? s.id ?? '')
+
+                // Proxy icon URL to hide provider URLs
+                const { proxyImage } = await import('@/lib/utils/image-proxy')
+                let iconUrl = s.iconUrl ?? s.icon ?? undefined
+                if (iconUrl) {
+                    const result = await proxyImage(iconUrl)
+                    iconUrl = result.url || iconUrl
+                }
+
+                return {
+                    id,
+                    code: code !== id ? code : undefined,
+                    name: String(s.name ?? 'Unknown'),
+                    iconUrl
+                }
+            }))
+        }, CACHE_TTL.SERVICES)
     }
 
     async getNumber(countryCode: string, serviceCode: string, options?: { operator?: string; maxPrice?: string | number }): Promise<NumberResult> {
@@ -1754,109 +1766,91 @@ export class DynamicProvider implements SmsProvider {
     }
 
     async getPrices(countryCode?: string, serviceCode?: string): Promise<PriceData[]> {
-        if (!this.shouldUseDynamic('getPrices')) {
-            // Check if fallback supports getPrices (it might not, as it's a newer interface method)
-            if ('getPrices' in (this.fallback || {})) {
-                return (this.fallback as any).getPrices(countryCode, serviceCode)
-            }
-        }
-
         // Cache Key Strategy: provider:prices:{name}:{country}:{service}
         const cacheKey = `provider:prices:${this.name}:${countryCode || 'all'}:${serviceCode || 'all'}`
 
-        try {
-            const cached = await redis.get(cacheKey)
-            if (cached) {
-                // logger.debug(`[DynamicProvider:${this.name}] Cache HIT for prices`, { key: cacheKey })
-                return JSON.parse(cached) as PriceData[]
-            }
-        } catch (e) {
-            logger.warn(`[DynamicProvider:${this.name}] Cache read failed`, { error: e })
-        }
-
-        const params: Record<string, string> = {}
-        if (countryCode) params.country = countryCode
-        if (serviceCode) params.service = serviceCode
-
-        const response = await this.request('getPrices', params)
-
-        // Use parseResponse to respect mapping configuration
-        const items = this.parseResponse(response, 'getPrices')
-
-        // Load settings and apply intelligent operator selection
-        const { SettingsService } = await import('@/lib/settings')
-        const settings = await SettingsService.getSettings()
-
-        if (!settings.priceOptimization.enabled) {
-            // Optimization disabled
-            return items.map(item => ({
-                country: String(item.country || countryCode || ''),
-                service: String(item.service || serviceCode || ''),
-                operator: item.operator || undefined,
-                cost: Number(item.cost ?? item.price ?? 0),
-                count: Number(item.count ?? item.qty ?? 0)
-            }))
-        }
-
-        // Group by (country, service) to detect multiple operators
-        const groups = new Map<string, typeof items>()
-        for (const item of items) {
-            const key = `${item.country || countryCode}:${item.service || serviceCode}`
-            if (!groups.has(key)) groups.set(key, [])
-            groups.get(key)!.push(item)
-        }
-
-        const { getOptimizer } = require('@/lib/wallet/price-optimizer')
-        const optimizer = getOptimizer({
-            costWeight: settings.priceOptimization.costWeight,
-            stockWeight: settings.priceOptimization.stockWeight,
-            rateWeight: settings.priceOptimization.rateWeight,
-            minStock: settings.priceOptimization.minStock
-        })
-
-        const results: PriceData[] = []
-        for (const [, group] of groups) {
-            if (group.length === 1) {
-                const item = group[0]
-                results.push({
-                    country: String(item.country || countryCode || ''),
-                    service: String(item.service || serviceCode || ''),
-                    operator: item.operator,
-                    cost: Number(item.cost ?? item.price ?? 0),
-                    count: Number(item.count ?? item.qty ?? 0)
-                })
-            } else {
-                // Select best from multiple operators
-                const best = optimizer.selectBestOption(group.map(i => ({
-                    operator: i.operator,
-                    cost: Number(i.cost ?? i.price ?? 0),
-                    count: Number(i.count ?? i.qty ?? 0),
-                    metadata: i
-                })))
-
-                if (best) {
-                    results.push({
-                        country: String(group[0].country || countryCode || ''),
-                        service: String(group[0].service || serviceCode || ''),
-                        operator: best.operator,
-                        cost: best.cost,
-                        count: best.count
-                    })
+        return cacheGet(cacheKey, async () => {
+            if (!this.shouldUseDynamic('getPrices')) {
+                // Check if fallback supports getPrices (it might not, as it's a newer interface method)
+                if ('getPrices' in (this.fallback || {})) {
+                    return (this.fallback as any).getPrices(countryCode, serviceCode)
                 }
             }
-        }
 
-        // Cache the final results
-        try {
-            // Cache even if empty to prevent spamming provider (Negative Caching)
-            // Use same TTL or shorter? Let's use 300s for now as per plan, 
-            // or maybe 60s for empty? Let's stick to 300s for simplicity and load reduction.
-            await redis.set(cacheKey, JSON.stringify(results), 'EX', 300)
-        } catch (e) {
-            logger.warn(`[DynamicProvider:${this.name}] Cache write failed`, { error: e })
-        }
+            const params: Record<string, string> = {}
+            if (countryCode) params.country = countryCode
+            if (serviceCode) params.service = serviceCode
 
-        return results
+            const response = await this.request('getPrices', params)
+
+            // Use parseResponse to respect mapping configuration
+            const items = this.parseResponse(response, 'getPrices')
+
+            // Load settings and apply intelligent operator selection
+            const { SettingsService } = await import('@/lib/settings')
+            const settings = await SettingsService.getSettings()
+
+            if (!settings.priceOptimization.enabled) {
+                // Optimization disabled
+                return items.map(item => ({
+                    country: String(item.country || countryCode || ''),
+                    service: String(item.service || serviceCode || ''),
+                    operator: item.operator || undefined,
+                    cost: Number(item.cost ?? item.price ?? 0),
+                    count: Number(item.count ?? item.qty ?? 0)
+                }))
+            }
+
+            // Group by (country, service) to detect multiple operators
+            const groups = new Map<string, typeof items>()
+            for (const item of items) {
+                const key = `${item.country || countryCode}:${item.service || serviceCode}`
+                if (!groups.has(key)) groups.set(key, [])
+                groups.get(key)!.push(item)
+            }
+
+            const { getOptimizer } = require('@/lib/wallet/price-optimizer')
+            const optimizer = getOptimizer({
+                costWeight: settings.priceOptimization.costWeight,
+                stockWeight: settings.priceOptimization.stockWeight,
+                rateWeight: settings.priceOptimization.rateWeight,
+                minStock: settings.priceOptimization.minStock
+            })
+
+            const results: PriceData[] = []
+            for (const [, group] of groups) {
+                if (group.length === 1) {
+                    const item = group[0]
+                    results.push({
+                        country: String(item.country || countryCode || ''),
+                        service: String(item.service || serviceCode || ''),
+                        operator: item.operator,
+                        cost: Number(item.cost ?? item.price ?? 0),
+                        count: Number(item.count ?? item.qty ?? 0)
+                    })
+                } else {
+                    // Select best from multiple operators
+                    const best = optimizer.selectBestOption(group.map(i => ({
+                        operator: i.operator,
+                        cost: Number(i.cost ?? i.price ?? 0),
+                        count: Number(i.count ?? i.qty ?? 0),
+                        metadata: i
+                    })))
+
+                    if (best) {
+                        results.push({
+                            country: String(group[0].country || countryCode || ''),
+                            service: String(group[0].service || serviceCode || ''),
+                            operator: best.operator,
+                            cost: best.cost,
+                            count: best.count
+                        })
+                    }
+                }
+            }
+
+            return results
+        }, CACHE_TTL.PRICES)
     }
 
     /**

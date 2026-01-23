@@ -1,67 +1,89 @@
 
 import crypto from 'crypto'
 
-// Ensure we have a consistent 32-byte key source
-const MASTER_KEY_SOURCE = process.env.ENCRYPTION_KEY || 'development_secret_key_change_in_prod'
-// Hash it to ensure exactly 32 bytes for AES-256
-const ALGO = 'aes-256-gcm'
+const ALGORITHM = 'aes-256-gcm'
+const IV_LENGTH = 12 // 96 bits for GCM
+const AUTH_TAG_LENGTH = 16 // 128 bits standard
 
-function getKey(): Buffer {
-    return crypto.createHash('sha256').update(MASTER_KEY_SOURCE).digest()
+// Lazy load key to support runtime env injection
+const getKey = () => {
+    const keyHex = process.env.ENCRYPTION_KEY
+    if (!keyHex) {
+        throw new Error('ENCRYPTION_KEY environment variable is not set')
+    }
+    // Handle both 32-byte hex string (64 chars) or raw 32-byte string
+    // Ideally use 64-char hex string
+    if (keyHex.length === 64) {
+        return Buffer.from(keyHex, 'hex')
+    }
+    // Fallback/Legacy (not recommended for new setups but robust)
+    return crypto.scryptSync(keyHex, 'salt', 32)
 }
 
 /**
- * Encrypt a string using AES-256-GCM.
- * Output format: "iv:authTag:encryptedContent" (hex encoded)
+ * Encrypts a string using AES-256-GCM
+ * Format: iv:auth_tag:encrypted_content (all hex)
  */
-export function encrypt(text: string): string {
-    if (!text) return text
+export const encrypt = (text: string): string => {
+    if (!text) return ''
 
-    const iv = crypto.randomBytes(16)
     const key = getKey()
-    const cipher = crypto.createCipheriv(ALGO, key, iv)
+    const iv = crypto.randomBytes(IV_LENGTH)
 
+    // Create cipher
+    const cipher = crypto.createCipheriv(ALGORITHM, key, iv)
+
+    // Encrypt
     let encrypted = cipher.update(text, 'utf8', 'hex')
     encrypted += cipher.final('hex')
 
-    const authTag = cipher.getAuthTag().toString('hex')
+    // Get auth tag
+    const authTag = cipher.getAuthTag()
 
-    // Format: iv:authTag:encryptedContent
-    return `${iv.toString('hex')}:${authTag}:${encrypted}`
+    // Return formatted string
+    return `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`
 }
 
 /**
- * Decrypt a string using AES-256-GCM.
- * Input format: "iv:authTag:encryptedContent"
- * Returns original string or throws if tampering detected/invalid key.
+ * Decrypts a string using AES-256-GCM
+ * Expects format: iv:auth_tag:encrypted_content
  */
-export function decrypt(text: string): string {
-    if (!text) return text
+export const decrypt = (text: string): string => {
+    if (!text) return ''
 
-    const parts = text.split(':')
-    if (parts.length !== 3) {
-        // If it's not in our format, assume it's legacy plain text (migration support)
-        // or return as is if we want to be safe, but usually we should try to support legacy read
+    // Check if it looks encrypted (contains colons and hex)
+    if (!text.includes(':')) {
+        // Fallback: Return raw if not encrypted (migration path)
+        // WARN: This allows gradual migration but check valid keys
         return text
     }
 
     try {
-        const [ivHex, authTagHex, contentHex] = parts
+        const parts = text.split(':')
+        if (parts.length !== 3) {
+            // Invalid format, maybe not encrypted
+            return text
+        }
+
+        const [ivHex, authTagHex, encryptedHex] = parts
+
+        const key = getKey()
         const iv = Buffer.from(ivHex, 'hex')
         const authTag = Buffer.from(authTagHex, 'hex')
-        const key = getKey()
 
-        const decipher = crypto.createDecipheriv(ALGO, key, iv)
+        // Create decipher
+        const decipher = crypto.createDecipheriv(ALGORITHM, key, iv)
         decipher.setAuthTag(authTag)
 
-        let decrypted = decipher.update(contentHex, 'hex', 'utf8')
+        // Decrypt
+        let decrypted = decipher.update(encryptedHex, 'hex', 'utf8')
         decrypted += decipher.final('utf8')
 
         return decrypted
-    } catch (e) {
-        // Fallback: If decryption fails, it might be plain text (unless strict mode)
-        // For now, return original if decryption fails to avoid breaking legacy/plain values
-        // console.warn('Decryption failed, returning raw', e.message)
+    } catch (error) {
+        // Return original if decryption fails (e.g. wrong key or not encrypted)
+        // Ideally log this
+        console.error('Decryption failed, returning raw', error)
         return text
     }
 }

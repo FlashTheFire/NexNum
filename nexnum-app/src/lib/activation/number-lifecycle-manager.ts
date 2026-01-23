@@ -15,6 +15,7 @@
  */
 
 import CircuitBreaker from 'opossum'
+import { CIRCUIT_OPTS } from '@/lib/core/circuit-breaker'
 import { prisma } from '@/lib/core/db'
 import { smsProvider } from '@/lib/sms-providers'
 import { WalletService } from '@/lib/wallet/wallet'
@@ -165,14 +166,14 @@ class NumberLifecycleManager {
             // 3. Register job handlers
             await this.registerHandlers()
 
+
+
             // 4. Setup Circuit Breaker for provider calls
             this.circuitBreaker = new CircuitBreaker(
                 async (activationId: string) => smsProvider.getStatus(activationId),
                 {
-                    timeout: CONFIG.CIRCUIT_TIMEOUT_MS,
-                    errorThresholdPercentage: CONFIG.CIRCUIT_ERROR_THRESHOLD,
-                    resetTimeout: CONFIG.CIRCUIT_RESET_MS,
-                    volumeThreshold: CONFIG.CIRCUIT_VOLUME_THRESHOLD,
+                    ...CIRCUIT_OPTS,
+                    name: 'NumberLifecycleManager',
                 }
             )
 

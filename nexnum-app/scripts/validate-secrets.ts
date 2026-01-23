@@ -1,61 +1,63 @@
 
-import 'dotenv/config'
-import fs from 'fs'
+import dotenv from 'dotenv'
 import path from 'path'
+import fs from 'fs'
 
-function validate() {
-    console.log('🔐 Validating Environment Secrets...')
+// Load env vars
+dotenv.config({ path: path.resolve(process.cwd(), '.env') })
 
-    // 1. Read .env.example keys
-    const examplePath = path.join(process.cwd(), '.env.example')
-    if (!fs.existsSync(examplePath)) {
-        console.warn('⚠️ .env.example not found. Skipping completeness check.')
-        return
+const REQUIRED_KEYS = [
+    'DATABASE_URL',
+    'ENCRYPTION_KEY',
+    'NEXTAUTH_SECRET',
+    'REDIS_URL'
+]
+
+const OPTIONAL_KEYS = [
+    'DATABASE_READ_URL',
+    'NEXT_PUBLIC_APP_URL'
+]
+
+let hasError = false
+
+console.log('\n🔐 Validating Secrets...\n')
+
+// 1. Check existence
+REQUIRED_KEYS.forEach(key => {
+    if (!process.env[key]) {
+        console.error(`❌ Missing required env var: ${key}`)
+        hasError = true
+    } else {
+        console.log(`✅ ${key} is set`)
     }
+})
 
-    const exampleContent = fs.readFileSync(examplePath, 'utf-8')
-    const requiredKeys = exampleContent
-        .split('\n')
-        .map(line => line.split('=')[0].trim())
-        .filter(key => key && !key.startsWith('#'))
-
-    const missing: string[] = []
-
-    for (const key of requiredKeys) {
-        if (!process.env[key]) {
-            missing.push(key)
-        }
+// 2. Check Encryption Key Format
+const encKey = process.env.ENCRYPTION_KEY
+if (encKey) {
+    if (encKey.length !== 64) {
+        // Warn but don't fail for legacy support unless strict mode
+        console.warn(`⚠️  ENCRYPTION_KEY should ideally be a 64-char hex string (currently ${encKey.length} chars)`)
+        // hasError = true // Uncomment to enforce strict mode
+    } else if (!/^[0-9a-fA-F]+$/.test(encKey)) {
+        console.error('❌ ENCRYPTION_KEY must be a valid hex string')
+        hasError = true
     }
-
-    if (missing.length > 0) {
-        console.error('❌ Missing Required Environment Variables:')
-        missing.forEach(k => console.error(`   - ${k}`))
-        process.exit(1)
-    }
-
-    // 2. Format Validation
-    const checks = [
-        { key: 'DATABASE_URL', pattern: /^postgres(ql)?:\/\//, msg: 'Must be a PostgreSQL URL' },
-        { key: 'REDIS_URL', pattern: /^rediss?:\/\//, msg: 'Must be a Redis URL' },
-        { key: 'NEXTAUTH_URL', pattern: /^https?:\/\//, msg: 'Must be a valid URL' },
-        { key: 'ENCRYPTION_KEY', pattern: /.+/, msg: 'Must be non-empty' },
-    ]
-
-    let hasFormatError = false
-    for (const check of checks) {
-        const val = process.env[check.key]
-        if (val && !check.pattern.test(val)) {
-            console.error(`❌ Invalid Format: ${check.key} - ${check.msg}`)
-            hasFormatError = true
-        }
-    }
-
-    if (hasFormatError) {
-        process.exit(1)
-    }
-
-    console.log('✅ Secrets Integrity Check Passed.')
-    process.exit(0)
 }
 
-validate()
+// 3. Check Database URL Protocol
+const dbUrl = process.env.DATABASE_URL
+if (dbUrl && !dbUrl.startsWith('postgres')) {
+    console.error('❌ DATABASE_URL must start with postgres:// or postgresql://')
+    hasError = true
+}
+
+console.log('')
+
+if (hasError) {
+    console.error('🛑 Secrets validation failed. Please fix .env file.')
+    process.exit(1)
+}
+
+console.log('✨ All secrets valid!')
+process.exit(0)

@@ -7,8 +7,9 @@
 
 import { getCountryIsoCode, normalizeCountryName } from './country-normalizer';
 
-// Circle-flags base URL
-const FLAG_BASE = "https://raw.githubusercontent.com/HatScripts/circle-flags/gh-pages/flags";
+// Circle-flags base URL (Served locally)
+const FLAG_BASE = "/flags";
+
 
 /**
  * Get circle-flags SVG URL by country name or code

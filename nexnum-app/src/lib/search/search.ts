@@ -7,6 +7,8 @@
  */
 
 import { MeiliSearch } from 'meilisearch'
+import fs from 'fs'
+import path from 'path'
 import { getCountryFlagUrlSync } from '@/lib/normalizers/country-flags'
 import {
     normalizeServiceName,
@@ -173,7 +175,7 @@ export async function getTopCountriesWithFlags(
         .sort((a, b) => a[1].minPrice - b[1].minPrice)
         .slice(0, limit)
 
-    // Generate circle-flags URLs with fallback
+    // Generate local flag URLs with fallback
     return Promise.all(
         sorted.map(async ([code, c]) => {
             // UNIVERSAL: Use country NAME for flag lookup (provider IDs vary, names don't)
@@ -566,9 +568,17 @@ export async function reconfigureIndexes() {
 export async function getServiceIconUrlByName(serviceName: string): Promise<string | undefined> {
     if (!serviceName) return undefined
     try {
-        const index = meili.index(INDEXES.OFFERS)
         const canonicalName = resolveToCanonicalName(serviceName)
         const serviceSlug = getSlugFromName(canonicalName)
+
+        // 1. Check Local Smart Icon System
+        // We prioritize local .webp icons managed by our sync script
+        const localIconPath = path.join(process.cwd(), 'public/icons/services', `${serviceSlug}.webp`)
+        if (fs.existsSync(localIconPath)) {
+            return `/icons/services/${serviceSlug}.webp`
+        }
+
+        const index = meili.index(INDEXES.OFFERS)
 
         // Try filter-based exact match first
         let result = await index.search<OfferDocument>('', {

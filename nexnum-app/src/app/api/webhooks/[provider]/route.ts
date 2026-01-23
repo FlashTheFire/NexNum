@@ -13,6 +13,8 @@ import { prisma } from '@/lib/core/db'
 import { DynamicProvider } from '@/lib/providers/dynamic-provider'
 import { DynamicWebhookHandler } from '@/lib/webhooks/handlers/dynamic'
 
+import { queue, QUEUES } from '@/lib/core/queue'
+
 export async function POST(
     request: NextRequest,
     { params }: { params: Promise<{ provider: string }> }
@@ -21,13 +23,11 @@ export async function POST(
 
     try {
         // 1. Load provider configuration
-        // We use findFirst to handle slight naming variations if needed
-        // Ideally schema should have a unique 'slug' field, but 'name' works for now
         const config = await prisma.provider.findFirst({
             where: {
                 name: {
                     equals: providerName,
-                    mode: 'insensitive' // Case insensitive matching
+                    mode: 'insensitive'
                 }
             }
         })
@@ -81,18 +81,14 @@ export async function POST(
             eventType: payload.eventType,
         })
 
-        // 6. Process Async (don't block response)
-        handler.process(payload).catch(err => {
-            logger.error('Webhook processing error', {
-                provider: providerName,
-                activationId: payload.activationId,
-                error: err.message,
-                stack: err.stack,
-            })
+        // 6. Enqueue for Async Processing
+        await queue.publish(QUEUES.WEBHOOK_PROCESSING, {
+            provider: providerName,
+            payload
         })
 
         // 7. Success Response
-        return NextResponse.json({ success: true }, { status: 200 })
+        return NextResponse.json({ success: true, status: 'enqueued' }, { status: 200 })
 
     } catch (error: any) {
         logger.error('Webhook endpoint error', {

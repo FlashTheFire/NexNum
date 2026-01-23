@@ -1,5 +1,7 @@
 import { prisma } from '@/lib/core/db'
 import crypto from 'crypto'
+import { decrypt } from '@/lib/security/encryption'
+
 
 const MAX_RETRIES = 5
 const BATCH_SIZE = 10
@@ -68,10 +70,12 @@ export class WebhookWorker {
         const startTime = Date.now()
 
         try {
+
             // Generate Signature
             const payloadString = JSON.stringify(delivery.payload)
+            const decryptedSecret = decrypt(delivery.webhook.secret)
             const signature = crypto
-                .createHmac('sha256', delivery.webhook.secret)
+                .createHmac('sha256', decryptedSecret)
                 .update(payloadString)
                 .digest('hex')
 

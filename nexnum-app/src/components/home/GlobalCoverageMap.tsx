@@ -83,7 +83,7 @@ function CountryNodeComponent({ node, index, onHover, isHovered, hideIfNotSelect
     const positionClass = `${verticalClass} ${horizontalClass}`
 
     // Get flag URL
-    const flagUrl = node.flagUrl || `https://raw.githubusercontent.com/HatScripts/circle-flags/gh-pages/flags/${node.code.toLowerCase()}.svg`
+    const flagUrl = node.flagUrl || `/flags/${node.code.toLowerCase()}.svg`
 
     // Hide if wheel scrolling and not the selected one
     const shouldHide = hideIfNotSelected && !isHovered;

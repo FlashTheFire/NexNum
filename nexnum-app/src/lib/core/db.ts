@@ -11,22 +11,24 @@ if (!connectionString) {
     console.warn('DATABASE_URL environment variable is not set - database operations will fail')
 }
 
-// Singleton pattern for Prisma client
 const globalForPrisma = globalThis as unknown as {
     prisma: PrismaClient | undefined
+    prismaRead: PrismaClient | undefined
 }
 
-function createPrismaClient(): PrismaClient {
+function createPrismaClient(url?: string): PrismaClient {
+    const connectionString = url || process.env.DATABASE_URL
     if (!connectionString) {
         throw new Error('DATABASE_URL environment variable is not set')
     }
 
+    // Optimization: Use standard TCP for read replicas if pooling is an issue, 
+    // or same pool config. Here we assume direct connection or pgbouncer.
     const pool = new Pool({
         connectionString,
-        max: process.env.NODE_ENV === 'development' ? 5 : 10, // Kept low for Supabase session pooler limits
+        max: process.env.NODE_ENV === 'development' ? 5 : 10,
         idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 10000, // 10s timeout
-
+        connectionTimeoutMillis: 10000,
     })
 
     const adapter = new PrismaPg(pool)
@@ -39,8 +41,16 @@ function createPrismaClient(): PrismaClient {
 
 export const prisma = globalForPrisma.prisma ?? createPrismaClient()
 
+// Read Replica Client (falls back to primary if no read replica configured)
+export const prismaRead = globalForPrisma.prismaRead ?? (
+    process.env.DATABASE_READ_URL
+        ? createPrismaClient(process.env.DATABASE_READ_URL)
+        : prisma
+)
+
 if (process.env.NODE_ENV !== 'production') {
     globalForPrisma.prisma = prisma
+    globalForPrisma.prismaRead = prismaRead
 }
 
 

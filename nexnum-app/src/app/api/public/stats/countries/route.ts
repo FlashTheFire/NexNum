@@ -98,7 +98,7 @@ function findMetadataByName(name: string): CountryMeta | undefined {
 }
 
 function getFlagUrl(code: string): string {
-    return `https://raw.githubusercontent.com/HatScripts/circle-flags/gh-pages/flags/${code.toLowerCase()}.svg`;
+    return `/flags/${code.toLowerCase()}.svg`;
 }
 
 

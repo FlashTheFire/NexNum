@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils/utils";
 import Image from "next/image";
 
 // HatScripts Circle Flags
-const BASE_FLAG_URL = "https://raw.githubusercontent.com/HatScripts/circle-flags/gh-pages/flags/";
+const BASE_FLAG_URL = "/flags/";
 
 const LANGUAGES = [
     { code: "en", label: "English", flagCode: "us" },

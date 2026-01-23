@@ -90,7 +90,7 @@ export const SMSNumberCard = memo(function SMSNumberCard({
         completed: { color: 'text-blue-400', bg: 'bg-blue-500/10', dot: 'bg-blue-500', label: t('statuses.completed') },
     }[isExpired ? (status === 'cancelled' ? 'cancelled' : status === 'completed' ? 'completed' : 'expired') : 'active']
 
-    const flagUrl = countryIconUrl || getCountryFlagUrlSync(countryName) || getCountryFlagUrlSync(countryCode) || 'https://raw.githubusercontent.com/HatScripts/circle-flags/gh-pages/flags/un.svg'
+    const flagUrl = countryIconUrl || getCountryFlagUrlSync(countryName) || getCountryFlagUrlSync(countryCode) || '/flags/un.svg'
 
     return (
         <div className={cn("relative w-full", isExpired && "opacity-70", className)}>
@@ -146,7 +146,7 @@ export const SMSNumberCard = memo(function SMSNumberCard({
                                             "w-full h-full rounded-full object-cover shadow-sm ring-1 ring-white/10",
                                             isExpired && "grayscale"
                                         )}
-                                        onError={(e) => { e.currentTarget.src = 'https://raw.githubusercontent.com/HatScripts/circle-flags/gh-pages/flags/un.svg' }}
+                                        onError={(e) => { e.currentTarget.src = '/flags/un.svg' }}
                                     />
                                 </div>
                             </div>

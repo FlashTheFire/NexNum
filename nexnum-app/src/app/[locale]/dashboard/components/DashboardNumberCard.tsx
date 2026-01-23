@@ -142,7 +142,7 @@ export const DashboardNumberCard = memo(function DashboardNumberCard({
                                 <img
                                     alt={countryName}
                                     className="w-full h-full rounded-full object-cover shadow-sm ring-1 ring-white/10"
-                                    src={countryIconUrl || 'https://raw.githubusercontent.com/HatScripts/circle-flags/gh-pages/flags/un.svg'}
+                                    src={countryIconUrl || '/flags/un.svg'}
                                 />
                             </div>
                         </div>

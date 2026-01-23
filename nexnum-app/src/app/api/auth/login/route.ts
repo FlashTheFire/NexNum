@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/core/db'
+import { rateLimit } from '@/lib/core/rate-limit'
 import { generateToken, setAuthCookie } from '@/lib/auth/jwt'
 import { loginSchema } from '@/lib/api/validation'
 import bcrypt from 'bcryptjs'
@@ -11,8 +12,25 @@ export const POST = apiHandler(async (request, { body }) => {
     if (!body) throw new Error('Body is required')
     const { email, password, captchaToken } = body
 
-    // Verify CAPTCHA
+    // 1. Rate Limit
     const ip = request.headers.get('x-forwarded-for') || 'unknown'
+    const limit = await rateLimit(`auth:${ip}`, 5, 10) // 5 reqs / 10s
+
+    if (!limit.success) {
+        return NextResponse.json(
+            { error: 'Too Many Requests', message: 'Please try again in a few seconds' },
+            {
+                status: 429,
+                headers: {
+                    'X-RateLimit-Limit': String(limit.limit),
+                    'X-RateLimit-Remaining': String(limit.remaining),
+                    'X-RateLimit-Reset': String(limit.reset)
+                }
+            }
+        )
+    }
+
+    // Verify CAPTCHA
     const captchaResult = await verifyCaptcha(captchaToken, ip)
     if (!captchaResult.success) {
         return NextResponse.json(

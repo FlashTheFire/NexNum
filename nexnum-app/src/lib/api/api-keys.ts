@@ -1,5 +1,6 @@
 import { randomBytes, createHash, createHmac } from 'crypto'
 import { prisma } from '@/lib/core/db'
+import { auditLogger } from '@/lib/core/audit'
 import { ApiKey, ApiTier } from '@prisma/client'
 
 // Key format: nxn_live_xxxx or nxn_test_xxxx (32 random chars)
@@ -112,6 +113,16 @@ export async function createApiKey(input: CreateApiKeyInput): Promise<ApiKeyWith
         }
     })
 
+    // Log security event
+    await auditLogger.log(userId, 'API_KEY_CREATE', {
+        keyId: apiKey.id,
+        name: apiKey.name,
+        permissions: apiKey.permissions,
+        tier: apiKey.tier,
+        resourceType: 'api_key',
+        resourceId: apiKey.id
+    })
+
     // Return with raw key (only time it's visible)
     return {
         ...apiKey,
@@ -217,6 +228,14 @@ export async function revokeApiKey(keyId: string, userId: string): Promise<boole
         data: { isActive: false }
     })
 
+    if (result.count > 0) {
+        await auditLogger.log(userId, 'API_KEY_REVOKE', {
+            keyId,
+            resourceType: 'api_key',
+            resourceId: keyId
+        })
+    }
+
     return result.count > 0
 }
 
@@ -227,6 +246,15 @@ export async function deleteApiKey(keyId: string, userId: string): Promise<boole
     const result = await prisma.apiKey.deleteMany({
         where: { id: keyId, userId }
     })
+
+    if (result.count > 0) {
+        await auditLogger.log(userId, 'ADMIN_ACTION', {
+            action: 'DELETE_API_KEY',
+            keyId,
+            resourceType: 'api_key',
+            resourceId: keyId
+        })
+    }
 
     return result.count > 0
 }

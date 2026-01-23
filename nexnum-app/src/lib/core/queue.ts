@@ -6,6 +6,7 @@ import { logger } from '@/lib/core/logger'
 export const QUEUES = {
     NOTIFICATION_DELIVERY: 'notification-delivery',
     SUBSCRIPTION_CLEANUP: 'subscription-cleanup',
+    WEBHOOK_PROCESSING: 'process-webhook', // Use the name from worker-entry
 } as const
 
 class QueueService {
@@ -126,14 +127,14 @@ class QueueService {
         }
     }
 
-    async work<T>(queue: string, handler: (job: any) => Promise<void>) {
+    async work<T>(queue: string, handler: (jobs: Job<T>[]) => Promise<void>) {
         if (!this.boss) throw new Error('Queue not initialized')
         if (!this.isReady) await this.start()
 
         try {
             await this.boss!.work(queue, handler)
             logger.info(`Worker registered for ${queue}`)
-        } catch (error) {
+        } catch (error: any) {
             logger.error(`Failed to register worker for ${queue}`, { error: error.message })
             throw error
         }

@@ -12,13 +12,18 @@ async function verify() {
     console.log('✅ Queue connected successfully!')
 
     // 2. Publish Test Job
-    console.log('Publishing Verification Job...')
-    const jobId = await queue.publish('notification-delivery', {
-        notificationId: 'verify-' + Date.now(),
-        userId: 'verify-user',
-        title: 'Verification Notification',
-        message: 'System Integrity Check',
-        data: { source: 'verify-queue-script' }
+    console.log('Publishing Verification Job to WEBHOOK_PROCESSING...')
+
+    // Simulate a payload
+    const testPayload = {
+        activationId: 'test-activation-' + Date.now(),
+        eventType: 'sms.received',
+        timestamp: new Date().toISOString()
+    }
+
+    const jobId = await queue.publish('process-webhook', {
+        provider: 'mock-provider',
+        payload: testPayload
     })
 
     console.log(`✅ Job Published: ${jobId}`)
