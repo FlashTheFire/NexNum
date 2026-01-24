@@ -67,9 +67,10 @@ export function ProviderAIHub({ currentData, onUpdate }: ProviderAIHubProps) {
                     `### REQUIREMENTS:`,
                     `1. Generate endpoint config: { method, path, queryParams }`,
                     `2. Generate mapping config: { type, fields, rootPath?, regex?, errors? }`,
-                    `3. For lifecycle endpoints (getNumber, getStatus, setStatus, cancelNumber), include error patterns:`,
+                    `3. For lifecycle endpoints (getNumber, getStatus, setStatus, cancelNumber, nextSms), include error patterns:`,
                     `   - errors.patterns format: { "ERROR_TYPE": "pattern to match" }`,
                     `   - Universal error types: NO_NUMBERS, NO_BALANCE, BAD_KEY, BAD_SERVICE, NO_ACTIVATION, SERVER_ERROR`,
+                    `   - Note: nextSms is for requesting a second SMS on the same number (often 'setStatus' status=3 or specific endpoint)`,
                     ``,
                     `### DOCUMENTATION:`,
                     input

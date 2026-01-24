@@ -32,43 +32,45 @@ export class WalletService {
         idempotencyKey?: string,
         tx?: Prisma.TransactionClient
     ) {
-        const client = tx || prisma
-        const decAmount = new Prisma.Decimal(amount)
+        // Helper to execute the reservation logic
+        const performReservation = async (client: Prisma.TransactionClient) => {
+            const decAmount = new Prisma.Decimal(amount)
 
-        // 1. LOCK the wallet row to prevent race conditions (SELECT FOR UPDATE)
-        // Only works if inside a transaction.
-        if (tx) {
-            // Prisma doesn't have native waitForUpdate. We use raw query if postgres.
-            await tx.$executeRaw`SELECT 1 FROM "wallets" WHERE "user_id" = ${userId} FOR UPDATE`
-        }
+            // 1. LOCK the wallet row to prevent race conditions (SELECT FOR UPDATE)
+            await client.$executeRaw`SELECT 1 FROM "wallets" WHERE "user_id" = ${userId} FOR UPDATE`
 
-        // 2. Read Fresh State (Logged)
-        const wallet = await client.wallet.findUnique({
-            where: { userId },
-            select: { id: true, balance: true, reserved: true }
-        })
-        if (!wallet) throw new Error('Wallet not found')
+            // 2. Read Fresh State
+            const wallet = await client.wallet.findUnique({
+                where: { userId },
+                select: { id: true, balance: true, reserved: true }
+            })
+            if (!wallet) throw new Error('Wallet not found')
 
-        // 3. Check availability
-        const liquid = wallet.balance.sub(wallet.reserved)
-        if (liquid.lessThan(decAmount)) {
-            throw new Error('Insufficient funds')
-        }
-
-        // 4. Update
-        await client.wallet.update({
-            where: { id: wallet.id },
-            data: {
-                reserved: { increment: decAmount }
+            // 3. Check availability
+            const liquid = wallet.balance.sub(wallet.reserved)
+            if (liquid.lessThan(decAmount)) {
+                throw new Error('Insufficient funds')
             }
-        })
 
-        // Log "Reservation" transaction? 
-        // User diagram implies INSERT Purchase, and UPDATE Wallet.
-        // It doesn't explicitly show a WalletTransaction for reservation "hold", 
-        // but it's good practice to log it or at least relying on PurchaseOrder.
-        // We'll stick to updating the numeric field as requested.
-        return wallet.id
+            // 4. Update
+            await client.wallet.update({
+                where: { id: wallet.id },
+                data: {
+                    reserved: { increment: decAmount }
+                }
+            })
+
+            return wallet.id
+        }
+
+        // Use provided transaction OR create a new one to guarantee locking
+        if (tx) {
+            return performReservation(tx)
+        } else {
+            return prisma.$transaction(async (newTx) => {
+                return performReservation(newTx)
+            })
+        }
     }
 
     /**

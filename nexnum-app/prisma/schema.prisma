@@ -302,11 +302,9 @@ model Provider {
   syncStatus String?   @map("sync_status") // syncing, success, failed, idle
   syncCount  Int       @default(0) @map("sync_count")
 
-  // --- Metadata Caching (24h Rule) - DEPRECATED, will be removed ---
+  // --- Metadata Caching (24h Rule) ---
   lastMetadataSyncAt DateTime? @map("last_metadata_sync_at")
-  cachedCountries    Json?     @map("cached_countries")
-  cachedServices     Json?     @map("cached_services")
-
+  
   // --- Meta ---
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

@@ -52,10 +52,12 @@ Centralized configuration with Zod schema validation:
 ### 2. SMS Providers (`src/lib/sms-providers/`)
 
 Unified interface for multiple SMS providers:
-- Dynamic provider configuration
-- Health monitoring
-- Smart routing
-- Provider sync
+- **Dynamic Provider**: Config-driven provider engine.
+- **Smart Routing 2.0**: 
+  - Circuit Breaker pattern (Opossum)
+  - Automatic Failover (on `NO_NUMBERS`, `NO_BALANCE`, `RATE_LIMITED`)
+  - Weighted Selection (Priority + Admin Weight / Cost * Latency)
+- **Distributed Caching**: Redis-backed configuration sync (`cache:providers:active:config`).
 
 ### 3. Activation Service (`src/lib/activation/`)
 
@@ -65,14 +67,21 @@ Number lifecycle management:
 - Reservation cleanup
 - Outbox pattern for events
 
-### 4. Background Workers (`src/workers/`)
+### 4. Background Workers (Unified)
 
-- `inbox-worker.ts` - SMS polling
-- `reconcile-worker.ts` - Refunds and cleanup
-- `push-worker.ts` - Notifications
+Single-process orchestration via `src/worker-entry.ts`.
+Scales horizontally on Kubernetes/Docker.
+
+- **Master Worker Loop**: Orchestrates all sub-tasks in priority order.
+  1. **Activation Outbox**: Processes new number orders.
+  2. **Inbox Polling**: Polls providers for SMS (Adaptive Strategy).
+  3. **Push Notifications**: Sends WebHooks/Telegram alerts.
+  4. **Cleanup**: Releases expired reservations.
+  5. **Reconciliation**: Auto-fixes stuck states.
 
 ### 5. Wallet Service (`src/lib/wallet/`)
 
+- **Concurrency Hardening**: Uses `SELECT FOR UPDATE` within explicit Transactions.
 - Balance management
 - Transaction logging
 - Price optimization
@@ -83,29 +92,30 @@ Number lifecycle management:
 
 ```
 1. User selects service/country
-2. API reserves funds (atomic)
-3. Provider API called
-4. Number created in DB
-5. Background polling starts
-6. SMS received → User notified
-7. Number expires → Reconcile
+2. API reserves funds (atomic DB lock)
+3. SmartRouter selects best healthy provider
+4. Rate Limiter (Redis) checks global quota
+5. Provider API called
+6. Number created in DB
+7. Background polling starts
 ```
 
 ### SMS Polling Flow
 
 ```
-1. Inbox worker runs every 30s
+1. Unified Worker runs Master Loop
 2. Fetches active numbers
-3. Polls each provider
+3. Polls each provider (batched if supported)
 4. Deduplicates messages
 5. Stores in DB
-6. Sends push notification
+6. Enqueues Push Notification
 ```
 
 ## Security
 
 - JWT authentication with refresh tokens
 - CSRF protection
+- **Admin API Validation**: Strict Zod schemas for configuration updates.
 - Rate limiting (per-user, per-route)
 - Request signing for sensitive actions
 - Encrypted storage for secrets

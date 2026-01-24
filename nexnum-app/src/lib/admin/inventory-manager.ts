@@ -528,50 +528,66 @@ export async function syncProviderToMeiliSearch(providerId: string): Promise<Inv
         // Delete existing offers for this provider
         await deleteOffersByProvider(provider.name)
 
-        // Fetch active pricing with active countries and services only
-        const pricing = await prisma.providerPricing.findMany({
-            where: {
-                providerId,
-                deleted: false,
-                country: { isActive: true },
-                service: { isActive: true }
-            },
-            include: {
-                country: true,
-                service: true,
-                provider: true
+        let processedCount = 0
+        let cursor: string | undefined
+        const BATCH_SIZE = 1000
+
+        while (true) {
+            // Fetch active pricing with active countries and services only
+            const pricing = await prisma.providerPricing.findMany({
+                where: {
+                    providerId,
+                    deleted: false,
+                    country: { isActive: true },
+                    service: { isActive: true }
+                },
+                include: {
+                    country: true,
+                    service: true,
+                    provider: true
+                },
+                take: BATCH_SIZE,
+                skip: cursor ? 1 : 0,
+                cursor: cursor ? { id: cursor } : undefined,
+                orderBy: { id: 'asc' }
+            })
+
+            if (pricing.length === 0) {
+                break
             }
-        })
 
-        if (pricing.length === 0) {
-            return { success: true, message: 'No active pricing to index', affectedCount: 0 }
+            // Update cursor for next batch
+            cursor = pricing[pricing.length - 1].id
+
+            // Build offer documents
+            const offers: OfferDocument[] = pricing.map((p, idx) => ({
+                id: `${provider.name}_${p.country.externalId}_${p.service.externalId}_${p.operator || 'default'}`.toLowerCase().replace(/[^a-z0-9_]/g, ''),
+                provider: provider.name,
+                countryCode: p.country.externalId,
+                countryName: p.country.name,
+                flagUrl: p.country.flagUrl || '',
+                serviceSlug: p.service.externalId,
+                serviceName: p.service.name,
+                iconUrl: p.service.iconUrl || undefined,
+                operatorId: (processedCount + idx) + 1, // Global continuous ID
+                externalOperator: p.operator || undefined,
+                operatorDisplayName: '',
+                price: Number(p.sellPrice),
+                stock: p.stock,
+                lastSyncedAt: Date.now()
+            }))
+
+            // Index to MeiliSearch
+            await indexOffers(offers)
+
+            processedCount += offers.length
+            console.log(`[Sync] Indexed batch of ${offers.length} offers for ${provider.name} (Total: ${processedCount})`)
         }
-
-        // Build offer documents
-        const offers: OfferDocument[] = pricing.map((p, idx) => ({
-            id: `${provider.name}_${p.country.externalId}_${p.service.externalId}_${p.operator || 'default'}`.toLowerCase().replace(/[^a-z0-9_]/g, ''),
-            provider: provider.name,
-            countryCode: p.country.externalId,
-            countryName: p.country.name,
-            flagUrl: p.country.flagUrl || '',
-            serviceSlug: p.service.externalId,
-            serviceName: p.service.name,
-            iconUrl: p.service.iconUrl || undefined,
-            operatorId: idx + 1,
-            externalOperator: p.operator || undefined,
-            operatorDisplayName: '',
-            price: Number(p.sellPrice),
-            stock: p.stock,
-            lastSyncedAt: Date.now()
-        }))
-
-        // Index to MeiliSearch
-        await indexOffers(offers)
 
         return {
             success: true,
-            message: `Indexed ${offers.length} offers to MeiliSearch`,
-            affectedCount: offers.length
+            message: `Indexed ${processedCount} offers to MeiliSearch (Batched)`,
+            affectedCount: processedCount
         }
     } catch (error: any) {
         console.error('syncProviderToMeiliSearch error:', error)

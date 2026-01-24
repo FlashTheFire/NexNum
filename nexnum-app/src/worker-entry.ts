@@ -65,27 +65,36 @@ export async function startQueueWorker() {
             }
         });
 
-        // JOB: Inbox Polling (Legacy/Fallback) - KEPT for compatibility, though MasterWorker also polls.
-        // If MasterWorker is running, this might be redundant, but safe to keep as it's separate loop.
-        const { processInboxBatch } = await import('./workers/inbox-worker');
+        // JOB: Master Worker Loop (Orchestrates ALL background tasks)
+        // Uses runMasterWorker from master-worker.ts to handle Outbox, Inbox, Push, Cleanup, etc.
+        const { runMasterWorker } = await import('./workers/master-worker');
 
-        // Polling Loop
-        const runPolling = async () => {
+        // Master Loop
+        const runMasterLoop = async () => {
             try {
-                const result = await processInboxBatch();
-                if (result.processed > 0 || result.activeNumbers > 0) {
-                    setTimeout(runPolling, 2000); // 2s turbo mode
+                const result = await runMasterWorker();
+
+                // Helper to check if any work was done
+                const hasWork = (
+                    (result.outbox?.processed > 0) ||
+                    (result.inbox?.processed > 0) ||
+                    (result.notifications?.processed > 0) ||
+                    (result.legacyOutbox?.processed > 0)
+                );
+
+                if (hasWork) {
+                    setTimeout(runMasterLoop, 2000); // 2s turbo mode
                 } else {
-                    setTimeout(runPolling, 10000); // 10s idle
+                    setTimeout(runMasterLoop, 10000); // 10s idle
                 }
             } catch (e) {
-                logger.error('[Worker] Polling loop crashed:', e);
-                setTimeout(runPolling, 30000);
+                logger.error('[Worker] Master loop crashed:', e);
+                setTimeout(runMasterLoop, 30000);
             }
         };
 
-        runPolling();
-        logger.info('[Worker] Inbox polling loop started');
+        runMasterLoop();
+        logger.info('[Worker] Master background loop started');
 
         // JOB: Smart Sync Scheduler (Auto-Run Every 24 Hours)
         // This replaces the manual CLI script with a fully automated server-side loop.

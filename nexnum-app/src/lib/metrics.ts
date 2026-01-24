@@ -51,6 +51,21 @@ export const polling_active_jobs = register('nexnum_polling_active_jobs', () => 
     registers: [registry]
 }))
 
+export const distributed_rate_limit_wait_seconds = register('nexnum_distributed_rate_limit_wait_seconds', () => new Histogram({
+    name: 'nexnum_distributed_rate_limit_wait_seconds',
+    help: 'Time workers spent waiting for distributed rate limit slots',
+    labelNames: ['provider_id'],
+    buckets: [0.01, 0.05, 0.1, 0.5, 1, 2, 5],
+    registers: [registry]
+}))
+
+export const provider_config_cache_requests_total = register('nexnum_provider_config_cache_requests_total', () => new Counter({
+    name: 'nexnum_provider_config_cache_requests_total',
+    help: 'SmartRouter provider configuration cache hits/misses',
+    labelNames: ['result'], // hit, miss
+    registers: [registry]
+}))
+
 export const sms_received_total = register('nexnum_sms_received_total', () => new Counter({
     name: 'nexnum_sms_received_total',
     help: 'Total SMS received per provider',
@@ -418,4 +433,18 @@ export function updateSystemMetrics() {
     // But since we have a gauge, let's try a rough estimate if possible, or just skip CPU for now 
     // and rely on nexnum_process_cpu_seconds_total which comes from defaults
     // Actually, let's just update memory and uptime for now as those are what appeared in the screenshot
+}
+
+/**
+ * Track time spent waiting for distributed rate limiter
+ */
+export function trackDistributedRateLimit(providerId: string, waitMs: number) {
+    distributed_rate_limit_wait_seconds.observe({ provider_id: providerId }, waitMs / 1000)
+}
+
+/**
+ * Track SmartRouter cache hit/miss
+ */
+export function trackProviderCache(result: 'hit' | 'miss') {
+    provider_config_cache_requests_total.inc({ result })
 }

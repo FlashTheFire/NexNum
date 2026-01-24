@@ -48,6 +48,22 @@ export async function GET(request: Request, { params }: RouteParams) {
     }
 }
 
+import { z } from 'zod'
+
+// Validation schema
+const ProviderUpdateSchema = z.object({
+    isActive: z.boolean().optional(),
+    priority: z.number().int().min(0).max(100).optional(),
+    weight: z.number().int().min(0).max(100).optional(),
+    priceMultiplier: z.number().min(0).optional(),
+    fixedMarkup: z.number().min(0).optional(),
+    displayName: z.string().max(100).optional(),
+    openCircuit: z.boolean().optional(),
+    closeCircuit: z.boolean().optional(),
+}).refine(data => Object.keys(data).length > 0, {
+    message: "No valid update fields provided"
+})
+
 // PATCH - Update provider settings
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const auth = await requireAdmin(request)
@@ -57,6 +73,16 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     try {
         const body = await request.json()
+
+        // Zod Validation
+        const validation = ProviderUpdateSchema.safeParse(body)
+        if (!validation.success) {
+            return NextResponse.json({
+                error: 'Validation failed',
+                details: validation.error.format()
+            }, { status: 400 })
+        }
+
         const {
             isActive,
             priority,
@@ -66,7 +92,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
             openCircuit,
             closeCircuit,
             displayName
-        } = body
+        } = validation.data
 
         // Handle circuit commands first (Redis operations)
         if (openCircuit === true) {

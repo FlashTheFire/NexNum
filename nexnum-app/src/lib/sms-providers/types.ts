@@ -70,6 +70,9 @@ export interface SmsProvider {
     // Confirm or cancel activation (optional)
     setStatus?(activationId: string, status: number | string): Promise<any>
 
+    // Request next SMS (New Standard)
+    nextSms?(activationId: string): Promise<void>
+
     // Get prices (optional, optimization)
     getPrices?(countryCode?: string, serviceCode?: string): Promise<any[]>
 }

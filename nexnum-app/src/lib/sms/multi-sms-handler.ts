@@ -174,34 +174,28 @@ export class MultiSmsHandler {
 
             const adapter = getProviderAdapter(provider)
 
-            // Check if provider supports requesting next SMS
-            if ('setStatus' in adapter) {
-                // Standard SMS-Activate compatible API
-                // setStatus with status '3' or 'REQUEST_MORE' requests another SMS
+            // 1. Prefer the new standard 'nextSms' method
+            if ('nextSms' in adapter) {
                 await new Promise(resolve => setTimeout(resolve, CONFIG.NEXT_SMS_REQUEST_DELAY_MS))
-
-                await (adapter as any).setStatus(activationId, '3') // REQUEST_MORE
-
-                logger.info('[MultiSMS] Requested next SMS', { numberId, activationId })
+                await adapter.nextSms!(activationId)
+                logger.info('[MultiSMS] Requested next SMS (via nextSms)', { numberId, activationId })
                 return true
             }
 
-            // Some providers have dedicated resend endpoint
+            // 2. Fallback: Dedicated resend endpoint (Legacy)
             if ('resendSms' in adapter) {
                 await new Promise(resolve => setTimeout(resolve, CONFIG.NEXT_SMS_REQUEST_DELAY_MS))
-
                 await (adapter as any).resendSms(activationId)
-
                 logger.info('[MultiSMS] Resend requested', { numberId, activationId })
                 return true
             }
 
             return false
-        } catch (error) {
+        } catch (error: any) {
             logger.warn('[MultiSMS] Failed to request next SMS', {
                 numberId,
                 activationId,
-                error
+                error: error.message
             })
             return false
         }

@@ -183,6 +183,20 @@ GET /api/admin/providers
 POST /api/admin/providers/{id}/sync
 ```
 
+#### Smart Router Configuration
+
+The Smart Router selects the best provider using a weighted score algorithm:
+`Score = (SuccessRate * Weight * PriorityBoost) / (Latency * PriceMarkup)`
+
+**Variables:**
+- **Weight** (`0-100`): Direct score multiplier. Increase to drive more traffic to a specific provider.
+- **Priority** (`1-10`): Inverse multiplier. Lower number = Higher priority. `1` is the highest priority.
+- **Price Multiplier** (`>= 1.0`): Cost penalty. Higher markup reduces the score (router prefers cheaper providers).
+- **Fixed Markup**: Added to the price *after* selection, does not affect scoring.
+
+**Failover Logic:**
+If the selected provider returns `NO_NUMBERS`, `NO_BALANCE`, `RATE_LIMITED`, or `SERVER_ERROR`, the router automatically retries with the next best provider.
+
 ### Users
 
 #### List Users

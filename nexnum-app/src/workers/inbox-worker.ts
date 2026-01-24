@@ -27,6 +27,7 @@ import {
     getRateLimitConfig,
     SecurityConfig
 } from '@/lib/sms/security'
+import { getNextPollDelay } from '@/lib/activation/adaptive-poll-strategy'
 import { smsAudit } from '@/lib/sms/audit'
 import { WorkersConfig } from '@/config'
 import crypto from 'crypto'
@@ -193,7 +194,12 @@ export async function processInboxBatch(batchSize = CONFIG.BATCH_SIZE): Promise<
             { status: 'asc' },
             { createdAt: 'desc' }
         ],
-        take: batchSize
+        take: batchSize,
+        include: {
+            _count: {
+                select: { smsMessages: true }
+            }
+        }
     })
 
     if (activeNumbers.length === 0) {
@@ -378,13 +384,26 @@ export async function processInboxBatch(batchSize = CONFIG.BATCH_SIZE): Promise<
             // 2.7 Update polling metadata
             await smsAudit.logPollSuccess(number.id, number.activationId || '', validatedMessages.length, numberCorrelationId)
 
-            const pollCount = (number.pollCount || 0) + 1
-            const nextPollAt = calculateNextPoll(number.createdAt, pollCount)
+            // Use Adaptive Strategy for next poll
+            const pollAttempt = (number.pollCount || 0) + 1
+            const pollContext = {
+                orderAgeSeconds: (Date.now() - number.createdAt.getTime()) / 1000,
+                // Fix: use _count from include
+                smsCount: validatedMessages.length + (number._count?.smsMessages || 0),
+                pollAttempt: pollAttempt,
+                lastPollError: false
+            }
+
+            const decision = getNextPollDelay(pollContext)
+            // If !decision.useBatch, we theoretically should re-poll immediately, 
+            // but for this worker implementation we'll just set the tightest delay.
+
+            const nextPollAt = new Date(Date.now() + (decision.delaySeconds * 1000))
 
             await prisma.number.update({
                 where: { id: number.id },
                 data: {
-                    pollCount,
+                    pollCount: pollAttempt,
                     nextPollAt,
                     errorCount: 0,
                     lastPolledAt: new Date(),
@@ -497,17 +516,4 @@ async function syncNumberAndActivation(
     })
 }
 
-function calculateNextPoll(createdAt: Date, pollCount: number): Date {
-    const ageSec = (Date.now() - createdAt.getTime()) / 1000
-    const cycle = (pollCount - 1) % 3
-
-    let backoffSec: number
-    if (ageSec < 300) backoffSec = [3, 5, 7][cycle]
-    else if (ageSec < 600) backoffSec = [5, 8, 10][cycle]
-    else if (ageSec < 900) backoffSec = [8, 12, 15][cycle]
-    else if (ageSec < 1200) backoffSec = [10, 15, 20][cycle]
-    else backoffSec = 20
-
-    const jitter = Math.random() * 2000
-    return new Date(Date.now() + (backoffSec * 1000) + jitter)
-}
+// function calculateNextPoll removed (Replaced by AdaptivePollStrategy)

@@ -4,37 +4,49 @@ import { SmsProvider, Country, Service, NumberResult, StatusResult } from '@/lib
 import { healthMonitor } from '@/lib/providers/health-monitor'
 import { logger } from '@/lib/core/logger'
 
-// Cache for active providers to avoid DB hits on every request
-let activeProvidersCache: DynamicProvider[] | null = null
-let lastCacheTime = 0
-const CACHE_TTL = 60 * 1000 // 60 seconds
+import { redis } from '@/lib/core/redis'
+
+// Redis Key
+const ACTIVE_PROVIDERS_CACHE_KEY = 'cache:providers:active:config'
+const CACHE_TTL = 30 // 30 seconds (Fresh enough, but prevents DB spam)
 
 export class SmartSmsRouter implements SmsProvider {
     name = 'SmartRouter'
 
     private async getActiveProviders(): Promise<DynamicProvider[]> {
-        const now = Date.now()
-        if (activeProvidersCache && (now - lastCacheTime < CACHE_TTL)) {
-            return activeProvidersCache
-        }
-
         try {
+            // 1. Try Redis Cache
+            const cached = await redis.get(ACTIVE_PROVIDERS_CACHE_KEY)
+            if (cached) {
+                const configs = JSON.parse(cached)
+                return configs.map((c: any) => new DynamicProvider(c))
+            }
+
+            // 2. Fallback to DB
             const providers = await prisma.provider.findMany({
                 where: { isActive: true },
                 orderBy: { priority: 'asc' } // Lower number = Higher priority
             })
 
-            const dynamicProviders = providers.map(p => new DynamicProvider(p))
+            // 3. Update Cache (Store raw configs)
+            if (providers.length > 0) {
+                await redis.set(ACTIVE_PROVIDERS_CACHE_KEY, JSON.stringify(providers), 'EX', CACHE_TTL)
+            }
 
-            // Update cache
-            activeProvidersCache = dynamicProviders
-            lastCacheTime = now
+            return providers.map(p => new DynamicProvider(p))
 
-            return dynamicProviders
         } catch (error) {
             logger.error("SmartRouter: Failed to fetch active providers", { error })
-            // Return stale cache if available, otherwise empty
-            return activeProvidersCache || []
+            // Emergency DB fetch if Redis fails
+            try {
+                const providers = await prisma.provider.findMany({
+                    where: { isActive: true },
+                    orderBy: { priority: 'asc' }
+                })
+                return providers.map(p => new DynamicProvider(p))
+            } catch (dbError) {
+                return [] // Total failure
+            }
         }
     }
 
@@ -265,12 +277,30 @@ export class SmartSmsRouter implements SmsProvider {
 
                 checkedProviders.push(`${provider.name}(${errorType})`)
 
-                // If it's a permanent error (BAD_KEY, etc.), don't try other providers
-                if (isPermanent && providerPreference) {
+                // If it's a permanent error (BAD_KEY, etc.), don't try other providers.
+                // UNLESS it's NO_BALANCE - that's "permanent" for the provider but "retryable" for the system.
+                const shouldFailover =
+                    isNoStock ||
+                    errorType === 'NO_BALANCE' ||
+                    errorType === 'RATE_LIMITED' ||
+                    errorType === 'SERVER_ERROR' ||
+                    errorType === 'TIMEOUT'
+
+                if (!shouldFailover && isPermanent && providerPreference) {
                     throw new Error(`Provider '${provider.name}' returned permanent error: ${e.message}`)
                 }
 
+                if (!shouldFailover && isPermanent) {
+                    // If we are in smart routing mode (no preference), we SHOULD actually failover on permanent errors
+                    // because maybe the *next* provider is configured correctly.
+                    // But to be safe, we log warning and continue.
+                    logger.warn(`SmartRouter: Permanent error on ${provider.name}, trying next...`)
+                } else {
+                    logger.info(`SmartRouter: Failover triggered (Reason: ${errorType}) from ${provider.name} -> Next`)
+                }
+
                 // Continue to next provider for retryable errors
+
             }
         }
 
@@ -321,7 +351,6 @@ export class SmartSmsRouter implements SmsProvider {
 
     async cancelNumber(activationId: string): Promise<void> {
 
-
         const [providerName, realId] = this.parseActivationId(activationId)
 
         if (providerName && realId) {
@@ -343,6 +372,35 @@ export class SmartSmsRouter implements SmsProvider {
             }
         }
         throw new Error("Could not cancel number")
+    }
+
+    async setStatus(activationId: string, status: number | string): Promise<any> {
+        const [providerName, realId] = this.parseActivationId(activationId)
+
+        if (providerName && realId) {
+            const providers = await this.getActiveProviders()
+            const provider = providers.find(p => p.name === providerName)
+            if (provider) {
+                return provider.setStatus(realId, status)
+            }
+        }
+
+        throw new Error("Could not set status: activation ID invalid or provider not found")
+    }
+
+    async nextSms(activationId: string): Promise<void> {
+        const [providerName, realId] = this.parseActivationId(activationId)
+
+        if (providerName && realId) {
+            const providers = await this.getActiveProviders()
+            const provider = providers.find(p => p.name === providerName)
+            if (provider && provider.nextSms) {
+                return provider.nextSms(realId)
+            }
+        }
+
+        // No fallback loop for actions that require specific provider knowledge
+        throw new Error("Could not request next SMS: activation ID invalid or provider not found")
     }
 
     async getBalance(): Promise<number> {

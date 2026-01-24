@@ -269,124 +269,48 @@ export class DynamicProvider implements SmsProvider {
         try {
 
 
-            // 1. Construct URL
-            let url = ''
-            if (epConfig.path && (epConfig.path.startsWith('http://') || epConfig.path.startsWith('https://'))) {
-                url = epConfig.path
-            } else {
-                const baseUrl = (this.config.apiBaseUrl || '').replace(/\/$/, '')
-                const path = (epConfig.path || '')
-                url = baseUrl + (path.startsWith('/') || path.startsWith('?') || !path ? path : '/' + path)
-            }
+            // 1. Construct Request using Builder
+            const { ProviderRequestBuilder } = await import('./provider-request-builder')
 
-            // Replace path params including authKey
-            const allParams = { ...params, authKey: rawAuthKey || '' }
-            for (const [key, value] of Object.entries(allParams)) {
-                if (url.includes(`{${key}}`)) {
-                    url = url.replace(new RegExp(`{${key}}`, 'g'), String(value))
-                }
-            }
+            // Build URL
+            urlObj = ProviderRequestBuilder.buildUrl(
+                this.config.apiBaseUrl || '',
+                epConfig.path,
+                params,
+                rawAuthKey
+            )
 
-            // Cleanup any leftover placeholders (e.g. {operator} if not provided)
-            // For 5sim and others, if operator is missing, it should usually be "any"
-            if (url.includes('{operator}')) {
-                url = url.replace(/{operator}/g, 'any')
-            }
-            // Generic cleanup for other optional path segments
-            url = url.replace(/\/{[^}]*}/g, '') // Remove /{optional_param}
-            url = url.replace(/{[^}]*}/g, '')    // Remove {optional_param}
+            // Resolve Query Params
+            const queryParams = ProviderRequestBuilder.resolveQueryParams(
+                epConfig.queryParams,
+                params,
+                rawAuthKey,
+                this.config.authType,
+                this.config.authQueryParam,
+                epConfig.method
+            )
 
-            urlObj = new URL(url)
+            // Merge params into URL
+            queryParams.forEach((val, key) => urlObj!.searchParams.append(key, val))
 
-            // 2. Add Auth & Query Params - ENHANCED VARIABLE RESOLUTION
-            const resolvedQueryParams: Record<string, string> = {}
-            const handledParamKeys = new Set<string>()
+            // Build Headers
+            const headers = ProviderRequestBuilder.buildHeaders(
+                epConfig.headers,
+                this.config.authType,
+                rawAuthKey,
+                this.config.authHeader,
+                urlObj.origin
+            )
 
-            // Step 2a: Resolve configured queryParams with $variable syntax
-            if (epConfig.queryParams) {
-                for (const [paramName, varTemplate] of Object.entries(epConfig.queryParams)) {
-                    if (typeof varTemplate !== 'string') continue
-
-                    if (varTemplate.startsWith('$')) {
-                        // Variable placeholder: $varName or $varName|fallback
-                        const varParts = varTemplate.substring(1).split('|').map(s => s.trim())
-                        let resolvedValue: string | undefined
-
-                        for (const varName of varParts) {
-                            // Check direct match in params
-                            if (params[varName] !== undefined) {
-                                resolvedValue = String(params[varName])
-                                handledParamKeys.add(varName)
-                                break
-                            }
-                        }
-
-                        // Only add if resolved (optional params stay omitted)
-                        if (resolvedValue !== undefined) {
-                            resolvedQueryParams[paramName] = resolvedValue
-                        }
-                    } else {
-                        // Static value
-                        resolvedQueryParams[paramName] = varTemplate
-                    }
-                }
-            }
-
-            // Step 2b: Add Auth Query Param if configured
-            if (this.config.authType === 'query_param' && this.config.authQueryParam && rawAuthKey) {
-                resolvedQueryParams[this.config.authQueryParam] = rawAuthKey
-            }
-
-            // Step 2c: Add remaining unhandled params (for GET requests without explicit config)
-            if (epConfig.method === 'GET') {
-                for (const [key, value] of Object.entries(params)) {
-                    // Skip if already used in path substitution
-                    if (epConfig.path?.includes(`{${key}}`)) continue
-                    // Skip if already handled by a configured variable
-                    if (handledParamKeys.has(key)) continue
-                    // Skip if this param name is already set (prevents duplicates)
-                    if (resolvedQueryParams[key] !== undefined) continue
-
-                    resolvedQueryParams[key] = String(value)
-                }
-            }
-
-            // Step 2d: Apply resolved params to URL
-            for (const [key, value] of Object.entries(resolvedQueryParams)) {
-                urlObj.searchParams.set(key, value)
-            }
-
-            // 3. Headers (Enhanced Browser Emulation)
-            const headers: Record<string, string> = {
-                'Accept': 'application/json, text/plain, */*',
-                'Accept-Language': 'en-US,en;q=0.9',
-                'Cache-Control': 'no-cache',
-                'Referer': urlObj.origin,
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                ...epConfig.headers
-            }
-
-            if (this.config.authType === 'bearer' && rawAuthKey) {
-                headers['Authorization'] = `Bearer ${rawAuthKey}`
-            } else if (this.config.authType === 'header' && this.config.authHeader && rawAuthKey) {
-                headers[this.config.authHeader] = rawAuthKey
-            }
-
-            // 4. Rate Limiting Enforcer (Reservation Token Bucket)
-            // Ensure strictly NO requests are sent faster than rateLimitDelay
-            // "nextSlot" logic handles concurrency by pushing the marker forward for each request
+            // 4. Rate Limiting Enforcer (Distributed)
             const rateLimitDelay = (this.config as any).rateLimitDelay || 1000 // Default to 1000ms
 
-            const now = Date.now()
-            // Calculate when this request is allowed to fire
-            const targetTime = Math.max(now, this.lastRequestTime + rateLimitDelay)
+            // Wait for distributed slot
+            const { DistributedRateLimiter } = await import('@/lib/core/rate-limit')
+            const waitTime = await DistributedRateLimiter.reserveSlot(this.config.id, rateLimitDelay)
 
-            // Reserve this slot immediately so next request sees it
-            this.lastRequestTime = targetTime
-
-            const waitTime = targetTime - now
             if (waitTime > 0) {
-                // console.log(`[DynamicProvider:${this.name}] Rate limiting: waiting ${waitTime}ms`)
+                // logger.debug(`[DynamicProvider:${this.name}] Distributed Rate Limit: Waiting ${waitTime}ms`)
                 await new Promise(resolve => setTimeout(resolve, waitTime))
             }
 
@@ -1912,6 +1836,15 @@ export class DynamicProvider implements SmsProvider {
             }
             throw e
         }
+    }
+
+    async nextSms(activationId: string): Promise<void> {
+        if (!this.shouldUseDynamic('nextSms') && this.fallback?.nextSms) {
+            return this.fallback.nextSms(activationId)
+        }
+
+        const response = await this.request('nextSms', { id: activationId })
+        this.checkForErrors(response, 'nextSms', (this.config.mappings as any)?.nextSms)
     }
 
     async getBalance(): Promise<number> {

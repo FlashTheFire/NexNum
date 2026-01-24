@@ -60,6 +60,7 @@ interface GlobalState {
     topUp: (amount: number) => Promise<{ success: boolean; error?: string }>
     purchaseNumber: (countryCode: string, serviceCode: string, provider?: string) => Promise<{ success: boolean; number?: api.PhoneNumber; error?: string }>
     cancelNumber: (id: string) => Promise<{ success: boolean; error?: string }>
+    completeNumber: (id: string) => Promise<{ success: boolean; error?: string }>
     pollSms: (numberId: string) => Promise<api.SmsMessage[]>
     updateNumber: (id: string, data: Partial<ActiveNumber>) => void
 
@@ -272,6 +273,21 @@ export const useGlobalStore = create<GlobalState>()(
                         get().fetchBalance(),
                         get().fetchTransactions(),
                     ])
+                }
+                return result
+            },
+
+            // Complete number via API
+            completeNumber: async (id: string) => {
+                const result = await fetch('/api/numbers/complete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ numberId: id })
+                }).then(res => res.json())
+
+                if (result.success) {
+                    // Refresh numbers (status update)
+                    await get().fetchNumbers()
                 }
                 return result
             },

@@ -43,7 +43,9 @@ const REQUIRED_KEYS = [
     'getServices',
     'getNumber',
     'getStatus',
+    'setStatus',
     'cancelNumber',
+    'nextSms',
     'getBalance',
     'getPrices'
 ]
@@ -54,7 +56,9 @@ const KEY_LABELS: Record<string, string> = {
     getServices: "Get Services Endpoint",
     getNumber: "Get Number Endpoint",
     getStatus: "Get Status Endpoint",
+    setStatus: "Set Status Endpoint",
     cancelNumber: "Cancel Number Endpoint",
+    nextSms: "Next SMS Endpoint",
     getBalance: "Get Balance Endpoint",
     getPrices: "Get Prices Endpoint"
 }

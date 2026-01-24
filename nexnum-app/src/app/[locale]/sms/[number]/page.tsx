@@ -50,7 +50,7 @@ const fadeInLeft = {
 export default function SMSPage() {
     const params = useParams()
     const router = useRouter()
-    const { activeNumbers, _hasHydrated, fetchNumbers, isLoadingNumbers, cancelNumber, purchaseNumber } = useGlobalStore()
+    const { activeNumbers, _hasHydrated, fetchNumbers, isLoadingNumbers, cancelNumber, purchaseNumber, completeNumber } = useGlobalStore()
     const [timeLeft, setTimeLeft] = useState(0)
     const [isMenuOpen, setIsMenuOpen] = useState(false)
 
@@ -58,6 +58,7 @@ export default function SMSPage() {
     const [isNextLoading, setIsNextLoading] = useState(false)
     const [isCancelLoading, setIsCancelLoading] = useState(false)
     const [showCancelConfirm, setShowCancelConfirm] = useState(false)
+    const [isCompleting, setIsCompleting] = useState(false)
     const t = useTranslations('smsPage')
 
     const identifier = decodeURIComponent(params.number as string)
@@ -249,6 +250,32 @@ export default function SMSPage() {
         }
     }
 
+    // Handle Manual Complete
+    const handleComplete = async () => {
+        if (!displayNumber) return
+
+        setIsCompleting(true)
+        try {
+            const result = await completeNumber(displayNumber.id)
+
+            if (result.success) {
+                toast.success('Activation completed', {
+                    description: 'Number marked as finished'
+                })
+            } else {
+                toast.error('Failed to complete', {
+                    description: result.error || 'Please try again'
+                })
+            }
+        } catch (err: any) {
+            toast.error('Failed to complete', {
+                description: err.message
+            })
+        } finally {
+            setIsCompleting(false)
+        }
+    }
+
     const minutesLeft = Math.floor(timeLeft / 60)
     const secondsLeft = timeLeft % 60
 
@@ -403,9 +430,9 @@ export default function SMSPage() {
                                     )}
                                 </div>
 
-                                {/* Right Side: Cancel -> Confirm */}
+                                {/* Right Side: Cancel OR Complete */}
                                 <div className="relative h-12 overflow-hidden rounded-xl">
-                                    {/* Show Change Country if status is TERMINAL (cancelled, expired, completed, timeout) */}
+                                    {/* TERMINAL STATUS: Show Search Country */}
                                     {['cancelled', 'expired', 'completed', 'timeout'].includes(displayNumber.status || '') ? (
                                         <button
                                             onClick={() => router.push(`/dashboard/buy?service=${displayNumber.serviceName || displayNumber.serviceCode}&selectedCountry=${displayNumber.countryName}`)}
@@ -414,7 +441,26 @@ export default function SMSPage() {
                                             <Search className="mr-2 h-4 w-4 text-blue-400" />
                                             {t('actions.searchCountry')}
                                         </button>
+                                    ) : messages.length > 0 ? (
+                                        /* HAS SMS: Show Complete Button */
+                                        <button
+                                            onClick={handleComplete}
+                                            disabled={isCompleting}
+                                            className={cn(
+                                                "w-full h-full inline-flex items-center justify-center text-sm font-medium rounded-xl bg-emerald-500/20 border border-emerald-500/30 backdrop-blur-sm transition-all text-emerald-200",
+                                                isCompleting ? "opacity-50 cursor-wait" : "hover:bg-emerald-500/30 active:scale-[0.98]"
+                                            )}
+                                        >
+                                            {isCompleting ? (
+                                                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                                            ) : (
+                                                <Check className="mr-2 h-4 w-4" />
+                                            )}
+                                            {/* TODO: Add translation key 'actions.completeNumber' */}
+                                            {isCompleting ? 'Finishing...' : 'Complete Order'}
+                                        </button>
                                     ) : !showCancelConfirm ? (
+                                        /* NO SMS: Show Cancel Button */
                                         <button
                                             onClick={handleCancelNumber}
                                             disabled={isCancelLoading || isNextLoading}
@@ -431,6 +477,7 @@ export default function SMSPage() {
                                             {isCancelLoading ? t('actions.cancelling') : t('actions.cancelNumber')}
                                         </button>
                                     ) : (
+                                        /* CONFIRM CANCEL */
                                         <button
                                             onClick={confirmCancel}
                                             disabled={isCancelLoading}
