@@ -1,26 +1,21 @@
 /**
  * Environment Variable Validation
- * Validates required environment variables on application startup
+ * 
+ * Uses Zod schema for strict runtime validation.
+ * Validates required environment variables on application startup.
  */
 
-// ============================================
-// REQUIRED VARIABLES (all environments)
-// ============================================
-const REQUIRED_VARS = [
-    'DATABASE_URL',
-    'REDIS_URL',
-    'JWT_SECRET',
-    'ENCRYPTION_KEY',
-] as const
+import { envSchema, validateProductionRequirements } from './env.schema'
 
 // ============================================
-// PRODUCTION-ONLY REQUIRED VARIABLES
+// VALIDATION RESULT
 // ============================================
-const PRODUCTION_REQUIRED = [
-    'MEILISEARCH_HOST',
-    'MEILISEARCH_API_KEY',
-    'NEXT_PUBLIC_SITE_URL',
-] as const
+export interface ValidationResult {
+    valid: boolean
+    errors: string[]
+    warnings: string[]
+    parsed?: Record<string, unknown>
+}
 
 // ============================================
 // RECOMMENDED VARIABLES (warn if missing)
@@ -33,56 +28,31 @@ const RECOMMENDED_VARS = [
 ] as const
 
 // ============================================
-// PROVIDER VARIABLES (at least one required for production)
-// ============================================
-const PROVIDER_VARS = [
-    'HERO_SMS_API_KEY',
-    'GRIZZLYSMS_API_KEY',
-    'SMSBOWER_API_KEY',
-    'FIVESIM_API_KEY',
-    'ONLINESIM_API_KEY',
-] as const
-
-// ============================================
-// VALIDATION RESULT
-// ============================================
-export interface ValidationResult {
-    valid: boolean
-    errors: string[]
-    warnings: string[]
-}
-
-// ============================================
-// VALIDATION FUNCTION
+// VALIDATION FUNCTION (Zod-based)
 // ============================================
 export function validateEnv(): ValidationResult {
     const errors: string[] = []
     const warnings: string[] = []
-    const isProduction = process.env.NODE_ENV === 'production'
 
-    // Check required variables
-    for (const key of REQUIRED_VARS) {
-        if (!process.env[key]) {
-            errors.push(`Missing required environment variable: ${key}`)
-        }
+    // 1. Parse with Zod schema
+    const result = envSchema.safeParse(process.env)
+
+    if (!result.success) {
+        // Extract Zod errors
+        const zodErrors = result.error.issues.map(issue => {
+            const path = issue.path.join('.')
+            return `${path}: ${issue.message}`
+        })
+        errors.push(...zodErrors)
     }
 
-    // Check production-only variables
-    if (isProduction) {
-        for (const key of PRODUCTION_REQUIRED) {
-            if (!process.env[key]) {
-                errors.push(`Missing production-required environment variable: ${key}`)
-            }
-        }
-
-        // Check that at least one provider is configured
-        const hasProvider = PROVIDER_VARS.some(key => !!process.env[key])
-        if (!hasProvider) {
-            errors.push('No SMS provider configured. At least one provider API key is required.')
-        }
+    // 2. Check production requirements
+    const missing = validateProductionRequirements()
+    if (missing.length > 0) {
+        errors.push(...missing.map(m => `Missing required: ${m}`))
     }
 
-    // Check recommended variables
+    // 3. Check recommended variables
     for (const key of RECOMMENDED_VARS) {
         if (!process.env[key]) {
             warnings.push(`Recommended environment variable not set: ${key}`)
@@ -93,6 +63,7 @@ export function validateEnv(): ValidationResult {
         valid: errors.length === 0,
         errors,
         warnings,
+        parsed: result.success ? result.data : undefined,
     }
 }
 
@@ -119,6 +90,8 @@ export function validateEnvOnStartup(): void {
         } else {
             console.error(errorMessage)
         }
+    } else {
+        console.log('✅ Environment validation passed')
     }
 }
 
@@ -148,4 +121,15 @@ export function getEnvBoolean(key: string, defaultValue: boolean): boolean {
     const value = process.env[key]
     if (!value) return defaultValue
     return value === 'true' || value === '1'
+}
+
+// ============================================
+// TYPED ENV ACCESS
+// ============================================
+export function getTypedEnv() {
+    const result = envSchema.safeParse(process.env)
+    if (!result.success) {
+        throw new Error('Environment validation failed: ' + JSON.stringify(result.error.issues))
+    }
+    return result.data
 }

@@ -26,6 +26,13 @@ export {
     type ProvidersConfigType,
 } from './providers.config'
 
+// Environment schema
+export {
+    envSchema,
+    validateProductionRequirements,
+    type Env,
+} from './env.schema'
+
 // Environment validation
 export {
     validateEnv,
@@ -34,5 +41,6 @@ export {
     getEnvRequired,
     getEnvNumber,
     getEnvBoolean,
+    getTypedEnv,
     type ValidationResult,
 } from './env.validation'

@@ -38,6 +38,7 @@
 - [📈 Monitoring](#-monitoring)
 - [☁️ Production Deployment](#️-production-deployment-aws-amplify)
 - [🔒 Security](#-security)
+- [📚 Documentation](#-documentation)
 - [📄 License](#-license)
 
 ---
@@ -575,6 +576,77 @@ docker run -p 3000:3000 --env-file .env nexnum-app
 - ✅ **CSP Headers** - Content Security Policy
 - ✅ **Input Validation** - Zod schema validation
 - ✅ **SQL Injection Protection** - Prisma ORM
+
+---
+
+## 📚 Documentation
+
+<div align="center">
+
+### 📖 Knowledge Base
+
+*Everything you need to build, deploy, and scale NexNum*
+
+</div>
+
+<table>
+<tr>
+<td width="50%">
+
+#### 🏗️ Architecture & Design
+| Doc | Description |
+|-----|-------------|
+| [� Architecture](nexnum-app/docs/architecture.md) | System design & data flow |
+| [🔌 API Reference](nexnum-app/docs/api-reference.md) | All endpoints & examples |
+| [⚙️ Env Variables](nexnum-app/docs/env-reference.md) | 47+ config options |
+
+</td>
+<td width="50%">
+
+#### 🚀 Operations & Deployment
+| Doc | Description |
+|-----|-------------|
+| [☁️ Deployment](nexnum-app/docs/deployment.md) | AWS/Docker deploy guide |
+| [🔑 Secrets](nexnum-app/docs/secret-manager-migration.md) | Secret manager setup |
+| [✅ Release](nexnum-app/docs/release-checklist.md) | Pre-release checklist |
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+#### 🔒 Security & Performance
+| Doc | Description |
+|-----|-------------|
+| [🛡️ Security Audit](nexnum-app/docs/security-audit.md) | Auth, rate limits, audit |
+| [⚡ Performance](nexnum-app/docs/performance-guide.md) | Caching & optimization |
+
+</td>
+<td width="50%">
+
+#### 👥 Contributing
+| Doc | Description |
+|-----|-------------|
+| [🤝 Contributing](nexnum-app/CONTRIBUTING.md) | Setup & PR process |
+| [📝 Changelog](nexnum-app/CHANGELOG.md) | Version history |
+| [👮 Code Owners](nexnum-app/CODEOWNERS) | Team ownership |
+
+</td>
+</tr>
+</table>
+
+<details>
+<summary><b>📁 Configuration Files</b></summary>
+
+Central configuration lives in `nexnum-app/src/config/`:
+
+| File | Purpose |
+|------|---------|
+| `app.config.ts` | Limits, timeouts, workers, features |
+| `providers.config.ts` | SMS provider settings |
+| `env.schema.ts` | Zod validation for all env vars |
+
+</details>
 
 ---
 

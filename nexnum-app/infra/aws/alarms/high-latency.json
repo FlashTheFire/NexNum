@@ -1,0 +1,16 @@
+{
+    "AlarmName": "NexNum-HighLatency",
+    "AlarmDescription": "Triggered when P99 latency exceeds 5 seconds",
+    "MetricName": "RequestLatency",
+    "Namespace": "NexNum",
+    "ExtendedStatistic": "p99",
+    "Period": 300,
+    "EvaluationPeriods": 3,
+    "Threshold": 5000,
+    "ComparisonOperator": "GreaterThanThreshold",
+    "TreatMissingData": "notBreaching",
+    "ActionsEnabled": true,
+    "AlarmActions": [
+        "arn:aws:sns:${AWS_REGION}:${AWS_ACCOUNT_ID}:nexnum-alerts"
+    ]
+}

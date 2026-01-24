@@ -1,11 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { MockSmsProvider } from '@/lib/sms-providers/mock-provider'
 import { logger } from '@/lib/core/logger'
 
-// Initialize mock provider (singleton)
-const mockProvider = MockSmsProvider.getInstance()
+// ============================================
+// PRODUCTION GUARD
+// ============================================
+// This endpoint is for development/testing only
+const IS_PRODUCTION = process.env.NODE_ENV === 'production'
+const MOCK_ENABLED = process.env.ENABLE_MOCK_PROVIDER === 'true'
+
+function productionGuard() {
+    if (IS_PRODUCTION && !MOCK_ENABLED) {
+        return NextResponse.json(
+            { error: 'Mock SMS API is disabled in production' },
+            { status: 404 }
+        )
+    }
+    return null
+}
+
+// Lazy load mock provider only when needed
+function getMockProvider() {
+    // Dynamic import to avoid loading in production
+    const { MockSmsProvider } = require('@/lib/sms-providers/mock-provider')
+    return MockSmsProvider.getInstance()
+}
 
 export async function GET(req: NextRequest) {
+    // Check production guard
+    const guardResponse = productionGuard()
+    if (guardResponse) return guardResponse
+
+    const mockProvider = getMockProvider()
     const startTime = Date.now()
     const searchParams = req.nextUrl.searchParams
     const action = searchParams.get('action') || 'unknown'
@@ -52,20 +77,10 @@ export async function GET(req: NextRequest) {
 
                 try {
                     const result = await mockProvider.purchaseNumber(country, service)
-                    const data = {
-                        activationId: result.id,
-                        phoneNumber: result.phoneNumber,
-                        activationCost: result.cost,
-                        currency: '840',
-                        countryCode: country,
-                        canGetAnotherSms: result.canGetAnotherSms ? '1' : '0',
-                        activationTime: result.createdAt.toISOString().replace('T', ' ').split('.')[0],
-                        activationOperator: 'mock-telecom'
-                    }
-                    mockProvider.logRequest(action, params, JSON.stringify(data), Date.now() - startTime)
-                    return NextResponse.json(data)
+                    responseText = `ACCESS_NUMBER:${result.id}:${result.phoneNumber}`
                 } catch (error: any) {
-                    responseText = error.message === 'NO_NUMBERS' ? 'NO_NUMBERS' : 'ERROR'
+                    responseText = error.message === 'NO_NUMBERS' ? 'NO_NUMBERS' :
+                        error.message === 'BAD_SERVICE' ? 'BAD_SERVICE' : 'ERROR'
                 }
                 break
             }
@@ -73,10 +88,29 @@ export async function GET(req: NextRequest) {
             case 'getStatus': {
                 const id = searchParams.get('id')
                 if (!id) {
-                    responseText = 'ERROR_NO_ID'
+                    responseText = 'BAD_KEY'
                     break
                 }
-                responseText = mockProvider.getStatus(id)
+
+                const activation = mockProvider.getActivation(id)
+                if (!activation) {
+                    responseText = 'NO_ACTIVATION'
+                    break
+                }
+
+                const statusMap: Record<string, string> = {
+                    pending: 'STATUS_WAIT_CODE',
+                    received: 'STATUS_OK',
+                    completed: 'STATUS_OK',
+                    cancelled: 'STATUS_CANCEL',
+                    refunded: 'STATUS_CANCEL',
+                }
+                responseText = statusMap[activation.status] || 'STATUS_WAIT_CODE'
+
+                if (activation.smsMessages.length > 0) {
+                    const lastSms = activation.smsMessages[activation.smsMessages.length - 1]
+                    responseText = `STATUS_OK:${lastSms.code}`
+                }
                 break
             }
 
@@ -84,74 +118,74 @@ export async function GET(req: NextRequest) {
                 const id = searchParams.get('id')
                 const status = searchParams.get('status')
 
-                if (!id || !status) {
-                    responseText = 'BAD_DATA'
+                if (!id) {
+                    responseText = 'BAD_KEY'
                     break
                 }
 
-                responseText = mockProvider.setStatus(id, status)
+                if (status === '8') {
+                    mockProvider.cancelActivation(id)
+                    responseText = 'ACCESS_CANCEL'
+                } else if (status === '6') {
+                    mockProvider.completeActivation(id)
+                    responseText = 'ACCESS_ACTIVATION'
+                } else {
+                    responseText = 'ACCESS_READY'
+                }
                 break
             }
 
-            case 'getPrices': {
-                const country = searchParams.get('country')
-                const service = searchParams.get('service')
-                const prices = mockProvider.getPrices(country, service)
-                mockProvider.logRequest(action, params, '[JSON]', Date.now() - startTime)
-                return NextResponse.json(prices)
-            }
-
-            case 'getCountries': {
-                const countries = mockProvider.getCountries()
-                mockProvider.logRequest(action, params, '[JSON]', Date.now() - startTime)
-                return NextResponse.json(countries)
-            }
-
-            case 'getServicesList': {
-                const services = mockProvider.getServices()
-                mockProvider.logRequest(action, params, '[JSON]', Date.now() - startTime)
-                return NextResponse.json({ status: 'success', services })
-            }
-
-            case 'debug_state': {
-                // Don't log debug calls
-                const orders = mockProvider.getAllOrders()
-                return NextResponse.json({
+            case 'debug_state':
+                responseText = JSON.stringify({
                     balance: mockProvider.getBalance(),
-                    orders,
-                    logs: mockProvider.getRequestLogs()
+                    orders: mockProvider.getAllOrders(),
+                    logs: mockProvider.getRequestLogs(),
                 })
-            }
+                break
+
+            case 'debug_logs':
+                responseText = JSON.stringify(mockProvider.getRequestLogs())
+                break
 
             case 'force_sms': {
                 const id = searchParams.get('id')
+                const code = searchParams.get('code') || Math.floor(100000 + Math.random() * 900000).toString()
                 if (!id) {
-                    responseText = 'BAD_ID'
+                    responseText = 'BAD_KEY'
                     break
                 }
-
-                mockProvider.forceSms(id)
-                responseText = 'SUCCESS'
+                const success = mockProvider.forceSms(id, code)
+                responseText = success ? `SMS_SENT:${code}` : 'ACTIVATION_NOT_FOUND'
                 break
             }
 
             default:
                 responseText = 'BAD_ACTION'
         }
-
-        // Log the request (except debug actions)
-        if (!action.startsWith('debug')) {
-            mockProvider.logRequest(action, params, responseText, Date.now() - startTime)
-        }
-
-        return new NextResponse(responseText, {
-            status: 200,
-            headers: { 'Content-Type': 'text/plain' }
-        })
     } catch (error: any) {
-        logger.error('[MockSMS] API Error', { error: error.message })
-        mockProvider.logRequest(action, params, 'ERROR_SQL', Date.now() - startTime)
-        return new NextResponse('ERROR_SQL', { status: 500 })
+        logger.error(`[MockSMS] Error processing ${action}: ${error.message}`)
+        responseText = 'ERROR'
     }
+
+    // Log request
+    mockProvider.logRequest({
+        timestamp: new Date(),
+        action,
+        params,
+        response: responseText,
+        durationMs: Date.now() - startTime,
+    })
+
+    return new NextResponse(responseText, {
+        headers: { 'Content-Type': 'text/plain' },
+    })
 }
 
+export async function POST(req: NextRequest) {
+    // Check production guard
+    const guardResponse = productionGuard()
+    if (guardResponse) return guardResponse
+
+    // POST just redirects to GET for compatibility
+    return GET(req)
+}

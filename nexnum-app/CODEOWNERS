@@ -1,0 +1,37 @@
+# Code Owners
+# Explicit ownership boundaries for security, backend, and devops teams
+
+# ============================================
+# 🔒 SECURITY TEAM (security-sensitive paths)
+# ============================================
+/src/lib/auth/            @your-org/security-team
+/src/lib/security/        @your-org/security-team
+/src/lib/wallet/          @your-org/security-team
+
+# ============================================
+# ⚙️ BACKEND TEAM (API and core logic)
+# ============================================
+/src/app/api/             @your-org/backend-team
+/src/config/              @your-org/backend-team
+/src/workers/             @your-org/backend-team
+/src/lib/activation/      @your-org/backend-team
+/src/lib/sms-providers/   @your-org/backend-team
+/src/lib/sms/             @your-org/backend-team
+/src/lib/purchase/        @your-org/backend-team
+
+# Database schema and migrations
+/prisma/                  @your-org/backend-team
+/.env.example             @your-org/backend-team
+
+# ============================================
+# 🚀 DEVOPS TEAM (infrastructure and CI/CD)
+# ============================================
+/.github/                 @your-org/devops-team
+/Dockerfile               @your-org/devops-team
+/docker-compose.yml       @your-org/devops-team
+/infra/                   @your-org/devops-team
+
+# ============================================
+# DEFAULT (all other files)
+# ============================================
+* @your-org/backend-team

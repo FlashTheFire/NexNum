@@ -1,0 +1,118 @@
+# Production Docker Compose
+# For self-hosted or VPS deployments
+
+version: '3.8'
+
+services:
+  # ============================================
+  # Main API Application
+  # ============================================
+  nexnum-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nexnum-api
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+    env_file:
+      - .env.production
+    depends_on:
+      redis:
+        condition: service_healthy
+      meilisearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1024M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # ============================================
+  # Background Worker
+  # ============================================
+  nexnum-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    container_name: nexnum-worker
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+    env_file:
+      - .env.production
+    depends_on:
+      - nexnum-api
+      - redis
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  # ============================================
+  # Redis (Production)
+  # ============================================
+  redis:
+    image: redis:7-alpine
+    container_name: nexnum-redis-prod
+    command: redis-server --save 60 1 --loglevel warning --requirepass ${REDIS_PASSWORD:-strongpassword}
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-strongpassword}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # MeiliSearch (Production)
+  # ============================================
+  meilisearch:
+    image: getmeili/meilisearch:v1.6
+    container_name: nexnum-meilisearch-prod
+    environment:
+      MEILI_MASTER_KEY: ${MEILISEARCH_API_KEY:-masterkey}
+      MEILI_ENV: production
+      MEILI_NO_ANALYTICS: true
+    ports:
+      - "7700:7700"
+    volumes:
+      - meili_data:/meili_data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+# ============================================
+# Volumes
+# ============================================
+volumes:
+  redis_data:
+    driver: local
+  meili_data:
+    driver: local
+
+# ============================================
+# Networks (optional, for isolation)
+# ============================================
+networks:
+  default:
+    name: nexnum-prod

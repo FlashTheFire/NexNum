@@ -1,0 +1,55 @@
+# ==============================================================================
+# Worker Dockerfile
+# For background job processing (separate from main API)
+# ==============================================================================
+
+FROM node:20-alpine AS base
+
+# Install dependencies only when needed
+FROM base AS deps
+RUN apk add --no-cache libc6-compat
+WORKDIR /app
+
+COPY package.json package-lock.json* ./
+RUN npm ci --omit=dev
+
+# ==============================================================================
+# Builder
+# ==============================================================================
+FROM base AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+# Generate Prisma Client
+RUN npx prisma generate
+
+# Compile TypeScript
+RUN npx tsc --project tsconfig.worker.json || true
+
+# ==============================================================================
+# Runner
+# ==============================================================================
+FROM base AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+# Don't run as root
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 worker
+
+# Copy dependencies
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./
+
+# Copy worker source
+COPY --from=builder /app/src/workers ./src/workers
+COPY --from=builder /app/src/lib ./src/lib
+COPY --from=builder /app/src/config ./src/config
+COPY --from=builder /app/prisma ./prisma
+
+USER worker
+
+# Run worker entry point
+CMD ["npx", "tsx", "src/worker-entry.ts"]
