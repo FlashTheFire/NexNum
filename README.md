@@ -1,26 +1,49 @@
 <div align="center">
 
-# 🌐 NexNum
+<!-- � Animated Header -->
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:101012,50:0F2E2E,100:C6FF00&height=200&section=header&text=NexNum&fontSize=80&fontColor=C6FF00&animation=fadeIn&fontAlignY=35&desc=Next-Generation%20Virtual%20Number%20Platform&descAlignY=55&descSize=18&descColor=ffffff" width="100%"/>
 
-### Next-Generation Virtual Number & SMS Verification Platform
+<!-- ⭐ Status Badges -->
+<p>
+<img src="https://img.shields.io/badge/✨_Production_Ready-C6FF00?style=for-the-badge" alt="Production"/>
+<img src="https://img.shields.io/badge/🔥_Enterprise_Grade-FF6B6B?style=for-the-badge" alt="Enterprise"/>
+<img src="https://img.shields.io/badge/⚡_High_Performance-3178C6?style=for-the-badge" alt="Performance"/>
+</p>
 
-[![Next.js](https://img.shields.io/badge/Next.js-16.1.1-000000?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org/)
-[![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Prisma](https://img.shields.io/badge/Prisma-6.x-2D3748?style=for-the-badge&logo=prisma&logoColor=white)](https://www.prisma.io/)
-[![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com/)
+<!-- 🔗 Tech Badges -->
+<p>
+<img src="https://img.shields.io/badge/Next.js_16-black?style=flat-square&logo=next.js&logoColor=white" alt="Next.js"/>
+<img src="https://img.shields.io/badge/React_19-61DAFB?style=flat-square&logo=react&logoColor=black" alt="React"/>
+<img src="https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript"/>
+<img src="https://img.shields.io/badge/Prisma-2D3748?style=flat-square&logo=prisma&logoColor=white" alt="Prisma"/>
+<img src="https://img.shields.io/badge/PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL"/>
+<img src="https://img.shields.io/badge/Redis-DC382D?style=flat-square&logo=redis&logoColor=white" alt="Redis"/>
+</p>
 
-[![License](https://img.shields.io/badge/License-MIT-C6FF00?style=flat-square)](LICENSE)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](http://makeapullrequest.com)
-[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg?style=flat-square)](https://github.com/FlashTheFire/NexNum/graphs/commit-activity)
+<!-- 📊 Repo Stats -->
+<p>
+<img src="https://img.shields.io/github/license/FlashTheFire/NexNum?style=flat-square&color=C6FF00" alt="License"/>
+<img src="https://img.shields.io/github/stars/FlashTheFire/NexNum?style=flat-square&color=C6FF00" alt="Stars"/>
+<img src="https://img.shields.io/badge/PRs-Welcome-C6FF00?style=flat-square" alt="PRs"/>
+</p>
+
+<!-- 🚀 Quick Actions -->
+<p>
+<a href="#-quick-start"><img src="https://img.shields.io/badge/🚀_Quick_Start-101012?style=for-the-badge" alt="Quick Start"/></a>
+<a href="nexnum-app/docs/api-reference.md"><img src="https://img.shields.io/badge/📖_API_Docs-101012?style=for-the-badge" alt="API"/></a>
+<a href="nexnum-app/docs/deployment.md"><img src="https://img.shields.io/badge/☁️_Deploy-101012?style=for-the-badge" alt="Deploy"/></a>
+<a href="#-documentation"><img src="https://img.shields.io/badge/📚_Docs-101012?style=for-the-badge" alt="Docs"/></a>
+</p>
 
 <br/>
 
-<img src="https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/rainbow.png" alt="-----------------------------------------------------" width="100%">
-
-**🔥 Enterprise-Grade SMS Verification • ⚡ Multi-Provider Smart Routing • 🛡️ Circuit Breaker Resilience**
+<!-- ✨ Tagline -->
+**🔥 Enterprise SMS Verification • ⚡ Multi-Provider Smart Routing • 🛡️ Circuit Breaker Resilience**
 
 </div>
+
+<!-- 🌊 Animated Divider -->
+<img src="https://user-images.githubusercontent.com/73097560/115834477-dbab4500-a447-11eb-908a-139a6edaec5c.gif" width="100%">
 
 ---
 
@@ -130,26 +153,61 @@ flowchart TB
 
 <div align="center">
 
-### Frontend
-
-![Next.js](https://img.shields.io/badge/Next.js_16-000000?style=for-the-badge&logo=next.js&logoColor=white)
-![React](https://img.shields.io/badge/React_19-61DAFB?style=for-the-badge&logo=react&logoColor=black)
-![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS_4-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
-![Framer Motion](https://img.shields.io/badge/Framer_Motion-0055FF?style=for-the-badge&logo=framer&logoColor=white)
-
-### Backend
-
-![Prisma](https://img.shields.io/badge/Prisma_6-2D3748?style=for-the-badge&logo=prisma&logoColor=white)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)
-![Redis](https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&logo=redis&logoColor=white)
-![MeiliSearch](https://img.shields.io/badge/MeiliSearch-FF6B6B?style=for-the-badge&logo=meilisearch&logoColor=white)
-
-### DevOps & Monitoring
-
-![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)
-![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?style=for-the-badge&logo=prometheus&logoColor=white)
-![Sentry](https://img.shields.io/badge/Sentry-362D59?style=for-the-badge&logo=sentry&logoColor=white)
+<!-- 🎨 Visual Icons Grid -->
+<table>
+<tr>
+<td align="center" width="96">
+<img src="https://skillicons.dev/icons?i=nextjs" width="48" height="48" alt="Next.js" />
+<br><sub><b>Next.js 16</b></sub>
+</td>
+<td align="center" width="96">
+<img src="https://skillicons.dev/icons?i=react" width="48" height="48" alt="React" />
+<br><sub><b>React 19</b></sub>
+</td>
+<td align="center" width="96">
+<img src="https://skillicons.dev/icons?i=ts" width="48" height="48" alt="TypeScript" />
+<br><sub><b>TypeScript</b></sub>
+</td>
+<td align="center" width="96">
+<img src="https://skillicons.dev/icons?i=tailwind" width="48" height="48" alt="Tailwind" />
+<br><sub><b>Tailwind 4</b></sub>
+</td>
+<td align="center" width="96">
+<img src="https://skillicons.dev/icons?i=prisma" width="48" height="48" alt="Prisma" />
+<br><sub><b>Prisma 6</b></sub>
+</td>
+<td align="center" width="96">
+<img src="https://skillicons.dev/icons?i=postgres" width="48" height="48" alt="PostgreSQL" />
+<br><sub><b>PostgreSQL</b></sub>
+</td>
+</tr>
+<tr>
+<td align="center" width="96">
+<img src="https://skillicons.dev/icons?i=redis" width="48" height="48" alt="Redis" />
+<br><sub><b>Redis</b></sub>
+</td>
+<td align="center" width="96">
+<img src="https://skillicons.dev/icons?i=docker" width="48" height="48" alt="Docker" />
+<br><sub><b>Docker</b></sub>
+</td>
+<td align="center" width="96">
+<img src="https://skillicons.dev/icons?i=aws" width="48" height="48" alt="AWS" />
+<br><sub><b>AWS ECS</b></sub>
+</td>
+<td align="center" width="96">
+<img src="https://skillicons.dev/icons?i=prometheus" width="48" height="48" alt="Prometheus" />
+<br><sub><b>Prometheus</b></sub>
+</td>
+<td align="center" width="96">
+<img src="https://skillicons.dev/icons?i=sentry" width="48" height="48" alt="Sentry" />
+<br><sub><b>Sentry</b></sub>
+</td>
+<td align="center" width="96">
+<img src="https://skillicons.dev/icons?i=github" width="48" height="48" alt="GitHub" />
+<br><sub><b>GitHub CI</b></sub>
+</td>
+</tr>
+</table>
 
 </div>
 
@@ -654,14 +712,32 @@ Central configuration lives in `nexnum-app/src/config/`:
 
 <div align="center">
 
+<!-- 🌊 Footer Wave -->
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:101012,50:0F2E2E,100:C6FF00&height=120&section=footer" width="100%"/>
+
+<br/>
+
 **MIT License** © 2024-2026 NexNum
 
-Made with ❤️ by **FlashTheFire**
+<br/>
 
-[![GitHub](https://img.shields.io/badge/GitHub-FlashTheFire-181717?style=for-the-badge&logo=github)](https://github.com/FlashTheFire)
+Built with 💚 by [**FlashTheFire**](https://github.com/FlashTheFire)
 
-<img src="https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/rainbow.png" alt="-----------------------------------------------------" width="100%">
+<br/>
 
-**⭐ Star this repo if you find it useful!**
+<!-- 🔗 Social Links -->
+<a href="https://github.com/FlashTheFire/NexNum">
+<img src="https://img.shields.io/badge/⭐_Star_This_Repo-C6FF00?style=for-the-badge&logo=github&logoColor=black" alt="Star"/>
+</a>
+<a href="https://github.com/FlashTheFire/NexNum/fork">
+<img src="https://img.shields.io/badge/🍴_Fork-101012?style=for-the-badge&logo=github&logoColor=white" alt="Fork"/>
+</a>
+<a href="https://github.com/FlashTheFire">
+<img src="https://img.shields.io/badge/👤_Follow-101012?style=for-the-badge&logo=github&logoColor=white" alt="Follow"/>
+</a>
+
+<br/><br/>
+
+<sub>🚀 If NexNum helps you, consider giving it a ⭐ — it means a lot!</sub>
 
 </div>
