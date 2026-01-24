@@ -1,0 +1,132 @@
+# Alertmanager Configuration
+#
+# Routes alerts to appropriate channels based on severity.
+# Replace placeholder values with actual credentials.
+
+global:
+  # Default config
+  smtp_smarthost: 'smtp.example.com:587'
+  smtp_from: 'alertmanager@nexnum.com'
+  smtp_auth_username: '${SMTP_USER}'
+  smtp_auth_password: '${SMTP_PASSWORD}'
+  
+  # Slack webhook (store in environment variable)
+  slack_api_url: '${SLACK_WEBHOOK_URL}'
+
+# Inhibition rules prevent redundant alerts
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'route', 'provider_id']
+
+# Route configuration
+route:
+  # Default receiver
+  receiver: 'default-slack'
+  
+  # Group alerts by these labels
+  group_by: ['alertname', 'severity', 'team']
+  
+  # How long to wait before sending first notification
+  group_wait: 30s
+  
+  # How long to wait before sending updates
+  group_interval: 5m
+  
+  # How long to wait before resending
+  repeat_interval: 4h
+
+  # Route tree
+  routes:
+    # Critical alerts go to PagerDuty immediately
+    - match:
+        severity: critical
+        page: "true"
+      receiver: 'pagerduty-critical'
+      group_wait: 10s
+      repeat_interval: 1h
+
+    # Critical alerts go to dedicated channel
+    - match:
+        severity: critical
+      receiver: 'slack-critical'
+      group_wait: 10s
+      repeat_interval: 2h
+
+    # Warnings go to warning channel
+    - match:
+        severity: warning
+      receiver: 'slack-warnings'
+      group_wait: 1m
+      repeat_interval: 6h
+
+    # Platform team alerts
+    - match:
+        team: platform
+      receiver: 'slack-platform'
+
+    # Payment team alerts
+    - match:
+        team: payments
+      receiver: 'slack-payments'
+
+# Receivers
+receivers:
+  - name: 'default-slack'
+    slack_configs:
+      - channel: '#ops-alerts'
+        send_resolved: true
+        icon_url: 'https://avatars.githubusercontent.com/u/1234567'
+        title: '{{ template "slack.default.title" . }}'
+        text: '{{ template "slack.default.text" . }}'
+
+  - name: 'slack-critical'
+    slack_configs:
+      - channel: '#ops-critical'
+        send_resolved: true
+        color: '{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}'
+        title: '🚨 {{ .GroupLabels.alertname }}'
+        text: |
+          *Status:* {{ .Status | toUpper }}
+          *Severity:* {{ .CommonLabels.severity }}
+          *Summary:* {{ .CommonAnnotations.summary }}
+          *Runbook:* {{ .CommonAnnotations.runbook_url }}
+          *Remediation:* {{ .CommonAnnotations.remediation }}
+
+  - name: 'slack-warnings'
+    slack_configs:
+      - channel: '#ops-warnings'
+        send_resolved: true
+        color: '{{ if eq .Status "firing" }}warning{{ else }}good{{ end }}'
+        title: '⚠️ {{ .GroupLabels.alertname }}'
+        text: |
+          *Status:* {{ .Status | toUpper }}
+          *Summary:* {{ .CommonAnnotations.summary }}
+          *Runbook:* {{ .CommonAnnotations.runbook_url }}
+
+  - name: 'slack-platform'
+    slack_configs:
+      - channel: '#platform-alerts'
+        send_resolved: true
+
+  - name: 'slack-payments'
+    slack_configs:
+      - channel: '#payments-alerts'
+        send_resolved: true
+
+  - name: 'pagerduty-critical'
+    pagerduty_configs:
+      - service_key: '${PAGERDUTY_SERVICE_KEY}'
+        send_resolved: true
+        severity: critical
+        description: '{{ .CommonAnnotations.summary }}'
+        details:
+          firing: '{{ template "pagerduty.default.instances" .Alerts.Firing }}'
+          resolved: '{{ template "pagerduty.default.instances" .Alerts.Resolved }}'
+          runbook: '{{ .CommonAnnotations.runbook_url }}'
+
+# Templates
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'

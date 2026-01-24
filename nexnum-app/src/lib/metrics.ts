@@ -211,3 +211,192 @@ export const multi_sms_sequences_total = register('nexnum_multi_sms_sequences_to
     labelNames: ['provider', 'sms_count'],
     registers: [registry]
 }))
+
+// ============================================================================
+// COMMAND CENTER METRICS - For Admin Dashboard and Prometheus Scraping
+// ============================================================================
+
+/**
+ * HTTP Request Counter
+ * Tracks all HTTP requests with labels for dashboard slicing
+ */
+export const http_requests_total = register('nexnum_http_requests_total', () => new Counter({
+    name: 'nexnum_http_requests_total',
+    help: 'Total HTTP requests',
+    labelNames: ['environment', 'region', 'service', 'route', 'method', 'status_code'],
+    registers: [registry]
+}))
+
+/**
+ * Provider Requests Counter  
+ * Tracks outbound API calls to SMS providers
+ */
+export const provider_requests_total = register('nexnum_provider_requests_total', () => new Counter({
+    name: 'nexnum_provider_requests_total',
+    help: 'Total outbound provider API calls',
+    labelNames: ['environment', 'region', 'service', 'provider_id', 'method', 'status_code'],
+    registers: [registry]
+}))
+
+/**
+ * Active Numbers Gauge
+ * Current count of active number rentals
+ */
+export const active_numbers = register('nexnum_active_numbers', () => new Gauge({
+    name: 'nexnum_active_numbers',
+    help: 'Currently active number rentals',
+    labelNames: ['provider_id', 'region', 'status'],
+    registers: [registry]
+}))
+
+/**
+ * Provider Latency Histogram
+ * Response time distribution for provider API calls
+ * Buckets chosen for accurate p50/p90/p99 calculation
+ */
+export const provider_latency = register('nexnum_provider_latency_seconds', () => new Histogram({
+    name: 'nexnum_provider_latency_seconds',
+    help: 'Provider API response time distribution',
+    labelNames: ['provider_id', 'method', 'status_code', 'region'],
+    // Buckets: 10ms to 10s covering typical API latencies
+    buckets: [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
+    registers: [registry]
+}))
+
+/**
+ * HTTP Request Latency Histogram
+ * Response time distribution for all HTTP endpoints
+ */
+export const http_request_duration = register('nexnum_http_request_duration_seconds', () => new Histogram({
+    name: 'nexnum_http_request_duration_seconds',
+    help: 'HTTP request duration distribution',
+    labelNames: ['route', 'method', 'status_code'],
+    buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5],
+    registers: [registry]
+}))
+
+/**
+ * Database Connection Pool Metrics
+ */
+export const db_connections = register('nexnum_db_connections', () => new Gauge({
+    name: 'nexnum_db_connections',
+    help: 'Database connection pool status',
+    labelNames: ['state'], // active, idle, max
+    registers: [registry]
+}))
+
+/**
+ * Worker Queue Metrics
+ */
+export const worker_queue_depth = register('nexnum_worker_queue_depth', () => new Gauge({
+    name: 'nexnum_worker_queue_depth',
+    help: 'Current worker queue depth by state',
+    labelNames: ['queue', 'state'], // state: pending, active, completed, failed
+    registers: [registry]
+}))
+
+/**
+ * Incident Counter
+ * Tracks system incidents by severity
+ */
+export const incidents_total = register('nexnum_incidents_total', () => new Counter({
+    name: 'nexnum_incidents_total',
+    help: 'Total incidents by severity',
+    labelNames: ['severity', 'type'], // severity: info, warning, critical
+    registers: [registry]
+}))
+
+// ============================================================================
+// HELPER FUNCTIONS - For instrumenting code paths
+// ============================================================================
+
+const ENV = process.env.NODE_ENV || 'development'
+const REGION = process.env.REGION || 'default'
+const SERVICE = process.env.SERVICE_NAME || 'nexnum-api'
+
+/**
+ * Track an HTTP request
+ */
+export function trackHttpRequest(route: string, method: string, statusCode: number) {
+    http_requests_total.inc({
+        environment: ENV,
+        region: REGION,
+        service: SERVICE,
+        route,
+        method,
+        status_code: String(statusCode)
+    })
+}
+
+/**
+ * Track a provider API request with latency
+ */
+export function trackProviderRequest(
+    providerId: string,
+    method: string,
+    statusCode: number,
+    latencySeconds: number
+) {
+    provider_requests_total.inc({
+        environment: ENV,
+        region: REGION,
+        service: SERVICE,
+        provider_id: providerId,
+        method,
+        status_code: String(statusCode)
+    })
+
+    provider_latency.observe({
+        provider_id: providerId,
+        method,
+        status_code: String(statusCode),
+        region: REGION
+    }, latencySeconds)
+}
+
+/**
+ * Update active numbers count
+ */
+export function updateActiveNumbers(providerId: string, count: number, status: string = 'active') {
+    active_numbers.set({
+        provider_id: providerId,
+        region: REGION,
+        status
+    }, count)
+}
+
+/**
+ * Track HTTP request duration (for use with timer)
+ */
+export function trackHttpDuration(route: string, method: string, statusCode: number, durationSeconds: number) {
+    http_request_duration.observe({
+        route,
+        method,
+        status_code: String(statusCode)
+    }, durationSeconds)
+}
+
+/**
+ * Update database connection metrics
+ */
+export function updateDbConnections(active: number, idle: number, max: number) {
+    db_connections.set({ state: 'active' }, active)
+    db_connections.set({ state: 'idle' }, idle)
+    db_connections.set({ state: 'max' }, max)
+}
+
+/**
+ * Update worker queue metrics
+ */
+export function updateWorkerQueue(queue: string, pending: number, active: number, failed: number) {
+    worker_queue_depth.set({ queue, state: 'pending' }, pending)
+    worker_queue_depth.set({ queue, state: 'active' }, active)
+    worker_queue_depth.set({ queue, state: 'failed' }, failed)
+}
+
+/**
+ * Record an incident
+ */
+export function recordIncident(severity: 'info' | 'warning' | 'critical', type: string) {
+    incidents_total.inc({ severity, type })
+}

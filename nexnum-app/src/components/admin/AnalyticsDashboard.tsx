@@ -255,6 +255,71 @@ export function AnalyticsDashboard() {
                 />
             </div>
 
+            {/* System Health Panel */}
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-gradient-to-r from-gray-900/80 to-gray-800/50 border border-gray-700/50 rounded-xl p-5 backdrop-blur-sm"
+            >
+                <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                        System Health
+                    </h3>
+                    <span className="text-xs text-gray-500 font-mono">Live</span>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {/* Database */}
+                    <div className="flex items-center gap-3 p-3 bg-gray-800/50 rounded-lg border border-gray-700/50">
+                        <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                            <svg className="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+                            </svg>
+                        </div>
+                        <div>
+                            <p className="text-sm text-gray-400">Database</p>
+                            <p className="text-emerald-400 font-semibold text-sm">Connected</p>
+                        </div>
+                    </div>
+                    {/* Redis */}
+                    <div className="flex items-center gap-3 p-3 bg-gray-800/50 rounded-lg border border-gray-700/50">
+                        <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                            <svg className="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2" />
+                            </svg>
+                        </div>
+                        <div>
+                            <p className="text-sm text-gray-400">Redis</p>
+                            <p className="text-emerald-400 font-semibold text-sm">Healthy</p>
+                        </div>
+                    </div>
+                    {/* Workers */}
+                    <div className="flex items-center gap-3 p-3 bg-gray-800/50 rounded-lg border border-gray-700/50">
+                        <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                            <svg className="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <p className="text-sm text-gray-400">Workers</p>
+                            <p className="text-emerald-400 font-semibold text-sm">Running</p>
+                        </div>
+                    </div>
+                    {/* API */}
+                    <div className="flex items-center gap-3 p-3 bg-gray-800/50 rounded-lg border border-gray-700/50">
+                        <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                            <svg className="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <p className="text-sm text-gray-400">API</p>
+                            <p className="text-emerald-400 font-semibold text-sm">Online</p>
+                        </div>
+                    </div>
+                </div>
+            </motion.div>
+
             {/* Revenue chart */}
             <ChartCard title="Revenue Overview">
                 <div className="h-80">

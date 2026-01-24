@@ -527,25 +527,73 @@ stateDiagram-v2
 
 ---
 
-## 📈 Monitoring
+## 📈 Monitoring & Admin Dashboards
 
-### Prometheus Metrics
+<div align="center">
+
+### 🖥️ Admin Dashboard Features
+
+</div>
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+#### 📊 Real-Time Analytics
+- 📈 **Live Charts** — SMS usage, revenue trends
+- 🌍 **Global Map** — Provider coverage visualization
+- ⚡ **Active Numbers** — Real-time rental tracking
+- 💰 **Revenue Metrics** — Daily/weekly/monthly stats
+
+</td>
+<td width="50%" valign="top">
+
+#### 🛠️ Management Tools
+- 👥 **User Management** — Ban, verify, adjust balance
+- 🔌 **Provider Control** — Enable/disable, sync data
+- ⚙️ **System Settings** — Margins, limits, features
+- 🔍 **Inventory Search** — MeiliSearch-powered
+
+</td>
+</tr>
+</table>
+
+---
+
+### 📡 Prometheus Metrics
+
+<div align="center">
 
 | Metric | Type | Description |
-|--------|------|-------------|
-| `nexnum_http_requests_total` | Counter | Total HTTP requests |
-| `nexnum_provider_requests_total` | Counter | Provider API calls |
-| `nexnum_wallet_transactions_total` | Counter | Wallet operations |
-| `nexnum_active_numbers` | Gauge | Currently active rentals |
-| `nexnum_provider_latency` | Histogram | Provider response times |
+|:-------|:----:|:------------|
+| `nexnum_http_requests_total` | 📊 Counter | Total HTTP requests by endpoint |
+| `nexnum_provider_requests_total` | 📊 Counter | Provider API calls by provider |
+| `nexnum_wallet_transactions_total` | 📊 Counter | Wallet operations by type |
+| `nexnum_active_numbers` | 📈 Gauge | Currently active rentals |
+| `nexnum_provider_latency` | 📉 Histogram | Provider response times (P50/P95/P99) |
 
-### Health Endpoints
+</div>
 
+---
+
+### 🏥 Health Endpoints
+
+```bash
+GET /api/health          # ✅ Basic health check (for load balancers)
+GET /api/health/ready    # ✅ Readiness probe (DB + Redis connected)
+GET /api/health/detailed # 📊 Full system status (admin only)
+GET /api/metrics         # 📈 Prometheus metrics endpoint
 ```
-GET /api/health          → Basic health check
-GET /api/health/detailed → Full system status
-GET /api/metrics         → Prometheus metrics
-```
+
+---
+
+### 🔔 Alerting (CloudWatch)
+
+| Alert | Trigger | Action |
+|:------|:--------|:-------|
+| 🔴 **High Error Rate** | >1% errors in 5min | SNS notification |
+| 🟠 **High Latency** | P99 >5s for 3 periods | Scale up / investigate |
+| 🟡 **Low Balance** | Provider balance <$10 | Email admin |
 
 ---
 
@@ -571,11 +619,11 @@ NexNum is optimized for **AWS Amplify** - the recommended deployment platform fo
 ├─────────────────────────────────────────────────────────┤
 │  ☁️  AWS Amplify    → Next.js hosting           (FREE) │
 │  🗃️  Supabase       → PostgreSQL database       (FREE) │
-│  ⚡  Upstash        → Redis cache               (FREE) │
+│  ⚡  Redis          → Cache (Docker)            (FREE) │
 │  📧  Resend         → Transactional emails      (FREE) │
-│  🔍  MeiliSearch    → Search (Cloud or Docker)  (FREE) │
+│  🔍  MeiliSearch    → Search (Docker)           (FREE) │
 ├─────────────────────────────────────────────────────────┤
-│  💰 TOTAL: $0/month for 12+ months                      │
+│  💰 TOTAL: $0/month                                     │
 └─────────────────────────────────────────────────────────┘
 ```
 

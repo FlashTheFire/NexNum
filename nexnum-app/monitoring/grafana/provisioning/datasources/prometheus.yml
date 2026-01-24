@@ -1,0 +1,29 @@
+# Grafana Datasources Provisioning
+# Automatically configures Prometheus as a datasource
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: "15s"
+      httpMethod: POST
+
+  # Optional: Loki for logs
+  # - name: Loki
+  #   type: loki
+  #   access: proxy
+  #   url: http://loki:3100
+  #   editable: false
+
+  # Optional: Jaeger for traces
+  # - name: Jaeger
+  #   type: jaeger
+  #   access: proxy
+  #   url: http://jaeger:16686
+  #   editable: false

@@ -1,0 +1,175 @@
+# NexNum Alert Rules
+#
+# Pragmatic alerting rules for monitoring system health.
+# Each alert includes runbook links and clear remediation hints.
+
+groups:
+  - name: nexnum-availability
+    rules:
+      # High Error Rate
+      - alert: HighErrorRate
+        expr: |
+          (
+            rate(nexnum_http_requests_total{status_code=~"5.."}[5m])
+            / rate(nexnum_http_requests_total[5m])
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Error rate above 5% for {{ $labels.route }}"
+          description: "The error rate has exceeded 5% for 5 minutes. Current: {{ $value | humanizePercentage }}"
+          runbook_url: "https://docs.nexnum.com/runbooks/high-error-rate"
+          remediation: "Check application logs, verify database connectivity, review recent deployments"
+
+      # High Provider Latency (P99)
+      - alert: HighProviderLatency
+        expr: |
+          histogram_quantile(0.99, 
+            rate(nexnum_provider_latency_seconds_bucket[5m])
+          ) > 2
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Provider {{ $labels.provider_id }} p99 latency above 2s"
+          description: "Provider API calls are experiencing high latency. P99: {{ $value | humanizeDuration }}"
+          runbook_url: "https://docs.nexnum.com/runbooks/provider-latency"
+          remediation: "Check provider status page, verify network connectivity, consider circuit breaker"
+
+      # Provider Down
+      - alert: ProviderDown
+        expr: |
+          (rate(nexnum_provider_requests_total{status_code=~"5.."}[5m]) 
+           / rate(nexnum_provider_requests_total[5m])) > 0.9
+        for: 3m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Provider {{ $labels.provider_id }} appears to be down"
+          description: "Provider is returning 90%+ errors"
+          runbook_url: "https://docs.nexnum.com/runbooks/provider-down"
+          remediation: "Pause provider in admin panel, check provider status"
+
+  - name: nexnum-wallet
+    rules:
+      # Wallet Transaction Failures
+      - alert: WalletTransactionFailures
+        expr: rate(nexnum_wallet_transactions_total{status="failed"}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+          team: payments
+        annotations:
+          summary: "High rate of wallet transaction failures"
+          description: "Wallet transactions are failing at {{ $value }} per second"
+          runbook_url: "https://docs.nexnum.com/runbooks/wallet-failures"
+          remediation: "Check database locks, verify wallet service, review transaction logs"
+
+      # Low Provider Balance
+      - alert: LowProviderBalance
+        expr: nexnum_provider_balance < 10
+        for: 30m
+        labels:
+          severity: warning
+          team: operations
+        annotations:
+          summary: "Provider {{ $labels.provider_id }} balance is low"
+          description: "Provider balance is below threshold: {{ $value }}"
+          runbook_url: "https://docs.nexnum.com/runbooks/low-balance"
+          remediation: "Top up provider balance to ensure service continuity"
+
+  - name: nexnum-workers
+    rules:
+      # Worker Queue Backlog
+      - alert: WorkerQueueBacklog
+        expr: nexnum_worker_queue_depth{state="pending"} > 1000
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Worker queue backlog exceeds 1000 jobs"
+          description: "Queue {{ $labels.queue }} has {{ $value }} pending jobs"
+          runbook_url: "https://docs.nexnum.com/runbooks/queue-backlog"
+          remediation: "Scale workers, check for stuck jobs, verify worker health"
+
+      # High Failed Job Count
+      - alert: HighFailedJobCount
+        expr: nexnum_worker_queue_depth{state="failed"} > 100
+        for: 15m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Over 100 failed background jobs"
+          description: "{{ $value }} jobs have failed in queue {{ $labels.queue }}"
+          runbook_url: "https://docs.nexnum.com/runbooks/failed-jobs"
+          remediation: "Review failed job logs, use retry endpoint in admin panel"
+
+  - name: nexnum-infrastructure
+    rules:
+      # Database Connection Pool Exhaustion
+      - alert: DBConnectionExhaustion
+        expr: |
+          (nexnum_db_connections{state="active"} 
+           / nexnum_db_connections{state="max"}) > 0.9
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Database connection pool nearly exhausted"
+          description: "Active connections: {{ $value | humanizePercentage }} of pool"
+          runbook_url: "https://docs.nexnum.com/runbooks/db-connections"
+          remediation: "Check for connection leaks, consider scaling database"
+
+      # High Memory Usage
+      - alert: HighMemoryUsage
+        expr: nexnum_system_memory_usage{type="used"} / nexnum_system_memory_usage{type="total"} > 0.9
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is at {{ $value | humanizePercentage }}"
+          runbook_url: "https://docs.nexnum.com/runbooks/high-memory"
+          remediation: "Check for memory leaks, consider scaling"
+
+      # Service Down (No Metrics)
+      - alert: ServiceDown
+        expr: up{job="nexnum-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+          page: "true"
+        annotations:
+          summary: "NexNum API is not responding"
+          description: "Prometheus cannot scrape metrics from the API"
+          runbook_url: "https://docs.nexnum.com/runbooks/service-down"
+          remediation: "Check service logs, verify container health, check load balancer"
+
+# Recording Rules for pre-computed aggregations
+  - name: nexnum-recording
+    rules:
+      # Pre-compute RPS
+      - record: nexnum:http_requests_per_second:rate5m
+        expr: sum(rate(nexnum_http_requests_total[5m]))
+
+      # Pre-compute error rate
+      - record: nexnum:http_error_rate:rate5m
+        expr: |
+          sum(rate(nexnum_http_requests_total{status_code=~"5.."}[5m]))
+          / sum(rate(nexnum_http_requests_total[5m]))
+
+      # Pre-compute provider latency percentiles
+      - record: nexnum:provider_latency_p50:rate5m
+        expr: histogram_quantile(0.50, sum(rate(nexnum_provider_latency_seconds_bucket[5m])) by (le, provider_id))
+
+      - record: nexnum:provider_latency_p99:rate5m
+        expr: histogram_quantile(0.99, sum(rate(nexnum_provider_latency_seconds_bucket[5m])) by (le, provider_id))
