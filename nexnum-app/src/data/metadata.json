@@ -1,16 +1,18 @@
 {
     "serviceOverrides": {
-        "twitter": {
+        "twitter-x": {
             "displayName": "Twitter / X",
             "slugAliases": [
                 "x",
-                "twitter"
+                "twitter",
+                "tw"
             ]
         },
-        "instagram": {
+        "instagram-threads": {
             "displayName": "Instagram + Threads",
             "slugAliases": [
-                "ig"
+                "ig",
+                "instagram"
             ]
         },
         "any-other": {

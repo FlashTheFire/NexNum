@@ -5,6 +5,7 @@ import { ChevronDown, Copy, Check } from "lucide-react";
 import { ServiceIcon } from "../../buy/components/ServiceIcon";
 import { useState, memo } from "react";
 import { toast } from "sonner";
+import { SafeImage } from "@/components/ui/safe-image";
 
 // Country Code Map
 
@@ -52,14 +53,12 @@ export const ExpiredCard = memo(({ number }: ExpiredCardProps) => {
                             <ServiceIcon id={serviceId} className="w-4 h-4 text-gray-500" />
                         </div>
                         <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-[#111318] overflow-hidden">
-                            <img
-                                src={number.countryIconUrl || `/flags/un.svg`}
+                            <SafeImage
+                                src={number.countryIconUrl}
+                                fallbackSrc="/flags/un.svg"
                                 alt={number.countryName}
                                 className="w-full h-full object-cover"
                                 loading="lazy"
-                                onError={(e) => {
-                                    e.currentTarget.src = '/flags/un.svg'
-                                }}
                             />
                         </div>
                     </div>

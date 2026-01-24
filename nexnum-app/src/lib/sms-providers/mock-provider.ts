@@ -1,6 +1,10 @@
 import { logger } from '@/lib/core/logger'
 import { MOCK_COUNTRIES, MOCK_SERVICES, COUNTRY_PHONE_CODES } from './mock-data'
 
+// Production guard - prevent accidental use in production
+if (process.env.NODE_ENV === 'production' && process.env.ENABLE_MOCK_PROVIDER !== 'true') {
+    throw new Error('MockSmsProvider is disabled in production. Set ENABLE_MOCK_PROVIDER=true to override.')
+}
 export interface MockActivation {
     id: string
     phoneNumber: string
@@ -23,20 +27,58 @@ const globalForMock = globalThis as unknown as {
     mockSmsProvider: MockSmsProvider | undefined
 }
 
+export interface MockRequestLog {
+    id: string
+    timestamp: Date
+    action: string
+    params: Record<string, string>
+    response: string
+    duration: number
+}
+
 export class MockSmsProvider {
     private orders: Map<string, MockActivation> = new Map()
     private balance: number = 1000.00
     private isSimulatorRunning = false
+    private requestLogs: MockRequestLog[] = []
+    private maxLogs = 100
 
     private constructor() {
         this.startSimulator()
     }
 
     static getInstance(): MockSmsProvider {
+        // Force recreate if singleton is stale (missing new methods)
+        if (globalForMock.mockSmsProvider && (
+            typeof globalForMock.mockSmsProvider.logRequest !== 'function' ||
+            typeof globalForMock.mockSmsProvider.getAllOrders !== 'function'
+        )) {
+            globalForMock.mockSmsProvider = undefined
+        }
         if (!globalForMock.mockSmsProvider) {
             globalForMock.mockSmsProvider = new MockSmsProvider()
         }
         return globalForMock.mockSmsProvider
+    }
+
+    // Log a request
+    logRequest(action: string, params: Record<string, string>, response: string, duration: number) {
+        this.requestLogs.unshift({
+            id: Math.random().toString(36).substring(2, 10),
+            timestamp: new Date(),
+            action,
+            params,
+            response,
+            duration
+        })
+        // Keep only the last N logs
+        if (this.requestLogs.length > this.maxLogs) {
+            this.requestLogs.pop()
+        }
+    }
+
+    getRequestLogs(): MockRequestLog[] {
+        return this.requestLogs
     }
 
     // ============================================================================
@@ -77,10 +119,8 @@ export class MockSmsProvider {
             smsMessages: [],
             createdAt: new Date(),
             updatedAt: new Date(),
-            canGetAnotherSms: true,
-
-            // Schedule first SMS in 10-30 seconds
-            nextSmsAt: Date.now() + (Math.random() * 20000 + 10000)
+            canGetAnotherSms: true
+            // NO auto-scheduled SMS - use admin panel to manually trigger
         }
 
         this.orders.set(id, activation)
@@ -205,30 +245,37 @@ export class MockSmsProvider {
     }
 
     // ============================================================================
-    // Internal Simulator
+    // Internal Timer (Cleanup Only - SMS is MANUAL via admin panel)
     // ============================================================================
 
     private startSimulator() {
         if (this.isSimulatorRunning) return
         this.isSimulatorRunning = true
 
+        // Only runs cleanup - NO automatic SMS generation
         setInterval(() => {
             const now = Date.now()
 
             this.orders.forEach(order => {
-                // 1. Check for SMS arrival
-                if (order.nextSmsAt && now >= order.nextSmsAt) {
-                    this.simulateSmsArrival(order)
-                    order.nextSmsAt = undefined // Clear schedule
-                }
-
-                // 2. Auto-expiry (cleanup old orders > 1 hour)
+                // Auto-expiry (cleanup old orders > 1 hour)
                 if (now - order.createdAt.getTime() > 3600000) {
                     this.orders.delete(order.id)
                 }
             })
 
-        }, 1000) // Check every second
+        }, 10000) // Check every 10 seconds (just for cleanup)
+    }
+
+    getAllOrders(): MockActivation[] {
+        return Array.from(this.orders.values()).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    }
+
+    forceSms(id: string) {
+        const order = this.orders.get(id)
+        if (order) {
+            this.simulateSmsArrival(order)
+            order.nextSmsAt = undefined
+        }
     }
 
     private simulateSmsArrival(order: MockActivation) {

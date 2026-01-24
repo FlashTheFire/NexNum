@@ -5,6 +5,7 @@ import { motion, useInView, AnimatePresence, animate } from "framer-motion"
 import { useTranslations, useLocale } from "next-intl"
 import Link from "next/link"
 import useSWR from "swr"
+import { SafeImage } from "@/components/ui/safe-image"
 
 // Types for API response
 interface CountryNode {
@@ -49,12 +50,13 @@ function DotMatrixMap() {
                     backgroundSize: "20px 20px"
                 }}
             />
-            <img
+            <SafeImage
                 src="/images/world-map-dotmatrix.png"
+                fallbackSrc="" // No fallback, just hide
                 alt="World Map"
                 className="relative w-full h-full object-cover opacity-70"
                 style={{ filter: "brightness(1.1) contrast(1.05)" }}
-                onError={(e) => e.currentTarget.style.display = 'none'}
+                hideOnError
             />
             <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a0c] via-transparent to-[#0a0a0c] opacity-80 md:opacity-100" />
         </div>
@@ -113,7 +115,7 @@ function CountryNodeComponent({ node, index, onHover, isHovered, hideIfNotSelect
             <div className={`relative w-6 h-6 md:w-8 md:h-8 rounded-full overflow-hidden border-2 transition-all duration-300 ${isHovered
                 ? "border-[hsl(var(--neon-lime))] md:border-purple-400 scale-125 shadow-[0_0_20px_rgba(198,255,0,0.5)] md:shadow-[0_0_20px_rgba(168,85,247,0.5)]"
                 : "border-white/20 shadow-lg"}`}>
-                <img src={flagUrl} alt={node.name} className="w-full h-full object-cover" />
+                <SafeImage src={flagUrl} fallbackSrc="/flags/un.svg" alt={node.name} className="w-full h-full object-cover" />
             </div>
 
             {/* Pulse ring - desktop only */}
@@ -147,7 +149,7 @@ function CountryNodeComponent({ node, index, onHover, isHovered, hideIfNotSelect
                             <div className="flex items-center gap-2 md:gap-3 px-3 py-2 md:px-4 md:py-3 border-b border-white/[0.06] bg-white/[0.02]">
                                 <div className="relative">
                                     <div className="absolute -inset-1 bg-white/10 rounded-full blur-[2px]" />
-                                    <img src={flagUrl} alt={node.name} className="relative w-4 h-4 md:w-5 md:h-5 rounded-full object-cover shadow-sm" />
+                                    <SafeImage src={flagUrl} fallbackSrc="/flags/un.svg" alt={node.name} className="relative w-4 h-4 md:w-5 md:h-5 rounded-full object-cover shadow-sm" />
                                 </div>
                                 <span className="text-white font-semibold text-xs md:text-sm tracking-wide truncate flex-1">{node.name}</span>
 
@@ -316,7 +318,7 @@ function CountryWheel({ countries, selectedCode, onSelect }: {
                         >
                             {/* Flag */}
                             <div className={`relative w-6 h-6 rounded-full overflow-hidden border mr-3 transition-all duration-500 ease-out ${isSelected ? 'border-[hsl(var(--neon-lime))] shadow-[0_0_10px_hsl(var(--neon-lime)/0.5)]' : 'border-white/10 grayscale'}`}>
-                                <img src={country.flagUrl} alt={country.name} className="w-full h-full object-cover" />
+                                <SafeImage src={country.flagUrl} fallbackSrc="/flags/un.svg" alt={country.name} className="w-full h-full object-cover" />
                             </div>
 
                             {/* Name & Stock */}

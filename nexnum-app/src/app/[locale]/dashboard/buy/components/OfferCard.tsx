@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { ArrowRight, Signal, Server } from "lucide-react";
 import { formatPrice } from "@/lib/utils/utils";
+import { SafeImage } from "@/components/ui/safe-image";
 
 export interface SearchOffer {
     id: string;
@@ -44,11 +45,12 @@ export const OfferCard = ({ offer, onBuy, disabled }: OfferCardProps) => {
                 {/* Details */}
                 <div>
                     <div className="flex items-center gap-2">
-                        <img
+                        <SafeImage
                             src={`https://flagcdn.com/w20/${offer.countryCode.toLowerCase()}.png`}
+                            fallbackSrc="/flags/un.svg"
                             alt={offer.countryName}
                             className="w-5 h-[15px] object-cover rounded-[2px] opacity-80"
-                            onError={(e) => e.currentTarget.style.display = 'none'}
+                            hideOnError
                         />
                         <span className="font-bold text-white text-base">{offer.serviceName}</span>
                     </div>

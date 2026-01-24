@@ -41,70 +41,72 @@ export const BANNED_HASHES = new Set([
     'be311539f1b49d644e5a70c1f0023c05a7eebabd282287305e8ca49587087702' // 5sim Bad Bear
 ]);
 
-// Helper: Download image to local path
+// Helper: Download image to local path with strict single-file enforcement
 async function downloadImageToLocal(url: string, destPath: string): Promise<boolean> {
-    const fileName = path.basename(destPath).toLowerCase();
+    const dir = path.dirname(destPath);
+    const baseName = path.parse(destPath).name; // e.g., "instagram"
 
     return new Promise((resolve) => {
         try {
-            https.get(url, { timeout: 5000, headers: { 'User-Agent': 'NexNum-Bot/1.0' } }, (res) => {
+            https.get(url, { timeout: 10000, headers: { 'User-Agent': 'NexNum-Bot/1.0' } }, (res) => {
                 const contentType = res.headers['content-type']
 
-                // Content Type Handling
                 if (res.statusCode === 200 && contentType) {
-                    let finalPath = destPath
+                    const chunks: Buffer[] = [];
+                    res.on('data', (chunk) => chunks.push(chunk));
+                    res.on('end', () => {
+                        const buffer = Buffer.concat(chunks);
 
-                    // If server returns SVG, force .svg extension
-                    if (contentType.includes('image/svg+xml')) {
-                        if (finalPath.endsWith('.webp')) {
-                            finalPath = finalPath.replace(/\.webp$/, '.svg')
+                        // 1. Determine Extension based on Content-Type
+                        let ext = '.webp'; // Default
+                        if (contentType.includes('svg')) ext = '.svg';
+                        else if (contentType.includes('png')) ext = '.png';
+                        else if (contentType.includes('jpeg') || contentType.includes('jpg')) ext = '.jpg';
+
+                        const finalPath = path.join(dir, `${baseName}${ext}`);
+
+                        // 2. Hash Check (Banned Hashes)
+                        const hash = crypto.createHash('sha256').update(buffer).digest('hex');
+                        if (BANNED_HASHES.has(hash)) {
+                            console.log(`[ICON_BANNED] Hash match for ${baseName} (${hash}). Ignoring.`);
+                            resolve(false);
+                            return;
                         }
-                    }
 
-                    // General Validation
-                    if (contentType.includes('image') || contentType.includes('application/octet-stream')) {
-                        const chunks: Buffer[] = [];
-                        res.on('data', (chunk) => chunks.push(chunk));
-                        res.on('end', () => {
-                            const buffer = Buffer.concat(chunks);
+                        // 3. STRICT CLEANUP: Remove ANY other extensions for this basename
+                        // This ensures "ONE HIGH QUALITY IMAGE" rule
+                        try {
+                            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
-                            // 1. CALCULATE HASH
-                            const hash = crypto.createHash('sha256').update(buffer).digest('hex');
-
-                            // 2. HASH CHECK - Ban known bad hashes
-                            if (BANNED_HASHES.has(hash)) {
-                                console.log(`[ICON_BANNED] Hash match for ${fileName} (${hash}). Deleting and ignoring.`);
-                                resolve(false);
-                                return;
-                            }
-
-                            // 3. Write File
-                            try {
-                                const dir = path.dirname(finalPath);
-                                if (!fs.existsSync(dir)) {
-                                    fs.mkdirSync(dir, { recursive: true });
+                            const existingFiles = fs.readdirSync(dir);
+                            for (const file of existingFiles) {
+                                const fileBase = path.parse(file).name;
+                                const fileExt = path.parse(file).ext.toLowerCase();
+                                // Match specific basename exactly (avoid accidental prefix matching)
+                                if (fileBase === baseName && ['.svg', '.webp', '.png', '.jpg', '.jpeg'].includes(fileExt)) {
+                                    if (file !== `${baseName}${ext}`) {
+                                        fs.unlinkSync(path.join(dir, file));
+                                        console.log(`[ICON_CLEAN] Removed inferior/duplicate format: ${file}`);
+                                    }
                                 }
-                                fs.writeFileSync(finalPath, buffer);
-                                resolve(true);
-                            } catch (writeErr) {
-                                console.warn(`[ICON_SYNC] Failed to write file ${path.basename(finalPath)}:`, writeErr);
-                                resolve(false);
                             }
-                        });
-                        return;
-                    }
-                }
 
-                // Fallback / Error
+                            fs.writeFileSync(finalPath, buffer);
+                            resolve(true);
+                        } catch (writeErr) {
+                            console.warn(`[ICON_SYNC] Failed to write ${baseName}:`, writeErr);
+                            resolve(false);
+                        }
+                    });
+                    return;
+                }
                 res.resume();
-                resolve(false)
-            }).on('error', () => {
-                resolve(false)
-            })
+                resolve(false);
+            }).on('error', () => resolve(false));
         } catch (e) {
-            resolve(false)
+            resolve(false);
         }
-    })
+    });
 }
 
 // ============================================
@@ -121,44 +123,71 @@ export async function verifyAssetIntegrity(): Promise<{ removed: number, scanned
     const files = fs.readdirSync(ICONS_DIR);
     console.log(`[ASSETS] Scanning ${files.length} assets for integrity...`);
 
+    // Dedup Logic: Group by basename
+    const groups = new Map<string, string[]>();
     for (const file of files) {
-        scanned++;
-        const filePath = path.join(ICONS_DIR, file);
+        const base = path.parse(file).name;
+        if (!groups.has(base)) groups.set(base, []);
+        groups.get(base)!.push(file);
+    }
 
+    for (const [base, variants] of groups.entries()) {
+        scanned += variants.length;
+
+        // If multiple formats exist for same service, keep BEST quality
+        // Order: SVG > WEBP > PNG > JPG
+        if (variants.length > 1) {
+            variants.sort((a, b) => {
+                const extA = path.extname(a).toLowerCase();
+                const extB = path.extname(b).toLowerCase();
+                const score = (e: string) => {
+                    if (e === '.svg') return 4;
+                    if (e === '.webp') return 3;
+                    if (e === '.png') return 2;
+                    return 1;
+                };
+                return score(extB) - score(extA); // Descending score
+            });
+
+            // Keep index 0, delete others
+            const [keep, ...trash] = variants;
+            for (const file of trash) {
+                console.log(`[ASSET_DEDUP] Removing duplicate lower quality: ${file} (Keeping ${keep})`);
+                fs.unlinkSync(path.join(ICONS_DIR, file));
+                removed++;
+            }
+        }
+    }
+
+    // Checking individual file integrity
+    const remainingFiles = fs.readdirSync(ICONS_DIR); // Re-read
+    for (const file of remainingFiles) {
+        const filePath = path.join(ICONS_DIR, file);
         try {
             const stats = fs.statSync(filePath);
-
-            // 1. Check for 0-byte files
             if (stats.size === 0) {
                 fs.unlinkSync(filePath);
                 removed++;
                 continue;
             }
 
-            // 2. Check content (Magic Bytes & Hash)
-            // Optimization: Read first few bytes for magic check, full read only if needed or suspicious size
+            // Hash check...
             const buffer = fs.readFileSync(filePath);
-
             // HTML masquerading as Image check
             const head = buffer.slice(0, 10).toString('utf-8').trim();
             if (head.startsWith('<html') || head.startsWith('<!DOCT')) {
-                console.log(`[ASSET_CLEAN] Deleting HTML masquerade: ${file}`);
                 fs.unlinkSync(filePath);
                 removed++;
                 continue;
             }
 
-            // Hash Check
             const hash = crypto.createHash('sha256').update(buffer).digest('hex');
             if (BANNED_HASHES.has(hash)) {
-                console.log(`[ASSET_CLEAN] Deleting banned hash: ${file}`);
                 fs.unlinkSync(filePath);
                 removed++;
             }
 
-        } catch (e) {
-            console.warn(`[ASSETS] Error checking ${file}:`, e);
-        }
+        } catch (e) { }
     }
 
     return { removed, scanned };
@@ -243,10 +272,20 @@ async function upsertServiceLookup(code: string, name: string, iconUrl?: string 
 
         const validIconUrl = isValidImageUrl(iconUrl) ? iconUrl : null
 
-        // Prioritize local icon path if it exists
-        const localPath = `/icons/services/${canonicalCode}.webp`
-        const fullPath = path.join(process.cwd(), 'public', localPath)
-        const finalIconUrl = fs.existsSync(fullPath) ? localPath : (validIconUrl || undefined)
+        // Prioritize local icon path if it exists (Check all formats)
+        const iconsDir = path.join(process.cwd(), 'public/icons/services')
+        let finalLocalPath: string | null = null
+
+        if (fs.existsSync(iconsDir)) {
+            for (const ext of ['.svg', '.webp', '.png', '.jpg', '.jpeg']) {
+                if (fs.existsSync(path.join(iconsDir, `${canonicalCode}${ext}`))) {
+                    finalLocalPath = `/icons/services/${canonicalCode}${ext}`
+                    break
+                }
+            }
+        }
+
+        const finalIconUrl = finalLocalPath || (validIconUrl || undefined)
 
         await prisma.serviceLookup.upsert({
             where: { code: canonicalCode },
@@ -517,19 +556,36 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                 }
 
                 // Canonical Key Check for local path
+                // Canonical Key Check for local path
                 const canonKey = getCanonicalKey(serviceCode) || getCanonicalKey(s.name || '') || getSlugFromName(canonicalName)
-                const localPath = `/icons/services/${canonKey}.webp`
+
+                // INTELLIGENT PATH RESOLUTION: Check for any supported extension
+                let finalExt = '.webp';
+                let foundLocal = false;
+                const iconsDir = path.join(process.cwd(), 'public/icons/services');
+
+                if (fs.existsSync(iconsDir)) {
+                    for (const ext of ['.svg', '.webp', '.png', '.jpg', '.jpeg']) {
+                        if (fs.existsSync(path.join(iconsDir, `${canonKey}${ext}`))) {
+                            finalExt = ext;
+                            foundLocal = true;
+                            break;
+                        }
+                    }
+                }
+
+                const localPath = `/icons/services/${canonKey}${finalExt}`
                 const fullPath = path.join(process.cwd(), 'public', localPath)
 
                 // AGGRESSIVE DOWNLOAD: If missing locally but we have a URL, fetch it now!
-                if (!fs.existsSync(fullPath) && validIconUrl) {
+                if (!foundLocal && validIconUrl) {
                     // Fire and forget download to restore missing icons
                     downloadImageToLocal(validIconUrl, fullPath).catch(err =>
                         console.warn(`[ICON_SYNC] Failed to download ${canonKey}:`, err)
                     )
                 }
 
-                const finalIconUrl = fs.existsSync(fullPath) ? localPath : (validIconUrl || null)
+                const finalIconUrl = foundLocal ? localPath : (validIconUrl || null)
 
                 const existing = serviceDiffMap.get(serviceCode)
 
@@ -741,11 +797,26 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                             iconUrl: (() => {
                                 // 1. Determine local path first
                                 const canonKey = getCanonicalKey(p.service) || getCanonicalKey(svcName) || getSlugFromName(canonicalSvcName) || p.service.toLowerCase()
-                                const localPath = `/icons/services/${canonKey}.webp`
+
+                                const iconsDir = path.join(process.cwd(), 'public/icons/services')
+                                let finalExt = '.webp'
+                                let foundLocal = false
+
+                                if (fs.existsSync(iconsDir)) {
+                                    for (const ext of ['.svg', '.webp', '.png', '.jpg', '.jpeg']) {
+                                        if (fs.existsSync(path.join(iconsDir, `${canonKey}${ext}`))) {
+                                            finalExt = ext
+                                            foundLocal = true
+                                            break
+                                        }
+                                    }
+                                }
+
+                                const localPath = `/icons/services/${canonKey}${finalExt}`
                                 const fullPath = path.join(process.cwd(), 'public', localPath)
 
                                 // Check existence synchronously
-                                if (fs.existsSync(fullPath)) {
+                                if (foundLocal) {
                                     return localPath
                                 }
 

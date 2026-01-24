@@ -26,11 +26,11 @@ const CONFIG = {
     COUNTRY_CODE_REGEX: /^[a-zA-Z0-9_-]{1,50}$/,
     SERVICE_CODE_REGEX: /^[a-zA-Z0-9_-]{1,50}$/, // Alphanumeric + underscore/dash
     OPERATOR_ID_REGEX: /^[a-zA-Z0-9_-]{1,50}$/,
-    PROVIDER_REGEX: /^[a-zA-Z0-9_-]{1,50}$/,
+    PROVIDER_REGEX: /^[a-zA-Z0-9_\-\s\(\)]{1,50}$/, // Allow spaces and parentheses for display names
     UUID_REGEX: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
 
     // Spend Limits
-    DAILY_SPEND_LIMIT: 100.00,                  // $100/day default
+    DAILY_SPEND_LIMIT: 5000.00,                  // $5000/day for dev testing
     MIN_PURCHASE_AMOUNT: 0.01,
     MAX_PURCHASE_AMOUNT: 50.00,                 // Single purchase max
 

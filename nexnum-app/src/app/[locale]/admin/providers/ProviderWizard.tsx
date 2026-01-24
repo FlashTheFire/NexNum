@@ -16,6 +16,7 @@ import { MappingEditor, EndpointEditor, VariableHelper, safeParse, PROVIDER_TEMP
 import { JsonEditor } from "@/components/ui/json-editor"
 import { InfoTooltip, TT, TTCode } from "@/components/ui/tooltip"
 import { AIConfigAssistant, AIAssistantButton } from "@/components/admin/AIConfigAssistant"
+import { SafeImage } from "@/components/ui/safe-image"
 
 // --- Types ---
 
@@ -387,13 +388,12 @@ export default function ProviderWizard({ onComplete, onCancel }: WizardProps) {
                                                 >
                                                     <div className="flex flex-col items-center gap-2 md:gap-3">
                                                         <div className="w-12 h-12 md:w-16 md:h-16 rounded-xl bg-white/10 backdrop-blur-sm border border-white/10 flex items-center justify-center overflow-hidden shadow-lg">
-                                                            <img
+                                                            <SafeImage
                                                                 src={provider.logo}
+                                                                fallbackSrc="/images/placeholder_provider.png"
                                                                 alt={provider.name}
                                                                 className="w-full h-full object-cover"
-                                                                onError={(e) => {
-                                                                    e.currentTarget.style.display = 'none';
-                                                                }}
+                                                                hideOnError
                                                             />
                                                         </div>
                                                         <div className="text-center">

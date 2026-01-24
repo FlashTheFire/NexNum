@@ -6,45 +6,39 @@ import { logger } from '@/lib/core/logger'
 const mockProvider = MockSmsProvider.getInstance()
 
 export async function GET(req: NextRequest) {
+    const startTime = Date.now()
     const searchParams = req.nextUrl.searchParams
-    const action = searchParams.get('action')
-
-    // Log the request for debugging
-    logger.debug('[MockSMS] API Request', {
-        action,
-        query: Object.fromEntries(searchParams.entries())
-    })
+    const action = searchParams.get('action') || 'unknown'
+    const params = Object.fromEntries(searchParams.entries())
 
     // Simulate network delay (50-200ms) for realism
     await new Promise(resolve => setTimeout(resolve, 50 + Math.random() * 150))
 
+    let responseText = ''
+
     try {
         switch (action) {
             case 'getBalance':
-                return new NextResponse(`ACCESS_BALANCE:${mockProvider.getBalance()}`, {
-                    status: 200,
-                    headers: { 'Content-Type': 'text/plain' }
-                })
+                responseText = `ACCESS_BALANCE:${mockProvider.getBalance()}`
+                break
 
             case 'getNumber': {
                 const service = searchParams.get('service')
                 const country = searchParams.get('country')
 
                 if (!service || !country) {
-                    return new NextResponse('BAD_SERVICE', { status: 200 })
+                    responseText = 'BAD_SERVICE'
+                    break
                 }
 
                 try {
                     const result = await mockProvider.purchaseNumber(country, service)
-                    return new NextResponse(`ACCESS_NUMBER:${result.id}:${result.phoneNumber}`, {
-                        status: 200,
-                        headers: { 'Content-Type': 'text/plain' }
-                    })
+                    responseText = `ACCESS_NUMBER:${result.id}:${result.phoneNumber}`
                 } catch (error: any) {
-                    if (error.message === 'NO_NUMBERS') return new NextResponse('NO_NUMBERS', { status: 200 })
-                    if (error.message === 'BAD_SERVICE') return new NextResponse('BAD_SERVICE', { status: 200 })
-                    throw error
+                    responseText = error.message === 'NO_NUMBERS' ? 'NO_NUMBERS' :
+                        error.message === 'BAD_SERVICE' ? 'BAD_SERVICE' : 'ERROR'
                 }
+                break
             }
 
             case 'getNumberV2': {
@@ -52,80 +46,112 @@ export async function GET(req: NextRequest) {
                 const country = searchParams.get('country')
 
                 if (!service || !country) {
-                    return new NextResponse('BAD_SERVICE', { status: 200 })
+                    responseText = 'BAD_SERVICE'
+                    break
                 }
 
                 try {
                     const result = await mockProvider.purchaseNumber(country, service)
-                    return NextResponse.json({
+                    const data = {
                         activationId: result.id,
                         phoneNumber: result.phoneNumber,
                         activationCost: result.cost,
-                        currency: '840', // USD
+                        currency: '840',
                         countryCode: country,
                         canGetAnotherSms: result.canGetAnotherSms ? '1' : '0',
                         activationTime: result.createdAt.toISOString().replace('T', ' ').split('.')[0],
                         activationOperator: 'mock-telecom'
-                    })
+                    }
+                    mockProvider.logRequest(action, params, JSON.stringify(data), Date.now() - startTime)
+                    return NextResponse.json(data)
                 } catch (error: any) {
-                    if (error.message === 'NO_NUMBERS') return new NextResponse('NO_NUMBERS', { status: 200 })
-                    throw error
+                    responseText = error.message === 'NO_NUMBERS' ? 'NO_NUMBERS' : 'ERROR'
                 }
+                break
             }
 
             case 'getStatus': {
                 const id = searchParams.get('id')
-                if (!id) return new NextResponse('ERROR_NO_ID', { status: 200 })
-
-                const status = mockProvider.getStatus(id)
-                return new NextResponse(status, {
-                    status: 200,
-                    headers: { 'Content-Type': 'text/plain' }
-                })
+                if (!id) {
+                    responseText = 'ERROR_NO_ID'
+                    break
+                }
+                responseText = mockProvider.getStatus(id)
+                break
             }
 
             case 'setStatus': {
                 const id = searchParams.get('id')
                 const status = searchParams.get('status')
 
-                if (!id || !status) return new NextResponse('BAD_DATA', { status: 200 })
+                if (!id || !status) {
+                    responseText = 'BAD_DATA'
+                    break
+                }
 
-                const result = mockProvider.setStatus(id, status)
-                return new NextResponse(result, {
-                    status: 200,
-                    headers: { 'Content-Type': 'text/plain' }
-                })
+                responseText = mockProvider.setStatus(id, status)
+                break
             }
 
             case 'getPrices': {
                 const country = searchParams.get('country')
                 const service = searchParams.get('service')
-
                 const prices = mockProvider.getPrices(country, service)
+                mockProvider.logRequest(action, params, '[JSON]', Date.now() - startTime)
                 return NextResponse.json(prices)
             }
 
             case 'getCountries': {
                 const countries = mockProvider.getCountries()
+                mockProvider.logRequest(action, params, '[JSON]', Date.now() - startTime)
                 return NextResponse.json(countries)
             }
 
             case 'getServicesList': {
                 const services = mockProvider.getServices()
+                mockProvider.logRequest(action, params, '[JSON]', Date.now() - startTime)
+                return NextResponse.json({ status: 'success', services })
+            }
+
+            case 'debug_state': {
+                // Don't log debug calls
+                const orders = mockProvider.getAllOrders()
                 return NextResponse.json({
-                    status: 'success',
-                    services
+                    balance: mockProvider.getBalance(),
+                    orders,
+                    logs: mockProvider.getRequestLogs()
                 })
             }
 
+            case 'force_sms': {
+                const id = searchParams.get('id')
+                if (!id) {
+                    responseText = 'BAD_ID'
+                    break
+                }
+
+                mockProvider.forceSms(id)
+                responseText = 'SUCCESS'
+                break
+            }
+
             default:
-                return new NextResponse('BAD_ACTION', {
-                    status: 200,
-                    headers: { 'Content-Type': 'text/plain' }
-                })
+                responseText = 'BAD_ACTION'
         }
+
+        // Log the request (except debug actions)
+        if (!action.startsWith('debug')) {
+            mockProvider.logRequest(action, params, responseText, Date.now() - startTime)
+        }
+
+        return new NextResponse(responseText, {
+            status: 200,
+            headers: { 'Content-Type': 'text/plain' }
+        })
     } catch (error: any) {
         logger.error('[MockSMS] API Error', { error: error.message })
-        return new NextResponse('ERROR_SQL', { status: 500 }) // Mimic real provider error
+        mockProvider.logRequest(action, params, 'ERROR_SQL', Date.now() - startTime)
+        return new NextResponse('ERROR_SQL', { status: 500 })
     }
 }
+

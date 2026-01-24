@@ -6,6 +6,7 @@ import { ServiceIcon } from "../../buy/components/ServiceIcon";
 import { useState, useEffect, memo } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { SafeImage } from "@/components/ui/safe-image";
 
 // Minimal timer - no heavy re-renders
 function useTimeLeft(expiresAt: string) {
@@ -70,14 +71,12 @@ export const VaultCard = memo(({ number }: VaultCardProps) => {
                             </div>
                             {/* Country Flag Badge */}
                             <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-[#111318] overflow-hidden">
-                                <img
-                                    src={number.countryIconUrl || `/flags/un.svg`}
+                                <SafeImage
+                                    src={number.countryIconUrl}
+                                    fallbackSrc="/flags/un.svg"
                                     alt={number.countryName}
                                     className="w-full h-full object-cover"
                                     loading="lazy"
-                                    onError={(e) => {
-                                        e.currentTarget.src = '/flags/un.svg'
-                                    }}
                                 />
                             </div>
                         </div>

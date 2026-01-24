@@ -18,6 +18,7 @@ import {
 import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils/utils";
 import { useTranslations } from "next-intl";
+import { SafeImage } from "@/components/ui/safe-image";
 
 // Animated Cursor Component for Professional Demo
 const DemoCursor = ({
@@ -1100,17 +1101,15 @@ export default function DemoPage() {
                                             "group-hover:scale-110 group-hover:rotate-2",
                                             isSelected && "ring-2 ring-[hsl(var(--neon-lime))] ring-offset-2 ring-offset-[#0a0a0c]"
                                         )}>
-                                            <img
+                                            <SafeImage
                                                 src={service.iconUrl}
+                                                fallbackSrc={`https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(service.name)}&backgroundColor=0ea5e9,6366f1,8b5cf6,ec4899`}
                                                 alt={service.name}
                                                 className={cn(
                                                     "w-full h-full object-contain filter transition-all",
                                                     "brightness-110 contrast-110",
                                                     !isSelected && "opacity-90 group-hover:opacity-100"
                                                 )}
-                                                onError={(e) => {
-                                                    (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(service.name)}&backgroundColor=0ea5e9,6366f1,8b5cf6,ec4899`;
-                                                }}
                                             />
                                         </div>
                                     </div>

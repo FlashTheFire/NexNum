@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/utils/utils'
 import { getCountryFlagUrlSync } from "@/lib/normalizers/country-flags"
 import { useTranslations } from 'next-intl'
+import { SafeImage } from '@/components/ui/safe-image'
 
 interface SMSNumberCardProps {
     phoneNumber: string
@@ -139,14 +140,13 @@ export const SMSNumberCard = memo(function SMSNumberCard({
                                 </div>
                                 {/* Country Flag Badge */}
                                 <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-[#151518] overflow-hidden shadow-md z-20">
-                                    <img
+                                    <SafeImage
                                         src={flagUrl}
                                         alt={countryName}
                                         className={cn(
                                             "w-full h-full rounded-full object-cover shadow-sm ring-1 ring-white/10",
                                             isExpired && "grayscale"
                                         )}
-                                        onError={(e) => { e.currentTarget.src = '/flags/un.svg' }}
                                     />
                                 </div>
                             </div>
@@ -252,7 +252,7 @@ export const SMSNumberCard = memo(function SMSNumberCard({
                             </div>
 
                             {/* Price Badge */}
-                            {price > 0 && (
+                            {typeof price === 'number' && price > 0 && (
                                 <div className="absolute top-2 right-2 text-[9px] font-mono text-gray-500 bg-white/5 px-1.5 py-0.5 rounded">
                                     ${price.toFixed(2)}
                                 </div>

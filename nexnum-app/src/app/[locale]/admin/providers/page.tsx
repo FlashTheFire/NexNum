@@ -20,6 +20,7 @@ import { EndpointEditor, MappingEditor, safeParse, PROVIDER_TEMPLATES } from "./
 import { ProviderAIHub } from "./ProviderAIHub"
 import { JsonEditor } from "@/components/ui/json-editor"
 import { InfoTooltip, TT, TTCode } from "@/components/ui/tooltip"
+import { SafeImage } from "@/components/ui/safe-image"
 
 // Types
 interface Provider {
@@ -286,7 +287,7 @@ function ProviderCard({ provider, onRefresh, onEdit }: { provider: Provider; onR
                 <div className="flex items-center gap-3">
                     <div className="w-11 h-11 rounded-xl bg-white/5 flex items-center justify-center text-lg overflow-hidden shrink-0 border border-white/5">
                         {provider.logoUrl ? (
-                            <img src={provider.logoUrl} alt={provider.displayName} className="w-full h-full object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} />
+                            <SafeImage src={provider.logoUrl} fallbackSrc="/images/placeholder_provider.png" alt={provider.displayName} className="w-full h-full object-cover" hideOnError />
                         ) : (
                             <SeverIcon name={provider.displayName} />
                         )}
@@ -368,7 +369,7 @@ function ProviderCard({ provider, onRefresh, onEdit }: { provider: Provider; onR
                     <div className="flex items-center gap-3">
                         <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center text-2xl overflow-hidden shrink-0">
                             {provider.logoUrl ? (
-                                <img src={provider.logoUrl} alt={provider.displayName} className="w-full h-full object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} />
+                                <SafeImage src={provider.logoUrl} fallbackSrc="/images/placeholder_provider.png" alt={provider.displayName} className="w-full h-full object-cover" hideOnError />
                             ) : (
                                 <SeverIcon name={provider.displayName} />
                             )}

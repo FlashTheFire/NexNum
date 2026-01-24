@@ -75,6 +75,22 @@ export async function runMasterWorker(): Promise<MasterWorkerResult> {
             errors.push(`Reconcile: ${e.message}`)
         }
 
+        // PRIORITY 4: ASSET INTEGRITY (Hourly)
+        // Check if we should run integrity check (e.g. based on simple modulo of time or random chance)
+        // Since this is a lightweight fs scan, running it every ~100th invocation or every hour is fine.
+        // For simplicity, we'll use a random chance (1 in 60 calls ~ 1 min/call * 60 = 1 hour)
+        if (Math.random() < 0.02) {
+            try {
+                const { verifyAssetIntegrity } = await import('@/lib/providers/provider-sync')
+                const report = await verifyAssetIntegrity()
+                if (report.removed > 0) {
+                    logger.info('Asset Integrity Cleanup', report)
+                }
+            } catch (e: any) {
+                // Non-critical
+            }
+        }
+
     } catch (criticalError: any) {
         logger.error('Worker Loop Critical Failure', { error: criticalError.message })
         errors.push(`Critical: ${criticalError.message}`)
