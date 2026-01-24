@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { withMetrics } from '@/lib/monitoring/http-metrics'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,7 +11,7 @@ export const dynamic = 'force-dynamic'
  * 
  * For comprehensive health checks, use GET /api/health/detailed
  */
-export async function GET() {
+const handler = async () => {
     return NextResponse.json({
         status: 'ok',
         timestamp: new Date().toISOString()
@@ -20,3 +21,5 @@ export async function GET() {
         }
     })
 }
+
+export const GET = withMetrics(handler as any, { route: '/api/health' })

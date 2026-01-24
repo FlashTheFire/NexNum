@@ -1,132 +1,129 @@
-# Alertmanager Configuration
+# =============================================================================
+# ALERTMANAGER CONFIGURATION
+# =============================================================================
+# 
+# Routes alerts from Prometheus to notification channels.
+# 
+# Supported Channels:
+#   - Telegram (via webhook)
+#   - Email (SMTP)
+#   - Slack (webhook)
+#   - PagerDuty
 #
-# Routes alerts to appropriate channels based on severity.
-# Replace placeholder values with actual credentials.
+# =============================================================================
 
 global:
-  # Default config
-  smtp_smarthost: 'smtp.example.com:587'
-  smtp_from: 'alertmanager@nexnum.com'
+  resolve_timeout: 5m
+  # SMTP configuration for email alerts
+  smtp_smarthost: 'smtp.gmail.com:587'
+  smtp_from: 'alerts@nexnum.com'
   smtp_auth_username: '${SMTP_USER}'
-  smtp_auth_password: '${SMTP_PASSWORD}'
-  
-  # Slack webhook (store in environment variable)
-  slack_api_url: '${SLACK_WEBHOOK_URL}'
+  smtp_auth_password: '${SMTP_PASS}'
+  smtp_require_tls: true
 
 # Inhibition rules prevent redundant alerts
 inhibit_rules:
+  # If critical is firing, suppress warnings for same alert
   - source_match:
       severity: 'critical'
     target_match:
       severity: 'warning'
-    equal: ['alertname', 'route', 'provider_id']
+    equal: ['alertname']
+  
+  # If API is down, suppress all other alerts
+  - source_match:
+      alertname: 'APIDown'
+    target_match_re:
+      alertname: '.+'
+    equal: []
 
-# Route configuration
+# Routing tree
 route:
   # Default receiver
-  receiver: 'default-slack'
+  receiver: 'telegram-alerts'
   
   # Group alerts by these labels
-  group_by: ['alertname', 'severity', 'team']
+  group_by: ['alertname', 'severity']
   
-  # How long to wait before sending first notification
+  # Wait before first notification
   group_wait: 30s
   
-  # How long to wait before sending updates
+  # Wait before sending updates
   group_interval: 5m
   
-  # How long to wait before resending
+  # Wait before resending
   repeat_interval: 4h
 
-  # Route tree
+  # Sub-routes for different severities
   routes:
-    # Critical alerts go to PagerDuty immediately
+    # Critical alerts: Page immediately
     - match:
         severity: critical
-        page: "true"
-      receiver: 'pagerduty-critical'
+      receiver: 'telegram-critical'
       group_wait: 10s
       repeat_interval: 1h
+      continue: true  # Also send to email
 
-    # Critical alerts go to dedicated channel
-    - match:
-        severity: critical
-      receiver: 'slack-critical'
-      group_wait: 10s
-      repeat_interval: 2h
-
-    # Warnings go to warning channel
+    # Warning alerts: Normal notification
     - match:
         severity: warning
-      receiver: 'slack-warnings'
+      receiver: 'telegram-alerts'
       group_wait: 1m
-      repeat_interval: 6h
+      repeat_interval: 4h
 
-    # Platform team alerts
+    # Security alerts: Special handling
     - match:
-        team: platform
-      receiver: 'slack-platform'
+        team: security
+      receiver: 'telegram-critical'
+      group_wait: 15s
 
-    # Payment team alerts
-    - match:
-        team: payments
-      receiver: 'slack-payments'
-
-# Receivers
+# =============================================================================
+# RECEIVERS
+# =============================================================================
 receivers:
-  - name: 'default-slack'
-    slack_configs:
-      - channel: '#ops-alerts'
+  # ---------------------------------------------------------------------------
+  # TELEGRAM (via Prometheus Alertmanager Telegram Bot or webhook)
+  # ---------------------------------------------------------------------------
+  # Option 1: Use alertmanager-telegram-bot (recommended)
+  # https://github.com/metalmatze/alertmanager-bot
+  
+  - name: 'telegram-alerts'
+    webhook_configs:
+      - url: 'http://host.docker.internal:3000/api/alerts/telegram'
         send_resolved: true
-        icon_url: 'https://avatars.githubusercontent.com/u/1234567'
-        title: '{{ template "slack.default.title" . }}'
-        text: '{{ template "slack.default.text" . }}'
+        http_config:
+          bearer_token: '${ALERT_WEBHOOK_SECRET}'
 
-  - name: 'slack-critical'
-    slack_configs:
-      - channel: '#ops-critical'
+  - name: 'telegram-critical'
+    webhook_configs:
+      - url: 'http://host.docker.internal:3000/api/alerts/telegram'
         send_resolved: true
-        color: '{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}'
-        title: '🚨 {{ .GroupLabels.alertname }}'
-        text: |
-          *Status:* {{ .Status | toUpper }}
-          *Severity:* {{ .CommonLabels.severity }}
-          *Summary:* {{ .CommonAnnotations.summary }}
-          *Runbook:* {{ .CommonAnnotations.runbook_url }}
-          *Remediation:* {{ .CommonAnnotations.remediation }}
-
-  - name: 'slack-warnings'
-    slack_configs:
-      - channel: '#ops-warnings'
+        http_config:
+          bearer_token: '${ALERT_WEBHOOK_SECRET}'
+    email_configs:
+      - to: '${ALERT_EMAIL}'
         send_resolved: true
-        color: '{{ if eq .Status "firing" }}warning{{ else }}good{{ end }}'
-        title: '⚠️ {{ .GroupLabels.alertname }}'
-        text: |
-          *Status:* {{ .Status | toUpper }}
-          *Summary:* {{ .CommonAnnotations.summary }}
-          *Runbook:* {{ .CommonAnnotations.runbook_url }}
+        headers:
+          Subject: '🚨 [CRITICAL] {{ .GroupLabels.alertname }}'
+        html: |
+          <h2>{{ .Status | toUpper }}</h2>
+          <table>
+          {{ range .Alerts }}
+            <tr>
+              <td><strong>{{ .Labels.alertname }}</strong></td>
+              <td>{{ .Annotations.summary }}</td>
+            </tr>
+          {{ end }}
+          </table>
 
-  - name: 'slack-platform'
-    slack_configs:
-      - channel: '#platform-alerts'
-        send_resolved: true
+  # ---------------------------------------------------------------------------
+  # FALLBACK: Console logging only
+  # ---------------------------------------------------------------------------
+  - name: 'default-log'
+    # No configuration = alerts logged to Alertmanager stdout
 
-  - name: 'slack-payments'
-    slack_configs:
-      - channel: '#payments-alerts'
-        send_resolved: true
-
-  - name: 'pagerduty-critical'
-    pagerduty_configs:
-      - service_key: '${PAGERDUTY_SERVICE_KEY}'
-        send_resolved: true
-        severity: critical
-        description: '{{ .CommonAnnotations.summary }}'
-        details:
-          firing: '{{ template "pagerduty.default.instances" .Alerts.Firing }}'
-          resolved: '{{ template "pagerduty.default.instances" .Alerts.Resolved }}'
-          runbook: '{{ .CommonAnnotations.runbook_url }}'
-
-# Templates
+# =============================================================================
+# TEMPLATES (optional)
+# =============================================================================
 templates:
   - '/etc/alertmanager/templates/*.tmpl'

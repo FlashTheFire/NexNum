@@ -11,6 +11,7 @@ import { createOutboxEvent } from '@/lib/activation/outbox'
 import { getOfferForPurchase } from '@/lib/search/search'
 import { WalletService } from '@/lib/wallet/wallet'
 import { logger } from '@/lib/core/logger'
+import { notify } from '@/lib/notifications'
 import {
     validatePurchaseInput,
     checkUserEligibility,
@@ -237,7 +238,10 @@ export const POST = apiHandler(async (request, { body }) => {
             providerResult = await smsProvider.getNumber(
                 offer.countryCode,
                 offer.serviceSlug,
-                { provider: providerName }
+                {
+                    provider: providerName,
+                    expectedPrice: freshPrice // Enforce user's selected price
+                }
             )
             const dur = (Date.now() - startProvider) / 1000
             purchase_duration_seconds.labels('provider_call', providerName, countryName).observe(dur)
@@ -404,6 +408,22 @@ export const POST = apiHandler(async (request, { body }) => {
 
         logger.info(`[PURCHASE] Success!`, { numberId: resultNumber.id, correlationId })
         await releaseAtomicPurchaseLock(user.userId, lockToken)
+
+        // Send notification (async, non-blocking)
+        notify.orderUpdate({
+            userId: user.userId,
+            userName: user.name || undefined,
+            orderId: resultNumber.id,
+            appName: serviceName,
+            price: freshPrice,
+            country: countryName,
+            countryCode: offer.countryCode,
+            phoneNumber: resultNumber.phoneNumber,
+            status: 'ACTIVE',
+            validUntil: resultNumber.expiresAt?.toISOString(),
+            isApiOrder: false
+        }).catch(() => { }) // Fire and forget
+
         return NextResponse.json({ success: true, number: resultNumber })
 
     } catch (err: any) {

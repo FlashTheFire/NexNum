@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/core/db'
 import { requireAdmin } from '@/lib/auth/requireAdmin'
 import { logAdminAction, getClientIP } from '@/lib/core/auditLog'
+import { wallet_transactions_total, recordIncident } from '@/lib/metrics'
+import { notify } from '@/lib/notifications'
 
 export async function GET(request: Request) {
     const auth = await requireAdmin(request)
@@ -301,6 +303,26 @@ export async function PATCH(request: Request) {
                     ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
                 }
             })
+
+            // Track metric
+            wallet_transactions_total.labels(
+                walletAdjustment > 0 ? 'admin_credit' : 'admin_debit',
+                'success'
+            ).inc()
+
+            // Send notification for credits (async, non-blocking)
+            if (walletAdjustment > 0) {
+                notify.deposit({
+                    userId,
+                    userName: user.name || undefined,
+                    userEmail: user.email || undefined,
+                    amount: walletAdjustment,
+                    depositId: `ADMIN-${Date.now()}`,
+                    paidFrom: 'Admin',
+                    paymentType: 'Manual Credit',
+                    timestamp: new Date()
+                }).catch(() => { })
+            }
 
             return NextResponse.json({
                 success: true,

@@ -2,7 +2,12 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/core/db'
 import { redis } from '@/lib/core/redis'
 import { meili } from '@/lib/search/search'
-import { registry, system_memory_usage, process_cpu_usage, system_uptime } from '@/lib/metrics'
+import {
+    system_memory_usage,
+    process_cpu_usage,
+    system_uptime,
+    updateDbConnections
+} from '@/lib/metrics'
 import os from 'os'
 
 export const dynamic = 'force-dynamic'
@@ -61,8 +66,29 @@ export async function GET() {
     // Update Prometheus System Metrics
     system_memory_usage.set({ type: 'used' }, health.system.memory.used)
     system_memory_usage.set({ type: 'total' }, health.system.memory.total)
+    system_memory_usage.set({ type: 'heapUsed' }, process.memoryUsage().heapUsed)
+    system_memory_usage.set({ type: 'rss' }, process.memoryUsage().rss)
     process_cpu_usage.set(health.system.cpu.load[0]) // 1 min load avg
     system_uptime.set(health.system.uptime)
+
+    // Update DB connection pool metrics
+    try {
+        const poolStats = await prisma.$queryRaw<{ active: bigint; idle: bigint }[]>`
+            SELECT 
+                COUNT(*) FILTER (WHERE state = 'active') as active,
+                COUNT(*) FILTER (WHERE state = 'idle') as idle
+            FROM pg_stat_activity 
+            WHERE datname = current_database()
+        `
+        const maxConnections = process.env.NODE_ENV === 'development' ? 5 : 10
+        updateDbConnections(
+            Number(poolStats[0]?.active || 0),
+            Number(poolStats[0]?.idle || 0),
+            maxConnections
+        )
+    } catch (e) {
+        // Connection pool metrics unavailable
+    }
 
     return NextResponse.json({
         ok: true,

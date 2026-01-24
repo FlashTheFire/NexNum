@@ -400,3 +400,22 @@ export function updateWorkerQueue(queue: string, pending: number, active: number
 export function recordIncident(severity: 'info' | 'warning' | 'critical', type: string) {
     incidents_total.inc({ severity, type })
 }
+
+/**
+ * Update system metrics (cpu, memory, uptime)
+ */
+export function updateSystemMetrics() {
+    const mem = process.memoryUsage()
+    system_memory_usage.set({ type: 'heapUsed' }, mem.heapUsed)
+    system_memory_usage.set({ type: 'rss' }, mem.rss)
+    system_memory_usage.set({ type: 'heapTotal' }, mem.heapTotal)
+    system_memory_usage.set({ type: 'external' }, mem.external)
+
+    system_uptime.set(process.uptime())
+
+    // CPU usage is a bit complex to calculate as a percentage instantly without storing previous tick
+    // simpler approximation or just relying on default metrics for CPU is often better
+    // But since we have a gauge, let's try a rough estimate if possible, or just skip CPU for now 
+    // and rely on nexnum_process_cpu_seconds_total which comes from defaults
+    // Actually, let's just update memory and uptime for now as those are what appeared in the screenshot
+}

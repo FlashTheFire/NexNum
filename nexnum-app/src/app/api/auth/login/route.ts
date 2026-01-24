@@ -6,6 +6,7 @@ import { loginSchema } from '@/lib/api/validation'
 import bcrypt from 'bcryptjs'
 import { apiHandler } from '@/lib/api/api-handler'
 import { verifyCaptcha } from '@/lib/security/captcha'
+import { auth_events_total } from '@/lib/metrics'
 
 export const POST = apiHandler(async (request, { body }) => {
     // Body is already validated by apiHandler using loginSchema
@@ -45,6 +46,7 @@ export const POST = apiHandler(async (request, { body }) => {
     })
 
     if (!user) {
+        auth_events_total.labels('login', 'failed_user_not_found').inc()
         return NextResponse.json(
             { error: 'Invalid email or password' },
             { status: 401 }
@@ -55,6 +57,7 @@ export const POST = apiHandler(async (request, { body }) => {
     const isValidPassword = await bcrypt.compare(password, user.passwordHash)
 
     if (!isValidPassword) {
+        auth_events_total.labels('login', 'failed_invalid_password').inc()
         return NextResponse.json(
             { error: 'Invalid email or password' },
             { status: 401 }
@@ -113,6 +116,8 @@ export const POST = apiHandler(async (request, { body }) => {
             ipAddress: ip,
         }
     })
+
+    auth_events_total.labels('login', 'success').inc()
 
     return NextResponse.json({
         success: true,

@@ -51,7 +51,9 @@ export class MockSmsProvider {
         // Force recreate if singleton is stale (missing new methods)
         if (globalForMock.mockSmsProvider && (
             typeof globalForMock.mockSmsProvider.logRequest !== 'function' ||
-            typeof globalForMock.mockSmsProvider.getAllOrders !== 'function'
+            typeof globalForMock.mockSmsProvider.getAllOrders !== 'function' ||
+            typeof globalForMock.mockSmsProvider.setStatus !== 'function' ||
+            typeof globalForMock.mockSmsProvider.getActivation !== 'function'
         )) {
             globalForMock.mockSmsProvider = undefined
         }
@@ -87,6 +89,10 @@ export class MockSmsProvider {
 
     getBalance(): string {
         return this.balance.toFixed(2)
+    }
+
+    getActivation(id: string): MockActivation | undefined {
+        return this.orders.get(id)
     }
 
     async purchaseNumber(countryCode: string, serviceCode: string): Promise<MockActivation> {

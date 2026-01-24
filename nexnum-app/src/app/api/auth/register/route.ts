@@ -7,6 +7,7 @@ import bcrypt from 'bcryptjs'
 import { apiHandler } from '@/lib/api/api-handler'
 import { sendVerificationEmail } from '@/lib/auth/email-verification'
 import { verifyCaptcha } from '@/lib/security/captcha'
+import { auth_events_total } from '@/lib/metrics'
 
 export const POST = apiHandler(async (request, { body }) => {
     // Body validation provided by registerSchema
@@ -46,6 +47,7 @@ export const POST = apiHandler(async (request, { body }) => {
     })
 
     if (existingUser) {
+        auth_events_total.labels('register', 'failed_email_exists').inc()
         return NextResponse.json(
             { error: 'Email already registered' },
             { status: 409 }
@@ -106,6 +108,8 @@ export const POST = apiHandler(async (request, { body }) => {
 
     // Set auth cookie
     await setAuthCookie(token)
+
+    auth_events_total.labels('register', 'success').inc()
 
     return NextResponse.json({
         success: true,

@@ -4,12 +4,21 @@ import { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { RefreshCw, Server, Search, MapPin, Smartphone, ChevronDown, ChevronRight, Layers, Eye, EyeOff, Trash2, Edit, MoreHorizontal, X, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { PremiumSkeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 import { formatDistanceToNow } from "date-fns"
 import { InfoTooltip, TTCode } from "@/components/ui/tooltip"
 import { useTranslations } from "next-intl"
+import { InventoryEditModal } from "@/components/admin/InventoryEditModal"
+import { DeleteConfirmDialog } from "@/components/admin/DeleteConfirmDialog"
+import { InventoryStatsHeader } from "@/components/admin/InventoryStatsHeader"
+import { InventoryTable, InventoryItem } from "@/components/admin/InventoryTable"
+import * as UnifiedInventory from "@/lib/admin/unified-inventory"
+import { useInventoryActions } from "@/hooks/admin/useInventoryActions"
+import { useMemo } from "react"
 
 interface ProviderStatus {
     id: string
@@ -104,47 +113,90 @@ export default function InventoryPage() {
     const [actionLoading, setActionLoading] = useState<string | null>(null)
     const [showHidden, setShowHidden] = useState(false)
 
+    // Edit modal state
+    const [editModal, setEditModal] = useState<{
+        isOpen: boolean
+        type: 'country' | 'service'
+        providerId: string
+        providerDisplayName: string
+        externalId: string
+        currentData: { name: string; flagUrl?: string; iconUrl?: string }
+    } | null>(null)
+
+    // Delete dialog state
+    const [deleteDialog, setDeleteDialog] = useState<{
+        isOpen: boolean
+        type: 'country' | 'service'
+        providerId: string
+        externalId: string
+        itemName: string
+    } | null>(null)
+    const [deleteLoading, setDeleteLoading] = useState(false)
+
+    // Open edit modal helper
+    const openEditModal = (type: 'country' | 'service', provider: string, externalId: string, name: string, imageUrl?: string) => {
+        const providerData = providers.find(p => p.slug.toLowerCase() === provider.toLowerCase())
+        setEditModal({
+            isOpen: true,
+            type,
+            providerId: provider,
+            providerDisplayName: providerData?.name || provider,
+            externalId,
+            currentData: {
+                name,
+                ...(type === 'country' ? { flagUrl: imageUrl } : { iconUrl: imageUrl })
+            }
+        })
+    }
+
+    // Open delete dialog helper
+    const openDeleteDialog = (type: 'country' | 'service', provider: string, externalId: string, name: string) => {
+        setDeleteDialog({
+            isOpen: true,
+            type,
+            providerId: provider,
+            externalId,
+            itemName: `${name} (${provider})`
+        })
+    }
+
+    // Handle delete confirmation
+    const handleDeleteConfirm = async (permanent: boolean) => {
+        if (!deleteDialog) return
+        setDeleteLoading(true)
+        try {
+            const endpoint = deleteDialog.type === 'country'
+                ? '/api/admin/inventory/countries'
+                : '/api/admin/inventory/services'
+            const res = await fetch(endpoint, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    providerId: deleteDialog.providerId,
+                    externalId: deleteDialog.externalId,
+                    permanent
+                })
+            })
+            const data = await res.json()
+            if (res.ok && data.success) {
+                toast.success(data.message || 'Deleted successfully')
+                fetchData()
+            } else {
+                toast.error(data.error || 'Delete failed')
+            }
+        } catch {
+            toast.error('Delete failed')
+        } finally {
+            setDeleteLoading(false)
+            setDeleteDialog(null)
+        }
+    }
+
     // Get provider ID from slug
     const getProviderId = (providerSlug: string) => {
         // Find provider by matching slug to provider name
         const provider = providers.find(p => p.slug.toLowerCase() === providerSlug.toLowerCase())
         return provider?.id || providerSlug
-    }
-
-    // Action handlers for hide/unhide/delete
-    const handleAction = async (
-        type: 'countries' | 'services',
-        action: 'hide' | 'unhide' | 'delete',
-        providerId: string,
-        externalId: string,
-        permanent: boolean = true
-    ) => {
-        setActionLoading(`${providerId}_${externalId}`)
-        try {
-            const endpoint = `/api/admin/inventory/${type}`
-            const method = action === 'delete' ? 'DELETE' : 'PATCH'
-            const body = action === 'delete'
-                ? { providerId, externalId, permanent }
-                : { providerId, externalId, action }
-
-            const res = await fetch(endpoint, {
-                method,
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
-            })
-            const data = await res.json()
-
-            if (res.ok && data.success) {
-                toast.success(data.message)
-                fetchData() // Refresh list
-            } else {
-                toast.error(data.error || `${action} failed`)
-            }
-        } catch (error) {
-            toast.error(`Failed to ${action}`)
-        } finally {
-            setActionLoading(null)
-        }
     }
 
     // Bulk action handler
@@ -243,6 +295,9 @@ export default function InventoryPage() {
             if (selectedProvider) {
                 params.set('provider', selectedProvider)
             }
+            if (showHidden) {
+                params.set('includeHidden', 'true')
+            }
             const res = await fetch(`/api/admin/inventory?${params}`)
             const json = await res.json()
             if (json.items) {
@@ -267,7 +322,7 @@ export default function InventoryPage() {
     useEffect(() => {
         const debounce = setTimeout(fetchData, 300)
         return () => clearTimeout(debounce)
-    }, [activeTab, search, page, selectedProvider])
+    }, [activeTab, search, page, selectedProvider, showHidden])
 
     const handleSync = async (providerId: string) => {
         setSyncing(providerId)
@@ -305,6 +360,50 @@ export default function InventoryPage() {
 
     const isAggregated = mode === 'aggregated'
 
+    // Unified Actions Hook
+    const { toggleVisibility, loadingId } = useInventoryActions({ onSuccess: fetchData })
+
+    // Map data to Unified Inventory Items
+    const mappedItems: InventoryItem[] = useMemo(() => {
+        if (!data) return []
+
+        // Helper to get providers list safely
+        const getProviders = (item: any) => {
+            if (item.providers && Array.isArray(item.providers)) return item.providers
+            return [{
+                provider: item.provider,
+                externalId: item.externalId,
+                stock: item.stock || 0,
+                minPrice: item.minPrice || item.priceRange?.min || 0,
+                maxPrice: item.maxPrice || item.priceRange?.max || 0,
+                isActive: item.isActive
+            }]
+        }
+
+        return (data as any[]).map(item => {
+            const providers = getProviders(item)
+            // Use the first provider for identity in aggregated view if needed
+            const primaryProvider = providers[0] || {}
+
+            // Determine type safely
+            const type = activeTab === 'countries' ? 'country' : 'service' as const
+
+            return {
+                id: `${item.provider || item.countryCode || item.canonicalSlug}:${item.externalId || item.countryCode || item.canonicalSlug}`,
+                provider: item.provider || primaryProvider.provider || 'mixed',
+                externalId: item.externalId || primaryProvider.externalId || item.countryCode || item.canonicalSlug || 'unknown',
+                name: item.name || item.displayName || item.canonicalName || 'Unknown',
+                type: type,
+                iconUrl: item.iconUrl || item.flagUrl,
+                stock: item.stock || item.totalStock || 0,
+                priceRange: item.priceRange || { min: 0, max: 0 },
+                isActive: item.isActive !== false,
+                lastSyncedAt: item.lastSyncedAt,
+                providersCount: item.totalProviders || 1
+            } as InventoryItem
+        })
+    }, [data, activeTab])
+
     return (
         <div className="min-h-screen p-4 md:p-8 pb-32 md:pb-8 max-w-7xl mx-auto space-y-8">
             {/* Header */}
@@ -315,6 +414,16 @@ export default function InventoryPage() {
                 </h1>
                 <p className="text-gray-400 mt-2">{t('subtitle')}</p>
             </div>
+
+            {/* Stats Overview */}
+            <InventoryStatsHeader
+                onSyncAll={async () => {
+                    for (const p of providers) {
+                        await handleSync(p.id)
+                    }
+                }}
+                syncing={syncing !== null}
+            />
 
             {/* Providers Grid / Slider */}
             <div className="relative group">
@@ -447,15 +556,18 @@ export default function InventoryPage() {
                         </div>
 
                         {/* Show Hidden Toggle */}
-                        <Button
-                            variant={showHidden ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => setShowHidden(!showHidden)}
-                            className={`h-9 border-white/10 ${showHidden ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' : 'text-gray-400'}`}
-                        >
-                            {showHidden ? <EyeOff size={14} className="mr-1.5" /> : <Eye size={14} className="mr-1.5" />}
-                            {showHidden ? 'Hidden' : 'Visible'}
-                        </Button>
+                        {/* Show Hidden Toggle Switch */}
+                        <div className="flex items-center gap-2 h-9 border border-white/10 rounded-md px-3 bg-white/5 mx-2">
+                            <Switch
+                                id="show-hidden"
+                                checked={showHidden}
+                                onCheckedChange={setShowHidden}
+                                className="data-[state=checked]:bg-orange-500 scale-90"
+                            />
+                            <Label htmlFor="show-hidden" className="text-xs text-gray-400 font-medium cursor-pointer select-none">
+                                {showHidden ? 'Showing Hidden' : 'Show Hidden'}
+                            </Label>
+                        </div>
 
                         {/* Moved Total Count Here */}
                         <span className="text-xs text-gray-500 whitespace-nowrap">{total} {t('table.items')}</span>
@@ -516,642 +628,36 @@ export default function InventoryPage() {
                     )}
                 </AnimatePresence>
 
-                {/* Table */}
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm text-gray-400">
-                        <thead className="bg-white/5 text-gray-300 font-medium">
-                            <tr>
-                                {activeTab === 'countries' ? (
-                                    isAggregated ? (
-                                        <>
-                                            <th colSpan={5} className="p-0 border-0">
-                                                <div className="flex items-center px-6 py-3 text-left">
-                                                    <div className="w-8"></div>
-                                                    <div className="flex-1 font-medium min-w-[200px] pr-8">Name</div>
-                                                    <div className="w-40 font-medium">Providers</div>
-                                                    <div className="w-32 font-medium text-right">Last Synced</div>
-                                                </div>
-                                            </th>
-                                        </>
-                                    ) : (
-                                        <th colSpan={5} className="p-0 border-0">
-                                            <div className="flex items-center px-6 py-3 text-left">
-                                                <div className="flex-1 font-medium">Name</div>
-                                                <div className="w-40 font-medium">Provider</div>
-                                                <div className="w-40 font-medium">External ID</div>
-                                                <div className="w-32 font-medium text-right">Synced</div>
-                                            </div>
-                                        </th>
-                                    )
-                                ) : (
-                                    isAggregated ? (
-                                        <th colSpan={5} className="p-0 border-0">
-                                            <div className="flex items-center px-6 py-3 text-left">
-                                                <div className="w-8"></div>
-                                                <div className="flex-1 font-medium min-w-[200px] pr-8">Service Name</div>
-                                                <div className="w-40 font-medium">Best Price</div>
-                                                <div className="w-40 font-medium">Providers</div>
-                                                <div className="w-64 font-medium text-right px-2">Low Price</div>
-                                            </div>
-                                        </th>
-                                    ) : (
-                                        <th colSpan={5} className="p-0 border-0">
-                                            <div className="flex items-center px-6 py-3 text-left">
-                                                <div className="flex-1 font-medium">Name</div>
-                                                <div className="w-32 font-medium">Code</div>
-                                                <div className="w-40 font-medium">Provider</div>
-                                                <div className="w-32 font-medium text-right">Synced</div>
-                                            </div>
-                                        </th>
-                                    )
-                                )}
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/5">
-                            {loading ? (
-                                [1, 2, 3, 4, 5].map((key) => (
-                                    <tr key={key}>
-                                        <td colSpan={5} className="px-6 py-4">
-                                            <PremiumSkeleton className="h-6 w-full opacity-50" />
-                                        </td>
-                                    </tr>
-                                ))
-                            ) : data.length === 0 ? (
-                                <tr>
-                                    <td colSpan={5} className="px-6 py-12 text-center text-gray-600">
-                                        No data found. Try syncing a provider.
-                                    </td>
-                                </tr>
-                            ) : activeTab === 'countries' && isAggregated ? (
-                                // Aggregated Countries View
-                                (data as AggregatedCountry[]).map((item, index) => {
-                                    const isExpanded = expandedRows.has(item.canonicalName)
-                                    return (
-                                        <motion.tr
-                                            key={`${item.canonicalName}-${item.countryCode || index}`}
-                                            layout
-                                            className="hover:bg-white/[0.02] transition-colors"
-                                        >
-                                            <td colSpan={5} className="p-0">
-                                                {/* Main Row */}
-                                                <div
-                                                    className={`flex items-center px-6 py-3 ${!selectedProvider ? 'cursor-pointer hover:bg-white/[0.03]' : ''}`}
-                                                    onClick={() => !selectedProvider && toggleRow(item.canonicalName)}
-                                                >
-                                                    <div className="w-8">
-                                                        {!selectedProvider && item.providers.length > 1 ? (
-                                                            isExpanded ? (
-                                                                <ChevronDown size={14} className="text-gray-500" />
-                                                            ) : (
-                                                                <ChevronRight size={14} className="text-gray-500" />
-                                                            )
-                                                        ) : null}
-                                                    </div>
-                                                    <div className="flex-1 font-medium text-white min-w-[200px] pr-8">
-                                                        <div className="flex items-center gap-2">
-                                                            {item.flagUrl && <img src={item.flagUrl} alt="" className="w-5 h-3.5 object-cover rounded-sm" />}
-                                                            {item.displayName}
-                                                        </div>
-                                                        {item.serviceCount > 0 && (
-                                                            <span className="ml-7 text-[10px] text-gray-500">
-                                                                {item.serviceCount} services
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <div className="w-28 flex flex-col gap-0.5">
-                                                        {!selectedProvider && (
-                                                            <span className="px-2 py-0.5 rounded bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[10px] font-medium">
-                                                                {item.totalProviders} provider{item.totalProviders > 1 ? 's' : ''}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <div className="w-24 text-right text-xs">
-                                                        <div className="text-emerald-400 font-mono">
-                                                            {item.totalStock > 0 ? item.totalStock.toLocaleString() : '-'}
-                                                        </div>
-                                                        <div className="text-gray-500 text-[10px]">stock</div>
-                                                    </div>
-                                                    <div className="w-28 text-right text-xs">
-                                                        {item.priceRange.min > 0 ? (
-                                                            <div className="text-yellow-400 font-mono">
-                                                                ${item.priceRange.min.toFixed(2)}
-                                                                {!selectedProvider && item.priceRange.max !== item.priceRange.min && (
-                                                                    <span className="text-gray-500"> - ${item.priceRange.max.toFixed(2)}</span>
-                                                                )}
-                                                            </div>
-                                                        ) : (
-                                                            <span className="text-gray-600">-</span>
-                                                        )}
-                                                    </div>
-                                                    <div className="w-28 text-right text-xs text-gray-600">
-                                                        {item.lastSyncedAt && formatDistanceToNow(new Date(item.lastSyncedAt))} ago
-                                                    </div>
-                                                </div>
-
-                                                {/* Expanded Provider Details - Only show if NO provider selected */}
-                                                <AnimatePresence>
-                                                    {!selectedProvider && isExpanded && (
-                                                        <motion.div
-                                                            initial={{ height: 0, opacity: 0 }}
-                                                            animate={{ height: 'auto', opacity: 1 }}
-                                                            exit={{ height: 0, opacity: 0 }}
-                                                            className="bg-black/20 border-t border-white/5 overflow-hidden"
-                                                        >
-                                                            {item.providers.map((p, idx) => (
-                                                                <div
-                                                                    key={`${p.provider}-${p.externalId}`}
-                                                                    className="flex items-center px-6 py-2 border-b border-white/5 last:border-0 group"
-                                                                >
-                                                                    <div className="w-8"></div>
-                                                                    <div className="flex-1 text-gray-300 text-sm pl-4 font-medium uppercase tracking-wider flex items-center gap-2">
-                                                                        {p.provider}
-                                                                        {p.isActive === false && (
-                                                                            <span className="text-[9px] text-orange-400 bg-orange-500/10 px-1 py-0.5 rounded border border-orange-500/20 normal-case tracking-normal">
-                                                                                Hidden
-                                                                            </span>
-                                                                        )}
-                                                                    </div>
-                                                                    <div className="w-24 text-right text-xs">
-                                                                        <div className="text-emerald-400 font-mono">
-                                                                            {p.stock > 0 ? p.stock.toLocaleString() : '-'}
-                                                                        </div>
-                                                                    </div>
-                                                                    <div className="w-28 text-right">
-                                                                        <span className="text-yellow-400 text-sm font-mono">
-                                                                            ${p.minPrice.toFixed(2)}
-                                                                            {p.maxPrice !== p.minPrice && (
-                                                                                <span className="text-gray-500"> - ${p.maxPrice.toFixed(2)}</span>
-                                                                            )}
-                                                                        </span>
-                                                                    </div>
-                                                                    <div className="w-28 text-right text-xs text-gray-600 font-mono">
-                                                                        {p.externalId}
-                                                                    </div>
-
-                                                                    {/* Actions */}
-                                                                    <div className="flex items-center gap-1 ml-2 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                                                                        <Button
-                                                                            variant="ghost"
-                                                                            size="sm"
-                                                                            className="h-6 w-6 p-0 text-blue-400/60 hover:text-blue-400 hover:bg-blue-500/10"
-                                                                            onClick={(e) => {
-                                                                                e.stopPropagation()
-                                                                                toast.info("Edit feature coming soon")
-                                                                            }}
-                                                                        >
-                                                                            <Edit size={12} />
-                                                                        </Button>
-                                                                        <Button
-                                                                            variant="ghost"
-                                                                            size="sm"
-                                                                            className="h-6 w-6 p-0 text-gray-400 hover:text-white"
-                                                                            disabled={actionLoading === `${p.provider}_${p.externalId}`}
-                                                                            onClick={(e) => {
-                                                                                e.stopPropagation()
-                                                                                handleAction(
-                                                                                    'countries',
-                                                                                    p.isActive !== false ? 'hide' : 'unhide',
-                                                                                    p.provider,
-                                                                                    p.externalId
-                                                                                )
-                                                                            }}
-                                                                        >
-                                                                            {actionLoading === `${p.provider}_${p.externalId}` ? (
-                                                                                <RefreshCw size={12} className="animate-spin" />
-                                                                            ) : p.isActive !== false ? (
-                                                                                <Eye size={12} />
-                                                                            ) : (
-                                                                                <EyeOff size={12} className="text-orange-400" />
-                                                                            )}
-                                                                        </Button>
-                                                                        <Button
-                                                                            variant="ghost"
-                                                                            size="sm"
-                                                                            className="h-6 w-6 p-0 text-red-900/40 hover:text-red-400/80 hover:bg-red-500/10"
-                                                                            onClick={(e) => {
-                                                                                e.stopPropagation()
-                                                                                if (confirm('Delete this country offering permanently?')) {
-                                                                                    handleAction('countries', 'delete', p.provider, p.externalId, true)
-                                                                                }
-                                                                            }}
-                                                                        >
-                                                                            <Trash2 size={12} />
-                                                                        </Button>
-                                                                    </div>
-                                                                </div>
-                                                            ))}
-                                                        </motion.div>
-                                                    )}
-                                                </AnimatePresence>
-                                            </td>
-                                        </motion.tr>
-                                    )
-                                })
-                            ) : activeTab === 'countries' ? (
-                                // Raw Countries View
-                                (data as Country[]).map((item, index) => (
-                                    <tr key={`${item.id}-${index}`} className={`hover:bg-white/[0.02] transition-colors ${selectedItems.has(`${item.provider}::${item.externalId}`) ? 'bg-[hsl(var(--neon-lime))]/5' : ''}`}>
-                                        <td colSpan={5} className="p-0 border-0">
-                                            <div className="flex items-center px-6 py-3 text-left">
-                                                <div className="mr-4 flex items-center">
-                                                    <div
-                                                        className={`w-4 h-4 rounded border flex items-center justify-center cursor-pointer transition-colors ${selectedItems.has(`${item.provider}::${item.externalId}`)
-                                                            ? 'bg-[hsl(var(--neon-lime))] border-[hsl(var(--neon-lime))]'
-                                                            : 'border-white/20 hover:border-[hsl(var(--neon-lime))]'
-                                                            }`}
-                                                        onClick={() => toggleSelection(item.provider, item.externalId)}
-                                                    >
-                                                        {selectedItems.has(`${item.provider}::${item.externalId}`) && (
-                                                            <Check size={10} className="text-black stroke-[3]" />
-                                                        )}
-                                                    </div>
-                                                </div>
-                                                <div className="flex-1 font-medium text-white min-w-[200px] pr-8 flex items-center gap-2">
-                                                    {item.name}
-                                                    {(item as any).isActive === false && (
-                                                        <span className="text-[10px] text-orange-400 bg-orange-500/10 px-1.5 py-0.5 rounded border border-orange-500/20">
-                                                            Hidden
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <div className="w-40">
-                                                    <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 uppercase text-[10px] tracking-wider">
-                                                        {item.provider}
-                                                    </span>
-                                                </div>
-                                                <div className="w-40 text-gray-500 font-mono text-xs">{item.externalId}</div>
-                                                <div className="w-32 text-right text-xs text-gray-600">
-                                                    {item.lastSyncedAt && formatDistanceToNow(new Date(item.lastSyncedAt))} ago
-                                                </div>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))
-                            ) : activeTab === 'services' && isAggregated ? (
-                                // Aggregated Services View
-                                (data as AggregatedService[]).map((item, index) => {
-                                    const isExpanded = expandedRows.has(item.canonicalName)
-                                    return (
-                                        <motion.tr
-                                            key={`${item.canonicalName}-${item.canonicalSlug || index}`}
-                                            layout
-                                            className="hover:bg-white/[0.02] transition-colors"
-                                        >
-                                            <td colSpan={5} className="p-0">
-                                                {/* Main Row */}
-                                                <div
-                                                    className={`flex items-center px-6 py-3 ${!selectedProvider ? 'cursor-pointer hover:bg-white/[0.03]' : ''}`}
-                                                    onClick={() => !selectedProvider && toggleRow(item.canonicalName)}
-                                                >
-                                                    <div className="w-8">
-                                                        {!selectedProvider && item.providers.length > 1 ? (
-                                                            isExpanded ? (
-                                                                <ChevronDown size={14} className="text-gray-500" />
-                                                            ) : (
-                                                                <ChevronRight size={14} className="text-gray-500" />
-                                                            )
-                                                        ) : null}
-                                                    </div>
-                                                    <div className="flex-1 font-medium text-white min-w-[180px] pr-4">
-                                                        <div>{item.canonicalName}</div>
-                                                        {item.countryCount > 0 && (
-                                                            <span className="text-[10px] text-gray-500">
-                                                                {item.countryCount} countries
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <div className="w-28 flex flex-col gap-0.5">
-                                                        {!selectedProvider && (
-                                                            <span className="px-2 py-0.5 rounded bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[10px] font-medium">
-                                                                {item.totalProviders} provider{item.totalProviders > 1 ? 's' : ''}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <div className="w-24 text-right text-xs">
-                                                        <div className="text-emerald-400 font-mono">
-                                                            {item.totalStock > 0 ? item.totalStock.toLocaleString() : '-'}
-                                                        </div>
-                                                        <div className="text-gray-500 text-[10px]">stock</div>
-                                                    </div>
-                                                    <div className="w-28 text-right text-xs">
-                                                        {item.bestPrice > 0 ? (
-                                                            <div className="text-yellow-400 font-mono">
-                                                                ${item.bestPrice.toFixed(2)}
-                                                                {!selectedProvider && item.priceRange.max !== item.priceRange.min && (
-                                                                    <span className="text-gray-500"> - ${item.priceRange.max.toFixed(2)}</span>
-                                                                )}
-                                                            </div>
-                                                        ) : (
-                                                            <span className="text-gray-600">-</span>
-                                                        )}
-                                                    </div>
-                                                    <div className="w-28 text-right text-xs text-gray-600">
-                                                        {item.lastSyncedAt && formatDistanceToNow(new Date(item.lastSyncedAt))} ago
-                                                    </div>
-                                                </div>
-
-                                                {/* Expanded Provider Details - Only show if NO provider selected */}
-                                                <AnimatePresence>
-                                                    {!selectedProvider && isExpanded && (
-                                                        <motion.div
-                                                            initial={{ height: 0, opacity: 0 }}
-                                                            animate={{ height: 'auto', opacity: 1 }}
-                                                            exit={{ height: 0, opacity: 0 }}
-                                                            className="bg-black/20 border-t border-white/5 overflow-hidden"
-                                                        >
-                                                            {item.providers.map((p, idx) => (
-                                                                <div
-                                                                    key={`${p.provider}-${p.externalId}`}
-                                                                    className="flex items-center px-6 py-2 border-b border-white/5 last:border-0"
-                                                                >
-                                                                    <div className="w-8"></div>
-                                                                    <div className="flex-1 text-gray-300 text-sm pl-4 font-medium uppercase tracking-wider">
-                                                                        {p.provider}
-                                                                    </div>
-                                                                    <div className="w-24 text-right text-xs">
-                                                                        <div className="text-emerald-400 font-mono">
-                                                                            {p.stock > 0 ? p.stock.toLocaleString() : '-'}
-                                                                        </div>
-                                                                    </div>
-                                                                    <div className="w-28 text-right">
-                                                                        <span className="text-yellow-400 text-sm font-mono">
-                                                                            ${p.minPrice.toFixed(2)}
-                                                                            {p.maxPrice !== p.minPrice && (
-                                                                                <span className="text-gray-500"> - ${p.maxPrice.toFixed(2)}</span>
-                                                                            )}
-                                                                        </span>
-                                                                    </div>
-                                                                    <div className="w-28 text-right text-xs text-gray-600 font-mono">
-                                                                        {p.externalId}
-                                                                    </div>
-                                                                </div>
-                                                            ))}
-                                                        </motion.div>
-                                                    )}
-                                                </AnimatePresence>
-                                            </td>
-                                        </motion.tr>
-                                    )
-                                })
-                            ) : (
-                                // Raw Services View
-                                (data as Service[]).map((item, index) => (
-                                    <tr key={`${item.id}-${index}`} className={`hover:bg-white/[0.02] transition-colors ${selectedItems.has(`${item.provider}::${item.externalId}`) ? 'bg-[hsl(var(--neon-lime))]/5' : ''}`}>
-                                        <td colSpan={5} className="p-0 border-0">
-                                            <div className="flex items-center px-6 py-3 text-left">
-                                                <div className="mr-4 flex items-center">
-                                                    <div
-                                                        className={`w-4 h-4 rounded border flex items-center justify-center cursor-pointer transition-colors ${selectedItems.has(`${item.provider}::${item.externalId}`)
-                                                            ? 'bg-[hsl(var(--neon-lime))] border-[hsl(var(--neon-lime))]'
-                                                            : 'border-white/20 hover:border-[hsl(var(--neon-lime))]'
-                                                            }`}
-                                                        onClick={() => toggleSelection(item.provider, item.externalId)}
-                                                    >
-                                                        {selectedItems.has(`${item.provider}::${item.externalId}`) && (
-                                                            <Check size={10} className="text-black stroke-[3]" />
-                                                        )}
-                                                    </div>
-                                                </div>
-                                                <div className="flex-1 font-medium text-white min-w-[200px] pr-8 flex items-center gap-2">
-                                                    {item.name}
-                                                    {(item as any).isActive === false && (
-                                                        <span className="text-[10px] text-orange-400 bg-orange-500/10 px-1.5 py-0.5 rounded border border-orange-500/20">
-                                                            Hidden
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <div className="w-32 text-blue-300 font-mono">{item.shortName}</div>
-                                                <div className="w-40">
-                                                    <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 uppercase text-[10px] tracking-wider">
-                                                        {item.provider}
-                                                    </span>
-                                                </div>
-                                                <div className="w-32 text-right text-xs text-gray-600">
-                                                    {item.lastSyncedAt && formatDistanceToNow(new Date(item.lastSyncedAt))} ago
-                                                </div>
-
-                                                {/* Actions */}
-                                                <div className="flex items-center gap-1 ml-4 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        className="h-7 w-7 p-0 text-blue-400/60 hover:text-blue-400 hover:bg-blue-500/10"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation()
-                                                            toast.info("Edit feature coming soon")
-                                                        }}
-                                                    >
-                                                        <Edit size={13} />
-                                                    </Button>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        className="h-7 w-7 p-0 text-gray-400 hover:text-white"
-                                                        disabled={actionLoading === `${item.provider}_${item.externalId}`}
-                                                        onClick={(e) => {
-                                                            e.stopPropagation()
-                                                            handleAction(
-                                                                'services',
-                                                                (item as any).isActive ? 'hide' : 'unhide',
-                                                                item.provider,
-                                                                item.externalId
-                                                            )
-                                                        }}
-                                                    >
-                                                        {actionLoading === `${item.provider}_${item.externalId}` ? (
-                                                            <RefreshCw size={13} className="animate-spin" />
-                                                        ) : (item as any).isActive ? (
-                                                            <Eye size={13} />
-                                                        ) : (
-                                                            <EyeOff size={13} className="text-orange-400" />
-                                                        )}
-                                                    </Button>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        className="h-7 w-7 p-0 text-red-900/40 hover:text-red-400/80 hover:bg-red-500/10"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation()
-                                                            if (confirm('Delete this service permanently? This cannot be undone.')) {
-                                                                handleAction('services', 'delete', item.provider, item.externalId, true)
-                                                            }
-                                                        }}
-                                                    >
-                                                        <Trash2 size={13} />
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-
-                {/* MOBILE VIEW CARD LAYOUT */}
-                <div className="hidden space-y-4 p-4 pb-32"> {/* Added pb-32 for Floating Bar clearance */}
-                    {loading ? (
-                        [...Array(3)].map((_, i) => (
-                            <PremiumSkeleton key={i} className="h-32 w-full rounded-2xl" />
-                        ))
-                    ) : data.length === 0 ? (
-                        <div className="text-center py-10 text-gray-500">No results found</div>
-                    ) : (
-                        activeTab === 'services' && isAggregated ? (
-                            (data as AggregatedService[]).map((item, index) => {
-                                const isExpanded = expandedRows.has(item.canonicalName)
-                                return (
-                                    <motion.div
-                                        key={`${item.canonicalName}-${item.canonicalSlug || index}`}
-                                        layout
-                                        className="bg-zinc-900/50 border border-white/5 rounded-2xl overflow-hidden backdrop-blur-sm"
-                                    >
-                                        <div
-                                            className="p-4 flex flex-col gap-3"
-                                            onClick={() => toggleRow(item.canonicalName)}
-                                        >
-                                            <div className="flex justify-between items-start">
-                                                <div>
-                                                    <h3 className="text-lg font-medium text-white">{item.canonicalName}</h3>
-                                                    <div className="flex gap-2 mt-1">
-                                                        <span className="px-2 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[10px] font-medium">
-                                                            {item.totalProviders} Providers
-                                                        </span>
-                                                        {item.countryCount > 0 && (
-                                                            <span className="px-2 py-0.5 rounded-full bg-white/5 text-gray-400 text-[10px]">
-                                                                {item.countryCount} Countries
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                                <div className="text-right">
-                                                    {item.bestPrice > 0 ? (
-                                                        <div className="text-xl font-mono text-emerald-400 font-semibold">{item.bestPrice.toFixed(2)}₽</div>
-                                                    ) : (
-                                                        <div className="text-gray-600 font-mono text-lg">-</div>
-                                                    )}
-                                                    <div className="text-[10px] text-gray-500 uppercase tracking-wider mt-1">Best Price</div>
-                                                </div>
-                                            </div>
-
-                                            {/* Stock & Info */}
-                                            <div className="flex justify-between items-center border-t border-white/5 pt-2 mt-2">
-                                                <div className="text-xs text-gray-500">
-                                                    Stock: <span className="text-gray-300 font-mono">{item.totalStock > 0 ? item.totalStock.toLocaleString() : '-'}</span>
-                                                </div>
-                                                <div className="text-xs text-gray-500 font-mono">
-                                                    {item.lastSyncedAt && formatDistanceToNow(new Date(item.lastSyncedAt))} ago
-                                                </div>
-                                            </div>
-
-                                            {/* Expand Button */}
-                                            <div className="flex justify-center pt-1">
-                                                {isExpanded ? <ChevronDown size={16} className="text-gray-600" /> : <ChevronDown size={16} className="text-gray-600 opacity-50" />}
-                                            </div>
-                                        </div>
-
-                                        {/* Expanded Details */}
-                                        <AnimatePresence>
-                                            {isExpanded && (
-                                                <motion.div
-                                                    initial={{ height: 0 }}
-                                                    animate={{ height: "auto" }}
-                                                    exit={{ height: 0 }}
-                                                    className="bg-black/20 border-t border-white/5"
-                                                >
-                                                    {item.providers.map((p, idx) => (
-                                                        <div key={`${p.provider}-${idx}`} className="p-3 border-b border-white/5 last:border-0 flex justify-between items-center group">
-                                                            <div>
-                                                                <div className="text-sm text-gray-300 font-medium uppercase tracking-wider flex items-center gap-2">
-                                                                    {p.provider}
-                                                                    {p.isActive === false && (
-                                                                        <span className="text-[9px] text-orange-400 bg-orange-500/10 px-1 py-0.5 rounded border border-orange-500/20 normal-case tracking-normal">
-                                                                            Hidden
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                                <div className="text-[10px] text-gray-500 font-mono mt-0.5">Stock: {p.stock > 0 ? p.stock.toLocaleString() : '-'}</div>
-                                                            </div>
-                                                            <div className="flex items-center gap-4">
-                                                                <div className="text-right">
-                                                                    <div className="font-mono text-emerald-400/80 text-sm">
-                                                                        {p.minPrice > 0 ? (
-                                                                            <>
-                                                                                ${p.minPrice.toFixed(2)}
-                                                                                {p.maxPrice !== p.minPrice && <span className="text-gray-600 text-[10px]"> - ${p.maxPrice.toFixed(2)}</span>}
-                                                                            </>
-                                                                        ) : '-'}
-                                                                    </div>
-                                                                    <div className="text-[9px] font-mono text-gray-600 mt-0.5">
-                                                                        {p.externalId}
-                                                                    </div>
-                                                                </div>
-
-                                                                {/* Actions */}
-                                                                <div className="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                                                                    <Button
-                                                                        variant="ghost"
-                                                                        size="sm"
-                                                                        className="h-6 w-6 p-0 text-blue-400/60 hover:text-blue-400 hover:bg-blue-500/10"
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation()
-                                                                            toast.info("Edit feature coming soon")
-                                                                        }}
-                                                                    >
-                                                                        <Edit size={12} />
-                                                                    </Button>
-                                                                    <Button
-                                                                        variant="ghost"
-                                                                        size="sm"
-                                                                        className="h-6 w-6 p-0 text-gray-400 hover:text-white"
-                                                                        disabled={actionLoading === `${p.provider}_${p.externalId}`}
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation()
-                                                                            handleAction(
-                                                                                'services',
-                                                                                p.isActive !== false ? 'hide' : 'unhide',
-                                                                                p.provider,
-                                                                                p.externalId
-                                                                            )
-                                                                        }}
-                                                                    >
-                                                                        {actionLoading === `${p.provider}_${p.externalId}` ? (
-                                                                            <RefreshCw size={12} className="animate-spin" />
-                                                                        ) : p.isActive !== false ? (
-                                                                            <Eye size={12} />
-                                                                        ) : (
-                                                                            <EyeOff size={12} className="text-orange-400" />
-                                                                        )}
-                                                                    </Button>
-                                                                    <Button
-                                                                        variant="ghost"
-                                                                        size="sm"
-                                                                        className="h-6 w-6 p-0 text-red-900/40 hover:text-red-400/80 hover:bg-red-500/10"
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation()
-                                                                            if (confirm('Delete this service offering permanently?')) {
-                                                                                handleAction('services', 'delete', p.provider, p.externalId, true)
-                                                                            }
-                                                                        }}
-                                                                    >
-                                                                        <Trash2 size={12} />
-                                                                    </Button>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </motion.div>
-                                            )}
-                                        </AnimatePresence>
-                                    </motion.div>
-                                )
-                            })
-                        ) : (
-                            <div className="text-center text-gray-500">Mobile view for Countries/Raw coming soon...</div>
+                {/* Unified Table */}
+                <InventoryTable
+                    items={mappedItems}
+                    isLoading={loading}
+                    loadingId={loadingId}
+                    onToggle={(item, checked) =>
+                        toggleVisibility({
+                            providerId: item.provider,
+                            externalId: item.externalId,
+                            type: 'auto' // Crucial: Let backend resolve the real type
+                        }, checked)
+                    }
+                    onEdit={(item) =>
+                        openEditModal(
+                            item.type,
+                            item.provider,
+                            item.externalId,
+                            item.name,
+                            item.iconUrl
                         )
-                    )}
-                </div>
+                    }
+                    onDelete={(item) =>
+                        openDeleteDialog(
+                            item.type,
+                            item.provider,
+                            item.externalId,
+                            item.name
+                        )
+                    }
+                />
 
                 {/* Pagination */}
                 <div className="p-4 border-t border-white/5 flex justify-center gap-2">
@@ -1164,6 +670,33 @@ export default function InventoryPage() {
                     </Button>
                 </div>
             </div>
+
+            {/* Edit Modal */}
+            {editModal && (
+                <InventoryEditModal
+                    type={editModal.type}
+                    providerId={editModal.providerId}
+                    providerDisplayName={editModal.providerDisplayName}
+                    externalId={editModal.externalId}
+                    currentData={editModal.currentData}
+                    isOpen={editModal.isOpen}
+                    onClose={() => setEditModal(null)}
+                    onSuccess={() => fetchData()}
+                />
+            )}
+
+            {/* Delete Confirmation Dialog */}
+            {deleteDialog && (
+                <DeleteConfirmDialog
+                    title={`Delete ${deleteDialog.type === 'country' ? 'Country' : 'Service'}?`}
+                    description={`This will remove this ${deleteDialog.type} offering from the system.`}
+                    itemName={deleteDialog.itemName}
+                    isOpen={deleteDialog.isOpen}
+                    isLoading={deleteLoading}
+                    onClose={() => setDeleteDialog(null)}
+                    onConfirm={handleDeleteConfirm}
+                />
+            )}
         </div >
     )
 }

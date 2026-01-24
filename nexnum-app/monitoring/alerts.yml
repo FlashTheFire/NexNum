@@ -1,175 +1,289 @@
-# NexNum Alert Rules
+# =============================================================================
+# NEXNUM ALERTING RULES
+# =============================================================================
+# 
+# These rules trigger alerts sent to Alertmanager, which routes them to
+# configured receivers (Telegram, Slack, Email, etc.)
 #
-# Pragmatic alerting rules for monitoring system health.
-# Each alert includes runbook links and clear remediation hints.
+# Alert Severity Levels:
+#   - critical: Requires immediate attention (pages on-call)
+#   - warning: Should be addressed soon (notifications)
+#   - info: Informational, may not require action
+#
+# =============================================================================
 
 groups:
-  - name: nexnum-availability
+  # ===========================================================================
+  # API & APPLICATION HEALTH
+  # ===========================================================================
+  - name: api_alerts
+    interval: 15s
     rules:
-      # High Error Rate
+      # -----------------------------------------------------------------------
+      # HIGH ERROR RATE
+      # -----------------------------------------------------------------------
       - alert: HighErrorRate
         expr: |
           (
-            rate(nexnum_http_requests_total{status_code=~"5.."}[5m])
-            / rate(nexnum_http_requests_total[5m])
-          ) > 0.05
+            sum(rate(http_requests_total{status_code=~"5.."}[5m])) /
+            sum(rate(http_requests_total[5m]))
+          ) * 100 > 5
+        for: 2m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "🚨 High API error rate ({{ printf \"%.1f\" $value }}%)"
+          description: "Error rate has exceeded 5% for the last 2 minutes. Check logs immediately."
+          runbook_url: "https://wiki.nexnum.com/runbooks/high-error-rate"
+
+      - alert: ElevatedErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{status_code=~"5.."}[5m])) /
+            sum(rate(http_requests_total[5m]))
+          ) * 100 > 1
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "⚠️ Elevated error rate ({{ printf \"%.1f\" $value }}%)"
+          description: "Error rate above 1% for 5 minutes. Monitor closely."
+
+      # -----------------------------------------------------------------------
+      # SLOW API RESPONSES
+      # -----------------------------------------------------------------------
+      - alert: SlowAPIResponses
+        expr: |
+          histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+        for: 3m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "🐢 Slow API responses (P95: {{ printf \"%.2f\" $value }}s)"
+          description: "95th percentile latency exceeds 2 seconds."
+
+      - alert: CriticalAPILatency
+        expr: |
+          histogram_quantile(0.99, rate(http_request_duration_seconds_bucket[5m])) > 5
+        for: 2m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "🚨 Critical API latency (P99: {{ printf \"%.2f\" $value }}s)"
+          description: "99th percentile latency exceeds 5 seconds. Check DB/Redis."
+
+      # -----------------------------------------------------------------------
+      # API DOWN
+      # -----------------------------------------------------------------------
+      - alert: APIDown
+        expr: up{job="nexnum-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "🔴 API is DOWN"
+          description: "NexNum API is not responding to health checks."
+
+  # ===========================================================================
+  # PURCHASE & WALLET
+  # ===========================================================================
+  - name: business_alerts
+    interval: 30s
+    rules:
+      # -----------------------------------------------------------------------
+      # PURCHASE FAILURES
+      # -----------------------------------------------------------------------
+      - alert: HighPurchaseFailureRate
+        expr: |
+          (
+            sum(rate(wallet_transactions_total{type="purchase",status="error"}[10m])) /
+            sum(rate(wallet_transactions_total{type="purchase"}[10m]))
+          ) * 100 > 10
         for: 5m
         labels:
           severity: critical
           team: platform
         annotations:
-          summary: "Error rate above 5% for {{ $labels.route }}"
-          description: "The error rate has exceeded 5% for 5 minutes. Current: {{ $value | humanizePercentage }}"
-          runbook_url: "https://docs.nexnum.com/runbooks/high-error-rate"
-          remediation: "Check application logs, verify database connectivity, review recent deployments"
+          summary: "💳 High purchase failure rate ({{ printf \"%.1f\" $value }}%)"
+          description: "More than 10% of purchases are failing. Check provider status."
 
-      # High Provider Latency (P99)
-      - alert: HighProviderLatency
+      # -----------------------------------------------------------------------
+      # PROVIDER FAILURES
+      # -----------------------------------------------------------------------
+      - alert: ProviderHighErrorRate
         expr: |
-          histogram_quantile(0.99, 
-            rate(nexnum_provider_latency_seconds_bucket[5m])
-          ) > 2
+          (
+            sum by(provider) (rate(provider_api_calls_total{status="error"}[10m])) /
+            sum by(provider) (rate(provider_api_calls_total[10m]))
+          ) * 100 > 20
         for: 5m
         labels:
           severity: warning
           team: platform
         annotations:
-          summary: "Provider {{ $labels.provider_id }} p99 latency above 2s"
-          description: "Provider API calls are experiencing high latency. P99: {{ $value | humanizeDuration }}"
-          runbook_url: "https://docs.nexnum.com/runbooks/provider-latency"
-          remediation: "Check provider status page, verify network connectivity, consider circuit breaker"
+          summary: "📡 Provider {{ $labels.provider }} error rate high ({{ printf \"%.1f\" $value }}%)"
+          description: "Consider disabling or switching provider."
 
-      # Provider Down
       - alert: ProviderDown
         expr: |
-          (rate(nexnum_provider_requests_total{status_code=~"5.."}[5m]) 
-           / rate(nexnum_provider_requests_total[5m])) > 0.9
+          sum by(provider) (rate(provider_api_calls_total{status="error"}[5m])) > 0 and
+          sum by(provider) (rate(provider_api_calls_total{status="success"}[5m])) == 0
         for: 3m
         labels:
           severity: critical
           team: platform
         annotations:
-          summary: "Provider {{ $labels.provider_id }} appears to be down"
-          description: "Provider is returning 90%+ errors"
-          runbook_url: "https://docs.nexnum.com/runbooks/provider-down"
-          remediation: "Pause provider in admin panel, check provider status"
+          summary: "🔴 Provider {{ $labels.provider }} appears DOWN"
+          description: "No successful calls in last 5 minutes, only errors."
 
-  - name: nexnum-wallet
+  # ===========================================================================
+  # QUEUE & WORKERS
+  # ===========================================================================
+  - name: queue_alerts
+    interval: 30s
     rules:
-      # Wallet Transaction Failures
-      - alert: WalletTransactionFailures
-        expr: rate(nexnum_wallet_transactions_total{status="failed"}[5m]) > 0.1
+      # -----------------------------------------------------------------------
+      # QUEUE BACKLOG
+      # -----------------------------------------------------------------------
+      - alert: QueueBacklogHigh
+        expr: queue_depth{state="active"} > 100
         for: 5m
         labels:
-          severity: critical
-          team: payments
-        annotations:
-          summary: "High rate of wallet transaction failures"
-          description: "Wallet transactions are failing at {{ $value }} per second"
-          runbook_url: "https://docs.nexnum.com/runbooks/wallet-failures"
-          remediation: "Check database locks, verify wallet service, review transaction logs"
-
-      # Low Provider Balance
-      - alert: LowProviderBalance
-        expr: nexnum_provider_balance < 10
-        for: 30m
-        labels:
           severity: warning
-          team: operations
+          team: backend
         annotations:
-          summary: "Provider {{ $labels.provider_id }} balance is low"
-          description: "Provider balance is below threshold: {{ $value }}"
-          runbook_url: "https://docs.nexnum.com/runbooks/low-balance"
-          remediation: "Top up provider balance to ensure service continuity"
+          summary: "📥 Queue backlog high ({{ $value }} jobs)"
+          description: "Active queue has more than 100 pending jobs."
 
-  - name: nexnum-workers
-    rules:
-      # Worker Queue Backlog
-      - alert: WorkerQueueBacklog
-        expr: nexnum_worker_queue_depth{state="pending"} > 1000
-        for: 10m
-        labels:
-          severity: warning
-          team: platform
-        annotations:
-          summary: "Worker queue backlog exceeds 1000 jobs"
-          description: "Queue {{ $labels.queue }} has {{ $value }} pending jobs"
-          runbook_url: "https://docs.nexnum.com/runbooks/queue-backlog"
-          remediation: "Scale workers, check for stuck jobs, verify worker health"
-
-      # High Failed Job Count
-      - alert: HighFailedJobCount
-        expr: nexnum_worker_queue_depth{state="failed"} > 100
-        for: 15m
+      - alert: QueueBacklogCritical
+        expr: queue_depth{state="active"} > 500
+        for: 3m
         labels:
           severity: critical
-          team: platform
+          team: backend
         annotations:
-          summary: "Over 100 failed background jobs"
-          description: "{{ $value }} jobs have failed in queue {{ $labels.queue }}"
-          runbook_url: "https://docs.nexnum.com/runbooks/failed-jobs"
-          remediation: "Review failed job logs, use retry endpoint in admin panel"
+          summary: "🚨 Queue backlog CRITICAL ({{ $value }} jobs)"
+          description: "Queue is severely backed up. Scale workers or investigate."
 
-  - name: nexnum-infrastructure
-    rules:
-      # Database Connection Pool Exhaustion
-      - alert: DBConnectionExhaustion
+      # -----------------------------------------------------------------------
+      # FAILED JOBS
+      # -----------------------------------------------------------------------
+      - alert: HighFailedJobRate
         expr: |
-          (nexnum_db_connections{state="active"} 
-           / nexnum_db_connections{state="max"}) > 0.9
+          increase(queue_depth{state="failed"}[30m]) > 10
         for: 5m
         labels:
-          severity: critical
-          team: platform
+          severity: warning
+          team: backend
         annotations:
-          summary: "Database connection pool nearly exhausted"
-          description: "Active connections: {{ $value | humanizePercentage }} of pool"
-          runbook_url: "https://docs.nexnum.com/runbooks/db-connections"
-          remediation: "Check for connection leaks, consider scaling database"
+          summary: "❌ High job failure rate ({{ $value }} failures in 30m)"
+          description: "Jobs are failing at elevated rate. Check worker logs."
 
-      # High Memory Usage
-      - alert: HighMemoryUsage
-        expr: nexnum_system_memory_usage{type="used"} / nexnum_system_memory_usage{type="total"} > 0.9
+      # -----------------------------------------------------------------------
+      # STUCK QUEUE
+      # -----------------------------------------------------------------------
+      - alert: QueueStuck
+        expr: |
+          queue_depth{state="active"} > 0 and 
+          rate(queue_depth{state="active"}[10m]) == 0
         for: 10m
         labels:
-          severity: warning
-          team: platform
+          severity: critical
+          team: backend
         annotations:
-          summary: "High memory usage detected"
-          description: "Memory usage is at {{ $value | humanizePercentage }}"
-          runbook_url: "https://docs.nexnum.com/runbooks/high-memory"
-          remediation: "Check for memory leaks, consider scaling"
+          summary: "🔒 Queue appears STUCK"
+          description: "Active jobs exist but no progress for 10 minutes. Workers may be dead."
 
-      # Service Down (No Metrics)
-      - alert: ServiceDown
-        expr: up{job="nexnum-api"} == 0
+  # ===========================================================================
+  # INFRASTRUCTURE
+  # ===========================================================================
+  - name: infra_alerts
+    interval: 60s
+    rules:
+      # -----------------------------------------------------------------------
+      # MEMORY
+      # -----------------------------------------------------------------------
+      - alert: HighMemoryUsage
+        expr: nodejs_heap_size_used_bytes / nodejs_heap_size_total_bytes * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "💾 High memory usage ({{ printf \"%.0f\" $value }}%)"
+          description: "Node.js heap usage exceeds 85%."
+
+      - alert: CriticalMemoryUsage
+        expr: nodejs_heap_size_used_bytes / nodejs_heap_size_total_bytes * 100 > 95
         for: 2m
         labels:
           severity: critical
-          team: platform
-          page: "true"
+          team: backend
         annotations:
-          summary: "NexNum API is not responding"
-          description: "Prometheus cannot scrape metrics from the API"
-          runbook_url: "https://docs.nexnum.com/runbooks/service-down"
-          remediation: "Check service logs, verify container health, check load balancer"
+          summary: "🚨 Critical memory usage ({{ printf \"%.0f\" $value }}%)"
+          description: "OOM likely imminent. Restart or scale."
 
-# Recording Rules for pre-computed aggregations
-  - name: nexnum-recording
+      # -----------------------------------------------------------------------
+      # DATABASE
+      # -----------------------------------------------------------------------
+      - alert: DatabaseConnectionsHigh
+        expr: pg_stat_activity_count > 90
+        for: 5m
+        labels:
+          severity: warning
+          team: dba
+        annotations:
+          summary: "🗄️ Database connections high ({{ $value }})"
+          description: "Approaching connection limit."
+
+      # -----------------------------------------------------------------------
+      # REDIS  
+      # -----------------------------------------------------------------------
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "🔴 Redis is DOWN"
+          description: "Redis not responding. Sessions and caching affected."
+
+  # ===========================================================================
+  # AUTHENTICATION & SECURITY
+  # ===========================================================================
+  - name: security_alerts
+    interval: 60s
     rules:
-      # Pre-compute RPS
-      - record: nexnum:http_requests_per_second:rate5m
-        expr: sum(rate(nexnum_http_requests_total[5m]))
-
-      # Pre-compute error rate
-      - record: nexnum:http_error_rate:rate5m
+      # -----------------------------------------------------------------------
+      # FAILED LOGIN SPIKE
+      # -----------------------------------------------------------------------
+      - alert: FailedLoginSpike
         expr: |
-          sum(rate(nexnum_http_requests_total{status_code=~"5.."}[5m]))
-          / sum(rate(nexnum_http_requests_total[5m]))
+          increase(auth_events_total{event="login",status="failure"}[5m]) > 50
+        for: 2m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "🔐 Failed login spike ({{ $value }} in 5m)"
+          description: "Possible brute force attack. Review IPs."
 
-      # Pre-compute provider latency percentiles
-      - record: nexnum:provider_latency_p50:rate5m
-        expr: histogram_quantile(0.50, sum(rate(nexnum_provider_latency_seconds_bucket[5m])) by (le, provider_id))
-
-      - record: nexnum:provider_latency_p99:rate5m
-        expr: histogram_quantile(0.99, sum(rate(nexnum_provider_latency_seconds_bucket[5m])) by (le, provider_id))
+      # -----------------------------------------------------------------------
+      # REGISTRATION SPIKE
+      # -----------------------------------------------------------------------
+      - alert: RegistrationSpike
+        expr: |
+          increase(auth_events_total{event="register",status="success"}[10m]) > 100
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "📈 Registration spike ({{ $value }} in 10m)"
+          description: "Unusual signup activity. May be bot attack."

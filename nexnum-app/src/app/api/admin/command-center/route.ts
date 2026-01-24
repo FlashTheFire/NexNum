@@ -3,6 +3,8 @@ import { prisma } from '@/lib/core/db'
 import { redis } from '@/lib/core/redis'
 import { requireAdmin } from '@/lib/auth/requireAdmin'
 import { registry } from '@/lib/metrics'
+import { withMetrics } from '@/lib/monitoring/http-metrics'
+import { updateActiveNumbers, updateWorkerQueue, updateSystemMetrics, updateDbConnections } from '@/lib/metrics'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,7 +48,8 @@ interface CommandCenterData {
  * Returns aggregated data for the Admin Command Center dashboard.
  * Includes system status, KPIs, active incidents, and recent activity.
  */
-export async function GET(request: Request) {
+// Export the handler wrapped with metrics
+const handler = async (request: Request) => {
     const auth = await requireAdmin(request)
     if (auth.error) return auth.error
 
@@ -81,6 +84,8 @@ export async function GET(request: Request) {
         )
     }
 }
+
+export const GET = withMetrics(handler as any, { route: '/api/admin/command-center' })
 
 // ============================================================================
 // DATA FETCHERS
@@ -129,7 +134,7 @@ async function getKPIs(): Promise<CommandCenterData['kpis']> {
         // Get wallet shortfalls (users with negative or very low balance)
         // Using raw query since balance is on Wallet model, not User
         const shortfallsResult = await prisma.$queryRaw<{ count: bigint }[]>`
-            SELECT COUNT(*) as count FROM "Wallet" WHERE balance < 0
+            SELECT COUNT(*) as count FROM "wallets" WHERE balance < 0
         `.catch(() => [{ count: BigInt(0) }])
         const walletShortfalls = Number(shortfallsResult[0]?.count || 0)
 
@@ -148,6 +153,51 @@ async function getKPIs(): Promise<CommandCenterData['kpis']> {
         const p99Key = 'metrics:p99_latency:current'
         const cachedP99 = await redis.get(p99Key).catch(() => null)
         const p99Latency = cachedP99 ? parseFloat(cachedP99) : 0
+
+        // UPDATE PROMETHEUS METRICS
+        updateActiveNumbers('total', activeRentals)
+
+        // Update worker queue depth
+        // Query job stats (similar to /api/admin/jobs/retry logic)
+        // We do this inside getKPIs so it runs on dashboard refresh
+        const jobStats = await prisma.$queryRaw<{ state: string, count: bigint }[]>`
+            SELECT state, COUNT(*) as count 
+            FROM pgboss.job 
+            WHERE state IN ('created', 'active', 'failed')
+            GROUP BY state
+        `.catch(() => [])
+
+        const getJobCount = (state: string) => Number(jobStats.find(s => s.state === state)?.count || 0)
+        updateWorkerQueue('default', getJobCount('created'), getJobCount('active'), getJobCount('failed'))
+
+        // Update System Metrics
+        updateSystemMetrics()
+
+        // Update DB Connections
+        // Try to get metrics from Prisma if available, otherwise estimate or skip
+        // Note: Prisma metrics need to be enabled in preview features
+        // For now, we'll try to get a basic count using pg_stat_activity if possible, 
+        // or just Mock it if strict query isn't allowed. 
+        // Actually, let's rely on the system status check we already do
+        try {
+            const dbStats = await prisma.$queryRaw<{ count: bigint, state: string }[]>`
+                SELECT state, count(*) as count 
+                FROM pg_stat_activity 
+                WHERE datname = current_database() 
+                GROUP BY state
+            `.catch(() => [])
+
+            let active = 0
+            let idle = 0
+            dbStats.forEach(s => {
+                if (s.state === 'active') active += Number(s.count)
+                if (s.state === 'idle') idle += Number(s.count)
+            })
+            // Assumed max is from env or default
+            updateDbConnections(active, idle, 20)
+        } catch (e) {
+            // Ignore if permission denied
+        }
 
         return {
             rps: Math.round(rps * 100) / 100,

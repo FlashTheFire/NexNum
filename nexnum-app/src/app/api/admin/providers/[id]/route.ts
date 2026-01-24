@@ -1,178 +1,145 @@
+/**
+ * Provider Control API
+ * 
+ * Admin operations for individual provider management:
+ * - Enable/disable provider
+ * - Adjust priority and weight
+ * - Force circuit open/close
+ */
 
-// Types synchronized with schema
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/core/db'
-import { requireAdmin, redactProviderSecrets } from '@/lib/auth/requireAdmin'
-import { logAdminAction, getClientIP } from '@/lib/core/auditLog'
+import { requireAdmin } from '@/lib/auth/requireAdmin'
+import { healthMonitor } from '@/lib/providers/health-monitor'
+import { logger } from '@/lib/core/logger'
 
-export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
-    const auth = await requireAdmin(req)
+interface RouteParams {
+    params: Promise<{ id: string }>
+}
+
+// GET - Get single provider details
+export async function GET(request: Request, { params }: RouteParams) {
+    const auth = await requireAdmin(request)
     if (auth.error) return auth.error
 
     const { id } = await params
 
     try {
         const provider = await prisma.provider.findUnique({
-            where: { id },
-            include: {
-                testResults: {
-                    orderBy: { testedAt: 'desc' },
-                    take: 10
-                }
-            }
-        })
-
-        if (!provider) {
-            return NextResponse.json({ error: 'Provider not found' }, { status: 404 })
-        }
-
-        // REDACT authKey before returning
-        return NextResponse.json(redactProviderSecrets(provider))
-    } catch (error) {
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
-    }
-}
-
-export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
-    const auth = await requireAdmin(req)
-    if (auth.error) return auth.error
-
-    const { id } = await params
-
-    try {
-        const body = await req.json()
-
-        // Sanitise numeric/decimal fields
-        const sanitizedBody = { ...body }
-        const numericFields = [
-            'priceMultiplier', 'fixedMarkup', 'priority',
-            'normalizationRate', 'depositSpent', 'depositReceived'
-        ]
-
-        numericFields.forEach(field => {
-            if (sanitizedBody[field] !== undefined) {
-                if (sanitizedBody[field] === '' || sanitizedBody[field] === null) {
-                    // Default values if empty
-                    if (field === 'priceMultiplier') sanitizedBody[field] = 1.0
-                    else if (field === 'priority') sanitizedBody[field] = 0
-                    else sanitizedBody[field] = 0.0
-                } else {
-                    sanitizedBody[field] = Number(sanitizedBody[field])
-                }
-            }
-        })
-
-        // Get original for audit comparison
-        const original = await prisma.provider.findUnique({ where: { id } })
-
-        const provider = await prisma.provider.update({
-            where: { id },
-            data: {
-                // Core Identity
-                ...(body.name !== undefined && { name: body.name }),
-                ...(body.displayName !== undefined && { displayName: body.displayName }),
-                ...(body.description !== undefined && { description: body.description }),
-                ...(body.logoUrl !== undefined && { logoUrl: body.logoUrl }),
-                ...(body.websiteUrl !== undefined && { websiteUrl: body.websiteUrl }),
-
-                // API Configuration
-                ...(body.apiBaseUrl !== undefined && { apiBaseUrl: body.apiBaseUrl }),
-                ...(body.authType !== undefined && { authType: body.authType }),
-                ...(body.authHeader !== undefined && { authHeader: body.authHeader }),
-                ...(body.authQueryParam !== undefined && { authQueryParam: body.authQueryParam }),
-
-                // Dynamic Engine Settings (NEW!)
-                ...(body.useDynamicMetadata !== undefined && { useDynamicMetadata: body.useDynamicMetadata }),
-                ...(body.dynamicFunctions !== undefined && { dynamicFunctions: body.dynamicFunctions }),
-
-                // Endpoint/Mapping Configuration
-                ...(body.endpoints !== undefined && { endpoints: body.endpoints }),
-                ...(body.mappings !== undefined && { mappings: body.mappings }),
-
-                // Business Logic
-                ...(body.currency !== undefined && { currency: body.currency }),
-                ...(sanitizedBody.priceMultiplier !== undefined && { priceMultiplier: sanitizedBody.priceMultiplier }),
-                ...(sanitizedBody.fixedMarkup !== undefined && { fixedMarkup: sanitizedBody.fixedMarkup }),
-                ...(sanitizedBody.priority !== undefined && { priority: sanitizedBody.priority }),
-
-                // Normalization
-                ...(body.normalizationMode !== undefined && { normalizationMode: body.normalizationMode }),
-                ...(sanitizedBody.normalizationRate !== undefined && { normalizationRate: sanitizedBody.normalizationRate }),
-                ...(body.apiPair !== undefined && { apiPair: body.apiPair }),
-                ...(sanitizedBody.depositSpent !== undefined && { depositSpent: sanitizedBody.depositSpent }),
-                ...(sanitizedBody.depositReceived !== undefined && { depositReceived: sanitizedBody.depositReceived }),
-                ...(body.depositCurrency !== undefined && { depositCurrency: body.depositCurrency }),
-
-                // Status
-                ...(body.isActive !== undefined && { isActive: body.isActive }),
-
-                updatedAt: new Date()
-            }
-        })
-
-        // Audit log the update
-        await logAdminAction({
-            userId: auth.userId,
-            action: body.isActive !== undefined ? 'PROVIDER_TOGGLE' : 'PROVIDER_UPDATE',
-            resourceType: 'Provider',
-            resourceId: provider.id,
-            metadata: {
-                name: provider.name,
-                changes: Object.keys(body).filter(k => k !== 'authKey') // Don't log authKey changes
-            },
-            ipAddress: getClientIP(req)
-        })
-
-        // REDACT authKey before returning
-        return NextResponse.json(redactProviderSecrets(provider))
-    } catch (error) {
-        console.error('Update failed:', error)
-        return NextResponse.json({ error: 'Update failed' }, { status: 500 })
-    }
-}
-
-export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
-    const auth = await requireAdmin(req)
-    if (auth.error) return auth.error
-
-    const { id } = await params
-
-    try {
-        const provider = await prisma.provider.findUnique({ where: { id } })
-        if (!provider) {
-            return NextResponse.json({ error: 'Provider not found' }, { status: 404 })
-        }
-
-        // Protection logic
-        if (provider.name === 'mock' || provider.priority === 999) {
-            return NextResponse.json({ error: 'Cannot delete system default provider.' }, { status: 403 })
-        }
-
-        if (provider.isActive) {
-            return NextResponse.json({ error: 'Cannot delete an ACTIVE provider. Please deactivate it first.' }, { status: 400 })
-        }
-
-        const count = await prisma.provider.count()
-        if (count <= 1) {
-            return NextResponse.json({ error: 'Cannot delete the only existing provider.' }, { status: 400 })
-        }
-
-        await prisma.provider.delete({
             where: { id }
         })
 
-        // Audit log the deletion
-        await logAdminAction({
-            userId: auth.userId,
-            action: 'PROVIDER_DELETE',
-            resourceType: 'Provider',
-            resourceId: id,
-            metadata: { name: provider.name, displayName: provider.displayName },
-            ipAddress: getClientIP(req)
+        if (!provider) {
+            return NextResponse.json({ error: 'Provider not found' }, { status: 404 })
+        }
+
+        const health = await healthMonitor.getHealth(id)
+
+        return NextResponse.json({
+            provider: {
+                ...provider,
+                priceMultiplier: Number(provider.priceMultiplier),
+                fixedMarkup: Number(provider.fixedMarkup),
+            },
+            health
+        })
+    } catch (error: any) {
+        return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+}
+
+// PATCH - Update provider settings
+export async function PATCH(request: NextRequest, { params }: RouteParams) {
+    const auth = await requireAdmin(request)
+    if (auth.error) return auth.error
+
+    const { id } = await params
+
+    try {
+        const body = await request.json()
+        const {
+            isActive,
+            priority,
+            weight,
+            priceMultiplier,
+            fixedMarkup,
+            openCircuit,
+            closeCircuit,
+            displayName
+        } = body
+
+        // Handle circuit commands first (Redis operations)
+        if (openCircuit === true) {
+            await healthMonitor.openCircuit(id)
+            logger.info('Admin force-opened circuit', { providerId: id, adminId: auth.userId })
+
+            // Log audit
+            await prisma.auditLog.create({
+                data: {
+                    userId: auth.userId,
+                    action: 'provider.circuit_open',
+                    resourceType: 'provider',
+                    resourceId: id,
+                    ipAddress: request.headers.get('x-forwarded-for') || 'unknown'
+                }
+            })
+
+            return NextResponse.json({ success: true, action: 'circuit_opened' })
+        }
+
+        if (closeCircuit === true) {
+            await healthMonitor.closeCircuit(id)
+            logger.info('Admin force-closed circuit', { providerId: id, adminId: auth.userId })
+
+            await prisma.auditLog.create({
+                data: {
+                    userId: auth.userId,
+                    action: 'provider.circuit_close',
+                    resourceType: 'provider',
+                    resourceId: id,
+                    ipAddress: request.headers.get('x-forwarded-for') || 'unknown'
+                }
+            })
+
+            return NextResponse.json({ success: true, action: 'circuit_closed' })
+        }
+
+        // Build update data
+        const updateData: any = {}
+        if (isActive !== undefined) updateData.isActive = isActive
+        if (priority !== undefined) updateData.priority = priority
+        if (weight !== undefined) updateData.weight = weight
+        if (priceMultiplier !== undefined) updateData.priceMultiplier = priceMultiplier
+        if (fixedMarkup !== undefined) updateData.fixedMarkup = fixedMarkup
+        if (displayName !== undefined) updateData.displayName = displayName
+
+        if (Object.keys(updateData).length === 0) {
+            return NextResponse.json({ error: 'No update fields provided' }, { status: 400 })
+        }
+
+        const updated = await prisma.provider.update({
+            where: { id },
+            data: updateData
         })
 
-        return NextResponse.json({ success: true })
-    } catch (error) {
-        return NextResponse.json({ error: 'Delete failed' }, { status: 500 })
+        // Audit log
+        await prisma.auditLog.create({
+            data: {
+                userId: auth.userId,
+                action: 'provider.update',
+                resourceType: 'provider',
+                resourceId: id,
+                metadata: updateData,
+                ipAddress: request.headers.get('x-forwarded-for') || 'unknown'
+            }
+        })
+
+        logger.info('Provider updated', { providerId: id, changes: updateData, adminId: auth.userId })
+
+        return NextResponse.json({ success: true, provider: updated })
+
+    } catch (error: any) {
+        logger.error('Provider update failed', { error: error.message })
+        return NextResponse.json({ error: error.message }, { status: 500 })
     }
 }

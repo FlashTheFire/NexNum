@@ -354,16 +354,21 @@ export async function searchCountries(
 
 export async function searchAdminCountries(
     query: string = '',
-    options?: { page?: number; limit?: number; provider?: string }
+    options?: { page?: number; limit?: number; provider?: string; includeHidden?: boolean }
 ): Promise<{ items: any[]; total: number }> {
     try {
         const index = meili.index(INDEXES.OFFERS)
         const limit = options?.limit || 50
         const page = options?.page || 1
-        const providerFilter = options?.provider ? `provider = "${options.provider}"` : undefined
+
+        // Build filter
+        const filters: string[] = []
+        if (options?.provider) filters.push(`provider = "${options.provider}"`)
+        if (!options?.includeHidden) filters.push('isActive = true')
+        const filterStr = filters.length > 0 ? filters.join(' AND ') : undefined
 
         const result = await index.search(query, {
-            filter: providerFilter,
+            filter: filterStr,
             limit: 10000,
             attributesToRetrieve: ['countryCode', 'countryName', 'flagUrl', 'provider', 'serviceSlug', 'price', 'stock', 'lastSyncedAt', 'id', 'isActive'],
         })
@@ -451,20 +456,24 @@ export async function searchAdminCountries(
     }
 }
 
-// In searchRawInventory
 export async function searchRawInventory(
     type: 'countries' | 'services',
     query: string = '',
-    options?: { provider?: string; page?: number; limit?: number }
+    options?: { provider?: string; page?: number; limit?: number; includeHidden?: boolean }
 ): Promise<{ items: any[]; total: number }> {
     try {
         const index = meili.index(INDEXES.OFFERS)
         const limit = options?.limit || 50
         const page = options?.page || 1
-        const providerFilter = options?.provider ? `provider = "${options.provider}"` : undefined
+
+        // Build filter
+        const filters: string[] = []
+        if (options?.provider) filters.push(`provider = "${options.provider}"`)
+        if (!options?.includeHidden) filters.push('isActive = true')
+        const filterStr = filters.length > 0 ? filters.join(' AND ') : undefined
 
         const result = await index.search(query, {
-            filter: providerFilter,
+            filter: filterStr,
             limit: 10000,
             attributesToRetrieve: ['countryCode', 'countryName', 'flagUrl', 'provider', 'serviceSlug', 'serviceName', 'price', 'stock', 'lastSyncedAt', 'id', 'isActive'],
         })
@@ -787,16 +796,21 @@ export async function searchServices(
  */
 export async function searchAdminServices(
     query: string = '',
-    options?: { page?: number; limit?: number; provider?: string }
+    options?: { page?: number; limit?: number; provider?: string; includeHidden?: boolean }
 ): Promise<{ items: any[]; total: number }> {
     try {
         const index = meili.index(INDEXES.OFFERS)
         const limit = options?.limit || 50
         const page = options?.page || 1
-        const providerFilter = options?.provider ? `provider = "${options.provider}"` : undefined
+
+        // Build filter
+        const filters: string[] = []
+        if (options?.provider) filters.push(`provider = "${options.provider}"`)
+        if (!options?.includeHidden) filters.push('isActive = true')
+        const filterStr = filters.length > 0 ? filters.join(' AND ') : undefined
 
         const result = await index.search(query, {
-            filter: providerFilter,
+            filter: filterStr,
             limit: 10000,
             attributesToRetrieve: ['serviceSlug', 'serviceName', 'provider', 'countryCode', 'price', 'stock', 'lastSyncedAt', 'id', 'isActive'],
         })

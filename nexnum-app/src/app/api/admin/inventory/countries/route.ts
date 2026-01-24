@@ -13,6 +13,8 @@ import {
     updateCountry
 } from '@/lib/admin/inventory-manager'
 
+import { prisma } from '@/lib/core/db'
+
 export async function PATCH(request: Request) {
     const auth = await requireAdmin(request)
     if (auth.error) return auth.error
@@ -28,14 +30,30 @@ export async function PATCH(request: Request) {
             )
         }
 
+        // Resolve provider ID (handle slugs like 'mock-sms')
+        const provider = await prisma.provider.findFirst({
+            where: {
+                OR: [
+                    { id: providerId },
+                    { name: providerId }
+                ]
+            },
+            select: { id: true }
+        })
+
+        if (!provider) {
+            return NextResponse.json({ error: 'Provider not found' }, { status: 404 })
+        }
+
+        const targetProviderId = provider.id
         let result
 
         if (action === 'hide') {
-            result = await toggleCountryVisibility(providerId, externalId, false, auth.userId)
+            result = await toggleCountryVisibility(targetProviderId, externalId, false, auth.userId)
         } else if (action === 'unhide') {
-            result = await toggleCountryVisibility(providerId, externalId, true, auth.userId)
+            result = await toggleCountryVisibility(targetProviderId, externalId, true, auth.userId)
         } else if (action === 'edit' && updates) {
-            result = await updateCountry(providerId, externalId, updates, auth.userId)
+            result = await updateCountry(targetProviderId, externalId, updates, auth.userId)
         } else {
             return NextResponse.json(
                 { error: 'Invalid action. Use: hide, unhide, or edit' },
@@ -69,7 +87,22 @@ export async function DELETE(request: Request) {
             )
         }
 
-        const result = await deleteCountry(providerId, externalId, permanent, auth.userId)
+        // Resolve provider ID
+        const provider = await prisma.provider.findFirst({
+            where: {
+                OR: [
+                    { id: providerId },
+                    { name: providerId }
+                ]
+            },
+            select: { id: true }
+        })
+
+        if (!provider) {
+            return NextResponse.json({ error: 'Provider not found' }, { status: 404 })
+        }
+
+        const result = await deleteCountry(provider.id, externalId, permanent, auth.userId)
 
         if (!result.success) {
             return NextResponse.json({ error: result.message }, { status: 400 })

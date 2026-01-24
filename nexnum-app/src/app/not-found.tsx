@@ -4,6 +4,7 @@ import { motion } from "framer-motion"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import "./globals.css"
 
 // Note: This root-level not-found page cannot use next-intl hooks
 // because it's outside the [locale] segment and has no i18n provider context.

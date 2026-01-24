@@ -747,3 +747,16 @@ model EmailVerificationToken {
   @@index([expiresAt])
   @@map("email_verification_tokens")
 }
+
+// ============================================
+// ASSET MANAGEMENT
+// ============================================
+
+model BannedIcon {
+  id          String   @id @default(uuid())
+  hash        String   @unique // SHA-256 Hash
+  description String?  // Reason or name (e.g., "5sim Bad Bear")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("banned_icons")
+}

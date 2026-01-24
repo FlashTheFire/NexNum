@@ -52,11 +52,28 @@ export async function toggleCountryVisibility(
     adminId?: string
 ): Promise<InventoryActionResult> {
     try {
+        console.log(`[toggleCountryVisibility] Lookup: providerId=${providerId}, externalId=${externalId}`)
+
         const country = await prisma.providerCountry.findFirst({
             where: { providerId, externalId }
         })
 
         if (!country) {
+            // Debug: try finding just by externalId or providerId to see if we have partial match
+            const countByProvider = await prisma.providerCountry.count({ where: { providerId } })
+            const countByExternal = await prisma.providerCountry.count({ where: { externalId } })
+            console.log(`[toggleCountryVisibility] Country not found. Stats: Provider has ${countByProvider}, ExternalId found ${countByExternal} times.`)
+
+            // FALLBACK: Check if it's actually a Service (fixing frontend/Meili type confusion)
+            const service = await prisma.providerService.findFirst({
+                where: { providerId, externalId }
+            })
+
+            if (service) {
+                console.log(`[toggleCountryVisibility] Found SERVICE with this ID. Redirecting to toggleServiceVisibility...`)
+                return toggleServiceVisibility(providerId, externalId, isActive, adminId)
+            }
+
             return { success: false, message: 'Country not found', error: 'NOT_FOUND' }
         }
 
@@ -107,6 +124,12 @@ export async function deleteCountry(
         })
 
         if (!country) {
+            // Fallback to service
+            const service = await prisma.providerService.findFirst({ where: { providerId, externalId } })
+            if (service) {
+                console.log(`[deleteCountry] Redirecting to deleteService for ${externalId}`)
+                return deleteService(providerId, externalId, permanent, adminId)
+            }
             return { success: false, message: 'Country not found', error: 'NOT_FOUND' }
         }
 
@@ -171,6 +194,16 @@ export async function updateCountry(
         })
 
         if (!country) {
+            // Fallback to service
+            const service = await prisma.providerService.findFirst({ where: { providerId, externalId } })
+            if (service) {
+                console.log(`[updateCountry] Redirecting to updateService for ${externalId}`)
+                const serviceUpdates: ServiceUpdateData = {
+                    name: updates.name,
+                    iconUrl: updates.flagUrl
+                }
+                return updateService(providerId, externalId, serviceUpdates, adminId)
+            }
             return { success: false, message: 'Country not found', error: 'NOT_FOUND' }
         }
 

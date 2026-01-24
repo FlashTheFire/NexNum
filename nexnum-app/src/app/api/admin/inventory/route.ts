@@ -17,6 +17,7 @@ export async function GET(request: Request) {
     const limit = parseInt(searchParams.get('limit') || '50')
     const q = searchParams.get('q') || ''
     const aggregate = searchParams.get('aggregate') !== 'false'
+    const includeHidden = searchParams.get('includeHidden') === 'true'
 
     try {
         let result: { items: any[]; total: number }
@@ -24,9 +25,9 @@ export async function GET(request: Request) {
         if (aggregate) {
             // Smart View (Aggregated)
             if (type === 'countries') {
-                result = await searchAdminCountries(q, { page, limit, provider })
+                result = await searchAdminCountries(q, { page, limit, provider, includeHidden })
             } else {
-                result = await searchAdminServices(q, { page, limit, provider })
+                result = await searchAdminServices(q, { page, limit, provider, includeHidden })
             }
 
             return NextResponse.json({
@@ -37,7 +38,7 @@ export async function GET(request: Request) {
             })
         } else {
             // Raw View (by Provider or Global Raw)
-            result = await searchRawInventory(type, q, { provider, page, limit })
+            result = await searchRawInventory(type, q, { provider, page, limit, includeHidden })
 
             return NextResponse.json({
                 items: result.items,
@@ -51,4 +52,3 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: 'Failed to fetch inventory from search engine' }, { status: 500 });
     }
 }
-

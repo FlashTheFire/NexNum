@@ -37,12 +37,24 @@ import crypto from 'crypto';
 // ============================================
 
 // Known bad hashes to block permanently (Shared between download and verify)
-export const BANNED_HASHES = new Set([
+// Known bad hashes to block permanently (Shared between download and verify)
+const HARDCODED_BANNED = new Set([
     'be311539f1b49d644e5a70c1f0023c05a7eebabd282287305e8ca49587087702' // 5sim Bad Bear
 ]);
 
+async function getBannedHashes(): Promise<Set<string>> {
+    try {
+        const dbHashes = await (prisma as any).bannedIcon.findMany({ select: { hash: true } })
+        const set = new Set<string>(dbHashes.map((b: any) => b.hash))
+        HARDCODED_BANNED.forEach(h => set.add(h))
+        return set
+    } catch (e) {
+        return HARDCODED_BANNED
+    }
+}
+
 // Helper: Download image to local path with strict single-file enforcement
-async function downloadImageToLocal(url: string, destPath: string): Promise<boolean> {
+async function downloadImageToLocal(url: string, destPath: string, bannedSet?: Set<string>): Promise<boolean> {
     const dir = path.dirname(destPath);
     const baseName = path.parse(destPath).name; // e.g., "instagram"
 
@@ -67,7 +79,9 @@ async function downloadImageToLocal(url: string, destPath: string): Promise<bool
 
                         // 2. Hash Check (Banned Hashes)
                         const hash = crypto.createHash('sha256').update(buffer).digest('hex');
-                        if (BANNED_HASHES.has(hash)) {
+                        const isBanned = (bannedSet && bannedSet.has(hash)) || HARDCODED_BANNED.has(hash)
+
+                        if (isBanned) {
                             console.log(`[ICON_BANNED] Hash match for ${baseName} (${hash}). Ignoring.`);
                             resolve(false);
                             return;
@@ -122,6 +136,7 @@ export async function verifyAssetIntegrity(): Promise<{ removed: number, scanned
 
     const files = fs.readdirSync(ICONS_DIR);
     console.log(`[ASSETS] Scanning ${files.length} assets for integrity...`);
+    const bannedSet = await getBannedHashes();
 
     // Dedup Logic: Group by basename
     const groups = new Map<string, string[]>();
@@ -182,7 +197,7 @@ export async function verifyAssetIntegrity(): Promise<{ removed: number, scanned
             }
 
             const hash = crypto.createHash('sha256').update(buffer).digest('hex');
-            if (BANNED_HASHES.has(hash)) {
+            if (bannedSet.has(hash)) {
                 fs.unlinkSync(filePath);
                 removed++;
             }
@@ -351,6 +366,8 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
             where: { id: provider.id },
             data: { syncStatus: 'syncing' }
         })
+
+        const bannedHashes = await getBannedHashes()
 
         const engine = new DynamicProvider(provider)
 
@@ -580,7 +597,7 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                 // AGGRESSIVE DOWNLOAD: If missing locally but we have a URL, fetch it now!
                 if (!foundLocal && validIconUrl) {
                     // Fire and forget download to restore missing icons
-                    downloadImageToLocal(validIconUrl, fullPath).catch(err =>
+                    downloadImageToLocal(validIconUrl, fullPath, bannedHashes).catch(err =>
                         console.warn(`[ICON_SYNC] Failed to download ${canonKey}:`, err)
                     )
                 }

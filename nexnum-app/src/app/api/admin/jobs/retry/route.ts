@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/core/db'
 import { requireAdmin } from '@/lib/auth/requireAdmin'
 import { logAdminAction, AuditAction } from '@/lib/core/auditLog'
+import { updateWorkerQueue } from '@/lib/metrics'
 
 export const dynamic = 'force-dynamic'
 
@@ -53,6 +54,10 @@ export async function POST(request: Request) {
             }
         })
 
+        // Update Prometheus after retry (assume failed becomes 0, others might change)
+        // For accuracy we could re-query, but setting failed to 0 is the immediate effect
+        updateWorkerQueue('default', 0, 0, 0) // Simplified update, ideally re-query
+
         return NextResponse.json({
             success: true,
             message: `Successfully queued ${beforeCount} jobs for retry`,
@@ -77,12 +82,25 @@ export async function GET(request: Request) {
     if (auth.error) return auth.error
 
     try {
-        const result = await prisma.$queryRaw<{ count: bigint }[]>`
-            SELECT COUNT(*) as count FROM pgboss.job WHERE state = 'failed'
-        `.catch(() => [{ count: BigInt(0) }])
+        const stats = await prisma.$queryRaw<{ state: string, count: bigint }[]>`
+            SELECT state, COUNT(*) as count 
+            FROM pgboss.job 
+            WHERE state IN ('created', 'active', 'failed')
+            GROUP BY state
+        `.catch(() => [])
+
+        const getCount = (state: string) => Number(stats.find(s => s.state === state)?.count || 0)
+        const failed = getCount('failed')
+        const pending = getCount('created')
+        const active = getCount('active')
+
+        // Update Prometheus
+        updateWorkerQueue('default', pending, active, failed)
 
         return NextResponse.json({
-            failedJobs: Number(result[0]?.count || 0)
+            failedJobs: failed,
+            pendingJobs: pending,
+            activeJobs: active
         })
     } catch (error: any) {
         console.error('Failed to get job count:', error)

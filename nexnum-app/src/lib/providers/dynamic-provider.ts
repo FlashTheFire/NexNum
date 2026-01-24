@@ -10,6 +10,7 @@ import CircuitBreaker from 'opossum'
 import { logger } from '@/lib/core/logger'
 import { redis, cacheGet, CACHE_KEYS, CACHE_TTL } from '@/lib/core/redis'
 import { CIRCUIT_OPTS } from '@/lib/core/circuit-breaker'
+import { trackProviderRequest } from '@/lib/metrics'
 
 declare var process: any;
 declare var require: any;
@@ -477,6 +478,16 @@ export class DynamicProvider implements SmsProvider {
                     responseBody: text,
                     requestTime: Date.now() - startTime
                 }
+
+
+
+                // Track Failure
+                trackProviderRequest(
+                    this.name,
+                    epConfig.method,
+                    response.status,
+                    (Date.now() - startTime) / 1000
+                )
 
                 throw new ProviderApiError(
                     `API Request Failed (${response.status} ${response.statusText})`,

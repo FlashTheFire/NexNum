@@ -73,6 +73,54 @@ export class SmartSmsRouter implements SmsProvider {
         return healthyProviders
     }
 
+    /**
+     * Select provider using weighted scoring algorithm
+     * 
+     * Score = (successRate * adminWeight) / (normalizedLatency * costMultiplier)
+     * 
+     * Higher score = Better provider
+     */
+    private async selectProviderWeighted(providers: DynamicProvider[]): Promise<DynamicProvider[]> {
+        if (providers.length <= 1) return providers
+
+        const scored: { provider: DynamicProvider; score: number }[] = []
+
+        for (const provider of providers) {
+            const health = await healthMonitor.getHealth(provider.config.id)
+
+            // Factors
+            const successRate = health.successRate || 0.5
+            const latency = Math.max(health.avgLatency || 100, 50) // Min 50ms to avoid division issues
+            const costMultiplier = Number(provider.config.priceMultiplier) || 1.0
+            const adminWeight = Number((provider.config as any).weight) || 1.0
+            const priorityBoost = 1 / (Number(provider.config.priority) || 1) // Lower priority number = higher boost
+
+            // Normalize latency (100ms = 1.0, 500ms = 5.0)
+            const normalizedLatency = latency / 100
+
+            // Calculate score
+            // High success rate, low latency, low cost = high score
+            const score = (successRate * adminWeight * priorityBoost) / (normalizedLatency * costMultiplier)
+
+            scored.push({ provider, score })
+
+            logger.debug('Provider score calculated', {
+                provider: provider.name,
+                successRate,
+                latency,
+                costMultiplier,
+                adminWeight,
+                score: score.toFixed(3)
+            })
+        }
+
+        // Sort by score descending
+        scored.sort((a, b) => b.score - a.score)
+
+        // Return sorted providers (best first)
+        return scored.map(s => s.provider)
+    }
+
     // --- Core Methods ---
 
     async getCountries(): Promise<Country[]> {
@@ -133,11 +181,18 @@ export class SmartSmsRouter implements SmsProvider {
         return allServices
     }
 
-    async getNumber(countryCode: string, serviceCode: string, options?: { operator?: string; maxPrice?: string | number; provider?: string; testMode?: boolean }): Promise<NumberResult> {
+    async getNumber(countryCode: string, serviceCode: string, options?: {
+        operator?: string;
+        maxPrice?: string | number;
+        provider?: string;
+        expectedPrice?: number;  // The price user selected from offers
+        testMode?: boolean
+    }): Promise<NumberResult> {
         let providers = await this.getHealthyProviders() // Use healthy providers only
         if (providers.length === 0) throw new Error("No healthy providers available")
 
         const providerPreference = options?.provider
+        const expectedPrice = options?.expectedPrice
         const testMode = options?.testMode
 
         // 0. If testMode is requested, bypass real providers and return mock data
@@ -151,6 +206,19 @@ export class SmartSmsRouter implements SmsProvider {
             }
             // Overwrite providers list to ONLY include this one
             providers = [provider]
+
+            // Log price expectation for audit
+            if (expectedPrice !== undefined) {
+                logger.info('SmartRouter: Provider selected with expected price', {
+                    provider: providerPreference,
+                    expectedPrice,
+                    priceMultiplier: Number(provider.config.priceMultiplier) || 1.0,
+                    fixedMarkup: Number(provider.config.fixedMarkup) || 0
+                })
+            }
+        } else {
+            // Apply weighted selection for best provider order
+            providers = await this.selectProviderWeighted(providers)
         }
 
         const checkedProviders: string[] = []
@@ -159,9 +227,11 @@ export class SmartSmsRouter implements SmsProvider {
             const startTime = Date.now()
             try {
                 logger.info(`SmartRouter: Attempting purchase from ${provider.name}...`)
+
+                // Pass maxPrice to limit what the provider can charge
                 const result = await provider.getNumber(countryCode, serviceCode, {
                     operator: options?.operator,
-                    maxPrice: options?.maxPrice
+                    maxPrice: expectedPrice || options?.maxPrice // Use expected price as max
                 })
 
                 // Record success

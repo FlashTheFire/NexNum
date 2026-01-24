@@ -40,9 +40,18 @@ export async function GET(req: NextRequest) {
     await new Promise(resolve => setTimeout(resolve, 50 + Math.random() * 150))
 
     let responseText = ''
+    let isJson = false
 
     try {
         switch (action) {
+            case 'getPrices': {
+                const country = searchParams.get('country') || undefined
+                const service = searchParams.get('service') || undefined
+                responseText = JSON.stringify(mockProvider.getPrices(country, service))
+                isJson = true
+                break
+            }
+
             case 'getBalance':
                 responseText = `ACCESS_BALANCE:${mockProvider.getBalance()}`
                 break
@@ -91,26 +100,7 @@ export async function GET(req: NextRequest) {
                     responseText = 'BAD_KEY'
                     break
                 }
-
-                const activation = mockProvider.getActivation(id)
-                if (!activation) {
-                    responseText = 'NO_ACTIVATION'
-                    break
-                }
-
-                const statusMap: Record<string, string> = {
-                    pending: 'STATUS_WAIT_CODE',
-                    received: 'STATUS_OK',
-                    completed: 'STATUS_OK',
-                    cancelled: 'STATUS_CANCEL',
-                    refunded: 'STATUS_CANCEL',
-                }
-                responseText = statusMap[activation.status] || 'STATUS_WAIT_CODE'
-
-                if (activation.smsMessages.length > 0) {
-                    const lastSms = activation.smsMessages[activation.smsMessages.length - 1]
-                    responseText = `STATUS_OK:${lastSms.code}`
-                }
+                responseText = mockProvider.getStatus(id)
                 break
             }
 
@@ -122,18 +112,20 @@ export async function GET(req: NextRequest) {
                     responseText = 'BAD_KEY'
                     break
                 }
-
-                if (status === '8') {
-                    mockProvider.cancelActivation(id)
-                    responseText = 'ACCESS_CANCEL'
-                } else if (status === '6') {
-                    mockProvider.completeActivation(id)
-                    responseText = 'ACCESS_ACTIVATION'
-                } else {
-                    responseText = 'ACCESS_READY'
-                }
+                // Delegate to provider class which handles 8 (cancel), 6 (done), 3 (retry), 1 (ready)
+                responseText = mockProvider.setStatus(id, status || '')
                 break
             }
+
+            case 'getCountries':
+                responseText = JSON.stringify(mockProvider.getCountries())
+                isJson = true
+                break
+
+            case 'getServicesList':
+                responseText = JSON.stringify(mockProvider.getServices())
+                isJson = true
+                break
 
             case 'debug_state':
                 responseText = JSON.stringify({
@@ -141,10 +133,12 @@ export async function GET(req: NextRequest) {
                     orders: mockProvider.getAllOrders(),
                     logs: mockProvider.getRequestLogs(),
                 })
+                isJson = true
                 break
 
             case 'debug_logs':
                 responseText = JSON.stringify(mockProvider.getRequestLogs())
+                isJson = true
                 break
 
             case 'force_sms': {
@@ -164,20 +158,21 @@ export async function GET(req: NextRequest) {
         }
     } catch (error: any) {
         logger.error(`[MockSMS] Error processing ${action}: ${error.message}`)
-        responseText = 'ERROR'
+        console.error(`[MockSMS] CRITICAL ERROR in ${action}:`, error)
+        responseText = `ERROR:${error.message}`
     }
 
     // Log request
     mockProvider.logRequest({
         timestamp: new Date(),
         action,
-        params,
+        params: Object.fromEntries(req.nextUrl.searchParams),
         response: responseText,
         durationMs: Date.now() - startTime,
     })
 
     return new NextResponse(responseText, {
-        headers: { 'Content-Type': 'text/plain' },
+        headers: { 'Content-Type': isJson ? 'application/json' : 'text/plain' },
     })
 }
 
