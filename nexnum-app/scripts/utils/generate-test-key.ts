@@ -1,5 +1,5 @@
-import { prisma } from '../src/lib/core/db'
-import { createApiKey } from '../src/lib/api/api-keys'
+import { prisma } from '../../src/lib/core/db'
+import { createApiKey } from '../../src/lib/api/api-keys'
 
 async function main() {
     const email = 'loadtester@nexnum.com'

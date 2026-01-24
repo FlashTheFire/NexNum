@@ -14,10 +14,11 @@ import { prisma } from '@/lib/core/db'
 import { redis } from '@/lib/core/redis'
 import { logger } from '@/lib/core/logger'
 import { WalletService } from '@/lib/wallet/wallet'
+import { LimitsConfig, PricingConfig } from '@/config'
 import crypto from 'crypto'
 
 // ============================================
-// CONFIGURATION
+// CONFIGURATION (sourced from central config)
 // ============================================
 
 const CONFIG = {
@@ -29,17 +30,17 @@ const CONFIG = {
     PROVIDER_REGEX: /^[a-zA-Z0-9_\-\s\(\)]{1,50}$/, // Allow spaces and parentheses for display names
     UUID_REGEX: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
 
-    // Spend Limits
-    DAILY_SPEND_LIMIT: 5000.00,                  // $5000/day for dev testing
-    MIN_PURCHASE_AMOUNT: 0.01,
-    MAX_PURCHASE_AMOUNT: 50.00,                 // Single purchase max
+    // Spend Limits (from central config)
+    DAILY_SPEND_LIMIT: LimitsConfig.dailySpend,
+    MIN_PURCHASE_AMOUNT: LimitsConfig.minPurchase,
+    MAX_PURCHASE_AMOUNT: LimitsConfig.maxPurchase,
 
     // Rate Limiting
     PURCHASE_COOLDOWN_SECONDS: 2,               // 2 seconds between purchases
     MAX_PURCHASES_PER_MINUTE: 5,
     MAX_PURCHASES_PER_HOUR: 30,
 
-    // Price Verification
+    // Price Verification (from central config)
     PRICE_TOLERANCE_PERCENT: 0.01,              // 1% tolerance for currency conversion
 
     // Redis Keys

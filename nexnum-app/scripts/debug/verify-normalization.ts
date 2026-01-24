@@ -1,6 +1,6 @@
 
-import { prisma } from './src/lib/core/db'
-import { currencyService } from './src/lib/currency/currency-service'
+import { prisma } from '../../src/lib/core/db'
+import { currencyService } from '../../src/lib/currency/currency-service'
 
 async function verifySmartAuto() {
     console.log('--- VERIFYING SMART-AUTO NORMALIZATION ---')

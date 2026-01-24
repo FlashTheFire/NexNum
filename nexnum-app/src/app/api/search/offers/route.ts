@@ -49,7 +49,6 @@ export async function GET(req: NextRequest) {
                 provider,
                 operatorId,
                 externalOperator,
-                operatorDisplayName,
                 ...safeFields
             } = offer;
 

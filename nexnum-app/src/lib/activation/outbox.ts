@@ -127,7 +127,6 @@ async function handleOfferUpdate(pricingId: string) {
         lastSyncedAt: Date.now(),
         operatorId: 1,
         externalOperator: pricing.operator || undefined,
-        operatorDisplayName: ''
     }
 
     const index = meili.index(INDEXES.OFFERS)

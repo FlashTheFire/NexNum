@@ -1,6 +1,6 @@
 import 'dotenv/config'
-import { prisma } from '../src/lib/core/db'
-import { indexOffers, OfferDocument, initSearchIndexes } from '../src/lib/search/search'
+import { prisma } from '../../src/lib/core/db'
+import { indexOffers, OfferDocument, initSearchIndexes } from '../../src/lib/search/search'
 
 /**
  * Re-indexing Script (Inventory Sync)

@@ -1,6 +1,6 @@
 
-import { getCountryFlagUrlSync } from './src/lib/normalizers/country-flags';
-import { normalizeCountryName } from './src/lib/normalizers/country-normalizer';
+import { getCountryFlagUrlSync } from '../../src/lib/normalizers/country-flags';
+import { normalizeCountryName } from '../../src/lib/normalizers/country-normalizer';
 
 console.log("Testing Flag Resolution...");
 

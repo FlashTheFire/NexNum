@@ -15,19 +15,20 @@ import { redis } from '@/lib/core/redis'
 import { smsProvider } from '@/lib/sms-providers'
 import { smsAudit } from '@/lib/sms/audit'
 import { REFUNDABLE_STATES, canTransition } from '@/lib/activation/activation-state-machine'
+import { TimeoutsConfig, WorkersConfig } from '@/config'
 
 // ============================================
-// CONFIGURATION
+// CONFIGURATION (sourced from central config)
 // ============================================
 
 const CONFIG = {
-    // Time locks
-    MIN_REFUND_AGE_MS: 2 * 60 * 1000,        // 2 minutes minimum before refund
-    STUCK_THRESHOLD_MS: 10 * 60 * 1000,       // 10 minutes for stuck RESERVED
+    // Time locks (from central config)
+    MIN_REFUND_AGE_MS: TimeoutsConfig.minRefundAge,
+    STUCK_THRESHOLD_MS: TimeoutsConfig.stuckThreshold,
 
     // Thresholds
     HIGH_VALUE_THRESHOLD: 5.00,               // Amounts > $5 get extra scrutiny
-    MAX_BATCH_SIZE: 50,
+    MAX_BATCH_SIZE: WorkersConfig.batchSize,
 
     // Lock
     LOCK_KEY: 'NexNum:Lock:Reconcile',

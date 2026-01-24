@@ -1,6 +1,6 @@
 // Force reload of Prisma Client types
 import 'dotenv/config'
-import { prisma } from './src/lib/core/db'
+import { prisma } from '../../src/lib/core/db'
 
 async function run() {
     try {

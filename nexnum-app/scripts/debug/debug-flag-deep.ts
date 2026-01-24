@@ -1,8 +1,8 @@
 
-import { getCountryFlagUrlSync } from './src/lib/normalizers/country-flags';
-import { getCountryIsoCode, normalizeCountryName } from './src/lib/normalizers/country-normalizer';
-import countriesMetadata from './src/data/countries-metadata.json';
-import metadata from './src/data/metadata.json';
+import { getCountryFlagUrlSync } from '../../src/lib/normalizers/country-flags';
+import { getCountryIsoCode, normalizeCountryName } from '../../src/lib/normalizers/country-normalizer';
+import countriesMetadata from '../../src/data/countries-metadata.json';
+import metadata from '../../src/data/metadata.json';
 
 console.log("=== FLAG DEBUGGER ===");
 

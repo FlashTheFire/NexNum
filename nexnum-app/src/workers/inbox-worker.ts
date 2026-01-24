@@ -28,15 +28,16 @@ import {
     SecurityConfig
 } from '@/lib/sms/security'
 import { smsAudit } from '@/lib/sms/audit'
+import { WorkersConfig } from '@/config'
 import crypto from 'crypto'
 
 // ============================================
-// CONFIGURATION
+// CONFIGURATION (sourced from central config)
 // ============================================
 
 const CONFIG = {
-    BATCH_SIZE: 50,
-    CONCURRENCY_LIMIT: 10,
+    BATCH_SIZE: WorkersConfig.batchSize,
+    CONCURRENCY_LIMIT: WorkersConfig.concurrency,
     LOCK_TTL_SECONDS: 60,
     MAX_CONSECUTIVE_ERRORS: 5,
     EXPIRY_BUFFER_MS: 30 * 1000,
