@@ -42,7 +42,7 @@ function attachSecurityHeaders(response: NextResponse) {
         "img-src 'self' data: blob: https: http:",
         "connect-src 'self' https://*.sentry.io https://*.ingest.sentry.io wss: https:",
         "frame-ancestors 'self'",
-        "frame-src 'self' http://localhost:3001",
+        "frame-src 'self' http://localhost:3951",
         "base-uri 'self'",
         "form-action 'self'",
     ].join('; ')

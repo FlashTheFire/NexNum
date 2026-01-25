@@ -7,6 +7,8 @@
   },
   "scripts": {
     "dev": "next dev --turbo",
+    "dev:all": "npx concurrently -n dev,socket -c blue,green \"npm run dev\" \"npm run socket\"",
+    "docker:up": "docker compose up -d redis meilisearch",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

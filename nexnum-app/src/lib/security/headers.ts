@@ -73,7 +73,7 @@ function isAllowedOrigin(origin: string): boolean {
     const allowed = [
         process.env.NEXT_PUBLIC_APP_URL,
         'http://localhost:3000',
-        'http://localhost:3001'
+        'http://localhost:3951'
     ].filter(Boolean) as string[]
 
     return allowed.includes(origin)

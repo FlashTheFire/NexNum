@@ -52,8 +52,8 @@ COPY --from=builder /app/tsconfig.json ./tsconfig.json
 USER socket
 
 # Expose Socket Port
-EXPOSE 3001
-ENV PORT=3001
+EXPOSE 3951
+ENV PORT=3951
 
 # Run socket entry point
 # Using npx tsx matches worker pattern

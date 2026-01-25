@@ -19,14 +19,14 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
     const [isConnected, setIsConnected] = useState(false);
 
     useEffect(() => {
-        // Socket URL (Proxy handles /api/socket -> 3001 in dev, or Ingress in prod)
+        // Socket URL (Proxy handles /api/socket -> 3951 in dev, or Ingress in prod)
         // Check next.config.mjs or assumes standalone port access?
-        // In Local Dev, we usually run socket on 3001. 
+        // In Local Dev, we usually run socket on 3951. 
         // If we use rewrites, we can use relative path.
-        // For now, let's try direct port 3001 logic or env var if we are in dev mode.
+        // For now, let's try direct port 3951 logic or env var if we are in dev mode.
         // BUT, cookies won't be sent cross-port easily without credentials/CORS setup.
-        // Best approach: Use a relative path if Next.js rewrites to 3001, OR direct URL.
-        const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001';
+        // Best approach: Use a relative path if Next.js rewrites to 3951, OR direct URL.
+        const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3951';
 
         const socketInstance = io(socketUrl, {
             path: '/api/socket',

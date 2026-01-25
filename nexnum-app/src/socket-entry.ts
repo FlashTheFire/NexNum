@@ -8,7 +8,7 @@ import { createServer } from 'http';
 import { SocketService } from './lib/socket/server';
 import { logger } from './lib/core/logger';
 
-const PORT = parseInt(process.env.SOCKET_PORT || '3001', 10);
+const PORT = parseInt(process.env.SOCKET_PORT || '3951', 10);
 
 async function bootstrap() {
     logger.info('[SocketEntry] Starting Socket Server...');

@@ -19,7 +19,7 @@ const getAllowedOrigins = (): string[] => {
     // Add localhost for development
     if (process.env.NODE_ENV !== 'production') {
         origins.push('http://localhost:3000')
-        origins.push('http://localhost:3001')
+        origins.push('http://localhost:3951')
         origins.push('http://127.0.0.1:3000')
     }
 

@@ -11,8 +11,8 @@ interface GrafanaEmbedProps {
 }
 
 export const GrafanaEmbed: React.FC<GrafanaEmbedProps> = ({
-    // Default to localhost:3001 if not provided
-    dashboardUrl = "http://localhost:3001/d/nexnum-command-center/nexnum-command-center?orgId=1&refresh=5s&kiosk",
+    // Default to localhost:3961 if not provided
+    dashboardUrl = "http://localhost:3961/d/nexnum-command-center/nexnum-command-center?orgId=1&refresh=5s&kiosk",
     height = "800px",
     className = ""
 }) => {

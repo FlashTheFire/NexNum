@@ -9,7 +9,7 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_APP_URL ?
     `${process.env.NEXT_PUBLIC_APP_URL}/api/socket` :
-    'http://localhost:3001/api/socket'; // Default standalone port
+    'http://localhost:3951/api/socket'; // Default standalone port
 
 const TARGET_USER_ID = 'load_test_user_' + uuidv4();
 const TOTAL_CLIENTS = 10; // We expect 5 success, 5 failures
@@ -42,7 +42,7 @@ async function runSoakTest() {
     let errors = 0;
 
     for (let i = 0; i < TOTAL_CLIENTS; i++) {
-        const socket = io('http://localhost:3001', {
+        const socket = io('http://localhost:3951', {
             path: '/api/socket',
             auth: { token },
             transports: ['websocket'],

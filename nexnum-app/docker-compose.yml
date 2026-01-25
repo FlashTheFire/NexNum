@@ -55,10 +55,10 @@ services:
     container_name: nexnum-socket
     restart: unless-stopped
     ports:
-      - "3001:3001"
+      - "3951:3951"
     environment:
       - NODE_ENV=development
-      - PORT=3001
+      - PORT=3951
       - DATABASE_URL=${DATABASE_URL}
       - REDIS_URL=redis://redis:6379/1
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
@@ -101,7 +101,7 @@ services:
     container_name: nexnum-grafana
     profiles: [ "monitoring" ]
     ports:
-      - "3002:3000"
+      - "3961:3000"
     volumes:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
@@ -112,7 +112,7 @@ services:
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
       - GF_SECURITY_ALLOW_EMBEDDING=true
-      - GF_SERVER_ROOT_URL=http://localhost:3001
+      - GF_SERVER_ROOT_URL=http://localhost:3961
       - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-piechart-panel
     restart: unless-stopped
     depends_on:
