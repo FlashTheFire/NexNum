@@ -1,65 +1,44 @@
-// Premium Email Design Tokens
-// "Tone: premium, confident, minimal, functional"
+// Email Design System V3: "README / Terminal"
+// Aesthetic: Monospace, Neon Lime (#C6FF00), Charcoal (#101012), Badges.
 
 export const colors = {
-    // Brand Colors
+    bg: {
+        root: 'transparent', // User requested: Don't force black bg
+        surface: '#151518', // Slightly lighter charcoal
+        code: '#000000', // Pure black for code blocks
+    },
+    text: {
+        primary: '#FFFFFF', // White
+        secondary: '#A1A1AA', // Gray-400
+        tertiary: '#52525B', // Gray-600
+        code: '#C6FF00', // Neon Lime Text
+    },
     brand: {
-        primary: '#8b5cf6', // Violet-500
-        secondary: '#3b82f6', // Blue-500
-        accent: '#f43f5e', // Rose-500 (Urgent/Alert)
+        primary: '#C6FF00', // Neon Lime (Signature)
+        secondary: '#0F2E2E', // Deep Teal
+        accent: '#FF6B6B', // Red (Enterprise Badge)
     },
-    // Neutrals (Dark Mode First)
-    neutral: {
-        bg: '#0f172a', // Slate-900 (Main Background)
-        card: '#1e293b', // Slate-800 (Content Card)
-        border: '#334155', // Slate-700
-        text: {
-            primary: '#f8fafc', // Slate-50 (H1, Strong)
-            secondary: '#cbd5e1', // Slate-300 (Body)
-            tertiary: '#94a3b8', // Slate-400 (Footer, Caption)
-            muted: '#64748b', // Slate-500
-        }
-    },
-    // States
-    state: {
-        success: {
-            bg: 'rgba(16, 185, 129, 0.1)',
-            text: '#34d399', // Emerald-400
-            border: 'rgba(16, 185, 129, 0.2)',
-        },
-        warning: {
-            bg: 'rgba(245, 158, 11, 0.1)',
-            text: '#fbbf24', // Amber-400
-            border: 'rgba(245, 158, 11, 0.2)',
-        },
-        error: {
-            bg: 'rgba(239, 68, 68, 0.1)',
-            text: '#f87171', // Red-400
-            border: 'rgba(239, 68, 68, 0.2)',
-        },
-        info: {
-            bg: 'rgba(59, 130, 246, 0.1)',
-            text: '#60a5fa', // Blue-400
-            border: 'rgba(59, 130, 246, 0.2)',
-        }
+    border: {
+        subtle: '#333333',
+        highlight: '#C6FF00', // Lime Border
     }
 }
 
 export const typography = {
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif',
+    fontFamily: {
+        sans: '"JetBrains Mono", "SF Mono", "Menlo", monospace',
+        heading: '"JetBrains Mono", "SF Mono", "Menlo", monospace',
+    },
     size: {
-        h1: '28px',
-        h2: '24px',
-        h3: '20px',
-        body: '16px',
-        small: '14px',
-        caption: '12px',
-        tiny: '10px',
+        h1: '24px', // Smaller, more terminal-like
+        h2: '20px',
+        body: '14px',
+        small: '12px',
+        caption: '10px',
     },
     lineHeight: {
-        tight: '1.25',
-        base: '1.6',
-        loose: '2.0',
+        relaxed: '1.6',
+        tight: '1.2',
     },
     weight: {
         regular: '400',
@@ -79,81 +58,99 @@ export const spacing = {
 
 export const borders = {
     radius: {
-        sm: '4px',
-        md: '8px',
-        lg: '12px',
-        full: '9999px',
+        card: '0px', // Sharp corners (Terminal window)
+        button: '2px', // Slight rounding like badges
     },
-    style: {
-        default: `1px solid ${colors.neutral.border}`,
+    shadow: {
+        // Hard shadows, no blur (Pixel/Retro feel)
+        glowPrimary: '0 0 0 1px #C6FF00',
+        card: 'none',
     }
 }
 
-// Reusable component styles based on tokens
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://nexnum.io'
+
 export const components = {
+    main: {
+        backgroundColor: '#ffffff',
+        backgroundImage: 'url(https://i.ibb.co/Z17SBFvJ/download.jpg)', // User provided pattern
+        fontFamily: '"Lato", "Helvetica Neue", helvetica, sans-serif',
+        color: colors.text.primary,
+        backgroundRepeat: 'repeat',
+    },
     container: {
         maxWidth: '600px',
         margin: '0 auto',
-        padding: `${spacing.lg} 0 ${spacing.xxl}`,
+        padding: '40px 0',
+    },
+    logo: {
+        margin: '0 auto 32px',
+        textAlign: 'center' as const,
+        borderBottom: `1px dashed ${colors.border.subtle}`,
+        paddingBottom: '24px',
     },
     card: {
-        backgroundColor: colors.neutral.card,
-        borderRadius: borders.radius.lg,
-        border: borders.style.default,
-        padding: spacing.lg,
-        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+        backgroundColor: colors.bg.surface,
+        borderRadius: borders.radius.card,
+        border: `1px solid ${colors.border.subtle}`,
+        padding: '32px',
+        // Terminal window effect
+        boxShadow: '0 0 0 1px #333',
     },
+    // Typography
+    h1: {
+        fontFamily: typography.fontFamily.heading,
+        fontSize: typography.size.h1,
+        fontWeight: typography.weight.bold,
+        letterSpacing: '-0.5px',
+        color: colors.brand.primary, // Lime Green Headers
+        margin: '0 0 24px',
+        textTransform: 'uppercase' as const, // CMD style
+        textAlign: 'left' as const, // Terminals align left
+    },
+    text: {
+        color: colors.text.secondary,
+        fontSize: typography.size.body,
+        lineHeight: typography.lineHeight.relaxed,
+        margin: '0 0 20px',
+        textAlign: 'left' as const,
+    },
+    // Buttons
     button: {
         primary: {
             backgroundColor: colors.brand.primary,
-            borderRadius: borders.radius.md,
-            color: '#ffffff',
-            fontSize: typography.size.body,
-            fontWeight: typography.weight.bold,
+            color: '#000000', // Black text on Lime
+            fontWeight: '700',
+            fontSize: '14px',
+            fontFamily: typography.fontFamily.sans,
+            borderRadius: borders.radius.button,
+            padding: '12px 24px',
             textDecoration: 'none',
+            textTransform: 'uppercase' as const,
             textAlign: 'center' as const,
             display: 'inline-block',
-            padding: `${spacing.md} ${spacing.lg}`,
-            boxShadow: '0 4px 14px 0 rgba(139, 92, 246, 0.39)',
+            border: `1px solid ${colors.brand.primary}`,
         },
-        secondary: {
+        ghost: {
             backgroundColor: 'transparent',
-            borderRadius: borders.radius.md,
-            color: colors.neutral.text.secondary,
-            border: `1px solid ${colors.neutral.border}`,
-            fontSize: typography.size.body,
-            fontWeight: typography.weight.medium,
+            color: colors.text.secondary,
+            fontSize: '12px',
             textDecoration: 'none',
-            textAlign: 'center' as const,
-            display: 'inline-block',
-            padding: `${spacing.md} ${spacing.lg}`,
+            fontFamily: typography.fontFamily.sans,
+            border: `1px solid ${colors.border.subtle}`,
+            padding: '8px 16px',
         }
-    },
-    header: {
-        padding: `${spacing.lg} 0`,
-        textAlign: 'center' as const,
     },
     footer: {
-        padding: `${spacing.lg} 0`,
+        marginTop: '32px',
         textAlign: 'center' as const,
+        borderTop: `1px dashed ${colors.border.subtle}`,
+        paddingTop: '24px',
     },
-    text: {
-        h1: {
-            color: colors.neutral.text.primary,
-            fontSize: typography.size.h1,
-            fontWeight: typography.weight.bold,
-            margin: '0 0 24px',
-            textAlign: 'center' as const,
-        },
-        body: {
-            color: colors.neutral.text.secondary,
-            fontSize: typography.size.body,
-            lineHeight: typography.lineHeight.base,
-            margin: '0 0 16px',
-        },
-        caption: {
-            color: colors.neutral.text.tertiary,
-            fontSize: typography.size.caption,
-        }
+    footerText: {
+        fontSize: typography.size.caption,
+        color: colors.text.tertiary,
+        fontFamily: typography.fontFamily.sans,
     }
 }
+

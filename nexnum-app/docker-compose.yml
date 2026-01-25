@@ -48,6 +48,24 @@ services:
     depends_on:
       - redis
 
+  socket-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.socket
+    container_name: nexnum-socket
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=redis://redis:6379/1
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+    depends_on:
+      redis:
+        condition: service_healthy
+
   # ============================================
   # OBSERVABILITY STACK (Optional)
   # Start with: docker-compose --profile monitoring up
@@ -83,7 +101,7 @@ services:
     container_name: nexnum-grafana
     profiles: [ "monitoring" ]
     ports:
-      - "3001:3000"
+      - "3002:3000"
     volumes:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro

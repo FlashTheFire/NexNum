@@ -39,7 +39,7 @@ export interface AppSettings {
 const DEFAULT_SETTINGS: AppSettings = {
     general: {
         siteName: 'NexNum',
-        emailSender: 'onboarding@resend.dev', // Default for testing
+        emailSender: 'noreply@nexnum.com', // Default for testing
         timezone: 'UTC',
         maintenanceMode: false,
         maintenanceMessage: 'We are currently performing scheduled maintenance.',

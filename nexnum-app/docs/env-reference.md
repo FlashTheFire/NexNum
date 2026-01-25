@@ -128,7 +128,11 @@ Complete reference for all environment variables in NexNum.
 
 | Variable | Description |
 |----------|-------------|
-| `RESEND_API_KEY` | Resend email API key |
+| `SMTP_HOST` | SMTP Host (e.g. smtp.gmail.com) |
+| `SMTP_PORT` | SMTP Port (587 or 465) |
+| `SMTP_USER` | SMTP Username/Email |
+| `SMTP_PASS` | SMTP Password (App Password) |
+| `FROM_EMAIL` | Default sender address |
 
 ## Push Notifications
 

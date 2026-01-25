@@ -620,7 +620,7 @@ NexNum is optimized for **AWS Amplify** - the recommended deployment platform fo
 │  ☁️  AWS Amplify    → Next.js hosting           (FREE) │
 │  🗃️  Supabase       → PostgreSQL database       (FREE) │
 │  ⚡  Redis          → Cache (Docker)            (FREE) │
-│  📧  Resend         → Transactional emails      (FREE) │
+│  📧  SMTP           → Transactional emails      (NodeMailer)│
 │  🔍  MeiliSearch    → Search (Docker)           (FREE) │
 ├─────────────────────────────────────────────────────────┤
 │  💰 TOTAL: $0/month                                     │

@@ -109,7 +109,7 @@ az keyvault secret show --vault-name nexnum-vault --name DATABASE-URL
 |--------|-------------|
 | `SENTRY_DSN` | Error tracking |
 | `SENTRY_AUTH_TOKEN` | Sentry API token |
-| `RESEND_API_KEY` | Email service |
+| `SMTP_PASS` | Email service password |
 | `GOOGLE_CLIENT_SECRET` | OAuth |
 
 ---

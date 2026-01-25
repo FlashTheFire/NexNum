@@ -110,7 +110,7 @@ export const envSchema = z.object({
     SENTRY_AUTH_TOKEN: z.string().optional(),
 
     // ── Email ─────────────────────────────────
-    RESEND_API_KEY: z.string().optional(),
+    SMTP_PASS: z.string().optional(),
 
     // ── Web Push ──────────────────────────────
     NEXT_PUBLIC_VAPID_PUBLIC_KEY: z.string().optional(),

@@ -10,6 +10,7 @@ import { redis } from '@/lib/core/redis'
 import { logger } from '@/lib/core/logger'
 import { CodeExtractor } from '@/lib/sms/code-extractor'
 import { WebhookPayload, SmsResult, ActivationStatus } from '@/lib/sms/types'
+import { EventPublisher } from '@/lib/events/publisher'
 
 export abstract class BaseWebhookHandler {
     protected providerName: string
@@ -68,6 +69,8 @@ export abstract class BaseWebhookHandler {
             select: {
                 id: true,
                 serviceCode: true,
+                ownerId: true,
+                phoneNumber: true,
             },
         })
 
@@ -85,7 +88,7 @@ export abstract class BaseWebhookHandler {
             number.serviceCode || undefined
         )
 
-        // Create SMS result
+        // Create SMS result (Legacy Structure maintained for backward compat if needed)
         const smsResult: SmsResult = {
             id: `${this.providerName}:${payload.activationId}:${Date.now()}`,
             numberId: number.id,
@@ -123,11 +126,27 @@ export abstract class BaseWebhookHandler {
         // Cache SMS
         await this.cacheSms(number.id, smsResult)
 
-        // Publish to Redis pub/sub (for real-time updates)
-        await redis.publish(
-            `sms:received:${number.id}`,
-            JSON.stringify(smsResult)
-        )
+        // Publish Event (Fire & Forget)
+        if (number.ownerId) {
+            try {
+                await EventPublisher.publish('sms.received', `user:${number.ownerId}`, {
+                    activationId: payload.activationId,
+                    phoneNumber: number.phoneNumber,
+                    message: smsResult.content,
+                    serviceName: number.serviceCode || undefined,
+                    receivedAt: smsResult.receivedAt.toISOString()
+                })
+            } catch (error) {
+                // Log but do not fail the webhook processing
+                logger.error('Failed to publish sms.received event', {
+                    error,
+                    activationId: payload.activationId,
+                    numberId: number.id
+                })
+            }
+        } else {
+            logger.warn('Skipping event publish: Number has no owner', { numberId: number.id })
+        }
 
         logger.info('SMS received via webhook', {
             provider: this.providerName,

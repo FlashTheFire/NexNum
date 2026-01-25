@@ -459,7 +459,7 @@ export default function SettingsPage() {
                 )}
 
                 {activeTab === 'emailTester' && (
-                    <SettingsSection title="Email Template Tester" description="Send test emails to verify templates (Resend API Key required)">
+                    <SettingsSection title="Email Template Tester" description="Send test emails to verify templates (SMTP check)">
                         <div className="space-y-6">
                             <SettingsInput
                                 label="Recipient Email"

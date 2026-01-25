@@ -31,6 +31,7 @@ import { useTranslations } from "next-intl"
 // Import new premium components
 import { SMSBackground, SMSNumberCard, SMSMessageCard } from "./components"
 import { useSMS } from "@/hooks/use-sms"
+import { useSocketEvent } from "@/hooks/use-socket"
 import LoadingScreen from "@/components/ui/LoadingScreen"
 import LanguageSwitcher from "@/components/common/LanguageSwitcher"
 
@@ -90,7 +91,17 @@ export default function SMSPage() {
 
     // Use Professional Backend Hook
     // Prefer ID for API calls as it's the unique database key
-    const { messages, refresh, isValidating, status: pollStatus } = useSMS(displayNumber?.id || (identifier.includes('-') ? identifier : ''))
+    const { messages, refresh, reload, isValidating, status: pollStatus } = useSMS(displayNumber?.id || (identifier.includes('-') ? identifier : ''))
+
+    // Real-Time Socket Integration
+    useSocketEvent('sms.received', (data) => {
+        // If the event belongs to this number (match ID or Phone), reload immediately
+        if (displayNumber && (data.numberId === displayNumber.id || data.phoneNumber === displayNumber.number)) {
+            // Use reload (GET) instead of refresh (POST) to save provider API calls
+            reload();
+            toast.success(t('inbox.newMessageReceived'));
+        }
+    });
 
     // Sync local number status with polled status
     useEffect(() => {

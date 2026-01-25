@@ -27,8 +27,8 @@ const envSchema = z.object({
     SENTRY_PROJECT: z.string().optional(),
     SENTRY_AUTH_TOKEN: z.string().optional(),
 
-    // Email (Resend)
-    RESEND_API_KEY: z.string().optional(),
+    // Email (SMTP)
+    SMTP_PASS: z.string().optional(),
 
     // AI (Gemini)
     GEMINI_API_KEY: z.string().optional(),

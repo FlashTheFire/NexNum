@@ -1,0 +1,26 @@
+import { z } from 'zod';
+
+/**
+ * EVENT REGISTRY
+ * Only types defined here are allowed to be published.
+ */
+
+// 1. SMS Received Event
+export const SmsReceivedPayload = z.object({
+    activationId: z.string(),
+    phoneNumber: z.string(),
+    message: z.string(),
+    serviceName: z.string().optional(),
+    receivedAt: z.string().datetime(), // ISO string from Date
+});
+
+// The Master Registry Map
+export const EVENT_REGISTRY = {
+    'sms.received': SmsReceivedPayload,
+    // Future: 'wallet.balance_updated': ...
+} as const;
+
+export type EventType = keyof typeof EVENT_REGISTRY;
+
+// Helper to infer payload type from event name
+export type EventPayload<T extends EventType> = z.infer<typeof EVENT_REGISTRY[T]>;

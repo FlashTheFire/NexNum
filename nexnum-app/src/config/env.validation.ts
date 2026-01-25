@@ -22,7 +22,7 @@ export interface ValidationResult {
 // ============================================
 const RECOMMENDED_VARS = [
     'SENTRY_DSN',
-    'RESEND_API_KEY',
+    'SMTP_PASS',
     'NEXT_PUBLIC_VAPID_PUBLIC_KEY',
     'VAPID_PRIVATE_KEY',
 ] as const

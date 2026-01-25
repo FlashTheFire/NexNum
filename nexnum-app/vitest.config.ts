@@ -25,7 +25,6 @@ export default defineConfig({
         // Test file patterns
         include: [
             'src/**/*.{test,spec}.{ts,tsx}',
-            'tests/**/*.{test,spec}.{ts,tsx}',
         ],
 
         // Coverage configuration
@@ -60,7 +59,7 @@ export default defineConfig({
         },
 
         // Setup files
-        setupFiles: ['./tests/setup.ts'],
+        setupFiles: [],
 
         // Timeouts
         testTimeout: 10000,

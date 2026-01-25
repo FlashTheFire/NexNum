@@ -11,6 +11,7 @@ interface UseSMSResult {
     isLoading: boolean
     isError: any
     refresh: () => Promise<void>
+    reload: () => Promise<any>
     isValidating: boolean
 }
 
@@ -96,6 +97,7 @@ export function useSMS(numberId: string): UseSMSResult {
         isLoading: !error && !data,
         isError: error,
         refresh,
+        reload: () => mutate(),
         isValidating
     }
 }
