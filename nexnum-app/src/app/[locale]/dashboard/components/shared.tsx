@@ -1,7 +1,7 @@
 import { Bell, ShoppingCart, ArrowRight, ChevronRight, ArrowUpRight, Gift } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { useGlobalStore } from "@/store"
+import { useGlobalStore } from "@/stores/appStore"
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 

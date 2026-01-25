@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react"
 import { useTranslations } from "next-intl"
 import { motion, AnimatePresence } from "framer-motion"
-import { useGlobalStore } from "@/store"
+import { useGlobalStore } from "@/stores/appStore"
 import { useAuthStore } from "@/stores/authStore"
 import { formatPrice } from "@/lib/utils/utils"
 import { getCountryFlagUrlSync } from "@/lib/normalizers/country-flags"

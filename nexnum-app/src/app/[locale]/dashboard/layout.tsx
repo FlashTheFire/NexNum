@@ -17,7 +17,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { ThemeToggle, ThemeToggleIcon } from "@/components/common/theme-toggle"
 import { Navbar } from "@/components/common/navbar"
-import { useGlobalStore } from "@/store"
+import { useGlobalStore } from "@/stores/appStore"
 import { cn } from "@/lib/utils/utils"
 import { useAuthStore } from "@/stores/authStore"
 import DashboardMobileActionBar from "@/components/common/DashboardMobileActionBar"

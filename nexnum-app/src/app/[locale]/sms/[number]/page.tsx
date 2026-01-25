@@ -23,7 +23,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { useGlobalStore } from "@/store"
+import { useGlobalStore } from "@/stores/appStore"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils/utils"
 import { useTranslations } from "next-intl"

@@ -1,6 +1,6 @@
 import useSWR from 'swr'
 import { SMSMessage } from '@/lib/providers/sms-service'
-import { useGlobalStore } from '@/store'
+import { useGlobalStore } from '@/stores/appStore'
 import { useEffect } from 'react'
 
 const fetcher = (url: string) => fetch(url).then(r => r.json())

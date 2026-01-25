@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
-import { useGlobalStore } from "@/store"
+import { useGlobalStore } from "@/stores/appStore"
 import { DashboardBackground } from "../components/dashboard-background"
 
 import BuyPageHeader from "./components/BuyPageHeader"

@@ -16,7 +16,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { useGlobalStore } from "@/store"
+import { useGlobalStore } from "@/stores/appStore"
 import { cn } from "@/lib/utils/utils"
 import { DashboardBackground } from "../components/dashboard-background"
 import { VaultOrderCard, VaultOrderStatus } from "./components/VaultOrderCard"

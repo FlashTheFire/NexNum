@@ -29,7 +29,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { useGlobalStore } from "@/store"
+import { useGlobalStore } from "@/stores/appStore"
 import { formatPrice, formatDate, cn } from "@/lib/utils/utils"
 import { DashboardBackground } from "../components/dashboard-background"
 

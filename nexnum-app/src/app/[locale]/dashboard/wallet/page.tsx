@@ -27,7 +27,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { useGlobalStore, Transaction } from "@/store"
+import { useGlobalStore, Transaction } from "@/stores/appStore"
 import { useAuthStore } from "@/stores/authStore"
 import { formatPrice, formatRelativeTime, cn } from "@/lib/utils/utils"
 

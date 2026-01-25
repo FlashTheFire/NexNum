@@ -17,7 +17,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { useGlobalStore } from "@/store"
+import { useGlobalStore } from "@/stores/appStore"
 import { useAuthStore } from "@/stores/authStore"
 import { formatPrice } from "@/lib/utils/utils"
 import { DashboardBackground } from "./dashboard-background"

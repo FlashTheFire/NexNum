@@ -21,7 +21,7 @@ import {
     Loader2
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { useGlobalStore } from "@/store"
+import { useGlobalStore } from "@/stores/appStore"
 import { useAuthStore } from "@/stores/authStore"
 import { formatPrice, cn } from "@/lib/utils/utils"
 import { useNotifications, formatNotificationTime } from "@/hooks/use-notifications"

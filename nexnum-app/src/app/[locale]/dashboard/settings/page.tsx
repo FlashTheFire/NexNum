@@ -23,7 +23,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { useGlobalStore } from "@/store"
+import { useGlobalStore } from "@/stores/appStore"
 import { useAuthStore } from "@/stores/authStore"
 import { cn } from "@/lib/utils/utils"
 import { NotificationSettings } from "@/components/dashboard/settings/NotificationSettings"
