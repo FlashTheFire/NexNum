@@ -20,6 +20,7 @@ import { prisma } from '@/lib/core/db'
 import { smsProvider } from '@/lib/sms-providers'
 import { WalletService } from '@/lib/wallet/wallet'
 import { logger } from '@/lib/core/logger'
+import { queue } from '@/lib/core/queue'
 import {
     lifecycle_jobs_total,
     lifecycle_circuit_state,
@@ -357,17 +358,23 @@ class NumberLifecycleManager {
             return { queues: {}, circuitState: 'unknown' }
         }
 
-        let pollStats = 0
-        let expireStats = 0
+        let pollCreated = 0
+        let pollActive = 0
+        let expireCreated = 0
+        let expireActive = 0
 
         try {
-            // Safely attempt to get stats, pg-boss version differences might affect method availability
-            if (typeof this.boss.getQueueSize === 'function') {
-                [pollStats, expireStats] = await Promise.all([
-                    this.boss.getQueueSize(CONFIG.QUEUE_POLL),
-                    this.boss.getQueueSize(CONFIG.QUEUE_EXPIRE),
-                ])
-            }
+            // Use QueueService to get safe status via DB count
+            const [pollStatus, expireStatus] = await Promise.all([
+                queue.getQueueStatus(CONFIG.QUEUE_POLL),
+                queue.getQueueStatus(CONFIG.QUEUE_EXPIRE)
+            ])
+
+            pollCreated = pollStatus.pending
+            pollActive = pollStatus.active
+            expireCreated = expireStatus.pending
+            expireActive = expireStatus.active
+
         } catch (e) {
             logger.warn('[Lifecycle] Failed to get queue stats', { error: e })
         }
@@ -380,8 +387,8 @@ class NumberLifecycleManager {
 
         return {
             queues: {
-                poll: { created: pollStats || 0, active: 0, failed: 0 },
-                expire: { created: expireStats || 0, active: 0, failed: 0 },
+                poll: { created: pollCreated, active: pollActive, failed: 0 },
+                expire: { created: expireCreated, active: expireActive, failed: 0 },
             },
             circuitState,
         }
@@ -536,6 +543,17 @@ class NumberLifecycleManager {
                     where: { id: number.id },
                     data: { status: 'completed' },
                 })
+
+                // Record SMS Count Stats
+                if (number.provider) {
+                    // Non-blocking
+                    const { healthMonitor } = await import('@/lib/providers/health-monitor')
+                    const provider = await prisma.provider.findFirst({ where: { name: number.provider }, select: { id: true } })
+                    if (provider) {
+                        healthMonitor.recordSmsCount(provider.id, number.smsMessages.length).catch(console.error)
+                    }
+                }
+
                 return { action: 'complete' as const, reason: 'has_sms' }
             }
 
@@ -584,7 +602,7 @@ class NumberLifecycleManager {
         // Get provider ID for the number
         const number = await prisma.number.findUnique({
             where: { id: numberId },
-            select: { provider: true }
+            select: { provider: true, purchasedAt: true }
         })
 
         let providerId = ''
@@ -594,6 +612,15 @@ class NumberLifecycleManager {
                 select: { id: true }
             })
             providerId = provider?.id || ''
+
+            // NEW: Record Delivery Time (Speed)
+            if (providerId && number.purchasedAt) {
+                const duration = Date.now() - number.purchasedAt.getTime()
+                const { healthMonitor } = await import('@/lib/providers/health-monitor') // Lazy import to avoid cycles
+                healthMonitor.recordDeliveryTime(providerId, duration).catch(e =>
+                    logger.warn('[Stats] Failed to record delivery time', { error: e })
+                )
+            }
         }
 
         // 1. Use MultiSmsHandler for proper storage and auto-request

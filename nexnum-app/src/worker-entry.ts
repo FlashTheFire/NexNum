@@ -38,7 +38,7 @@ export async function startQueueWorker() {
                             provider: providerName,
                             jobId: job.id
                         });
-                        continue; // Move to next job, or maybe fail?
+                        continue; // Move to next job
                     }
 
                     // 2. Initialize Dynamic Engine
@@ -60,6 +60,31 @@ export async function startQueueWorker() {
                         stack: error.stack
                     });
                     // Throwing here will cause pg-boss to retry based on queue policy
+                    throw error;
+                }
+            }
+        });
+
+        // JOB: Provider Data Sync (Manual Trigger via API)
+        await queue.work(QUEUES.PROVIDER_SYNC, async (jobs: any[]) => {
+            for (const job of jobs) {
+                const { provider } = job.data;
+                logger.info(`[Worker] Starting sync job for ${provider || 'ALL'}`, { jobId: job.id });
+
+                try {
+                    // Dynamic import to avoid circular deps or load issues at startup
+                    const { syncProviderData, syncAllProviders } = await import('./lib/providers/provider-sync');
+
+                    let result;
+                    if (provider) {
+                        result = await syncProviderData(provider);
+                    } else {
+                        result = await syncAllProviders();
+                    }
+
+                    logger.info(`[Worker] Sync completed for ${provider || 'ALL'}`, { jobId: job.id, stats: result });
+                } catch (error: any) {
+                    logger.error(`[Worker] Sync failed for ${provider || 'ALL'}`, { jobId: job.id, error: error.message });
                     throw error;
                 }
             }

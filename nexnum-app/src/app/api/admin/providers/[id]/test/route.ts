@@ -80,8 +80,29 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
                 result = { balance: await engine.getBalance?.() ?? 0 }
                 break
             case 'getCountries':
-                // Use metadata engine (respects useDynamicMetadata flag)
-                const countries = await metadataEngine.getCountries()
+                // Use metadataEngine (respects useDynamicMetadata flag)
+                // FORCE REFRESH: To show trace, we must bypass cache.
+                // DynamicProvider doesn't expose skipCache directly in interface, so we hack it or rely on a new method.
+                // Best approach: cast to DynamicProvider and access request method directly or add a skipCache arg to getCountries.
+
+                let countries;
+                if (isDynamic && metadataEngine instanceof DynamicProvider) {
+                    // For testing: we want to trace the request, so we bypass the public getCountries cache wrapper
+                    const res = await (metadataEngine as any).request('getCountries');
+                    const items = (metadataEngine as any).parseResponse(res, 'getCountries');
+                    // Manually map fields to match getCountries output style (simplified)
+                    countries = items.map((i: any) => ({
+                        id: String(i.id || i.code),
+                        name: String(i.name || i.country),
+                        code: String(i.code || i.id)
+                    }));
+
+                    // Manually set trace since we called request() directly
+                    // (request() sets lastRequestTrace internally)
+                } else {
+                    countries = await metadataEngine.getCountries()
+                }
+
                 result = {
                     count: countries.length,
                     first: countries.slice(0, 5), // Return first 5 for better debugging
@@ -205,10 +226,11 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
     let traceEngine: any = null
     if (['getCountries', 'getServices'].includes(action)) {
         // Metadata operations use metadataEngine
-        traceEngine = useDynamicMeta && metadataEngine ? metadataEngine : null
+        // Even if useDynamicMeta is false, if metadataEngine is DynamicProvider, we can use it
+        traceEngine = metadataEngine
     } else {
         // Other operations use main engine
-        traceEngine = isDynamic && engine ? engine : null
+        traceEngine = engine
     }
 
     return NextResponse.json({

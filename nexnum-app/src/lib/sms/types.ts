@@ -273,6 +273,12 @@ export interface ProviderHealth {
     /** Average latency in milliseconds */
     avgLatency: number
 
+    /** Average SMS delivery time in milliseconds */
+    avgDeliveryTime?: number
+
+    /** Average SMS count per activation */
+    avgSmsCount?: number
+
     /** Circuit breaker state */
     circuitState: 'closed' | 'open' | 'half-open'
 

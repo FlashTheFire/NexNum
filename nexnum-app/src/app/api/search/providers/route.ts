@@ -7,6 +7,7 @@ import { prisma } from "@/lib/core/db";
  * 
  * Get providers for a selected service + country combination.
  * Returns individual offer entries with price and stock.
+ * Also includes Smart Route info when multiple providers available.
  * 
  * Query Params:
  * - service: Service slug (required)
@@ -46,11 +47,11 @@ export async function GET(req: Request) {
             providers.forEach(p => providerInfoMap.set(p.name, { displayName: p.displayName, logoUrl: p.logoUrl }));
         }
 
-        // Map to API response format (id/provider slug hidden for security)
-        const items = result.providers.map(p => {
+        // Map to API response format with reliability info
+        const items = result.providers.map((p, index) => {
             const providerInfo = providerInfoMap.get(p.provider);
             return {
-                displayName: providerInfo?.displayName || p.provider, // Fallback to slug if not found
+                displayName: providerInfo?.displayName || p.provider,
                 serviceName: p.serviceName,
                 serviceSlug: p.serviceSlug,
                 countryName: p.countryName,
@@ -59,11 +60,44 @@ export async function GET(req: Request) {
                 price: p.price,
                 stock: p.stock,
                 successRate: p.successRate,
-                // Operator info
                 operatorId: p.operatorId,
-                iconUrl: (p as any).iconUrl, // Standardized icon name
+                iconUrl: (p as any).iconUrl,
+                // NEW: Added reliability and ranking
+                rank: index + 1,
+                reliability: p.successRate && p.successRate > 80 ? 'High' : p.successRate && p.successRate > 60 ? 'Medium' : 'Standard',
             };
         });
+
+        // Compute Smart Route info (only when >1 provider)
+        const smartRoute = items.length > 1 ? {
+            enabled: true,
+            topProvider: items[0]?.displayName || null,
+            fallbackCount: items.length - 1,
+            priceRange: {
+                min: Math.min(...items.map(i => i.price)),
+                max: Math.max(...items.map(i => i.price))
+            },
+            totalStock: items.reduce((sum, i) => sum + i.stock, 0),
+            // Full provider list for smart routing decisions
+            providers: items.map(i => ({
+                name: i.displayName,
+                price: i.price,
+                stock: i.stock,
+                rank: i.rank,
+                reliability: i.reliability,
+                successRate: i.successRate,
+                operatorId: i.operatorId
+            })),
+            // Computed reliability estimate based on top providers
+            estimatedReliability: items[0]?.reliability || 'Standard',
+            // Best route recommendation
+            bestRoute: items[0] ? {
+                provider: items[0].displayName,
+                price: items[0].price,
+                stock: items[0].stock,
+                reliability: items[0].reliability
+            } : null
+        } : null;
 
         return NextResponse.json({
             items,
@@ -72,12 +106,14 @@ export async function GET(req: Request) {
                 page,
                 limit,
                 hasMore: page * limit < result.total
-            }
+            },
+            // NEW: Smart Route info included
+            smartRoute
         });
     } catch (error) {
         console.error("Failed to search providers:", error);
         return NextResponse.json(
-            { items: [], pagination: { total: 0, page: 1, hasMore: false } },
+            { items: [], pagination: { total: 0, page: 1, hasMore: false }, smartRoute: null },
             { status: 500 }
         );
     }

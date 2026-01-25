@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
-import { syncProviderData } from '@/lib/providers/provider-sync'
 import { requireAdmin } from '@/lib/auth/requireAdmin'
 import { logAdminAction, getClientIP } from '@/lib/core/auditLog'
+import { queue, QUEUES } from '@/lib/core/queue'
 
 export async function POST(request: Request) {
     const auth = await requireAdmin(request)
@@ -14,19 +14,12 @@ export async function POST(request: Request) {
             const body = await request.json()
             provider = body.provider
         } catch (e) {
-            // Body is optional, proceed with undefined provider
+            // Body is optional
         }
 
-        let result
-        if (provider) {
-            console.log(`[API] Starting Admin Sync for provider: ${provider}...`)
-            result = await syncProviderData(provider)
-        } else {
-            console.log(`[API] Starting Full Admin Sync (all providers)...`)
-            // Import syncAllProviders dynamically or ensure it's imported at top
-            const { syncAllProviders } = await import('@/lib/providers/provider-sync')
-            result = await syncAllProviders()
-        }
+        console.log(`[API] Queueing Admin Sync for: ${provider || 'ALL'}...`)
+
+        const jobId = await queue.publish(QUEUES.PROVIDER_SYNC, { provider })
 
         // Audit log the sync action
         await logAdminAction({
@@ -34,19 +27,19 @@ export async function POST(request: Request) {
             action: 'SYNC_TRIGGERED',
             resourceType: 'Provider',
             resourceId: provider || 'ALL',
-            metadata: { stats: result },
+            metadata: { jobId, status: 'queued' },
             ipAddress: getClientIP(request)
         })
 
         return NextResponse.json({
             success: true,
-            message: provider ? `Sync completed for ${provider}` : `Full sync completed`,
-            stats: result
+            message: `Sync queued successfully (Job ID: ${jobId})`,
+            jobId
         })
 
     } catch (error) {
         console.error("Sync Error:", error)
-        return NextResponse.json({ error: 'Sync failed: ' + (error as Error).message }, { status: 500 })
+        return NextResponse.json({ error: 'Sync trigger failed: ' + (error as Error).message }, { status: 500 })
     }
 }
 

@@ -21,6 +21,7 @@ import { ProviderAIHub } from "./ProviderAIHub"
 import { JsonEditor } from "@/components/ui/json-editor"
 import { InfoTooltip, TT, TTCode } from "@/components/ui/tooltip"
 import { SafeImage } from "@/components/ui/safe-image"
+import { useSyncStatus } from "@/hooks/useSyncStatus"
 
 // Types
 interface Provider {
@@ -128,6 +129,7 @@ export default function ProvidersPage() {
     const [providers, setProviders] = useState<Provider[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [searchQuery, setSearchQuery] = useState("")
+    const { isSyncing: isGlobalSyncing } = useSyncStatus()
 
     // State for Sheet
     const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null)
@@ -215,7 +217,13 @@ export default function ProvidersPage() {
                         ))
                     ) : (
                         filteredProviders.map((provider) => (
-                            <ProviderCard key={provider.id} provider={provider} onRefresh={fetchProviders} onEdit={() => openEdit(provider)} />
+                            <ProviderCard
+                                key={provider.id}
+                                provider={provider}
+                                onRefresh={fetchProviders}
+                                onEdit={() => openEdit(provider)}
+                                isGlobalSyncing={isGlobalSyncing}
+                            />
                         ))
                     )}
                 </AnimatePresence>
@@ -252,10 +260,14 @@ export default function ProvidersPage() {
     )
 }
 
-function ProviderCard({ provider, onRefresh, onEdit }: { provider: Provider; onRefresh: () => void; onEdit: () => void }) {
+function ProviderCard({ provider, onRefresh, onEdit, isGlobalSyncing }: { provider: Provider; onRefresh: () => void; onEdit: () => void; isGlobalSyncing: boolean }) {
     const [isSyncing, setIsSyncing] = useState(false)
 
     const handleSync = async (e: React.MouseEvent) => {
+        if (isGlobalSyncing) {
+            toast.error("A sync job is already running")
+            return
+        }
         e.stopPropagation()
         setIsSyncing(true)
         try {
@@ -306,7 +318,7 @@ function ProviderCard({ provider, onRefresh, onEdit }: { provider: Provider; onR
                         size="sm"
                         className="h-9 w-9 p-0 bg-white/5 hover:bg-white/10 shrink-0 rounded-lg"
                         onClick={(e) => { e.stopPropagation(); handleSync(e); }}
-                        disabled={isSyncing}
+                        disabled={isSyncing || isGlobalSyncing}
                     >
                         <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
                     </Button>
@@ -452,10 +464,10 @@ function ProviderCard({ provider, onRefresh, onEdit }: { provider: Provider; onR
                     size="sm"
                     className="w-full bg-white/5 border-white/5 hover:bg-white/10 hover:text-white border-transparent text-white/60 justify-center group/btn text-sm h-9"
                     onClick={handleSync}
-                    disabled={isSyncing}
+                    disabled={isSyncing || isGlobalSyncing}
                 >
                     <RefreshCw className={`w-4 h-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
-                    {isSyncing ? 'Syncing...' : 'Sync Now'}
+                    {isSyncing ? 'Syncing...' : (isGlobalSyncing ? 'System Syncing...' : 'Sync Now')}
                 </Button>
             </div>
         </motion.div>

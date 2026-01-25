@@ -35,13 +35,16 @@ interface SettingsData {
     }
 }
 
-type TabType = 'general' | 'pricing' | 'rateLimit' | 'notifications' | 'emailTester'
+import { BannedIconsTable } from './BannedIconsTable'
+
+type TabType = 'general' | 'pricing' | 'rateLimit' | 'notifications' | 'emailTester' | 'assets'
 
 const tabs = [
     { id: 'general' as TabType, label: 'General', icon: Globe },
     { id: 'pricing' as TabType, label: 'Pricing', icon: DollarSign },
     { id: 'rateLimit' as TabType, label: 'Rate Limits', icon: Shield },
     { id: 'notifications' as TabType, label: 'Notifications', icon: Bell },
+    { id: 'assets' as TabType, label: 'Assets', icon: AlertTriangle },
     { id: 'emailTester' as TabType, label: 'Email Tester', icon: Mail },
 ]
 
@@ -499,6 +502,12 @@ export default function SettingsPage() {
                                 ))}
                             </div>
                         </div>
+                    </SettingsSection>
+                )}
+
+                {activeTab === 'assets' && (
+                    <SettingsSection title="Asset Management" description="Manage banned icons and other static assets">
+                        <BannedIconsTable />
                     </SettingsSection>
                 )}
             </motion.div>

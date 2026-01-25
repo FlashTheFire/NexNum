@@ -3,6 +3,9 @@
 import React, { createContext, useEffect, useState, ReactNode } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { toast } from 'sonner';
+import { useGlobalStore } from '@/stores/appStore';
+import { Phone, Wallet, Bell } from 'lucide-react';
+import { useSound } from '@/hooks/use-sound';
 
 interface SocketContextType {
     socket: Socket | null;
@@ -14,61 +17,101 @@ export const SocketContext = createContext<SocketContextType>({
     isConnected: false,
 });
 
+// Enable by setting NEXT_PUBLIC_SOCKET_ENABLED=true in .env
+const SOCKET_ENABLED = process.env.NEXT_PUBLIC_SOCKET_ENABLED === 'true';
+
 export const SocketProvider = ({ children }: { children: ReactNode }) => {
     const [socket, setSocket] = useState<Socket | null>(null);
     const [isConnected, setIsConnected] = useState(false);
+    const fetchDashboardState = useGlobalStore((state) => state.fetchDashboardState);
+    const { play: playNotification } = useSound('/audio/notification.mp3')
 
     useEffect(() => {
-        // Socket URL (Proxy handles /api/socket -> 3951 in dev, or Ingress in prod)
-        // Check next.config.mjs or assumes standalone port access?
-        // In Local Dev, we usually run socket on 3951. 
-        // If we use rewrites, we can use relative path.
-        // For now, let's try direct port 3951 logic or env var if we are in dev mode.
-        // BUT, cookies won't be sent cross-port easily without credentials/CORS setup.
-        // Best approach: Use a relative path if Next.js rewrites to 3951, OR direct URL.
+        if (!SOCKET_ENABLED) {
+            console.log('ℹ️ [Socket] Disabled (using visibility-based refresh instead)');
+            return;
+        }
+
         const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3951';
 
         const socketInstance = io(socketUrl, {
             path: '/api/socket',
-            withCredentials: true, // IMPORTANT: Send cookies
+            withCredentials: true,
             autoConnect: true,
             reconnection: true,
-            transports: ['websocket'],
+            reconnectionAttempts: 10,
+            reconnectionDelay: 2000, // Slower retry to be nice
+            transports: ['websocket', 'polling'], // Fallback enabled
         });
 
         socketInstance.on('connect', () => {
             setIsConnected(true);
+            // toast.success('Real-time connection established', { 
+            //     id: 'socket-connected', 
+            //     icon: <Wifi className="w-4 h-4 text-green-400"/>,
+            //     duration: 2000
+            // });
             console.log('✅ [Socket] Connected');
-
-            // Trigger Sync
-            // We fetch missed events since last disconnect? 
-            // For MVP, we just fetch "recent" or rely on page refresh for history 
-            // and socket for new stuff.
-            // SPRINT C plan said: Call Sync API
             syncMissedEvents();
         });
 
-        socketInstance.on('disconnect', () => {
+        socketInstance.on('disconnect', (reason) => {
             setIsConnected(false);
-            console.log('❌ [Socket] Disconnected');
+            console.log('❌ [Socket] Disconnected:', reason);
         });
 
         socketInstance.on('connect_error', (err) => {
-            console.error('⚠️ [Socket] Connection Error:', err.message);
+            console.debug('[Socket] Connection failed:', err.message);
         });
 
-        // Global Listeners (e.g. Toasts)
-        socketInstance.on('sms.received', (data: any) => {
-            // Show toast if valid
+        // -----------------------------------------------------------------
+        // Event Handling (Envelope Unwrapping)
+        // -----------------------------------------------------------------
+
+        socketInstance.on('state.updated', (envelope: any) => {
+            // Verify Envelope Version
+            if (envelope?.v !== 1 || !envelope?.payload) {
+                console.warn('[Socket] Invalid envelope received:', envelope);
+                return;
+            }
+
+            const { type, reason } = envelope.payload;
+            console.log(`🔄 [Socket] State Update: ${type} (${reason || 'Unknown'})`);
+
+            // Optimistic Updates could go here
+            fetchDashboardState();
+
+            // Notify user of balance changes if explicitly triggered
+            if (type === 'wallet' && reason === 'deposit') {
+                toast.success('Deposit Received', {
+                    description: 'Your balance has been updated.',
+                    icon: <Wallet className="w-4 h-4 text-emerald-400" />
+                });
+            }
+        });
+
+        socketInstance.on('sms.received', (envelope: any) => {
+            if (envelope?.v !== 1 || !envelope?.payload) {
+                console.warn('[Socket] Invalid envelope received:', envelope);
+                return;
+            }
+
+            const data = envelope.payload;
             if (data?.phoneNumber && data?.message) {
-                toast(`New Message on ${data.phoneNumber}`, {
-                    description: data.message,
+                // Play notification sound
+                playNotification()
+
+                toast('New Message Received', {
+                    description: `${data.phoneNumber}: ${data.message.substring(0, 50)}${data.message.length > 50 ? '...' : ''}`,
+                    icon: <Phone className="w-4 h-4 text-violet-400" />,
+                    duration: 8000, // Keep longer
                     action: {
                         label: 'View',
-                        onClick: () => window.location.href = `/sms/${data.phoneNumber}` // Simple nav
+                        onClick: () => window.location.href = `/sms/${data.phoneNumber}`
                     }
                 });
             }
+            fetchDashboardState();
         });
 
         setSocket(socketInstance);
@@ -76,37 +119,50 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
         return () => {
             socketInstance.disconnect();
         };
-    }, []);
+    }, [fetchDashboardState]);
 
+    /**
+     * Replay missed events from Redis Stream via API
+     */
     const syncMissedEvents = async () => {
         try {
-            // We could track 'lastEventId' in localStorage or sessionStorage
             const lastId = sessionStorage.getItem('lastEventId') || '-';
-
             const res = await fetch(`/api/user/events/sync?since=${lastId}`);
+
             if (res.ok) {
                 const data = await res.json();
                 if (data.events && Array.isArray(data.events)) {
-                    data.events.forEach((evt: any) => {
-                        // Dispatch event as if it came from socket?
-                        // Or just let store handle it?
-                        // For now, we process "Global" sync logic here if needed.
-                        // But mostly components care about sync data.
+                    // Deduplicate?
+                    const validEvents = data.events.filter((e: any) => e && e.v === 1);
 
-                        // Store latest ID
-                        if (evt.eventId) {
+                    if (validEvents.length > 0) {
+                        console.log(`[Socket] Replaying ${validEvents.length} missed events...`);
+
+                        // Process purely for side-effects (toasts, data refresh)
+                        // We don't re-emit to socket to avoid loops, just call handlers directly or re-fetch state
+                        let shouldRefetch = false;
+
+                        validEvents.forEach((evt: any) => {
+                            // Update cursor
                             sessionStorage.setItem('lastEventId', evt.eventId);
-                        }
-                    });
 
-                    if (data.events.length > 0) {
-                        console.log(`[Socket] Synced ${data.events.length} missed events`);
-                        toast.success('Sync complete', { description: `Retrieved ${data.events.length} missed messages` });
+                            if (evt.type === 'state.updated') shouldRefetch = true;
+                            // Only toast for very, very recent messages (prevents toast bomb on login)
+                            if (evt.type === 'sms.received') {
+                                // Check if event is < 30 seconds old
+                                if (Date.now() - (evt.ts || 0) < 30000) {
+                                    // Trigger toast...
+                                }
+                                shouldRefetch = true;
+                            }
+                        });
+
+                        if (shouldRefetch) fetchDashboardState();
                     }
                 }
             }
         } catch (e) {
-            console.error('Sync failed', e);
+            console.error('[Socket] Sync failed', e);
         }
     };
 

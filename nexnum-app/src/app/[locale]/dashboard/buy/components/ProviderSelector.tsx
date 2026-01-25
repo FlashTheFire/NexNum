@@ -53,8 +53,13 @@ export interface Provider {
     price: number;
     stock: number;
     successRate?: number;
-    // Operator info
     operatorId: number;
+    // NEW: Ranking and reliability from API
+    rank?: number;
+    reliability?: 'High' | 'Medium' | 'Standard';
+    // Best Route flags
+    isBestRoute?: boolean;
+    maxPrice?: number;
 }
 
 interface ProviderSelectorProps {
@@ -99,6 +104,31 @@ export default function ProviderSelector({
     const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
     const [selectedId, setSelectedId] = useState<number | null>(null);
+
+    // Smart Route data from API
+    const [smartRoute, setSmartRoute] = useState<{
+        enabled: boolean;
+        topProvider: string | null;
+        fallbackCount: number;
+        priceRange: { min: number; max: number };
+        totalStock: number;
+        providers: Array<{
+            name: string;
+            price: number;
+            stock: number;
+            rank: number;
+            reliability: 'High' | 'Medium' | 'Standard';
+            successRate?: number;
+            operatorId: number;
+        }>;
+        estimatedReliability: 'High' | 'Medium' | 'Standard';
+        bestRoute: {
+            provider: string;
+            price: number;
+            stock: number;
+            reliability: 'High' | 'Medium' | 'Standard';
+        } | null;
+    } | null>(null);
 
     // Pagination
     const [page, setPage] = useState(1);
@@ -156,6 +186,8 @@ export default function ProviderSelector({
 
             if (isReset) {
                 setProviders(newItems);
+                // Store Smart Route data from first page
+                setSmartRoute(data.smartRoute || null);
             } else {
                 setProviders(prev => [...prev, ...newItems]);
             }
@@ -181,7 +213,8 @@ export default function ProviderSelector({
     }, [isIntersecting, hasMore, loading, loadingMore, page]);
 
     const handleSelect = (provider: Provider) => {
-        setSelectedId(provider.operatorId);
+        // Toggle selection - clicking same card again deselects it
+        setSelectedId(prev => prev === provider.operatorId ? null : provider.operatorId);
     };
 
     const handleBuy = (provider: Provider) => {
@@ -234,6 +267,11 @@ export default function ProviderSelector({
                         const isHighStock = provider.stock > 1000;
                         const isVerified = provider.successRate && provider.successRate > 70;
 
+                        // Check reliability from provider prop or fallback to smartRoute data
+                        const smartProvider = smartRoute?.providers.find(p => p.operatorId === provider.operatorId);
+                        const reliability = provider.reliability || smartProvider?.reliability;
+                        const isReliable = reliability === 'High';
+
                         return (
                             <motion.div
                                 layout
@@ -254,13 +292,18 @@ export default function ProviderSelector({
                                 )}
 
                                 {/* Badges */}
-                                <div className="absolute top-3 right-3 flex gap-2">
+                                <div className="absolute top-3 right-3 flex gap-2 flex-wrap justify-end max-w-[70%]">
                                     {isBestPrice && (
                                         <div className="px-2 py-0.5 rounded-full bg-[hsl(var(--neon-lime))] text-black text-[10px] font-bold flex items-center gap-1 shadow-lg shadow-[hsl(var(--neon-lime)/0.2)]">
                                             <Zap className="w-3 h-3 fill-black" /> BEST PRICE
                                         </div>
                                     )}
-                                    {isHighStock && !isBestPrice && (
+                                    {isReliable && (
+                                        <div className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold flex items-center gap-1">
+                                            <ShieldCheck className="w-3 h-3" /> RELIABLE
+                                        </div>
+                                    )}
+                                    {isHighStock && !isBestPrice && !isReliable && (
                                         <div className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/20 text-[10px] font-bold flex items-center gap-1">
                                             <Signal className="w-3 h-3" /> HIGH STOCK
                                         </div>
@@ -315,9 +358,15 @@ export default function ProviderSelector({
                                         <p className="text-[11px] text-gray-500 truncate mt-0.5">
                                             {provider.serviceName}
                                         </p>
-                                        {isVerified && (
+                                        {/* Replaced verified text with reliability logic if needed or keep both? Verified is strictly successRate > 70. Reliable is 'High'. Keep Verified as supplementary. */}
+                                        {isVerified && !isReliable && (
                                             <span className="inline-flex items-center gap-0.5 text-[9px] text-green-400 font-medium mt-0.5">
                                                 <ShieldCheck className="w-2.5 h-2.5" /> Verified
+                                            </span>
+                                        )}
+                                        {isReliable && (
+                                            <span className="inline-flex items-center gap-0.5 text-[9px] text-emerald-400 font-medium mt-0.5">
+                                                <Zap className="w-2.5 h-2.5" /> Fast
                                             </span>
                                         )}
                                     </div>
@@ -398,6 +447,100 @@ export default function ProviderSelector({
                 <div ref={loadMoreRef} className="py-8 flex justify-center items-center">
                     {loadingMore && <Loader2 className="w-6 h-6 animate-spin text-[hsl(var(--neon-lime))]" />}
                 </div>
+            )}
+
+            {/* Best Route Card - Only show when smartRoute is enabled (>1 provider) */}
+            {smartRoute?.enabled && (
+                <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="rounded-xl border border-[hsl(var(--neon-lime)/0.3)] bg-white/5 px-4 py-3"
+                >
+                    <div className="flex items-center justify-between gap-4 flex-wrap">
+                        {/* Left side */}
+                        <div className="flex items-center gap-3">
+                            <div className="bg-white/10 p-2 rounded-lg">
+                                <Zap className="w-4 h-4 text-[hsl(var(--neon-lime))] fill-[hsl(var(--neon-lime)/0.3)]" />
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="font-bold text-white text-sm">Best Route</span>
+                                <span className="text-[10px] text-gray-500">
+                                    {smartRoute.bestRoute?.provider}
+                                </span>
+                            </div>
+
+
+                        </div>
+
+                        {/* Right side */}
+                        <div className="flex items-center gap-3">
+                            <div className="text-[hsl(var(--neon-lime))] text-sm hidden sm:block">
+                                <span className="text-xs text-gray-500">from </span>
+                                <span className="font-bold">${smartRoute.priceRange.min.toFixed(2)}</span>
+                            </div>
+
+                            {/* Max Price Input - Enhanced */}
+                            <div className="flex items-center gap-1.5 bg-black/40 rounded-lg px-3 py-1.5 border border-white/10 hover:border-white/20 transition-colors focus-within:border-[hsl(var(--neon-lime)/0.5)] focus-within:ring-1 focus-within:ring-[hsl(var(--neon-lime)/0.2)]">
+                                <span className="text-[10px] text-gray-500 uppercase tracking-wide">max</span>
+                                <div className="flex items-center">
+                                    <span className="text-gray-400 text-sm">$</span>
+                                    <input
+                                        type="number"
+                                        step="0.1"
+                                        min={smartRoute.priceRange.min}
+                                        max={smartRoute.priceRange.max}
+                                        defaultValue={smartRoute.priceRange.max.toFixed(2)}
+                                        className="w-16 bg-transparent text-white text-sm font-semibold focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-gray-600"
+                                        id="best-route-max-price"
+                                        placeholder="0.00"
+                                    />
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={() => {
+                                    const maxPriceInput = document.getElementById('best-route-max-price') as HTMLInputElement;
+                                    const maxPrice = maxPriceInput ? parseFloat(maxPriceInput.value) : Infinity;
+                                    // Use smartRoute.providers for max price filtering
+                                    const eligible = smartRoute.providers
+                                        .filter(p => p.price <= maxPrice)
+                                        .sort((a, b) => a.price - b.price);
+                                    if (eligible[0]) {
+                                        // Find the full provider from providers list
+                                        const fullProvider = providers.find(p => p.operatorId === eligible[0].operatorId);
+                                        if (fullProvider) {
+                                            onBuy({ ...fullProvider, displayName: 'Best Route', isBestRoute: true, maxPrice });
+                                        } else {
+                                            // Construct partial provider if not in current view
+                                            const matched = eligible[0];
+                                            const constructedProvider: Provider = {
+                                                displayName: matched.name,
+                                                serviceName: serviceName,
+                                                serviceSlug: serviceCode,
+                                                countryName: countryName,
+                                                countryCode: countryCode,
+                                                // Assuming default/missing icon and flag if not available, won't break onBuy usually
+                                                price: matched.price,
+                                                stock: matched.stock,
+                                                operatorId: matched.operatorId,
+                                                rank: matched.rank,
+                                                reliability: matched.reliability,
+                                                successRate: matched.successRate,
+                                                isBestRoute: true,
+                                                maxPrice: maxPrice
+                                            };
+                                            onBuy({ ...constructedProvider, displayName: 'Best Route' });
+                                        }
+                                    }
+                                }}
+                                className="px-4 py-2 rounded-lg font-bold text-sm bg-[hsl(var(--neon-lime))] hover:brightness-110 text-black transition-all shadow-lg shadow-[hsl(var(--neon-lime)/0.2)] flex items-center gap-2"
+                            >
+                                <ShoppingCart className="w-4 h-4" />
+                                <span>Buy</span>
+                            </button>
+                        </div>
+                    </div>
+                </motion.div>
             )}
         </section>
     );

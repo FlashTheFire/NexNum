@@ -46,6 +46,7 @@ export default function DashboardLayout({
     )
 
     // Select actions separately to ensure stability and avoid re-renders on state changes
+    const fetchDashboardState = useGlobalStore((state) => state.fetchDashboardState)
     const fetchBalance = useGlobalStore((state) => state.fetchBalance)
     const fetchNumbers = useGlobalStore((state) => state.fetchNumbers)
     const fetchTransactions = useGlobalStore((state) => state.fetchTransactions)
@@ -69,37 +70,31 @@ export default function DashboardLayout({
         checkAuth()
     }, [checkAuth])
 
-    // Initial fetch - Run ONCE when auth is ready
+    // PRODUCTION OPTIMIZED: Single batch fetch on mount
+    // Uses /api/dashboard/state with Redis caching
     useEffect(() => {
         if (isAuthenticated && !isLoading) {
-            fetchBalance()
-            // Only fetch numbers on exact /dashboard route (not sub-routes)
-            if (pathname === '/dashboard') {
-                fetchNumbers()
-            }
-            fetchTransactions()
+            fetchDashboardState()
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isAuthenticated, isLoading, pathname])
-    // ^ Removed fetch actions from dependency array as they are stable. 
-    // Kept pathname to re-fetch when navigating to/from dashboard root.
+    }, [isAuthenticated, isLoading])
 
-    // Background Polling (Logical & Professional Advance)
+    // PRODUCTION OPTIMIZED: Visibility-based refresh on tab return
+    // No polling - WebSocket handles real-time updates
     useEffect(() => {
         if (!isAuthenticated || isLoading) return
 
-        const interval = setInterval(() => {
-            fetchBalance()
-            // Only poll numbers on exact /dashboard route
-            if (pathname === '/dashboard') {
-                fetchNumbers()
+        const handleVisibility = () => {
+            if (document.visibilityState === 'visible') {
+                // Single batch refresh when user returns to tab
+                fetchDashboardState()
             }
-            // No need to poll transactions as frequently, but can if needed
-        }, 20000) // 20 seconds
+        }
 
-        return () => clearInterval(interval)
+        document.addEventListener('visibilitychange', handleVisibility)
+        return () => document.removeEventListener('visibilitychange', handleVisibility)
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isAuthenticated, isLoading, pathname])
+    }, [isAuthenticated, isLoading])
 
     useEffect(() => {
         if (!isLoading && !isAuthenticated) {

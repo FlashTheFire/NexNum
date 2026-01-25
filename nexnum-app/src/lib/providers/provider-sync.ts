@@ -36,20 +36,15 @@ import crypto from 'crypto';
 // CONSTANTS
 // ============================================
 
-// Known bad hashes to block permanently (Shared between download and verify)
-// Known bad hashes to block permanently (Shared between download and verify)
-const HARDCODED_BANNED = new Set([
-    'be311539f1b49d644e5a70c1f0023c05a7eebabd282287305e8ca49587087702' // 5sim Bad Bear
-]);
-
+// Banned hashes are now fully managed via DB (seed-banned-icons.ts)
 async function getBannedHashes(): Promise<Set<string>> {
     try {
-        const dbHashes = await (prisma as any).bannedIcon.findMany({ select: { hash: true } })
-        const set = new Set<string>(dbHashes.map((b: any) => b.hash))
-        HARDCODED_BANNED.forEach(h => set.add(h))
-        return set
+        const dbHashes = await prisma.bannedIcon.findMany({ select: { hash: true } })
+        return new Set<string>(dbHashes.map((b) => b.hash))
     } catch (e) {
-        return HARDCODED_BANNED
+        // Fallback to empty if DB fails, or log error
+        console.error('[SYNC] Failed to fetch banned hashes:', e)
+        return new Set<string>()
     }
 }
 
@@ -79,7 +74,7 @@ async function downloadImageToLocal(url: string, destPath: string, bannedSet?: S
 
                         // 2. Hash Check (Banned Hashes)
                         const hash = crypto.createHash('sha256').update(buffer).digest('hex');
-                        const isBanned = (bannedSet && bannedSet.has(hash)) || HARDCODED_BANNED.has(hash)
+                        const isBanned = (bannedSet && bannedSet.has(hash))
 
                         if (isBanned) {
                             console.log(`[ICON_BANNED] Hash match for ${baseName} (${hash}). Ignoring.`);
@@ -138,9 +133,27 @@ export async function verifyAssetIntegrity(): Promise<{ removed: number, scanned
     console.log(`[ASSETS] Scanning ${files.length} assets for integrity...`);
     const bannedSet = await getBannedHashes();
 
+    // 0. PRE-CLEANUP: Remove Double Extensions (e.g. .webp.webp)
+    // These confuse the deduplication logic and are always invalid remnants
+    for (const file of files) {
+        if (file.toLowerCase().endsWith('.webp.webp') ||
+            file.toLowerCase().endsWith('.svg.svg') ||
+            file.toLowerCase().endsWith('.png.png') ||
+            file.toLowerCase().endsWith('.jpg.jpg')) {
+            try {
+                fs.unlinkSync(path.join(ICONS_DIR, file));
+                removed++;
+                console.log(`[ASSET_CLEAN] Removed double extension artifact: ${file}`);
+            } catch (e) { }
+        }
+    }
+
     // Dedup Logic: Group by basename
     const groups = new Map<string, string[]>();
-    for (const file of files) {
+    // Refresh files list after pre-cleanup
+    const cleanFiles = fs.readdirSync(ICONS_DIR);
+
+    for (const file of cleanFiles) {
         const base = path.parse(file).name;
         if (!groups.has(base)) groups.set(base, []);
         groups.get(base)!.push(file);
@@ -252,6 +265,20 @@ async function upsertCountryLookup(code: string, name: string, flagUrl?: string 
 async function getCountriesLegacy(provider: Provider, engine: DynamicProvider): Promise<{ code: string, name: string, flagUrl?: string | null }[]> {
     const slug = provider.name.toLowerCase()
 
+    // NEW: Respect Dynamic Config Granular Toggle!
+    const dynamicFunctions = (provider as any).dynamicFunctions as Record<string, boolean> | null
+    const useDynamic = dynamicFunctions?.getCountries === true;
+
+    if (useDynamic) {
+        console.log(`[SYNC] ${slug}: Using Dynamic Engine for countries (Granular Config Enabled)`)
+        const countries = await engine.getCountries()
+        return countries.map(c => ({
+            code: c.code || c.id,
+            name: c.name,
+            flagUrl: c.flagUrl
+        }))
+    }
+
     if (hasLegacyProvider(slug)) {
         const legacyProvider = getLegacyProvider(slug)
         if (legacyProvider) {
@@ -318,6 +345,22 @@ async function upsertServiceLookup(code: string, name: string, iconUrl?: string 
 
 async function getServicesLegacy(provider: Provider, engine: DynamicProvider): Promise<void> {
     const slug = provider.name.toLowerCase()
+
+    // NEW: Respect Dynamic Config Toggle!
+    const { usesDynamicMetadata } = await import('./provider-factory')
+    if (usesDynamicMetadata(provider)) {
+        // console.log(`[SYNC] ${slug}: Using Dynamic Engine for services (Config Enabled)`)
+        // For sync, we typically need a country to fetch services.
+        // We'll fetch for 'usa' or '0' (Grizzly) as a baseline, or iterate if supported.
+        // DynamicProvider's getServices usually requires a country code.
+        const country = '0' // Default to 0/Any for global list
+        const services = await engine.getServices(country)
+
+        await Promise.all(services.map(s => limit(async () => {
+            await upsertServiceLookup(s.code || s.id, s.name, s.iconUrl)
+        })))
+        return
+    }
 
     // Check if we have a legacy provider for this
     if (hasLegacyProvider(slug)) {

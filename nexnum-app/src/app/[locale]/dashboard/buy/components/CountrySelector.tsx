@@ -396,7 +396,19 @@ export default function CountrySelector({
             const searchQuery = search ? `&q=${encodeURIComponent(search)}` : "";
 
             const res = await fetch(`/api/public/countries?page=${pageToFetch}&limit=24&sort=${sort}${serviceQuery}${searchQuery}`);
-            const data = await res.json();
+
+            if (!res.ok) {
+                console.warn(`[CountrySelector] API returned ${res.status}: ${res.statusText}`);
+                throw new Error(`Country search failed: ${res.status}`);
+            }
+
+            let data;
+            try {
+                data = await res.json();
+            } catch (e) {
+                console.error("[CountrySelector] Failed to parse JSON response", e);
+                throw new Error("Invalid API response format");
+            }
 
             const newItems = data.items || [];
             const meta = data.pagination || {};

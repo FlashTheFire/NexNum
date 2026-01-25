@@ -21,14 +21,23 @@ export class SocketService {
     private eventSubscriber = coreRedis.duplicate();
 
     constructor(httpServer: HttpServer) {
+        // Allow multiple origins for CORS (dev + prod)
+        const allowedOrigins = [
+            'http://localhost:3000',
+            'http://127.0.0.1:3000',
+            process.env.NEXT_PUBLIC_APP_URL,
+        ].filter(Boolean) as string[];
+
         this.io = new Server(httpServer, {
             cors: {
-                origin: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+                origin: allowedOrigins,
                 methods: ['GET', 'POST'],
-                credentials: true
+                credentials: true,
+                allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
             },
             path: '/api/socket', // Custom path to avoid conflict/easy proxying
-            transports: ['websocket', 'polling'], // Prefer WebSocket
+            transports: ['polling', 'websocket'], // Allow both transports
+            allowEIO3: true, // Allow Engine.IO v3 clients
         });
 
         this.setupAdapter();

@@ -164,7 +164,8 @@ export async function getServices(countryCode: string): Promise<Service[]> {
 export async function purchaseNumber(
     countryCode: string,
     serviceCode: string,
-    provider?: string
+    provider?: string,
+    options?: { useBestRoute?: boolean; maxPrice?: number }
 ): Promise<{ success: boolean; number?: PhoneNumber; error?: string }> {
     try {
         const idempotencyKey = crypto.randomUUID()
@@ -182,7 +183,9 @@ export async function purchaseNumber(
                 countryCode,
                 serviceCode,
                 provider,
-                idempotencyKey
+                idempotencyKey,
+                useBestRoute: options?.useBestRoute,
+                maxPrice: options?.maxPrice
             }),
         })
         const data = await response.json()

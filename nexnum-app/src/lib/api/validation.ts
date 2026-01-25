@@ -42,7 +42,9 @@ export const purchaseNumberSchema = z.object({
     operatorId: z.number().int().optional(),
     provider: z.string().optional(),
     idempotencyKey: z.string().uuid('Invalid idempotency key'),
-
+    // Best Route options
+    useBestRoute: z.boolean().optional(),
+    maxPrice: z.number().positive().optional(),
 })
 
 export const searchNumbersSchema = z.object({

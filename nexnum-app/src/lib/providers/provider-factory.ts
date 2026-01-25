@@ -118,7 +118,16 @@ export function usesDynamicMetadata(provider: Provider): boolean {
     const mappings = provider.mappings as any
     // Global toggle
     if (mappings?.useDynamic === true) return true
-    // Specific toggle
+    // Specific toggle (New Schema)
+    if ((provider as any).useDynamicMetadata === true) return true
+
+    // Check granular dynamic functions
+    const dynamicFunctions = (provider as any).dynamicFunctions as Record<string, boolean> | null
+    if (dynamicFunctions && Object.values(dynamicFunctions).some(v => v === true)) {
+        return true
+    }
+
+    // Legacy mapping toggle
     return mappings?.useDynamicMetadata === true
 }
 

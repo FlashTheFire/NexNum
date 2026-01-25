@@ -41,10 +41,10 @@ const nextConfig = {
                             default-src 'self';
                             script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.hcaptcha.com https://challenges.cloudflare.com;
                             style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-                            img-src 'self' data: blob: https://*.githubusercontent.com https://grizzlysms.com https://api.dicebear.com;
+                            img-src 'self' data: blob: https://*.githubusercontent.com https://grizzlysms.com https://api.dicebear.com http://localhost:3961;
                             font-src 'self' data: https://fonts.gstatic.com;
-                            frame-src 'self' https://js.hcaptcha.com https://challenges.cloudflare.com;
-                            connect-src 'self' https://api.hcaptcha.com https://grizzlysms.com;
+                            frame-src 'self' https://js.hcaptcha.com https://challenges.cloudflare.com http://localhost:3961;
+                            connect-src 'self' https://api.hcaptcha.com https://grizzlysms.com http://localhost:3961;
                             object-src 'none';
                             base-uri 'self';
                         `.replace(/\s{2,}/g, ' ').trim()
@@ -64,6 +64,28 @@ const nextConfig = {
                 ]
             }
         ]
+    },
+
+    // Proxy socket.io requests to socket server for same-origin communication
+    // This fixes cross-origin cookie issues with polling transport
+    async rewrites() {
+        const socketPort = process.env.SOCKET_PORT || '3951';
+        return {
+            // beforeFiles runs BEFORE checking for pages/API routes
+            // This is necessary because /api/socket would otherwise match API route handling
+            beforeFiles: [
+                // Match base path: /api/socket (socket.io uses query strings here)
+                {
+                    source: '/api/socket',
+                    destination: `http://localhost:${socketPort}/api/socket`,
+                },
+                // Match subpaths: /api/socket/anything  
+                {
+                    source: '/api/socket/:path*',
+                    destination: `http://localhost:${socketPort}/api/socket/:path*`,
+                },
+            ],
+        };
     },
     // ... other config
     // Performance optimizations

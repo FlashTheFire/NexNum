@@ -59,15 +59,18 @@ export class HealthMonitor {
     async recordRequest(
         providerId: string,
         success: boolean,
-        latency: number
+        latency?: number
     ): Promise<void> {
         const now = Date.now()
 
         // Store in Redis sorted set (score = timestamp)
+        // If latency is undefined, we store 0 or skip? We store 0 for shape consistency but won't use it for stats if guarded.
+        const storedLatency = latency || 0
+
         const key = `health:${providerId}:requests`
         await redis.zadd(key, now, JSON.stringify({
             success,
-            latency,
+            latency: storedLatency,
             timestamp: now,
         }))
 
@@ -78,8 +81,10 @@ export class HealthMonitor {
         // Set TTL
         await redis.expire(key, this.config.window * 2)
 
-        // Update latency metric
-        await this.updateLatency(providerId, latency)
+        // Update latency metric (only if provided and > 0)
+        if (latency !== undefined && latency > 0) {
+            await this.updateLatency(providerId, latency)
+        }
 
         // Check circuit breaker
         if (!success) {
@@ -120,6 +125,8 @@ export class HealthMonitor {
             status,
             successRate,
             avgLatency,
+            avgDeliveryTime: await this.getAvgDeliveryTime(providerId),
+            avgSmsCount: await this.getAvgSmsCount(providerId),
             circuitState,
             lastError,
             lastCheckedAt: new Date(),
@@ -287,6 +294,48 @@ export class HealthMonitor {
         await redis.ltrim(key, 0, 99) // Keep last 100
         await redis.expire(key, 3600) // 1 hour
     }
+
+    async getAvgDeliveryTime(providerId: string): Promise<number> {
+        const times = await redis.lrange(`health:${providerId}:deliveryTime`, 0, -1)
+        if (times.length === 0) return 0
+
+        const sum = times.reduce((acc, t) => acc + parseFloat(t), 0)
+        return Math.round(sum / times.length)
+    }
+
+    /**
+     * Record SMS Count for a completed activation (Multi-SMS tracking)
+     */
+    async recordSmsCount(providerId: string, count: number): Promise<void> {
+        const key = `health:${providerId}:smsCount`
+        await redis.lpush(key, String(count))
+        await redis.ltrim(key, 0, 99) // Keep last 100
+        await redis.expire(key, 86400 * 3)
+    }
+
+    /**
+     * Get Average SMS Count per activation
+     */
+    async getAvgSmsCount(providerId: string): Promise<number> {
+        const counts = await redis.lrange(`health:${providerId}:smsCount`, 0, -1)
+        if (counts.length === 0) return 1.0 // Default to 1 if no data
+
+        const sum = counts.reduce((acc, c) => acc + parseFloat(c), 0)
+        return Number((sum / counts.length).toFixed(2))
+    }
+
+    /**
+     * Record SMS Delivery Time (Order -> SMS received)
+     */
+    async recordDeliveryTime(providerId: string, durationMs: number): Promise<void> {
+        if (!durationMs || durationMs < 0) return
+        const key = `health:${providerId}:deliveryTime`
+        await redis.lpush(key, String(durationMs))
+        await redis.ltrim(key, 0, 49) // Keep last 50 deliveries
+        await redis.expire(key, 86400 * 3) // Keep stats for 3 days
+    }
+
+
 
     private async getConsecutiveFailures(providerId: string): Promise<number> {
         const failures = await redis.get(`health:${providerId}:failures`)

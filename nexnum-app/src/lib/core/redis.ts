@@ -152,6 +152,9 @@ export const CACHE_KEYS = {
 
     // Provider balance (for admin dashboard)
     providerBalance: (providerId: string) => `cache:provider:balance:${providerId}`,
+
+    // Dashboard state (batch endpoint cache)
+    dashboardState: (userId: string) => `cache:dashboard:${userId}`,
 }
 
 // Cache TTLs (in seconds)
@@ -161,4 +164,5 @@ export const CACHE_TTL = {
     SERVICES: 3600,     // 1 hour - stable  
     USER_BALANCE: 30,   // 30 seconds - needs to be fresh
     PROVIDER_BALANCE: 300, // 5 minutes - dashboard use
+    DASHBOARD_STATE: 10, // 10 seconds - frequently accessed batch data
 }

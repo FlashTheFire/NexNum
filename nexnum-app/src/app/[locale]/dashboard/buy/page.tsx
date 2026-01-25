@@ -90,7 +90,11 @@ export default function BuyPage() {
         const toastId = toast.loading("Reserving number...")
         try {
             // Pass provider name as restricted provider (Phase 11: Backend strictly uses this)
-            const result = await purchaseNumber(provider.countryCode, provider.serviceSlug, provider.displayName)
+            // If Best Route, provider must be undefined, and we pass options
+            const providerName = provider.isBestRoute ? undefined : provider.displayName;
+            const options = provider.isBestRoute ? { useBestRoute: true, maxPrice: provider.maxPrice } : undefined;
+
+            const result = await purchaseNumber(provider.countryCode, provider.serviceSlug, providerName, options)
             if (!result.success) throw new Error(result.error || "Purchase failed")
 
             await fetchBalance()

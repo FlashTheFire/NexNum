@@ -12,6 +12,7 @@ import { getOfferForPurchase } from '@/lib/search/search'
 import { WalletService } from '@/lib/wallet/wallet'
 import { logger } from '@/lib/core/logger'
 import { notify } from '@/lib/notifications'
+import { emitStateUpdate } from '@/lib/events/emitters/state-emitter'
 import {
     validatePurchaseInput,
     checkUserEligibility,
@@ -83,8 +84,57 @@ export const POST = apiHandler(async (request, { body }) => {
 
     const { countryCode, serviceCode, operatorId, provider, idempotencyKey } = validation.sanitized
 
+    // Extract Best Route options from body (not in validated sanitized yet)
+    const useBestRoute = body.useBestRoute === true
+    const maxPrice = typeof body.maxPrice === 'number' ? body.maxPrice : undefined
+
     // ============================================
-    // PHASE 2: RESOLVE PROVIDER & GET OFFER
+    // PHASE 2A: BEST ROUTE (Smart Routing with Fallback)
+    // ============================================
+
+    if (useBestRoute && !provider) {
+        const { SmartSmsRouter } = await import('@/lib/providers/smart-router')
+        const smartRouter = new SmartSmsRouter()
+
+        logger.info(`[PURCHASE] Using Best Route mode`, { maxPrice, correlationId })
+
+        const result = await smartRouter.purchaseWithBestRoute(countryCode, serviceCode, maxPrice)
+
+        if (!result.success) {
+            await logPurchaseAudit({
+                eventType: 'PURCHASE_FAILED',
+                userId: user.userId,
+                correlationId,
+                metadata: { reason: 'Best Route exhausted all providers', attempts: result.attemptsLog }
+            })
+            return NextResponse.json({
+                error: 'No available providers could complete the purchase',
+                attempts: result.attemptsLog
+            }, { status: 503 })
+        }
+
+        // Best Route succeeded - return the result
+        await logPurchaseAudit({
+            eventType: 'PURCHASE_COMPLETED',
+            userId: user.userId,
+            correlationId,
+            providerId: result.provider,
+            amount: result.price,
+            metadata: { mode: 'best_route', attempts: result.attemptsLog }
+        })
+
+        return NextResponse.json({
+            success: true,
+            mode: 'best_route',
+            provider: result.provider,
+            price: result.price,
+            number: result.number,
+            attemptsLog: result.attemptsLog
+        })
+    }
+
+    // ============================================
+    // PHASE 2B: DIRECT PROVIDER (Original Flow)
     // ============================================
 
     let resolvedProvider: string | undefined = undefined
@@ -408,6 +458,9 @@ export const POST = apiHandler(async (request, { body }) => {
 
         logger.info(`[PURCHASE] Success!`, { numberId: resultNumber.id, correlationId })
         await releaseAtomicPurchaseLock(user.userId, lockToken)
+
+        // PRODUCTION: Invalidate cache & emit WebSocket event for real-time UI update
+        emitStateUpdate(user.userId, 'all', 'number_purchased').catch(() => { })
 
         // Send notification (async, non-blocking)
         notify.orderUpdate({

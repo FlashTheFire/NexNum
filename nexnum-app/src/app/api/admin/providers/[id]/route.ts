@@ -53,13 +53,30 @@ import { z } from 'zod'
 // Validation schema
 const ProviderUpdateSchema = z.object({
     isActive: z.boolean().optional(),
-    priority: z.number().int().min(0).max(100).optional(),
-    weight: z.number().int().min(0).max(100).optional(),
-    priceMultiplier: z.number().min(0).optional(),
-    fixedMarkup: z.number().min(0).optional(),
+    priority: z.coerce.number().int().min(0).max(100).optional(),
+    weight: z.coerce.number().int().min(0).max(100).optional(),
+    priceMultiplier: z.coerce.number().min(0).optional(),
+    fixedMarkup: z.coerce.number().min(0).optional(),
     displayName: z.string().max(100).optional(),
     openCircuit: z.boolean().optional(),
     closeCircuit: z.boolean().optional(),
+
+    // Configuration Fields
+    apiBaseUrl: z.string().url().optional(),
+    authType: z.enum(['bearer', 'header', 'query_param', 'none']).optional(),
+    providerType: z.string().optional(),
+    authKey: z.string().optional(),
+    authHeader: z.string().optional(),
+    authQueryParam: z.string().optional(),
+
+    // JSON Fields
+    endpoints: z.any().optional(),
+    mappings: z.any().optional(),
+    dynamicFunctions: z.any().optional(),
+
+    // Logic Flags
+    useDynamicMetadata: z.boolean().optional(),
+    normalizationMode: z.string().optional(),
 }).refine(data => Object.keys(data).length > 0, {
     message: "No valid update fields provided"
 })
@@ -91,7 +108,19 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
             fixedMarkup,
             openCircuit,
             closeCircuit,
-            displayName
+            displayName,
+            // Config
+            apiBaseUrl,
+            authType,
+            providerType,
+            authKey,
+            authHeader,
+            authQueryParam,
+            endpoints,
+            mappings,
+            dynamicFunctions,
+            useDynamicMetadata,
+            normalizationMode
         } = validation.data
 
         // Handle circuit commands first (Redis operations)
@@ -130,6 +159,13 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
             return NextResponse.json({ success: true, action: 'circuit_closed' })
         }
 
+        // Handle sensitive field encryption
+        let encryptedKey = undefined
+        if (authKey) {
+            const { encrypt } = await import('@/lib/security/encryption')
+            encryptedKey = encrypt(authKey)
+        }
+
         // Build update data
         const updateData: any = {}
         if (isActive !== undefined) updateData.isActive = isActive
@@ -138,6 +174,20 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         if (priceMultiplier !== undefined) updateData.priceMultiplier = priceMultiplier
         if (fixedMarkup !== undefined) updateData.fixedMarkup = fixedMarkup
         if (displayName !== undefined) updateData.displayName = displayName
+
+        // Map Config Fields
+        if (apiBaseUrl !== undefined) updateData.apiBaseUrl = apiBaseUrl
+        if (authType !== undefined) updateData.authType = authType
+        if (providerType !== undefined) updateData.providerType = providerType
+        if (authHeader !== undefined) updateData.authHeader = authHeader
+        if (authQueryParam !== undefined) updateData.authQueryParam = authQueryParam
+        if (encryptedKey !== undefined) updateData.authKey = encryptedKey
+
+        if (endpoints !== undefined) updateData.endpoints = endpoints
+        if (mappings !== undefined) updateData.mappings = mappings
+        if (dynamicFunctions !== undefined) updateData.dynamicFunctions = dynamicFunctions
+        if (useDynamicMetadata !== undefined) updateData.useDynamicMetadata = useDynamicMetadata
+        if (normalizationMode !== undefined) updateData.normalizationMode = normalizationMode
 
         if (Object.keys(updateData).length === 0) {
             return NextResponse.json({ error: 'No update fields provided' }, { status: 400 })

@@ -5,6 +5,7 @@ import { apiHandler } from '@/lib/api/api-handler'
 import { smsProvider } from '@/lib/sms-providers'
 import { WalletService } from '@/lib/wallet/wallet'
 import { z } from 'zod'
+import { emitStateUpdate } from '@/lib/events/emitters/state-emitter'
 
 const cancelSchema = z.object({
     numberId: z.string().uuid(),
@@ -102,9 +103,32 @@ export const POST = apiHandler(async (request, { body }) => {
                 `refund_${number.id}`, // Idempotency key
                 tx
             )
+
+            // Emit update to user (fire and forget inside trans? no, better outside or use event queue)
         })
 
+        // Emit real-time update
+        await emitStateUpdate(user.userId, 'numbers', `Order cancelled: ${numberId}`)
+
         console.log(`[CANCEL] Refund successful for ${numberId}`)
+
+        // NEW: Record Stats for Health Monitor
+        // Rule: Only count as "Failure" if user waited > 2 minutes.
+        if (number.provider && number.purchasedAt) {
+            const duration = Date.now() - number.purchasedAt.getTime()
+            if (duration > 120000) { // 2 minutes
+                const provider = await prisma.provider.findFirst({ where: { name: number.provider } })
+                if (provider) {
+                    const { healthMonitor } = await import('@/lib/providers/health-monitor')
+                    // Record FAILURE (false) - pass 0 latency as irrelevant
+                    healthMonitor.recordRequest(provider.id, false, 0).catch(console.error)
+                }
+            }
+        }
+
+        // PRODUCTION: Invalidate cache & emit WebSocket event for real-time UI update
+        emitStateUpdate(user.userId, 'all', 'number_cancelled').catch(() => { })
+
         return NextResponse.json({ success: true, status: 'cancelled' })
 
     } catch (err: any) {

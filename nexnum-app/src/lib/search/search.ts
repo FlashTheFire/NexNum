@@ -763,12 +763,37 @@ export async function searchServices(
                 if (diff !== 0) return diff
             }
 
-            // Default (Relevance/Popularity)
-            if (!query) {
-                // Show popular first
-                if (a.popular && !b.popular) return -1
-                if (!a.popular && b.popular) return 1
+            // Default (Relevance/Smart Rank)
+            // Algorithm: (StockScore * 0.6) + (PriceScore * 0.4) + PopularityBonus
+            if (!options?.sort || options.sort === 'relevance') {
+                const getScore = (s: ServiceStats) => {
+                    // 1. Stock Score (Logarithmic - dimishing returns for massive stock)
+                    // Log10(10)=1, Log10(100)=2, Log10(1000)=3
+                    // We multiply by 2.5 to map ~10k stock to a score of ~10
+                    const stock = s.totalStock || 0
+                    const stockScore = Math.min(10, Math.log10(stock + 1) * 2.5)
+
+                    // 2. Price Score (Lower is better)
+                    // Invert price: $0.10 -> 9.8, $1.00 -> 8.0, $5.00 -> 0
+                    const price = s.lowestPrice || 999
+                    const priceScore = Math.max(0, 10 - (price * 2))
+
+                    // 3. Popularity Bonus (Manual curation boost)
+                    // Gives a slight edge to manually tagged popular services
+                    const popBonus = s.popular ? 3 : 0
+
+                    return (stockScore * 0.6) + (priceScore * 0.4) + popBonus
+                }
+
+                const scoreA = getScore(a)
+                const scoreB = getScore(b)
+
+                // Sort descending by score
+                if (Math.abs(scoreA - scoreB) > 0.1) {
+                    return scoreB - scoreA
+                }
             }
+
             return a.name.localeCompare(b.name)
         })
 

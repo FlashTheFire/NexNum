@@ -50,15 +50,20 @@ interface GlobalState {
     isLoadingBalance: boolean
     isLoadingNumbers: boolean
     isLoadingTransactions: boolean
+    isLoadingDashboard: boolean
+
+    // ETag for conditional fetching
+    dashboardEtag: string | null
 
     // Actions - Fetch from API
+    fetchDashboardState: () => Promise<void>  // NEW: Batch fetch
     fetchBalance: () => Promise<void>
     fetchNumbers: () => Promise<void>
     fetchTransactions: () => Promise<void>
 
     // Actions - Mutations via API
     topUp: (amount: number) => Promise<{ success: boolean; error?: string }>
-    purchaseNumber: (countryCode: string, serviceCode: string, provider?: string) => Promise<{ success: boolean; number?: api.PhoneNumber; error?: string }>
+    purchaseNumber: (countryCode: string, serviceCode: string, provider?: string, options?: { useBestRoute?: boolean; maxPrice?: number }) => Promise<{ success: boolean; number?: api.PhoneNumber; error?: string }>
     cancelNumber: (id: string) => Promise<{ success: boolean; error?: string }>
     completeNumber: (id: string) => Promise<{ success: boolean; error?: string }>
     pollSms: (numberId: string) => Promise<api.SmsMessage[]>
@@ -87,9 +92,89 @@ export const useGlobalStore = create<GlobalState>()(
             isLoadingBalance: false,
             isLoadingNumbers: false,
             isLoadingTransactions: false,
+            isLoadingDashboard: false,
 
             sidebarCollapsed: true,
             _hasHydrated: false,
+
+            // ETag for conditional fetching (304 Not Modified optimization)
+            dashboardEtag: null as string | null,
+
+            // NEW: Batch fetch dashboard state (production optimized)
+            fetchDashboardState: async () => {
+                // Request deduplication - prevent concurrent fetches
+                const currentState = get()
+                if (currentState.isLoadingDashboard) return
+
+                set({ isLoadingDashboard: true })
+                try {
+                    // Send If-None-Match header with stored ETag for conditional request
+                    const headers: HeadersInit = {}
+                    const etag = currentState.dashboardEtag
+                    if (etag) {
+                        headers['If-None-Match'] = etag
+                    }
+
+                    const response = await fetch('/api/dashboard/state', { headers })
+
+                    // 304 Not Modified = data unchanged, skip update
+                    if (response.status === 304) {
+                        set({ isLoadingDashboard: false })
+                        return // Data unchanged, no need to update store
+                    }
+
+                    const data = await response.json()
+
+                    // Store new ETag from response
+                    const newEtag = response.headers.get('ETag')
+
+                    if (data.success) {
+                        // Map API response to store format
+                        const numbers: ActiveNumber[] = data.numbers.map((n: any) => ({
+                            id: n.id,
+                            number: n.phoneNumber,
+                            countryCode: n.countryCode,
+                            countryName: n.countryName || '',
+                            countryIconUrl: n.countryIconUrl || getCountryFlagUrlSync(n.countryName || n.countryCode),
+                            serviceName: n.serviceName || '',
+                            serviceCode: n.serviceCode,
+                            serviceIconUrl: n.serviceIconUrl,
+                            price: Number(n.price) || 0,
+                            expiresAt: n.expiresAt || '',
+                            purchasedAt: n.purchasedAt || undefined,
+                            smsCount: n.smsCount || 0,
+                            status: n.status as ActiveNumber['status'],
+                            latestSms: n.latestSms,
+                        }))
+
+                        const transactions: Transaction[] = data.transactions.map((t: any) => ({
+                            id: t.id,
+                            type: t.type as Transaction['type'],
+                            amount: Math.abs(t.amount),
+                            date: t.createdAt,
+                            createdAt: t.createdAt,
+                            status: 'completed' as const,
+                            description: t.description || '',
+                        }))
+
+                        set({
+                            userProfile: { balance: data.balance },
+                            activeNumbers: numbers,
+                            transactions,
+                            dashboardEtag: newEtag,
+                            isLoadingDashboard: false,
+                            isLoadingBalance: false,
+                            isLoadingNumbers: false,
+                            isLoadingTransactions: false,
+                        })
+                    } else {
+                        set({ isLoadingDashboard: false })
+                    }
+                } catch (error) {
+                    console.error('[AppStore] fetchDashboardState error:', error)
+                    set({ isLoadingDashboard: false })
+                }
+            },
 
             // Fetch balance from API
             fetchBalance: async () => {
@@ -180,8 +265,8 @@ export const useGlobalStore = create<GlobalState>()(
                     const result = await api.topUpWallet(amount)
                     if (result.success && result.newBalance !== undefined) {
                         set({ userProfile: { balance: result.newBalance } })
-                        // Refresh to get real transaction ID and consistent state
-                        get().fetchTransactions()
+                        // Refresh via batch endpoint for consistent state
+                        get().fetchDashboardState()
                     } else {
                         throw new Error(result.error || 'Top-up failed')
                     }
@@ -198,7 +283,7 @@ export const useGlobalStore = create<GlobalState>()(
             },
 
             // Purchase number via API
-            purchaseNumber: async (countryCode: string, serviceCode: string, provider?: string) => {
+            purchaseNumber: async (countryCode: string, serviceCode: string, provider?: string, options?: { useBestRoute?: boolean; maxPrice?: number }) => {
                 // OPTIMISTIC UPDATE
                 const tempId = 'temp-' + Date.now()
                 const optimisticNumber: ActiveNumber = {
@@ -219,7 +304,7 @@ export const useGlobalStore = create<GlobalState>()(
                 }))
 
                 try {
-                    const result = await api.purchaseNumber(countryCode, serviceCode, provider)
+                    const result = await api.purchaseNumber(countryCode, serviceCode, provider, options)
 
                     if (result.success && result.number) {
                         // REPLACE optimistic with real
@@ -246,10 +331,9 @@ export const useGlobalStore = create<GlobalState>()(
                             activeNumbers: state.activeNumbers.map(n => n.id === tempId ? realNumber : n)
                         }))
 
-                        // Background refresh to ensure sync with proper icons
-                        get().fetchBalance()
-                        get().fetchNumbers() // This fetches service icons from API
-                        get().fetchTransactions()
+                        // NOTE: Background refresh moved to WebSocket
+                        // emitStateUpdate() is called in the purchase route, which triggers
+                        // fetchDashboardState() via socket-provider's state.updated listener
                     } else {
                         throw new Error(result.error || 'Purchase failed')
                     }
@@ -266,14 +350,9 @@ export const useGlobalStore = create<GlobalState>()(
             // Cancel number via API
             cancelNumber: async (id: string) => {
                 const result = await api.cancelNumber(id)
-                if (result.success) {
-                    // Refresh numbers and balance
-                    await Promise.all([
-                        get().fetchNumbers(),
-                        get().fetchBalance(),
-                        get().fetchTransactions(),
-                    ])
-                }
+                // NOTE: Refresh is handled by WebSocket
+                // emitStateUpdate() is called in the cancel route, which triggers
+                // fetchDashboardState() via socket-provider's state.updated listener
                 return result
             },
 
@@ -286,8 +365,8 @@ export const useGlobalStore = create<GlobalState>()(
                 }).then(res => res.json())
 
                 if (result.success) {
-                    // Refresh numbers (status update)
-                    await get().fetchNumbers()
+                    // Refresh via batch endpoint (single call vs individual)
+                    get().fetchDashboardState()
                 }
                 return result
             },

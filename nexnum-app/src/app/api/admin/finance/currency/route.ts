@@ -10,9 +10,7 @@ import { currencyService } from '@/lib/currency/currency-service'
  */
 export const GET = apiHandler(async () => {
     const [currencies, settings] = await Promise.all([
-        // @ts-ignore - Prisma linter sync issue
         prisma.currency.findMany({ orderBy: { code: 'asc' } }),
-        // @ts-ignore - Prisma linter sync issue
         prisma.systemSettings.findUnique({ where: { id: 'default' } })
     ])
 
@@ -27,7 +25,6 @@ export const PATCH = apiHandler(async (req, { body }) => {
     const { action, ...data } = body
 
     if (action === 'update_settings') {
-        // @ts-ignore - Prisma linter sync issue
         const settings = await prisma.systemSettings.update({
             where: { id: 'default' },
             data: {
@@ -42,7 +39,6 @@ export const PATCH = apiHandler(async (req, { body }) => {
     }
 
     if (action === 'update_currency') {
-        // @ts-ignore - Prisma linter sync issue
         const currency = await prisma.currency.update({
             where: { code: data.code },
             data: {

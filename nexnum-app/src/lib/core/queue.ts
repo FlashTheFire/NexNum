@@ -1,12 +1,13 @@
-
 import { PgBoss, Job } from 'pg-boss'
+import { prisma } from '@/lib/core/db'
 import { logger } from '@/lib/core/logger'
 
 // Queue Names
 export const QUEUES = {
     NOTIFICATION_DELIVERY: 'notification-delivery',
     SUBSCRIPTION_CLEANUP: 'subscription-cleanup',
-    WEBHOOK_PROCESSING: 'process-webhook', // Use the name from worker-entry
+    WEBHOOK_PROCESSING: 'webhook-processing', // Use the name from worker-entry
+    PROVIDER_SYNC: 'provider-sync'
 } as const
 
 class QueueService {
@@ -137,6 +138,53 @@ class QueueService {
         } catch (error: any) {
             logger.error(`Failed to register worker for ${queue}`, { error: error.message })
             throw error
+        }
+    }
+    /**
+     * Check if there are any active or created jobs in a queue
+     */
+    async getQueueStatus(queue: string) {
+        if (!this.isReady) await this.start()
+        if (!this.boss) throw new Error('Queue not initialized')
+
+        try {
+            // Count jobs directly from DB since pg-boss instance might not expose getQueueSize
+            // Schema is typically 'pgboss', table is 'job'
+
+            // Note: pg-boss documentation says state is 'created', 'active', etc.
+            // Queue name is in the 'name' column.
+
+            // Using prisma raw query for speed and reliability independent of library version
+            const counts = await prisma.$queryRaw<any[]>`
+                SELECT state, COUNT(*) as count 
+                FROM pgboss.job 
+                WHERE name = ${queue} 
+                AND state IN ('created', 'active', 'retry')
+                GROUP BY state
+            `
+
+            let active = 0
+            let pending = 0
+
+            if (Array.isArray(counts)) {
+                counts.forEach(row => {
+                    // row.count comes back as BigInt from Postgres
+                    const count = Number(row.count)
+                    if (row.state === 'active' || row.state === 'retry') active += count
+                    if (row.state === 'created') pending += count
+                })
+            }
+
+            return {
+                queue,
+                active,
+                pending,
+                isSyncing: (active > 0 || pending > 0)
+            }
+        } catch (error: any) {
+            logger.error(`Failed to get status for ${queue}`, { error: error.message })
+            // Return empty status rather than crashing, to keep UI stable
+            return { queue, active: 0, pending: 0, isSyncing: false, error: error.message }
         }
     }
 }

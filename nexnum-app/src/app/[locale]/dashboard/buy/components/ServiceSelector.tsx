@@ -212,7 +212,21 @@ export default function ServiceSelector({ selectedService, defaultSelected, onSe
 
         try {
             const res = await fetch(`/api/search/services?page=${pageToFetch}&limit=24&q=${encodeURIComponent(query)}&sort=${sort}`);
-            const data = await res.json();
+
+            if (!res.ok) {
+                // Determine if 404/500 to show appropriate log/toast
+                console.warn(`[ServiceSelector] API returned ${res.status}: ${res.statusText}`);
+                throw new Error(`Service search failed: ${res.status}`);
+            }
+
+            let data;
+            try {
+                data = await res.json();
+            } catch (e) {
+                // HTML or empty response
+                console.error("[ServiceSelector] Failed to parse JSON response", e);
+                throw new Error("Invalid API response format");
+            }
 
             // ... (rest of fetch logic unchanged)
 

@@ -20,7 +20,10 @@ export type AuditAction =
     // Inventory Management
     | 'UNHIDE_COUNTRY' | 'HIDE_COUNTRY' | 'DELETE_COUNTRY' | 'DELETE_COUNTRY_PERMANENT' | 'UPDATE_COUNTRY'
     | 'UNHIDE_SERVICE' | 'HIDE_SERVICE' | 'DELETE_SERVICE' | 'DELETE_SERVICE_PERMANENT' | 'UPDATE_SERVICE'
+    | 'UNHIDE_SERVICE' | 'HIDE_SERVICE' | 'DELETE_SERVICE' | 'DELETE_SERVICE_PERMANENT' | 'UPDATE_SERVICE'
     | `BULK_${string}_COUNTRIES` | `BULK_${string}_SERVICES`
+    // Asset Management
+    | 'BANNED_ICON_ADD' | 'BANNED_ICON_REMOVE'
 
 interface AuditLogParams {
     userId: string

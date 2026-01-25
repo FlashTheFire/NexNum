@@ -39,7 +39,9 @@ export function useNotifications() {
         getKey,
         fetcher,
         {
-            revalidateOnFocus: true,
+            // PRODUCTION OPTIMIZED: Disabled focus revalidation
+            // WebSocket handles real-time notification updates
+            revalidateOnFocus: false,
             revalidateFirstPage: true,
             persistSize: false // reset to page 1 on mount
         }
