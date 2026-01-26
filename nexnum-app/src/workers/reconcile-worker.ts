@@ -12,7 +12,7 @@ import { prisma } from '@/lib/core/db'
 import { WalletService } from '@/lib/wallet/wallet'
 import { logger } from '@/lib/core/logger'
 import { redis } from '@/lib/core/redis'
-import { smsProvider } from '@/lib/sms-providers'
+import { smsProvider } from '@/lib/providers'
 import { smsAudit } from '@/lib/sms/audit'
 import { REFUNDABLE_STATES, canTransition } from '@/lib/activation/activation-state-machine'
 import { TimeoutsConfig, WorkersConfig } from '@/config'
@@ -268,7 +268,7 @@ export async function processReconciliationBatch(): Promise<ReconcileResult> {
             orphans: { detected: 0, fixed: 0 }
         }
 
-        // 1. Handle stuck PurchaseOrders (Legacy)
+        // 1. Handle stuck PurchaseOrders
         const expiredOrders = await prisma.purchaseOrder.findMany({
             where: {
                 status: 'PENDING',

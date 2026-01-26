@@ -8,7 +8,7 @@
 // ============================================
 export const LimitsConfig = {
     /** Maximum daily spend per user in USD */
-    dailySpend: parseFloat(process.env.DAILY_SPEND_LIMIT || '100'),
+    dailySpend: parseFloat(process.env.DAILY_SPEND_LIMIT || '1000'),
 
     /** Maximum single purchase amount in USD */
     maxPurchase: parseFloat(process.env.MAX_PURCHASE_AMOUNT || '50'),

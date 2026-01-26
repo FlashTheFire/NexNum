@@ -18,7 +18,7 @@ export const SECURITY_HEADERS = {
     // Prevent clickjacking
     'X-Frame-Options': 'DENY',
 
-    // XSS Protection (legacy, but doesn't hurt)
+    // XSS Protection
     'X-XSS-Protection': '1; mode=block',
 
     // Control referrer information

@@ -5,11 +5,36 @@ version: '3.8'
 # Only Meilisearch runs locally
 
 services:
+  # ============================================
+  # MAIN APPLICATION (Production Build)
+  # Port: 3001 (Avoids 3000 which is used by "npm run dev")
+  # ============================================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nexnum-app
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=redis://:dev_redis_pass@nexnum-redis:6379
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - SMS_FINGERPRINT_SECRET=${SMS_FINGERPRINT_SECRET:-development_fingerprint_secret}
+      - MEILISEARCH_HOST=http://meilisearch:7700
+      - MEILISEARCH_API_KEY=${MEILISEARCH_API_KEY}
+    depends_on:
+      redis:
+        condition: service_healthy
+      meilisearch:
+        condition: service_healthy
+
   meilisearch:
     image: getmeili/meilisearch:v1.6
     container_name: nexnum-meilisearch
     environment:
-      MEILI_MASTER_KEY: dev_master_key
+      MEILI_MASTER_KEY: ${MEILISEARCH_API_KEY:-dev_master_key}
       MEILI_ENV: development
     ports:
       - "7700:7700"
@@ -25,7 +50,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: nexnum-redis
-    command: redis-server --save 60 1 --loglevel warning --requirepass dev_redis_pass
+    command: redis-server --save 60 1 --loglevel warning --requirepass ${REDIS_PASSWORD:-dev_redis_pass}
     ports:
       - "6379:6379"
     volumes:
@@ -60,7 +85,7 @@ services:
       - NODE_ENV=development
       - PORT=3951
       - DATABASE_URL=${DATABASE_URL}
-      - REDIS_URL=redis://redis:6379/1
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/1}
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
     depends_on:
       redis:
@@ -101,7 +126,7 @@ services:
     container_name: nexnum-grafana
     profiles: [ "monitoring" ]
     ports:
-      - "3961:3000"
+      - "3100:3000" # Moved to 3100 to avoid conflicts
     volumes:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
@@ -112,7 +137,7 @@ services:
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
       - GF_SECURITY_ALLOW_EMBEDDING=true
-      - GF_SERVER_ROOT_URL=http://localhost:3961
+      - GF_SERVER_ROOT_URL=http://localhost:3100
       - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-piechart-panel
     restart: unless-stopped
     depends_on:

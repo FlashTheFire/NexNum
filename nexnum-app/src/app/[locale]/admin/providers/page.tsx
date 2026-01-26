@@ -490,8 +490,8 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
         priceMultiplier: '1.0', fixedMarkup: '0.00', currency: 'USD',
         normalizationMode: 'AUTO', normalizationRate: '', apiPair: '', depositSpent: '', depositReceived: '', depositCurrency: 'USD',
         // Dynamic Engine Settings (schema fields)
-        useDynamicMetadata: false,
-        dynamicFunctions: {} as Record<string, boolean>
+        // Dynamic Engine Settings (schema fields)
+
     })
 
     const [availableCurrencies, setAvailableCurrencies] = useState<any[]>([])
@@ -519,7 +519,7 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
     const [testParams, setTestParams] = useState({ country: '', service: '', operator: '', maxPrice: '', id: '', status: '' })
     const [testResults, setTestResults] = useState<Record<string, any>>({}) // Multi-test results
     const [expandedTest, setExpandedTest] = useState<string | null>(null) // Which test row is expanded
-    const [selectedMapping, setSelectedMapping] = useState<string>('') // Legacy prop, can reuse if needed or remove
+    const [selectedMapping, setSelectedMapping] = useState<string>('')
     const [isFetchingBalance, setIsFetchingBalance] = useState(false)
 
     // Logo upload states
@@ -554,8 +554,6 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                 depositReceived: provider.depositReceived ? String(provider.depositReceived) : '',
                 depositCurrency: (provider as any).depositCurrency || 'USD',
                 // Dynamic Engine Settings (schema fields)
-                useDynamicMetadata: (provider as any).useDynamicMetadata || false,
-                dynamicFunctions: (provider as any).dynamicFunctions || {}
             })
             // Reset test state on provider open
             setTestAction('test')
@@ -759,7 +757,6 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
         }
     }
 
-    // Keep handleTest for legacy references if any, or just route it to runTest
     const handleTest = () => runTest(testAction)
 
     const handleSmartFix = async () => {
@@ -1056,36 +1053,12 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                             />
                         </div>
 
-                        <div className="p-4 bg-gradient-to-r from-orange-500/5 to-amber-500/5 rounded-xl border border-orange-500/20">
-                            <div className="flex items-start md:items-center justify-between gap-3 flex-col md:flex-row">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-lg bg-orange-500/20 flex items-center justify-center">
-                                        <Plug className="w-4 h-4 text-orange-400" />
-                                    </div>
-                                    <div>
-                                        <div className="flex items-center gap-2">
-                                            <label className="text-sm font-medium text-white">Hybrid Mode</label>
-                                            <div className="px-1.5 py-0.5 rounded bg-orange-500/20 border border-orange-500/30 text-[8px] font-bold text-orange-400 uppercase tracking-wider">Legacy</div>
-                                        </div>
-                                        <p className="text-[10px] text-white/40 max-w-xs">
-                                            Enable for legacy providers (SMS-Activate style) using query params in endpoints
-                                        </p>
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={() => setFormData({ ...formData, providerType: formData.providerType === 'hybrid' ? 'rest' : 'hybrid' })}
-                                    className={`relative shrink-0 w-11 h-6 rounded-full transition-colors ${formData.providerType === 'hybrid' ? 'bg-orange-500' : 'bg-white/10'}`}
-                                >
-                                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${formData.providerType === 'hybrid' ? 'left-6' : 'left-1'}`} />
-                                </button>
-                            </div>
-                        </div>
+
 
                         {/* Dynamic Engine Functions */}
                         {(() => {
                             // Read from TOP-LEVEL schema fields (not mappings blob)
-                            const dynamicFns = formData.dynamicFunctions || {}
-                            const useDynamicMeta = formData.useDynamicMetadata || false
+                            // Read from TOP-LEVEL schema fields (not mappings blob)
 
                             // Function groups for logical organization
                             const functionGroups = [
@@ -1114,22 +1087,23 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                             ]
 
                             const allFunctions = functionGroups.flatMap(g => g.functions.map(f => f.key))
-                            const enabledCount = allFunctions.filter(fn => dynamicFns[fn] || useDynamicMeta).length
+                            const enabledCount = allFunctions.length // Always enabled
+
                             const allEnabled = enabledCount === allFunctions.length
 
                             const toggleFunction = (fnKey: string) => {
-                                const newDynamicFns = { ...dynamicFns, [fnKey]: !dynamicFns[fnKey] }
-                                setFormData({ ...formData, dynamicFunctions: newDynamicFns })
+                                const newDynamicFns = { ...formData }
+
                             }
 
                             const toggleAll = () => {
                                 if (allEnabled) {
                                     // Turn all OFF
-                                    setFormData({ ...formData, dynamicFunctions: {}, useDynamicMetadata: false })
+                                    // Deprecated toggles removed
                                 } else {
                                     // Turn all ON
                                     const allOn = allFunctions.reduce((acc, fn) => ({ ...acc, [fn]: true }), {})
-                                    setFormData({ ...formData, dynamicFunctions: allOn, useDynamicMetadata: true })
+                                    // Deprecated toggles removed
                                 }
                             }
 
@@ -1151,7 +1125,7 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                                     )}
                                                 </div>
                                                 <p className="text-[10px] text-white/40 max-w-xs">
-                                                    Enable dynamic parsing for API endpoints using JSON mappings instead of legacy adapters
+                                                    Enable dynamic parsing for API endpoints using JSON mappings
                                                 </p>
                                             </div>
                                         </div>
@@ -1192,7 +1166,7 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                                                             {group.functions.map((fn) => {
                                                                 const Icon = fn.icon
-                                                                const isEnabled = dynamicFns[fn.key] ?? useDynamicMeta
+                                                                const isEnabled = true // Always enabled
                                                                 const bgColor = group.color === 'blue'
                                                                     ? 'from-blue-500/20 to-indigo-500/10'
                                                                     : 'from-emerald-500/20 to-teal-500/10'
@@ -1239,8 +1213,7 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                                 <div className="flex items-start gap-2 p-3 bg-white/[0.02] rounded-lg border border-white/5">
                                                     <Info className="w-4 h-4 text-white/30 shrink-0 mt-0.5" />
                                                     <p className="text-[10px] text-white/40 leading-relaxed">
-                                                        <span className="text-white/60 font-medium">Legacy mode:</span> Disabled functions use built-in adapters.
-                                                        <span className="text-white/60 font-medium"> Dynamic mode:</span> Enabled functions parse API responses using JSON mappings configured in the Mappings tab.
+                                                        <span className="text-white/60 font-medium">Dynamic mode:</span> Enabled functions parse API responses using JSON mappings configured in the Mappings tab.
                                                     </p>
                                                 </div>
                                             </motion.div>

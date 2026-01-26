@@ -36,7 +36,7 @@ REQUIRED_KEYS.forEach(key => {
 const encKey = process.env.ENCRYPTION_KEY
 if (encKey) {
     if (encKey.length !== 64) {
-        // Warn but don't fail for legacy support unless strict mode
+        // Warn but don't fail unless strict mode
         console.warn(`⚠️  ENCRYPTION_KEY should ideally be a 64-char hex string (currently ${encKey.length} chars)`)
         // hasError = true // Uncomment to enforce strict mode
     } else if (!/^[0-9a-fA-F]+$/.test(encKey)) {

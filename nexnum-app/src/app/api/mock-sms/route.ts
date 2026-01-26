@@ -21,7 +21,7 @@ function productionGuard() {
 // Lazy load mock provider only when needed
 function getMockProvider() {
     // Dynamic import to avoid loading in production
-    const { MockSmsProvider } = require('@/lib/sms-providers/mock-provider')
+    const { MockSmsProvider } = require('@/lib/providers/mock/mock-provider')
     return MockSmsProvider.getInstance()
 }
 

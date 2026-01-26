@@ -130,6 +130,15 @@ export const PROVIDER_TEMPLATES = {
             '      "sms": "sms",\n' +
             '      "code": "sms[0].code",\n' +
             '      "message": "sms[0].text"\n' +
+            '    },\n' +
+            '    "statusMapping": {\n' +
+            '      "STATUS_WAIT_CODE": "pending",\n' +
+            '      "STATUS_WAIT_RETRY": "pending",\n' +
+            '      "STATUS_OK": "received",\n' +
+            '      "STATUS_CANCEL": "cancelled",\n' +
+            '      "ACCESS_CANCEL": "cancelled",\n' +
+            '      "ACCESS_READY": "pending",\n' +
+            '      "ACCESS_ACTIVATION": "completed"\n' +
             '    }\n' +
             '  },\n' +
             '  "cancelNumber": {\n' +
@@ -285,7 +294,7 @@ export const PROVIDER_TEMPLATES = {
     'smsbower': {
         name: 'smsbower',
         displayName: 'SMSBower',
-        description: 'Legacy-style provider with extended v3 pricing and v2 getNumber. Query-param auth.',
+        description: 'Text-based provider with extended v3 pricing and v2 getNumber. Query-param auth.',
         baseUrl: 'https://smsbower.online/stubs/handler_api.php',
         authType: 'query_param',
         authQueryParam: 'api_key',
@@ -419,7 +428,7 @@ export const PROVIDER_TEMPLATES = {
         authType: 'query_param',
         authQueryParam: 'api_key',
         endpoints: '{\n  "getCountries": { "method": "GET", "path": "https://hero-sms.com/stubs/handler_api.php?action=getCountries&api_key={authKey}" },\n  "getServices": { "method": "GET", "path": "https://hero-sms.com/stubs/handler_api.php?action=getServicesList&country={country}&lang=en&api_key={authKey}" },\n  "getNumber": { "method": "GET", "path": "https://hero-sms.com/stubs/handler_api.php?action=getNumber&service={service}&country={country}&api_key={authKey}" },\n  "getStatus": { "method": "GET", "path": "https://hero-sms.com/stubs/handler_api.php?action=getStatus&id={id}&api_key={authKey}" },\n  "cancelNumber": { "method": "GET", "path": "https://hero-sms.com/stubs/handler_api.php?action=setStatus&id={id}&status=8&api_key={authKey}" },\n  "getBalance": { "method": "GET", "path": "https://hero-sms.com/stubs/handler_api.php?action=getBalance&api_key={authKey}" }\n}',
-        mappings: '{\n  "getCountries": { "type": "json_array", "rootPath": "$", "fields": { "id": "id", "name": "eng", "code": "id" } },\n  "getServices": { "type": "json_array", "rootPath": "services", "fields": { "id": "code", "name": "name", "code": "code" } },\n  "getNumber": { "type": "text_regex", "regex": "ACCESS_NUMBER:(\\\\d+):(\\\\d+)", "fields": { "id": "1", "phone": "2", "price": "0" } },\n  "getStatus": { "type": "text_regex", "regex": "STATUS_([A-Z_]+)(:?.*)?", "fields": { "status": "1", "code": "2" } },\n  "cancelNumber": { "type": "text_regex", "regex": "ACCESS_CANCEL", "fields": { "status": "0" } },\n  "getBalance": { "type": "text_regex", "regex": "ACCESS_BALANCE:([\\\\d.]+)", "fields": { "balance": "1" } }\n}'
+        mappings: '{\n  "getCountries": { "type": "json_array", "rootPath": "$", "fields": { "id": "id", "name": "eng", "code": "id" } },\n  "getServices": { "type": "json_array", "rootPath": "services", "fields": { "id": "code", "name": "name", "code": "code" } },\n  "getNumber": { "type": "text_regex", "regex": "ACCESS_NUMBER:(\\\\d+):(\\\\d+)", "fields": { "id": "1", "phone": "2", "price": "0" } },\n  "getStatus": { "type": "text_regex", "regex": "STATUS_([A-Z_]+)(:?.*)?", "fields": { "status": "1", "code": "2" }, "statusMapping": { "WAIT_CODE": "pending", "WAIT_RETRY": "pending", "OK": "received", "CANCEL": "cancelled" } },\n  "cancelNumber": { "type": "text_regex", "regex": "ACCESS_CANCEL", "fields": { "status": "0" } },\n  "getBalance": { "type": "text_regex", "regex": "ACCESS_BALANCE:([\\\\d.]+)", "fields": { "balance": "1" } }\n}'
     },
 
     'mock-sms': {
@@ -628,8 +637,8 @@ export function EndpointEditor({ endpoints, onChange }: { endpoints: any, onChan
                         <div className="flex justify-between items-center">
                             <label className="text-[10px] md:text-xs font-semibold text-white/50 uppercase tracking-wider">API Path / URL</label>
                             {(currentendpoint.path?.startsWith('http') && currentendpoint.path?.includes('api_key=')) && (
-                                <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-orange-400/10 border border-orange-400/20">
-                                    <span className="text-[9px] font-bold text-orange-400 uppercase">Legacy Auth</span>
+                                <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20">
+                                    <span className="text-[9px] font-bold text-indigo-400 uppercase">Compat</span>
                                 </div>
                             )}
                             {(currentendpoint.path?.startsWith('http://') || currentendpoint.path?.startsWith('https://')) && (

@@ -1,6 +1,6 @@
 
 import 'dotenv/config'
-import { prisma } from '../lib/core/db'
+import { prisma } from '@/lib/core/db'
 
 async function main() {
     const users = await prisma.user.findMany({

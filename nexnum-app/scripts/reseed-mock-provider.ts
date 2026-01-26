@@ -152,8 +152,7 @@ const MOCK_PROVIDER_CONFIG = {
     },
 
     // Enable Dynamic Features
-    useDynamicMetadata: true,
-    dynamicFunctions: ['getCountries', 'getServices', 'getPrices', 'getBalance']
+
 }
 
 async function main() {

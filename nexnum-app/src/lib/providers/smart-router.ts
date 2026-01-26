@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/core/db'
 import { DynamicProvider } from '@/lib/providers/dynamic-provider'
-import { SmsProvider, Country, Service, NumberResult, StatusResult } from '@/lib/sms-providers/types'
+import { SmsProvider, Country, Service, NumberResult, StatusResult } from '@/lib/providers/types'
 import { healthMonitor } from '@/lib/providers/health-monitor'
 import { logger } from '@/lib/core/logger'
 

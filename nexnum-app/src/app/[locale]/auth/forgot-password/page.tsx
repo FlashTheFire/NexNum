@@ -6,7 +6,7 @@ import Link from "next/link"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { AuthLayout } from "@/components/layouts/AuthLayout"
+import { AuthLayout } from "@/components/layout/AuthLayout"
 import { Icons } from "@/components/ui/icons"
 
 export default function ForgotPasswordPage() {

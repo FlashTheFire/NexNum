@@ -6,7 +6,7 @@
  * 
  * Supported Providers:
  * - All providers fully integrated via separate configuration (DynamicProvider)
- * - Hybrid Mode for Built-ins: Uses legacy fetch logic for metadata, Dynamic engine for pricing/indexing.
+ * - Hybrid Mode for Built-ins: Removed. Uses Dynamic engine for all operations.
  */
 
 import { prisma } from '@/lib/core/db'
@@ -22,8 +22,6 @@ import * as dotenv from 'dotenv'
 dotenv.config()
 import { RateLimitedQueue } from '@/lib/utils/async-utils'
 
-// Import legacy providers from centralized location
-import { getLegacyProvider, hasLegacyProvider } from './provider-factory'
 import { refreshAllServiceAggregates } from '@/lib/search/service-aggregates'
 import { resolveToCanonicalName, getSlugFromName, getCanonicalKey, CANONICAL_SERVICE_NAMES, CANONICAL_DISPLAY_NAMES } from '@/lib/normalizers/service-identity'
 import { getCountryIsoCode, normalizeCountryName } from '@/lib/normalizers/country-normalizer'
@@ -239,8 +237,6 @@ export interface SyncOptions {
     skipWipe?: boolean        // If true, don't wipe individual provider data (handled globally)
 }
 
-// Providers that use legacy logic for metadata fetching
-const LEGACY_METADATA_PROVIDERS = ['5sim', 'grizzlysms', 'herosms']
 
 // ============================================
 // HELPERS
@@ -259,53 +255,7 @@ async function upsertCountryLookup(code: string, name: string, flagUrl?: string 
     } catch (e) { }
 }
 
-/**
- * Get countries using legacy provider adapter
- */
-async function getCountriesLegacy(provider: Provider, engine: DynamicProvider): Promise<{ code: string, name: string, flagUrl?: string | null }[]> {
-    const slug = provider.name.toLowerCase()
 
-    // NEW: Respect Dynamic Config Granular Toggle!
-    const dynamicFunctions = (provider as any).dynamicFunctions as Record<string, boolean> | null
-    const useDynamic = dynamicFunctions?.getCountries === true;
-
-    if (useDynamic) {
-        console.log(`[SYNC] ${slug}: Using Dynamic Engine for countries (Granular Config Enabled)`)
-        const countries = await engine.getCountries()
-        return countries.map(c => ({
-            code: c.code || c.id,
-            name: c.name,
-            flagUrl: c.flagUrl
-        }))
-    }
-
-    if (hasLegacyProvider(slug)) {
-        const legacyProvider = getLegacyProvider(slug)
-        if (legacyProvider) {
-            try {
-                const countries = await legacyProvider.getCountries()
-                const results: { code: string, name: string, flagUrl?: string | null }[] = []
-
-                for (const c of countries) {
-                    await upsertCountryLookup(c.id, c.name, null)
-                    results.push({
-                        code: c.id,
-                        name: c.name,
-                        flagUrl: null
-                    })
-                }
-                return results
-            } catch (e) { console.warn('Legacy error', e) }
-        }
-    }
-
-    const dynamicCountries = await engine.getCountries()
-    return dynamicCountries.map(c => ({
-        code: c.code,
-        name: c.name,
-        flagUrl: null
-    }))
-}
 
 async function upsertServiceLookup(code: string, name: string, iconUrl?: string | null) {
     try {
@@ -340,47 +290,9 @@ async function upsertServiceLookup(code: string, name: string, iconUrl?: string 
 }
 
 // ============================================
-// LEGACY FETCHERS (Using centralized providers)
-// ============================================
+// FETCHERS
 
-async function getServicesLegacy(provider: Provider, engine: DynamicProvider): Promise<void> {
-    const slug = provider.name.toLowerCase()
 
-    // NEW: Respect Dynamic Config Toggle!
-    const { usesDynamicMetadata } = await import('./provider-factory')
-    if (usesDynamicMetadata(provider)) {
-        // console.log(`[SYNC] ${slug}: Using Dynamic Engine for services (Config Enabled)`)
-        // For sync, we typically need a country to fetch services.
-        // We'll fetch for 'usa' or '0' (Grizzly) as a baseline, or iterate if supported.
-        // DynamicProvider's getServices usually requires a country code.
-        const country = '0' // Default to 0/Any for global list
-        const services = await engine.getServices(country)
-
-        await Promise.all(services.map(s => limit(async () => {
-            await upsertServiceLookup(s.code || s.id, s.name, s.iconUrl)
-        })))
-        return
-    }
-
-    // Check if we have a legacy provider for this
-    if (hasLegacyProvider(slug)) {
-        const legacyProvider = getLegacyProvider(slug)
-        if (legacyProvider) {
-            try {
-                const services = await legacyProvider.getServices('')
-
-                // Upsert to lookup table
-                await Promise.all(services.map(s => limit(async () => {
-                    await upsertServiceLookup(s.id, s.name, s.iconUrl)
-                })))
-
-                return
-            } catch (e) {
-                console.warn(`[SYNC] Legacy provider ${slug} failed for services:`, e)
-            }
-        }
-    }
-}
 
 
 // ============================================
@@ -428,8 +340,9 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
             console.warn(`[SYNC] Failed to fetch balance for ${provider.name}`, be)
         }
 
-        // 1. Countries (Hybrid: Legacy or Dynamic)
-        const useDynamicMetadata = (provider.mappings as any)?.useDynamicMetadata === true
+        // 1. Countries (Dynamic)
+        // 1. Countries (Dynamic)
+
 
         // Initialize arrays
         let countries: any[] = []
@@ -493,12 +406,7 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
         if (!skipMetadataSync) {
             console.log(`[SYNC] ${provider.name}: Fetching fresh metadata...`)
 
-            // Fetch countries
-            if (!useDynamicMetadata && LEGACY_METADATA_PROVIDERS.includes(provider.name.toLowerCase())) {
-                countries = await getCountriesLegacy(provider, engine)
-            } else {
-                countries = await engine.getCountries()
-            }
+            countries = await engine.getCountries()
             countriesCount = countries.length
 
             const existingCountryData = await prisma.providerCountry.findMany({
@@ -565,19 +473,13 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
             }
 
             // Fetch services
-            if (!useDynamicMetadata && LEGACY_METADATA_PROVIDERS.includes(provider.name.toLowerCase())) {
-                await getServicesLegacy(provider, engine)
-                const dbServices = await prisma.serviceLookup.findMany()
-                services = dbServices.map(s => ({ code: s.code, name: s.name, iconUrl: s.iconUrl }))
-            } else {
+            try {
+                services = await engine.getServices('')
+            } catch (e) {
                 try {
-                    services = await engine.getServices('')
-                } catch (e) {
-                    try {
-                        services = await engine.getServices('us')
-                    } catch (e2) {
-                        if (countries.length > 0) services = await engine.getServices(countries[0].code)
-                    }
+                    services = await engine.getServices('us')
+                } catch (e2) {
+                    if (countries.length > 0) services = await engine.getServices(countries[0].code)
                 }
             }
             servicesCount = services.length

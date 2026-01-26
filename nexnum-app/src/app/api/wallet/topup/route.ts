@@ -5,6 +5,7 @@ import { getCurrentUser } from '@/lib/auth/jwt'
 import { checkIdempotency } from '@/lib/core/redis'
 import { topupSchema } from '@/lib/api/validation'
 import { apiHandler } from '@/lib/api/api-handler'
+import { emitStateUpdate } from '@/lib/events/emitters/state-emitter'
 
 export const POST = apiHandler(async (request, { body }) => {
     // Body validated by apiHandler
@@ -63,6 +64,9 @@ export const POST = apiHandler(async (request, { body }) => {
     // Get new balance
     // Faster to read from updated wallet than aggregate
     const newBalance = await WalletService.getBalance(user.userId)
+
+    // Emit real-time update
+    emitStateUpdate(user.userId, 'wallet', 'deposit').catch(() => { })
 
     return NextResponse.json({
         success: true,

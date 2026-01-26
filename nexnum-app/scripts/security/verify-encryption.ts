@@ -32,13 +32,13 @@ function run() {
         console.error('❌ Random IV Check: FAILED (Ciphertexts identical)')
     }
 
-    // 3. Legacy/Plain check
-    const legacy = 'plain-text-key'
-    const decryptedLegacy = decrypt(legacy)
-    if (decryptedLegacy === legacy) {
-        console.log('✅ Legacy Fallback: Passed')
+    // 3. Plain/Fallback check
+    const fallback = 'plain-text-key'
+    const decryptedFallback = decrypt(fallback)
+    if (decryptedFallback === fallback) {
+        console.log('✅ Plain Fallback: Passed')
     } else {
-        console.log('⚠️ Legacy Fallback: Changed (Strict mode?)', decryptedLegacy)
+        console.log('⚠️ Plain Fallback: Changed (Strict mode?)', decryptedFallback)
     }
 
     console.log('🎉 Encryption Verify Complete')

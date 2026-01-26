@@ -104,7 +104,7 @@ export async function startQueueWorker() {
                     (result.outbox?.processed > 0) ||
                     (result.inbox?.processed > 0) ||
                     (result.notifications?.processed > 0) ||
-                    (result.legacyOutbox?.processed > 0)
+                    (result.searchSync?.processed > 0)
                 );
 
                 if (hasWork) {
@@ -121,49 +121,89 @@ export async function startQueueWorker() {
         runMasterLoop();
         logger.info('[Worker] Master background loop started');
 
-        // JOB: Smart Sync Scheduler (Auto-Run Every 24 Hours)
-        // This replaces the manual CLI script with a fully automated server-side loop.
+        // JOB: Smart Sync Scheduler (CRON: Every Midnight)
+        // Uses pg-boss native scheduling for reliability
         const { syncAllProviders, verifyAssetIntegrity } = await import('./lib/providers/provider-sync');
 
-        const runSmartSyncScheduler = async () => {
+        // 1. Register Worker for Scheduled Sync
+        await queue.work(QUEUES.SCHEDULED_SYNC, async (jobs: any[]) => {
+            logger.info(`[SmartSync] Starting Scheduled Sync (Job: ${jobs[0]?.id})`);
             try {
-                logger.info('[SmartSync] Starting scheduled Global Sync...');
+                // Pre-flight
+                await verifyAssetIntegrity();
 
-                // 1. Pre-Flight Asset Scrub
-                const preCheck = await verifyAssetIntegrity();
-                if (preCheck.removed > 0) {
-                    logger.warn(`[SmartSync] Pre-flight scrub removed ${preCheck.removed} corrupt assets.`);
-                }
-
-                // 2. Main Sync
+                // Main Sync
                 const results = await syncAllProviders();
-                const failureCount = results.filter(r => r.error).length;
+                const failed = results.filter(r => r.error).length;
 
-                logger.info(`[SmartSync] Sync completed. Success: ${results.length - failureCount}, Failed: ${failureCount}`);
-
-                // 3. Post-Sync Check
-                const postCheck = await verifyAssetIntegrity();
-                if (postCheck.removed > 0) {
-                    logger.warn(`[SmartSync] Post-sync scrub removed ${postCheck.removed} bad assets.`);
-                }
-
-            } catch (e) {
-                logger.error('[SmartSync] Critical failure during scheduled sync:', e);
-            } finally {
-                // Schedule next run in 24 hours
-                const delay = 24 * 60 * 60 * 1000;
-                logger.info(`[SmartSync] Next sync scheduled in ${(delay / 1000 / 60 / 60).toFixed(1)} hours.`);
-                setTimeout(runSmartSyncScheduler, delay);
+                logger.info(`[SmartSync] Completed. Success: ${results.length - failed}, Failed: ${failed}`);
+            } catch (e: any) {
+                logger.error('[SmartSync] Failed execution:', e);
+                throw e; // Retry later
             }
-        };
+        });
 
-        // Start initial sync after 24 hours (User requested no auto-start)
-        const initialDelay = 24 * 60 * 60 * 1000;
-        setTimeout(runSmartSyncScheduler, initialDelay);
-        logger.info(`[Worker] Smart Sync scheduler initialized (First run in 24 hours)`);
+        // JOB: Cleanup Service (CRON: Every 10 Minutes)
+        const { cleanupNow } = await import('./lib/activation/reservation-cleanup');
+        await queue.work(QUEUES.LIFECYCLE_CLEANUP, async () => {
+            logger.info('[Cleanup] Starting routine maintenance...');
+            const stats = await cleanupNow();
+            if (stats.expiredReservations > 0 || stats.stockRestored > 0) {
+                logger.info('[Cleanup] Maintenance Ops:', stats);
+            }
+        });
+        await queue.schedule(QUEUES.LIFECYCLE_CLEANUP, '*/10 * * * *', {}); // Every 10 mins
+
+        // JOB: Payment Reconciliation (CRON: Every 15 Minutes)
+        const { processReconciliationBatch } = await import('./workers/reconcile-worker');
+        await queue.work(QUEUES.PAYMENT_RECONCILE, async () => {
+            logger.info('[Reconcile] Starting payment check...');
+            const stats = await processReconciliationBatch();
+            // Check if any significant work was done
+            if (stats.refunds.processed > 0 || stats.activations.processed > 0) {
+                logger.info('[Reconcile] Stats:', stats);
+            }
+        });
+        await queue.schedule(QUEUES.PAYMENT_RECONCILE, '*/15 * * * *', {}); // Every 15 mins
+
+        // 2. Schedule the Cron Job (Idempotent upsert)
+        // Run at 00:00 every day
+        await queue.schedule(QUEUES.SCHEDULED_SYNC, '0 0 * * *', {});
+        logger.info('[Worker] Scheduled Jobs Initialized (Sync: 00:00, Cleanup: 10m, Reconcile: 15m)');
 
     } catch (e) {
         logger.error('[Worker] Fatal startup error:', e);
         // Do NOT exit process in Next.js instrumentation
     }
+}
+
+// EXECUTION CHECK
+// If run directly via "npx tsx src/worker-entry.ts", start the worker.
+// We detect this by checking if the process argument points to this file
+if (process.argv[1] && process.argv[1].replace(/\\/g, '/').endsWith('src/worker-entry.ts')) {
+    startQueueWorker().then(() => {
+        logger.info('[Worker] Started successfully. Waiting for jobs...');
+
+        // GRACEFUL SHUTDOWN HANDLERS
+        const shutdown = async (signal: string) => {
+            logger.info(`[Worker] Received ${signal}. Shutting down gracefully...`);
+
+            try {
+                // Stop accepting new jobs and wait for in-flight to complete
+                await queue.stop();
+                logger.info('[Worker] Queue stopped. Exiting.');
+                process.exit(0);
+            } catch (err) {
+                logger.error('[Worker] Error during shutdown:', err);
+                process.exit(1);
+            }
+        };
+
+        process.on('SIGTERM', () => shutdown('SIGTERM'));
+        process.on('SIGINT', () => shutdown('SIGINT'));
+
+    }).catch(err => {
+        console.error('Worker failed to start:', err);
+        process.exit(1);
+    });
 }

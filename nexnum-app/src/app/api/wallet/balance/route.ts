@@ -24,6 +24,10 @@ export async function GET(request: Request) {
             success: true,
             walletId,
             balance,
+        }, {
+            headers: {
+                'Cache-Control': 'private, max-age=10, stale-while-revalidate=30'
+            }
         })
 
     } catch (error) {

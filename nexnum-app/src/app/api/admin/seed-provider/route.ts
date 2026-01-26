@@ -16,7 +16,7 @@ const REAL_PROVIDER_CONFIG = {
     baseUrl: 'https://api.example.com/v1', // ⚠️ CHANGE THIS
     apiKey: 'YOUR_API_KEY_HERE',           // ⚠️ CHANGE THIS
 
-    // Provider Type: 'rest' (modern JSON) or 'legacy' (text/plain)
+    // Provider Type: 'rest' (modern JSON) or 'rest' with text regex mappings
     providerType: 'rest',
 
     // API Endpoints Configuration
@@ -65,7 +65,7 @@ const REAL_PROVIDER_CONFIG = {
 
 // ----------------------------------------------------------------------------
 /*
-   💡 FOR TEXT-BASED PROVIDERS (Legacy), USE THIS MAPPING STYLE:
+   💡 FOR TEXT-BASED PROVIDERS (Regex), USE THIS MAPPING STYLE:
    
    mappings: {
        getNumber: {

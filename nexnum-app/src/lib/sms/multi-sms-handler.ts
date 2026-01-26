@@ -182,7 +182,7 @@ export class MultiSmsHandler {
                 return true
             }
 
-            // 2. Fallback: Dedicated resend endpoint (Legacy)
+            // 2. Fallback: Dedicated resend endpoint
             if ('resendSms' in adapter) {
                 await new Promise(resolve => setTimeout(resolve, CONFIG.NEXT_SMS_REQUEST_DELAY_MS))
                 await (adapter as any).resendSms(activationId)

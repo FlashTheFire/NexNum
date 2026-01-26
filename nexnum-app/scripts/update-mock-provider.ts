@@ -184,7 +184,7 @@ async function main() {
         update: {
             endpoints: ENDPOINTS,
             mappings: MAPPINGS,
-            useDynamicMetadata: true,
+
             apiBaseUrl: 'http://localhost:3000/api/mock-sms',
             authType: 'none',
             providerType: 'rest', // Ensure REST type for dynamic engine

@@ -21,7 +21,7 @@ type AnalysisReport = {
     endpoints?: string[]
   }
   confidence: number
-  providerType: 'json_api' | 'legacy_text' | 'hybrid'
+  providerType: 'json_api' | 'text_regex' | 'hybrid'
 }
 
 // Documentation for Top-Level Provider Fields
@@ -72,20 +72,7 @@ interface ProviderConfig {
     [key in 'getCountries' | 'getServices' | 'getNumber' | 'getStatus' | 'cancelNumber' | 'getBalance' | 'getPrices']: EndpointConfig;
   };
 
-  // --- BUSINESS LOGIC & DYNAMIC ENGINE SETTINGS ---
-  
-  // Controls if 'getCountries'/'getServices' use the dynamic engine (true) or legacy hardcoded logic (false)
-  useDynamicMetadata: boolean;
 
-  // Granular control: Which specific functions should use the dynamic engine?
-  // Only needed if you want to mix-and-match (e.g. legacy auth but dynamic pricing)
-  dynamicFunctions?: {
-    getCountries?: boolean;
-    getServices?: boolean;
-    getPrices?: boolean;
-    getBalance?: boolean;
-    getStatus?: boolean;
-  };
 
   // Map of Key -> MappingConfig
   mappings: {
@@ -95,14 +82,14 @@ interface ProviderConfig {
 }
 `
 
-const SYSTEM_PROMPT_LEGACY = `You are a Legacy Systems Integration Expert specialized in Text / Regex APIs.
+const SYSTEM_PROMPT_TEXT_REGEX = `You are a Systems Integration Expert specialized in Text / Regex APIs.
 Your goal is to generate a ** PRODUCTION - GRADE ** configuration for the "DynamicProvider" engine using Regex.
 
   ${STRICT_OUTPUT_SCHEMA}
 
 ${PROVIDER_CONTEXT_DOCS}
 
-### UNIVERSAL ARCHITECTURAL STANDARDS(LEGACY / TEXT)
+### UNIVERSAL ARCHITECTURAL STANDARDS (TEXT / REGEX)
 
 1. ** REGEX BEST PRACTICES **:
 - MUST use "text_regex" type.
@@ -383,7 +370,7 @@ const SYSTEM_PROMPT_ANALYZE = `You are an Elite API Auditor. Scan the documentat
 1. **JSON API**: 
    - Responses are clearly JSON objects ({...}) or arrays ([...]).
    - Content-Type mentioned as application/json.
-2. **LEGACY TEXT**: 
+2. **TEXT / REGEX**: 
    - Responses are plain text, pipe-separated (|), colon-separated (:), or just "ACCESS_NUMBER:123".
    - Content-Type text/plain or text/html.
 
@@ -405,7 +392,7 @@ return {
     "authQueryParam": "api_key",
     "endpoints": ["getNumber", "getStatus", "getPrices"]
   },
-  "providerType": "json_api", // or legacy_text
+  "providerType": "json_api", // or text_regex
   "confidence": 0.95
 }
 `
@@ -457,7 +444,7 @@ export async function POST(req: NextRequest) {
             missing: [],
             detected: { name: "Mock Provider" },
             confidence: 0.9,
-            providerType: isJson ? 'json_api' : 'legacy_text'
+            providerType: isJson ? 'json_api' : 'text_regex'
           },
           mock: true
         })
@@ -475,7 +462,7 @@ export async function POST(req: NextRequest) {
 
     // GENERATE MODE
     let systemPrompt = body.systemPromptOverride || SYSTEM_PROMPT_MODERN // Default or Override
-    if (!body.systemPromptOverride && providerType === 'legacy_text') systemPrompt = SYSTEM_PROMPT_LEGACY
+    if (!body.systemPromptOverride && providerType === 'text_regex') systemPrompt = SYSTEM_PROMPT_TEXT_REGEX
 
     // Inject supplements if any
     let finalPrompt = prompt

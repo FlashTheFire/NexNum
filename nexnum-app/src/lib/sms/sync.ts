@@ -1,6 +1,6 @@
 // Types synchronized with schema
 import { prisma } from '@/lib/core/db'
-import { smsProvider } from '@/lib/sms-providers/index'
+import { smsProvider } from '@/lib/providers'
 import { logger } from '@/lib/core/logger'
 import { getServiceIconUrlByName } from '@/lib/search/search'
 import { getCountryFlagUrl } from '@/lib/normalizers/country-flags'
@@ -41,7 +41,7 @@ export async function syncUserNumbers(userId: string, options: { force?: boolean
             }
         })
     } catch (e) {
-        // Fallback sync (Legacy client detected, use createdAt)
+        // Fallback sync (Single client detected, use createdAt)
         logger.warn(`[SYNC] Stale Prisma client detected, falling back to createdAt for sync query`)
         activeNumbers = await prisma.number.findMany({
             where: {

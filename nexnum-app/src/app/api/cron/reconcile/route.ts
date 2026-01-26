@@ -30,7 +30,7 @@ export async function GET(request: Request) {
             refunds: { processed: 0, succeeded: 0, failed: 0 }
         }
 
-        // 1. Handle stuck PurchaseOrders (Legacy)
+        // 1. Handle stuck PurchaseOrders
         const expiredOrders = await prisma.purchaseOrder.findMany({
             where: {
                 status: 'PENDING',

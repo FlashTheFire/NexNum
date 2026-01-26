@@ -2,10 +2,10 @@
 // Types synchronized with schema
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/core/db'
-import { getProviderAdapter, getMetadataProvider, hasDynamicConfig, usesDynamicMetadata } from '@/lib/providers/provider-factory'
+import { getProviderAdapter, getMetadataProvider } from '@/lib/providers/provider-factory'
 import { DynamicProvider } from '@/lib/providers/dynamic-provider'
 import { requireAdmin } from '@/lib/auth/requireAdmin'
-import { SmsProvider } from '@/lib/sms-providers/types'
+import { SmsProvider } from '@/lib/providers/types'
 
 export async function POST(req: Request, source: { params: Promise<{ id: string }> }) {
     const auth = await requireAdmin(req)
@@ -42,12 +42,10 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
             return NextResponse.json({ error: 'Provider not found' }, { status: 404 })
         }
 
-        // Main engine for non-metadata operations
+        // Main engine for all operations
         engine = getProviderAdapter(provider)
-        isDynamic = hasDynamicConfig(provider)
-        useDynamicMeta = usesDynamicMetadata(provider)
 
-        // Metadata engine for getCountries/getServices (respects useDynamicMetadata flag)
+        // Metadata engine (same as main engine in strict mode)
         metadataEngine = getMetadataProvider(provider)
 
         let result: any
@@ -72,7 +70,7 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
                     countries: cnt,
                     services: (srv as any).services,
                     serviceCountry: (srv as any).country,
-                    usingLegacyMetadata: !useDynamicMeta
+
                 }
                 break
 
@@ -80,13 +78,14 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
                 result = { balance: await engine.getBalance?.() ?? 0 }
                 break
             case 'getCountries':
-                // Use metadataEngine (respects useDynamicMetadata flag)
+                // Use metadataEngine
+
                 // FORCE REFRESH: To show trace, we must bypass cache.
                 // DynamicProvider doesn't expose skipCache directly in interface, so we hack it or rely on a new method.
                 // Best approach: cast to DynamicProvider and access request method directly or add a skipCache arg to getCountries.
 
                 let countries;
-                if (isDynamic && metadataEngine instanceof DynamicProvider) {
+                if (metadataEngine instanceof DynamicProvider) {
                     // For testing: we want to trace the request, so we bypass the public getCountries cache wrapper
                     const res = await (metadataEngine as any).request('getCountries');
                     const items = (metadataEngine as any).parseResponse(res, 'getCountries');
@@ -96,9 +95,6 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
                         name: String(i.name || i.country),
                         code: String(i.code || i.id)
                     }));
-
-                    // Manually set trace since we called request() directly
-                    // (request() sets lastRequestTrace internally)
                 } else {
                     countries = await metadataEngine.getCountries()
                 }
@@ -106,32 +102,29 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
                 result = {
                     count: countries.length,
                     first: countries.slice(0, 5), // Return first 5 for better debugging
-                    usingLegacyMetadata: !useDynamicMeta
+
                 }
                 break
             case 'getServices':
                 // Country is optional - some providers list all services without it
-                // Use metadata engine (respects useDynamicMetadata flag)
+                // Use metadata engine
+
                 const services = await metadataEngine.getServices(params.country || '')
                 result = {
                     count: services.length,
                     first: services.slice(0, 5), // Return first 5 for better debugging
-                    usingLegacyMetadata: !useDynamicMeta
+
                 }
                 break
             case 'getNumber':
                 if (!params.country || !params.service) throw new Error('Country and Service params required')
                 if (!engine.getNumber) throw new Error('getNumber is not supported by this provider')
-                // Cast to DynamicProvider to access extended options
-                if (isDynamic) {
-                    const dynamicEngine = engine as DynamicProvider
-                    result = await dynamicEngine.getNumber(params.country, params.service, {
-                        operator: params.operator || undefined,
-                        maxPrice: params.maxPrice || undefined
-                    })
-                } else {
-                    result = await engine.getNumber(params.country, params.service)
-                }
+
+                const dynamicEngine = engine as DynamicProvider
+                result = await dynamicEngine.getNumber(params.country, params.service, {
+                    operator: params.operator || undefined,
+                    maxPrice: params.maxPrice || undefined
+                })
                 break
             case 'getStatus':
                 if (!params.id) throw new Error('Activation ID required')
@@ -139,12 +132,9 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
                 result = await engine.getStatus(params.id)
                 break
             case 'getPrices':
-                // Get prices with optional country/service filters (DynamicProvider only)
-                if (!isDynamic || !('getPrices' in engine)) {
-                    throw new Error('getPrices is only supported for dynamic providers')
-                }
-                const dynamicEngine = engine as DynamicProvider
-                const prices = await dynamicEngine.getPrices(params.country || undefined, params.service || undefined)
+                // Get prices with optional country/service filters
+                const dynamicEnginePrices = engine as DynamicProvider
+                const prices = await dynamicEnginePrices.getPrices(params.country || undefined, params.service || undefined)
                 result = {
                     count: prices.length,
                     first: prices.slice(0, 5) // Return first 5 prices for preview
@@ -160,7 +150,6 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
                 // Set activation status: -1 (cancel), 1 (ready), 3 (retry), 6 (complete), 8 (ban)
                 if (!params.id) throw new Error('Activation ID required')
                 if (!params.status) throw new Error('Status required (-1, 1, 3, 6, or 8)')
-                if (!isDynamic) throw new Error('setStatus is only supported for dynamic providers')
                 const dynamicEngineForStatus = engine as DynamicProvider
                 const statusResult = await dynamicEngineForStatus.setStatus(params.id, params.status)
                 result = { success: true, message: 'Status updated', response: statusResult }
@@ -215,7 +204,7 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
                 success,
                 httpStatus,
                 responseTime: duration,
-                requestUrl: isDynamic ? 'DYNAMIC' : 'LEGACY',
+                requestUrl: 'DYNAMIC',
                 responseData: responseData,
                 error: errorMsg,
             }
@@ -226,7 +215,7 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
     let traceEngine: any = null
     if (['getCountries', 'getServices'].includes(action)) {
         // Metadata operations use metadataEngine
-        // Even if useDynamicMeta is false, if metadataEngine is DynamicProvider, we can use it
+        // Metadata operations use metadataEngine
         traceEngine = metadataEngine
     } else {
         // Other operations use main engine

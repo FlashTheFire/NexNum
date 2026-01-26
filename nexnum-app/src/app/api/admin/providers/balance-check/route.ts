@@ -27,7 +27,7 @@ export async function POST(request: Request) {
                     // DynamicProvider has syncBalance which also updates DB
                     balance = await (engine as DynamicProvider).syncBalance()
                 } else {
-                    // Legacy providers just have getBalance
+                    // Standard getBalance call
                     balance = await engine.getBalance?.() ?? 0
                 }
 

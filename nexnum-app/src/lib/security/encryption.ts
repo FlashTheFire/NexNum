@@ -16,7 +16,7 @@ const getKey = () => {
     if (keyHex.length === 64) {
         return Buffer.from(keyHex, 'hex')
     }
-    // Fallback/Legacy (not recommended for new setups but robust)
+    // Fallback (not recommended for new setups but robust)
     return crypto.scryptSync(keyHex, 'salt', 32)
 }
 
@@ -53,37 +53,32 @@ export const decrypt = (text: string): string => {
 
     // Check if it looks encrypted (contains colons and hex)
     if (!text.includes(':')) {
-        // Fallback: Return raw if not encrypted (migration path)
-        // WARN: This allows gradual migration but check valid keys
-        return text
-    }
-
-    try {
-        const parts = text.split(':')
-        if (parts.length !== 3) {
-            // Invalid format, maybe not encrypted
-            return text
+        // SECURITY: Throw error for unencrypted data in production
+        // In dev, allow gradual migration
+        if (process.env.NODE_ENV === 'production') {
+            throw new Error('Attempted to decrypt unencrypted data')
         }
-
-        const [ivHex, authTagHex, encryptedHex] = parts
-
-        const key = getKey()
-        const iv = Buffer.from(ivHex, 'hex')
-        const authTag = Buffer.from(authTagHex, 'hex')
-
-        // Create decipher
-        const decipher = crypto.createDecipheriv(ALGORITHM, key, iv)
-        decipher.setAuthTag(authTag)
-
-        // Decrypt
-        let decrypted = decipher.update(encryptedHex, 'hex', 'utf8')
-        decrypted += decipher.final('utf8')
-
-        return decrypted
-    } catch (error) {
-        // Return original if decryption fails (e.g. wrong key or not encrypted)
-        // Ideally log this
-        console.error('Decryption failed, returning raw', error)
         return text
     }
+
+    const parts = text.split(':')
+    if (parts.length !== 3) {
+        throw new Error('Invalid encrypted data format')
+    }
+
+    const [ivHex, authTagHex, encryptedHex] = parts
+
+    const key = getKey()
+    const iv = Buffer.from(ivHex, 'hex')
+    const authTag = Buffer.from(authTagHex, 'hex')
+
+    // Create decipher
+    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv)
+    decipher.setAuthTag(authTag)
+
+    // Decrypt
+    let decrypted = decipher.update(encryptedHex, 'hex', 'utf8')
+    decrypted += decipher.final('utf8')
+
+    return decrypted
 }

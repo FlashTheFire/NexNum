@@ -17,7 +17,8 @@
         "howItWorks": "कैसे काम करता है",
         "faq": "सवाल-जवाब",
         "developers": "डेवलपर्स",
-        "virtualNumbers": "वर्चुअल नंबर"
+        "virtualNumbers": "वर्चुअल नंबर",
+        "services": "Services"
     },
     "hero": {
         "badge": "दुनिया भर में 10,000+ उपयोगकर्ताओं द्वारा विश्वसनीय",
@@ -300,7 +301,10 @@
             "inventory": "इन्वेंट्री",
             "transactions": "लेन-देन",
             "settings": "सेटिंग्स",
-            "exit": "ऐप पर वापस जाएं"
+            "exit": "ऐप पर वापस जाएं",
+            "currencies": "Currencies",
+            "finance": "Finance",
+            "monitoring": "Monitoring"
         },
         "status": {
             "optimal": "सिस्टम अनुकूल"
@@ -308,6 +312,68 @@
         "tabs": {
             "analytics": "एनालिटिक्स",
             "activity": "गतिविधि"
+        },
+        "users": {
+            "title": "User Management",
+            "subtitle": "Manage accounts and permissions",
+            "stats": {
+                "total": "Total",
+                "active": "Active",
+                "admins": "Admins",
+                "banned": "Banned"
+            },
+            "actions": {
+                "export": "Export",
+                "filter": "Filter",
+                "clear": "Clear",
+                "search": "Search...",
+                "details": "Details",
+                "ban": "Ban",
+                "unban": "Unban",
+                "promote": "Promote",
+                "demote": "Demote"
+            },
+            "table": {
+                "user": "User",
+                "role": "Role",
+                "balance": "Balance",
+                "joined": "Joined",
+                "actions": "Actions"
+            }
+        },
+        "inventory": {
+            "title": "Inventory Control",
+            "subtitle": "Manage provider Countries & Services data",
+            "providers": {
+                "sync": "Sync",
+                "syncing": "Syncing..."
+            },
+            "tabs": {
+                "countries": "Countries",
+                "services": "Services"
+            },
+            "actions": {
+                "search": "Search {tab}...",
+                "smartView": "Smart View",
+                "prev": "Previous",
+                "next": "Next",
+                "page": "Page {current} of {total}"
+            },
+            "table": {
+                "name": "Name",
+                "providers": "Providers",
+                "lastSynced": "Last Synced",
+                "provider": "Provider",
+                "externalId": "External ID",
+                "synced": "Synced",
+                "serviceName": "Service Name",
+                "bestPrice": "Best Price",
+                "lowPrice": "Low Price",
+                "code": "Code",
+                "stock": "stock",
+                "services": "services",
+                "items": "items"
+            }
         }
     },
     "Demo": {

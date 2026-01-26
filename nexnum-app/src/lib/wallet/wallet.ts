@@ -166,7 +166,7 @@ export class WalletService {
     }
 
     /**
-     * Charge a user's wallet ... (Legacy / Single Step)
+     * Charge a user's wallet ... (Single Step)
      */
     static async charge(
         userId: string,

@@ -103,7 +103,7 @@ async function cleanupExpiredReservations(): Promise<CleanupResult> {
     }
 }
 
-import { smsProvider } from '@/lib/sms-providers'
+import { smsProvider } from '@/lib/providers'
 import { ActivationService } from './activation-service'
 
 /**

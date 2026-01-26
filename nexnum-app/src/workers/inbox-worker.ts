@@ -13,7 +13,7 @@
  */
 
 import { prisma } from '@/lib/core/db'
-import { smsProvider } from '@/lib/sms-providers/index'
+import { smsProvider } from '@/lib/providers'
 import { NotificationFactory } from '@/lib/notifications/notification-service'
 import { logger } from '@/lib/core/logger'
 import { redis } from '@/lib/core/redis'

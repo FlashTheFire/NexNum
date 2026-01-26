@@ -3,6 +3,18 @@ import { persist, createJSONStorage } from 'zustand/middleware'
 import * as api from '@/lib/api/api-client'
 import { getCountryFlagUrlSync } from "@/lib/normalizers/country-flags"
 
+// Request deduplication cache
+const pendingFetches = new Map<string, Promise<any>>()
+
+function dedupe<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
+    if (pendingFetches.has(key)) {
+        return pendingFetches.get(key)!
+    }
+    const promise = fetcher().finally(() => pendingFetches.delete(key))
+    pendingFetches.set(key, promise)
+    return promise
+}
+
 export interface Transaction {
     id: string
     type: 'purchase' | 'topup' | 'refund' | 'manual_credit' | 'manual_debit' | 'referral_bonus'
@@ -178,66 +190,72 @@ export const useGlobalStore = create<GlobalState>()(
 
             // Fetch balance from API
             fetchBalance: async () => {
-                set({ isLoadingBalance: true })
-                const result = await api.getWalletBalance()
-                if (result.success && result.data) {
-                    set({
-                        userProfile: { balance: result.data.balance },
-                        isLoadingBalance: false
-                    })
-                } else {
-                    set({ isLoadingBalance: false })
-                }
+                return dedupe('balance', async () => {
+                    set({ isLoadingBalance: true })
+                    const result = await api.getWalletBalance()
+                    if (result.success && result.data) {
+                        set({
+                            userProfile: { balance: result.data.balance },
+                            isLoadingBalance: false
+                        })
+                    } else {
+                        set({ isLoadingBalance: false })
+                    }
+                })
             },
 
             // Fetch user's numbers from API
             fetchNumbers: async () => {
-                set({ isLoadingNumbers: true })
-                const result = await api.getMyNumbers()
+                return dedupe('numbers', async () => {
+                    set({ isLoadingNumbers: true })
+                    const result = await api.getMyNumbers()
 
-                if ((result as any).success === false) {
-                    set({ isLoadingNumbers: false })
-                    return
-                }
+                    if ((result as any).success === false) {
+                        set({ isLoadingNumbers: false })
+                        return
+                    }
 
-                const numbers: ActiveNumber[] = result.numbers.map(n => ({
-                    id: n.id,
-                    number: n.phoneNumber,
-                    countryCode: n.countryCode,
-                    countryName: n.countryName || '',
-                    // Use API's countryIconUrl if available, else fallback to sync lookup using countryName
-                    countryIconUrl: n.countryIconUrl || getCountryFlagUrlSync(n.countryName || n.countryCode),
-                    serviceName: n.serviceName || '',
-                    serviceCode: n.serviceCode,
-                    serviceIconUrl: n.serviceIconUrl,
-                    price: Number(n.price) || 0,
-                    expiresAt: n.expiresAt || '',
-                    purchasedAt: n.purchasedAt || undefined,
-                    smsCount: n.smsCount || 0,
-                    status: n.status as ActiveNumber['status'],
-                    latestSms: n.latestSms,
-                }))
-                set({ activeNumbers: numbers, isLoadingNumbers: false })
+                    const numbers: ActiveNumber[] = result.numbers.map(n => ({
+                        id: n.id,
+                        number: n.phoneNumber,
+                        countryCode: n.countryCode,
+                        countryName: n.countryName || '',
+                        // Use API's countryIconUrl if available, else fallback to sync lookup using countryName
+                        countryIconUrl: n.countryIconUrl || getCountryFlagUrlSync(n.countryName || n.countryCode),
+                        serviceName: n.serviceName || '',
+                        serviceCode: n.serviceCode,
+                        serviceIconUrl: n.serviceIconUrl,
+                        price: Number(n.price) || 0,
+                        expiresAt: n.expiresAt || '',
+                        purchasedAt: n.purchasedAt || undefined,
+                        smsCount: n.smsCount || 0,
+                        status: n.status as ActiveNumber['status'],
+                        latestSms: n.latestSms,
+                    }))
+                    set({ activeNumbers: numbers, isLoadingNumbers: false })
+                })
             },
 
             // Fetch transactions from API
             fetchTransactions: async () => {
-                set({ isLoadingTransactions: true })
-                const result = await api.getWalletTransactions(1, 50)
-                if ((result as any).success === false) {
-                    set({ isLoadingTransactions: false })
-                    return
-                }
-                const transactions: Transaction[] = result.transactions.map(t => ({
-                    id: t.id,
-                    type: t.type as Transaction['type'],
-                    amount: Math.abs(t.amount),
-                    date: t.createdAt,
-                    createdAt: t.createdAt,
-                    status: 'completed' as const,
-                    description: t.description || '',
-                }))
-                set({ transactions, isLoadingTransactions: false })
+                return dedupe('transactions', async () => {
+                    set({ isLoadingTransactions: true })
+                    const result = await api.getWalletTransactions(1, 50)
+                    if ((result as any).success === false) {
+                        set({ isLoadingTransactions: false })
+                        return
+                    }
+                    const transactions: Transaction[] = result.transactions.map(t => ({
+                        id: t.id,
+                        type: t.type as Transaction['type'],
+                        amount: Math.abs(t.amount),
+                        date: t.createdAt,
+                        createdAt: t.createdAt,
+                        status: 'completed' as const,
+                        description: t.description || '',
+                    }))
+                    set({ transactions, isLoadingTransactions: false })
+                })
             },
 
             // Top up wallet via API

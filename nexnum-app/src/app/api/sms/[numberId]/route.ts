@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/core/db'
 import { getCurrentUser } from '@/lib/auth/jwt'
-import { smsProvider } from '@/lib/sms-providers/index'
+import { smsProvider } from '@/lib/providers'
 import { apiHandler } from '@/lib/api/api-handler'
 import { NotificationFactory } from '@/lib/notifications/notification-service'
 

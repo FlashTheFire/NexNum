@@ -17,7 +17,8 @@
         "howItWorks": "Nasıl Çalışır",
         "faq": "SSS",
         "developers": "Geliştiriciler",
-        "virtualNumbers": "Sanal Numaralar"
+        "virtualNumbers": "Sanal Numaralar",
+        "services": "Services"
     },
     "hero": {
         "badge": "Dünya çapında 10.000+ kullanıcı güveniyor",
@@ -412,6 +413,91 @@
             "title": "Protokol İyileştiriliyor",
             "description": "Altyapı senkronizasyonu aktif. 15 dakika bağlantı kesintisi.",
             "footer": "Protokol Güvende"
+        }
+    },
+    "admin": {
+        "title": "Command Center",
+        "subtitle": "Real-time analytics and system monitoring",
+        "nav": {
+            "overview": "Overview",
+            "users": "Users",
+            "providers": "Providers",
+            "inventory": "Inventory",
+            "transactions": "Transactions",
+            "currencies": "Currencies",
+            "finance": "Finance",
+            "monitoring": "Monitoring",
+            "settings": "Settings",
+            "exit": "Exit Admin"
+        },
+        "status": {
+            "optimal": "SYSTEM OPTIMAL"
+        },
+        "tabs": {
+            "analytics": "Analytics",
+            "activity": "Activity"
+        },
+        "users": {
+            "title": "User Management",
+            "subtitle": "Manage accounts and permissions",
+            "stats": {
+                "total": "Total",
+                "active": "Active",
+                "admins": "Admins",
+                "banned": "Banned"
+            },
+            "actions": {
+                "export": "Export",
+                "filter": "Filter",
+                "clear": "Clear",
+                "search": "Search...",
+                "details": "Details",
+                "ban": "Ban",
+                "unban": "Unban",
+                "promote": "Promote",
+                "demote": "Demote"
+            },
+            "table": {
+                "user": "User",
+                "role": "Role",
+                "balance": "Balance",
+                "joined": "Joined",
+                "actions": "Actions"
+            }
+        },
+        "inventory": {
+            "title": "Inventory Control",
+            "subtitle": "Manage provider Countries & Services data",
+            "providers": {
+                "sync": "Sync",
+                "syncing": "Syncing..."
+            },
+            "tabs": {
+                "countries": "Countries",
+                "services": "Services"
+            },
+            "actions": {
+                "search": "Search {tab}...",
+                "smartView": "Smart View",
+                "prev": "Previous",
+                "next": "Next",
+                "page": "Page {current} of {total}"
+            },
+            "table": {
+                "name": "Name",
+                "providers": "Providers",
+                "lastSynced": "Last Synced",
+                "provider": "Provider",
+                "externalId": "External ID",
+                "synced": "Synced",
+                "serviceName": "Service Name",
+                "bestPrice": "Best Price",
+                "lowPrice": "Low Price",
+                "code": "Code",
+                "stock": "stock",
+                "services": "services",
+                "items": "items"
+            }
         }
     }
 }

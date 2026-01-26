@@ -154,6 +154,7 @@ export function validateProductionRequirements(): string[] {
     if (process.env.NODE_ENV === 'production') {
         if (!process.env.MEILISEARCH_API_KEY) missing.push('MEILISEARCH_API_KEY')
         if (!process.env.ENCRYPTION_KEY) missing.push('ENCRYPTION_KEY')
+        if (!process.env.CSRF_SECRET) missing.push('CSRF_SECRET (must be separate from JWT_SECRET)')
 
         // At least one SMS provider must be configured
         const hasProvider = ['HERO_SMS_API_KEY', 'GRIZZLYSMS_API_KEY', 'SMSBOWER_API_KEY', 'FIVESIM_API_KEY', 'ONLINESIM_API_KEY']

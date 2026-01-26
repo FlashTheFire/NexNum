@@ -763,33 +763,37 @@ export async function searchServices(
                 if (diff !== 0) return diff
             }
 
-            // Default (Relevance/Smart Rank)
-            // Algorithm: (StockScore * 0.6) + (PriceScore * 0.4) + PopularityBonus
+            // Default (Relevance/Smart Rank) - V2 Robust Algorithm
+            // Balances Price (Inverse Curve) and Stock (Log Scale) to prevent ties and A-Z fallback.
             if (!options?.sort || options.sort === 'relevance') {
                 const getScore = (s: ServiceStats) => {
-                    // 1. Stock Score (Logarithmic - dimishing returns for massive stock)
-                    // Log10(10)=1, Log10(100)=2, Log10(1000)=3
-                    // We multiply by 2.5 to map ~10k stock to a score of ~10
                     const stock = s.totalStock || 0
-                    const stockScore = Math.min(10, Math.log10(stock + 1) * 2.5)
+                    const price = s.lowestPrice || 999 // High fallback price if missing
 
-                    // 2. Price Score (Lower is better)
-                    // Invert price: $0.10 -> 9.8, $1.00 -> 8.0, $5.00 -> 0
-                    const price = s.lowestPrice || 999
-                    const priceScore = Math.max(0, 10 - (price * 2))
+                    // 1. Stock Score (Logarithmic - dimishing returns)
+                    // log10(100) = 2, log10(100k) = 5, log10(100M) = 8
+                    // Multiplier 1.5 gives scores: 100->3, 100k->7.5, 100M->12 (capped at 10)
+                    const stockScore = Math.min(10, Math.log10(stock + 1) * 1.5)
 
-                    // 3. Popularity Bonus (Manual curation boost)
-                    // Gives a slight edge to manually tagged popular services
+                    // 2. Price Score (Inverse Curve - Lower is better)
+                    // 15 / (1 + Price)
+                    // $0.50 -> 10.0 score (Excellent)
+                    // $5.00 -> 2.5 score (Mediocre)
+                    // $60.00 -> 0.2 score (Poor)
+                    const priceScore = 15 / (1 + price)
+
+                    // 3. Popularity Bonus
                     const popBonus = s.popular ? 3 : 0
 
-                    return (stockScore * 0.6) + (priceScore * 0.4) + popBonus
+                    // Weight: 50% Stock, 50% Price
+                    return (stockScore * 0.5) + (priceScore * 0.5) + popBonus
                 }
 
                 const scoreA = getScore(a)
                 const scoreB = getScore(b)
 
                 // Sort descending by score
-                if (Math.abs(scoreA - scoreB) > 0.1) {
+                if (Math.abs(scoreA - scoreB) > 0.01) { // Finer precision threshold
                     return scoreB - scoreA
                 }
             }

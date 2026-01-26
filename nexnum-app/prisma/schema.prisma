@@ -273,9 +273,7 @@ model Provider {
   // --- Response Mappings (JSON) ---
   mappings Json
 
-  // --- Business Logic ---
-  useDynamicMetadata Boolean @default(false) @map("use_dynamic_metadata")
-  dynamicFunctions   Json?   @map("dynamic_functions") // e.g. ["getPrices", "getCountries"]
+
 
   priceMultiplier Decimal @default(1.0) @map("price_multiplier") @db.Decimal(5, 2)
   fixedMarkup     Decimal @default(0.0) @map("fixed_markup") @db.Decimal(8, 2)

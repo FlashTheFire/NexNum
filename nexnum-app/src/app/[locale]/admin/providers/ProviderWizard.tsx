@@ -373,7 +373,7 @@ export default function ProviderWizard({ onComplete, onCancel }: WizardProps) {
                                                 { key: 'grizzlysms', logo: '/providers/grizzlysms.png', name: 'GrizzlySMS', desc: 'SMS-Activate compatible', color: 'from-amber-500/20 to-orange-500/20', border: 'border-amber-500/20 hover:border-amber-500/50' },
                                                 { key: 'smsbower', logo: '/providers/smsbower.png', name: 'SMSBower', desc: 'Affordable SMS service', color: 'from-green-500/20 to-emerald-500/20', border: 'border-green-500/20 hover:border-green-500/50' },
 
-                                                { key: 'herosms', logo: '/providers/herosms.png', name: 'HeroSMS', desc: 'Legacy SMS provider', color: 'from-red-500/20 to-pink-500/20', border: 'border-red-500/20 hover:border-red-500/50' },
+                                                { key: 'herosms', logo: '/providers/herosms.png', name: 'HeroSMS', desc: 'Text/Regex SMS provider', color: 'from-red-500/20 to-pink-500/20', border: 'border-red-500/20 hover:border-red-500/50' },
                                             ].map((provider) => (
                                                 <motion.div
                                                     key={provider.key}
@@ -474,11 +474,11 @@ export default function ProviderWizard({ onComplete, onCancel }: WizardProps) {
                                     <div className="bg-white/5 border border-white/5 rounded-xl p-3 md:p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
                                         <div className="space-y-1">
                                             <div className="flex items-center gap-2">
-                                                <label className="text-xs md:text-sm font-bold text-white">Hybrid Mode</label>
-                                                <div className="px-1.5 py-0.5 rounded bg-orange-500/10 border border-orange-500/20 text-[9px] font-bold text-orange-400 uppercase tracking-wider">Advanced</div>
+                                                <label className="text-xs md:text-sm font-bold text-white">Compatibility Mode</label>
+                                                <div className="px-1.5 py-0.5 rounded bg-orange-500/10 border border-orange-500/20 text-[9px] font-bold text-orange-400 uppercase tracking-wider">Strict</div>
                                             </div>
                                             <p className="text-[10px] md:text-xs text-gray-400 max-w-sm">
-                                                Enable compatibility with legacy providers (SMS-Activate style) that require query parameters for auth and variable endpoints.
+                                                For providers using query-param auth (e.g. SMS-Activate). All responses are strictly parsed via the new Dynamic Engine.
                                             </p>
                                         </div>
                                         <Switch

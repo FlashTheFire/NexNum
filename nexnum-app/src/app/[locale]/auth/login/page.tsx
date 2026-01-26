@@ -12,7 +12,7 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Captcha } from "@/components/auth/Captcha"
-import { AuthLayout } from "@/components/layouts/AuthLayout"
+import { AuthLayout } from "@/components/layout/AuthLayout"
 import { login } from "@/lib/api/auth-api"
 import { Icons } from "@/components/ui/icons"
 

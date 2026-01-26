@@ -48,8 +48,7 @@ interface CommandCenterData {
  * Returns aggregated data for the Admin Command Center dashboard.
  * Includes system status, KPIs, active incidents, and recent activity.
  */
-// Export the handler wrapped with metrics
-const handler = async (request: Request) => {
+export async function GET(request: Request) {
     const auth = await requireAdmin(request)
     if (auth.error) return auth.error
 
@@ -76,7 +75,7 @@ const handler = async (request: Request) => {
         }
 
         return NextResponse.json(response)
-    } catch (error: any) {
+    } catch (error) {
         console.error('Command Center API error:', error)
         return NextResponse.json(
             { error: 'Failed to fetch command center data' },
@@ -84,8 +83,6 @@ const handler = async (request: Request) => {
         )
     }
 }
-
-export const GET = withMetrics(handler as any, { route: '/api/admin/command-center' })
 
 // ============================================================================
 // DATA FETCHERS

@@ -17,7 +17,7 @@
 import CircuitBreaker from 'opossum'
 import { CIRCUIT_OPTS } from '@/lib/core/circuit-breaker'
 import { prisma } from '@/lib/core/db'
-import { smsProvider } from '@/lib/sms-providers'
+import { smsProvider } from '@/lib/providers'
 import { WalletService } from '@/lib/wallet/wallet'
 import { logger } from '@/lib/core/logger'
 import { queue } from '@/lib/core/queue'

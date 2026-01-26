@@ -88,7 +88,7 @@ export abstract class BaseWebhookHandler {
             number.serviceCode || undefined
         )
 
-        // Create SMS result (Legacy Structure maintained for backward compat if needed)
+        // Create SMS result (Structure maintained for backward compat if needed)
         const smsResult: SmsResult = {
             id: `${this.providerName}:${payload.activationId}:${Date.now()}`,
             numberId: number.id,

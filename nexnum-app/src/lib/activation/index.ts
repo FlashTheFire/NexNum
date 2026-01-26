@@ -51,7 +51,7 @@ export {
     type PollCycleStats
 } from './unified-poll-manager'
 
-// Polling exports (re-exported from unified manager + legacy)
+// Polling exports (re-exported from unified manager)
 export { getNextPollDelay, describePollStrategy, type PollContext, type PollDecision, type BatchPollItem, type BatchPollResult } from './unified-poll-manager'
 export { BatchPollManager, getActiveNumbersForPolling } from './batch-poll-manager'
 export { AdaptivePollStrategy } from './adaptive-poll-strategy'

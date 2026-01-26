@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma, ensureWallet } from '@/lib/core/db'
 import { getCurrentUser } from '@/lib/auth/jwt'
-import { smsProvider } from '@/lib/sms-providers'
+import { smsProvider } from '@/lib/providers'
 import { WalletService } from '@/lib/wallet/wallet'
 
 interface RouteParams {

@@ -10,6 +10,7 @@ import { Prisma, ActivationState } from '@prisma/client'
 import { WalletService } from '@/lib/wallet/wallet'
 import { canTransition, isRefundable } from './activation-state-machine'
 import { logger } from '@/lib/core/logger'
+import { emitStateUpdate } from '@/lib/events/emitters/state-emitter'
 
 export interface CreateActivationInput {
     userId: string
@@ -160,6 +161,10 @@ export class ActivationService {
         })
 
         logger.info(`[Activation] ${activationId} -> ACTIVE (${providerData.phoneNumber})`)
+
+        // Emit real-time update
+        emitStateUpdate(activation.userId, 'numbers', 'activation_active').catch(() => { })
+
         return updated
     }
 
@@ -257,6 +262,10 @@ export class ActivationService {
         })
 
         logger.info(`[Activation] ${activationId} -> REFUNDED`)
+
+        // Emit real-time update (Wallet balance changed + number state change)
+        emitStateUpdate(activation.userId, 'all', 'activation_refunded').catch(() => { })
+
         return updated
     }
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { authenticateApiKey, apiSuccess, apiError } from '@/lib/api/api-middleware'
 import { prisma } from '@/lib/core/db'
-import { smsProvider } from '@/lib/sms-providers'
+import { smsProvider } from '@/lib/providers'
 import { WalletService } from '@/lib/wallet/wallet'
 
 interface RouteParams {

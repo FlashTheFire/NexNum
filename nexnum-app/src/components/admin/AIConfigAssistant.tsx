@@ -81,7 +81,7 @@ export function AIConfigAssistant({ isOpen, onClose, step, onApply }: AIConfigAs
     const [result, setResult] = useState<string | null>(null)
     const [error, setError] = useState<string | null>(null)
     const [confidence, setConfidence] = useState(0)
-    const [providerType, setProviderType] = useState<'json_api' | 'legacy_text' | null>(null)
+    const [providerType, setProviderType] = useState<'json_api' | 'text_regex' | null>(null)
 
     // Interactive State (Lifted to top level to avoid Hook misuse)
     const [tempVal, setTempVal] = useState("")

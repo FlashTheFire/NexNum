@@ -14,7 +14,7 @@
 
 import { prisma } from '@/lib/core/db'
 import { ActivationService } from './activation-service'
-import { smsProvider } from '@/lib/sms-providers'
+import { smsProvider } from '@/lib/providers'
 import { logger } from '@/lib/core/logger'
 
 const WORKER_ID = `worker_${process.pid}_${Date.now()}`

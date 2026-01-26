@@ -40,6 +40,7 @@ export function apiError(message: string, status: number = 400, code?: string): 
 
 /**
  * Extract API key from request
+ * SECURITY: Only headers are supported. Query params were removed to prevent keys in logs.
  */
 function extractApiKey(request: NextRequest): string | null {
     // Check Authorization header (Bearer token)
@@ -54,12 +55,8 @@ function extractApiKey(request: NextRequest): string | null {
         return apiKeyHeader
     }
 
-    // Check query parameter (not recommended but supported)
-    const url = new URL(request.url)
-    const apiKeyParam = url.searchParams.get('api_key')
-    if (apiKeyParam) {
-        return apiKeyParam
-    }
+    // REMOVED: Query parameter support (security risk - keys appear in logs)
+    // const apiKeyParam = url.searchParams.get('api_key')
 
     return null
 }

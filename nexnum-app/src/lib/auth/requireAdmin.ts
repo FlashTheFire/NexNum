@@ -103,7 +103,8 @@ export function forbidden(message = 'Admin access required'): NextResponse {
 }
 
 /**
- * Legacy compatibility: requireAdmin that returns error directly
+ * Admin check utility that returns error directly
+
  * Use pattern: const auth = await requireAdmin(request); if (auth.error) return auth.error
  */
 export async function requireAdmin(request: Request): Promise<{ userId: string; email: string; error?: never } | { error: NextResponse; userId?: never; email?: never }> {

@@ -1,6 +1,6 @@
 
 import { processActivationOutbox } from '@/lib/activation/activation-outbox-worker'
-import { processOutboxEvents } from '@/lib/activation/outbox' // Legacy outbox
+import { processOutboxEvents } from '@/lib/activation/outbox' // Search Index Sync
 import { processPushBatch } from '@/workers/push-worker'
 import { processInboxBatch } from '@/workers/inbox-worker'
 import { processReconciliationBatch } from '@/workers/reconcile-worker'
@@ -11,7 +11,7 @@ interface MasterWorkerResult {
     timestamp: string
     duration: number
     outbox: any
-    legacyOutbox: any
+    searchSync: any
     notifications: any
     inbox: any
     reconcile: any
@@ -39,10 +39,10 @@ export async function runMasterWorker(): Promise<MasterWorkerResult> {
         }
 
         try {
-            results.legacyOutbox = await processOutboxEvents(20)
+            results.searchSync = await processOutboxEvents(20)
         } catch (e: any) {
             logger.error('Search Sync Failure', { error: e.message })
-            errors.push(`LegacyOutbox: ${e.message}`)
+            errors.push(`SearchSync: ${e.message}`)
         }
 
         try {
@@ -60,20 +60,9 @@ export async function runMasterWorker(): Promise<MasterWorkerResult> {
             errors.push(`Push: ${e.message}`)
         }
 
-        // PRIORITY 3: SYSTEM MAINTENANCE
-        try {
-            results.reservations = await cleanupNow()
-        } catch (e: any) {
-            logger.error('Maintenance Failure', { error: e.message })
-            errors.push(`Cleanup: ${e.message}`)
-        }
+        // PRIORITY 3 operations (Cleanup, Reconcile) moved to Cron Workers
+        // See: worker-entry.ts
 
-        try {
-            results.reconcile = await processReconciliationBatch()
-        } catch (e: any) {
-            logger.error('Reconciliation Failure', { error: e.message })
-            errors.push(`Reconcile: ${e.message}`)
-        }
 
         // PRIORITY 4: ASSET INTEGRITY
         // REMOVED from worker loop - now runs ONLY during provider sync (worker-entry.ts)
@@ -90,7 +79,7 @@ export async function runMasterWorker(): Promise<MasterWorkerResult> {
         timestamp: new Date().toISOString(),
         duration: duration,
         outbox: results.outbox || null,
-        legacyOutbox: results.legacyOutbox || null,
+        searchSync: results.searchSync || null,
         notifications: results.notifications || null,
         inbox: results.inbox || null,
         reconcile: results.reconcile || null,

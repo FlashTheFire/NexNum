@@ -1,5 +1,5 @@
 
-import { SmsProvider, Country, Service, NumberResult, StatusResult, NumberStatus } from '@/lib/sms-providers/types'
+import { SmsProvider, Country, Service, NumberResult, StatusResult, NumberStatus } from '@/lib/providers/types'
 import { WebhookPayload, WebhookVerificationResult } from '@/lib/sms/types'
 import { WebhookVerifier } from '@/lib/webhooks/verify'
 import { Provider } from '@prisma/client'
@@ -177,7 +177,6 @@ export class DynamicProvider implements SmsProvider {
     name: string
     public config: Provider
     private lastRequestTime: number = 0
-    private fallback?: SmsProvider // New: Fallback for hybrid mode
 
     // Circuit Breaker Registry (Static to share across instances of same provider)
     private static breakers = new Map<string, CircuitBreaker>()
@@ -212,42 +211,10 @@ export class DynamicProvider implements SmsProvider {
         requestTime?: number
     } | null = null
 
-    constructor(config: Provider, fallback?: SmsProvider) {
+    constructor(config: Provider) {
         this.config = config
         this.name = config.name
-        this.fallback = fallback
     }
-
-    /**
-     * Check if a specific function should use the dynamic engine
-     * based on granular toggles in mappings.dynamicFunctions
-     */
-    private shouldUseDynamic(fnName: string): boolean {
-        const mappings = this.config.mappings as any
-
-        // Granular toggle check (Schema Field)
-        const dynamicFunctions = this.config.dynamicFunctions as Record<string, boolean> | null
-        if (dynamicFunctions && dynamicFunctions[fnName] === true) {
-            return true
-        }
-
-        // Global override for ALL metadata functions (legacy support config)
-        if (fnName === 'getCountries' || fnName === 'getServices') {
-            if (this.config.useDynamicMetadata === true) return true
-        }
-
-        // Global override for ALL functions (Legacy mappings fallback)
-        if (mappings?.useDynamic === true) return true
-
-        // Default behavior:
-        // If we have a fallback, prefer fallback (Hybrid mode) - UNLESS specific flag is on
-        // If NO fallback (Pure dynamic), then we MUST use dynamic (or fail if config missing)
-        if (this.fallback) return false
-
-        return true
-    }
-
-
 
     private async request(endpointKey: string, params: Record<string, any> = {}): Promise<any> {
         const endpoints = this.config.endpoints as Record<string, EndpointConfig>
@@ -1298,7 +1265,7 @@ export class DynamicProvider implements SmsProvider {
                         }
                     }
                 }
-                // Fallback: Numbered Capture Groups (Legacy)
+                // Fallback: Numbered Capture Groups
                 else {
                     for (const [field, groupIndex] of Object.entries(fields)) {
                         const idx = parseInt(groupIndex)
@@ -1477,9 +1444,7 @@ export class DynamicProvider implements SmsProvider {
         const cacheKey = CACHE_KEYS.countryList(this.name)
 
         return cacheGet(cacheKey, async () => {
-            if (!this.shouldUseDynamic('getCountries') && this.fallback?.getCountries) {
-                return this.fallback.getCountries()
-            }
+
             const response = await this.request('getCountries')
             const items = this.parseResponse(response, 'getCountries')
 
@@ -1515,12 +1480,9 @@ export class DynamicProvider implements SmsProvider {
         const cacheKey = CACHE_KEYS.serviceList(this.name) + `:${countryCode}`
 
         return cacheGet(cacheKey, async () => {
-            // Optimization: If fallback is used for countries, it might handle services without countryCode better
-            if (!this.shouldUseDynamic('getServices') && this.fallback?.getServices) {
-                return this.fallback.getServices(countryCode)
-            }
-
+            // Logic simplified to strict dynamic
             const response = await this.request('getServices', { country: countryCode })
+
             const items = this.parseResponse(response, 'getServices')
 
             return Promise.all(items.map(async (s, idx) => {
@@ -1546,9 +1508,7 @@ export class DynamicProvider implements SmsProvider {
     }
 
     async getNumber(countryCode: string, serviceCode: string, options?: { operator?: string; maxPrice?: string | number }): Promise<NumberResult> {
-        if (!this.shouldUseDynamic('getNumber') && this.fallback?.getNumber) {
-            return this.fallback.getNumber(countryCode, serviceCode, options)
-        }
+        // Strict Mode: No fallback
 
         // Build params object with consistent naming
         const params: Record<string, string> = {
@@ -1604,9 +1564,7 @@ export class DynamicProvider implements SmsProvider {
     }
 
     async getStatus(activationId: string): Promise<StatusResult> {
-        if (!this.shouldUseDynamic('getStatus') && this.fallback?.getStatus) {
-            return this.fallback.getStatus(activationId)
-        }
+
 
 
 
@@ -1788,9 +1746,7 @@ export class DynamicProvider implements SmsProvider {
     async cancelNumber(activationId: string): Promise<void> {
 
 
-        if (!this.shouldUseDynamic('cancelNumber') && this.fallback?.cancelNumber) {
-            return this.fallback.cancelNumber(activationId)
-        }
+
         const response = await this.request('cancelNumber', { id: activationId })
         this.checkForErrors(response, 'cancelNumber', (this.config.mappings as any)?.cancelNumber)
     }
@@ -1808,9 +1764,7 @@ export class DynamicProvider implements SmsProvider {
      * Returns raw response for debugging
      */
     async setStatus(activationId: string, status: string | number): Promise<any> {
-        if (!this.shouldUseDynamic('setStatus') && this.fallback?.setStatus) {
-            return this.fallback.setStatus(activationId, status as any) // Status enum/string compat check might be needed
-        }
+
 
         // Implementation for dynamic setStatus if endpoints exist
         // Currently just a placeholder or could be implemented via request
@@ -1839,18 +1793,14 @@ export class DynamicProvider implements SmsProvider {
     }
 
     async nextSms(activationId: string): Promise<void> {
-        if (!this.shouldUseDynamic('nextSms') && this.fallback?.nextSms) {
-            return this.fallback.nextSms(activationId)
-        }
+
 
         const response = await this.request('nextSms', { id: activationId })
         this.checkForErrors(response, 'nextSms', (this.config.mappings as any)?.nextSms)
     }
 
     async getBalance(): Promise<number> {
-        if (!this.shouldUseDynamic('getBalance') && this.fallback?.getBalance) {
-            return this.fallback.getBalance()
-        }
+
         // If dynamic is disabled BUT no fallback exists (or fallback lacks getBalance),
         // we default to using the Dynamic Engine logic so it works for standard providers.
 
@@ -1885,12 +1835,7 @@ export class DynamicProvider implements SmsProvider {
         const cacheKey = `provider:prices:${this.name}:${countryCode || 'all'}:${serviceCode || 'all'}`
 
         return cacheGet(cacheKey, async () => {
-            if (!this.shouldUseDynamic('getPrices')) {
-                // Check if fallback supports getPrices (it might not, as it's a newer interface method)
-                if ('getPrices' in (this.fallback || {})) {
-                    return (this.fallback as any).getPrices(countryCode, serviceCode)
-                }
-            }
+
 
             const params: Record<string, string> = {}
             if (countryCode) params.country = countryCode

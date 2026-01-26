@@ -16,10 +16,8 @@ export const dynamic = 'force-dynamic'
  * - METRICS_SCRAPE_TOKEN: Token for authenticating Prometheus scraper
  * - METRICS_ALLOWED_IPS: Optional comma-separated list of allowed IPs
  */
-import { withMetrics } from '@/lib/monitoring/http-metrics'
 
-// Define the handler properly
-const handler = async (request: Request) => {
+export async function GET(request: Request) {
     // Production authentication
     if (process.env.NODE_ENV === 'production') {
         const isAuthorized = validateMetricsScraper(request)
@@ -50,8 +48,6 @@ const handler = async (request: Request) => {
         )
     }
 }
-
-export const GET = withMetrics(handler as any, { route: '/api/metrics' })
 
 /**
  * Validate that the request is from an authorized metrics scraper.

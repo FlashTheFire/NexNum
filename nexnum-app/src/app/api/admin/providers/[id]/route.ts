@@ -72,10 +72,8 @@ const ProviderUpdateSchema = z.object({
     // JSON Fields
     endpoints: z.any().optional(),
     mappings: z.any().optional(),
-    dynamicFunctions: z.any().optional(),
-
     // Logic Flags
-    useDynamicMetadata: z.boolean().optional(),
+
     normalizationMode: z.string().optional(),
 }).refine(data => Object.keys(data).length > 0, {
     message: "No valid update fields provided"
@@ -118,8 +116,6 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
             authQueryParam,
             endpoints,
             mappings,
-            dynamicFunctions,
-            useDynamicMetadata,
             normalizationMode
         } = validation.data
 
@@ -185,8 +181,6 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
         if (endpoints !== undefined) updateData.endpoints = endpoints
         if (mappings !== undefined) updateData.mappings = mappings
-        if (dynamicFunctions !== undefined) updateData.dynamicFunctions = dynamicFunctions
-        if (useDynamicMetadata !== undefined) updateData.useDynamicMetadata = useDynamicMetadata
         if (normalizationMode !== undefined) updateData.normalizationMode = normalizationMode
 
         if (Object.keys(updateData).length === 0) {

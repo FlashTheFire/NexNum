@@ -4,8 +4,8 @@ import { searchCountries } from "@/lib/search/search";
 /**
  * GET /api/public/countries
  * 
- * Legacy endpoint - redirects to /api/search/countries
- * Kept for backwards compatibility with existing frontend.
+ * Redirect endpoint - redirects to /api/search/countries
+ * Kept for backwards compatibility.
  */
 export async function GET(req: Request) {
     try {
@@ -49,7 +49,7 @@ export async function GET(req: Request) {
         // Delegate resolution to the search library's robust name-based logic
         const result = await searchCountries(serviceName, q, { page, limit, sort });
 
-        // Map to legacy format for backwards compatibility
+        // Map to standard format for backwards compatibility
         const items = result.countries.map(country => ({
             id: country.code,
             name: country.name,

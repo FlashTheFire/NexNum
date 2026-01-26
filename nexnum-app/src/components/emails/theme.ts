@@ -3,24 +3,39 @@
 
 export const colors = {
     bg: {
-        root: 'transparent', // User requested: Don't force black bg
-        surface: '#151518', // Slightly lighter charcoal
-        code: '#000000', // Pure black for code blocks
+        root: 'transparent',
+        surface: '#151518',
+        code: '#000000',
     },
     text: {
-        primary: '#FFFFFF', // White
-        secondary: '#A1A1AA', // Gray-400
-        tertiary: '#52525B', // Gray-600
-        code: '#C6FF00', // Neon Lime Text
+        primary: '#FFFFFF',
+        secondary: '#A1A1AA',
+        tertiary: '#52525B',
+        code: '#C6FF00',
     },
     brand: {
-        primary: '#C6FF00', // Neon Lime (Signature)
-        secondary: '#0F2E2E', // Deep Teal
-        accent: '#FF6B6B', // Red (Enterprise Badge)
+        primary: '#C6FF00',
+        secondary: '#0F2E2E',
+        accent: '#FF6B6B',
     },
     border: {
         subtle: '#333333',
-        highlight: '#C6FF00', // Lime Border
+        highlight: '#C6FF00',
+    },
+    neutral: {
+        bg: '#151518',
+        card: '#1a1a1d',
+        border: '#333333',
+        text: {
+            primary: '#FFFFFF',
+            secondary: '#A1A1AA',
+            tertiary: '#52525B',
+        }
+    },
+    state: {
+        success: { bg: '#052e16', border: '#166534', text: '#4ade80' },
+        error: { bg: '#450a0a', border: '#b91c1c', text: '#f87171' },
+        warning: { bg: '#451a03', border: '#d97706', text: '#fbbf24' },
     }
 }
 
@@ -30,8 +45,9 @@ export const typography = {
         heading: '"JetBrains Mono", "SF Mono", "Menlo", monospace',
     },
     size: {
-        h1: '24px', // Smaller, more terminal-like
+        h1: '24px',
         h2: '20px',
+        h3: '18px',
         body: '14px',
         small: '12px',
         caption: '10px',
@@ -58,22 +74,23 @@ export const spacing = {
 
 export const borders = {
     radius: {
-        card: '0px', // Sharp corners (Terminal window)
-        button: '2px', // Slight rounding like badges
+        card: '0px',
+        button: '2px',
+        md: '8px',
+    },
+    style: {
+        default: `1px solid #333333`,
     },
     shadow: {
-        // Hard shadows, no blur (Pixel/Retro feel)
         glowPrimary: '0 0 0 1px #C6FF00',
         card: 'none',
     }
 }
 
-const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://nexnum.io'
-
 export const components = {
     main: {
         backgroundColor: '#ffffff',
-        backgroundImage: 'url(https://i.ibb.co/Z17SBFvJ/download.jpg)', // User provided pattern
+        backgroundImage: 'url(https://i.ibb.co/Z17SBFvJ/download.jpg)',
         fontFamily: '"Lato", "Helvetica Neue", helvetica, sans-serif',
         color: colors.text.primary,
         backgroundRepeat: 'repeat',
@@ -94,32 +111,51 @@ export const components = {
         borderRadius: borders.radius.card,
         border: `1px solid ${colors.border.subtle}`,
         padding: '32px',
-        // Terminal window effect
         boxShadow: '0 0 0 1px #333',
     },
-    // Typography
     h1: {
         fontFamily: typography.fontFamily.heading,
         fontSize: typography.size.h1,
         fontWeight: typography.weight.bold,
         letterSpacing: '-0.5px',
-        color: colors.brand.primary, // Lime Green Headers
+        color: colors.brand.primary,
         margin: '0 0 24px',
-        textTransform: 'uppercase' as const, // CMD style
-        textAlign: 'left' as const, // Terminals align left
+        textTransform: 'uppercase' as const,
+        textAlign: 'left' as const,
     },
     text: {
+        h1: {
+            fontFamily: typography.fontFamily.heading,
+            fontSize: typography.size.h1,
+            fontWeight: typography.weight.bold,
+            color: colors.brand.primary,
+            margin: '0 0 24px',
+            textAlign: 'left' as const,
+        },
+        body: {
+            color: colors.text.secondary,
+            fontSize: typography.size.body,
+            lineHeight: typography.lineHeight.relaxed,
+            margin: '0 0 20px',
+            textAlign: 'left' as const,
+        },
+        caption: {
+            fontSize: typography.size.caption,
+            color: colors.text.tertiary,
+            fontFamily: typography.fontFamily.sans,
+            margin: '0',
+            textAlign: 'left' as const,
+        },
         color: colors.text.secondary,
         fontSize: typography.size.body,
         lineHeight: typography.lineHeight.relaxed,
         margin: '0 0 20px',
         textAlign: 'left' as const,
     },
-    // Buttons
     button: {
         primary: {
             backgroundColor: colors.brand.primary,
-            color: '#000000', // Black text on Lime
+            color: '#000000',
             fontWeight: '700',
             fontSize: '14px',
             fontFamily: typography.fontFamily.sans,
@@ -130,6 +166,19 @@ export const components = {
             textAlign: 'center' as const,
             display: 'inline-block',
             border: `1px solid ${colors.brand.primary}`,
+        },
+        secondary: {
+            backgroundColor: 'transparent',
+            color: colors.text.primary,
+            fontWeight: '600',
+            fontSize: '14px',
+            fontFamily: typography.fontFamily.sans,
+            borderRadius: borders.radius.button,
+            padding: '12px 24px',
+            textDecoration: 'none',
+            textAlign: 'center' as const,
+            display: 'inline-block',
+            border: `1px solid ${colors.border.subtle}`,
         },
         ghost: {
             backgroundColor: 'transparent',
@@ -153,4 +202,3 @@ export const components = {
         fontFamily: typography.fontFamily.sans,
     }
 }
-

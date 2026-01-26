@@ -16,7 +16,7 @@ export const SERVICE_OVERRIDES = metadata.serviceOverrides as Record<string, {
 export const POPULAR_SERVICES = metadata.popularServices
 export const COUNTRY_NAME_MAP = metadata.countryNameMap
 
-// Legacy/Compatibility Maps
+// Compatibility Maps
 export const CANONICAL_SERVICE_NAME_MAP: Record<string, string> = {}
 export const CANONICAL_SERVICE_NAMES: Record<string, string> = {}
 export const CANONICAL_DISPLAY_NAMES: Record<string, string> = {}
