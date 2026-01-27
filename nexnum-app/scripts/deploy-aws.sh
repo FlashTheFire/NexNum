@@ -61,7 +61,7 @@ fi
 
 # 6. DATABASE SYNC & PRISMA
 echo "💎 [NEXNUM] Synchronizing Database Schema..."
-sudo docker compose exec app npx prisma generate || echo "⚠️ Prisma generation handled in build-time."
+sudo docker compose exec app ./node_modules/.bin/prisma generate || echo "⚠️ Prisma generation handled in build-time."
 
 echo "✨ [NEXNUM] Deployment Complete. Application is live on port 3001."
 echo "🔗 Infrastructure Dashboard: http://$(curl -s ifconfig.me):3100"
