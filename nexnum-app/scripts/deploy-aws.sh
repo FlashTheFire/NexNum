@@ -51,7 +51,7 @@ echo "📊 [NEXNUM] Evaluating memory for monitoring stack..."
 REGION=$(curl -s http://169.254.169.254/latest/meta-data/placement/region || echo "unknown")
 echo "📍 [NEXNUM] Detected Region: $REGION"
 
-FREE_RAM=$(free -m | awk '/^Mem:/{print $4}')
+FREE_RAM=$(free -m | awk '/^Mem:/{print $7}')
 if [ $FREE_RAM -gt 200 ] || [ "$REGION" == "eu-north-1" ]; then
     echo "🟢 [NEXNUM] Deploying monitoring fleet (Optimized for $REGION)..."
     sudo docker compose --profile monitoring up -d
@@ -61,7 +61,7 @@ fi
 
 # 6. DATABASE SYNC & PRISMA
 echo "💎 [NEXNUM] Synchronizing Database Schema..."
-docker compose exec app npx prisma generate || echo "⚠️ Prisma generation handled in build-time."
+sudo docker compose exec app npx prisma generate || echo "⚠️ Prisma generation handled in build-time."
 
 echo "✨ [NEXNUM] Deployment Complete. Application is live on port 3001."
 echo "🔗 Infrastructure Dashboard: http://$(curl -s ifconfig.me):3100"
