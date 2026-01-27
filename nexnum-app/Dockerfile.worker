@@ -49,5 +49,8 @@ COPY --from=builder /app/tsconfig.json ./tsconfig.json
 
 USER worker
 
-# Run worker entry point
-CMD ["npx", "tsx", "src/worker-entry.ts"]
+ENV NODE_ENV=production
+ENV npm_config_cache=/app/.npm-cache
+
+# Use node with tsx import to avoid npx permission issues
+ENTRYPOINT ["node", "--import", "tsx", "-r", "dotenv/config", "src/worker-entry.ts"]

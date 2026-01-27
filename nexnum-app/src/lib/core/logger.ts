@@ -118,7 +118,8 @@ ${C.deepTeal}──────────────────────�
     // ───────────────────────────────────────────────────────────────────────
     private log(level: string, message: string, meta?: Record<string, any>) {
         if (!this.isDev) {
-            pinoLogger[level as LogLevel || 'info']({ requestId: getRequestId(), durationMs: getRequestDuration(), ...meta }, message)
+            const pinoLevel = level === 'success' ? 'info' : (level as LogLevel || 'info')
+            pinoLogger[pinoLevel]({ requestId: getRequestId(), durationMs: getRequestDuration(), ...meta }, message)
             return
         }
 

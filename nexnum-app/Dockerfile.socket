@@ -48,7 +48,8 @@ COPY --from=builder /app/tsconfig.json ./tsconfig.json
 
 USER socket
 EXPOSE 3951
-ENV PORT=3951
+ENV NODE_ENV=production
+ENV npm_config_cache=/app/.npm-cache
 
-# Run via npx tsx
-CMD ["npx", "tsx", "src/socket-entry.ts"]
+# Use node with tsx import to avoid npx permission issues
+ENTRYPOINT ["node", "--import", "tsx", "-r", "dotenv/config", "src/socket-entry.ts"]
