@@ -6,7 +6,7 @@ module.exports = {
             args: "run start",
             env: {
                 NODE_ENV: "production",
-                PORT: 3001,
+                PORT: 3000,
                 NEXT_DISABLE_INTERNAL_WORKERS: "true"
             },
             instances: 1,
