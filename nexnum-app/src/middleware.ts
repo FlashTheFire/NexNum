@@ -82,13 +82,13 @@ function attachSecurityHeaders(response: NextResponse) {
 
     const csp = [
         "default-src 'self'",
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.sentry.io https://*.vercel-insights.com",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.hcaptcha.com https://challenges.cloudflare.com https://*.sentry.io https://*.vercel-insights.com",
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-        "font-src 'self' https://fonts.gstatic.com",
-        "img-src 'self' data: blob: https: http:",
-        "connect-src 'self' https://*.sentry.io https://*.ingest.sentry.io wss: https:",
+        "font-src 'self' data: https://fonts.gstatic.com",
+        "img-src 'self' data: blob: https://*.githubusercontent.com https://grizzlysms.com https://api.dicebear.com http://localhost:3961 https:",
+        "connect-src 'self' https://api.hcaptcha.com https://grizzlysms.com http://localhost:3961 https://*.sentry.io https://*.ingest.sentry.io wss: https:",
+        "frame-src 'self' https://js.hcaptcha.com https://challenges.cloudflare.com http://localhost:3961",
         "frame-ancestors 'self'",
-        "frame-src 'self' http://localhost:3951",
         "base-uri 'self'",
         "form-action 'self'",
         "upgrade-insecure-requests"
