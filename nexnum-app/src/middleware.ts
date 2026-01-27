@@ -82,7 +82,7 @@ function attachSecurityHeaders(response: NextResponse) {
 
     const csp = [
         "default-src 'self'",
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.hcaptcha.com https://challenges.cloudflare.com https://*.sentry.io https://*.vercel-insights.com",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://js.hcaptcha.com https://challenges.cloudflare.com https://*.sentry.io https://*.vercel-insights.com",
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
         "font-src 'self' data: https://fonts.gstatic.com",
         "img-src 'self' data: blob: https://*.githubusercontent.com https://grizzlysms.com https://api.dicebear.com http://localhost:3961 https:",
@@ -90,8 +90,7 @@ function attachSecurityHeaders(response: NextResponse) {
         "frame-src 'self' https://js.hcaptcha.com https://challenges.cloudflare.com http://localhost:3961",
         "frame-ancestors 'self'",
         "base-uri 'self'",
-        "form-action 'self'",
-        "upgrade-insecure-requests"
+        "form-action 'self'"
     ].join('; ')
     response.headers.set('Content-Security-Policy', csp)
 

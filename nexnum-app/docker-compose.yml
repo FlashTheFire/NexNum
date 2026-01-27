@@ -7,7 +7,7 @@
 services:
   # ============================================
   # MAIN APPLICATION (Production Build)
-  # Port: 3001 (Avoids 3000 which is used by "npm run dev")
+  # Port: 3000 (Standardized for Production)
   # ============================================
   app:
     logging:
@@ -21,7 +21,7 @@ services:
     container_name: nexnum-app
     restart: unless-stopped
     ports:
-      - "3001:3000"
+      - "3000:3000"
     env_file:
       - .env
     environment:
@@ -81,7 +81,6 @@ services:
       - "5540:5540"
     volumes:
       - redis_insight_data:/db
-
     restart: unless-stopped
     depends_on:
       - redis
@@ -145,11 +144,6 @@ services:
       meilisearch:
         condition: service_healthy
 
-  # ============================================
-  # OBSERVABILITY STACK (Optional)
-  # Start with: docker-compose --profile monitoring up
-  # ============================================
-
   prometheus:
     image: prom/prometheus:v2.47.0
     container_name: nexnum-prometheus
@@ -180,7 +174,7 @@ services:
     container_name: nexnum-grafana
     profiles: [ "monitoring" ]
     ports:
-      - "3100:3000" # Moved to 3100 to avoid conflicts
+      - "3100:3000"
     volumes:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
@@ -202,7 +196,6 @@ services:
       timeout: 10s
       retries: 3
 
-  # --- LOGGING LAYER ---
   loki:
     image: grafana/loki:2.9.0
     container_name: nexnum-loki
@@ -225,7 +218,6 @@ services:
     command: -config.file=/etc/promtail/config.yml
     restart: unless-stopped
 
-  # --- SYNTHETIC PROBES ---
   blackbox-exporter:
     image: prom/blackbox-exporter:latest
     container_name: nexnum-blackbox
@@ -234,7 +226,6 @@ services:
       - ./monitoring/blackbox.yml:/etc/blackbox_exporter/config.yml
     restart: unless-stopped
 
-  # --- EXPORTERS ---
   node-exporter:
     image: prom/node-exporter:latest
     container_name: nexnum-node-exporter
@@ -264,7 +255,7 @@ services:
     profiles: [ "monitoring" ]
     environment:
       - DATA_SOURCE_NAME=${DATABASE_URL}
-      - PG_EXPORTER_DISABLE_SETTINGS_METRICS=true # Fixes NULL conversion error in short_desc
+      - PG_EXPORTER_DISABLE_SETTINGS_METRICS=true
     restart: unless-stopped
 
   alertmanager:
