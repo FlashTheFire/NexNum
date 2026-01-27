@@ -54,7 +54,7 @@ export function getClientInfo(headers: Headers) {
 export function validateOrigin(headers: Headers): { valid: boolean; error?: string; origin?: string } {
     const origin = headers.get('origin')
     const referer = headers.get('referer')
-    const sourceOrigin = origin || (referer ? new URL(referer).origin : null)
+    const sourceOrigin = (origin || (referer ? new URL(referer).origin : null))?.replace(/\/$/, '')
 
     if (!sourceOrigin) {
         // Bypasses for API keys and Same-Origin (Sec-Fetch)
@@ -87,17 +87,21 @@ export function validateOrigin(headers: Headers): { valid: boolean; error?: stri
 }
 
 function getGlobalAllowedOrigins(): string[] {
-    const origins = [process.env.NEXT_PUBLIC_APP_URL].filter(Boolean) as string[]
+    const patterns = [
+        process.env.NEXT_PUBLIC_APP_URL,
+        process.env.NEXTAUTH_URL
+    ].filter(Boolean) as string[]
 
     if (process.env.NODE_ENV !== 'production') {
-        origins.push('http://localhost:3000', 'http://localhost:3951', 'http://127.0.0.1:3000')
+        patterns.push('http://localhost:3000', 'http://localhost:3951', 'http://127.0.0.1:3000')
     }
 
     if (process.env.ALLOWED_ORIGINS) {
-        origins.push(...process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim()))
+        patterns.push(...process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim()))
     }
 
-    return origins
+    // Normalize: remove trailing slashes from all patterns
+    return patterns.map(p => p.startsWith('*') ? p : p.replace(/\/$/, ''))
 }
 
 /**
