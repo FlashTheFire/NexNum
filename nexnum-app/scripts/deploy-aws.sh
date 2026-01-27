@@ -44,7 +44,7 @@ fi
 # 5. PRODUCTION ORCHESTRATION
 echo "📦 [NEXNUM] Orchestrating core services..."
 # We start core first to prioritize user traffic
-docker compose up -d app worker socket-server meilisearch redis
+sudo docker compose up -d app worker socket-server meilisearch redis
 
 echo "📊 [NEXNUM] Evaluating memory for monitoring stack..."
 # STOCKHOLM OPTIMIZATION: Check for eu-north-1 specific performance
@@ -54,7 +54,7 @@ echo "📍 [NEXNUM] Detected Region: $REGION"
 FREE_RAM=$(free -m | awk '/^Mem:/{print $4}')
 if [ $FREE_RAM -gt 200 ] || [ "$REGION" == "eu-north-1" ]; then
     echo "🟢 [NEXNUM] Deploying monitoring fleet (Optimized for $REGION)..."
-    docker compose --profile monitoring up -d
+    sudo docker compose --profile monitoring up -d
 else
     echo "⚠️ [NEXNUM] Low RAM detected. Monitoring stack will remain offline."
 fi
