@@ -44,7 +44,7 @@ fi
 # 5. PRODUCTION ORCHESTRATION
 echo "📦 [NEXNUM] Orchestrating core services..."
 # We start core first to prioritize user traffic
-sudo docker compose up -d app worker socket-server meilisearch redis
+sudo docker compose up -d --build app worker socket-server meilisearch redis
 
 echo "📊 [NEXNUM] Evaluating memory for monitoring stack..."
 # STOCKHOLM OPTIMIZATION: Check for eu-north-1 specific performance
