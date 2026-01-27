@@ -52,8 +52,11 @@ class CoreOrchestrator {
             this.state = 'READY'
             logger.success(`[Orchestrator] ✅ System READY (${context})`)
             logger.divider()
-        } catch (error) {
-            logger.error(`[Orchestrator] ❌ FATAL BOOTSTRAP FAILURE (${context})`, { error })
+        } catch (error: any) {
+            logger.error(`[Orchestrator] ❌ FATAL BOOTSTRAP FAILURE (${context})`, {
+                error: error?.message || 'Unknown error',
+                stack: error?.stack
+            })
             process.exit(1)
         }
     }
