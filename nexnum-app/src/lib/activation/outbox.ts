@@ -87,50 +87,24 @@ export async function getOutboxStats() {
  */
 
 import { meili, INDEXES, OfferDocument } from '@/lib/search/search'
-import { resolveToCanonicalName, getSlugFromName } from '@/lib/normalizers/service-identity'
+import { getCanonicalName, generateCanonicalCode } from '@/lib/normalizers/service-identity'
 
-/**
- * Handle individual offer updates (Sync to MeiliSearch)
- */
-async function handleOfferUpdate(pricingId: string) {
-    const pricing = await prisma.providerPricing.findUnique({
-        where: { id: pricingId },
-        include: {
-            provider: true,
-            service: true,
-            country: true
-        }
-    })
 
-    if (!pricing || pricing.deleted) {
-        // const index = meili.index(INDEXES.OFFERS)
-        // Attempt to delete if we can derive the composite ID
-        return
-    }
 
-    // RESOLVE TO CANONICAL IDENTITY
-    const canonicalService = resolveToCanonicalName(pricing.service.name)
-    const canonicalCountry = pricing.country.name
-
-    const doc: OfferDocument = {
-        // ID is composite: provider_countryExt_serviceExt_operator
-        id: `${pricing.provider.name}_${pricing.country.externalId}_${pricing.service.externalId}_${pricing.operator || 'default'}`.toLowerCase().replace(/[^a-z0-9_]/g, ''),
-        serviceSlug: getSlugFromName(canonicalService),
-        serviceName: canonicalService,
-        iconUrl: pricing.service.iconUrl || undefined,
-        countryCode: getSlugFromName(canonicalCountry),
-        countryName: canonicalCountry,
-        flagUrl: pricing.country.flagUrl || '',
-        provider: pricing.provider.name,
-        price: Number(pricing.sellPrice),
-        stock: pricing.stock,
-        lastSyncedAt: Date.now(),
-        operatorId: 1,
-        externalOperator: pricing.operator || undefined,
-    }
-
+// Helper to handle payload-based updates
+async function handleOfferEvent(aggregateId: string, payload: any) {
     const index = meili.index(INDEXES.OFFERS)
-    await index.updateDocuments([doc], { primaryKey: 'id' })
+    try {
+        if (payload?.stockRestored) {
+            const doc = await index.getDocument(aggregateId) as OfferDocument
+            await index.updateDocuments([{
+                ...doc,
+                stock: (doc.stock || 0) + Number(payload.stockRestored)
+            }])
+        }
+    } catch (e) {
+        // Ignore if doc not found
+    }
 }
 
 /**
@@ -146,7 +120,7 @@ export async function processOutboxEvents(batchSize = 50) {
     for (const event of events) {
         try {
             if (event.eventType === 'offer.created' || event.eventType === 'offer.updated') {
-                await handleOfferUpdate(event.aggregateId)
+                await handleOfferEvent(event.aggregateId, event.payload)
             }
 
             await markEventsProcessed([event.id])

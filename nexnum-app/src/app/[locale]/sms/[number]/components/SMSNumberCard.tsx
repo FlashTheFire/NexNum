@@ -91,7 +91,7 @@ export const SMSNumberCard = memo(function SMSNumberCard({
         completed: { color: 'text-blue-400', bg: 'bg-blue-500/10', dot: 'bg-blue-500', label: t('statuses.completed') },
     }[isExpired ? (status === 'cancelled' ? 'cancelled' : status === 'completed' ? 'completed' : 'expired') : 'active']
 
-    const flagUrl = countryIconUrl || getCountryFlagUrlSync(countryName) || getCountryFlagUrlSync(countryCode) || '/flags/un.svg'
+    const flagUrl = countryIconUrl || getCountryFlagUrlSync(countryName) || getCountryFlagUrlSync(countryCode) || '/assets/flags/un.svg'
 
     return (
         <div className={cn("relative w-full", isExpired && "opacity-70", className)}>

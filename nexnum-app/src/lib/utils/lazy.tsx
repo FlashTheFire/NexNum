@@ -43,10 +43,29 @@ export function lazyComponent<P extends object>(
     })
 }
 
+/**
+ * Pre-fetch a lazy component's bundle
+ * Useful for loading modals or pages when user hovers a trigger
+ */
+export function preloadComponent(importFn: () => Promise<any>) {
+    const isServer = typeof window === 'undefined'
+    if (!isServer) {
+        importFn().catch(() => {
+            // Silently ignore prefetch errors
+        })
+    }
+}
+
 // Pre-configured lazy loaders for common patterns
 export const lazyModal = <P extends object>(
     importFn: () => Promise<{ default: ComponentType<P> }>
-) => lazyComponent(importFn, { ssr: false, loading: 'spinner' })
+) => {
+    const Comp = lazyComponent(importFn, { ssr: false, loading: 'spinner' })
+    // Attach preload to the component for easy access
+    // @ts-ignore
+    Comp.preload = () => preloadComponent(importFn)
+    return Comp
+}
 
 export const lazyPage = <P extends object>(
     importFn: () => Promise<{ default: ComponentType<P> }>

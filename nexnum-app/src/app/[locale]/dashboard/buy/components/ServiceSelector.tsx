@@ -28,7 +28,7 @@ const MOCK_COLORS: Record<string, string> = {
 };
 
 export interface Service {
-    id: string; // Service slug
+    id: string; // Canonical Service Name (e.g. "WhatsApp")
     name: string; // Display Name
     color?: string;
     popular?: boolean;
@@ -238,7 +238,7 @@ export default function ServiceSelector({ selectedService, defaultSelected, onSe
                 const isPopular = item.popular ?? (item.serverCount > 2 || ['whatsapp', 'telegram', 'google', 'openai'].some((p: string) => lowerName.includes(p)));
 
                 return {
-                    id: item.slug,          // Use slug as id
+                    id: item.name,          // Use Name as primary identity
                     name: item.name,        // Display name
                     color: MOCK_COLORS[lowerName.split(/[\s-]/)[0]] || "#888888",
                     popular: false,
@@ -421,7 +421,7 @@ export default function ServiceSelector({ selectedService, defaultSelected, onSe
                             {/* "Other" Button - Mobile */}
                             <motion.button
                                 whileTap={{ scale: 0.98 }}
-                                onClick={() => onSelect('other', 'Other', '/icons/other.png')}
+                                onClick={() => onSelect('other', 'Other', '/assets/icons/other.png')}
                                 className="group w-full flex items-center gap-3 p-3 rounded-xl bg-gradient-to-br from-emerald-500/10 to-teal-500/5 border border-emerald-500/20 active:border-emerald-500/40"
                             >
                                 <div className="relative w-11 h-11 rounded-lg bg-emerald-500/20 flex items-center justify-center">
@@ -520,7 +520,7 @@ export default function ServiceSelector({ selectedService, defaultSelected, onSe
                                         <motion.button
                                             whileHover={{ scale: 1.01, x: 3 }}
                                             whileTap={{ scale: 0.99 }}
-                                            onClick={() => onSelect('other', 'Other', '/icons/other.png')}
+                                            onClick={() => onSelect('other', 'Other', '/assets/icons/other.png')}
                                             className="group w-full flex items-center gap-4 p-4 rounded-xl bg-gradient-to-r from-emerald-500/15 via-emerald-500/5 to-transparent border border-emerald-500/25 hover:border-emerald-400/50 hover:shadow-[0_4px_30px_hsl(var(--neon-lime)/0.12)] transition-all duration-300"
                                         >
                                             <div className="relative shrink-0">

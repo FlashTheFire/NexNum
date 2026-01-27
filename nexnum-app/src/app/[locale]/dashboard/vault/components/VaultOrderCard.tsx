@@ -108,7 +108,7 @@ export const VaultOrderCard = memo(({ number, status }: VaultOrderCardProps) => 
                                 <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-[#0c0d10] overflow-hidden">
                                     <SafeImage
                                         src={number.countryIconUrl}
-                                        fallbackSrc="/flags/un.svg"
+                                        fallbackSrc="/assets/flags/un.svg"
                                         alt=""
                                         className="w-full h-full object-cover"
                                     />

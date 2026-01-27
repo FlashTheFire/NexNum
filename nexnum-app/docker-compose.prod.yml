@@ -1,9 +1,31 @@
 # Production Docker Compose
 # For self-hosted or VPS deployments
 
-version: '3.8'
+# Version tag removed (Obsolete in Docker Compose V2)
 
 services:
+  # ============================================
+  # Main API Application
+  # ============================================
+  # ============================================
+  # Reverse Proxy (SSL/HTTPS)
+  # ============================================
+  caddy:
+    image: caddy:2-alpine
+    container_name: nexnum-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOM_NAME: ${DOMAIN_NAME:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - nexnum-api
+
   # ============================================
   # Main API Application
   # ============================================
@@ -13,8 +35,8 @@ services:
       dockerfile: Dockerfile
     container_name: nexnum-api
     restart: unless-stopped
-    ports:
-      - "3000:3000"
+    # ports:
+    #   - "3000:3000" # Expose via Caddy only
     environment:
       NODE_ENV: production
       PORT: 3000
@@ -26,7 +48,7 @@ services:
       meilisearch:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:3000/api/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -35,7 +57,7 @@ services:
       resources:
         limits:
           cpus: '1.0'
-          memory: 1024M
+          memory: 512M
         reservations:
           cpus: '0.25'
           memory: 256M
@@ -60,7 +82,7 @@ services:
       resources:
         limits:
           cpus: '0.5'
-          memory: 512M
+          memory: 256M
 
   # ============================================
   # Redis (Production)
@@ -75,7 +97,7 @@ services:
       - redis_data:/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-strongpassword}", "ping"]
+      test: [ "CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-strongpassword}", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -96,7 +118,7 @@ services:
       - meili_data:/meili_data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:7700/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -108,6 +130,10 @@ volumes:
   redis_data:
     driver: local
   meili_data:
+    driver: local
+  caddy_data:
+    driver: local
+  caddy_config:
     driver: local
 
 # ============================================

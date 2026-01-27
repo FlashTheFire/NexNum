@@ -98,16 +98,23 @@ const BOT_SIGNATURES = [
 ]
 
 /**
- * Perform comprehensive browser check
+ * Perform comprehensive browser check (Hardened with Client Hints)
  */
 export function checkBrowser(headers: Headers): BrowserCheckResult {
     const userAgent = headers.get('user-agent') || ''
     const acceptLanguage = headers.get('accept-language')
     const acceptEncoding = headers.get('accept-encoding')
     const accept = headers.get('accept')
+
+    // Modern Browser Signals (Sec-Fetch)
     const secFetchSite = headers.get('sec-fetch-site')
     const secFetchMode = headers.get('sec-fetch-mode')
     const secFetchDest = headers.get('sec-fetch-dest')
+
+    // Modern Client Hints (Sec-CH-UA) - Much harder to spoof
+    const chUa = headers.get('sec-ch-ua')
+    const chMobile = headers.get('sec-ch-ua-mobile')
+    const chPlatform = headers.get('sec-ch-ua-platform')
 
     // Build signals
     const signals = {
@@ -115,7 +122,8 @@ export function checkBrowser(headers: Headers): BrowserCheckResult {
         hasValidUA: BROWSER_PATTERNS.some(p => p.test(userAgent)) && userAgent.includes('Mozilla/5.0'),
         hasAcceptHeaders: !!(accept && acceptEncoding),
         isBotSignature: BOT_SIGNATURES.some(p => p.test(userAgent)),
-        hasLanguage: !!acceptLanguage
+        hasLanguage: !!acceptLanguage,
+        hasClientHints: !!chUa
     }
 
     // Empty or very short UA is suspicious
@@ -123,7 +131,7 @@ export function checkBrowser(headers: Headers): BrowserCheckResult {
         return {
             isBrowser: false,
             confidence: 'none',
-            signals,
+            signals: { ...signals, isBotSignature: true },
             reason: 'Missing or invalid User-Agent'
         }
     }
@@ -138,16 +146,23 @@ export function checkBrowser(headers: Headers): BrowserCheckResult {
         }
     }
 
-    // Calculate confidence
+    // Calculate confidence score (Max: 10)
     let score = 0
-    if (signals.hasSecFetch) score += 3 // Modern browsers always send these
-    if (signals.hasValidUA) score += 2
+    if (signals.hasSecFetch) score += 3
+    if (signals.hasClientHints) score += 3 // High confidence signal
+    if (signals.hasValidUA) score += 1
     if (signals.hasAcceptHeaders) score += 1
     if (signals.hasLanguage) score += 1
 
+    // Consistency check: If Client Hints present, they must not conflict with UA
+    if (chUa && userAgent) {
+        const isChromeUA = userAgent.includes('Chrome')
+        const isChromeCH = chUa.includes('Google Chrome') || chUa.includes('Chromium')
+        if (isChromeUA && !isChromeCH) score -= 4 // Major red flag: spoofing Chrome UA but missing Chrome CH
+    }
+
     // Additional checks for modern browsers
-    if (secFetchSite === 'same-origin' || secFetchSite === 'same-site') score += 2
-    if (secFetchDest === 'empty' || secFetchDest === 'document') score += 1
+    if (secFetchSite === 'same-origin' || secFetchSite === 'same-site') score += 1
 
     let confidence: 'high' | 'medium' | 'low' | 'none'
     if (score >= 7) confidence = 'high'

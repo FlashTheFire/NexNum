@@ -1,10 +1,11 @@
-// Types synchronized with schema
 import { prisma } from '@/lib/core/db'
 import { smsProvider } from '@/lib/providers'
 import { logger } from '@/lib/core/logger'
 import { getServiceIconUrlByName } from '@/lib/search/search'
 import { getCountryFlagUrl } from '@/lib/normalizers/country-flags'
 import { WalletService } from '@/lib/wallet/wallet'
+import { MultiSmsHandler } from './multi-sms-handler'
+import { EventDispatcher } from '@/lib/core/event-dispatcher'
 
 /**
  * Advanced Sync Engine for User Numbers
@@ -138,6 +139,15 @@ export async function syncUserNumbers(userId: string, options: { force?: boolean
                         )
                     }
                 })
+
+                // ENTERPRISE EVENT DISPATCH (Phase 39)
+                await EventDispatcher.dispatch(userId, status.status === 'expired' ? 'activation.expired' : 'activation.cancelled', {
+                    numberId: num.id,
+                    activationId: num.activationId,
+                    phoneNumber: num.phoneNumber,
+                    service: num.serviceName,
+                    country: num.countryName
+                })
             } else {
                 await prisma.number.update({
                     where: { id: num.id },
@@ -149,29 +159,20 @@ export async function syncUserNumbers(userId: string, options: { force?: boolean
                 })
             }
 
-            // C. Sync Individual Messages
+            // C. Sync Individual Messages (Elite Uniformity)
             if (status.messages && status.messages.length > 0) {
-                const existingMsgIds = new Set(
-                    (await prisma.smsMessage.findMany({
-                        where: { numberId: num.id },
-                        select: { id: true }
-                    })).map(m => m.id)
+                // We delegate to MultiSmsHandler for deduplication, extraction, and uniform logic
+                await MultiSmsHandler.handleSmsReceived(
+                    num.id,
+                    num.activationId,
+                    num.providerId || '', // Need actual ID
+                    status.messages.map(m => ({
+                        id: m.id,
+                        text: m.content,
+                        sender: m.sender,
+                        receivedAt: m.receivedAt
+                    }))
                 )
-
-                const newMessages = status.messages.filter(m => !existingMsgIds.has(m.id))
-                if (newMessages.length > 0) {
-                    await prisma.smsMessage.createMany({
-                        data: newMessages.map(m => ({
-                            id: m.id,
-                            numberId: num.id,
-                            sender: m.sender || 'Unknown',
-                            content: m.content || '',
-                            code: m.code,
-                            receivedAt: m.receivedAt
-                        }))
-                    })
-                    logger.info(`[SYNC] Ingested ${newMessages.length} new messages for ${num.phoneNumber}`)
-                }
             }
         } catch (error) {
             logger.warn(`[SYNC] Failed to sync ${num.phoneNumber}: ${error instanceof Error ? error.message : 'Unknown Error'}`)

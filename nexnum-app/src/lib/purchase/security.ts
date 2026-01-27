@@ -1,49 +1,20 @@
-/**
- * Purchase Security Utilities
- * 
- * Enterprise-grade security layer for the Number Purchase Flow:
- * - Input validation & sanitization
- * - User eligibility checks
- * - Price verification
- * - Daily spend limits
- * - Purchase velocity control
- * - Audit logging
- */
-
 import { prisma } from '@/lib/core/db'
 import { redis } from '@/lib/core/redis'
 import { logger } from '@/lib/core/logger'
 import { WalletService } from '@/lib/wallet/wallet'
-import { LimitsConfig, PricingConfig } from '@/config'
+import { LimitsConfig } from '@/config'
 import crypto from 'crypto'
+import { z } from 'zod'
 
 // ============================================
-// CONFIGURATION (sourced from central config)
+// CONFIGURATION
 // ============================================
 
 const CONFIG = {
-    // Input Validation
-    // Country: Accept 2-letter ISO (US), numeric provider IDs (22), or names (india)
-    COUNTRY_CODE_REGEX: /^[a-zA-Z0-9_-]{1,50}$/,
-    SERVICE_CODE_REGEX: /^[a-zA-Z0-9_-]{1,50}$/, // Alphanumeric + underscore/dash
-    OPERATOR_ID_REGEX: /^[a-zA-Z0-9_-]{1,50}$/,
-    PROVIDER_REGEX: /^[a-zA-Z0-9_\-\s\(\)]{1,50}$/, // Allow spaces and parentheses for display names
-    UUID_REGEX: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-
-    // Spend Limits (from central config)
     DAILY_SPEND_LIMIT: LimitsConfig.dailySpend,
     MIN_PURCHASE_AMOUNT: LimitsConfig.minPurchase,
     MAX_PURCHASE_AMOUNT: LimitsConfig.maxPurchase,
-
-    // Rate Limiting
-    PURCHASE_COOLDOWN_SECONDS: 2,               // 2 seconds between purchases
-    MAX_PURCHASES_PER_MINUTE: 5,
-    MAX_PURCHASES_PER_HOUR: 30,
-
-    // Price Verification (from central config)
-    PRICE_TOLERANCE_PERCENT: 0.01,              // 1% tolerance for currency conversion
-
-    // Redis Keys
+    PRICE_TOLERANCE_PERCENT: 0.01,
     REDIS_PREFIX: {
         dailySpend: 'spend:daily:',
         purchaseVelocity: 'velocity:purchase:',
@@ -52,16 +23,26 @@ const CONFIG = {
 }
 
 // ============================================
-// INPUT VALIDATION
+// SCHEMAS & VALIDATION
 // ============================================
 
-export interface PurchaseInput {
-    countryCode: string
-    serviceCode: string
-    operatorId?: string
-    provider?: string
-    idempotencyKey?: string
-}
+export const PurchaseInputSchema = z.object({
+    countryCode: z.string().min(1).max(50).optional(),
+    serviceCode: z.string().min(1).max(50).optional(),
+    countryId: z.number().int().optional(),
+    serviceId: z.number().int().optional(),
+    operatorId: z.string().max(50).optional().nullable(),
+    provider: z.string().max(50).optional().nullable(),
+    idempotencyKey: z.string().uuid().optional(),
+}).refine(data => (data.countryCode || data.countryId !== undefined), {
+    message: "Country identifier required",
+    path: ["countryCode"]
+}).refine(data => (data.serviceCode || data.serviceId !== undefined), {
+    message: "Service identifier required",
+    path: ["serviceCode"]
+})
+
+export type PurchaseInput = z.infer<typeof PurchaseInputSchema>
 
 export interface ValidationResult {
     valid: boolean
@@ -70,73 +51,22 @@ export interface ValidationResult {
 }
 
 /**
- * Validate and sanitize purchase input
+ * Validate and sanitize purchase input using Zod
  */
 export function validatePurchaseInput(input: any): ValidationResult {
-    const errors: string[] = []
-    const sanitized: PurchaseInput = {
-        countryCode: '',
-        serviceCode: ''
-    }
+    const result = PurchaseInputSchema.safeParse(input)
 
-    // Country Code (required)
-    if (!input.countryCode || typeof input.countryCode !== 'string') {
-        errors.push('Country code is required')
-    } else {
-        const cc = input.countryCode.trim()
-        if (!CONFIG.COUNTRY_CODE_REGEX.test(cc)) {
-            errors.push('Invalid country code format')
-        } else {
-            sanitized.countryCode = cc
-        }
-    }
-
-    // Service Code (required)
-    if (!input.serviceCode || typeof input.serviceCode !== 'string') {
-        errors.push('Service code is required')
-    } else {
-        const sc = input.serviceCode.toLowerCase().trim()
-        if (!CONFIG.SERVICE_CODE_REGEX.test(sc)) {
-            errors.push('Invalid service code format')
-        } else {
-            sanitized.serviceCode = sc
-        }
-    }
-
-    // Operator ID (optional)
-    if (input.operatorId !== undefined && input.operatorId !== null) {
-        const op = String(input.operatorId).trim()
-        if (op && !CONFIG.OPERATOR_ID_REGEX.test(op)) {
-            errors.push('Invalid operator ID format')
-        } else if (op) {
-            sanitized.operatorId = op
-        }
-    }
-
-    // Provider (optional)
-    if (input.provider !== undefined && input.provider !== null) {
-        const prov = String(input.provider).trim()
-        if (prov && !CONFIG.PROVIDER_REGEX.test(prov)) {
-            errors.push('Invalid provider format')
-        } else if (prov) {
-            sanitized.provider = prov
-        }
-    }
-
-    // Idempotency Key (optional but must be UUID if provided)
-    if (input.idempotencyKey !== undefined && input.idempotencyKey !== null) {
-        const key = String(input.idempotencyKey).trim()
-        if (key && !CONFIG.UUID_REGEX.test(key)) {
-            errors.push('Idempotency key must be a valid UUID')
-        } else if (key) {
-            sanitized.idempotencyKey = key
+    if (!result.success) {
+        return {
+            valid: false,
+            errors: result.error.issues.map(e => `${e.path.join('.')}: ${e.message}`)
         }
     }
 
     return {
-        valid: errors.length === 0,
-        errors,
-        sanitized: errors.length === 0 ? sanitized : undefined
+        valid: true,
+        errors: [],
+        sanitized: result.data
     }
 }
 
@@ -238,31 +168,32 @@ export async function recordDailySpend(userId: string, amount: number): Promise<
 }
 
 /**
- * Check purchase velocity (rate limiting)
+ * Check purchase velocity (Tiered Throttling)
  */
 async function checkPurchaseVelocity(
     userId: string
 ): Promise<{ allowed: boolean; reason?: string }> {
-    const now = Date.now()
     const minuteKey = `${CONFIG.REDIS_PREFIX.purchaseVelocity}${userId}:minute`
     const hourKey = `${CONFIG.REDIS_PREFIX.purchaseVelocity}${userId}:hour`
 
-    // Check per-minute limit
-    const minuteCount = await redis.incr(minuteKey)
-    if (minuteCount === 1) {
-        await redis.expire(minuteKey, 60)
-    }
-    if (minuteCount > CONFIG.MAX_PURCHASES_PER_MINUTE) {
-        return { allowed: false, reason: 'Too many purchases. Please wait a minute.' }
+    const [minuteCount, hourCount] = await Promise.all([
+        redis.incr(minuteKey),
+        redis.incr(hourKey)
+    ])
+
+    if (minuteCount === 1) await redis.expire(minuteKey, 60)
+    if (hourCount === 1) await redis.expire(hourKey, 3600)
+
+    // Tier 1: Per-minute Hard Cap
+    const MAX_MIN = 10;
+    if (minuteCount > MAX_MIN) {
+        return { allowed: false, reason: 'Velocity limit exceeded (Minute). Please wait.' }
     }
 
-    // Check per-hour limit
-    const hourCount = await redis.incr(hourKey)
-    if (hourCount === 1) {
-        await redis.expire(hourKey, 3600)
-    }
-    if (hourCount > CONFIG.MAX_PURCHASES_PER_HOUR) {
-        return { allowed: false, reason: 'Hourly purchase limit reached. Please try again later.' }
+    // Tier 2: Per-hour Hard Cap
+    const MAX_HOUR = 50;
+    if (hourCount > MAX_HOUR) {
+        return { allowed: false, reason: 'Velocity limit exceeded (Hour). Please try later.' }
     }
 
     return { allowed: true }
@@ -336,31 +267,35 @@ export interface LockResult {
 }
 
 /**
- * Acquire atomic purchase lock using Lua script
+ * Acquire atomic purchase lock using Lua (Industrial Grade)
+ * Ensures atomicity and definite ownership to prevent micro-race conditions.
  */
 export async function acquireAtomicPurchaseLock(
     userId: string,
-    idempotencyKey?: string
+    ttlSeconds: number = 30
 ): Promise<LockResult> {
     const lockKey = `${CONFIG.REDIS_PREFIX.purchaseLock}${userId}`
     const token = crypto.randomUUID()
 
-    // Simple implementation (upgrade to Lua if needed)
-    const existing = await redis.get(lockKey)
-    if (existing) {
-        return { acquired: false, token: '', reason: 'Another purchase in progress' }
-    }
+    // LUA: Set NX if not exists, with PX TTL. Returns 1 if set, 0 otherwise.
+    const result = await redis.eval(
+        `if redis.call("SET", KEYS[1], ARGV[1], "NX", "EX", ARGV[2]) then return 1 else return 0 end`,
+        1,
+        lockKey,
+        token,
+        ttlSeconds
+    )
 
-    const result = await redis.set(lockKey, token, 'EX', 60, 'NX')
-    if (result !== 'OK') {
-        return { acquired: false, token: '', reason: 'Failed to acquire lock' }
+    if (result !== 1) {
+        return { acquired: false, token: '', reason: 'Lock conflict: Another acquisition in progress' }
     }
 
     return { acquired: true, token }
 }
 
 /**
- * Release atomic purchase lock
+ * Release atomic purchase lock using Lua (Safety First)
+ * Only deletes if the token matches, preventing accidental "lock stealing".
  */
 export async function releaseAtomicPurchaseLock(
     userId: string,
@@ -368,13 +303,15 @@ export async function releaseAtomicPurchaseLock(
 ): Promise<boolean> {
     const lockKey = `${CONFIG.REDIS_PREFIX.purchaseLock}${userId}`
 
-    // Only release if we own the lock
-    const currentToken = await redis.get(lockKey)
-    if (currentToken === token) {
-        await redis.del(lockKey)
-        return true
-    }
-    return false
+    // LUA: Only delete if value matches the token
+    const result = await redis.eval(
+        `if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("del", KEYS[1]) else return 0 end`,
+        1,
+        lockKey,
+        token
+    )
+
+    return result === 1
 }
 
 // ============================================
@@ -414,7 +351,7 @@ export interface PurchaseAuditEvent {
 }
 
 /**
- * Log purchase audit event
+ * Log purchase audit event with Identity Context
  */
 export async function logPurchaseAudit(event: PurchaseAuditEvent): Promise<void> {
     try {
@@ -430,6 +367,9 @@ export async function logPurchaseAudit(event: PurchaseAuditEvent): Promise<void>
                     providerId: event.providerId,
                     amount: event.amount,
                     errorMessage: event.errorMessage,
+                    // Identity context passed from API layer if available
+                    ip: event.metadata?.ip,
+                    ua: event.metadata?.ua,
                     ...event.metadata
                 }
             }

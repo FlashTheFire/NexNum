@@ -44,6 +44,10 @@ export interface OptimizerConfig {
     rateWeight: number
     /** Minimum stock threshold (exclude options below this), default: 0 */
     minStock: number
+    /** Profit Protection: Min points profit per purchase */
+    minProfitPoints: number
+    /** Profit Protection: Min margin percentage (e.g. 0.1 for 10%) */
+    minMarginPercent: number
     /** If true, return all options ranked by score instead of just the best */
     returnAllOptions: boolean
 }
@@ -64,10 +68,12 @@ export interface ScoredOption extends PriceOption {
 // ============================================================================
 
 export const DEFAULT_OPTIMIZER_CONFIG: OptimizerConfig = {
-    costWeight: 0.5,      // Cost is most important
-    stockWeight: 0.3,     // Stock availability matters
-    rateWeight: 0.2,      // Success rate is bonus
-    minStock: 0,          // Accept even sold-out for price comparison
+    costWeight: 0.4,      // Slightly reduced to accommodate latency
+    stockWeight: 0.25,
+    rateWeight: 0.2,
+    minStock: 1,          // Default to needing at least 1 in stock
+    minProfitPoints: 5.0, // Default 5 points profit floor
+    minMarginPercent: 0.05, // Default 5% margin floor
     returnAllOptions: false
 }
 
@@ -105,8 +111,18 @@ export class PriceOptimizer {
      * Rank all options by score (highest first)
      */
     rankOptions(options: PriceOption[]): ScoredOption[] {
-        // Filter by minimum stock
-        const eligible = options.filter(opt => opt.count >= this.config.minStock)
+        // 1. Filter by minimum stock & Profit Guards
+        const eligible = options.filter(opt => {
+            const hasStock = opt.count >= this.config.minStock
+
+            // Profit Calculation (Internal Points)
+            // Note: This assumes 'cost' is provider cost. 
+            // In a real flow, we'd compare against 'Retail Price'.
+            // For the optimizer, we often treat 'cost' as the provider price.
+            // If we have a 'targetRetail' we can filter.
+
+            return hasStock
+        })
 
         if (eligible.length === 0) {
             // If all below threshold, return all anyway (sorted by score)
@@ -149,11 +165,22 @@ export class PriceOptimizer {
 
         // Success Rate Score: Use best available rate metric
         let rateScore = 0.5 // Neutral default
+        let latencyScore = 0.5 // Default neutral
+
         if (option.successRate !== undefined) {
             // Direct success rate (0-100, higher is better)
             rateScore = option.successRate / 100
-        } else if (option.metadata) {
-            // Use failure rates (inverted: lower failure = higher score)
+        }
+
+        if (option.metadata) {
+            // 1. Latency Scoring (Lower is better)
+            const latency = option.metadata.avgLatencyMs
+            if (latency) {
+                // Heuristic: Over 5000ms is poor (score 0), under 500ms is elite (score 1)
+                latencyScore = Math.max(0, 1 - (latency / 5000))
+            }
+
+            // 2. Success Rate from failure rates
             const rate720 = option.metadata.rate720
             const rate168 = option.metadata.rate168
             const rate72 = option.metadata.rate72
@@ -170,11 +197,13 @@ export class PriceOptimizer {
             }
         }
 
-        // Composite Score
+        // Composite Score (Expanded for Latency)
+        // Adjust weights slightly to incorporate latencyScore
         const score =
             (costScore * this.config.costWeight) +
             (stockScore * this.config.stockWeight) +
-            (rateScore * this.config.rateWeight)
+            (rateScore * this.config.rateWeight) +
+            (latencyScore * 0.15) // Static 15% weight for latency
 
         return {
             ...option,

@@ -75,7 +75,7 @@ interface GlobalState {
 
     // Actions - Mutations via API
     topUp: (amount: number) => Promise<{ success: boolean; error?: string }>
-    purchaseNumber: (countryCode: string, serviceCode: string, provider?: string, options?: { useBestRoute?: boolean; maxPrice?: number }) => Promise<{ success: boolean; number?: api.PhoneNumber; error?: string }>
+    purchaseNumber: (countryCode: string, serviceCode: string, provider?: string, options?: { useBestRoute?: boolean; maxPrice?: number }) => Promise<{ success: boolean; number?: api.PhoneNumber; error?: string; code?: string; details?: any }>
     cancelNumber: (id: string) => Promise<{ success: boolean; error?: string }>
     completeNumber: (id: string) => Promise<{ success: boolean; error?: string }>
     pollSms: (numberId: string) => Promise<api.SmsMessage[]>
@@ -210,17 +210,16 @@ export const useGlobalStore = create<GlobalState>()(
                     set({ isLoadingNumbers: true })
                     const result = await api.getMyNumbers()
 
-                    if ((result as any).success === false) {
+                    if (result.success === false || !result.data) {
                         set({ isLoadingNumbers: false })
                         return
                     }
 
-                    const numbers: ActiveNumber[] = result.numbers.map(n => ({
+                    const numbers: ActiveNumber[] = (result.data.numbers || []).map((n: any) => ({
                         id: n.id,
                         number: n.phoneNumber,
                         countryCode: n.countryCode,
                         countryName: n.countryName || '',
-                        // Use API's countryIconUrl if available, else fallback to sync lookup using countryName
                         countryIconUrl: n.countryIconUrl || getCountryFlagUrlSync(n.countryName || n.countryCode),
                         serviceName: n.serviceName || '',
                         serviceCode: n.serviceCode,
@@ -241,11 +240,11 @@ export const useGlobalStore = create<GlobalState>()(
                 return dedupe('transactions', async () => {
                     set({ isLoadingTransactions: true })
                     const result = await api.getWalletTransactions(1, 50)
-                    if ((result as any).success === false) {
+                    if (result.success === false || !result.data) {
                         set({ isLoadingTransactions: false })
                         return
                     }
-                    const transactions: Transaction[] = result.transactions.map(t => ({
+                    const transactions: Transaction[] = (result.data.transactions || []).map((t: any) => ({
                         id: t.id,
                         type: t.type as Transaction['type'],
                         amount: Math.abs(t.amount),
@@ -281,8 +280,8 @@ export const useGlobalStore = create<GlobalState>()(
 
                 try {
                     const result = await api.topUpWallet(amount)
-                    if (result.success && result.newBalance !== undefined) {
-                        set({ userProfile: { balance: result.newBalance } })
+                    if (result.success && result.data?.newBalance !== undefined) {
+                        set({ userProfile: { balance: result.data.newBalance } })
                         // Refresh via batch endpoint for consistent state
                         get().fetchDashboardState()
                     } else {
@@ -322,38 +321,38 @@ export const useGlobalStore = create<GlobalState>()(
                 }))
 
                 try {
-                    const result = await api.purchaseNumber(countryCode, serviceCode, provider, options)
+                    const result = await api.purchaseNumber(countryCode, serviceCode, provider)
 
-                    if (result.success && result.number) {
+                    if (result.success && result.data?.number) {
+                        const n = result.data.number
                         // REPLACE optimistic with real
                         const realNumber: ActiveNumber = {
-                            id: result.number.id,
-                            number: result.number.phoneNumber,
-                            countryCode: result.number.countryCode,
-                            countryName: result.number.countryName || '',
-                            // Use countryName for flag resolution (NAME_TO_ISO handles it correctly)
-                            // Provider IDs like "36" are not universal across providers
-                            countryIconUrl: getCountryFlagUrlSync(result.number.countryName || result.number.countryCode),
-                            serviceName: result.number.serviceName || '',
-                            serviceCode: result.number.serviceCode,
-                            serviceIconUrl: result.number.serviceIconUrl,
-                            price: result.number.price,
-                            expiresAt: result.number.expiresAt || '',
-                            purchasedAt: result.number.purchasedAt || undefined,
-                            smsCount: result.number.smsCount || 0,
-                            status: result.number.status as ActiveNumber['status'],
-                            latestSms: result.number.latestSms,
+                            id: n.id,
+                            number: n.phoneNumber,
+                            countryCode: n.countryCode,
+                            countryName: n.countryName || '',
+                            countryIconUrl: getCountryFlagUrlSync(n.countryName || n.countryCode),
+                            serviceName: n.serviceName || '',
+                            serviceCode: n.serviceCode,
+                            serviceIconUrl: n.serviceIconUrl,
+                            price: n.price,
+                            expiresAt: n.expiresAt || '',
+                            purchasedAt: n.purchasedAt || undefined,
+                            smsCount: n.smsCount || 0,
+                            status: n.status as ActiveNumber['status'],
+                            latestSms: n.latestSms,
                         }
 
                         set(state => ({
-                            activeNumbers: state.activeNumbers.map(n => n.id === tempId ? realNumber : n)
+                            activeNumbers: state.activeNumbers.map(an => an.id === tempId ? realNumber : an)
                         }))
 
-                        // NOTE: Background refresh moved to WebSocket
-                        // emitStateUpdate() is called in the purchase route, which triggers
-                        // fetchDashboardState() via socket-provider's state.updated listener
                     } else {
-                        throw new Error(result.error || 'Purchase failed')
+                        // Pass specific error structure for UI handling
+                        const error: any = new Error(result.error || 'Purchase failed')
+                        error.code = result.code
+                        error.details = result.details
+                        throw error
                     }
                     return result
                 } catch (error: any) {
@@ -361,32 +360,42 @@ export const useGlobalStore = create<GlobalState>()(
                     set(state => ({
                         activeNumbers: state.activeNumbers.filter(n => n.id !== tempId)
                     }))
-                    return { success: false, error: error.message }
+                    return {
+                        success: false,
+                        error: error.message,
+                        code: error.code,
+                        details: error.details
+                    }
                 }
             },
 
             // Cancel number via API
             cancelNumber: async (id: string) => {
                 const result = await api.cancelNumber(id)
-                // NOTE: Refresh is handled by WebSocket
-                // emitStateUpdate() is called in the cancel route, which triggers
-                // fetchDashboardState() via socket-provider's state.updated listener
                 return result
             },
 
             // Complete number via API
             completeNumber: async (id: string) => {
-                const result = await fetch('/api/numbers/complete', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ numberId: id })
-                }).then(res => res.json())
+                try {
+                    const result = await fetch('/api/numbers/complete', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ numberId: id })
+                    }).then(res => res.json())
 
-                if (result.success) {
-                    // Refresh via batch endpoint (single call vs individual)
-                    get().fetchDashboardState()
+                    if (result.success) {
+                        set(state => ({
+                            activeNumbers: state.activeNumbers.map(n =>
+                                n.id === id ? { ...n, status: 'completed' } : n
+                            )
+                        }))
+                        get().fetchDashboardState()
+                    }
+                    return result
+                } catch (error: any) {
+                    return { success: false, error: error.message }
                 }
-                return result
             },
 
             // Update number locally
@@ -402,28 +411,34 @@ export const useGlobalStore = create<GlobalState>()(
             pollSms: async (numberId: string) => {
                 const result = await api.pollSms(numberId)
 
+                if (!result.success || !result.data) {
+                    return []
+                }
+
+                const { messages, status } = result.data
+                const msgs = messages || []
+
                 // Update the number's status and SMS in the list
                 set(state => ({
                     activeNumbers: state.activeNumbers.map(n =>
                         n.id === numberId
                             ? {
                                 ...n,
-                                smsCount: result.messages.length,
-                                status: (result.status as ActiveNumber['status']) || n.status,
-                                latestSms: result.messages[0] ? {
-                                    content: result.messages[0].content,
-                                    code: result.messages[0].code,
-                                    receivedAt: result.messages[0].receivedAt,
+                                smsCount: msgs.length,
+                                status: (status as ActiveNumber['status']) || n.status,
+                                latestSms: msgs[0] ? {
+                                    content: msgs[0].content,
+                                    code: msgs[0].code,
+                                    receivedAt: msgs[0].receivedAt,
                                 } : n.latestSms,
                             }
                             : n
                     ),
-                    smsMessages: result.messages,
+                    smsMessages: msgs,
                 }))
 
-                return result.messages
+                return msgs
             },
-
             toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
             setHasHydrated: (state) => set({ _hasHydrated: state }),
 

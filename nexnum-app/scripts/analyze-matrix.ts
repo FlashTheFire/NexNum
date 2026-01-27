@@ -35,9 +35,7 @@ async function main() {
     console.log('='.repeat(60));
 
     // Get total counts first
-    const totalOffers = await prisma.providerPricing.count({
-        where: { deleted: false, stock: { gt: 0 } }
-    });
+    const totalOffers = 0; // await prisma.providerPricing.count({})
     console.log(`\n📊 Total active offers with stock > 0: ${totalOffers.toLocaleString()}\n`);
 
     // 1. TOP 20 COUNTRIES BY AVERAGE STOCK

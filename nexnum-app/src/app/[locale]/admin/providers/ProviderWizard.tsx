@@ -390,7 +390,7 @@ export default function ProviderWizard({ onComplete, onCancel }: WizardProps) {
                                                         <div className="w-12 h-12 md:w-16 md:h-16 rounded-xl bg-white/10 backdrop-blur-sm border border-white/10 flex items-center justify-center overflow-hidden shadow-lg">
                                                             <SafeImage
                                                                 src={provider.logo}
-                                                                fallbackSrc="/images/placeholder_provider.png"
+                                                                fallbackSrc="/assets/images/placeholder_provider.png"
                                                                 alt={provider.name}
                                                                 className="w-full h-full object-cover"
                                                                 hideOnError
@@ -457,8 +457,8 @@ export default function ProviderWizard({ onComplete, onCancel }: WizardProps) {
                                 <div className="grid grid-cols-1 gap-4 md:gap-6">
                                     <div className="space-y-2">
                                         <div className="flex items-center gap-2">
-                                            <label className="text-[11px] font-bold text-white/60 uppercase tracking-widest">Internal Slug</label>
-                                            <InfoTooltip content={<>Unique ID for the database. Use <TTCode>lowercase-hyphens</TTCode>.</>} />
+                                            <label className="text-[11px] font-bold text-white/60 uppercase tracking-widest">Provider ID</label>
+                                            <InfoTooltip content={<>Unique machine-readable ID for the system. Use <TTCode>lowercase-hyphens</TTCode>.</>} />
                                         </div>
                                         <div className="relative group">
                                             <Database className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 group-focus-within:text-blue-400 transition-colors" />

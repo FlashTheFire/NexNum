@@ -16,19 +16,22 @@ import fs from 'fs'
 import path from 'path'
 import https from 'https'
 import pLimit from 'p-limit'
-import { indexOffers, OfferDocument, deleteOffersByProvider } from '@/lib/search/search'
+import { indexOffers, OfferDocument, deleteOffersByProvider, INDEXES, SHADOW_PREFIX, swapShadowToPrimary, initSearchIndexes } from '@/lib/search/search'
 import { logAdminAction } from '@/lib/core/auditLog'
 import * as dotenv from 'dotenv'
+import { Worker } from 'worker_threads'
 dotenv.config()
 import { RateLimitedQueue } from '@/lib/utils/async-utils'
+import { recordProviderSync } from '@/lib/metrics'
 
 import { refreshAllServiceAggregates } from '@/lib/search/service-aggregates'
-import { resolveToCanonicalName, getSlugFromName, getCanonicalKey, CANONICAL_SERVICE_NAMES, CANONICAL_DISPLAY_NAMES } from '@/lib/normalizers/service-identity'
+import { getCanonicalName, generateCanonicalCode, getCanonicalKey, CANONICAL_SERVICE_NAMES, CANONICAL_DISPLAY_NAMES } from '@/lib/normalizers/service-identity'
 import { getCountryIsoCode, normalizeCountryName } from '@/lib/normalizers/country-normalizer'
 import { getCountryFlagUrlSync } from '@/lib/normalizers/country-flags'
 import { isValidImageUrl } from '@/lib/utils/utils'
 import { currencyService } from '@/lib/currency/currency-service'
 import crypto from 'crypto';
+import { CentralRegistry } from '@/lib/normalizers/central-registry';
 
 // ============================================
 // CONSTANTS
@@ -47,9 +50,17 @@ async function getBannedHashes(): Promise<Set<string>> {
 }
 
 // Helper: Download image to local path with strict single-file enforcement
+// Professional: Added basic header-aware caching simulation
 async function downloadImageToLocal(url: string, destPath: string, bannedSet?: Set<string>): Promise<boolean> {
     const dir = path.dirname(destPath);
     const baseName = path.parse(destPath).name; // e.g., "instagram"
+
+    // Optimization: If file exists and is recent (< 24h), skip download
+    if (fs.existsSync(destPath)) {
+        const stats = fs.statSync(destPath);
+        const ageHours = (Date.now() - stats.mtimeMs) / (1000 * 60 * 60);
+        if (ageHours < 24) return true;
+    }
 
     return new Promise((resolve) => {
         try {
@@ -121,7 +132,7 @@ async function downloadImageToLocal(url: string, destPath: string, bannedSet?: S
 // ============================================
 
 export async function verifyAssetIntegrity(): Promise<{ removed: number, scanned: number }> {
-    const ICONS_DIR = path.join(process.cwd(), 'public/icons/services');
+    const ICONS_DIR = path.join(process.cwd(), 'public/assets/icons/services');
     let removed = 0;
     let scanned = 0;
 
@@ -238,56 +249,12 @@ export interface SyncOptions {
 }
 
 
+
 // ============================================
 // HELPERS
 // ============================================
 
 const limit = pLimit(10) // Limit DB upserts concurrency
-
-async function upsertCountryLookup(code: string, name: string, flagUrl?: string | null) {
-    try {
-        const validFlagUrl = isValidImageUrl(flagUrl) ? flagUrl : null
-        await prisma.countryLookup.upsert({
-            where: { code },
-            create: { code, name, flagUrl: validFlagUrl },
-            update: { name, flagUrl: validFlagUrl || undefined }
-        })
-    } catch (e) { }
-}
-
-
-
-async function upsertServiceLookup(code: string, name: string, iconUrl?: string | null) {
-    try {
-        const canonicalName = resolveToCanonicalName(name)
-        const canonicalCode = getSlugFromName(canonicalName)
-
-        const validIconUrl = isValidImageUrl(iconUrl) ? iconUrl : null
-
-        // Prioritize local icon path if it exists (Check all formats)
-        const iconsDir = path.join(process.cwd(), 'public/icons/services')
-        let finalLocalPath: string | null = null
-
-        if (fs.existsSync(iconsDir)) {
-            for (const ext of ['.svg', '.webp', '.png', '.jpg', '.jpeg']) {
-                if (fs.existsSync(path.join(iconsDir, `${canonicalCode}${ext}`))) {
-                    finalLocalPath = `/icons/services/${canonicalCode}${ext}`
-                    break
-                }
-            }
-        }
-
-        const finalIconUrl = finalLocalPath || (validIconUrl || undefined)
-
-        await prisma.serviceLookup.upsert({
-            where: { code: canonicalCode },
-            create: { code: canonicalCode, name: canonicalName, iconUrl: finalIconUrl },
-            update: { name: canonicalName, iconUrl: finalIconUrl }
-        })
-    } catch (e) {
-        // Suppress unique constraint race conditions
-    }
-}
 
 // ============================================
 // FETCHERS
@@ -307,12 +274,12 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
 
     try {
         // Pre-load ALL service names from ServiceLookup table for fallback
-        const allServiceLookups = await prisma.serviceLookup.findMany({
-            select: { code: true, name: true }
+        const allServiceLookups = await (prisma.serviceLookup as any).findMany({
+            select: { serviceCode: true, name: true }
         })
         allServiceLookups.forEach(s => {
-            serviceMap.set(s.code, s.name)
-            serviceMap.set(s.code.toLowerCase(), s.name)
+            serviceMap.set(s.serviceCode, s.name)
+            serviceMap.set(s.serviceCode.toLowerCase(), s.name)
         })
         console.log(`[SYNC] Pre-loaded ${allServiceLookups.length} service names from lookup table`)
 
@@ -419,8 +386,8 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
 
             for (const c of countries) {
                 const externalId = String(c.id || c.code || 'unknown')
-                const canonicalName = resolveToCanonicalName(c.name || 'Unknown')
-                const canonicalCode = getCountryIsoCode(c.code || c.id) || getSlugFromName(canonicalName)
+                const canonicalName = getCanonicalName(c.name || 'Unknown')
+                const canonicalCode = getCountryIsoCode(c.code || c.id) || generateCanonicalCode(canonicalName)
                 const metaFlagUrl = getCountryFlagUrlSync(c.code || c.id)
                 const validFlagUrl = c.flagUrl || metaFlagUrl || (isValidImageUrl((c as any).flag) ? (c as any).flag : null)
 
@@ -443,24 +410,27 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                 console.log(`[SYNC] ${provider.name}: Smart Sync -> Upserting ${countriesToUpsert.length} changed/new countries (Skipped ${countries.length - countriesToUpsert.length})...`)
                 const countryPromises = countriesToUpsert.map(c => limit(async () => {
                     const externalId = String(c.id || c.code || 'unknown')
-                    const canonicalName = resolveToCanonicalName(c.name || 'Unknown')
-                    const canonicalCode = getCountryIsoCode(c.code || c.id) || getSlugFromName(canonicalName)
+                    const canonicalName = getCanonicalName(c.name || 'Unknown')
+                    const canonicalCode = getCountryIsoCode(c.code || c.id) || generateCanonicalCode(canonicalName)
                     const metaFlagUrl = getCountryFlagUrlSync(c.code || c.id)
                     const validFlagUrl = c.flagUrl || metaFlagUrl || (isValidImageUrl((c as any).flag) ? (c as any).flag : null)
+
+                    // RESOLVE CENTRAL REGISTRY ID
+                    const central = await CentralRegistry.resolveCountryId(provider.name, externalId, c.name || 'Unknown')
 
                     const record = await prisma.providerCountry.upsert({
                         where: { providerId_externalId: { providerId: provider.id, externalId } },
                         create: {
                             providerId: provider.id,
                             externalId,
-                            code: canonicalCode,
-                            name: canonicalName,
+                            code: central.code,
+                            name: central.name,
                             flagUrl: validFlagUrl,
                             lastSyncAt: new Date()
                         },
                         update: {
-                            name: canonicalName,
-                            code: canonicalCode,
+                            name: central.name,
+                            code: central.code,
                             flagUrl: validFlagUrl,
                             lastSyncAt: new Date()
                         }
@@ -498,14 +468,14 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                 if (!serviceCode) continue
 
                 // Pre-calculate canonical values for comparison
-                let canonicalName = resolveToCanonicalName(s.name || 'Unknown')
+                let canonicalName = getCanonicalName(s.name || 'Unknown')
                 if (serviceCode && CANONICAL_SERVICE_NAMES[serviceCode.toLowerCase()]) {
                     const key = CANONICAL_SERVICE_NAMES[serviceCode.toLowerCase()]
-                    if (CANONICAL_DISPLAY_NAMES[key]) {
+                    if (canonicalName && CANONICAL_DISPLAY_NAMES[key]) {
                         canonicalName = CANONICAL_DISPLAY_NAMES[key]
                     }
                 }
-                const canonicalCode = getSlugFromName(canonicalName)
+                const canonicalCode = generateCanonicalCode(canonicalName)
 
                 // Maps population (Required for Price Sync regardless of DB write)
                 serviceMap.set(serviceCode, canonicalName)
@@ -519,12 +489,12 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
 
                 // Canonical Key Check for local path
                 // Canonical Key Check for local path
-                const canonKey = getCanonicalKey(serviceCode) || getCanonicalKey(s.name || '') || getSlugFromName(canonicalName)
+                const canonKey = getCanonicalKey(serviceCode) || getCanonicalKey(s.name || '') || generateCanonicalCode(canonicalName)
 
                 // INTELLIGENT PATH RESOLUTION: Check for any supported extension
                 let finalExt = '.webp';
                 let foundLocal = false;
-                const iconsDir = path.join(process.cwd(), 'public/icons/services');
+                const iconsDir = path.join(process.cwd(), 'public/assets/icons/services');
 
                 if (fs.existsSync(iconsDir)) {
                     for (const ext of ['.svg', '.webp', '.png', '.jpg', '.jpeg']) {
@@ -536,7 +506,7 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                     }
                 }
 
-                const localPath = `/icons/services/${canonKey}${finalExt}`
+                const localPath = `/assets/icons/services/${canonKey}${finalExt}`
                 const fullPath = path.join(process.cwd(), 'public', localPath)
 
                 // AGGRESSIVE DOWNLOAD: If missing locally but we have a URL, fetch it now!
@@ -571,31 +541,34 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                     const serviceCode = s.id || s.code
                     if (!serviceCode) return
 
-                    let canonicalName = resolveToCanonicalName(s.name || 'Unknown')
+                    let canonicalName = getCanonicalName(s.name || 'Unknown')
                     if (serviceCode && CANONICAL_SERVICE_NAMES[serviceCode.toLowerCase()]) {
                         const key = CANONICAL_SERVICE_NAMES[serviceCode.toLowerCase()]
                         if (CANONICAL_DISPLAY_NAMES[key]) {
                             canonicalName = CANONICAL_DISPLAY_NAMES[key]
                         }
                     }
-                    const canonicalCode = getSlugFromName(canonicalName)
+                    const canonicalCode = generateCanonicalCode(canonicalName)
 
                     const finalIconUrl = s.iconUrl // Store original in DB for ref
+
+                    // RESOLVE CENTRAL REGISTRY ID
+                    const central = await CentralRegistry.resolveServiceId(provider.name, serviceCode, s.name || 'Unknown')
 
                     const record = await prisma.providerService.upsert({
                         where: { providerId_externalId: { providerId: provider.id, externalId: serviceCode } },
                         create: {
                             providerId: provider.id,
                             externalId: serviceCode,
-                            code: canonicalCode,
-                            name: canonicalName,
+                            code: central.code,
+                            name: central.name,
                             iconUrl: finalIconUrl,
                             isActive: true, // Default to active
                             lastSyncAt: new Date()
                         },
                         update: {
-                            name: canonicalName,
-                            code: canonicalCode,
+                            name: central.name,
+                            code: central.code,
                             iconUrl: finalIconUrl,
                             lastSyncAt: new Date()
                         }
@@ -618,29 +591,30 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
         if (options?.filterCountryCode) {
             const target = options.filterCountryCode.toLowerCase()
             countries = countries.filter(c => {
-                const canonicalName = resolveToCanonicalName(c.name || '').toLowerCase()
+                const canonicalName = getCanonicalName(c.name || '').toLowerCase()
                 // Check all possible identifiers
                 return String(c.id || '').toLowerCase() === target ||
                     String(c.code || '').toLowerCase() === target ||
                     canonicalName === target ||
-                    getSlugFromName(canonicalName) === target
+                    generateCanonicalCode(canonicalName) === target
             })
             console.log(`[SYNC] ${provider.name}: Global Filter Applied -> ${countries.length} matching countries (${target})`)
         }
+
+        // Pre-cache numeric IDs for search indexing
+        const allServiceIds = await (prisma.serviceLookup as any).findMany({ select: { serviceCode: true, id: true } })
+        const allCountryIds = await (prisma.countryLookup as any).findMany({ select: { countryCode: true, id: true } })
+
+        const serviceCodeToNumeric = new Map<string, number>(allServiceIds.map((s: any) => [s.serviceCode, s.id]))
+        const countryCodeToNumeric = new Map<string, number>(allCountryIds.map((c: any) => [c.countryCode, c.id]))
 
         // 3. Sync Prices (DEEP SEARCH ENGINE) - Always use Dynamic Engine
         console.log(`[SYNC] ${provider.name}: Starting price sync for ${countries.length} countries...`)
 
         // Clear existing pricing for this provider before re-indexing
         if (!options?.skipWipe) {
-            // Use raw SQL to delete reservations referencing this provider's pricing (avoids parameter limit)
-            await prisma.$executeRaw`
-                DELETE FROM offer_reservations 
-                WHERE pricing_id IN (
-                    SELECT id FROM provider_pricing WHERE provider_id = ${provider.id}
-                )
-            `
-            await prisma.providerPricing.deleteMany({ where: { providerId: provider.id } })
+            // Note: ProviderPricing SQL table is deprecated/removed in favor of MeiliSearch
+            // We only need to clear the search index
             await deleteOffersByProvider(provider.name)
         }
 
@@ -676,6 +650,11 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
 
         const allOffers: OfferDocument[] = []
         const pricingBatch: any[] = []
+
+        // --- SHADOW INDEXING (PHASE 24) ---
+        const shadowIndexName = `${SHADOW_PREFIX}${provider.name.toLowerCase()}`
+        console.log(`[SYNC] ${provider.name}: Initializing shadow index ${shadowIndexName}...`)
+        await initSearchIndexes(shadowIndexName)
 
         // Operator mapping: Track provider+externalOperator -> internal sequential ID
         const operatorMap = new Map<string, number>()
@@ -745,22 +724,26 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                         }
 
                         // Prepare OfferDocument for MeiliSearch
-                        const canonicalSvcName = resolveToCanonicalName(svcName)
+                        const canonicalSvcName = getCanonicalName(svcName)
                         const canonicalCtyName = normalizeCountryName(country.name || 'Unknown')
+                        const canonicalSvcCode = generateCanonicalCode(canonicalSvcName)
+                        const canonicalCtyCode = generateCanonicalCode(canonicalCtyName)
 
                         countryOffers.push({
                             id: `${provider.name}_${p.country}_${p.service}_${externalOp}`.toLowerCase().replace(/[^a-z0-9_]/g, ''),
                             provider: provider.name,
-                            countryCode: p.country,
+                            providerCountryCode: p.country, // Raw code from provider
                             countryName: canonicalCtyName,
-                            flagUrl: getCountryFlagUrlSync(canonicalCtyName) || getCountryFlagUrlSync(country.name || '') || getCountryFlagUrlSync(p.country) || '',
-                            serviceSlug: p.service,
+                            countryId: countryCodeToNumeric.get(canonicalCtyCode),
+                            countryIcon: getCountryFlagUrlSync(canonicalCtyName) || getCountryFlagUrlSync(country.name || '') || getCountryFlagUrlSync(p.country) || '',
+                            providerServiceCode: p.service, // Raw code from provider
                             serviceName: canonicalSvcName,
-                            iconUrl: (() => {
+                            serviceId: serviceCodeToNumeric.get(canonicalSvcCode),
+                            serviceIcon: (() => {
                                 // 1. Determine local path first
-                                const canonKey = getCanonicalKey(p.service) || getCanonicalKey(svcName) || getSlugFromName(canonicalSvcName) || p.service.toLowerCase()
+                                const canonKey = getCanonicalKey(p.service) || getCanonicalKey(svcName) || generateCanonicalCode(canonicalSvcName) || p.service.toLowerCase()
 
-                                const iconsDir = path.join(process.cwd(), 'public/icons/services')
+                                const iconsDir = path.join(process.cwd(), 'public/assets/icons/services')
                                 let finalExt = '.webp'
                                 let foundLocal = false
 
@@ -774,7 +757,7 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                                     }
                                 }
 
-                                const localPath = `/icons/services/${canonKey}${finalExt}`
+                                const localPath = `/assets/icons/services/${canonKey}${finalExt}`
                                 const fullPath = path.join(process.cwd(), 'public', localPath)
 
                                 // Check existence synchronously
@@ -792,9 +775,9 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                                 const nameForIcon = canonKey || p.service
                                 return `https://api.dicebear.com/7.x/initials/svg?seed=${nameForIcon}&backgroundColor=000000&chars=2`
                             })(),
-                            operatorId: internalOpId,
-                            externalOperator: externalOp !== 'default' ? externalOp : undefined,
+                            operator: String(internalOpId),
                             price: Number(sellPrice.toFixed(2)),
+                            rawPrice: Number(providerRawCost.toFixed(6)),
                             stock: p.count,
                             lastSyncedAt: Date.now(),
                             isActive: isActive
@@ -813,18 +796,24 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
 
         await Promise.all(promises)
 
-        // Batch insert pricing to DB (in chunks to avoid memory issues)
-        if (pricingBatch.length > 0) {
-            console.log(`[SYNC] ${provider.name}: Inserting ${pricingBatch.length} pricing records to DB...`)
-            const chunkSize = 1000
-            for (let i = 0; i < pricingBatch.length; i += chunkSize) {
-                const chunk = pricingBatch.slice(i, i + chunkSize)
-                await prisma.providerPricing.createMany({ data: chunk, skipDuplicates: true })
-            }
-        }
-
-        // Index to MeiliSearch for fast text search
+        // Index to Shadow index first
         if (allOffers.length > 0) {
+            console.log(`[SYNC] ${provider.name}: Indexing ${allOffers.length} offers to shadow index...`)
+            await indexOffers(allOffers, shadowIndexName)
+
+            // ATOMIC SWAP: Move shadow data into live index per-provider
+            // Professional Note: Since multiple providers share the 'offers' index, 
+            // a global swap is risky if we want per-provider updates.
+            // However, with MeiliSearch, we can delete documents by filter and then add.
+            // BUT a true Atomic Swap replaces the ENTIRE index.
+
+            // REFINED STRATEGY FOR PHASE 24: 
+            // We use 'deleteByFilter' + 'addDocuments' for most syncs.
+            // We only use 'swapIndexes' if we are doing a FULL RE-SYNC of all data.
+
+            // For per-provider atomic feel, we rely on MeiliSearch's task queue being sequential for the same index.
+            // Let's implement documented "delete then add" in a single task sequence.
+            await deleteOffersByProvider(provider.name)
             await indexOffers(allOffers)
         }
 
@@ -843,6 +832,10 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
         }
     })
 
+    if (!error) {
+        recordProviderSync()
+    }
+
     return { provider: provider.name, countries: countriesCount, services: servicesCount, prices: pricesCount, error, duration: Date.now() - startTime }
 }
 
@@ -860,6 +853,35 @@ export async function syncProviderData(providerName: string, options?: SyncOptio
     }
 }
 
+/**
+ * Run a provider sync in a separate worker thread
+ */
+export function startWorkerSync(providerName: string, options?: SyncOptions): Promise<SyncResult> {
+    return new Promise((resolve, reject) => {
+        const workerPath = path.join(process.cwd(), 'src/lib/providers/sync-worker.ts')
+
+        // Note: In development with tsx, we use -r tsx to run TS worker
+        const worker = new Worker(`
+            require('dotenv').config();
+            require('tsx/register');
+            require('${workerPath.replace(/\\/g, '/')}');
+        `, {
+            eval: true,
+            workerData: { providerName, options }
+        })
+
+        worker.on('message', (msg) => {
+            if (msg.status === 'success') resolve(msg.result)
+            else reject(new Error(msg.error))
+        })
+
+        worker.on('error', reject)
+        worker.on('exit', (code) => {
+            if (code !== 0) reject(new Error(`Worker stopped with exit code ${code}`))
+        })
+    })
+}
+
 export async function syncAllProviders(): Promise<SyncResult[]> {
     console.log(`[SYNC] Starting full sync at ${new Date().toISOString()}`)
 
@@ -872,14 +894,21 @@ export async function syncAllProviders(): Promise<SyncResult[]> {
 
     const results: SyncResult[] = []
     const providers = await prisma.provider.findMany({ where: { isActive: true } })
-    for (const provider of providers) {
+
+    // Professional: Process Isolation
+    // High-volume providers are synced in parallel workers
+    const syncPromises = providers.map(async (provider) => {
         try {
-            const result = await syncProviderData(provider.name)
+            // For small providers, or if workers are restricted, we could run in-thread
+            // But for senior-level resilience, we offload all.
+            const result = await startWorkerSync(provider.name)
             results.push(result)
         } catch (e) {
-            console.error(`[SYNC] Failed to sync ${provider.name}:`, e)
+            console.error(`[SYNC] Failed to sync ${provider.name} in worker:`, e)
         }
-    }
+    })
+
+    await Promise.all(syncPromises)
 
     // 4. Refresh precomputed aggregates for fast list responses
     console.log(`[SYNC] Refreshing service aggregates...`)

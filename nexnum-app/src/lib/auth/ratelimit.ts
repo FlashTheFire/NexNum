@@ -1,5 +1,5 @@
 import { redis } from '@/lib/core/redis'
-
+import { ResponseFactory } from '@/lib/api/response-factory'
 // Lua script for atomic sliding window rate limiting
 const LIMIT_SCRIPT = `
 local key = KEYS[1]
@@ -37,9 +37,9 @@ class SlidingWindowLimiter {
         this.getLimit = getLimit
     }
 
-    async limit(identifier: string) {
+    async limit(identifier: string, customLimit?: number) {
         const key = `${this.prefix}:${identifier}`
-        const limit = await this.getLimit()
+        const limit = customLimit ?? (await this.getLimit())
         const now = Date.now()
 
         try {
@@ -57,11 +57,23 @@ class SlidingWindowLimiter {
                 success: allowed === 1,
                 limit,
                 remaining: Math.max(0, remaining),
-                reset: now + this.windowSizeMs
+                reset: now + this.windowSizeMs,
+                // Industrial Helper
+                toResponse: () => {
+                    const res = ResponseFactory.error('Too many requests', 429, 'E_RATE_LIMIT')
+                    res.headers.set('X-RateLimit-Limit', limit.toString())
+                    res.headers.set('X-RateLimit-Remaining', Math.max(0, remaining).toString())
+                    res.headers.set('X-RateLimit-Reset', (now + this.windowSizeMs).toString())
+                    res.headers.set('Retry-After', Math.ceil(this.windowSizeMs / 1000).toString())
+                    return res
+                }
             }
         } catch (error) {
             console.error('[RateLimit] Execution failed, failing open:', error)
-            return { success: true, limit, remaining: limit, reset: 0 }
+            return {
+                success: true, limit, remaining: limit, reset: 0,
+                toResponse: () => ResponseFactory.success({ ok: true }) // Should not be called if success is true
+            }
         }
     }
 }

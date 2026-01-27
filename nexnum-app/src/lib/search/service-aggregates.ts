@@ -1,11 +1,7 @@
-/**
- * Service Aggregate Utilities
- * 
- * Precomputed aggregates for fast list responses.
- * Updated during sync or via background job.
- */
-
 import { prisma } from '@/lib/core/db'
+import { meili, INDEXES } from './search'
+import { logger } from '@/lib/core/logger'
+import { cacheSet, cacheGet, CACHE_KEYS } from '@/lib/core/redis'
 
 interface ServiceAggregateData {
     serviceCode: string
@@ -17,69 +13,134 @@ interface ServiceAggregateData {
 }
 
 /**
- * Recalculate all service aggregates from ProviderPricing
- * Run after a full sync or periodically
+ * Recalculate all service aggregates from MeiliSearch (Source of Truth)
+ * Run after a full sync or periodically.
+ * 
+ * Scalability: Uses chunked retrieval to prevent OOM on large indices.
  */
 export async function refreshAllServiceAggregates() {
-    console.log('[AGGREGATES] Refreshing all service aggregates...')
+    const startTime = Date.now();
+    logger.info('[AGGREGATES] Starting batch refresh from MeiliSearch...');
 
-    // Get all unique services with their stats
-    const stats = await prisma.$queryRaw<ServiceAggregateData[]>`
-    SELECT 
-      ps.code AS "serviceCode",
-      ps.name AS "serviceName",
-      MIN(pp."sellPrice")::numeric AS "lowestPrice",
-      SUM(pp.stock)::bigint AS "totalStock",
-      COUNT(DISTINCT pp.country_id)::int AS "countryCount",
-      COUNT(DISTINCT pp.provider_id)::int AS "providerCount"
-    FROM provider_pricing pp
-    JOIN provider_services ps ON pp.service_id = ps.id
-    WHERE pp.deleted = false AND pp.stock > 0
-    GROUP BY ps.code, ps.name
-  `
+    try {
+        const index = meili.index(INDEXES.OFFERS)
+        const aggregates = new Map<string, {
+            serviceCode: string;
+            serviceName: string;
+            lowestPrice: number;
+            totalStock: bigint;
+            _countries: Set<string>;
+            _providers: Set<string>;
+        }>()
 
-    console.log(`[AGGREGATES] Found ${stats.length} services to aggregate`)
+        // 1. Chunked Retrieval (5000 docs per page)
+        let offset = 0;
+        const limit = 5000;
+        let hasMore = true;
 
-    // Upsert each aggregate
-    for (const stat of stats) {
-        await prisma.serviceAggregate.upsert({
-            where: { serviceCode: stat.serviceCode },
-            create: {
-                serviceCode: stat.serviceCode,
-                serviceName: stat.serviceName,
-                lowestPrice: stat.lowestPrice,
-                totalStock: stat.totalStock,
-                countryCount: stat.countryCount,
-                providerCount: stat.providerCount,
-                lastUpdatedAt: new Date()
-            },
-            update: {
-                serviceName: stat.serviceName,
-                lowestPrice: stat.lowestPrice,
-                totalStock: stat.totalStock,
-                countryCount: stat.countryCount,
-                providerCount: stat.providerCount,
-                lastUpdatedAt: new Date()
+        while (hasMore) {
+            const result = await index.search('', {
+                offset,
+                limit,
+                attributesToRetrieve: ['providerServiceCode', 'serviceName', 'price', 'stock', 'countryName', 'provider']
+            })
+
+            if (result.hits.length === 0) {
+                hasMore = false;
+                break;
             }
-        })
-    }
 
-    console.log(`[AGGREGATES] Successfully updated ${stats.length} service aggregates`)
-    return stats.length
+            for (const hit of result.hits as any[]) {
+                const serviceCode = hit.providerServiceCode || 'unknown';
+
+                let agg = aggregates.get(serviceCode)
+                if (!agg) {
+                    agg = {
+                        serviceCode,
+                        serviceName: hit.serviceName || serviceCode,
+                        lowestPrice: hit.price,
+                        totalStock: BigInt(0),
+                        _countries: new Set(),
+                        _providers: new Set()
+                    }
+                    aggregates.set(serviceCode, agg)
+                }
+
+                agg.lowestPrice = Math.min(agg.lowestPrice, hit.price)
+                agg.totalStock += BigInt(hit.stock || 0)
+                if (hit.countryName) agg._countries.add(hit.countryName)
+                if (hit.provider) agg._providers.add(hit.provider)
+            }
+
+            offset += limit;
+            if (offset >= result.estimatedTotalHits || result.hits.length < limit) {
+                hasMore = false;
+            }
+        }
+
+        if (aggregates.size === 0) {
+            logger.warn('[AGGREGATES] No documents found in MeiliSearch. Clearing aggregates.');
+            await prisma.serviceAggregate.deleteMany({})
+            return 0
+        }
+
+        // 2. High-Speed Persistence (Batch Upserts)
+        const finalStats = Array.from(aggregates.values());
+        logger.info(`[AGGREGATES] Computed ${finalStats.length} aggregates. Syncing to DB...`);
+
+        // We use a transaction of upserts grouped in smaller batches (Prisma overhead)
+        const BATCH_SIZE = 100;
+        for (let i = 0; i < finalStats.length; i += BATCH_SIZE) {
+            const chunk = finalStats.slice(i, i + BATCH_SIZE);
+            const operations = chunk.map(stat =>
+                prisma.serviceAggregate.upsert({
+                    where: { serviceCode: stat.serviceCode },
+                    create: {
+                        serviceCode: stat.serviceCode,
+                        serviceName: stat.serviceName,
+                        lowestPrice: stat.lowestPrice,
+                        totalStock: stat.totalStock,
+                        countryCount: stat._countries.size,
+                        providerCount: stat._providers.size,
+                    },
+                    update: {
+                        serviceName: stat.serviceName,
+                        lowestPrice: stat.lowestPrice,
+                        totalStock: stat.totalStock,
+                        countryCount: stat._countries.size,
+                        providerCount: stat._providers.size,
+                        lastUpdatedAt: new Date()
+                    }
+                })
+            );
+            await prisma.$transaction(operations);
+        }
+
+        // 3. Cleanup Stale Aggregates
+        const activeServiceCodes = finalStats.map(s => s.serviceCode);
+        await prisma.serviceAggregate.deleteMany({
+            where: { serviceCode: { notIn: activeServiceCodes } }
+        });
+
+        // 4. Invalidate Redis Cache
+        await cacheSet(CACHE_KEYS.SERVICE_LIST_DEFAULT, null);
+
+        const duration = (Date.now() - startTime) / 1000;
+        logger.info(`[AGGREGATES] Refresh complete in ${duration}s. Synchronized ${finalStats.length} records.`);
+
+        return finalStats.length
+
+    } catch (error) {
+        logger.error('[AGGREGATES] Refresh failed critical:', error)
+        return 0
+    }
 }
 
 /**
  * Get service aggregates for the main list view
- * Precomputed = instant response
- */
-import { meili, INDEXES } from './search'
-
-/**
- * Get service aggregates for the main list view
  * Hybrid Approach: 
- * 1. If query present: Use MeiliSearch for typo-tolerance to get matching service codes
- * 2. Fetch actual aggregates from DB using those codes
- * 3. Fallback to SQL ILIKE if Meili fails or no query
+ * 1. If no query: Use Redis cache for sub-5ms responses.
+ * 2. If query present: Use MeiliSearch for typo-tolerance + DB for aggregates.
  */
 export async function getServiceAggregates(options?: {
     query?: string
@@ -90,46 +151,58 @@ export async function getServiceAggregates(options?: {
     const limit = options?.limit || 50
     const page = options?.page || 1
     const offset = (page - 1) * limit
+    const isDefaultList = !options?.query && page === 1 && limit === 50 && (!options?.sortBy || options.sortBy === 'name');
+
+    // 1. FAST PATH: Redis Cache for Default Page
+    if (isDefaultList) {
+        const cached = await cacheGet<{ items: any[], total: number }>(CACHE_KEYS.SERVICE_LIST_DEFAULT, async () => {
+            const [dbItems, count] = await Promise.all([
+                prisma.serviceAggregate.findMany({
+                    orderBy: { serviceName: 'asc' },
+                    take: limit
+                }),
+                prisma.serviceAggregate.count()
+            ]);
+
+            return {
+                items: dbItems.map(i => ({ ...i, totalStock: Number(i.totalStock) })),
+                total: count
+            }
+        }, 600); // 10 minute cache for default list
+
+        return { ...cached, page, limit };
+    }
 
     let where: any = {}
     let matchedSlugsOrder: string[] = []
 
-    // OPTIMIZED SEARCH: Use MeiliSearch for fuzzy matching if query exists
+    // 2. SEARCH PATH: MeiliSearch + DB
     if (options?.query && options.query.length > 0) {
         try {
             const index = meili.index(INDEXES.OFFERS)
-            // Search for distinct service slugs matching the query
-            // We search for "providers" (documents) but we only care about the serviceSlug
             const searchResults = await index.search(options.query, {
-                limit: 100, // Get top 100 matches
-                attributesToRetrieve: ['serviceSlug'],
-                showRankingScore: true
+                limit: 100,
+                attributesToRetrieve: ['providerServiceCode'],
             })
 
-            // Capture the ORDER of slugs (relevance)
-            matchedSlugsOrder = [...new Set(searchResults.hits.map((h: any) => h.serviceSlug))]
+            matchedSlugsOrder = [...new Set(searchResults.hits.map((h: any) => h.providerServiceCode).filter(Boolean))]
 
             if (matchedSlugsOrder.length > 0) {
-                console.log(`[SEARCH] Meili matched ${matchedSlugsOrder.length} services for "${options.query}"`)
                 where = { serviceCode: { in: matchedSlugsOrder } }
             } else {
-                // Determine if we should fallback or return empty
-                // If fuzzy search found nothing, likely nothing exists. 
-                // But let's fallback to DB ILIKE just in case Meili is out of sync.
-                console.log(`[SEARCH] Meili found no matches, falling back to DB ILIKE`)
                 where = {
                     OR: [
-                        { serviceCode: { contains: options.query, mode: 'insensitive' as const } },
-                        { serviceName: { contains: options.query, mode: 'insensitive' as const } }
+                        { serviceCode: { contains: options.query, mode: 'insensitive' } },
+                        { serviceName: { contains: options.query, mode: 'insensitive' } }
                     ]
                 }
             }
         } catch (e) {
-            console.warn('[SEARCH] Meili search failed, using DB fallback:', e)
+            logger.warn('[SEARCH] Meili search failed, using DB fallback:', e)
             where = {
                 OR: [
-                    { serviceCode: { contains: options.query, mode: 'insensitive' as const } },
-                    { serviceName: { contains: options.query, mode: 'insensitive' as const } }
+                    { serviceCode: { contains: options.query, mode: 'insensitive' } },
+                    { serviceName: { contains: options.query, mode: 'insensitive' } }
                 ]
             }
         }
@@ -141,20 +214,11 @@ export async function getServiceAggregates(options?: {
             ? { totalStock: 'desc' as const }
             : { serviceName: 'asc' as const }
 
-    // Important: We cannot simply use skip/take in SQL if we want Custom Order.
-    // But since we are limiting to top 100 matches in search, we can fetch all 100 and sort in memory.
-    // If no query, we use standard SQL pagination.
-
     let items, total;
 
     if (matchedSlugsOrder.length > 0) {
-        // RELEVANCE SORTING PATH
-        // 1. Fetch ALL matching items (up to our search limit)
-        const dbItems = await prisma.serviceAggregate.findMany({
-            where
-        })
+        const dbItems = await prisma.serviceAggregate.findMany({ where })
 
-        // 2. Sort them in memory based on matchedSlugsOrder
         const orderMap = new Map(matchedSlugsOrder.map((slug, i) => [slug, i]))
         dbItems.sort((a, b) => {
             const indexA = orderMap.get(a.serviceCode) ?? 999
@@ -162,13 +226,10 @@ export async function getServiceAggregates(options?: {
             return indexA - indexB
         })
 
-        // 3. Manual Pagination
         total = dbItems.length
-        items = dbItems.slice(offset, offset + limit)
-
+        items = dbItems.slice(offset, offset + limit).map(i => ({ ...i, totalStock: Number(i.totalStock) }))
     } else {
-        // STANDARD SQL PATH (Browsing or short query/Meili fallback)
-        [items, total] = await Promise.all([
+        const [dbItems, count] = await Promise.all([
             prisma.serviceAggregate.findMany({
                 where,
                 orderBy,
@@ -177,6 +238,8 @@ export async function getServiceAggregates(options?: {
             }),
             prisma.serviceAggregate.count({ where })
         ])
+        items = dbItems.map(i => ({ ...i, totalStock: Number(i.totalStock) }))
+        total = count
     }
 
     return { items, total, page, limit }

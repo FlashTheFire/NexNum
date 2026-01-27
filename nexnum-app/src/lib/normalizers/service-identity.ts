@@ -22,6 +22,8 @@ export const CANONICAL_SERVICE_NAMES: Record<string, string> = {}
 export const CANONICAL_DISPLAY_NAMES: Record<string, string> = {}
 export const CANONICAL_SERVICE_ICONS: Record<string, string> = {}
 const DISPLAY_NAME_TO_KEY: Record<string, string> = {}
+export const NUMERIC_ID_TO_SERVICE: Record<number, string> = {}
+export const NUMERIC_ID_TO_COUNTRY: Record<number, string> = {}
 
 for (const [key, config] of Object.entries(SERVICE_OVERRIDES)) {
     CANONICAL_SERVICE_NAME_MAP[key.toLowerCase()] = config.displayName
@@ -71,7 +73,7 @@ export function normalizeServiceName(name: string): string {
 /**
  * Resolve any input string to its canonical display name.
  */
-export function resolveToCanonicalName(input: string): string {
+export function getCanonicalName(input: string): string {
     if (!input) return ''
 
     // 0. Preliminary cleaning for slugs/codes
@@ -106,6 +108,28 @@ export function resolveToCanonicalName(input: string): string {
 }
 
 /**
+ * Resolve a numeric ID to a canonical name.
+ */
+export async function resolveNumericIdToName(type: 'service' | 'country', id: number | string): Promise<string | null> {
+    const numId = typeof id === 'string' ? parseInt(id) : id
+    if (isNaN(numId)) return null
+
+    const { prisma } = await import('@/lib/core/db')
+
+    if (type === 'service') {
+        const lookup = await (prisma.serviceLookup as any).findUnique({
+            where: { id: numId }
+        })
+        return lookup?.name || null
+    } else {
+        const lookup = await (prisma.countryLookup as any).findUnique({
+            where: { id: numId }
+        })
+        return lookup?.name || null
+    }
+}
+
+/**
  * Resolve input to the internal canonical key (e.g. "google", "telegram")
  * This is the best identifier for icons and internal logic.
  */
@@ -133,8 +157,9 @@ export function getCanonicalKey(input: string): string | undefined {
 
 /**
  * Convert any string to a URL-safe kebab-case slug (Derived from Name)
+ * Used for: URLs, Database Keys (ServiceLookup.code)
  */
-export function getSlugFromName(name: string): string {
+export function generateCanonicalCode(name: string): string {
     return name
         .toLowerCase()
         .trim()
@@ -144,3 +169,4 @@ export function getSlugFromName(name: string): string {
         .replace(/-+/g, '-')
         .replace(/^-|-$/g, '')
 }
+

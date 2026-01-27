@@ -1,5 +1,6 @@
 import { MetadataRoute } from 'next'
 import { searchAdminCountries, searchAdminServices } from '@/lib/search/search'
+import { normalizeServiceName, normalizeCountryName } from '@/lib/normalizers/service-identity'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://nexnum.com'
@@ -24,9 +25,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // 2. Dynamic Countries
     const countryResult = await searchAdminCountries('', { limit: 1000 })
     const countryRoutes = countryResult.items
-        .filter((c: any) => c.code)
         .map((country: any) => ({
-            url: `${baseUrl}/sms/${country.code.toLowerCase()}`,
+            url: `${baseUrl}/sms/${normalizeCountryName(country.canonicalName)}`,
             lastModified: new Date(country.lastSyncedAt),
             changeFrequency: 'hourly' as const,
             priority: 0.8,
@@ -35,7 +35,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // 3. Dynamic Services
     const serviceResult = await searchAdminServices('', { limit: 1000 })
     const serviceRoutes = serviceResult.items.map((service: any) => ({
-        url: `${baseUrl}/sms/service/${service.canonicalSlug}`,
+        url: `${baseUrl}/sms/service/${normalizeServiceName(service.canonicalName)}`,
         lastModified: new Date(),
         changeFrequency: 'hourly' as const,
         priority: 0.7,

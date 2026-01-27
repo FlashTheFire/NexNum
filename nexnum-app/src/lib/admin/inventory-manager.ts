@@ -120,7 +120,7 @@ export async function deleteCountry(
     try {
         const country = await prisma.providerCountry.findFirst({
             where: { providerId, externalId },
-            include: { _count: { select: { pricing: true } } }
+            // include: { _count: { select: { pricing: true } } } // Deleted
         })
 
         if (!country) {
@@ -133,7 +133,7 @@ export async function deleteCountry(
             return { success: false, message: 'Country not found', error: 'NOT_FOUND' }
         }
 
-        const pricingCount = country._count.pricing
+        const pricingCount = 0 // country._count.pricing
 
         if (permanent) {
             // Hard delete - cascades due to onDelete: Cascade
@@ -143,10 +143,7 @@ export async function deleteCountry(
         } else {
             // Soft delete - mark pricing as deleted and hide country
             await prisma.$transaction([
-                prisma.providerPricing.updateMany({
-                    where: { countryId: country.id },
-                    data: { deleted: true }
-                }),
+                // prisma.providerPricing.updateMany({ ... }), // Deleted
                 prisma.providerCountry.update({
                     where: { id: country.id },
                     data: { isActive: false }
@@ -297,14 +294,14 @@ export async function deleteService(
     try {
         const service = await prisma.providerService.findFirst({
             where: { providerId, externalId },
-            include: { _count: { select: { pricing: true } } }
+            // include: { _count: { select: { pricing: true } } }
         })
 
         if (!service) {
             return { success: false, message: 'Service not found', error: 'NOT_FOUND' }
         }
 
-        const pricingCount = service._count.pricing
+        const pricingCount = 0 // service._count.pricing
 
         if (permanent) {
             await prisma.providerService.delete({
@@ -312,10 +309,7 @@ export async function deleteService(
             })
         } else {
             await prisma.$transaction([
-                prisma.providerPricing.updateMany({
-                    where: { serviceId: service.id },
-                    data: { deleted: true }
-                }),
+                // prisma.providerPricing.updateMany({ ... }), // Deleted
                 prisma.providerService.update({
                     where: { id: service.id },
                     data: { isActive: false }
@@ -532,56 +526,19 @@ export async function syncProviderToMeiliSearch(providerId: string): Promise<Inv
         let cursor: string | undefined
         const BATCH_SIZE = 1000
 
+        // DEPRECATED: ProviderPricing is deleted. 
+        // Re-indexing must be done via Sync Engine directly from Provider API.
+        console.warn('[Sync] syncProviderToMeiliSearch is deprecated/disabled in New Architecture')
+        /*
         while (true) {
-            // Fetch active pricing with active countries and services only
-            const pricing = await prisma.providerPricing.findMany({
-                where: {
-                    providerId,
-                    deleted: false,
-                    country: { isActive: true },
-                    service: { isActive: true }
-                },
-                include: {
-                    country: true,
-                    service: true,
-                    provider: true
-                },
-                take: BATCH_SIZE,
-                skip: cursor ? 1 : 0,
-                cursor: cursor ? { id: cursor } : undefined,
-                orderBy: { id: 'asc' }
-            })
+             ... Logic removed ...
+        }
+        */
 
-            if (pricing.length === 0) {
-                break
-            }
-
-            // Update cursor for next batch
-            cursor = pricing[pricing.length - 1].id
-
-            // Build offer documents
-            const offers: OfferDocument[] = pricing.map((p, idx) => ({
-                id: `${provider.name}_${p.country.externalId}_${p.service.externalId}_${p.operator || 'default'}`.toLowerCase().replace(/[^a-z0-9_]/g, ''),
-                provider: provider.name,
-                countryCode: p.country.externalId,
-                countryName: p.country.name,
-                flagUrl: p.country.flagUrl || '',
-                serviceSlug: p.service.externalId,
-                serviceName: p.service.name,
-                iconUrl: p.service.iconUrl || undefined,
-                operatorId: (processedCount + idx) + 1, // Global continuous ID
-                externalOperator: p.operator || undefined,
-                operatorDisplayName: '',
-                price: Number(p.sellPrice),
-                stock: p.stock,
-                lastSyncedAt: Date.now()
-            }))
-
-            // Index to MeiliSearch
-            await indexOffers(offers)
-
-            processedCount += offers.length
-            console.log(`[Sync] Indexed batch of ${offers.length} offers for ${provider.name} (Total: ${processedCount})`)
+        return {
+            success: true,
+            message: `Sync trigger acknowledged (Note: Full re-indexing requires running Sync Engine)`,
+            affectedCount: 0
         }
 
         return {

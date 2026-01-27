@@ -39,10 +39,30 @@ export class ProviderRequestBuilder {
         if (urlStr.includes('{operator}')) {
             urlStr = urlStr.replace(/{operator}/g, 'any')
         }
+
+        // --- PHASE 27: PRE-FLIGHT VALIDATION ---
+        this.validateTemplate(urlStr, baseUrl);
+
         urlStr = urlStr.replace(/\/{[^}]*}/g, '') // Remove /{optional}
         urlStr = urlStr.replace(/{[^}]*}/g, '')    // Remove {optional}
 
         return new URL(urlStr)
+    }
+
+    /**
+     * Pre-flight Validation: Ensure no required {tokens} remain in the final string
+     */
+    private static validateTemplate(processedUrl: string, baseUrl: string): void {
+        const remainingTokens = processedUrl.match(/{([^}]+)}/g);
+        if (remainingTokens) {
+            // Filter out tokens that are likely optional (e.g., operator if we allow it to be empty)
+            const requiredTokens = remainingTokens.filter(t => !t.includes('?'));
+
+            if (requiredTokens.length > 0) {
+                const missing = requiredTokens.join(', ');
+                throw new Error(`[REQUEST_BUILDER] Missing required parameters for provider API: ${missing}. Check configuration for Base URL: ${baseUrl}`);
+            }
+        }
     }
 
     /**

@@ -60,7 +60,7 @@ export default function LoadingScreen({ status = "Authenticating" }: LoadingScre
                     >
                         <div className="relative w-40 h-40">
                             <Image
-                                src="/logos/nexnum-logo-outline.svg"
+                                src="/assets/brand/nexnum-logo-outline.svg"
                                 alt=""
                                 fill
                                 className="object-contain"
@@ -83,7 +83,7 @@ export default function LoadingScreen({ status = "Authenticating" }: LoadingScre
                         className="relative z-10 w-32 h-32"
                     >
                         <Image
-                            src="/logos/nexnum-logo.svg"
+                            src="/assets/brand/nexnum-logo.svg"
                             alt="NexNum"
                             fill
                             className="object-contain drop-shadow-[0_15px_40px_rgba(0,0,0,0.95)]"

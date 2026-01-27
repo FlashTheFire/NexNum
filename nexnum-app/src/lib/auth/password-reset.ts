@@ -3,6 +3,7 @@ import { randomBytes } from 'crypto'
 import bcrypt from 'bcryptjs'
 import { EmailService } from '@/lib/email'
 import { PasswordResetEmail } from '@/components/emails/PasswordResetEmail'
+import { logger } from '@/lib/core/logger'
 
 const RESET_TOKEN_EXPIRY = 30 * 60 * 1000 // 30 minutes
 
@@ -26,7 +27,7 @@ export async function requestPasswordReset(email: string, ipAddress?: string): P
 
     if (user.googleId) {
         // User signed up with Google, cannot reset password
-        // Should we notify them? ideally yes.
+        logger.warn('Password reset attempted for Google-auth user', { userId: user.id })
         return { success: true }
     }
 
@@ -62,8 +63,8 @@ export async function requestPasswordReset(email: string, ipAddress?: string): P
             })
         })
         return { success: true }
-    } catch (error) {
-        console.error('Failed to send reset email:', error)
+    } catch (error: any) {
+        logger.error('Failed to send reset email', { error: error.message, userId: user.id })
         return { success: false, error: 'Failed to send email' }
     }
 }
@@ -103,6 +104,8 @@ export async function resetPassword(token: string, newPassword: string): Promise
             data: { usedAt: new Date() }
         })
     ])
+
+    logger.info('Password reset successful', { userId: resetRecord.userId, ipAddress: resetRecord.ipAddress })
 
     return { success: true }
 }

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * MeiliSearch-First Search System
  * 
  * Single `offers` index is the source of truth for all Buy flow data.
@@ -12,9 +12,9 @@ import path from 'path'
 import { getCountryFlagUrlSync } from '@/lib/normalizers/country-flags'
 import {
     normalizeServiceName,
-    resolveToCanonicalName,
+    getCanonicalName,
     normalizeCountryName,
-    getSlugFromName,
+    generateCanonicalCode,
     SERVICE_OVERRIDES,
     POPULAR_SERVICES,
     CANONICAL_SERVICE_NAME_MAP,
@@ -23,6 +23,10 @@ import {
     CANONICAL_SERVICE_ICONS
 } from '@/lib/normalizers/service-identity'
 import { isValidImageUrl } from '@/lib/utils/utils'
+import { cacheGet, CACHE_KEYS, CACHE_TTL } from '@/lib/core/redis'
+import crypto from 'crypto'
+import { search_latency, search_empty_results } from '@/lib/metrics'
+import { logger } from '@/lib/core/logger'
 
 // Meilisearch client
 export const meili = new MeiliSearch({
@@ -34,6 +38,12 @@ export const meili = new MeiliSearch({
 export const INDEXES = {
     OFFERS: 'offers',   // Main index - all pricing data
 }
+
+/**
+ * Enterprise Shadow Index Prefixes
+ * Used for Blue-Green atomic swaps during long-running syncs.
+ */
+export const SHADOW_PREFIX = 'shadow_';
 
 // Admin API View Modes
 export type InventoryViewMode = 'aggregated' | 'raw';
@@ -52,35 +62,33 @@ export type InventoryViewMode = 'aggregated' | 'raw';
 
 export interface OfferDocument {
     id: string;           // Composite: provider_country_service_operator
+    provider: string;     // Provider slug (e.g. "5sim", "grizzlysms")
 
-    // Service Info
-    serviceSlug: string;
-    serviceName: string;
-    iconUrl?: string;  // Service icon URL
+    // === SQL Registry IDs (For linking back) ===
+    serviceId?: number;    // FK to ServiceLookup.serviceId
+    countryId?: number;    // FK to CountryLookup.countryId
 
-    // Country Info
-    countryCode: string;
-    countryName: string;
-    flagUrl: string;
+    // === Display Names (Mirrored for fast search) ===
+    serviceName: string;   // Canonical Name (e.g. "WhatsApp")
+    countryName: string;   // Canonical Name (e.g. "India")
 
+    // === RAW PROVIDER CODES (For Purchase API) ===
+    providerServiceCode: string;  // e.g. "wa", "tg" - VERBATIM from provider API
+    providerCountryCode: string;  // e.g. "91", "india" - VERBATIM from provider API
 
-    // Provider Info (slug only - lookup displayName from DB at query time)
-    provider: string;  // Internal slug (e.g., "grizzlysms", "5sim")
-    logoUrl?: string;
+    // === Pricing ===
+    price: number;         // Sell price in COINS (System Currency)
+    rawPrice: number;      // Provider's raw cost (Their Currency unit)
 
-    // Operator/Server Info (for purchase routing)
-    operatorId: number;           // Our internal sequential ID (1, 2, 3...) - safe for users
-    externalOperator?: string;    // Provider's raw operator ID (backend only, not exposed to users)
-    // operatorDisplayName removed as per user request
-
-    // Pricing
-    price: number;
+    // === Inventory ===
     stock: number;
-    successRate?: number;
+    operator?: string;     // Operator/server identifier
 
-    // Metadata
+    // === Metadata ===
+    serviceIcon?: string;  // Icon URL
+    countryIcon?: string;  // Flag URL
+    isActive: boolean;
     lastSyncedAt: number;
-    isActive?: boolean;
 }
 
 
@@ -130,7 +138,7 @@ export interface CountryAggregate {
  */
 export function aggregateCountryFromHit(
     countryMap: Map<string, CountryAggregate>,
-    hit: { countryCode?: string; countryName: string; flagUrl?: string; price: number; stock?: number; provider: string }
+    hit: { countryCode?: string; countryName: string; countryIcon?: string; price: number; stock?: number; provider: string }
 ): void {
     const key = normalizeCountryName(hit.countryName)
 
@@ -194,164 +202,92 @@ export async function getTopCountriesWithFlags(
 
 /**
  * Search Countries for a Service
- * 
- * SMART FEATURES:
- * - Aggregates by normalized country NAME (not provider code) to eliminate duplicates
- * - Smart service lookup: accepts both slug ("tg") and name ("Telegram")
- * - Picks best flagUrl from available offers
  */
 export async function searchCountries(
-    serviceSlug: string,
+    serviceCode: string,
     query: string = '',
     options?: { page?: number; limit?: number; sort?: string }
 ): Promise<{ countries: CountryStats[]; total: number }> {
+    const startTime = Date.now()
     try {
         const index = meili.index(INDEXES.OFFERS)
         const limit = options?.limit || 50
         const page = options?.page || 1
-        const sort = options?.sort || 'name'
 
-        // STEP 1: RESOLVE SERVICE NAME
-        // We strictly use the Canonical Name as the identity
-        const rawInput = serviceSlug.toLowerCase().trim()
-        let serviceNameToFilter = resolveToCanonicalName(serviceSlug)
+        const serviceNameToFilter = getCanonicalName(serviceCode) || serviceCode
 
-        // Fallback if no matching service document found
-        if (!serviceNameToFilter) {
-            serviceNameToFilter = rawInput.charAt(0).toUpperCase() + rawInput.slice(1)
-        }
-
-        // STEP 2: Filter by SERVICE NAME (Robust Multi-Casing)
-        // Catch common variations
-        const distinctNames = new Set<string>([
-            serviceNameToFilter,
-            serviceNameToFilter.toLowerCase(),
-            serviceNameToFilter.toUpperCase()
-        ])
-
-        const serviceFilter = Array.from(distinctNames)
-            .filter(Boolean)
-            .map(name => `serviceName = "${name}"`)
-            .join(' OR ')
-
-        let result = await index.search(query, {
-            filter: `${serviceFilter} AND isActive = true`,
-            limit: 10000,
-            attributesToRetrieve: ['countryCode', 'countryName', 'flagUrl', 'provider', 'price', 'stock'],
+        const result = await index.search(query, {
+            filter: `serviceName = "${serviceNameToFilter}" AND isActive = true`,
+            limit: 2000,
+            attributesToRetrieve: ['providerCountryCode', 'countryName', 'provider', 'price', 'stock'],
         })
 
-        // SMART AGGREGATION: Group by NORMALIZED COUNTRY NAME (not provider code!)
-        // This eliminates duplicates like "Algeria" appearing 3 times from different providers
+        // Metrics
+        search_latency.observe({ type: 'countries' }, (Date.now() - startTime) / 1000)
 
         const countryMap = new Map<string, {
-            displayName: string;  // Best display name (longest/most proper)
-            flagUrl: string;      // Best flagUrl (prefer non-empty, valid URLs)
+            displayName: string;
             minPrice: number;
             totalStock: number;
             providers: Set<string>;
-            countryCodes: Set<string>;  // Track all provider codes for this country
             bestCode?: string;
         }>()
 
         for (const hit of result.hits as OfferDocument[]) {
-            const normalizedName = normalizeCountryName(hit.countryName || '')
-            // console.log(`[DEBUG] Search Hit: ${hit.countryName} (Code: ${hit.countryCode}) -> Norm: ${normalizedName}`);
+            const normalizedName = normalizeCountryName(hit.countryName)
             if (!normalizedName) continue
 
-            if (!countryMap.has(normalizedName)) {
-                countryMap.set(normalizedName, {
+            let stats = countryMap.get(normalizedName)
+            if (!stats) {
+                stats = {
                     displayName: hit.countryName,
-                    flagUrl: '', // Will be computed
                     minPrice: hit.price,
                     totalStock: 0,
                     providers: new Set(),
-                    countryCodes: new Set(),
-                    bestCode: hit.countryCode
-                })
-            }
-
-            const stats = countryMap.get(normalizedName)!
-
-            // Pick best display name (prefer longer, properly formatted names)
-            if (hit.countryName && hit.countryName.length > stats.displayName.length) {
-                stats.displayName = hit.countryName
-            }
-
-
-
-            // Capture a valid code if missing
-            if (!stats.bestCode && hit.countryCode) {
-                stats.bestCode = hit.countryCode
+                    bestCode: hit.providerCountryCode
+                }
+                countryMap.set(normalizedName, stats)
             }
 
             stats.minPrice = Math.min(stats.minPrice, hit.price)
             stats.totalStock += hit.stock || 0
             stats.providers.add(hit.provider)
-            stats.countryCodes.add(hit.countryCode)
+            if (!stats.bestCode && hit.providerCountryCode) stats.bestCode = hit.providerCountryCode
         }
 
-        // Convert to array - use normalized name as code for consistency
         let countries: CountryStats[] = Array.from(countryMap.values()).map(g => ({
-            code: getSlugFromName(g.displayName), // Derive routing code from name
+            code: generateCanonicalCode(g.displayName),
             name: g.displayName,
             identifier: g.bestCode,
-            // UNIVERSAL: Use country NAME for flag lookup (provider IDs vary, names don't)
             flagUrl: getCountryFlagUrlSync(g.displayName) || '',
             lowestPrice: g.minPrice,
             totalStock: g.totalStock,
             serverCount: g.providers.size,
         }))
 
-        // Filter by query
-        if (query) {
-            const q = query.toLowerCase()
-            countries = countries.filter(c =>
-                c.name.toLowerCase().includes(q)
-            )
-        }
+        // Multi-level sort
+        countries.sort((a, b) => {
+            if (options?.sort === 'price_asc') return a.lowestPrice - b.lowestPrice
+            if (options?.sort === 'stock_desc') return b.totalStock - a.totalStock
+            return a.name.localeCompare(b.name)
+        })
 
-        // Sorting
-        switch (sort) {
-            case 'relevance':
-                // Relevance = cheapest first (most attractive offers)
-                countries.sort((a, b) => a.lowestPrice - b.lowestPrice)
-                break
-            case 'price_asc':
-                countries.sort((a, b) => a.lowestPrice - b.lowestPrice)
-                break
-            case 'price':
-                countries.sort((a, b) => a.lowestPrice - b.lowestPrice)
-                break
-            case 'price_desc':
-                countries.sort((a, b) => b.lowestPrice - a.lowestPrice)
-                break
-            case 'stock_desc':
-                countries.sort((a, b) => b.totalStock - a.totalStock)
-                break
-            case 'stock':
-                countries.sort((a, b) => b.totalStock - a.totalStock)
-                break
-            default:
-                // Default to Name (A-Z)
-                countries.sort((a, b) => a.name.localeCompare(b.name))
-        }
-
-        // Pagination
         const start = (page - 1) * limit
-        const paginatedCountries = countries.slice(start, start + limit)
-
         return {
-            countries: paginatedCountries,
+            countries: countries.slice(start, start + limit),
             total: countries.length,
         }
     } catch (error) {
-        console.error('searchCountries failed:', error)
+        logger.error('searchCountries failed:', error)
         return { countries: [], total: 0 }
     }
 }
 
 // ...
 
+/**
+ * Admin: Search Aggregated Countries
+ */
 export async function searchAdminCountries(
     query: string = '',
     options?: { page?: number; limit?: number; provider?: string; includeHidden?: boolean }
@@ -361,89 +297,62 @@ export async function searchAdminCountries(
         const limit = options?.limit || 50
         const page = options?.page || 1
 
-        // Build filter
         const filters: string[] = []
         if (options?.provider) filters.push(`provider = "${options.provider}"`)
         if (!options?.includeHidden) filters.push('isActive = true')
-        const filterStr = filters.length > 0 ? filters.join(' AND ') : undefined
 
         const result = await index.search(query, {
-            filter: filterStr,
-            limit: 10000,
-            attributesToRetrieve: ['countryCode', 'countryName', 'flagUrl', 'provider', 'serviceSlug', 'price', 'stock', 'lastSyncedAt', 'id', 'isActive'],
+            filter: filters.length > 0 ? filters.join(' AND ') : undefined,
+            limit: 5000,
+            attributesToRetrieve: ['providerCountryCode', 'countryName', 'provider', 'price', 'stock', 'lastSyncedAt', 'isActive'],
         })
 
-        const groups = new Map<string, {
-            countryCode: string
-            canonicalName: string
-            displayName: string
-            flagUrl: string
-            providers: Map<string, { provider: string; externalId: string; stock: number; minPrice: number; maxPrice: number; isActive: boolean }>
-            services: Set<string>
-            totalStock: number
-            priceRange: { min: number; max: number }
-            lastSyncedAt: number
-        }>()
+        const groups = new Map<string, any>()
 
         for (const hit of result.hits as OfferDocument[]) {
-            const code = (hit.countryCode || 'unknown').toLowerCase()
-            if (!groups.has(code)) {
-                groups.set(code, {
-                    countryCode: code,
+            const key = normalizeCountryName(hit.countryName)
+            let group = groups.get(key)
+
+            if (!group) {
+                group = {
+                    countryCode: hit.providerCountryCode,
                     canonicalName: hit.countryName,
                     displayName: hit.countryName,
-                    flagUrl: hit.flagUrl || '',
+                    flagUrl: getCountryFlagUrlSync(hit.countryName) || '',
                     providers: new Map(),
-                    services: new Set(),
                     totalStock: 0,
-                    priceRange: { min: Infinity, max: 0 },
+                    priceRange: { min: hit.price, max: hit.price },
                     lastSyncedAt: hit.lastSyncedAt
-                })
+                }
+                groups.set(key, group)
             }
-            // ...
-            const group = groups.get(code)!
-            group.services.add(hit.serviceSlug)
 
             group.totalStock += hit.stock || 0
-            if (hit.price < group.priceRange.min) group.priceRange.min = hit.price
-            if (hit.price > group.priceRange.max) group.priceRange.max = hit.price
+            group.priceRange.min = Math.min(group.priceRange.min, hit.price)
+            group.priceRange.max = Math.max(group.priceRange.max, hit.price)
+            group.lastSyncedAt = Math.max(group.lastSyncedAt, hit.lastSyncedAt)
 
             if (!group.providers.has(hit.provider)) {
-                const externalId = (hit.serviceSlug || '').split('_').pop() || hit.serviceSlug // Use full slug as externalId for service
                 group.providers.set(hit.provider, {
                     provider: hit.provider,
-                    externalId: externalId,
                     stock: hit.stock || 0,
                     minPrice: hit.price,
-                    maxPrice: hit.price,
                     isActive: hit.isActive !== false
                 })
             } else {
-                const p = group.providers.get(hit.provider)!
-                p.stock += hit.stock || 0
-                if (hit.price < p.minPrice) p.minPrice = hit.price
-                if (hit.price > p.maxPrice) p.maxPrice = hit.price
-            }
-            if (hit.lastSyncedAt > group.lastSyncedAt) {
-                group.lastSyncedAt = hit.lastSyncedAt
+                const p = group.providers.get(hit.provider)
+                p.stock += hit.stock
+                p.minPrice = Math.min(p.minPrice, hit.price)
             }
         }
 
         const items = Array.from(groups.values()).map(g => ({
-            countryCode: g.countryCode,
-            canonicalName: g.canonicalName,
-            displayName: g.displayName,
-            flagUrl: g.flagUrl,
+            ...g,
             providers: Array.from(g.providers.values()),
-            totalProviders: g.providers.size,
-            serviceCount: g.services.size,
-            totalStock: g.totalStock,
-            priceRange: g.priceRange.min === Infinity ? { min: 0, max: 0 } : g.priceRange,
-            lastSyncedAt: g.lastSyncedAt
+            totalProviders: g.providers.size
         }))
-        // ...
 
-        items.sort((a, b) => a.canonicalName.localeCompare(b.canonicalName)) // Sort
+        items.sort((a, b) => a.canonicalName.localeCompare(b.canonicalName))
 
         const start = (page - 1) * limit
         return {
@@ -451,7 +360,7 @@ export async function searchAdminCountries(
             total: items.length
         }
     } catch (e) {
-        // ...
+        logger.error('searchAdminCountries failed:', e)
         return { items: [], total: 0 }
     }
 }
@@ -468,14 +377,14 @@ export async function searchRawInventory(
 
         // Build filter
         const filters: string[] = []
-        if (options?.provider) filters.push(`provider = "${options.provider}"`)
+        if (options?.provider) filters.push(`providerName = "${options.provider}"`)
         if (!options?.includeHidden) filters.push('isActive = true')
         const filterStr = filters.length > 0 ? filters.join(' AND ') : undefined
 
         const result = await index.search(query, {
             filter: filterStr,
             limit: 10000,
-            attributesToRetrieve: ['countryCode', 'countryName', 'flagUrl', 'provider', 'serviceSlug', 'serviceName', 'price', 'stock', 'lastSyncedAt', 'id', 'isActive'],
+            attributesToRetrieve: ['providerCountryCode', 'countryName', 'countryIcon', 'provider', 'providerServiceCode', 'serviceName', 'price', 'stock', 'lastSyncedAt', 'id', 'isActive'],
         })
 
         const seen = new Map<string, any>()
@@ -483,7 +392,7 @@ export async function searchRawInventory(
         for (const hit of result.hits as any[]) {
             const canonicalName = type === 'countries'
                 ? hit.countryName
-                : resolveToCanonicalName(hit.serviceName)
+                : getCanonicalName(hit.serviceName)
 
             const normalizedKey = type === 'countries'
                 ? normalizeCountryName(hit.countryName)
@@ -495,9 +404,9 @@ export async function searchRawInventory(
                 if (type === 'countries') {
                     seen.set(key, {
                         id: key,
-                        externalId: hit.countryCode, // Used only as visual ref
+                        externalId: hit.providerCountryCode, // Used only as visual ref
                         name: hit.countryName,
-                        iconUrl: hit.flagUrl,
+                        iconUrl: hit.countryIcon,
                         provider: hit.provider,
                         lastSyncedAt: new Date(hit.lastSyncedAt),
                         isActive: hit.isActive !== false
@@ -505,13 +414,14 @@ export async function searchRawInventory(
                 } else {
                     seen.set(key, {
                         id: key,
-                        externalId: hit.serviceSlug, // Used only as visual ref
+                        externalId: hit.providerServiceCode, // Used only as visual ref
                         name: canonicalName,
-                        slug: getSlugFromName(canonicalName),
+                        code: generateCanonicalCode(canonicalName),
                         provider: hit.provider,
                         lastSyncedAt: new Date(hit.lastSyncedAt),
                         _count: { pricing: hit.stock ? 1 : 0 },
-                        isActive: hit.isActive !== false
+                        isActive: hit.isActive !== false,
+                        iconUrl: hit.serviceIcon
                     })
                 }
             }
@@ -538,13 +448,13 @@ export async function searchRawInventory(
 // INDEX INITIALIZATION
 // ============================================
 
-export async function initSearchIndexes() {
+export async function initSearchIndexes(indexName: string = INDEXES.OFFERS) {
     try {
-        const offersIndex = meili.index(INDEXES.OFFERS)
+        const offersIndex = meili.index(indexName)
 
         await offersIndex.updateSettings({
-            searchableAttributes: ['serviceName', 'serviceSlug', 'countryName', 'countryCode', 'provider'],
-            filterableAttributes: ['serviceSlug', 'serviceName', 'countryCode', 'countryName', 'provider', 'operatorId', 'price', 'stock', 'lastSyncedAt', 'isActive'],
+            searchableAttributes: ['serviceName', 'providerServiceCode', 'countryName', 'providerCountryCode', 'provider'],
+            filterableAttributes: ['providerServiceCode', 'serviceName', 'serviceId', 'providerCountryCode', 'countryName', 'countryId', 'provider', 'operator', 'price', 'stock', 'lastSyncedAt', 'isActive'],
             sortableAttributes: ['price', 'stock', 'lastSyncedAt'],
             rankingRules: ['words', 'typo', 'proximity', 'attribute', 'sort', 'exactness', 'stock:desc', 'lastSyncedAt:desc'],
             distinctAttribute: null,
@@ -555,7 +465,7 @@ export async function initSearchIndexes() {
             pagination: { maxTotalHits: 10000 }
         })
 
-        console.log('✅ MeiliSearch "Deep Search" indexes initialized')
+        console.log('âœ… MeiliSearch "Deep Search" indexes initialized')
     } catch (error) {
         console.error('Failed to initialize search indexes:', error)
     }
@@ -565,9 +475,9 @@ export async function initSearchIndexes() {
  * Force re-application of search settings (e.g. after config change)
  */
 export async function reconfigureIndexes() {
-    console.log('🔄 Reconfiguring search indexes with Deep Search settings...')
+    console.log('ðŸ”„ Reconfiguring search indexes with Deep Search settings...')
     await initSearchIndexes()
-    console.log('✨ Deep Search upgrade complete.')
+    console.log('âœ¨ Deep Search upgrade complete.')
 }
 
 /**
@@ -577,49 +487,49 @@ export async function reconfigureIndexes() {
 export async function getServiceIconUrlByName(serviceName: string): Promise<string | undefined> {
     if (!serviceName) return undefined
     try {
-        const canonicalName = resolveToCanonicalName(serviceName)
-        const serviceSlug = getSlugFromName(canonicalName)
+        const canonicalName = getCanonicalName(serviceName)
+        const serviceCode = generateCanonicalCode(canonicalName)
 
         // 1. Check Local Smart Icon System
         // We prioritize local .webp icons managed by our sync script
-        const localIconPath = path.join(process.cwd(), 'public/icons/services', `${serviceSlug}.webp`)
+        const localIconPath = path.join(process.cwd(), 'public/assets/icons/services', `${serviceCode}.webp`)
         if (fs.existsSync(localIconPath)) {
-            return `/icons/services/${serviceSlug}.webp`
+            return `/assets/icons/services/${serviceCode}.webp`
         }
 
         // Fallback to SVG if WebP missing
-        const localSvgPath = path.join(process.cwd(), 'public/icons/services', `${serviceSlug}.svg`)
+        const localSvgPath = path.join(process.cwd(), 'public/assets/icons/services', `${serviceCode}.svg`)
         if (fs.existsSync(localSvgPath)) {
-            return `/icons/services/${serviceSlug}.svg`
+            return `/assets/icons/services/${serviceCode}.svg`
         }
 
         const index = meili.index(INDEXES.OFFERS)
 
         // Try filter-based exact match first
         let result = await index.search<OfferDocument>('', {
-            filter: `serviceSlug = "${serviceSlug}"`,
+            filter: `providerServiceCode = "${serviceCode}"`,
             limit: 10,
-            attributesToRetrieve: ['iconUrl', 'serviceName']
+            attributesToRetrieve: ['serviceIcon', 'serviceName']
         })
 
         // Fallback to text search if no filter results
         if (result.hits.length === 0) {
             result = await index.search<OfferDocument>(serviceName, {
                 limit: 10,
-                attributesToRetrieve: ['iconUrl', 'serviceName']
+                attributesToRetrieve: ['serviceIcon', 'serviceName']
             })
         }
 
         // Find best icon (prefer local, then professional provider icons, allow dicebear as fallback)
         for (const hit of result.hits) {
-            if (hit.iconUrl && hit.iconUrl.startsWith('http')) {
+            if (hit.serviceIcon && hit.serviceIcon.startsWith('http')) {
                 // Return immediately if it's a professional icon
-                if (!hit.iconUrl.includes('dicebear')) return hit.iconUrl;
+                if (!hit.serviceIcon.includes('dicebear')) return hit.serviceIcon;
             }
         }
 
         // Final fallback: just return the first one available (including dicebear)
-        return result.hits[0]?.iconUrl;
+        return result.hits[0]?.serviceIcon;
     } catch (error) {
         console.error('Failed to lookup service icon:', error)
     }
@@ -638,110 +548,91 @@ export async function searchServices(
     query: string = '',
     options?: { page?: number; limit?: number; sort?: string }
 ): Promise<{ services: ServiceStats[]; total: number }> {
+    const startTime = Date.now()
     try {
         const index = meili.index(INDEXES.OFFERS)
         const limit = options?.limit || 50
         const page = options?.page || 1
 
-        // Get all matching offers to aggregate (Active Only)
+        // Optimized: Get only what we need for aggregation
         const result = await index.search(query, {
             filter: `isActive = true`,
-            limit: 5000, // Get enough for aggregation
-            attributesToRetrieve: ['serviceSlug', 'serviceName', 'iconUrl', 'countryCode', 'countryName', 'flagUrl', 'provider', 'price', 'stock'],
+            limit: 2000,
+            attributesToRetrieve: [
+                'providerServiceCode',
+                'serviceName',
+                'serviceIcon',
+                'provider',
+                'price',
+                'stock',
+                'countryName'
+            ],
         })
 
-        // Aggregate by NORMALIZED SERVICE NAME (universal deduplication)
-        // This merges services regardless of provider-specific slug variations
+        // Performance Tracking
+        search_latency.observe({ type: 'services' }, (Date.now() - startTime) / 1000)
+        if (result.hits.length === 0) {
+            search_empty_results.inc({ type: 'services', query })
+        }
+
         const serviceMap = new Map<string, {
-            slug: string;       // Best canonical slug for routing
-            name: string;       // Display name
-            icon?: string;      // Best icon URL
+            slug: string;
+            name: string;
+            icon?: string;
             minPrice: number;
             totalStock: number;
-            providers: Set<string>;
-            countries: Map<string, CountryAggregate>;
+            providerSet: Set<string>;
+            countrySet: Set<string>;
+            hits: any[];
         }>()
 
         for (const hit of result.hits as OfferDocument[]) {
-            // STEP 1: Canonicalize service name
-            const canonicalName = resolveToCanonicalName(hit.serviceName)
-
-            // STEP 2: Normalize for aggregation key
+            const canonicalName = getCanonicalName(hit.serviceName)
             const normalizedKey = normalizeServiceName(canonicalName)
 
-            if (!serviceMap.has(normalizedKey)) {
-                serviceMap.set(normalizedKey, {
-                    // STRICT SLUG: Use the raw provider code if available (e.g. "swr" instead of "railone")
-                    // This ensures the URL /buy/[slug] actually works for lookup
-                    slug: hit.serviceSlug || getSlugFromName(canonicalName),
+            let stats = serviceMap.get(normalizedKey)
+            if (!stats) {
+                stats = {
+                    slug: hit.providerServiceCode || generateCanonicalCode(canonicalName),
                     name: canonicalName,
-                    icon: hit.iconUrl,
+                    icon: hit.serviceIcon,
                     minPrice: hit.price,
                     totalStock: 0,
-                    providers: new Set(),
-                    countries: new Map(),
-                })
-            }
-            const stats = serviceMap.get(normalizedKey)!
-
-            // Prefer shorter/cleaner slugs if multiple providers for same service
-            // E.g. if we have "swr" and "rail-one", keep "swr" usually. 
-            // For now, first wins, or if current is auto-generated, replace with raw.
-            // (Simple logic: if current slug equals name-slug but hit has distinct slug, take hit)
-            if (stats.slug === getSlugFromName(stats.name) && hit.serviceSlug && hit.serviceSlug !== stats.slug) {
-                stats.slug = hit.serviceSlug
+                    providerSet: new Set(),
+                    countrySet: new Set(),
+                    hits: []
+                }
+                serviceMap.set(normalizedKey, stats)
             }
 
             stats.minPrice = Math.min(stats.minPrice, hit.price)
             stats.totalStock += hit.stock || 0
-            stats.providers.add(hit.provider)
+            stats.providerSet.add(hit.provider)
+            stats.countrySet.add(normalizeCountryName(hit.countryName))
+            if (stats.hits.length < 10) stats.hits.push(hit)
 
-            // Use shared country aggregation helper
-            aggregateCountryFromHit(stats.countries, {
-                countryName: hit.countryName,
-                countryCode: hit.countryCode, // STRICT: Pass raw ID ("22") for flag generation
-                flagUrl: hit.flagUrl,
-                price: hit.price,
-                stock: hit.stock,
-                provider: hit.provider
-            })
-
-            // SMART ICON PREFERENCE
-            const currentIconIsPlaceholder = !stats.icon || stats.icon.includes('dicebear')
-            const hitIconIsReal = hit.iconUrl && hit.iconUrl.startsWith('http') && !hit.iconUrl.includes('dicebear')
-
-            if (hitIconIsReal && currentIconIsPlaceholder) {
-                stats.icon = hit.iconUrl
+            if (hit.serviceIcon && !hit.serviceIcon.includes('dicebear')) {
+                if (!stats.icon || stats.icon.includes('dicebear')) {
+                    stats.icon = hit.serviceIcon
+                }
             }
         }
 
-        // Convert to array and sort by name
-        let services: ServiceStats[] = []
-
-        for (const [_normalizedKey, stats] of serviceMap.entries()) {
-            // Use shared function for top countries with flags (same logic as Step 2)
-            const topCountries = await getTopCountriesWithFlags(stats.countries, 3)
-
-            // Determine Popularity (Backend Driven) - use the stored canonical slug
-            const isPopular = POPULAR_SERVICES.includes(stats.slug) || stats.providers.size > 2
-
-            // Icon Resolution: Canonical > Aggregated Valid > DiceBear Fallback
-            const finalIcon = stats.icon
-
-            services.push({
+        let services: ServiceStats[] = Array.from(serviceMap.values()).map(stats => {
+            const isPopular = POPULAR_SERVICES.includes(stats.slug) || stats.providerSet.size > 2
+            return {
                 slug: stats.slug,
                 name: stats.name,
-                iconUrl: finalIcon || `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(stats.name)}&backgroundColor=0ea5e9,6366f1,8b5cf6,ec4899`,
+                iconUrl: stats.icon || '',
                 popular: isPopular,
                 lowestPrice: stats.minPrice,
                 totalStock: stats.totalStock,
-                serverCount: stats.providers.size,
-                countryCount: stats.countries.size,
-                topCountries
-            })
-        }
+                serverCount: stats.providerSet.size,
+                countryCount: stats.countrySet.size,
+                topCountries: []
+            }
+        })
 
-        // Filter by query if specified
         if (query) {
             const q = query.toLowerCase()
             services = services.filter(s =>
@@ -749,68 +640,58 @@ export async function searchServices(
             )
         }
 
-        // Sort by name (with Popular priority on default view)
-        // Sort services
         services.sort((a, b) => {
-            // Price Ascending
             if (options?.sort === 'price_asc') {
-                const diff = (a.lowestPrice || Infinity) - (b.lowestPrice || Infinity)
-                if (Math.abs(diff) > 0.0001) return diff
+                const diff = a.lowestPrice - b.lowestPrice
+                if (Math.abs(diff) > 0) return diff
             }
-            // Stock Descending
             if (options?.sort === 'stock_desc') {
-                const diff = (b.totalStock || 0) - (a.totalStock || 0)
-                if (diff !== 0) return diff
+                return b.totalStock - a.totalStock
             }
-
-            // Default (Relevance/Smart Rank) - V2 Robust Algorithm
-            // Balances Price (Inverse Curve) and Stock (Log Scale) to prevent ties and A-Z fallback.
-            if (!options?.sort || options.sort === 'relevance') {
-                const getScore = (s: ServiceStats) => {
-                    const stock = s.totalStock || 0
-                    const price = s.lowestPrice || 999 // High fallback price if missing
-
-                    // 1. Stock Score (Logarithmic - dimishing returns)
-                    // log10(100) = 2, log10(100k) = 5, log10(100M) = 8
-                    // Multiplier 1.5 gives scores: 100->3, 100k->7.5, 100M->12 (capped at 10)
-                    const stockScore = Math.min(10, Math.log10(stock + 1) * 1.5)
-
-                    // 2. Price Score (Inverse Curve - Lower is better)
-                    // 15 / (1 + Price)
-                    // $0.50 -> 10.0 score (Excellent)
-                    // $5.00 -> 2.5 score (Mediocre)
-                    // $60.00 -> 0.2 score (Poor)
-                    const priceScore = 15 / (1 + price)
-
-                    // 3. Popularity Bonus
-                    const popBonus = s.popular ? 3 : 0
-
-                    // Weight: 50% Stock, 50% Price
-                    return (stockScore * 0.5) + (priceScore * 0.5) + popBonus
-                }
-
-                const scoreA = getScore(a)
-                const scoreB = getScore(b)
-
-                // Sort descending by score
-                if (Math.abs(scoreA - scoreB) > 0.01) { // Finer precision threshold
-                    return scoreB - scoreA
-                }
+            const getScore = (s: ServiceStats) => {
+                const stock = s.totalStock || 0
+                const price = s.lowestPrice || 999
+                const stockScore = Math.min(10, Math.log10(stock + 1) * 1.5)
+                const priceScore = 15 / (1 + price)
+                return (stockScore * 0.5) + (priceScore * 0.5) + (s.popular ? 3 : 0)
             }
-
-            return a.name.localeCompare(b.name)
+            return getScore(b) - getScore(a)
         })
 
-        // Paginate
         const start = (page - 1) * limit
         const paginatedServices = services.slice(start, start + limit)
 
-        return {
-            services: paginatedServices,
-            total: services.length,
-        }
+        const enrichedServices = await Promise.all(paginatedServices.map(async (service) => {
+            const normalizedKey = normalizeServiceName(getCanonicalName(service.name))
+            const rawStats = serviceMap.get(normalizedKey)!
+
+            const countryMap = new Map<string, CountryAggregate>()
+            for (const hit of rawStats.hits) {
+                aggregateCountryFromHit(countryMap, {
+                    countryName: hit.countryName,
+                    price: hit.price,
+                    provider: hit.provider,
+                    stock: hit.stock
+                })
+            }
+
+            const topCountries = await getTopCountriesWithFlags(countryMap, 3)
+            let finalIcon = service.iconUrl
+            if (!finalIcon || finalIcon.includes('dicebear')) {
+                const resolved = await getServiceIconUrlByName(service.name)
+                if (resolved) finalIcon = resolved
+            }
+
+            if (!finalIcon) {
+                finalIcon = `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(service.name)}&backgroundColor=0ea5e9,6366f1,8b5cf6,ec4899`
+            }
+
+            return { ...service, iconUrl: finalIcon, topCountries }
+        }))
+
+        return { services: enrichedServices, total: services.length }
     } catch (error) {
-        console.error('searchServices failed:', error)
+        logger.error('searchServices failed:', error)
         return { services: [], total: 0 }
     }
 }
@@ -819,9 +700,9 @@ export async function searchServices(
 
 
 
+
 /**
  * Admin: Search Aggregated Services (Smart View)
- * Grouped by canonical service slug with full statistics
  */
 export async function searchAdminServices(
     query: string = '',
@@ -832,90 +713,65 @@ export async function searchAdminServices(
         const limit = options?.limit || 50
         const page = options?.page || 1
 
-        // Build filter
         const filters: string[] = []
         if (options?.provider) filters.push(`provider = "${options.provider}"`)
         if (!options?.includeHidden) filters.push('isActive = true')
-        const filterStr = filters.length > 0 ? filters.join(' AND ') : undefined
 
         const result = await index.search(query, {
-            filter: filterStr,
-            limit: 10000,
-            attributesToRetrieve: ['serviceSlug', 'serviceName', 'provider', 'countryCode', 'price', 'stock', 'lastSyncedAt', 'id', 'isActive'],
+            filter: filters.length > 0 ? filters.join(' AND ') : undefined,
+            limit: 5000,
+            attributesToRetrieve: ['providerServiceCode', 'serviceName', 'provider', 'countryName', 'price', 'stock', 'lastSyncedAt', 'isActive'],
         })
 
-        const groups = new Map<string, {
-            canonicalName: string
-            canonicalSlug: string
-            providers: Map<string, { provider: string; externalId: string; stock: number; minPrice: number; maxPrice: number; isActive: boolean }>
-            countries: Set<string>
-            totalStock: number
-            priceRange: { min: number; max: number }
-            lastSyncedAt: number
-        }>()
+        const groups = new Map<string, any>()
 
         for (const hit of result.hits as OfferDocument[]) {
-            // Group by normalized canonical name
-            const canonicalName = resolveToCanonicalName(hit.serviceName)
-            const aggregationKey = normalizeServiceName(canonicalName)
+            const canonicalName = getCanonicalName(hit.serviceName)
+            const key = normalizeServiceName(canonicalName)
 
-            if (!groups.has(aggregationKey)) {
-                groups.set(aggregationKey, {
+            let group = groups.get(key)
+            if (!group) {
+                group = {
                     canonicalName: canonicalName,
-                    canonicalSlug: getSlugFromName(canonicalName),
+                    canonicalCode: generateCanonicalCode(canonicalName),
                     providers: new Map(),
                     countries: new Set(),
                     totalStock: 0,
-                    priceRange: { min: Infinity, max: 0 },
+                    priceRange: { min: hit.price, max: hit.price },
                     lastSyncedAt: hit.lastSyncedAt
-                })
+                }
+                groups.set(key, group)
             }
-            const group = groups.get(aggregationKey)!
 
-            // Track unique countries by name
             group.countries.add(normalizeCountryName(hit.countryName))
-
-            // Track stock and pricing
             group.totalStock += hit.stock || 0
-            if (hit.price < group.priceRange.min) group.priceRange.min = hit.price
-            if (hit.price > group.priceRange.max) group.priceRange.max = hit.price
+            group.priceRange.min = Math.min(group.priceRange.min, hit.price)
+            group.priceRange.max = Math.max(group.priceRange.max, hit.price)
+            group.lastSyncedAt = Math.max(group.lastSyncedAt, hit.lastSyncedAt)
 
-            // Track provider stats
             if (!group.providers.has(hit.provider)) {
                 group.providers.set(hit.provider, {
-                    provider: hit.provider,
-                    externalId: hit.serviceSlug, // Keep visual external ID for debug
+                    providerName: hit.provider,
+                    externalId: hit.providerServiceCode,
                     stock: hit.stock || 0,
                     minPrice: hit.price,
-                    maxPrice: hit.price,
                     isActive: hit.isActive !== false
                 })
             } else {
-                const p = group.providers.get(hit.provider)!
-                p.stock += hit.stock || 0
-                if (hit.price < p.minPrice) p.minPrice = hit.price
-                if (hit.price > p.maxPrice) p.maxPrice = hit.price
-            }
-
-            // Update last sync
-            if (hit.lastSyncedAt > group.lastSyncedAt) {
-                group.lastSyncedAt = hit.lastSyncedAt
+                const p = group.providers.get(hit.provider)
+                p.stock += hit.stock
+                p.minPrice = Math.min(p.minPrice, hit.price)
             }
         }
 
         const items = Array.from(groups.values()).map(g => ({
-            canonicalName: g.canonicalName,
-            canonicalSlug: g.canonicalSlug,
+            ...g,
             providers: Array.from(g.providers.values()),
             totalProviders: g.providers.size,
             countryCount: g.countries.size,
-            totalStock: g.totalStock,
-            bestPrice: g.priceRange.min === Infinity ? 0 : g.priceRange.min,
-            priceRange: g.priceRange.min === Infinity ? { min: 0, max: 0 } : g.priceRange,
-            lastSyncedAt: g.lastSyncedAt
+            bestPrice: g.priceRange.min
         }))
 
-        // Sort by total providers descending, then by name
         items.sort((a, b) => b.totalProviders - a.totalProviders || a.canonicalName.localeCompare(b.canonicalName))
 
         const start = (page - 1) * limit
@@ -924,7 +780,7 @@ export async function searchAdminServices(
             total: items.length
         }
     } catch (error) {
-        console.error('searchAdminServices failed:', error)
+        logger.error('searchAdminServices failed:', error)
         return { items: [], total: 0 }
     }
 }
@@ -941,8 +797,8 @@ export async function searchAdminServices(
  * and automatically resolves to the correct values for filtering.
  */
 export async function searchProviders(
-    serviceSlug: string,
-    countryInput: string,
+    serviceCode: string | number,
+    countryInput: string | number,
     options?: { page?: number; limit?: number; sort?: string }
 ): Promise<{ providers: OfferDocument[]; total: number }> {
     try {
@@ -963,9 +819,23 @@ export async function searchProviders(
             meiliSort = ['price:asc'];
         }
 
+        // QUICK PATH: If numeric IDs are provided
+        if (typeof serviceCode === 'number' && typeof countryInput === 'number') {
+            const numericResult = await index.search('', {
+                filter: `serviceId = ${serviceCode} AND countryId = ${countryInput} AND isActive = true`,
+                sort: meiliSort,
+                offset: (page - 1) * limit,
+                limit: limit,
+            })
+            return {
+                providers: numericResult.hits as OfferDocument[],
+                total: numericResult.totalHits
+            }
+        }
+
         // STEP 1: RESOLVE SERVICE NAME (not slug!)
         // Service NAME is the true identity. Slugs are provider-specific and ambiguous.
-        const rawServiceInput = serviceSlug.toLowerCase().trim()
+        const rawServiceInput = String(serviceCode).toLowerCase().trim()
 
         // Check if input has a canonical mapping (e.g., "twitter" -> "Twitter / X")
         const canonicalNameFromMap = CANONICAL_SERVICE_NAME_MAP[rawServiceInput]
@@ -976,9 +846,9 @@ export async function searchProviders(
             // Direct canonical mapping exists
             serviceNameToFilter = canonicalNameFromMap
         } else {
-            // Try Strategy 1: Find by serviceSlug
+            // Try Strategy 1: Find by providerKey (was serviceCode)
             const slugDiscovery = await index.search('', {
-                filter: `serviceSlug = "${rawServiceInput}"`,
+                filter: `providerServiceCode = "${rawServiceInput}"`,
                 limit: 1,
                 attributesToRetrieve: ['serviceName'],
             })
@@ -1012,7 +882,7 @@ export async function searchProviders(
 
         // STEP 2: RESOLVE COUNTRY NAME (from database, not string manipulation!)
         // Country NAME is the true identity. Codes are provider-specific and ambiguous.
-        const rawCountryInput = countryInput.toLowerCase().trim()
+        const rawCountryInput = String(countryInput).toLowerCase().trim()
         const isLikelyName = /^[a-z\s_\-]+$/i.test(rawCountryInput) && rawCountryInput.length > 2
 
         let countryNameToFilter: string
@@ -1044,7 +914,7 @@ export async function searchProviders(
         } else {
             // It's a numeric code - TRY to look up (ambiguous!)
             const countryLookup = await index.search('', {
-                filter: `countryCode = "${rawCountryInput}"`,
+                filter: `providerCountryCode = "${rawCountryInput}"`,
                 limit: 1,
                 attributesToRetrieve: ['countryName'],
             })
@@ -1071,15 +941,15 @@ export async function searchProviders(
 
         // UNIFIED ICON LOGIC
         // Icon Resolution: Best from results > DiceBear (use service NAME for seed)
-        const finalIcon = hits.find(h => h.iconUrl && h.iconUrl.startsWith('http') && !h.iconUrl.includes('dicebear'))?.iconUrl
+        const finalIcon = hits.find(h => h.serviceIcon && h.serviceIcon.startsWith('http') && !h.serviceIcon.includes('dicebear'))?.serviceIcon
 
         if (finalIcon) {
-            hits = hits.map(h => ({ ...h, iconUrl: finalIcon }))
+            hits = hits.map(h => ({ ...h, serviceIcon: finalIcon }))
         } else {
             // Fallback to high-quality DiceBear using the resolved service NAME as seed
             const seed = serviceNameToFilter || rawServiceInput
             const fallback = `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(seed)}&backgroundColor=0ea5e9,6366f1,8b5cf6,ec4899`
-            hits = hits.map(h => ({ ...h, iconUrl: h.iconUrl || fallback }))
+            hits = hits.map(h => ({ ...h, serviceIcon: h.serviceIcon || fallback }))
         }
 
         return {
@@ -1102,16 +972,36 @@ export async function searchProviders(
  * @returns OfferDocument with provider info for purchase routing
  */
 export async function getOfferForPurchase(
-    serviceInput: string,
-    countryInput: string,
+    serviceInput: string | number,
+    countryInput: string | number,
     operatorId?: number,
     provider?: string
 ): Promise<OfferDocument | null> {
     try {
         const index = meili.index(INDEXES.OFFERS)
 
+        // QUICK PATH: If numeric IDs are provided, filter directly
+        if (typeof serviceInput === 'number' && typeof countryInput === 'number') {
+            const filters = [
+                `serviceId = ${serviceInput}`,
+                `countryId = ${countryInput}`,
+                'stock > 0',
+                'isActive = true'
+            ]
+            if (operatorId) filters.push(`operatorId = ${operatorId}`)
+            if (provider) filters.push(`provider = "${provider}"`)
+
+            const numericSearch = await index.search('', {
+                filter: filters.join(' AND '),
+                limit: 1,
+                sort: ['price:asc']
+            })
+
+            if (numericSearch.hits.length > 0) return numericSearch.hits[0] as OfferDocument
+        }
+
         // STEP 1: RESOLVE SERVICE NAME (same as searchProviders)
-        const rawServiceInput = serviceInput.toLowerCase().trim()
+        const rawServiceInput = String(serviceInput).toLowerCase().trim()
         const canonicalNameFromMap = CANONICAL_SERVICE_NAME_MAP[rawServiceInput]
 
         let serviceNameToFilter: string
@@ -1119,7 +1009,7 @@ export async function getOfferForPurchase(
         if (canonicalNameFromMap) {
             serviceNameToFilter = canonicalNameFromMap
         } else {
-            let slugFilter = `serviceSlug = "${rawServiceInput}"`
+            let slugFilter = `providerServiceCode = "${rawServiceInput}"`
             if (provider) {
                 slugFilter += ` AND provider = "${provider}"`
             }
@@ -1145,7 +1035,7 @@ export async function getOfferForPurchase(
         }
 
         // STEP 2: RESOLVE COUNTRY NAME (same as searchProviders)
-        const rawCountryInput = countryInput.toLowerCase().trim()
+        const rawCountryInput = String(countryInput).toLowerCase().trim()
         const isLikelyName = /^[a-z\s_\-]+$/i.test(rawCountryInput) && rawCountryInput.length > 2
 
         let countryNameToFilter: string
@@ -1171,7 +1061,7 @@ export async function getOfferForPurchase(
                     .join(' ')
             }
         } else {
-            let codeFilter = `countryCode = "${rawCountryInput}"`
+            let codeFilter = `providerCountryCode = "${rawCountryInput}"`
             if (provider) {
                 codeFilter += ` AND provider = "${provider}"`
             }
@@ -1190,7 +1080,7 @@ export async function getOfferForPurchase(
         let filter = `serviceName = "${serviceNameToFilter}" AND countryName = "${countryNameToFilter}" AND stock > 0`
 
         if (operatorId !== undefined) {
-            filter += ` AND operatorId = ${operatorId}`
+            filter += ` AND operator = "${operatorId}"` // Map numeric ID to string operator field if needed, or remove check if operatorId is obsolete
         }
         if (provider) {
             filter += ` AND provider = "${provider.toLowerCase()}"`
@@ -1211,10 +1101,10 @@ export async function getOfferForPurchase(
 
         const offer = result.hits[0] as OfferDocument
         console.log(`[PURCHASE] Found offer:`, {
-            provider: offer.provider,
+            providerName: offer.provider,
             price: offer.price,
             stock: offer.stock,
-            operatorId: offer.operatorId
+            operator: offer.operator
         })
 
         return offer
@@ -1253,7 +1143,7 @@ export async function searchOffers(
                 // It's a name, try to resolve to code
                 const countryLookup = await index.search(cleanNameQuery, {
                     limit: 10,
-                    attributesToRetrieve: ['countryCode', 'countryName'],
+                    attributesToRetrieve: ['providerCountryCode', 'countryName'],
                 })
 
                 if (countryLookup.hits.length > 0) {
@@ -1262,10 +1152,10 @@ export async function searchOffers(
                         (hit as OfferDocument).countryName.toLowerCase() === rawCountryInput
                     )
                     if (exactMatch) {
-                        resolvedCountryFilter = (exactMatch as OfferDocument).countryCode
+                        resolvedCountryFilter = (exactMatch as OfferDocument).countryName // Filter by NAME, not code
                     } else {
                         // Use first result as fallback
-                        resolvedCountryFilter = (countryLookup.hits[0] as OfferDocument).countryCode
+                        resolvedCountryFilter = (countryLookup.hits[0] as OfferDocument).countryName
                     }
                 }
             }
@@ -1273,12 +1163,14 @@ export async function searchOffers(
 
         // Build filter array
         const filterParts: string[] = []
-        if (resolvedCountryFilter) filterParts.push(`countryCode = "${resolvedCountryFilter}"`)
+        if (resolvedCountryFilter) filterParts.push(`countryName = "${resolvedCountryFilter}"`)
 
         if (filters?.serviceCode) {
             const raw = filters.serviceCode.toLowerCase().trim()
             const effective = CANONICAL_SERVICE_NAMES[raw] || raw
-            filterParts.push(`serviceSlug = "${effective}"`)
+            // Map code/slug to Name for filtering
+            const name = CANONICAL_SERVICE_NAMES[effective] || CANONICAL_DISPLAY_NAMES[effective] || effective
+            filterParts.push(`serviceName = "${name}"`)
         }
         if (filters?.maxPrice) filterParts.push(`price <= ${filters.maxPrice}`)
         if (filters?.minCount) filterParts.push(`stock >= ${filters.minCount}`)
@@ -1307,29 +1199,78 @@ export async function searchOffers(
 /**
  * Add or update offers in the index
  */
-export async function indexOffers(offers: OfferDocument[]): Promise<number | undefined> {
+export async function indexOffers(offers: OfferDocument[], indexName: string = INDEXES.OFFERS): Promise<number | undefined> {
     if (offers.length === 0) return undefined
     try {
-        const index = meili.index(INDEXES.OFFERS)
+        const index = meili.index(indexName)
 
         // SMART NORMALIZATION: Unify service and country names before indexing
-        // UPDATE: Removed overwriting of countryCode/serviceSlug. We trust the provider-sync to provide strict IDs.
+        // UPDATE: Removed overwriting of countryCode/serviceCode. We trust the provider-sync to provide strict IDs.
         const normalizedOffers = offers.map(offer => {
             return {
                 ...offer,
                 // Only clean up URLs if needed, but preserve strict codes
-                iconUrl: isValidImageUrl(offer.iconUrl) ? offer.iconUrl : undefined,
-                flagUrl: isValidImageUrl(offer.flagUrl) ? offer.flagUrl : '',
-                logoUrl: isValidImageUrl(offer.logoUrl) ? offer.logoUrl : undefined,
+                serviceIcon: isValidImageUrl(offer.serviceIcon) ? offer.serviceIcon : undefined,
+                countryIcon: isValidImageUrl(offer.countryIcon) ? offer.countryIcon : '',
+                // logoUrl removed
             }
         })
 
         const task = await index.addDocuments(normalizedOffers, { primaryKey: 'id' })
-        console.log(`📦 Queued ${normalizedOffers.length} offers (task ${task.taskUid})`)
+        console.log(`ðŸ“¦ Queued ${normalizedOffers.length} offers (task ${task.taskUid})`)
         return task.taskUid
     } catch (error) {
         console.error('Failed to index offers:', error)
         return undefined
+    }
+}
+
+/**
+ * Atomic Index Swap (Blue-Green Deployment for Data)
+ * 
+ * Enhanced in Phase 28 with exponential retry logic and task tracking.
+ */
+export async function swapShadowToPrimary(shadowIndexName: string, primaryIndexName: string): Promise<void> {
+    try {
+        logger.info(`[SEARCH] Initializing atomic swap: ${shadowIndexName} -> ${primaryIndexName}`);
+
+        // 1. Queue the Swap Operation
+        const task = await (meili as any).swapIndexes([
+            { indexes: [shadowIndexName, primaryIndexName] }
+        ]);
+
+        logger.info(`[SEARCH] Atomic swap queued (task ${task.taskUid})`);
+
+        // 2. Resilient Polling with Backoff
+        let delay = 1000;
+        const maxDelay = 10000;
+        const timeout = 120000; // 2 minutes
+        const start = Date.now();
+
+        while (Date.now() - start < timeout) {
+            const success = await waitForTask(task.taskUid, 5000);
+            if (success) {
+                logger.info(`[SEARCH] Atomic swap successful.`);
+
+                // Cleanup: Delete the legacy index (now named shadow)
+                try {
+                    await meili.deleteIndex(shadowIndexName);
+                    logger.info(`[SEARCH] Legacy data purged.`);
+                } catch (e) {
+                    logger.warn(`[SEARCH] Cleanup of old index ${shadowIndexName} failed (likely already gone)`);
+                }
+                return;
+            }
+
+            await new Promise(r => setTimeout(r, delay));
+            delay = Math.min(delay * 1.5, maxDelay);
+        }
+
+        throw new Error(`Swap task ${task.taskUid} timed out after ${timeout}ms`);
+
+    } catch (error) {
+        logger.error('[SEARCH] Atomic swap critical failure:', error);
+        throw error;
     }
 }
 
@@ -1340,7 +1281,7 @@ export async function deleteOffersByProvider(provider: string): Promise<void> {
     try {
         const index = meili.index(INDEXES.OFFERS)
         await index.deleteDocuments({ filter: `provider = "${provider}"` })
-        console.log(`🗑️ Deleted offers for provider: ${provider}`)
+        console.log(`ðŸ—‘ï¸ Deleted offers for provider: ${provider}`)
     } catch (error) {
         console.error('Failed to delete offers:', error)
     }

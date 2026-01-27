@@ -1,16 +1,25 @@
 import Redis from 'ioredis'
 
 // Redis client initialization (Singleton)
-const getRedisUrl = () => {
-    if (process.env.REDIS_URL) return process.env.REDIS_URL;
-    // Fallback to local Docker Redis with default password
-    return 'redis://:dev_redis_pass@localhost:6379';
+const getRedisConfig = () => {
+    const url = process.env.REDIS_URL || 'redis://:dev_redis_pass@localhost:6379'
+    return url;
 };
 
-export const redis = new Redis(getRedisUrl(), {
+// Singleton Redis Client
+// PRO TIP: In a cluster environment, use new Redis.Cluster()
+export const redis = new Redis(getRedisConfig(), {
     maxRetriesPerRequest: null,
+    enableReadyCheck: true,
+    reconnectOnError(err) {
+        const targetError = 'READONLY';
+        if (err.message.includes(targetError)) {
+            return true;
+        }
+        return false;
+    },
     retryStrategy(times) {
-        const delay = Math.min(times * 50, 2000);
+        const delay = Math.min(times * 100, 3000);
         return delay;
     }
 });
@@ -35,6 +44,9 @@ export const REDIS_KEYS = {
 
     // SMS polling state
     smsPolling: (numberId: string) => `sms:polling:${numberId}`,
+
+    // Polling Index (Sorted Set: activationId -> nextPollTimestamp)
+    pollingIndex: () => 'index:polling'
 }
 
 // TTL values (in seconds)
@@ -155,7 +167,14 @@ export const CACHE_KEYS = {
 
     // Dashboard state (batch endpoint cache)
     dashboardState: (userId: string) => `cache:dashboard:${userId}`,
-}
+
+    // Search results (MeiliSearch response caching)
+    searchServices: (hash: string) => `cache:search:services:${hash}`,
+    searchCountries: (serviceCode: string, hash: string) => `cache:search:countries:${serviceCode}:${hash}`,
+
+    // Aggregates
+    SERVICE_LIST_DEFAULT: 'cache:aggregates:default_list',
+} as const;
 
 // Cache TTLs (in seconds)
 export const CACHE_TTL = {
@@ -165,4 +184,5 @@ export const CACHE_TTL = {
     USER_BALANCE: 30,   // 30 seconds - needs to be fresh
     PROVIDER_BALANCE: 300, // 5 minutes - dashboard use
     DASHBOARD_STATE: 10, // 10 seconds - frequently accessed batch data
+    SEARCH: 60,         // 1 minute - search results cache
 }

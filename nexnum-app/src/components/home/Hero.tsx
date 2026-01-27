@@ -395,7 +395,7 @@ export default function Hero() {
                                             <div className="flex items-center gap-2.5">
                                                 <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-[hsl(var(--neon-lime)/0.3)] to-[hsl(var(--neon-lime)/0.1)] flex items-center justify-center shadow-lg shadow-[hsl(var(--neon-lime)/0.2)] p-1.5">
                                                     <Image
-                                                        src="/logos/nexnum-logo.svg"
+                                                        src="/assets/brand/nexnum-logo.svg"
                                                         alt="NexNum"
                                                         width={30}
                                                         height={20}

@@ -60,8 +60,8 @@ export default function MaintenancePage() {
                         <div
                             className="relative w-full h-full bg-[hsl(var(--neon-lime))] shadow-[0_0_10px_hsl(var(--neon-lime)/0.3)] md:shadow-[0_0_40px_hsl(var(--neon-lime)/0.4)]"
                             style={{
-                                WebkitMaskImage: 'url("/logos/nexnum-logo-outline.svg")',
-                                maskImage: 'url("/logos/nexnum-logo-outline.svg")',
+                                WebkitMaskImage: 'url("/assets/brand/nexnum-logo-outline.svg")',
+                                maskImage: 'url("/assets/brand/nexnum-logo-outline.svg")',
                                 WebkitMaskRepeat: 'no-repeat',
                                 maskRepeat: 'no-repeat',
                                 WebkitMaskPosition: 'center',
@@ -75,8 +75,8 @@ export default function MaintenancePage() {
                         <div
                             className="relative w-full h-full bg-white"
                             style={{
-                                WebkitMaskImage: 'url("/logos/nexnum-logo.svg")',
-                                maskImage: 'url("/logos/nexnum-logo.svg")',
+                                WebkitMaskImage: 'url("/assets/brand/nexnum-logo.svg")',
+                                maskImage: 'url("/assets/brand/nexnum-logo.svg")',
                                 WebkitMaskRepeat: 'no-repeat',
                                 maskRepeat: 'no-repeat',
                                 WebkitMaskPosition: 'center',

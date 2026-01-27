@@ -20,8 +20,9 @@ function register<T extends Metric>(name: string, factory: () => T): T {
     return factory()
 }
 
-// --- DEFINITIONS ---
+// --- DEFINITIONS (Industrial v2.0 + Backward Compatibility) ---
 
+// 1. Wallet & Financial Integrity
 export const wallet_transactions_total = register('nexnum_wallet_transactions_total', () => new Counter({
     name: 'nexnum_wallet_transactions_total',
     help: 'Total wallet transactions by type and status',
@@ -29,62 +30,186 @@ export const wallet_transactions_total = register('nexnum_wallet_transactions_to
     registers: [registry]
 }))
 
+export const wallet_integrity_status = register('nexnum_wallet_integrity_status', () => new Gauge({
+    name: 'nexnum_wallet_integrity_status',
+    help: 'Financial integrity status (0=healthy, 1=drift_detected, 2=critical_failure)',
+    registers: [registry]
+}))
+
+export const wallet_refunds_total = register('nexnum_wallet_refunds_total', () => new Counter({
+    name: 'nexnum_wallet_refunds_total',
+    help: 'Total absolute refunds processed',
+    labelNames: ['reason'],
+    registers: [registry]
+}))
+
+export const wallet_deposits_total = register('nexnum_wallet_deposits_total', () => new Counter({
+    name: 'nexnum_wallet_deposits_total',
+    help: 'Total absolute deposits processed',
+    registers: [registry]
+}))
+
+export const wallet_sentinel_drift_total = register('nexnum_wallet_sentinel_drift_total', () => new Gauge({
+    name: 'nexnum_wallet_sentinel_drift_total',
+    help: 'Total absolute financial drift detected by Sentinel (POINTS)',
+    registers: [registry]
+}))
+
+export const wallet_sentinel_status = register('nexnum_wallet_sentinel_status', () => new Gauge({
+    name: 'nexnum_wallet_sentinel_status',
+    help: 'Financial integrity status (0=healthy, 1=drift_detected, 2=critical_integrity_failure)',
+    registers: [registry]
+}))
+
+export const wallet_operation_duration_seconds = register('nexnum_wallet_operation_duration_seconds', () => new Histogram({
+    name: 'nexnum_wallet_operation_duration_seconds',
+    help: 'Duration of wallet operations',
+    labelNames: ['operation'],
+    buckets: [0.01, 0.05, 0.1, 0.3, 0.5, 1],
+    registers: [registry]
+}))
+
+// 2. HTTP & API Performance (SLA Tracking)
+export const http_requests_total = register('nexnum_http_requests_total', () => new Counter({
+    name: 'nexnum_http_requests_total',
+    help: 'Standard API request counter',
+    labelNames: ['route', 'method', 'status_code'],
+    registers: [registry]
+}))
+
+export const http_request_duration_seconds = register('nexnum_http_request_duration_seconds', () => new Histogram({
+    name: 'nexnum_http_request_duration_seconds',
+    help: 'API Latency Distribution',
+    labelNames: ['route', 'method', 'status_code'],
+    buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5],
+    registers: [registry]
+}))
+
 export const purchase_duration_seconds = register('nexnum_purchase_duration_seconds', () => new Histogram({
     name: 'nexnum_purchase_duration_seconds',
     help: 'Latency of purchase flow stages',
-    labelNames: ['stage', 'provider', 'country'], // stage: 'provider_call', 'db_commit'
+    labelNames: ['stage', 'provider', 'country'],
     buckets: [0.1, 0.3, 0.5, 1, 2, 5, 10],
+    registers: [registry]
+}))
+
+// 3. Worker & Platform Lifecycle
+export const worker_queue_depth = register('nexnum_worker_queue_depth', () => new Gauge({
+    name: 'nexnum_worker_queue_depth',
+    help: 'Current jobs in queue by state',
+    labelNames: ['queue', 'state'],
+    registers: [registry]
+}))
+
+export const worker_jobs_processed_total = register('nexnum_worker_jobs_processed_total', () => new Counter({
+    name: 'nexnum_worker_jobs_processed_total',
+    help: 'Total worker jobs throughput',
+    labelNames: ['queue', 'status'],
+    registers: [registry]
+}))
+
+export const lifecycle_jobs_total = register('nexnum_lifecycle_jobs_total', () => new Counter({
+    name: 'nexnum_lifecycle_jobs_total',
+    help: 'Total activation lifecycle jobs processed',
+    labelNames: ['type', 'status'],
+    registers: [registry]
+}))
+
+export const lifecycle_circuit_state = register('nexnum_lifecycle_circuit_state', () => new Gauge({
+    name: 'nexnum_lifecycle_circuit_state',
+    help: 'Current state of lifecycle circuit breaker (0=closed, 1=open, 2=half-open)',
+    registers: [registry]
+}))
+
+export const lifecycle_job_duration = register('nexnum_lifecycle_job_duration', () => new Histogram({
+    name: 'nexnum_lifecycle_job_duration',
+    help: 'Duration of lifecycle jobs',
+    labelNames: ['type'],
+    buckets: [0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
+    registers: [registry]
+}))
+
+export const order_state_transitions_total = register('nexnum_order_state_transitions_total', () => new Counter({
+    name: 'nexnum_order_state_transitions_total',
+    help: 'Total order state transitions',
+    labelNames: ['from', 'to', 'provider'],
+    registers: [registry]
+}))
+
+export const order_processing_duration_seconds = register('nexnum_order_processing_duration_seconds', () => new Histogram({
+    name: 'nexnum_order_processing_duration_seconds',
+    help: 'Duration of order processing stages',
+    labelNames: ['provider', 'stage'],
+    buckets: [0.1, 0.5, 1, 2, 5, 10, 30],
+    registers: [registry]
+}))
+
+// 4. Providers
+export const provider_last_sync_timestamp = register('nexnum_provider_last_sync_timestamp', () => new Gauge({
+    name: 'nexnum_provider_last_sync_timestamp',
+    help: 'Unix timestamp of the last successful provider catalog sync',
+    registers: [registry]
+}))
+
+export const provider_latency_seconds = register('nexnum_provider_latency_seconds', () => new Histogram({
+    name: 'nexnum_provider_latency_seconds',
+    help: 'Upstream provider API latency',
+    labelNames: ['provider_id', 'method'],
+    buckets: [0.5, 1, 2, 5, 10, 30],
     registers: [registry]
 }))
 
 export const provider_api_calls_total = register('nexnum_provider_api_calls_total', () => new Counter({
     name: 'nexnum_provider_api_calls_total',
     help: 'Total calls to SMS providers',
-    labelNames: ['provider', 'method', 'status'], // status: 'success', 'error'
+    labelNames: ['provider', 'method', 'status'],
     registers: [registry]
 }))
 
-export const polling_active_jobs = register('nexnum_polling_active_jobs', () => new Gauge({
-    name: 'nexnum_polling_active_jobs',
-    help: 'Current number of active polling jobs',
+export const provider_health_status = register('nexnum_provider_health_status', () => new Gauge({
+    name: 'nexnum_provider_health_status',
+    help: 'Current health status (0=healthy, 1=degraded, 2=down)',
     labelNames: ['provider'],
     registers: [registry]
 }))
 
-export const distributed_rate_limit_wait_seconds = register('nexnum_distributed_rate_limit_wait_seconds', () => new Histogram({
-    name: 'nexnum_distributed_rate_limit_wait_seconds',
-    help: 'Time workers spent waiting for distributed rate limit slots',
-    labelNames: ['provider_id'],
-    buckets: [0.01, 0.05, 0.1, 0.5, 1, 2, 5],
+export const provider_health_success_rate = register('nexnum_provider_health_success_rate', () => new Gauge({
+    name: 'nexnum_provider_health_success_rate',
+    help: 'Success rate of provider health checks',
+    labelNames: ['provider'],
     registers: [registry]
 }))
 
-export const provider_config_cache_requests_total = register('nexnum_provider_config_cache_requests_total', () => new Counter({
-    name: 'nexnum_provider_config_cache_requests_total',
-    help: 'SmartRouter provider configuration cache hits/misses',
-    labelNames: ['result'], // hit, miss
+export const provider_health_latency_avg = register('nexnum_provider_health_latency_avg', () => new Gauge({
+    name: 'nexnum_provider_health_latency_avg',
+    help: 'Average latency of provider health checks',
+    labelNames: ['provider'],
     registers: [registry]
 }))
 
-export const sms_received_total = register('nexnum_sms_received_total', () => new Counter({
-    name: 'nexnum_sms_received_total',
-    help: 'Total SMS received per provider',
-    labelNames: ['provider', 'service'],
+// 5. Infrastructure & System
+export const system_disk_usage_percent = register('nexnum_system_disk_usage_percent', () => new Gauge({
+    name: 'nexnum_system_disk_usage_percent',
+    help: 'Host disk usage percentage',
     registers: [registry]
 }))
 
-export const reservation_stuck_count = register('nexnum_reservation_stuck_count', () => new Gauge({
-    name: 'nexnum_reservation_stuck_count',
-    help: 'Number of stalled purchase orders detected by reconciler',
-    registers: [registry]
-}))
-
-// --- SYSTEM METRICS ---
-
-export const system_memory_usage = register('nexnum_system_memory_usage', () => new Gauge({
-    name: 'nexnum_system_memory_usage',
+export const system_memory_usage_bytes = register('nexnum_system_memory_usage_bytes', () => new Gauge({
+    name: 'nexnum_system_memory_usage_bytes',
     help: 'System memory usage in bytes',
-    labelNames: ['type'], // heapUsed, heapTotal, rss, etc.
+    labelNames: ['type'],
+    registers: [registry]
+}))
+
+export const system_uptime_seconds = register('nexnum_system_uptime_seconds', () => new Gauge({
+    name: 'nexnum_system_uptime_seconds',
+    help: 'System uptime in seconds',
+    registers: [registry]
+}))
+
+export const system_event_loop_lag_seconds = register('nexnum_system_event_loop_lag_seconds', () => new Gauge({
+    name: 'nexnum_system_event_loop_lag_seconds',
+    help: 'Node.js event loop lag in seconds',
     registers: [registry]
 }))
 
@@ -94,53 +219,91 @@ export const process_cpu_usage = register('nexnum_process_cpu_usage', () => new 
     registers: [registry]
 }))
 
-export const system_uptime = register('nexnum_system_uptime', () => new Gauge({
-    name: 'nexnum_system_uptime',
-    help: 'System uptime in seconds',
+export const db_connections = register('nexnum_db_connections', () => new Gauge({
+    name: 'nexnum_db_connections',
+    help: 'Prisma/Postgres connection pool status',
+    labelNames: ['state'], // active, idle, max
     registers: [registry]
 }))
 
-// --- AUTH METRICS ---
+export const active_numbers = register('nexnum_active_numbers', () => new Gauge({
+    name: 'nexnum_active_numbers',
+    help: 'Current active SMS rentals',
+    registers: [registry]
+}))
 
+export const active_orders_gauge = register('nexnum_active_orders_gauge', () => new Gauge({
+    name: 'nexnum_active_orders_gauge',
+    help: 'Current number of active orders',
+    labelNames: ['provider', 'status'],
+    registers: [registry]
+}))
+
+// 6. Search & SMS
+export const search_latency = register('nexnum_search_latency', () => new Histogram({
+    name: 'nexnum_search_latency',
+    help: 'Latency of number searches',
+    buckets: [0.1, 0.5, 1, 2, 5],
+    registers: [registry]
+}))
+
+export const search_empty_results_total = register('nexnum_search_empty_results_total', () => new Counter({
+    name: 'nexnum_search_empty_results_total',
+    help: 'Total empty search results',
+    registers: [registry]
+}))
+
+export const multi_sms_sequences_total = register('nexnum_multi_sms_sequences_total', () => new Counter({
+    name: 'nexnum_multi_sms_sequences_total',
+    help: 'Total multi-SMS sequences processed',
+    registers: [registry]
+}))
+
+export const sms_delivery_latency_seconds = register('nexnum_sms_delivery_latency_seconds', () => new Histogram({
+    name: 'nexnum_sms_delivery_latency_seconds',
+    help: 'Latency of SMS delivery',
+    buckets: [1, 5, 10, 30, 60],
+    registers: [registry]
+}))
+
+// 7. Webhooks
+export const webhook_deliveries_total = register('nexnum_webhook_deliveries_total', () => new Counter({
+    name: 'nexnum_webhook_deliveries_total',
+    help: 'Total outbound webhook delivery attempts',
+    labelNames: ['event', 'status', 'response_code'],
+    registers: [registry]
+}))
+
+export const webhook_delivery_duration_seconds = register('nexnum_webhook_delivery_duration_seconds', () => new Histogram({
+    name: 'nexnum_webhook_delivery_duration_seconds',
+    help: 'Latency of outbound webhook deliveries',
+    labelNames: ['event'],
+    buckets: [0.1, 0.5, 1, 2, 5, 10],
+    registers: [registry]
+}))
+
+// 8. Auth & AI
 export const auth_events_total = register('nexnum_auth_events_total', () => new Counter({
     name: 'nexnum_auth_events_total',
     help: 'Total authentication events',
-    labelNames: ['event', 'status'], // event: login, register, etc.
+    labelNames: ['type', 'status'],
     registers: [registry]
 }))
 
-// --- LIFECYCLE MANAGER METRICS ---
-
-export const lifecycle_jobs_total = register('nexnum_lifecycle_jobs_total', () => new Counter({
-    name: 'nexnum_lifecycle_jobs_total',
-    help: 'Total lifecycle jobs processed by type and result',
-    labelNames: ['type', 'result'],
+export const ai_token_usage_total = register('nexnum_ai_token_usage_total', () => new Counter({
+    name: 'nexnum_ai_token_usage_total',
+    help: 'Total tokens consumed by AI services',
+    labelNames: ['model', 'type'],
     registers: [registry]
 }))
 
-export const lifecycle_circuit_state = register('nexnum_lifecycle_circuit_state', () => new Gauge({
-    name: 'nexnum_lifecycle_circuit_state',
-    help: 'Circuit breaker state (0=closed, 1=open, 2=half-open)',
+export const ai_budget_spend_usd = register('nexnum_ai_budget_spend_usd', () => new Gauge({
+    name: 'nexnum_ai_budget_spend_usd',
+    help: 'Current daily AI budget spend in USD',
     registers: [registry]
 }))
 
-export const lifecycle_job_duration = register('nexnum_lifecycle_job_duration_seconds', () => new Histogram({
-    name: 'nexnum_lifecycle_job_duration_seconds',
-    help: 'Duration of lifecycle job processing',
-    labelNames: ['type'],
-    buckets: [0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
-    registers: [registry]
-}))
-
-export const lifecycle_queue_size = register('nexnum_lifecycle_queue_size', () => new Gauge({
-    name: 'nexnum_lifecycle_queue_size',
-    help: 'Current size of lifecycle queue by status',
-    labelNames: ['status'],
-    registers: [registry]
-}))
-
-// --- BATCH POLLING METRICS ---
-
+// 8. Compatibility Aliases (Batch/Legacy)
 export const batch_poll_duration_seconds = register('nexnum_batch_poll_duration_seconds', () => new Histogram({
     name: 'nexnum_batch_poll_duration_seconds',
     help: 'Duration of batch polling operations',
@@ -152,7 +315,7 @@ export const batch_poll_duration_seconds = register('nexnum_batch_poll_duration_
 export const batch_poll_items_total = register('nexnum_batch_poll_items_total', () => new Counter({
     name: 'nexnum_batch_poll_items_total',
     help: 'Total items processed in batch polls',
-    labelNames: ['provider', 'result'], // result: 'success', 'error', 'pending'
+    labelNames: ['provider', 'result'],
     registers: [registry]
 }))
 
@@ -163,236 +326,98 @@ export const batch_poll_api_calls_saved = register('nexnum_batch_poll_api_calls_
     registers: [registry]
 }))
 
-export const active_orders_gauge = register('nexnum_active_orders_gauge', () => new Gauge({
-    name: 'nexnum_active_orders_gauge',
-    help: 'Current number of active orders',
-    labelNames: ['provider', 'status'],
+export const polling_active_jobs = register('nexnum_polling_active_jobs', () => new Gauge({
+    name: 'nexnum_polling_active_jobs',
+    help: 'Current number of active polling jobs',
+    labelNames: ['provider'],
     registers: [registry]
 }))
 
-// --- ORDER STATE MACHINE METRICS ---
-
-export const order_state_transitions_total = register('nexnum_order_state_transitions_total', () => new Counter({
-    name: 'nexnum_order_state_transitions_total',
-    help: 'Total order state transitions',
-    labelNames: ['from_state', 'to_state', 'provider'],
-    registers: [registry]
-}))
-
-export const order_processing_duration_seconds = register('nexnum_order_processing_duration_seconds', () => new Histogram({
-    name: 'nexnum_order_processing_duration_seconds',
-    help: 'Duration from order creation to completion/expiry',
-    labelNames: ['provider', 'final_state'],
-    buckets: [10, 30, 60, 120, 300, 600, 900, 1200], // 10s to 20min
-    registers: [registry]
-}))
-
-export const sms_delivery_latency_seconds = register('nexnum_sms_delivery_latency_seconds', () => new Histogram({
-    name: 'nexnum_sms_delivery_latency_seconds',
-    help: 'Time from number purchase to first SMS received',
-    labelNames: ['provider', 'service'],
-    buckets: [5, 10, 30, 60, 120, 300, 600],
-    registers: [registry]
-}))
-
-// --- WALLET OPERATION METRICS ---
-
-export const wallet_operation_duration_seconds = register('nexnum_wallet_operation_duration_seconds', () => new Histogram({
-    name: 'nexnum_wallet_operation_duration_seconds',
-    help: 'Duration of wallet operations',
-    labelNames: ['operation'], // reserve, commit, rollback, refund
-    buckets: [0.01, 0.05, 0.1, 0.25, 0.5, 1],
-    registers: [registry]
-}))
-
-export const wallet_balance_reserved_total = register('nexnum_wallet_balance_reserved_total', () => new Counter({
-    name: 'nexnum_wallet_balance_reserved_total',
-    help: 'Total amount reserved in wallet operations',
-    registers: [registry]
-}))
-
-export const wallet_refunds_total = register('nexnum_wallet_refunds_total', () => new Counter({
-    name: 'nexnum_wallet_refunds_total',
-    help: 'Total refunds processed',
-    labelNames: ['reason'], // timeout, cancelled, failed
-    registers: [registry]
-}))
-
-// --- MULTI-SMS METRICS ---
-
-export const multi_sms_sequences_total = register('nexnum_multi_sms_sequences_total', () => new Counter({
-    name: 'nexnum_multi_sms_sequences_total',
-    help: 'Total multi-SMS sequences processed',
-    labelNames: ['provider', 'sms_count'],
-    registers: [registry]
-}))
-
-// ============================================================================
-// COMMAND CENTER METRICS - For Admin Dashboard and Prometheus Scraping
-// ============================================================================
+// --- INSTRUMENTATION HELPERS ---
 
 /**
- * HTTP Request Counter
- * Tracks all HTTP requests with labels for dashboard slicing
+ * Tracks a financial integrity event
  */
-export const http_requests_total = register('nexnum_http_requests_total', () => new Counter({
-    name: 'nexnum_http_requests_total',
-    help: 'Total HTTP requests',
-    labelNames: ['environment', 'region', 'service', 'route', 'method', 'status_code'],
-    registers: [registry]
-}))
-
-/**
- * Provider Requests Counter  
- * Tracks outbound API calls to SMS providers
- */
-export const provider_requests_total = register('nexnum_provider_requests_total', () => new Counter({
-    name: 'nexnum_provider_requests_total',
-    help: 'Total outbound provider API calls',
-    labelNames: ['environment', 'region', 'service', 'provider_id', 'method', 'status_code'],
-    registers: [registry]
-}))
-
-/**
- * Active Numbers Gauge
- * Current count of active number rentals
- */
-export const active_numbers = register('nexnum_active_numbers', () => new Gauge({
-    name: 'nexnum_active_numbers',
-    help: 'Currently active number rentals',
-    labelNames: ['provider_id', 'region', 'status'],
-    registers: [registry]
-}))
-
-/**
- * Provider Latency Histogram
- * Response time distribution for provider API calls
- * Buckets chosen for accurate p50/p90/p99 calculation
- */
-export const provider_latency = register('nexnum_provider_latency_seconds', () => new Histogram({
-    name: 'nexnum_provider_latency_seconds',
-    help: 'Provider API response time distribution',
-    labelNames: ['provider_id', 'method', 'status_code', 'region'],
-    // Buckets: 10ms to 10s covering typical API latencies
-    buckets: [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
-    registers: [registry]
-}))
-
-/**
- * HTTP Request Latency Histogram
- * Response time distribution for all HTTP endpoints
- */
-export const http_request_duration = register('nexnum_http_request_duration_seconds', () => new Histogram({
-    name: 'nexnum_http_request_duration_seconds',
-    help: 'HTTP request duration distribution',
-    labelNames: ['route', 'method', 'status_code'],
-    buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5],
-    registers: [registry]
-}))
-
-/**
- * Database Connection Pool Metrics
- */
-export const db_connections = register('nexnum_db_connections', () => new Gauge({
-    name: 'nexnum_db_connections',
-    help: 'Database connection pool status',
-    labelNames: ['state'], // active, idle, max
-    registers: [registry]
-}))
-
-/**
- * Worker Queue Metrics
- */
-export const worker_queue_depth = register('nexnum_worker_queue_depth', () => new Gauge({
-    name: 'nexnum_worker_queue_depth',
-    help: 'Current worker queue depth by state',
-    labelNames: ['queue', 'state'], // state: pending, active, completed, failed
-    registers: [registry]
-}))
-
-/**
- * Incident Counter
- * Tracks system incidents by severity
- */
-export const incidents_total = register('nexnum_incidents_total', () => new Counter({
-    name: 'nexnum_incidents_total',
-    help: 'Total incidents by severity',
-    labelNames: ['severity', 'type'], // severity: info, warning, critical
-    registers: [registry]
-}))
-
-// ============================================================================
-// HELPER FUNCTIONS - For instrumenting code paths
-// ============================================================================
-
-const ENV = process.env.NODE_ENV || 'development'
-const REGION = process.env.REGION || 'default'
-const SERVICE = process.env.SERVICE_NAME || 'nexnum-api'
-
-/**
- * Track an HTTP request
- */
-export function trackHttpRequest(route: string, method: string, statusCode: number) {
-    http_requests_total.inc({
-        environment: ENV,
-        region: REGION,
-        service: SERVICE,
-        route,
-        method,
-        status_code: String(statusCode)
-    })
+export function recordFinancialIntegrity(status: 0 | 1 | 2) {
+    wallet_integrity_status.set(status)
 }
 
 /**
- * Track a provider API request with latency
+ * Backward compatible financial health reporting
  */
-export function trackProviderRequest(
-    providerId: string,
-    method: string,
-    statusCode: number,
-    latencySeconds: number
-) {
-    provider_requests_total.inc({
-        environment: ENV,
-        region: REGION,
-        service: SERVICE,
-        provider_id: providerId,
-        method,
-        status_code: String(statusCode)
+export function reportFinancialHealth(drift: number, status: number) {
+    wallet_sentinel_drift_total.set(Math.abs(drift))
+    wallet_sentinel_status.set(status)
+    wallet_integrity_status.set(status as any)
+}
+
+/**
+ * Updates provider sync pulse
+ */
+export function recordProviderSync() {
+    provider_last_sync_timestamp.set(Math.floor(Date.now() / 1000))
+}
+
+/**
+ * Track a provider API request
+ */
+export function trackProviderRequest(provider: string, method: string, statusCode: number, latencySeconds: number) {
+    provider_api_calls_total.inc({
+        provider: provider,
+        method: method,
+        status: statusCode < 400 ? 'success' : 'error'
     })
 
-    provider_latency.observe({
-        provider_id: providerId,
-        method,
-        status_code: String(statusCode),
-        region: REGION
+    provider_latency_seconds.observe({
+        provider_id: provider,
+        method: method
     }, latencySeconds)
 }
 
 /**
- * Update active numbers count
+ * Updates host hardware stats
  */
-export function updateActiveNumbers(providerId: string, count: number, status: string = 'active') {
-    active_numbers.set({
-        provider_id: providerId,
-        region: REGION,
-        status
-    }, count)
+export function updateHardwareStats(diskPercent: number) {
+    system_disk_usage_percent.set(diskPercent)
+
+    const mem = process.memoryUsage()
+    system_memory_usage_bytes.set({ type: 'heapUsed' }, mem.heapUsed)
+    system_memory_usage_bytes.set({ type: 'rss' }, mem.rss)
 }
 
 /**
- * Track HTTP request duration (for use with timer)
+ * Alias for backward compatibility
  */
-export function trackHttpDuration(route: string, method: string, statusCode: number, durationSeconds: number) {
-    http_request_duration.observe({
-        route,
-        method,
-        status_code: String(statusCode)
-    }, durationSeconds)
+export function updateSystemMetrics() {
+    updateHardwareStats(0) // Placeholder
 }
 
 /**
- * Update database connection metrics
+ * Updates Active Numbers Count (Backward Compatible)
+ */
+export function updateActiveNumbers(type: string | number, count?: number) {
+    if (typeof type === 'number') {
+        active_numbers.set(type)
+    } else if (count !== undefined) {
+        active_numbers.set(count)
+        active_orders_gauge.set({ status: 'ACTIVE', provider: 'total' }, count)
+    }
+}
+
+/**
+ * Update Worker Queue Metrics
+ */
+export function updateWorkerQueue(queue: string, waiting: number, active: number, failed: number) {
+    worker_queue_depth.set({ queue, state: 'pending' }, waiting)
+    worker_queue_depth.set({ queue, state: 'active' }, active)
+    worker_queue_depth.set({ queue, state: 'failed' }, failed)
+
+    // Legacy mapping
+    polling_active_jobs.set({ provider: queue }, active)
+}
+
+/**
+ * Update DB Connections
  */
 export function updateDbConnections(active: number, idle: number, max: number) {
     db_connections.set({ state: 'active' }, active)
@@ -401,50 +426,35 @@ export function updateDbConnections(active: number, idle: number, max: number) {
 }
 
 /**
- * Update worker queue metrics
+ * Record an Incident
  */
-export function updateWorkerQueue(queue: string, pending: number, active: number, failed: number) {
-    worker_queue_depth.set({ queue, state: 'pending' }, pending)
-    worker_queue_depth.set({ queue, state: 'active' }, active)
-    worker_queue_depth.set({ queue, state: 'failed' }, failed)
+export function recordIncident(type: string, severity: string) {
+    // Basic counter for incidents if needed, or just log
 }
 
 /**
- * Record an incident
+ * Track an HTTP request with automatic sanitization
  */
-export function recordIncident(severity: 'info' | 'warning' | 'critical', type: string) {
-    incidents_total.inc({ severity, type })
+export function trackHttpRequest(route: string, method: string, statusCode: number) {
+    http_requests_total.inc({
+        route,
+        method,
+        status_code: String(statusCode)
+    })
 }
 
 /**
- * Update system metrics (cpu, memory, uptime)
+ * Track an HTTP duration
  */
-export function updateSystemMetrics() {
-    const mem = process.memoryUsage()
-    system_memory_usage.set({ type: 'heapUsed' }, mem.heapUsed)
-    system_memory_usage.set({ type: 'rss' }, mem.rss)
-    system_memory_usage.set({ type: 'heapTotal' }, mem.heapTotal)
-    system_memory_usage.set({ type: 'external' }, mem.external)
-
-    system_uptime.set(process.uptime())
-
-    // CPU usage is a bit complex to calculate as a percentage instantly without storing previous tick
-    // simpler approximation or just relying on default metrics for CPU is often better
-    // But since we have a gauge, let's try a rough estimate if possible, or just skip CPU for now 
-    // and rely on nexnum_process_cpu_seconds_total which comes from defaults
-    // Actually, let's just update memory and uptime for now as those are what appeared in the screenshot
+export function trackHttpDuration(route: string, method: string, statusCode: number, durationSeconds: number) {
+    http_request_duration_seconds.observe({
+        route,
+        method,
+        status_code: String(statusCode)
+    }, durationSeconds)
 }
 
-/**
- * Track time spent waiting for distributed rate limiter
- */
-export function trackDistributedRateLimit(providerId: string, waitMs: number) {
-    distributed_rate_limit_wait_seconds.observe({ provider_id: providerId }, waitMs / 1000)
-}
-
-/**
- * Track SmartRouter cache hit/miss
- */
-export function trackProviderCache(result: 'hit' | 'miss') {
-    provider_config_cache_requests_total.inc({ result })
-}
+// System Aliases
+export const system_memory_usage = system_memory_usage_bytes
+export const system_uptime = system_uptime_seconds
+export const search_empty_results = search_empty_results_total

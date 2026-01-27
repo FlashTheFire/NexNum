@@ -20,8 +20,8 @@ async function main() {
     console.log('🗑️  Step 1: Wiping Database Tables...');
     // Order matters for foreign keys
     try {
-        await prisma.providerPricing.deleteMany({});
-        console.log('   - ProviderPricing deleted');
+        // await prisma.providerPricing.deleteMany({});
+        // console.log('   - ProviderPricing deleted');
 
         await prisma.providerService.deleteMany({});
         console.log('   - ProviderService deleted');

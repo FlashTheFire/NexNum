@@ -1,310 +1,58 @@
 # API Reference
 
-NexNum Backend API documentation for consumers and integrators.
+This document outlines the standard interaction model for the NexNum API.
+The API is fully documented via **OpenAPI 3.0** (Auto-generated).
 
----
+## 📊 Standard Response Envelope
 
-## Base URLs
+All API endpoints return data in a consistent JSON structure (`ApiResponse<T>`).
 
-| Environment | URL |
-|-------------|-----|
-| Development | `http://localhost:3000` |
-| Staging | `https://staging.nexnum.com` |
-| Production | `https://api.nexnum.com` |
-
----
-
-## Authentication
-
-### JWT Bearer Token
-Most endpoints require authentication via JWT bearer token.
-
-```
-Authorization: Bearer <access_token>
-```
-
-### API Key (v1 Public API)
-External consumers use API keys:
-
-```
-X-API-Key: <api_key>
-```
-
----
-
-## Core API Endpoints
-
-### Numbers
-
-#### Purchase Number
-```http
-POST /api/numbers/purchase
-```
-
-**Request:**
-```json
-{
-  "countryCode": "us",
-  "serviceCode": "telegram",
-  "provider": "herosms"
-}
-```
-
-**Response:**
+### Success Response
 ```json
 {
   "success": true,
   "data": {
-    "id": "num_abc123",
-    "phone": "+12025551234",
-    "expiresAt": "2025-01-24T15:30:00Z",
-    "status": "active"
-  }
+    "phoneNumber": "15550123456",
+    "country": "us"
+  },
+  "code": "OK"
 }
 ```
 
-#### Cancel Number
-```http
-POST /api/numbers/cancel
-```
-
-**Request:**
+### Error Response
 ```json
 {
-  "numberId": "num_abc123"
+  "success": false,
+  "error": "Insufficient funds to complete purchase",
+  "code": "E_INSUFFICIENT_FUNDS",
+  "details": {
+    "currentBalance": 0.50,
+    "required": 1.00
+  },
+  "status": 402
 }
 ```
 
-#### Get My Numbers
-```http
-GET /api/numbers/my
-```
+## 🛠️ Error Codes Dictionary
 
-#### Get Number by ID
-```http
-GET /api/numbers/{id}
-```
+| Code | HTTP | Description |
+| :--- | :--- | :--- |
+| `E_VALIDATION_ERROR` | 400 | Invalid input (see `details` for field errors). |
+| `E_UNAUTHORIZED` | 401 | Missing or invalid JWT token. |
+| `E_FORBIDDEN` | 403 | Valid token but insufficient permissions. |
+| `E_NOT_FOUND` | 404 | Resource does not exist. |
+| `E_INSUFFICIENT_FUNDS` | 402 | Wallet balance too low. |
+| `E_NO_NUMBERS` | 503 | Provider is out of stock for this service. |
+| `E_Provider_ERROR` | 502 | Upstream provider failed. |
 
----
+## 🔑 Authentication
 
-### Wallet
+Include the JWT in the `Authorization` header:
+`Authorization: Bearer <your_token>`
 
-#### Get Balance
-```http
-GET /api/wallet/balance
-```
+## 📚 OpenAPI / Swagger
+The full interactive documentation is available locally at:
+`http://localhost:3000/api/docs`
 
-**Response:**
-```json
-{
-  "balance": 25.50,
-  "currency": "USD",
-  "reserved": 1.50
-}
-```
-
-#### Get Transactions
-```http
-GET /api/wallet/transactions?page=1&limit=20
-```
-
-#### Top Up (Admin)
-```http
-POST /api/wallet/topup
-```
-
----
-
-### Search
-
-#### Search Offers
-```http
-GET /api/search/offers?q=telegram&country=us
-```
-
-**Response:**
-```json
-{
-  "hits": [
-    {
-      "id": "offer_1",
-      "service": "Telegram",
-      "country": "United States",
-      "price": 0.50,
-      "provider": "herosms"
-    }
-  ],
-  "total": 1
-}
-```
-
----
-
-## Public API (v1)
-
-External API for third-party consumers.
-
-### Get Balance
-```http
-GET /api/v1/balance
-X-API-Key: <api_key>
-```
-
-### Get Number
-```http
-POST /api/v1/numbers
-X-API-Key: <api_key>
-```
-
-### Get SMS
-```http
-GET /api/v1/sms/{activationId}
-X-API-Key: <api_key>
-```
-
-### Webhooks
-```http
-POST /api/v1/webhooks/sms
-```
-
----
-
-## Admin API
-
-### Providers
-
-#### List Providers
-```http
-GET /api/admin/providers
-```
-
-#### Sync Provider
-```http
-POST /api/admin/providers/{id}/sync
-```
-
-#### Smart Router Configuration
-
-The Smart Router selects the best provider using a weighted score algorithm:
-`Score = (SuccessRate * Weight * PriorityBoost) / (Latency * PriceMarkup)`
-
-**Variables:**
-- **Weight** (`0-100`): Direct score multiplier. Increase to drive more traffic to a specific provider.
-- **Priority** (`1-10`): Inverse multiplier. Lower number = Higher priority. `1` is the highest priority.
-- **Price Multiplier** (`>= 1.0`): Cost penalty. Higher markup reduces the score (router prefers cheaper providers).
-- **Fixed Markup**: Added to the price *after* selection, does not affect scoring.
-
-**Failover Logic:**
-If the selected provider returns `NO_NUMBERS`, `NO_BALANCE`, `RATE_LIMITED`, or `SERVER_ERROR`, the router automatically retries with the next best provider.
-
-### Users
-
-#### List Users
-```http
-GET /api/admin/users
-```
-
-#### Ban User
-```http
-POST /api/admin/users/{id}/ban
-```
-
-### Analytics
-
-#### Dashboard Stats
-```http
-GET /api/admin/analytics/dashboard
-```
-
----
-
-## Health & Metrics
-
-### Health Check
-```http
-GET /api/health
-```
-
-**Response:**
-```json
-{
-  "status": "ok",
-  "timestamp": "2025-01-24T15:00:00Z"
-}
-```
-
-### Ready Check
-```http
-GET /api/health/ready
-```
-
-Checks DB + Redis connectivity.
-
-### Prometheus Metrics
-```http
-GET /api/metrics
-```
-
----
-
-## Error Responses
-
-All errors follow this format:
-
-```json
-{
-  "error": {
-    "code": "INSUFFICIENT_BALANCE",
-    "message": "Not enough funds to complete purchase",
-    "details": {}
-  }
-}
-```
-
-### Common Error Codes
-
-| Code | HTTP Status | Description |
-|------|-------------|-------------|
-| `UNAUTHORIZED` | 401 | Invalid or missing auth token |
-| `FORBIDDEN` | 403 | Not allowed to access resource |
-| `NOT_FOUND` | 404 | Resource not found |
-| `VALIDATION_ERROR` | 400 | Invalid request parameters |
-| `INSUFFICIENT_BALANCE` | 400 | Not enough wallet balance |
-| `NO_NUMBERS_AVAILABLE` | 503 | Provider has no numbers |
-| `RATE_LIMITED` | 429 | Too many requests |
-
----
-
-## Rate Limits
-
-| Endpoint Type | Limit |
-|--------------|-------|
-| General API | 100 req/min |
-| Purchase | 10 req/min |
-| Admin | 60 req/min |
-| v1 Public | 30 req/min |
-
----
-
-## Webhooks
-
-### SMS Received Webhook
-```http
-POST <your_webhook_url>
-Content-Type: application/json
-```
-
-**Payload:**
-```json
-{
-  "event": "sms.received",
-  "data": {
-    "numberId": "num_abc123",
-    "phone": "+12025551234",
-    "code": "123456",
-    "text": "Your code is 123456",
-    "sender": "Telegram",
-    "receivedAt": "2025-01-24T15:05:00Z"
-  }
-}
-```
+Or via the raw JSON spec:
+`GET /api/docs/openapi.json`

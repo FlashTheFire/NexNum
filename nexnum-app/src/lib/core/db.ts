@@ -24,11 +24,13 @@ function createPrismaClient(url?: string): PrismaClient {
 
     // Optimization: Use standard TCP for read replicas if pooling is an issue, 
     // or same pool config. Here we assume direct connection or pgbouncer.
+    const isProduction = process.env.NODE_ENV === 'production'
     const pool = new Pool({
         connectionString,
-        max: process.env.NODE_ENV === 'development' ? 5 : 10,
+        max: isProduction ? 20 : 5, // Increased for pro scaling
         idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 10000,
+        connectionTimeoutMillis: 5000, // Faster failure
+        maxUses: 7500, // Recycle connections to prevent memory leaks
     })
 
     const adapter = new PrismaPg(pool)

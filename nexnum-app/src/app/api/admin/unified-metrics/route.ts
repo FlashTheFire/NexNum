@@ -24,6 +24,7 @@ import { redis } from '@/lib/core/redis'
 import { requireAdmin } from '@/lib/auth/requireAdmin'
 import { healthMonitor } from '@/lib/providers/health-monitor'
 import { AdvancedMetricsCalculator } from '@/lib/metrics/advanced-metrics'
+import { normalizeServiceName, normalizeCountryName } from '@/lib/normalizers/service-identity'
 
 const meili = new MeiliSearch({
     host: process.env.MEILISEARCH_HOST || 'http://127.0.0.1:7700',
@@ -179,13 +180,13 @@ async function calculateUnifiedMetrics(query: UnifiedMetricsRequest): Promise<Un
     // Build filter based on query
     const filters: string[] = ['stock > 0']
     if (query.service) {
-        filters.push(`(serviceSlug = "${query.service.toLowerCase()}" OR serviceName = "${query.service}")`)
+        filters.push(`serviceName = "${query.service}"`)
     }
     if (query.country) {
-        filters.push(`(countryCode = "${query.country.toLowerCase()}" OR countryName = "${query.country}")`)
+        filters.push(`countryName = "${query.country}"`)
     }
     if (query.provider) {
-        filters.push(`provider = "${query.provider.toLowerCase()}"`)
+        filters.push(`providerName = "${query.provider}"`)
     }
 
     // Fetch all matching offers
@@ -270,10 +271,10 @@ function calculateServiceDimension(offers: any[]): ServiceDimension[] {
     }>()
 
     for (const offer of offers) {
-        const key = offer.serviceSlug
+        const key = normalizeServiceName(offer.serviceName)
         if (!serviceMap.has(key)) {
             serviceMap.set(key, {
-                code: offer.serviceSlug,
+                code: offer.serviceCode,
                 name: offer.serviceName,
                 iconUrl: offer.iconUrl,
                 countries: new Set(),
@@ -283,8 +284,8 @@ function calculateServiceDimension(offers: any[]): ServiceDimension[] {
             })
         }
         const s = serviceMap.get(key)!
-        s.countries.add(offer.countryCode)
-        s.providers.add(offer.provider)
+        s.countries.add(offer.countryName)
+        s.providers.add(offer.providerName)
         s.prices.push(offer.price)
         s.stock += offer.stock || 0
     }
@@ -296,12 +297,12 @@ function calculateServiceDimension(offers: any[]): ServiceDimension[] {
         // Find top country and provider
         const countryPrices = new Map<string, number>()
         const providerPrices = new Map<string, number>()
-        for (const offer of offers.filter(o => o.serviceSlug === s.code)) {
+        for (const offer of offers.filter(o => normalizeServiceName(o.serviceName) === normalizeServiceName(s.name))) {
             if (!countryPrices.has(offer.countryName) || offer.price < countryPrices.get(offer.countryName)!) {
                 countryPrices.set(offer.countryName, offer.price)
             }
-            if (!providerPrices.has(offer.provider) || offer.price < providerPrices.get(offer.provider)!) {
-                providerPrices.set(offer.provider, offer.price)
+            if (!providerPrices.has(offer.providerName) || offer.price < providerPrices.get(offer.providerName)!) {
+                providerPrices.set(offer.providerName, offer.price)
             }
         }
 
@@ -337,7 +338,7 @@ function calculateCountryDimension(offers: any[]): CountryDimension[] {
     }>()
 
     for (const offer of offers) {
-        const key = offer.countryCode
+        const key = normalizeCountryName(offer.countryName)
         if (!countryMap.has(key)) {
             countryMap.set(key, {
                 code: offer.countryCode,
@@ -352,8 +353,8 @@ function calculateCountryDimension(offers: any[]): CountryDimension[] {
             })
         }
         const c = countryMap.get(key)!
-        c.services.add(offer.serviceSlug)
-        c.providers.add(offer.provider)
+        c.services.add(offer.serviceName)
+        c.providers.add(offer.providerName)
         c.prices.push(offer.price)
         c.stock += offer.stock || 0
     }
@@ -394,7 +395,7 @@ async function calculateProviderDimension(
     const result: ProviderDimension[] = []
 
     for (const provider of providers) {
-        const providerOffers = offers.filter(o => o.provider === provider.name)
+        const providerOffers = offers.filter(o => o.providerName === provider.name)
         const health = healthMap.get(provider.name)
 
         // Get condensed advanced metrics
@@ -422,7 +423,7 @@ async function calculateProviderDimension(
             successRate: Math.round((health?.successRate || 1) * 100),
             avgLatency: Math.round(health?.avgLatency || 0),
 
-            totalServices: new Set(providerOffers.map(o => o.serviceSlug)).size,
+            totalServices: new Set(providerOffers.map(o => o.serviceCode)).size,
             totalCountries: new Set(providerOffers.map(o => o.countryCode)).size,
             totalOffers: providerOffers.length,
 
@@ -448,11 +449,11 @@ function calculateMatrix(offers: any[], healthMap: Map<string, any>): MatrixCell
     return offers.slice(0, 100).map(offer => ({
         service: offer.serviceName,
         country: offer.countryName,
-        provider: offer.provider,
+        provider: offer.providerName,
         price: offer.price,
         stock: offer.stock || 0,
         operatorId: offer.operatorId,
-        health: healthMap.get(offer.provider)?.status || 'healthy'
+        health: healthMap.get(offer.providerName)?.status || 'healthy'
     }))
 }
 
@@ -462,8 +463,8 @@ async function calculatePlatformMetrics(
     healthMap: Map<string, any>,
     query: UnifiedMetricsRequest
 ): Promise<UnifiedMetricsResponse['platform']> {
-    const services = new Set(offers.map(o => o.serviceSlug))
-    const countries = new Set(offers.map(o => o.countryCode))
+    const services = new Set(offers.map(o => o.serviceName))
+    const countries = new Set(offers.map(o => o.countryName))
     const healthyProviders = providers.filter(p => {
         const health = healthMap.get(p.name)
         return health?.status === 'healthy' || health?.circuitState === 'closed'

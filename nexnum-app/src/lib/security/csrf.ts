@@ -16,7 +16,13 @@ import { randomBytes, createHmac } from 'crypto'
 
 const CSRF_COOKIE_NAME = process.env.NODE_ENV === 'production' ? '__Host-csrf-token' : 'csrf-token'
 const CSRF_HEADER_NAME = 'x-csrf-token'
-const CSRF_SECRET = process.env.CSRF_SECRET || process.env.JWT_SECRET || 'dev-csrf-secret'
+const CSRF_SECRET = process.env.CSRF_SECRET || process.env.JWT_SECRET
+
+if (!CSRF_SECRET && process.env.NODE_ENV === 'production') {
+    throw new Error('CSRF_SECRET is required in production')
+}
+
+const SECRET = CSRF_SECRET || 'dev-csrf-secret'
 const CSRF_TOKEN_EXPIRY = 60 * 60 * 1000 // 1 hour
 
 interface CSRFToken {
@@ -33,7 +39,7 @@ export function generateCSRFToken(): string {
     const payload = `${timestamp}.${random}`
 
     // Sign the payload
-    const signature = createHmac('sha256', CSRF_SECRET)
+    const signature = createHmac('sha256', SECRET)
         .update(payload)
         .digest('hex')
 
@@ -59,7 +65,7 @@ export function validateCSRFToken(token: string): boolean {
 
     // Verify signature
     const payload = `${timestampStr}.${random}`
-    const expectedSignature = createHmac('sha256', CSRF_SECRET)
+    const expectedSignature = createHmac('sha256', SECRET)
         .update(payload)
         .digest('hex')
 

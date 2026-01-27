@@ -20,9 +20,12 @@ const APIS = {
     },
 } as const
 
-// Cache key prefix
+// Cache keys
 const CACHE_PREFIX = 'img_proxy:'
+const CIRCUIT_BREAKER_KEY = 'circuit:img_proxy'
 const CACHE_TTL = 60 * 60 * 24 * 30 // 30 days
+const CIRCUIT_THRESHOLD = 5 // Max 5 failures in 1 minute
+const CIRCUIT_DURATION = 300 // 5 minutes "Open" state
 
 interface UploadResult {
     success: boolean
@@ -153,16 +156,21 @@ async function downloadImage(url: string): Promise<{ buffer: Buffer; filename: s
  * @returns Proxied URL or original URL on failure
  */
 export async function proxyImage(sourceUrl: string): Promise<UploadResult> {
-    // IMAGE PROXY DISABLED FOR NOW
-    return { success: true, url: sourceUrl, source: 'original' }
+    // 1. Check Circuit Breaker
+    try {
+        const isTripped = await redis.get(CIRCUIT_BREAKER_KEY)
+        if (isTripped) {
+            return { success: false, url: sourceUrl, source: 'original', error: 'Circuit Breaker Open' }
+        }
+    } catch (e) { }
 
-    // SPECIAL CASE: GrizzlySMS webp files need to be converted to jpg
+    // 2. Special Case: GrizzlySMS webp files need to be converted to jpg
     let processedUrl = sourceUrl
     if (sourceUrl.includes('grizzlysms.com') && sourceUrl.endsWith('.webp')) {
         processedUrl = sourceUrl.replace(/\.webp$/, '.jpg')
     }
 
-    // Skip if already proxied or internal
+    // 3. Skip if already proxied or safe internal/CDN URL
     if (
         processedUrl.includes('imghippo.com') ||
         processedUrl.includes('freeimage.host') ||
@@ -170,12 +178,12 @@ export async function proxyImage(sourceUrl: string): Promise<UploadResult> {
         processedUrl.includes('iili.io') ||
         processedUrl.startsWith('/') ||
         processedUrl.includes('dicebear') ||
-        processedUrl.includes('flagcdn.com') // Public CDN, safe to use
+        processedUrl.includes('flagcdn.com')
     ) {
         return { success: true, url: processedUrl, source: 'original' }
     }
 
-    // Check cache first
+    // 4. Check cache first
     const cacheKey = `${CACHE_PREFIX}${Buffer.from(processedUrl).toString('base64').slice(0, 64)}`
 
     try {
@@ -187,7 +195,7 @@ export async function proxyImage(sourceUrl: string): Promise<UploadResult> {
         // Cache miss, continue
     }
 
-    // Download image
+    // 5. Download image
     const downloaded = await downloadImage(processedUrl)
     if (!downloaded) {
         return { success: false, url: processedUrl, source: 'original', error: 'Download failed' }
@@ -195,35 +203,49 @@ export async function proxyImage(sourceUrl: string): Promise<UploadResult> {
 
     const { buffer, filename } = downloaded
 
-    // Try APIs in order
+    // 6. Try APIs in order
     let proxiedUrl: string | null = null
     let source: UploadResult['source'] = 'original'
 
-    // 1. FreeImage.host (primary)
-    proxiedUrl = await uploadToFreeImage(buffer, filename)
-    if (proxiedUrl) {
-        source = 'freeimage'
-    }
-
-    // 2. IM.GE (fallback)
-    if (!proxiedUrl) {
-        proxiedUrl = await uploadToImge(buffer, filename)
+    try {
+        // 1. FreeImage.host (primary)
+        proxiedUrl = await uploadToFreeImage(buffer, filename)
         if (proxiedUrl) {
-            source = 'imge'
+            source = 'freeimage'
         }
+
+        // 2. IM.GE (fallback)
+        if (!proxiedUrl) {
+            proxiedUrl = await uploadToImge(buffer, filename)
+            if (proxiedUrl) {
+                source = 'imge'
+            }
+        }
+    } catch (error) {
+        logger.error('Proxy upload sequence failed', { error: (error as Error).message })
     }
 
     if (proxiedUrl) {
         // Cache the result
         try {
             await redis.set(cacheKey, proxiedUrl, 'EX', CACHE_TTL)
-        } catch (e) {
-            // Cache write failed, continue anyway
-        }
+        } catch (e) { }
 
         logger.info('Image proxied successfully', { source, original: processedUrl.slice(0, 50) })
         return { success: true, url: proxiedUrl, source }
     }
+
+    // 7. Handle Failure (Update Circuit Breaker)
+    try {
+        const failureKey = `${CIRCUIT_BREAKER_KEY}:failures`
+        const failures = await redis.incr(failureKey)
+        if (failures === 1) await redis.expire(failureKey, 60)
+
+        if (failures >= CIRCUIT_THRESHOLD) {
+            logger.error('[CircuitBreaker] Tripping for Image Proxy', { failures })
+            await redis.setex(CIRCUIT_BREAKER_KEY, CIRCUIT_DURATION, 'active')
+        }
+    } catch (e) { }
 
     // All failed, return original
     logger.warn('All image proxy APIs failed, using original', { url: processedUrl.slice(0, 50) })

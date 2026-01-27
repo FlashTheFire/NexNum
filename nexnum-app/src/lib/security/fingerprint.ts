@@ -1,31 +1,31 @@
 /**
- * Device Fingerprinting
+ * Device Fingerprinting (Industrial/Forensic Grade)
  * 
- * Collects device characteristics to:
- * 1. Detect suspicious device changes
- * 2. Add fingerprint-based rate limiting
- * 3. Track session consistency
- * 
- * Note: This is server-side fingerprinting from headers.
- * For more accurate fingerprinting, use client-side libraries.
+ * Collects persistent device characteristics to:
+ * 1. Detect suspicious device changes (Account Takeover Protection)
+ * 2. Empower high-fidelity rate limiting
+ * 3. Track session consistency across IP changes
  */
 
 import { createHash } from 'crypto'
+
+const FINGERPRINT_SALT = process.env.FINGERPRINT_SALT || 'dev-fingerprint-salt'
 
 export interface DeviceFingerprint {
     hash: string
     components: {
         userAgent: string
         language: string
-        encoding: string
+        platform?: string
+        mobile?: boolean
+        hints?: string
         timezone?: string
         screenInfo?: string
     }
 }
 
 /**
- * Generate device fingerprint from headers
- * This is a basic server-side fingerprint - accuracy varies
+ * Generate device fingerprint with Modern Client Hints
  */
 export function generateFingerprint(headers: Headers, clientData?: {
     timezone?: string
@@ -33,21 +33,30 @@ export function generateFingerprint(headers: Headers, clientData?: {
 }): DeviceFingerprint {
     const userAgent = headers.get('user-agent') || ''
     const language = headers.get('accept-language') || ''
-    const encoding = headers.get('accept-encoding') || ''
+
+    // Modern Client Hints - Significantly more stable & harder to spoof
+    const chUa = headers.get('sec-ch-ua') || ''
+    const chMobile = headers.get('sec-ch-ua-mobile') === '?1'
+    const chPlatform = headers.get('sec-ch-ua-platform') || ''
 
     const components = {
         userAgent: userAgent.slice(0, 300),
         language: language.slice(0, 100),
-        encoding,
+        platform: chPlatform,
+        mobile: chMobile,
+        hints: chUa,
         timezone: clientData?.timezone,
         screenInfo: clientData?.screen
     }
 
-    // Create stable hash
+    // Create stable hash with server-side salt
     const fingerString = [
+        FINGERPRINT_SALT,
         components.userAgent,
         components.language,
-        components.encoding,
+        components.platform,
+        components.mobile ? '1' : '0',
+        components.hints,
         components.timezone || '',
         components.screenInfo || ''
     ].join('|')
@@ -55,14 +64,13 @@ export function generateFingerprint(headers: Headers, clientData?: {
     const hash = createHash('sha256')
         .update(fingerString)
         .digest('hex')
-        .slice(0, 32) // Shortened for storage
+        .slice(0, 32)
 
     return { hash, components }
 }
 
 /**
- * Compare two fingerprints for similarity
- * Returns a score from 0 (completely different) to 1 (identical)
+ * Compare two fingerprints with Modern Weighting
  */
 export function compareFingerprints(fp1: DeviceFingerprint, fp2: DeviceFingerprint): number {
     if (fp1.hash === fp2.hash) return 1.0
@@ -70,49 +78,43 @@ export function compareFingerprints(fp1: DeviceFingerprint, fp2: DeviceFingerpri
     let matches = 0
     let total = 0
 
-    // Compare components
     const c1 = fp1.components
     const c2 = fp2.components
 
-    // Major components weighted more
-    if (c1.userAgent === c2.userAgent) matches += 3
-    total += 3
+    // MODERN HINTS (Weighted Highest)
+    if (c1.hints && c2.hints) {
+        if (c1.hints === c2.hints) matches += 4
+        total += 4
+    }
 
-    if (c1.language === c2.language) matches += 2
+    if (c1.platform && c2.platform) {
+        if (c1.platform === c2.platform) matches += 3
+        total += 3
+    }
+
+    // User Agent (Lower weight as it's easily spoofed)
+    if (c1.userAgent === c2.userAgent) matches += 2
     total += 2
 
-    if (c1.encoding === c2.encoding) matches += 1
+    if (c1.language === c2.language) matches += 1
     total += 1
 
-    if (c1.timezone && c2.timezone && c1.timezone === c2.timezone) matches += 2
-    if (c1.timezone || c2.timezone) total += 2
-
-    if (c1.screenInfo && c2.screenInfo && c1.screenInfo === c2.screenInfo) matches += 2
-    if (c1.screenInfo || c2.screenInfo) total += 2
+    if (c1.timezone && c2.timezone && c1.timezone === c2.timezone) matches += 1
+    if (c1.timezone || c2.timezone) total += 1
 
     return total > 0 ? matches / total : 0
 }
 
-/**
- * Check if fingerprint changed significantly (potential account takeover)
- */
 export function isSuspiciousChange(oldFp: DeviceFingerprint, newFp: DeviceFingerprint): boolean {
     const similarity = compareFingerprints(oldFp, newFp)
-    // Less than 50% similarity is suspicious
-    return similarity < 0.5
+    // 60% similarity threshold for hardened fingerprinting
+    return similarity < 0.6
 }
 
-/**
- * Create fingerprint identifier for rate limiting
- * Combines IP + fingerprint for more accurate identification
- */
 export function createRateLimitKey(ip: string, fingerprint: DeviceFingerprint): string {
     return `${ip}:${fingerprint.hash.slice(0, 16)}`
 }
 
-/**
- * Get lightweight fingerprint ID for logging
- */
 export function getFingerprintId(headers: Headers): string {
     return generateFingerprint(headers).hash.slice(0, 16)
 }

@@ -77,8 +77,8 @@ export async function processPushBatch(batchSize = 20): Promise<ProcessResult> {
             const payload = JSON.stringify({
                 title,
                 body: message,
-                icon: '/icons/icon-192x192.png',
-                badge: '/icons/badge-72x72.png',
+                icon: '/assets/icons/icon-192x192.png',
+                badge: '/assets/icons/badge-72x72.png',
                 data: {
                     ...data,
                     url: data?.url || '/dashboard',

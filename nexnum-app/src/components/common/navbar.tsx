@@ -72,7 +72,7 @@ export function Navbar() {
                                         decoding="async"
                                         className="text-black invert-0"
                                         style={{ color: "transparent", filter: "brightness(0)" }}
-                                        src="/logos/nexnum-logo.svg"
+                                        src="/assets/brand/nexnum-logo.svg"
                                     />
                                 </div>
                                 <div className="absolute inset-0 bg-[hsl(var(--neon-lime))] rounded-xl blur-xl opacity-20 group-hover:opacity-40 transition-opacity"></div>

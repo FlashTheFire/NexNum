@@ -97,7 +97,8 @@ const nextConfig = {
     },
     // ... other config
     // Performance optimizations
-    output: 'standalone',
+    // Disable standalone on Windows to avoid EINVAL (colon in filename) errors during tracing
+    output: process.platform === 'win32' ? undefined : 'standalone',
     reactStrictMode: true,
     poweredByHeader: false,
 

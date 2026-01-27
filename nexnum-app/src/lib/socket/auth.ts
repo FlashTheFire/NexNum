@@ -2,6 +2,7 @@ import { Socket } from 'socket.io';
 import { ExtendedError } from 'socket.io/dist/namespace';
 import { verifyToken } from '@/lib/auth/jwt';
 import { prisma } from '@/lib/core/db';
+import { redis } from '@/lib/core/redis';
 import { logger } from '@/lib/core/logger';
 
 export interface AuthenticatedSocket extends Socket {
@@ -40,19 +41,37 @@ export async function socketAuth(socket: Socket, next: (err?: ExtendedError) => 
             return next(new Error('Authentication error: Invalid token'));
         }
 
-        // 2. DB Check (Strict Security: Ban & Token Version Revocation)
-        // This makes connection slightly slower but much safer. 
-        // We can optimize with Redis caching later if needed.
-        const user = await prisma.user.findUnique({
-            where: { id: payload.userId },
-            select: {
-                id: true,
-                email: true,
-                role: true,
-                isBanned: true,
-                tokenVersion: true
+        // 2. Security Context Check (Industrial Grade: DB + Redis Caching)
+        // Handshake optimization: Use Redis for security signals to avoid DB bottleneck.
+        const cacheKey = `auth:security_context:${payload.userId}`;
+        let user: { id: string, email: string, role: string, isBanned: boolean, tokenVersion: number } | null = null;
+
+        try {
+            const cached = await redis.get(cacheKey);
+            if (cached) {
+                user = JSON.parse(cached as string);
             }
-        });
+        } catch (err) {
+            logger.warn('[SocketAuth] Cache read failed, falling back to DB');
+        }
+
+        if (!user) {
+            user = await prisma.user.findUnique({
+                where: { id: payload.userId },
+                select: {
+                    id: true,
+                    email: true,
+                    role: true,
+                    isBanned: true,
+                    tokenVersion: true
+                }
+            });
+
+            if (user) {
+                // Cache for 5 minutes to balance speed vs security freshness
+                await redis.setex(cacheKey, 300, JSON.stringify(user));
+            }
+        }
 
         if (!user) {
             return next(new Error('Authentication error: User not found'));

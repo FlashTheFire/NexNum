@@ -8,6 +8,7 @@
  */
 
 import { CodeExtractionResult, CodePattern } from './types'
+import { logger } from '@/lib/core/logger'
 
 // ============================================
 // CODE PATTERNS
@@ -118,25 +119,71 @@ export class CodeExtractor {
      */
     static extract(
         text: string,
-        serviceCode?: string
+        serviceCode?: string,
+        serviceName?: string
     ): CodeExtractionResult | null {
         if (!text) return null
 
         // Try service-specific patterns first
         if (serviceCode) {
             const result = this.tryServicePatterns(text, serviceCode)
-            if (result) return result
+            if (result) {
+                // Apply semantic guard
+                return this.applySemanticGuard(result, text, serviceName)
+            }
         }
 
         // Try generic patterns with keywords
         const genericResult = this.tryGenericPatterns(text, true)
-        if (genericResult) return genericResult
+        if (genericResult) {
+            return this.applySemanticGuard(genericResult, text, serviceName)
+        }
 
         // Try generic patterns without keywords
         const looseResult = this.tryGenericPatterns(text, false)
-        if (looseResult) return looseResult
+        if (looseResult) {
+            return this.applySemanticGuard(looseResult, text, serviceName)
+        }
 
         return null
+    }
+
+    /**
+     * Apply Semantic Guard (Code-Mixing Prevention)
+     * Penalizes confidence if the code appears to belong to a DIFFERENT service
+     */
+    private static applySemanticGuard(
+        result: CodeExtractionResult,
+        text: string,
+        expectedService?: string
+    ): CodeExtractionResult {
+        if (!expectedService) return result
+
+        const lowerText = text.toLowerCase()
+        const lowerExpected = expectedService.toLowerCase()
+
+        // 1. Identify "Foreign" Service mentions
+        const foreignServices = SERVICE_PATTERNS.filter(p =>
+            p.name.toLowerCase() !== lowerExpected &&
+            !lowerExpected.includes(p.name.toLowerCase())
+        )
+
+        const foundForeign = foreignServices.find(p =>
+            p.keywords?.some(kw => lowerText.includes(kw.toLowerCase()))
+        )
+
+        if (foundForeign) {
+            // CRITICAL: Mismatched service detected. Extreme confidence penalty.
+            result.confidence -= 0.6
+            result.isMismatched = true
+            logger.warn('[CodeExtractor] Contextual Mismatch Detected', {
+                expected: expectedService,
+                found: foundForeign.name,
+                code: result.code
+            })
+        }
+
+        return result
     }
 
     /**

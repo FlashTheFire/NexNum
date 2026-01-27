@@ -12,10 +12,10 @@
  */
 
 import { prisma } from '@/lib/core/db'
-import { DynamicProvider } from '@/lib/providers/dynamic-provider'
 import { getProviderAdapter } from '@/lib/providers/provider-factory'
 import { logger } from '@/lib/core/logger'
 import { Provider } from '@prisma/client'
+import { PredictiveThrottler } from './predictive-throttler'
 
 // ============================================================================
 // Types
@@ -167,19 +167,27 @@ export class BatchPollManager {
     ): Promise<BatchPollResult[]> {
         const results: BatchPollResult[] = []
 
-        // Chunk items into batches
+        // 1. Chunk items into batches
         const chunks = this.chunkArray(items, CONFIG.MAX_BATCH_SIZE)
 
-        // Process chunks with limited parallelism
-        for (let i = 0; i < chunks.length; i += CONFIG.MAX_PARALLEL_BATCHES) {
-            const parallelChunks = chunks.slice(i, i + CONFIG.MAX_PARALLEL_BATCHES)
+        // 2. Determine Optimal Parallelism based on provider health
+        const maxParallel = await PredictiveThrottler.getOptimalParallelism(provider.id)
+
+        // 3. Process chunks with limited parallelism
+        for (let i = 0; i < chunks.length; i += maxParallel) {
+            const parallelChunks = chunks.slice(i, i + maxParallel)
 
             const chunkResults = await Promise.all(
                 parallelChunks.map(async (chunk) => {
                     const activationIds = chunk.map(item => item.activationId)
+                    const startTime = Date.now()
 
                     try {
                         const statusMap = await adapter.getStatusBatch(activationIds)
+                        const latency = Date.now() - startTime
+
+                        // Record success metrics
+                        PredictiveThrottler.recordMetrics(provider.id, latency, true)
 
                         return chunk.map(item => ({
                             activationId: item.activationId,
@@ -188,6 +196,9 @@ export class BatchPollManager {
                             messages: statusMap.get(item.activationId)?.messages || [],
                         }))
                     } catch (error: any) {
+                        const latency = Date.now() - startTime
+                        PredictiveThrottler.recordMetrics(provider.id, latency, false)
+
                         logger.error('[BatchPoll] Batch request failed', {
                             provider: provider.name,
                             error: error.message,

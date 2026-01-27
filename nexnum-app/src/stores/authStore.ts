@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 
 interface AuthState {
-    user: { id: string; name: string; email: string; role?: string; preferredCurrency?: string } | null;
+    user: { id: string; name: string; email: string; role?: string; preferredCurrency?: string; emailVerified?: Date | null } | null;
     token: string | null;
     isAuthenticated: boolean;
     isLoading: boolean;
@@ -53,14 +53,14 @@ const clearToken = () => {
 };
 
 // Helper to save user to localStorage (for faster hydration)
-const saveUser = (user: { id: string; name: string; email: string; role?: string; preferredCurrency?: string }) => {
+const saveUser = (user: { id: string; name: string; email: string; role?: string; preferredCurrency?: string; emailVerified?: Date | null }) => {
     if (typeof window !== 'undefined') {
         localStorage.setItem(USER_KEY, JSON.stringify(user));
     }
 };
 
 // Helper to get cached user from localStorage
-const getCachedUser = (): { id: string; name: string; email: string; role?: string; preferredCurrency?: string } | null => {
+const getCachedUser = (): { id: string; name: string; email: string; role?: string; preferredCurrency?: string; emailVerified?: Date | null } | null => {
     if (typeof window !== 'undefined') {
         const userData = localStorage.getItem(USER_KEY);
         const timestamp = localStorage.getItem(AUTH_TIMESTAMP_KEY);

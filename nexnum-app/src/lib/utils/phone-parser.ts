@@ -16,6 +16,12 @@ export interface ParsedPhoneNumber {
     nationalNumber: string
     /** ISO 3166-1 alpha-2 country code (e.g., "US") */
     countryIso: string | null
+    /** International format (e.g. "+1 415 555 2671") */
+    international: string
+    /** National format (e.g. "(415) 555-2671") */
+    national: string
+    /** URI format (e.g. "tel:+14155552671") */
+    uri: string
     /** Whether the number is valid */
     isValid: boolean
 }
@@ -52,6 +58,9 @@ export function formatPhoneNumber(
         if (!parsed) {
             return {
                 full: phoneNumber,
+                international: phoneNumber,
+                national: phoneNumber,
+                uri: `tel:${phoneNumber}`,
                 countryCode: '',
                 nationalNumber: phoneNumber,
                 countryIso: null,
@@ -68,6 +77,9 @@ export function formatPhoneNumber(
 
         return {
             full: parsed.format('E.164'),
+            international: parsed.formatInternational(),
+            national: parsed.formatNational(),
+            uri: parsed.getURI(),
             countryCode,
             nationalNumber,
             countryIso: parsed.country || null,
@@ -78,6 +90,9 @@ export function formatPhoneNumber(
         // Return as-is if parsing fails
         return {
             full: phoneNumber,
+            international: phoneNumber,
+            national: phoneNumber,
+            uri: `tel:${phoneNumber}`,
             countryCode: '',
             nationalNumber: phoneNumber,
             countryIso: null,

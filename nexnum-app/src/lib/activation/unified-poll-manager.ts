@@ -30,15 +30,17 @@
  */
 
 import { prisma } from '@/lib/core/db'
+import { redis, REDIS_KEYS } from '@/lib/core/redis'
 import { DynamicProvider } from '@/lib/providers/dynamic-provider'
 import { getProviderAdapter } from '@/lib/providers/provider-factory'
 import { logger } from '@/lib/core/logger'
-import { Provider, Number as PrismaNumber } from '@prisma/client'
+import { Provider } from '@prisma/client'
+import { AdaptivePollStrategy } from './adaptive-poll-strategy'
 import {
     batch_poll_duration_seconds,
     batch_poll_items_total,
     batch_poll_api_calls_saved,
-    active_orders_gauge
+    active_orders_gauge,
 } from '@/lib/metrics'
 
 // ============================================================================
@@ -75,6 +77,7 @@ export interface BatchPollItem {
     providerName: string
     orderAgeSeconds?: number
     smsCount?: number
+    pollAttempt: number
 }
 
 export interface BatchPollResult {
@@ -124,31 +127,6 @@ const CONFIG = {
     JITTER_RATIO: 0.3,
 }
 
-/**
- * Polling phases for orders waiting for first SMS
- * Based on SMS delivery statistics:
- * - 70% arrive within 30 seconds
- * - 90% arrive within 2 minutes  
- * - 98% arrive within 5 minutes
- */
-const PRE_SMS_PHASES = {
-    INITIAL: { maxAge: 30, cycle: [2, 3, 4, 5], phase: 'initial_rush' },
-    EARLY: { maxAge: 120, cycle: [4, 5, 6, 7], phase: 'early_wait' },
-    STANDARD: { maxAge: 300, cycle: [6, 8, 10, 8], phase: 'standard_wait' },
-    EXTENDED: { maxAge: 600, cycle: [10, 12, 15, 12], phase: 'extended_wait' },
-    FINAL: { maxAge: 900, cycle: [12, 15, 18, 15], phase: 'final_window' },
-    LAST_CHANCE: { maxAge: 1200, cycle: [15, 20, 25, 20], phase: 'last_chance' },
-}
-
-/**
- * Polling phases for orders that already have SMS (waiting for more)
- */
-const POST_SMS_PHASES = {
-    IMMEDIATE: { maxAge: 30, cycle: [3, 4, 5, 4], phase: 'post_sms_immediate' },
-    SHORT: { maxAge: 120, cycle: [5, 6, 7, 6], phase: 'post_sms_short' },
-    STANDARD: { maxAge: 600, cycle: [8, 10, 12, 10], phase: 'post_sms_standard' },
-}
-
 // ============================================================================
 // Unified Poll Manager
 // ============================================================================
@@ -167,109 +145,15 @@ export class UnifiedPollManager {
         return UnifiedPollManager.instance
     }
 
-    // ========================================================================
-    // Adaptive Strategy
-    // ========================================================================
-
     /**
-     * Calculate the next poll delay based on order context
+     * Backward compatibility wrapper for adaptive polling logic
      */
     getNextPollDelay(context: PollContext): PollDecision {
-        const { orderAgeSeconds, smsCount, pollAttempt, circuitOpen, lastPollError } = context
-
-        // Circuit breaker open - exponential backoff
-        if (circuitOpen) {
-            const backoffDelay = Math.min(
-                CONFIG.CIRCUIT_OPEN_DELAY_MAX,
-                Math.pow(CONFIG.CIRCUIT_OPEN_DELAY_BASE, Math.min(pollAttempt, 5))
-            )
-            return {
-                delaySeconds: backoffDelay + this.jitter(2),
-                phase: 'circuit_backoff',
-                useBatch: false
-            }
-        }
-
-        // Error backoff
-        if (lastPollError) {
-            const errorDelay = Math.min(
-                CONFIG.ERROR_DELAY_MAX,
-                CONFIG.ERROR_DELAY_BASE + pollAttempt * 2
-            )
-            return {
-                delaySeconds: errorDelay + this.jitter(2),
-                phase: 'error_backoff',
-                useBatch: true
-            }
-        }
-
-        // Post-SMS polling (already have at least one SMS)
-        if (smsCount > 0) {
-            return this.getPostSmsDelay(context)
-        }
-
-        // Standard pre-SMS polling
-        return this.getPreSmsDelay(context)
-    }
-
-    private getPreSmsDelay(context: PollContext): PollDecision {
-        const { orderAgeSeconds, pollAttempt } = context
-
-        // Find appropriate phase
-        let phaseConfig = PRE_SMS_PHASES.INITIAL
-
-        if (orderAgeSeconds > PRE_SMS_PHASES.LAST_CHANCE.maxAge) {
-            phaseConfig = PRE_SMS_PHASES.LAST_CHANCE
-        } else if (orderAgeSeconds > PRE_SMS_PHASES.FINAL.maxAge) {
-            phaseConfig = PRE_SMS_PHASES.LAST_CHANCE
-        } else if (orderAgeSeconds > PRE_SMS_PHASES.EXTENDED.maxAge) {
-            phaseConfig = PRE_SMS_PHASES.FINAL
-        } else if (orderAgeSeconds > PRE_SMS_PHASES.STANDARD.maxAge) {
-            phaseConfig = PRE_SMS_PHASES.EXTENDED
-        } else if (orderAgeSeconds > PRE_SMS_PHASES.EARLY.maxAge) {
-            phaseConfig = PRE_SMS_PHASES.STANDARD
-        } else if (orderAgeSeconds > PRE_SMS_PHASES.INITIAL.maxAge) {
-            phaseConfig = PRE_SMS_PHASES.EARLY
-        }
-
-        const cycleIndex = pollAttempt % phaseConfig.cycle.length
-        const baseDelay = phaseConfig.cycle[cycleIndex]
-
-        return {
-            delaySeconds: baseDelay + this.jitter(baseDelay * CONFIG.JITTER_RATIO),
-            phase: phaseConfig.phase,
-            useBatch: orderAgeSeconds > 60 // Use batch after first minute
-        }
-    }
-
-    private getPostSmsDelay(context: PollContext): PollDecision {
-        const { pollAttempt } = context
-        const secondsSinceLastSms = pollAttempt * 5 // Rough estimate
-
-        let phaseConfig = POST_SMS_PHASES.IMMEDIATE
-
-        if (secondsSinceLastSms > POST_SMS_PHASES.SHORT.maxAge) {
-            phaseConfig = POST_SMS_PHASES.STANDARD
-        } else if (secondsSinceLastSms > POST_SMS_PHASES.IMMEDIATE.maxAge) {
-            phaseConfig = POST_SMS_PHASES.SHORT
-        }
-
-        const cycleIndex = pollAttempt % phaseConfig.cycle.length
-        const baseDelay = phaseConfig.cycle[cycleIndex]
-
-        return {
-            delaySeconds: baseDelay + this.jitter(baseDelay * 0.25),
-            phase: phaseConfig.phase,
-            useBatch: true
-        }
-    }
-
-    private jitter(maxJitter: number): number {
-        return Math.random() * maxJitter
+        return AdaptivePollStrategy.getNextPollDelay(context)
     }
 
     // ========================================================================
-    // Batch Polling
+    // Adaptive Strategy (now delegated to AdaptivePollStrategy)
     // ========================================================================
 
     /**
@@ -277,91 +161,122 @@ export class UnifiedPollManager {
      * This is the main entry point for scheduled polling
      */
     async runPollCycle(): Promise<PollCycleStats> {
-        if (this.isRunning) {
-            logger.warn('[UnifiedPoll] Poll cycle already running, skipping')
-            return this.lastCycleStats || this.emptyStats()
-        }
+        if (this.isRunning) return this.emptyStats()
+
+        // 1. Distributed Lock to prevent parallel cycles in cluster
+        const lockKey = REDIS_KEYS.idempotency('poll_cycle_lock')
+        const acquired = await redis.set(lockKey, '1', 'EX', 30, 'NX')
+        if (!acquired) return this.emptyStats()
 
         this.isRunning = true
         const startTime = Date.now()
         const phaseDistribution: Record<string, number> = {}
 
         try {
-            // 1. Get all active numbers for polling
-            const items = await this.getActiveNumbersForPolling()
+            // 2. Fetch Due Activations from Redis Index
+            const now = Date.now()
+            const pollIndex = REDIS_KEYS.pollingIndex()
+            const dueActivations = await redis.zrangebyscore(pollIndex, '-inf', now)
 
-            if (items.length === 0) {
-                this.isRunning = false
+            if (dueActivations.length === 0) {
+                active_orders_gauge.set(0)
                 return this.emptyStats()
             }
 
-            // Update gauge
+            // 3. Batch Fetch Activation Details from DB
+            const items = await this.fetchActivationDetails(dueActivations)
             active_orders_gauge.set(items.length)
 
-            // 2. Enrich items with context and get poll decisions
-            const enrichedItems = await this.enrichWithContext(items)
-
-            // 3. Filter items that should poll now (based on adaptive strategy)
-            const itemsToPolNow = enrichedItems.filter(item => {
-                const decision = this.getNextPollDelay({
-                    orderAgeSeconds: item.orderAgeSeconds || 0,
-                    smsCount: item.smsCount || 0,
-                    pollAttempt: 0,
-                    circuitOpen: false
-                })
-
-                // Track phase distribution
-                phaseDistribution[decision.phase] = (phaseDistribution[decision.phase] || 0) + 1
-
-                return decision.useBatch || item.smsCount === 0
+            logger.info(`[UnifiedPoll:Redis] Starting cycle for ${items.length} due items`, {
+                totalDue: dueActivations.length,
+                dbMatched: items.length
             })
 
-            logger.info('[UnifiedPoll] Starting poll cycle', {
-                totalActive: items.length,
-                pollingNow: itemsToPolNow.length
-            })
+            // 4. Group & Execute Polling
+            const results = await this.executeBatchPoll(items)
 
-            // 4. Execute batch polling
-            const results = await this.executeBatchPoll(itemsToPolNow)
+            // 5. Post-Process Results (Reschedule or Complete)
+            await this.finalizePolling(items, results, phaseDistribution)
 
-            // 5. Calculate stats
-            const smsReceived = results.filter(r => r.messages?.length > 0).length
-            const errors = results.filter(r => r.error).length
-            const providersPolled = new Set(itemsToPolNow.map(i => i.providerName)).size
-
-            // Individual calls would be: items.length
-            // Batch calls made: ceil(items.length / MAX_BATCH_SIZE) * providers
-            const theoreticalIndividualCalls = itemsToPolNow.length
-            const actualBatchCalls = Math.ceil(itemsToPolNow.length / CONFIG.MAX_BATCH_SIZE)
-            const apiCallsSaved = Math.max(0, theoreticalIndividualCalls - actualBatchCalls)
-
-            // Record metrics
+            // 6. Metrics & Cleanup
             const durationMs = Date.now() - startTime
-            batch_poll_duration_seconds.observe(durationMs / 1000)
-            batch_poll_items_total.inc({ provider: 'all', result: 'success' }, itemsToPolNow.length - errors)
-            batch_poll_items_total.inc({ provider: 'all', result: 'error' }, errors)
-            batch_poll_api_calls_saved.inc(apiCallsSaved)
-
-            this.lastCycleStats = {
-                totalPolled: itemsToPolNow.length,
-                providersPolled,
-                smsReceived,
-                errors,
-                apiCallsSaved,
-                durationMs,
-                phaseDistribution
-            }
-
-            logger.info('[UnifiedPoll] Poll cycle complete', this.lastCycleStats)
-
-            return this.lastCycleStats
+            return this.recordCycleMetrics(items, results, durationMs, phaseDistribution)
 
         } catch (error: any) {
-            logger.error('[UnifiedPoll] Poll cycle failed', { error: error.message })
+            logger.error('[UnifiedPoll] Cycle critical failure', { error: error.message })
             throw error
         } finally {
+            await redis.del(lockKey)
             this.isRunning = false
         }
+    }
+
+    /**
+     * Professional Activation Detail Fetcher
+     */
+    private async fetchActivationDetails(ids: string[]): Promise<BatchPollItem[]> {
+        const activations = await prisma.activation.findMany({
+            where: { id: { in: ids }, state: { in: ['ACTIVE', 'RECEIVED'] } },
+            include: {
+                _count: { select: { history: true } } // Approximate poll attempts via history
+            }
+        })
+
+        const providerNames = [...new Set(activations.map(a => a.providerId).filter(Boolean))]
+        const providers = await prisma.provider.findMany({
+            where: { id: { in: providerNames as string[] } }
+        })
+        const providerMap = new Map(providers.map(p => [p.id, p]))
+
+        return activations.map(a => {
+            const provider = providerMap.get(a.providerId || '')
+            return {
+                activationId: a.id,
+                numberId: a.phoneNumber || '',
+                userId: a.userId,
+                providerId: a.providerId || '',
+                providerName: provider?.name || 'unknown',
+                orderAgeSeconds: Math.floor((Date.now() - a.createdAt.getTime()) / 1000),
+                smsCount: 0, // Should fetch real count from messages table if post-sms
+                pollAttempt: a._count?.history || 0
+            }
+        })
+    }
+
+    /**
+     * High-Precision Rescheduling Logic
+     */
+    private async finalizePolling(
+        items: BatchPollItem[],
+        results: BatchPollResult[],
+        phaseDist: Record<string, number>
+    ) {
+        const pollIndex = REDIS_KEYS.pollingIndex()
+        const pipeline = redis.pipeline()
+
+        for (const item of items) {
+            const result = results.find(r => r.activationId === item.activationId)
+
+            // If SMS received, we might poll more (post-sms) or terminal
+            const shouldStop = result?.status === 'received' || result?.status === 'refunded'
+
+            if (shouldStop) {
+                pipeline.zrem(pollIndex, item.activationId)
+                continue
+            }
+
+            // Calculate next poll via StateEngine
+            const nextPollCount = item.pollAttempt + 1
+            const nextPollTime = AdaptivePollStrategy.getNextPollTime(nextPollCount)
+
+            pipeline.zadd(pollIndex, nextPollTime.getTime(), item.activationId)
+
+            // Track distribution
+            const phase = AdaptivePollStrategy.getPhaseInfo(nextPollCount)?.name || 'unknown'
+            phaseDist[phase] = (phaseDist[phase] || 0) + 1
+        }
+
+        await pipeline.exec()
     }
 
     /**
@@ -545,52 +460,8 @@ export class UnifiedPollManager {
     }
 
     // ========================================================================
-    // Data Fetching
+    // Data Fetching (now handled by fetchActivationDetails)
     // ========================================================================
-
-    async getActiveNumbersForPolling(): Promise<BatchPollItem[]> {
-        const numbers = await prisma.number.findMany({
-            where: {
-                status: 'active',
-                expiresAt: { gt: new Date() }
-            },
-            select: {
-                id: true,
-                activationId: true,
-                ownerId: true,
-                provider: true,
-                createdAt: true,
-                _count: { select: { smsMessages: true } }
-            }
-        })
-
-        const providerNames = [...new Set(numbers.map(n => n.provider).filter(Boolean))]
-        const providers = await prisma.provider.findMany({
-            where: { name: { in: providerNames as string[] } },
-            select: { id: true, name: true }
-        })
-        const providerMap = new Map(providers.map(p => [p.name, p.id]))
-
-        const now = Date.now()
-
-        return numbers
-            .filter(n => n.provider && n.activationId && n.ownerId)
-            .map(n => ({
-                numberId: n.id,
-                activationId: n.activationId!,
-                userId: n.ownerId!,
-                providerId: providerMap.get(n.provider!) || '',
-                providerName: n.provider!,
-                orderAgeSeconds: Math.floor((now - n.createdAt.getTime()) / 1000),
-                smsCount: n._count?.smsMessages || 0
-            }))
-            .filter(item => item.providerId)
-    }
-
-    private async enrichWithContext(items: BatchPollItem[]): Promise<BatchPollItem[]> {
-        // Already enriched in getActiveNumbersForPolling
-        return items
-    }
 
     // ========================================================================
     // Utilities
@@ -620,6 +491,33 @@ export class UnifiedPollManager {
             durationMs: 0,
             phaseDistribution: {}
         }
+    }
+
+    private recordCycleMetrics(
+        items: BatchPollItem[],
+        results: BatchPollResult[],
+        durationMs: number,
+        phaseDist: Record<string, number>
+    ): PollCycleStats {
+        const smsReceived = results.filter(r => r.messages?.length > 0).length
+        const errors = results.filter(r => r.error).length
+        const apiCallsSaved = Math.max(0, items.length - Math.ceil(items.length / CONFIG.MAX_BATCH_SIZE))
+
+        batch_poll_duration_seconds.observe(durationMs / 1000)
+        batch_poll_items_total.inc({ provider: 'all', result: 'success' }, items.length - errors)
+        batch_poll_api_calls_saved.inc(apiCallsSaved)
+
+        this.lastCycleStats = {
+            totalPolled: items.length,
+            providersPolled: new Set(items.map(i => i.providerName)).size,
+            smsReceived,
+            errors,
+            apiCallsSaved,
+            durationMs,
+            phaseDistribution: phaseDist
+        }
+
+        return this.lastCycleStats
     }
 
     // ========================================================================

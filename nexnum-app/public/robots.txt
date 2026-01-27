@@ -1,12 +1,12 @@
-# *
 User-agent: *
 Allow: /
 Disallow: /admin
 Disallow: /dashboard
-Disallow: /api
+Disallow: /api/admin
+Disallow: /api/internal
 
-# Host
-Host: http://localhost:3000
+# Host (Production)
+Host: https://nexnum.io
 
 # Sitemaps
-Sitemap: http://localhost:3000/sitemap.xml
+Sitemap: https://nexnum.io/sitemap.xml

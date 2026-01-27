@@ -41,6 +41,21 @@ export interface SmsResult {
     rawPayload?: any
 }
 
+/**
+ * UI-Specific SMS Message (Mapped from SmsResult)
+ * Used by React hooks and components for view rendering.
+ */
+export interface SMSMessage {
+    id: string
+    numberId: string
+    from: string // Mapped from sender
+    text: string // Mapped from content
+    code?: string | null
+    receivedAt: string // ISO String for UI
+    isRead: boolean
+}
+
+
 // ============================================
 // ACTIVATION STATUS
 // ============================================
@@ -191,6 +206,9 @@ export interface CodeExtractionResult {
 
     /** Pattern that matched */
     pattern?: string
+
+    /** Whether the code appears to belong to a mismatched service */
+    isMismatched?: boolean
 }
 
 export interface CodePattern {

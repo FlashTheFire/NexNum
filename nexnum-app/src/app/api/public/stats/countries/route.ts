@@ -98,7 +98,7 @@ function findMetadataByName(name: string): CountryMeta | undefined {
 }
 
 function getFlagUrl(code: string): string {
-    return `/flags/${code.toLowerCase()}.svg`;
+    return `/assets/flags/${code.toLowerCase()}.svg`;
 }
 
 
@@ -128,26 +128,9 @@ export async function GET(req: Request) {
         const limit = Math.min(parseInt(searchParams.get("limit") || "20"), 300);
         const locale = (searchParams.get("locale") || "en") as keyof CountryMeta["name"];
 
-        // Aggregate country stats from ProviderPricing
-        const countryStats = await prisma.$queryRaw<any[]>`
-            SELECT 
-                pc.code AS country_code,
-                pc.name AS country_name,
-                pc."flag_url" AS flag_url,
-                COUNT(DISTINCT pp."service_id")::int AS total_services,
-                SUM(pp.stock)::bigint AS total_stock,
-                COUNT(DISTINCT pp."provider_id")::int AS total_providers,
-                ROUND(MIN(pp."sellPrice")::numeric, 2) AS lowest_price,
-                ROUND(AVG(pp."sellPrice")::numeric, 2) AS avg_price
-            FROM provider_pricing pp
-            JOIN provider_countries pc ON pp."country_id" = pc.id
-            WHERE pp.deleted = false 
-              AND pp.stock > 0
-              AND UPPER(pc.name) NOT IN ('CAPE VERDE', 'AMERICAN SAMOA', 'AMERICAN SAMO', 'SWAZILAND', 'ESWATINI') -- Exclude requested countries
-            GROUP BY pc.id, pc.code, pc.name, pc."flag_url"
-            ORDER BY total_stock DESC
-            LIMIT ${limit}
-        `;
+        // Aggregate country stats from ProviderCountry
+        const countryStats: any[] = [];
+
 
         // FORCE INCLUSION: Ensure key markets (India, China, Russia) are always in the results
         // Check by CODE and NAME to be robust against DB inconsistencies
@@ -191,48 +174,24 @@ export async function GET(req: Request) {
             });
 
             // For each priority country, get basic stats
+            // STUB: ProviderPricing is deleted. Returning 0s for now.
+            // TODO: Implement MeiliSearch aggregation
             for (const pc of priorityStats) {
-                const stats = await prisma.providerPricing.aggregate({
-                    where: {
-                        countryId: pc.id,
-                        deleted: false
-                    },
-                    _count: { serviceId: true },
-                    _sum: { stock: true },
-                    _min: { sellPrice: true },
-                    _avg: { sellPrice: true }
-                });
-
-                const providerCount = await prisma.providerPricing.groupBy({
-                    by: ['providerId'],
-                    where: { countryId: pc.id, deleted: false }
-                });
-
                 countryStats.push({
                     country_code: pc.code,
                     country_name: pc.name,
                     flag_url: pc.flagUrl,
-                    total_services: stats._count?.serviceId || 0,
-                    total_stock: stats._sum?.stock || 0,
-                    total_providers: providerCount.length,
-                    lowest_price: stats._min?.sellPrice || 0,
-                    avg_price: stats._avg?.sellPrice || 0
+                    total_services: 0,
+                    total_stock: 0,
+                    total_providers: 0,
+                    lowest_price: 0,
+                    avg_price: 0
                 });
             }
         }
 
-        // Get overall summary
-        const summary = await prisma.$queryRaw<any[]>`
-            SELECT 
-                COUNT(DISTINCT pp."country_id")::int AS total_countries,
-                COUNT(DISTINCT pp."service_id")::int AS total_services,
-                SUM(pp.stock)::bigint AS grand_total_stock
-            FROM provider_pricing pp
-            JOIN provider_countries pc ON pp."country_id" = pc.id
-            WHERE pp.deleted = false 
-              AND pp.stock > 0
-              AND UPPER(pc.name) NOT IN ('CAPE VERDE', 'AMERICAN SAMOA', 'AMERICAN SAMO', 'SWAZILAND', 'ESWATINI')
-        `;
+        // STUB: Overall summary
+        const summaryData = { total_countries: 0, total_services: 0, grand_total_stock: 0 };
 
         // Map to response format with coordinates from unified metadata
         const countries: CountryStats[] = countryStats.map(row => {
@@ -284,7 +243,7 @@ export async function GET(req: Request) {
             }
         }
 
-        const summaryData = summary[0] || { total_countries: 0, total_services: 0, grand_total_stock: 0 };
+
 
         return NextResponse.json({
             countries: uniqueCountries,

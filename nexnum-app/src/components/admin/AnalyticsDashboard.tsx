@@ -30,6 +30,19 @@ interface AnalyticsData {
     }
     charts: {
         revenue: { date: string; revenue: number }[]
+        profit: { date: string; profit: number }[]
+    }
+    advanced: {
+        overallHealth: any
+        slaCompliance: any
+        avgMargin: number
+        providers: Array<{
+            id: string
+            name: string
+            successRate: number
+            latency: number
+            margin: number
+        }>
     }
     providers: any[]
     recentActivity: any[]
@@ -242,15 +255,15 @@ export function AnalyticsDashboard() {
                     color="emerald"
                 />
                 <StatCard
-                    icon={Activity}
-                    title="Transactions"
-                    value={data.overview.totalTransactions.toLocaleString()}
+                    icon={TrendingUp}
+                    title="Profit Margin"
+                    value={`${data.advanced.avgMargin.toFixed(1)}%`}
                     color="cyan"
                 />
                 <StatCard
-                    icon={Zap}
-                    title="Active Providers"
-                    value={data.providers.length}
+                    icon={Activity}
+                    title="SLA Compliance"
+                    value={`${data.advanced.slaCompliance.value.toFixed(1)}%`}
                     color="amber"
                 />
             </div>
@@ -320,15 +333,22 @@ export function AnalyticsDashboard() {
                 </div>
             </motion.div>
 
-            {/* Revenue chart */}
-            <ChartCard title="Revenue Overview">
+            {/* Revenue & Profit chart */}
+            <ChartCard title="Business Performance (Revenue vs Profit)">
                 <div className="h-80">
                     <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={data.charts.revenue}>
+                        <AreaChart data={data.charts.revenue.map((r, i) => ({
+                            ...r,
+                            profit: data.charts.profit[i]?.profit || 0
+                        }))}>
                             <defs>
                                 <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
                                     <stop offset="5%" stopColor={COLORS.primary} stopOpacity={0.3} />
                                     <stop offset="95%" stopColor={COLORS.primary} stopOpacity={0} />
+                                </linearGradient>
+                                <linearGradient id="profitGradient" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor={COLORS.success} stopOpacity={0.3} />
+                                    <stop offset="95%" stopColor={COLORS.success} stopOpacity={0} />
                                 </linearGradient>
                             </defs>
                             <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
@@ -351,6 +371,13 @@ export function AnalyticsDashboard() {
                                 strokeWidth={2}
                                 fill="url(#revenueGradient)"
                             />
+                            <Area
+                                type="monotone"
+                                dataKey="profit"
+                                stroke={COLORS.success}
+                                strokeWidth={2}
+                                fill="url(#profitGradient)"
+                            />
                         </AreaChart>
                     </ResponsiveContainer>
                 </div>
@@ -358,28 +385,32 @@ export function AnalyticsDashboard() {
 
             {/* Provider stats + Number status */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <ChartCard title="Provider Balance">
-                    <div className="space-y-3">
-                        {data.providers.map((provider, i) => (
-                            <motion.div
-                                key={provider.id}
-                                initial={{ opacity: 0, x: -20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{ delay: i * 0.1 }}
-                                className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg"
-                            >
-                                <div>
-                                    <p className="font-medium text-white">{provider.displayName}</p>
-                                    <p className="text-sm text-gray-400">{provider._count?.syncJobs ?? 0} syncs</p>
-                                </div>
-                                <div className="text-right">
-                                    <p className={`font-bold ${provider.balance < 10 ? 'text-red-400' : 'text-emerald-400'}`}>
-                                        ${provider.balance.toFixed(2)}
-                                    </p>
-                                    <p className="text-xs text-gray-500">Priority: {provider.priority}</p>
-                                </div>
-                            </motion.div>
-                        ))}
+                <ChartCard title="Provider Performance Matrix">
+                    <div className="overflow-x-auto">
+                        <table className="w-100 text-left">
+                            <thead>
+                                <tr className="text-gray-400 text-xs uppercase font-medium border-b border-gray-800">
+                                    <th className="pb-3 px-2">Provider</th>
+                                    <th className="pb-3 px-2">Success</th>
+                                    <th className="pb-3 px-2">Latency</th>
+                                    <th className="pb-3 px-2">Margin</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-800">
+                                {data.advanced.providers.map((p, i) => (
+                                    <tr key={p.id} className="text-sm">
+                                        <td className="py-3 px-2 text-white font-medium">{p.name}</td>
+                                        <td className="py-3 px-2">
+                                            <span className={p.successRate > 90 ? 'text-emerald-400' : p.successRate > 70 ? 'text-amber-400' : 'text-danger'}>
+                                                {p.successRate.toFixed(1)}%
+                                            </span>
+                                        </td>
+                                        <td className="py-3 px-2 text-gray-300">{(p.latency).toFixed(0)}ms</td>
+                                        <td className="py-3 px-2 font-mono text-cyan-400">{p.margin.toFixed(1)}%</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
                 </ChartCard>
 

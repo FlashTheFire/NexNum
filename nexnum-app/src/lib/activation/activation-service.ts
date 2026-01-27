@@ -10,7 +10,7 @@ import { Prisma, ActivationState } from '@prisma/client'
 import { WalletService } from '@/lib/wallet/wallet'
 import { canTransition, isRefundable } from './activation-state-machine'
 import { logger } from '@/lib/core/logger'
-import { emitStateUpdate } from '@/lib/events/emitters/state-emitter'
+import { ActivationKernel } from './activation-kernel'
 
 export interface CreateActivationInput {
     userId: string
@@ -148,22 +148,30 @@ export class ActivationService {
             client as any
         )
 
-        // Update Activation
-        const updated = await client.activation.update({
+        // Update Activation via Kernel (Forensic + Transition)
+        const updated = await ActivationKernel.transition(
+            activationId,
+            'ACTIVE',
+            {
+                reason: 'Provider confirmed number',
+                metadata: {
+                    providerActivationId: providerData.providerActivationId,
+                    phoneNumber: providerData.phoneNumber
+                },
+                tx: client
+            }
+        )
+
+        // Populate the rest of the result data
+        return await client.activation.update({
             where: { id: activationId },
             data: {
-                state: 'ACTIVE',
                 providerActivationId: providerData.providerActivationId,
                 phoneNumber: providerData.phoneNumber,
                 expiresAt: providerData.expiresAt,
                 capturedTxId: capturedTx.id
             }
         })
-
-        logger.info(`[Activation] ${activationId} -> ACTIVE (${providerData.phoneNumber})`)
-
-        // Emit real-time update
-        emitStateUpdate(activation.userId, 'numbers', 'activation_active').catch(() => { })
 
         return updated
     }
@@ -195,11 +203,12 @@ export class ActivationService {
             client as any
         )
 
-        // Update Activation
-        const updated = await client.activation.update({
-            where: { id: activationId },
-            data: { state: 'FAILED' }
-        })
+        // Update Activation via Kernel
+        const updated = await ActivationKernel.transition(
+            activationId,
+            'FAILED',
+            { reason, tx: client }
+        )
 
         logger.info(`[Activation] ${activationId} -> FAILED: ${reason}`)
         return updated
@@ -252,19 +261,23 @@ export class ActivationService {
             client as any
         )
 
-        // Update Activation
-        const updated = await client.activation.update({
-            where: { id: activationId },
-            data: {
-                state: 'REFUNDED',
-                refundTxId: refundTx.id
+        // Update Activation via Kernel
+        const updated = await ActivationKernel.transition(
+            activationId,
+            'REFUNDED',
+            {
+                reason: `Refund processed (Status: ${activation.state})`,
+                metadata: { refundTxId: refundTx.id },
+                tx: client
             }
+        )
+
+        await client.activation.update({
+            where: { id: activationId },
+            data: { refundTxId: refundTx.id }
         })
 
         logger.info(`[Activation] ${activationId} -> REFUNDED`)
-
-        // Emit real-time update (Wallet balance changed + number state change)
-        emitStateUpdate(activation.userId, 'all', 'activation_refunded').catch(() => { })
 
         return updated
     }

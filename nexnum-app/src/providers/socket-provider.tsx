@@ -24,7 +24,7 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
     const [socket, setSocket] = useState<Socket | null>(null);
     const [isConnected, setIsConnected] = useState(false);
     const fetchDashboardState = useGlobalStore((state) => state.fetchDashboardState);
-    const { play: playNotification } = useSound('/audio/notification.mp3')
+    const { play: playNotification } = useSound('/assets/audio/notification.mp3')
 
     useEffect(() => {
         if (!SOCKET_ENABLED) {

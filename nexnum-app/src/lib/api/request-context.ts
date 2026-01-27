@@ -6,10 +6,11 @@
  */
 
 import { AsyncLocalStorage } from 'async_hooks'
-import { randomUUID } from 'crypto'
+import { randomUUID } from '@/lib/core/isomorphic-crypto'
 
 interface RequestContext {
     requestId: string
+    traceId: string      // Cross-process correlation ID
     startTime: number
     userId?: string
     path?: string
@@ -35,6 +36,7 @@ export function withRequestContext<T>(
 ): T {
     const fullContext: RequestContext = {
         requestId: context.requestId || generateRequestId(),
+        traceId: context.traceId || context.requestId || generateRequestId(),
         startTime: context.startTime || Date.now(),
         ...context,
     }
@@ -53,6 +55,13 @@ export function getRequestContext(): RequestContext | undefined {
  */
 export function getRequestId(): string {
     return requestContext.getStore()?.requestId || generateRequestId()
+}
+
+/**
+ * Get current trace ID
+ */
+export function getTraceId(): string {
+    return requestContext.getStore()?.traceId || getRequestId()
 }
 
 /**

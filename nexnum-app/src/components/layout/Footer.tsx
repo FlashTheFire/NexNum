@@ -16,7 +16,7 @@ export default function Footer() {
                         <Link href="/" className="flex items-center space-x-2">
                             <div className="w-9 h-9 bg-gradient-to-br from-[hsl(var(--neon-lime))] to-[hsl(72,70%,40%)] rounded-lg flex items-center justify-center p-1.5">
                                 <Image
-                                    src="/logos/nexnum-logo.svg"
+                                    src="/assets/brand/nexnum-logo.svg"
                                     alt="NexNum Logo"
                                     width={24}
                                     height={24}

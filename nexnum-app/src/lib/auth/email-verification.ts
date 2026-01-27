@@ -49,7 +49,7 @@ export async function sendVerificationEmail(userId: string, email: string, name:
 /**
  * Verify email using token
  */
-export async function verifyEmail(token: string): Promise<{ success: boolean; error?: string }> {
+export async function verifyEmail(token: string): Promise<{ success: boolean; error?: string; userId?: string }> {
     const verificationToken = await prisma.emailVerificationToken.findUnique({
         where: { token },
         include: { user: true }
@@ -74,5 +74,5 @@ export async function verifyEmail(token: string): Promise<{ success: boolean; er
         })
     ])
 
-    return { success: true }
+    return { success: true, userId: verificationToken.userId }
 }

@@ -73,7 +73,7 @@ export const VaultCard = memo(({ number }: VaultCardProps) => {
                             <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-[#111318] overflow-hidden">
                                 <SafeImage
                                     src={number.countryIconUrl}
-                                    fallbackSrc="/flags/un.svg"
+                                    fallbackSrc="/assets/flags/un.svg"
                                     alt={number.countryName}
                                     className="w-full h-full object-cover"
                                     loading="lazy"

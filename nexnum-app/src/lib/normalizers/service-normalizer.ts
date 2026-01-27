@@ -1,4 +1,4 @@
-import { SERVICE_OVERRIDES, normalizeServiceName } from './service-identity'
+import { SERVICE_OVERRIDES, normalizeServiceName, generateCanonicalCode } from './service-identity'
 import metadata from '@/data/metadata.json'
 
 // Use stop words from metadata
@@ -20,7 +20,7 @@ export interface ServiceData {
 
 export interface AggregatedService {
     canonicalName: string
-    canonicalSlug: string
+    canonicalCode: string
     codes: string[] // CHANGED: Set<string> -> string[] for JSON safety
     providers: {
         provider: string
@@ -326,7 +326,7 @@ export function aggregateServices(rawServices: ServiceData[]): AggregatedService
 
         groups.push({
             canonicalName: canonical,
-            canonicalSlug: canonical.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
+            canonicalCode: generateCanonicalCode(canonical),
             codes: Array.from(codeSet), // CONVERT TO ARRAY
             providers: targetProviders,
             totalProviders: new Set(targetProviders.map(p => p.provider)).size,

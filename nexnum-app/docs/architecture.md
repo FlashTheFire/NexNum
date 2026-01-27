@@ -1,121 +1,140 @@
 # Architecture Overview
 
-## System Architecture
+**NexNum** is an industrialized Enterprise Virtual Number Platform designed for high-concurrency SMS routing, financial integrity, and multi-provider orchestration.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         Client Layer                            │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
-│  │  Web App     │  │  Admin Panel │  │  External API (v1)   │  │
-│  │  (Next.js)   │  │  (React)     │  │  (REST)              │  │
-│  └──────────────┘  └──────────────┘  └──────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                        API Layer (Next.js)                      │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
-│  │ Auth Routes  │  │ Number Routes│  │ Admin Routes         │  │
-│  │ /api/auth/*  │  │ /api/numbers │  │ /api/admin/*         │  │
-│  └──────────────┘  └──────────────┘  └──────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                      Business Logic Layer                       │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐ │
-│  │ Wallet      │  │ Activation  │  │ SMS Providers           │ │
-│  │ Service     │  │ Service     │  │ (5sim, HeroSMS, ...)    │ │
-│  └─────────────┘  └─────────────┘  └─────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                       Data Layer                                │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
-│  │ PostgreSQL   │  │ Redis        │  │ MeiliSearch          │  │
-│  │ (Prisma)     │  │ (Cache/Queue)│  │ (Search)             │  │
-│  └──────────────┘  └──────────────┘  └──────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
+## 1. System Topology
+
+```mermaid
+flowchart TB
+    Client[🖥️ Client Apps] --> API[⚡ API Layer]
+    
+    subgraph Core [Business Logic]
+        Auth[🔐 Auth & Security]
+        Wallet[💰 Wallet/Commerce]
+        Activator[🔄 Fulfillment]
+        Provider[🔌 Provider Engine]
+    end
+    
+    subgraph Data [Persistence]
+        DB[(PostgreSQL)]
+        Redis[(Redis Cache/Queue)]
+        Search[(MeiliSearch)]
+    end
+    
+    API --> Core
+    Core --> Data
+    Provider --> External[🌐 External SMS APIs]
 ```
 
-## Core Components
+---
 
-### 1. Configuration (`src/config/`)
+## 2. Core Domains (Deep Dive)
 
-Centralized configuration with Zod schema validation:
-- `app.config.ts` - Limits, timeouts, workers, features
-- `providers.config.ts` - SMS provider settings
-- `env.schema.ts` - Strict environment validation
-- `env.validation.ts` - Runtime validation
+### A. The Supply Core (Provider Engine)
+**Goal**: Normalize disparate external APIs into a single internal inventory.
 
-### 2. SMS Providers (`src/lib/sms-providers/`)
+- **Dynamic Provider Engine**: Config-driven adapters defined in `src/lib/sms-providers`. Stores mappings in DB (`Provider` table) rather than hardcoded logic, allowing runtime updates.
+- **Hybrid Sync**:
+    - **Metadata Cache**: 24-hour cache for service lists to reduce API strain.
+    - **Smart Sync**: Detects price changes and delta-updates the internal catalog.
+    - **Normalization**: Maps disparate service names (e.g., "wa", "whatsapp", "opt29") to a canonical internal ID.
+- **Provider Pricing**: A Materialized View of the market. User searches hit this table (indexed in MeiliSearch) for <10ms response times.
 
-Unified interface for multiple SMS providers:
-- **Dynamic Provider**: Config-driven provider engine.
-- **Smart Routing 2.0**: 
-  - Circuit Breaker pattern (Opossum)
-  - Automatic Failover (on `NO_NUMBERS`, `NO_BALANCE`, `RATE_LIMITED`)
-  - Weighted Selection (Priority + Admin Weight / Cost * Latency)
-- **Distributed Caching**: Redis-backed configuration sync (`cache:providers:active:config`).
+### B. The Commerce Layer (Money & Transactions)
+**Goal**: Secure, audit-ready financial tracking.
 
-### 3. Activation Service (`src/lib/activation/`)
+- **Wallet System**:
+    - **Internal Ledger**: Wallet balance is a cache of immutable `WalletTransactions`.
+    - **Double-Entry Style**: Every credit/debit is strictly logged.
+    - **Idempotency**: Prevents double-charging via `idempotencyKey` checks on all mutations.
+- **Inventory Locking (Two-Phase Commit)**:
+    1. `OfferReservation` (PENDING) locks the price/stock.
+    2. Verification of funds.
+    3. `Wallet` Deduction.
+    4. `PurchaseOrder` Creation.
+    5. `OfferReservation` (CONFIRMED).
 
-Number lifecycle management:
-- State machine (RESERVED → ACTIVE → COMPLETED)
-- Poll management
-- Reservation cleanup
-- Outbox pattern for events
+### C. The Fulfillment Layer (Activation Lifecycle)
+**Goal**: Managing the lifecycle of a verified number reliably.
 
-### 4. Background Workers (Unified)
+- **State Machine**:
+    - `INIT` -> `ACTIVE` -> `RECEIVED` -> `COMPLETED`.
+    - Handles timeouts and cancellations automatically.
+- **Workers**:
+    - **Inbox Polling**: Adaptive polling strategy for active numbers.
+    - **Outbox Pattern**: Ensures events (like Search Index updates) are eventually consistent even if the immediate write fails.
+    - **Circuit Breaker**: Tracks provider error rates (`ProviderHealthLog`). If a provider fails >50%, it is temporarily disabled to protect users.
 
-Single-process orchestration via `src/worker-entry.ts`.
-Scales horizontally on Kubernetes/Docker.
+---
 
-- **Master Worker Loop**: Orchestrates all sub-tasks in priority order.
-  1. **Activation Outbox**: Processes new number orders.
-  2. **Inbox Polling**: Polls providers for SMS (Adaptive Strategy).
-  3. **Push Notifications**: Sends WebHooks/Telegram alerts.
-  4. **Cleanup**: Releases expired reservations.
-  5. **Reconciliation**: Auto-fixes stuck states.
+## 3. Data Architecture (Schema Map)
 
-### 5. Wallet Service (`src/lib/wallet/`)
+### Primary Models
 
-- **Concurrency Hardening**: Uses `SELECT FOR UPDATE` within explicit Transactions.
-- Balance management
-- Transaction logging
-- Price optimization
+| Model | Purpose | Critical Fields |
+| :--- | :--- | :--- |
+| `User` | Identity & Auth | `role`, `balance` (cache) |
+| `WalletTransaction` | Immutable Financial Log | `amount`, `type`, `referenceId` |
+| `Provider` | Upstream API Config | `baseUrl`, `apiKey` (Encrypted), `mappings` |
+| `Activation` | Rental Session | `phoneNumber`, `smsContent`, `status` |
+| `SmsMessage` | Delivered Payload | `extractedCode`, `rawPayload` |
 
-## Data Flow
+### Optimization Models
 
-### Purchase Flow
+| Model | Purpose |
+| :--- | :--- |
+| `ProviderPricing` | Cached snapshop of external prices for fast search. |
+| `OfferReservation` | Temporary lock to prevent race conditions during purchase. |
+| `ProviderHealthLog` | Circuit breaker history for auto-healing. |
 
+---
+
+## 4. Security Architecture
+
+### Authentication & Authorization
+- **JWT**: HTTP-Only cookies with Refresh Token rotation.
+- **Role-Based Access**:
+    - `requireUser`: Standard access.
+    - `requireAdmin`: Strict role check for back-office APIs.
+- **Asset Security**:
+    - **Icon Validation**: `provider-sync.ts` enforces SHA256 checks and content-type validation on all downloaded provider icons to prevent injection.
+
+### Operational Security
+- **Rate Limiting**: Tiered limits (Silver/Gold/Enterprise) via Redis.
+- **Secret Management**: API Keys are encrypted at rest.
+- **Financial Audit**: `FinancialAudit` log tracks all sensitive balance changes separately from the application transaction log.
+
+---
+
+## 5. Extending the Platform (Provider Onboarding)
+
+NexNum uses a **Dynamic Provider Engine**, allowing you to add new providers via JSON configuration without code changes.
+
+### Step 1: Mapping the API
+Identify the provider's endpoints for:
+- `getNumber`: Purchase a number.
+- `cancelNumber`: Cancel activation.
+- `pollSms`: Check for new messages (if no webhook).
+
+### Step 2: Database Configuration
+Insert the configuration into the `providers` table:
+```sql
+INSERT INTO providers (name, api_key, api_url, config) VALUES (
+  'NewSms',
+  'xyz-123',
+  'https://api.newsms.com',
+  '{
+    "endpoints": {
+      "getNumber": {
+        "method": "GET",
+        "path": "/purchase",
+        "params": { "service": "{service_code}", "country": "{country_code}" },
+        "mapping": { "id": "activationId", "number": "phone" }
+      }
+    }
+  }'
+);
 ```
-1. User selects service/country
-2. API reserves funds (atomic DB lock)
-3. SmartRouter selects best healthy provider
-4. Rate Limiter (Redis) checks global quota
-5. Provider API called
-6. Number created in DB
-7. Background polling starts
-```
 
-### SMS Polling Flow
-
-```
-1. Unified Worker runs Master Loop
-2. Fetches active numbers
-3. Polls each provider (batched if supported)
-4. Deduplicates messages
-5. Stores in DB
-6. Enqueues Push Notification
-```
-
-## Security
-
-- JWT authentication with refresh tokens
-- CSRF protection
-- **Admin API Validation**: Strict Zod schemas for configuration updates.
-- Rate limiting (per-user, per-route)
-- Request signing for sensitive actions
-- Encrypted storage for secrets
+### Step 3: Circuit Breaker
+The new provider automatically gets a Circuit Breaker (default: 50% failure rate triggers 15s cooldown). Monitor the `ProviderHealthLog` table during initial launch.

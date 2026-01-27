@@ -8,6 +8,7 @@ import { prisma } from '../core/db'
 import { currencyService } from '../currency/currency-service'
 import CircuitBreaker from 'opossum'
 import { logger } from '@/lib/core/logger'
+import { getTraceId } from '@/lib/api/request-context'
 import { redis, cacheGet, CACHE_KEYS, CACHE_TTL } from '@/lib/core/redis'
 import { CIRCUIT_OPTS } from '@/lib/core/circuit-breaker'
 import { trackProviderRequest } from '@/lib/metrics'
@@ -107,7 +108,7 @@ type MappingConfig = {
     }
 
     // NEW: Template for constructing icon URLs dynamically
-    // Example: "https://provider.com/icons/{{id}}.png"
+    // Example: "https://provider.com/assets/icons/{{id}}.png"
     // Supports {{field}} placeholders from the extracted item
     iconUrlTemplate?: string
 
@@ -180,6 +181,9 @@ export class DynamicProvider implements SmsProvider {
 
     // Circuit Breaker Registry (Static to share across instances of same provider)
     private static breakers = new Map<string, CircuitBreaker>()
+    private static latencyHistory = new Map<string, number[]>()
+    private static readonly LATENCY_WINDOW = 10
+    private static readonly VOLATILITY_THRESHOLD = 0.5
 
 
 
@@ -268,6 +272,10 @@ export class DynamicProvider implements SmsProvider {
                 this.config.authHeader,
                 urlObj.origin
             )
+
+            // 3. Attach common headers (Trace ID)
+            headers['X-Trace-ID'] = getTraceId()
+            headers['X-App-Version'] = process.env.npm_package_version || '1.0.0'
 
             // 4. Rate Limiting Enforcer (Distributed)
             const rateLimitDelay = (this.config as any).rateLimitDelay || 1000 // Default to 1000ms
@@ -429,10 +437,16 @@ export class DynamicProvider implements SmsProvider {
             // Save raw response for test console debugging
             this.lastRawResponse = responseData
 
+            // 5. Record Latency for Proactive Monitoring
+            this.recordLatency(Date.now() - startTime)
+
             return result
 
         } catch (error: any) {
             logger.error(`[DynamicProvider:${this.name}] Request failed`, { error: error.message })
+
+            // Record failure latency (if timeout)
+            if (error.message.includes('timeout')) this.recordLatency(30000)
 
             // If we haven't saved trace yet (e.g. network error)
             if (!this.lastRequestTrace) {
@@ -446,6 +460,32 @@ export class DynamicProvider implements SmsProvider {
                 }
             }
             throw error
+        }
+    }
+
+    private recordLatency(latencyMs: number) {
+        const history = DynamicProvider.latencyHistory.get(this.name) || []
+        history.push(latencyMs)
+        if (history.length > DynamicProvider.LATENCY_WINDOW) history.shift()
+        DynamicProvider.latencyHistory.set(this.name, history)
+
+        if (history.length >= 5) {
+            const avg = history.reduce((a, b) => a + b, 0) / history.length
+            if (latencyMs > avg * (1 + DynamicProvider.VOLATILITY_THRESHOLD)) {
+                logger.warn(`[DynamicProvider:${this.name}] Proactive Health Warning: Latency Volatility Detected`, {
+                    current: `${latencyMs}ms`,
+                    average: `${avg.toFixed(0)}ms`,
+                    deviation: `${((latencyMs / avg) - 1) * 100}%`
+                })
+
+                // QUARANTINE: If 3 out of last 5 requests are >150% of average, open breaker
+                // This protects against "stuttering" providers that don't hard-fail but slow down the system.
+                const spikes = history.filter(l => l > avg * 1.5).length
+                if (spikes >= 3) {
+                    logger.error(`[DynamicProvider:${this.name}] ☣️ Industrial Anomaly Quarantine: Tripping circuit due to chronic latency volatility`)
+                    this.getBreaker().open()
+                }
+            }
         }
     }
 
@@ -1473,15 +1513,46 @@ export class DynamicProvider implements SmsProvider {
     }
 
     /**
+     * Resolve a canonical code or numeric ID to the provider's external ID
+     */
+    private async resolveExternalId(type: 'country' | 'service', internalId: string | number): Promise<string> {
+        let slug = String(internalId)
+
+        // 1. If numeric ID provided, resolve to slug first
+        if (typeof internalId === 'number') {
+            const { resolveNumericIdToName, generateCanonicalCode } = await import('@/lib/normalizers/service-identity')
+            const name = await resolveNumericIdToName(type, internalId)
+            if (name) slug = generateCanonicalCode(name)
+        }
+
+        // 2. Look up the provider-specific external ID
+        const table = type === 'country' ? prisma.providerCountry : prisma.providerService
+        const result = await (table as any).findFirst({
+            where: {
+                providerId: this.config.id,
+                OR: [
+                    { code: slug },
+                    { externalId: slug } // Fallback for legacy codes
+                ]
+            }
+        })
+
+        return result?.externalId || slug
+    }
+
+    /**
      * Get services from provider
      */
-    async getServices(countryCode: string): Promise<Service[]> {
+    async getServices(countryCode: string | number): Promise<Service[]> {
         // Use cache-aside pattern
         const cacheKey = CACHE_KEYS.serviceList(this.name) + `:${countryCode}`
 
         return cacheGet(cacheKey, async () => {
+            // Resolve to external ID first
+            const externalCountry = await this.resolveExternalId('country', countryCode)
+
             // Logic simplified to strict dynamic
-            const response = await this.request('getServices', { country: countryCode })
+            const response = await this.request('getServices', { country: externalCountry })
 
             const items = this.parseResponse(response, 'getServices')
 
@@ -1507,13 +1578,19 @@ export class DynamicProvider implements SmsProvider {
         }, CACHE_TTL.SERVICES)
     }
 
-    async getNumber(countryCode: string, serviceCode: string, options?: { operator?: string; maxPrice?: string | number }): Promise<NumberResult> {
+    async getNumber(countryCode: string | number, serviceCode: string | number, options?: { operator?: string; maxPrice?: string | number }): Promise<NumberResult> {
         // Strict Mode: No fallback
+
+        // Resolve identifiers to provider-specific codes
+        const [externalCountry, externalService] = await Promise.all([
+            this.resolveExternalId('country', countryCode),
+            this.resolveExternalId('service', serviceCode)
+        ])
 
         // Build params object with consistent naming
         const params: Record<string, string> = {
-            country: countryCode,
-            service: serviceCode
+            country: externalCountry,
+            service: externalService
         }
 
         // Add optional params if provided
@@ -1542,23 +1619,26 @@ export class DynamicProvider implements SmsProvider {
 
         // CURRENCY & MARGIN LOGIC (Real-time)
         let normalizedPrice: number | null = null
+        let baseCost: number | null = null
+
         if ((mapped.price ?? mapped.cost) !== undefined) {
-            const rawPrice = Number(mapped.price ?? mapped.cost ?? 0)
-            const baseCost = await currencyService.normalizeProviderPrice(rawPrice, this.config.name)
+            const rawPriceNum = Number(mapped.price ?? mapped.cost ?? 0)
+            baseCost = await currencyService.normalizeProviderPrice(rawPriceNum, this.config.name)
 
             const multiplier = Number(this.config.priceMultiplier || 1.0)
             const markupUsd = Number(this.config.fixedMarkup || 0.0)
             const markupPoints = await currencyService.convert(markupUsd, 'USD', 'POINTS')
 
-            normalizedPrice = Number(((baseCost * multiplier) + markupPoints).toFixed(2))
+            normalizedPrice = Math.ceil((baseCost * multiplier) + markupPoints)
         }
 
         return {
             activationId: String(mapped.id || mapped.activationId || mapped.orderId),
             phoneNumber: String(mapped.phone || mapped.phoneNumber || mapped.number),
-            countryCode,
-            serviceCode,
+            countryCode: String(countryCode),
+            serviceCode: String(serviceCode),
             price: normalizedPrice,
+            rawPrice: baseCost, // NEW: The actual cost in platform currency (POINTS)
             expiresAt: new Date(Date.now() + 15 * 60 * 1000)
         }
     }

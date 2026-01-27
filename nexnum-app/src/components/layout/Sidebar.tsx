@@ -3,16 +3,16 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils/utils"
 import {
     LayoutDashboard,
     ShoppingCart,
     Smartphone,
     Wallet,
     Settings,
-    LogOut,
-    Menu
 } from "lucide-react"
+import { useGlobalStore } from "@/stores/appStore"
+import { useCurrency } from "@/hooks/use-currency"
 
 const sidebarItems = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -24,6 +24,8 @@ const sidebarItems = [
 
 export function Sidebar({ className }: { className?: string }) {
     const pathname = usePathname()
+    const { userProfile } = useGlobalStore()
+    const { format } = useCurrency()
 
     return (
         <div className={cn("pb-12 min-h-screen w-64 border-r bg-card/50 backdrop-blur-xl hidden md:block", className)}>
@@ -67,7 +69,9 @@ export function Sidebar({ className }: { className?: string }) {
                         <span className="text-xs text-teal-200 uppercase font-bold">Balance</span>
                         <Wallet className="h-4 w-4 text-neon-lime" />
                     </div>
-                    <div className="text-2xl font-bold text-white">$12.50</div>
+                    <div className="text-2xl font-bold text-white">
+                        {format(userProfile.balance || 0)}
+                    </div>
                     <button className="mt-3 w-full text-xs bg-white/10 hover:bg-white/20 py-1.5 rounded text-white transition-colors">
                         Top Up
                     </button>

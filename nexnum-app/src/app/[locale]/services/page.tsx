@@ -11,35 +11,37 @@ import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import CTA from "@/components/home/CTA"
 
-// Mock Data for Display
+import { formatPrice } from "@/lib/utils/utils"
+
+// Mock Data for Display (Updated to COINS: 0.15 -> 15)
 const popularServices = [
-    { id: 'whatsapp', name: 'WhatsApp', price: 0.15, icon: 'brands/whatsapp.svg' },
-    { id: 'telegram', name: 'Telegram', price: 0.20, icon: 'brands/telegram.svg' },
-    { id: 'google', name: 'Google / Gmail', price: 0.10, icon: 'brands/google.svg' },
-    { id: 'facebook', name: 'Facebook', price: 0.08, icon: 'brands/facebook.svg' },
-    { id: 'instagram', name: 'Instagram', price: 0.12, icon: 'brands/instagram.svg' },
-    { id: 'twitter', name: 'X (Twitter)', price: 0.10, icon: 'brands/twitter.svg' },
-    { id: 'tiktok', name: 'TikTok', price: 0.18, icon: 'brands/tiktok.svg' },
-    { id: 'discord', name: 'Discord', price: 0.15, icon: 'brands/discord.svg' },
-    { id: 'uber', name: 'Uber', price: 0.25, icon: 'brands/uber.svg' },
-    { id: 'openai', name: 'OpenAI / ChatGPT', price: 0.30, icon: 'brands/openai.svg' },
-    { id: 'amazon', name: 'Amazon', price: 0.15, icon: 'brands/amazon.svg' },
-    { id: 'netflix', name: 'Netflix', price: 0.20, icon: 'brands/netflix.svg' },
+    { id: 'whatsapp', name: 'WhatsApp', price: 15, icon: 'brands/whatsapp.svg' },
+    { id: 'telegram', name: 'Telegram', price: 20, icon: 'brands/telegram.svg' },
+    { id: 'google', name: 'Google / Gmail', price: 10, icon: 'brands/google.svg' },
+    { id: 'facebook', name: 'Facebook', price: 8, icon: 'brands/facebook.svg' },
+    { id: 'instagram', name: 'Instagram', price: 12, icon: 'brands/instagram.svg' },
+    { id: 'twitter', name: 'X (Twitter)', price: 10, icon: 'brands/twitter.svg' },
+    { id: 'tiktok', name: 'TikTok', price: 18, icon: 'brands/tiktok.svg' },
+    { id: 'discord', name: 'Discord', price: 15, icon: 'brands/discord.svg' },
+    { id: 'uber', name: 'Uber', price: 25, icon: 'brands/uber.svg' },
+    { id: 'openai', name: 'OpenAI / ChatGPT', price: 30, icon: 'brands/openai.svg' },
+    { id: 'amazon', name: 'Amazon', price: 15, icon: 'brands/amazon.svg' },
+    { id: 'netflix', name: 'Netflix', price: 20, icon: 'brands/netflix.svg' },
 ]
 
 const countries = [
-    { code: 'US', name: 'United States', price: 0.50 },
-    { code: 'GB', name: 'United Kingdom', price: 0.45 },
-    { code: 'DE', name: 'Germany', price: 0.60 },
-    { code: 'FR', name: 'France', price: 0.55 },
-    { code: 'CA', name: 'Canada', price: 0.50 },
-    { code: 'NL', name: 'Netherlands', price: 0.40 },
-    { code: 'ES', name: 'Spain', price: 0.45 },
-    { code: 'ID', name: 'Indonesia', price: 0.15 },
-    { code: 'VN', name: 'Vietnam', price: 0.10 },
-    { code: 'PH', name: 'Philippines', price: 0.15 },
-    { code: 'BR', name: 'Brazil', price: 0.20 },
-    { code: 'IN', name: 'India', price: 0.10 },
+    { code: 'US', name: 'United States', price: 50 },
+    { code: 'GB', name: 'United Kingdom', price: 45 },
+    { code: 'DE', name: 'Germany', price: 60 },
+    { code: 'FR', name: 'France', price: 55 },
+    { code: 'CA', name: 'Canada', price: 50 },
+    { code: 'NL', name: 'Netherlands', price: 40 },
+    { code: 'ES', name: 'Spain', price: 45 },
+    { code: 'ID', name: 'Indonesia', price: 15 },
+    { code: 'VN', name: 'Vietnam', price: 10 },
+    { code: 'PH', name: 'Philippines', price: 15 },
+    { code: 'BR', name: 'Brazil', price: 20 },
+    { code: 'IN', name: 'India', price: 10 },
 ]
 
 export default function ServicesPage() {
@@ -119,7 +121,7 @@ export default function ServicesPage() {
                                             {service.name}
                                         </h3>
                                         <p className="text-sm text-gray-500 mt-1">
-                                            from <span className="text-white font-mono">${service.price.toFixed(2)}</span>
+                                            from <span className="text-white font-mono">{formatPrice(service.price)}</span>
                                         </p>
                                     </div>
                                     <Link href="/dashboard/buy" className="w-full">
@@ -154,7 +156,7 @@ export default function ServicesPage() {
                                         </div>
                                         <div>
                                             <div className="text-sm font-medium text-white">{country.name}</div>
-                                            <div className="text-xs text-gray-500">from ${country.price.toFixed(2)}</div>
+                                            <div className="text-xs text-gray-500">from {formatPrice(country.price)}</div>
                                         </div>
                                     </div>
                                 ))}

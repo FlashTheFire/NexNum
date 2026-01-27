@@ -1,7 +1,10 @@
 import { randomBytes, createHash, createHmac } from 'crypto'
+import { timingSafeEqual } from '@/lib/core/isomorphic-crypto'
 import { prisma } from '@/lib/core/db'
 import { auditLogger } from '@/lib/core/audit'
 import { ApiKey, ApiTier } from '@prisma/client'
+import { redis } from '@/lib/core/redis'
+import { logger } from '@/lib/core/logger'
 
 // Key format: nxn_live_xxxx or nxn_test_xxxx (32 random chars)
 const KEY_PREFIX_LIVE = 'nxn_live_'
@@ -132,60 +135,77 @@ export async function createApiKey(input: CreateApiKeyInput): Promise<ApiKeyWith
 
 /**
  * Validate an API key and return the key record
+ * Now with Redis-backed caching for ultra-low latency.
  */
 export async function validateApiKey(rawKey: string, requestIp?: string): Promise<ValidateApiKeyResult> {
     if (!rawKey || typeof rawKey !== 'string') {
         return { valid: false, error: 'No API key provided' }
     }
 
-    // Check format
     if (!rawKey.startsWith(KEY_PREFIX_LIVE) && !rawKey.startsWith(KEY_PREFIX_TEST)) {
         return { valid: false, error: 'Invalid API key format' }
     }
 
     const keyHash = hashKey(rawKey)
+    const cacheKey = `auth:apikey:${keyHash}`
 
-    // Find the key
+    try {
+        // 1. Try Cache First
+        const cached = await redis.get(cacheKey)
+        if (cached) {
+            const data = JSON.parse(cached)
+            // Re-hydrate Date objects
+            if (data.expiresAt) data.expiresAt = new Date(data.expiresAt);
+            if (data.lastUsedAt) data.lastUsedAt = new Date(data.lastUsedAt);
+            if (data.createdAt) data.createdAt = new Date(data.createdAt);
+            if (data.updatedAt) data.updatedAt = new Date(data.updatedAt);
+
+            // Perform checks on cached data
+            if (!data.isActive) return { valid: false, error: 'API key is revoked' };
+            if (data.expiresAt && data.expiresAt < new Date()) return { valid: false, error: 'API key has expired' };
+            if (data.user?.isBanned) return { valid: false, error: 'User account is suspended' }; // Assuming user is included in cached data
+
+            // Still perform IP check if whitelisted
+            if (data.ipWhitelist?.length > 0 && requestIp) {
+                if (!data.ipWhitelist.includes(requestIp)) {
+                    return { valid: false, error: 'IP address not whitelisted' }
+                }
+            }
+            return { valid: true, key: data }
+        }
+    } catch (err) {
+        logger.warn('[Auth:Cache] Redis lookup failed, falling back to DB', err)
+    }
+
+    // 2. Database Fallback
     const apiKey = await prisma.apiKey.findUnique({
         where: { keyHash },
         include: { user: { select: { id: true, isBanned: true, email: true } } }
     })
 
-    if (!apiKey) {
-        return { valid: false, error: 'Invalid API key' }
-    }
+    if (!apiKey) return { valid: false, error: 'Invalid API key' }
+    if (!apiKey.isActive) return { valid: false, error: 'API key is revoked' }
+    if (apiKey.expiresAt && apiKey.expiresAt < new Date()) return { valid: false, error: 'API key has expired' }
+    if (apiKey.user.isBanned) return { valid: false, error: 'User account is suspended' }
 
-    // Check if active
-    if (!apiKey.isActive) {
-        return { valid: false, error: 'API key is revoked' }
-    }
-
-    // Check if expired
-    if (apiKey.expiresAt && apiKey.expiresAt < new Date()) {
-        return { valid: false, error: 'API key has expired' }
-    }
-
-    // Check if user is banned
-    if (apiKey.user.isBanned) {
-        return { valid: false, error: 'User account is suspended' }
-    }
-
-    // Check IP whitelist
     if (apiKey.ipWhitelist.length > 0 && requestIp) {
         if (!apiKey.ipWhitelist.includes(requestIp)) {
             return { valid: false, error: 'IP address not whitelisted' }
         }
     }
 
-    // Update usage stats (async, don't wait)
+    // 3. Populate Cache (TTL: 5 minutes)
+    try {
+        await redis.set(cacheKey, JSON.stringify(apiKey), 'EX', 300)
+    } catch (err) {
+        logger.warn('[Auth:Cache] Failed to populate cache', err)
+    }
+
+    // Update usage stats (async)
     prisma.apiKey.update({
         where: { id: apiKey.id },
-        data: {
-            usageCount: { increment: 1 },
-            lastUsedAt: new Date(),
-            lastUsedIp: requestIp || null
-        }
-    }).catch(err => console.error('Failed to update API key usage:', err))
+        data: { usageCount: { increment: 1 }, lastUsedAt: new Date(), lastUsedIp: requestIp || null }
+    }).catch(err => console.error('Failed to update API key stats:', err))
 
     return { valid: true, key: apiKey }
 }
@@ -324,9 +344,18 @@ export function signWebhookPayload(payload: string, secret: string): string {
 }
 
 /**
- * Verify a webhook signature
+ * Verify a webhook signature (Timing-Safe)
  */
 export function verifyWebhookSignature(payload: string, signature: string, secret: string): boolean {
     const expected = signWebhookPayload(payload, secret)
-    return signature === expected
+
+    try {
+        const sigBuf = Buffer.from(signature, 'hex')
+        const expectedBuf = Buffer.from(expected, 'hex')
+
+        if (sigBuf.length !== expectedBuf.length) return false
+        return timingSafeEqual(sigBuf, expectedBuf)
+    } catch {
+        return false
+    }
 }

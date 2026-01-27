@@ -199,7 +199,7 @@ function createChecksum(data: string): string {
 // ============================================================================
 
 export interface OfferIdComponents {
-    provider: string
+    providerName: string
     country: string
     service: string
     operator?: string
@@ -211,7 +211,7 @@ export interface OfferIdComponents {
  */
 export function createOfferId(components: OfferIdComponents): string {
     const data = [
-        components.provider,
+        components.providerName,
         components.country,
         components.service,
         components.operator || ''
@@ -228,10 +228,10 @@ export function parseOfferId(offerId: string): OfferIdComponents | null {
     const data = validateSecureId(offerId)
     if (!data) return null
 
-    const [provider, country, service, operator] = data.split(':')
+    const [providerName, country, service, operator] = data.split(':')
 
     return {
-        provider,
+        providerName,
         country,
         service,
         operator: operator || undefined
@@ -283,28 +283,28 @@ export async function resolvePublicId(publicId: string, type: string = 'offer'):
  */
 export function obfuscateOffer(offer: {
     id: string
-    provider: string
+    providerName: string
     countryCode: string
-    serviceSlug: string
+    serviceCode: string
     operatorId?: string
     externalOperator?: string
     [key: string]: any
 }): Record<string, any> {
     // Create obfuscated ID
     const secureId = createOfferId({
-        provider: offer.provider,
+        providerName: offer.providerName,
         country: offer.countryCode,
-        service: offer.serviceSlug,
+        service: offer.serviceCode,
         operator: offer.externalOperator
     })
 
     // Return sanitized offer (remove internal IDs)
     const {
-        provider,
+        providerName,
         operatorId,
         externalOperator,
         countryCode,
-        serviceSlug,
+        serviceCode,
         ...safeFields
     } = offer
 
@@ -313,7 +313,7 @@ export function obfuscateOffer(offer: {
         id: secureId,
         // Keep display-safe versions
         country: offer.countryName || offer.countryCode,
-        service: offer.serviceName || offer.serviceSlug,
+        service: offer.serviceName || offer.serviceCode,
     }
 }
 

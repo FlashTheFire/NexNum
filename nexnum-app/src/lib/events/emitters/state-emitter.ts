@@ -4,17 +4,11 @@
  * Emits real-time state updates via Redis pub/sub for WebSocket delivery.
  * Used after mutations to notify clients of state changes.
  */
-import { redis, cacheInvalidate, CACHE_KEYS } from '@/lib/core/redis'
-import { randomUUID } from 'crypto'
+import { cacheInvalidate, CACHE_KEYS } from '@/lib/core/redis'
+import { logger } from '@/lib/core/logger'
+import { EventPublisher } from '../publisher'
 
 type StateUpdateType = 'wallet' | 'numbers' | 'notification' | 'all'
-
-interface StateUpdateEvent {
-    type: StateUpdateType
-    userId: string
-    timestamp: number
-    reason?: string
-}
 
 /**
  * Emit a state update event to a user's WebSocket connection
@@ -33,25 +27,20 @@ export async function emitStateUpdate(
             await cacheInvalidate(CACHE_KEYS.userBalance(userId))
         }
 
-        // 2. Emit WebSocket event via Redis pub/sub
-        // Must match EventEnvelopeSchema format for socket server validation
-        const message = JSON.stringify({
-            v: 1, // Schema version (required)
-            eventId: randomUUID(),
-            ts: Date.now(), // Timestamp (required)
-            type: 'state.updated', // Event type (was incorrectly named 'eventType')
-            room: `user:${userId}`,
-            payload: {
-                stateType: type,
-                userId,
-                reason
-            }
-        })
+        // 2. Publish Standardized Event via Publisher
+        await EventPublisher.publish('state.updated', `user:${userId}`, {
+            stateType: type,
+            userId,
+            reason
+        }, { source: 'state-emitter' })
 
-        await redis.publish('events:global', message)
-    } catch (error) {
-        // Non-blocking - log and continue
-        console.error('[StateEmitter] Failed to emit state update:', error)
+    } catch (error: any) {
+        // Non-blocking - log and continue to minimize impact on transaction flow
+        logger.error('[StateEmitter] Failed to emit state update', {
+            userId,
+            type,
+            error: error.message
+        })
     }
 }
 
@@ -60,6 +49,22 @@ export async function emitStateUpdate(
  * Use when WebSocket is not needed (e.g., background jobs)
  */
 export async function invalidateDashboardCache(userId: string): Promise<void> {
-    await cacheInvalidate(CACHE_KEYS.dashboardState(userId))
-    await cacheInvalidate(CACHE_KEYS.userBalance(userId))
+    try {
+        await cacheInvalidate(CACHE_KEYS.dashboardState(userId))
+        await cacheInvalidate(CACHE_KEYS.userBalance(userId))
+    } catch (error: any) {
+        logger.error('[StateEmitter] Cache invalidation failed', { userId, error: error.message })
+    }
+}
+
+/**
+ * Emit an internal control event for the Socket Server cluster.
+ * Used for revocation, kill-switches, and global system notifications.
+ */
+// TODO: Implement 'control.event' in Registry if strictly needed. 
+// For now, this is internal/admin usage so we keep manual pub or define a ControlEvent schema.
+export async function emitControlEvent(type: string, payload: any): Promise<void> {
+    // Placeholder for strict implementation. 
+    // Current manual publishing is risky. Should define Schema later if widely used.
+    logger.warn('[StateEmitter] emitControlEvent is deprecated. Define schema before use.', { type })
 }

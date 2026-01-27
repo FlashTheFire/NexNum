@@ -27,14 +27,15 @@ export const SECURITY_HEADERS = {
     // Disable dangerous browser features
     'Permissions-Policy': 'geolocation=(), microphone=(), camera=(), payment=(), usb=()',
 
-    // CSP - Content Security Policy (adjust as needed)
+    // CSP - Content Security Policy (Industrial Hardening)
     'Content-Security-Policy': [
         "default-src 'self'",
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // Needed for Next.js
-        "style-src 'self' 'unsafe-inline'",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://hcaptcha.com https://*.hcaptcha.com", // 'unsafe-eval' needed for Next.js, 'unsafe-inline' for hydration
+        "style-src 'self' 'unsafe-inline' https://hcaptcha.com https://*.hcaptcha.com",
         "img-src 'self' data: https: blob:",
         "font-src 'self' data:",
-        "connect-src 'self' https://api.nowpayments.io wss: ws:",
+        "connect-src 'self' https://api.nowpayments.io https://*.hcaptcha.com wss: ws:",
+        "frame-src 'self' https://hcaptcha.com https://*.hcaptcha.com",
         "frame-ancestors 'none'",
         "base-uri 'self'",
         "form-action 'self'"

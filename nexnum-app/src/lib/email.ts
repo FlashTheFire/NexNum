@@ -75,6 +75,17 @@ export class EmailService {
             }
 
             // 5. Send Email
+            if (process.env.NODE_ENV !== 'production') {
+                console.log('📧 [Dev Email Preview] -----------------------')
+                console.log(`To: ${to}`)
+                console.log(`Subject: ${subject}`)
+                // crude extraction of link for convenience
+                const linkMatch = html.match(/href="(http:\/\/[^"]+)"/);
+                if (linkMatch) {
+                    console.log(`🔗 Link Found: ${linkMatch[1]}`)
+                }
+                console.log('------------------------------------------------')
+            }
             const info = await transporter.sendMail({
                 from,
                 to,

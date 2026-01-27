@@ -2,23 +2,27 @@ import { NextRequest, NextResponse } from "next/server";
 import { searchOffers } from "@/lib/search/search";
 import { verifyToken } from "@/lib/auth/jwt";
 import { createOfferId } from "@/lib/auth/id-security";
+import { currencyService } from "@/lib/currency/currency-service";
 
 // Protected Route: Only logged in users can search offers
 export async function GET(req: NextRequest) {
     try {
-        // 1. Auth Check (Optional: Could be public if you want SEO pages to use it, but safe to protect pricing)
-        // const token = req.cookies.get("token")?.value;
-        // if (!token || !(await verifyToken(token))) {
-        //     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        // }
-        // Keeping it open for now to allow easier frontend dev/demo, but easily uncommented.
+        // ... (Auth Check commented out as per original) ...
 
         const { searchParams } = new URL(req.url);
         const q = searchParams.get("q") || "";
         const country = searchParams.get("country");
         const service = searchParams.get("service");
-        const maxPrice = searchParams.get("maxPrice") ? parseFloat(searchParams.get("maxPrice")!) : undefined;
         const sortParam = searchParams.get("sort"); // e.g. "price:asc"
+        const currency = searchParams.get("currency") || "USD"; // Default to USD
+
+        let maxPrice = searchParams.get("maxPrice") ? parseFloat(searchParams.get("maxPrice")!) : undefined;
+
+        // Convert User Currency maxPrice -> System POINTS (COINS)
+        if (maxPrice !== undefined && currency !== 'POINTS') {
+            // e.g. User says Max 100 INR -> Convert to X Points (Internal Base)
+            maxPrice = await currencyService.convert(maxPrice, currency, 'POINTS');
+        }
 
         const page = parseInt(searchParams.get("page") || "1");
         const limit = parseInt(searchParams.get("limit") || "20");
@@ -26,7 +30,7 @@ export async function GET(req: NextRequest) {
         const results = await searchOffers(q, {
             countryCode: country || undefined,
             serviceCode: service || undefined,
-            maxPrice,
+            maxPrice, // Now in POINTS/COINS
             minCount: 1 // Only show items in stock
         }, {
             page,
@@ -38,22 +42,25 @@ export async function GET(req: NextRequest) {
         const secureHits = results.hits.map(offer => {
             // Create secure ID that hides provider/operator details
             const secureId = createOfferId({
-                provider: offer.provider,
-                country: offer.countryCode,
-                service: offer.serviceSlug,
-                operator: String(offer.externalOperator || offer.operatorId || '')
+                providerName: offer.provider,
+                country: offer.providerCountryCode,
+                service: offer.providerServiceCode,
+                operator: offer.operator || ''
             });
 
             // Return sanitized offer (remove internal identifiers)
             const {
-                provider,
-                operatorId,
-                externalOperator,
+                provider, // Removed
+                operator, // Removed
+                providerServiceCode, // Optional: Hide raw codes if desired, but keep for now if client needs debugging
+                providerCountryCode,
+                rawPrice, // Hide raw cost
                 ...safeFields
             } = offer;
 
             return {
                 ...safeFields,
+                // Remap strictly for frontend compatibility if needed, or just send safeFields
                 id: secureId, // Replace with secure ID
             };
         });

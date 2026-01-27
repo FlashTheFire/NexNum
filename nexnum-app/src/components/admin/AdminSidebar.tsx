@@ -43,7 +43,7 @@ export const AdminSidebar = () => {
             <div className="h-20 flex items-center justify-center px-4 border-b border-white/5">
                 <div className="w-10 h-10 flex items-center justify-center flex-shrink-0">
                     <img
-                        src="/logos/nexnum-logo.svg"
+                        src="/assets/brand/nexnum-logo.svg"
                         alt="NexNum"
                         className="w-8 h-8 brightness-0 invert opacity-70"
                     />

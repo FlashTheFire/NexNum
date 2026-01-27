@@ -12,6 +12,9 @@
 import { prisma } from '@/lib/core/db'
 import { publishOutboxEvent } from './outbox'
 import { logger } from '@/lib/core/logger'
+import { WalletService } from '@/lib/wallet/wallet'
+import { EventDispatcher } from '@/lib/core/event-dispatcher'
+import { ActivationKernel } from './activation-kernel'
 
 // Configuration
 const CLEANUP_INTERVAL_MS = 30000 // 30 seconds
@@ -23,7 +26,9 @@ let cleanupInterval: NodeJS.Timeout | null = null
 interface CleanupResult {
     expiredReservations: number
     expiredNumbers: number
+    staleActivations: number
     stockRestored: number
+    fundsRecovered: number
     errors: number
 }
 
@@ -31,17 +36,21 @@ interface CleanupResult {
  * Find and expire stale reservations
  */
 async function cleanupExpiredReservations(): Promise<CleanupResult> {
-    const result: CleanupResult = { expiredReservations: 0, expiredNumbers: 0, stockRestored: 0, errors: 0 }
+    const result: CleanupResult = {
+        expiredReservations: 0,
+        expiredNumbers: 0,
+        staleActivations: 0,
+        stockRestored: 0,
+        fundsRecovered: 0,
+        errors: 0
+    }
 
     try {
-        // Find expired PENDING reservations
+        // Find expired PENDING reservations (Catalog items)
         const expiredReservations = await prisma.offerReservation.findMany({
             where: {
                 status: 'PENDING',
                 expiresAt: { lt: new Date() }
-            },
-            include: {
-                pricing: true
             },
             take: BATCH_SIZE
         })
@@ -50,7 +59,7 @@ async function cleanupExpiredReservations(): Promise<CleanupResult> {
             return result
         }
 
-        logger.info(`[RESERVATION-CLEANUP] Found ${expiredReservations.length} expired reservations`)
+        logger.info(`[RESERVATION-CLEANUP] Found ${expiredReservations.length} expired offer reservations`)
 
         for (const reservation of expiredReservations) {
             try {
@@ -61,16 +70,10 @@ async function cleanupExpiredReservations(): Promise<CleanupResult> {
                         data: { status: 'EXPIRED' }
                     })
 
-                    // Restore stock to the pricing record
-                    await tx.providerPricing.update({
-                        where: { id: reservation.pricingId },
-                        data: { stock: { increment: reservation.quantity } }
-                    })
-
                     // Publish outbox event for MeiliSearch sync
                     await publishOutboxEvent({
                         aggregateType: 'offer',
-                        aggregateId: reservation.pricingId,
+                        aggregateId: reservation.offerId,
                         eventType: 'offer.updated',
                         payload: {
                             reason: 'reservation_expired',
@@ -95,12 +98,7 @@ async function cleanupExpiredReservations(): Promise<CleanupResult> {
         logger.error('[RESERVATION-CLEANUP] Batch error', { error })
     }
 
-    return {
-        expiredReservations: result.expiredReservations,
-        expiredNumbers: 0,
-        stockRestored: result.stockRestored,
-        errors: result.errors
-    }
+    return result
 }
 
 import { smsProvider } from '@/lib/providers'
@@ -140,14 +138,13 @@ async function cleanupExpiredNumbers(): Promise<number> {
                             })
 
                             if (num.activationId) {
-                                // Sync Activation state too
+                                // Sync Activation state via Kernel
                                 const activation = await prisma.activation.findFirst({
                                     where: { providerActivationId: num.activationId }
                                 })
                                 if (activation) {
-                                    await prisma.activation.update({
-                                        where: { id: activation.id },
-                                        data: { state: 'RECEIVED' }
+                                    await ActivationKernel.transition(activation.id, 'RECEIVED', {
+                                        reason: 'Cleanup: Number saved by late SMS check'
                                     })
                                 }
                             }
@@ -192,19 +189,31 @@ async function cleanupExpiredNumbers(): Promise<number> {
                         data: { status: 'expired' }
                     })
 
-                    // Handle Activation sync
+                    // Handle Activation sync via Kernel
                     if (num.activationId) {
                         const activation = await tx.activation.findFirst({
                             where: { providerActivationId: num.activationId }
                         })
                         if (activation && activation.state === 'ACTIVE') {
-                            await tx.activation.update({
-                                where: { id: activation.id },
-                                data: { state: 'EXPIRED' }
+                            await ActivationKernel.transition(activation.id, 'EXPIRED', {
+                                reason: 'Cleanup: Number reached expiry time',
+                                tx
                             })
                         }
                     }
                 })
+
+                // ENTERPRISE EVENT DISPATCH (Phase 39)
+                if (num.ownerId) {
+                    await EventDispatcher.dispatch(num.ownerId, 'activation.expired', {
+                        numberId: num.id,
+                        activationId: num.activationId,
+                        phoneNumber: num.phoneNumber,
+                        service: num.serviceName,
+                        country: num.countryName,
+                        reason: 'cleanup_routine'
+                    })
+                }
 
                 expiredCount++
             } catch (e) {
@@ -216,6 +225,66 @@ async function cleanupExpiredNumbers(): Promise<number> {
     }
 
     return expiredCount
+}
+
+/**
+ * FINANCIAL REAPER: Cleanup Stale Activations (Zombie Funds)
+ * Finds activations stuck in RESERVED for > 10 minutes and rolls back funds.
+ */
+async function cleanupStaleActivations(): Promise<{ freed: number, amount: number }> {
+    const STALE_THRESHOLD_MIN = 10
+    const cutoff = new Date(Date.now() - STALE_THRESHOLD_MIN * 60 * 1000)
+
+    let freedCount = 0
+    let recoveredAmount = 0
+
+    try {
+        const staleActivations = await prisma.activation.findMany({
+            where: {
+                state: 'RESERVED',
+                createdAt: { lt: cutoff }
+            },
+            take: BATCH_SIZE
+        })
+
+        if (staleActivations.length === 0) return { freed: 0, amount: 0 }
+
+        logger.info(`[FINANCIAL-REAPER] Found ${staleActivations.length} stale reservations (Zombie Funds)`)
+
+        for (const activation of staleActivations) {
+            try {
+                await prisma.$transaction(async (tx) => {
+                    // 1. Rollback Wallet Reservation
+                    await WalletService.rollback(
+                        activation.userId,
+                        activation.price.toNumber(),
+                        activation.id,
+                        `Anti-Zombie: Stale reservation recovery`,
+                        tx as any
+                    )
+
+                    // 2. Mark Activation as FAILED via Kernel
+                    await ActivationKernel.transition(activation.id, 'FAILED', {
+                        reason: 'Cleanup: Zombie fund recovery (Stale Reserved state)',
+                        tx
+                    })
+                })
+
+                freedCount++
+                recoveredAmount += activation.price.toNumber()
+            } catch (err: any) {
+                logger.error(`[FINANCIAL-REAPER] Failed to recover zombie funds for ${activation.id}`, { error: err.message })
+            }
+        }
+
+        if (freedCount > 0) {
+            logger.success(`[FINANCIAL-REAPER] Successfully recovered ${recoveredAmount} points from ${freedCount} zombie activations`)
+        }
+    } catch (error) {
+        logger.error('[FINANCIAL-REAPER] Batch error', { error })
+    }
+
+    return { freed: freedCount, amount: recoveredAmount }
 }
 
 /**
@@ -245,8 +314,9 @@ async function runCleanup(): Promise<void> {
     if (!isRunning) return
 
     try {
-        await cleanupExpiredReservations()
-        await cleanupExpiredNumbers()
+        const res = await cleanupExpiredReservations()
+        const numExpired = await cleanupExpiredNumbers()
+        const staleRes = await cleanupStaleActivations()
 
         // Purge old records once per hour (every ~120 iterations)
         if (Math.random() < 0.01) {

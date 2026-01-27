@@ -1,289 +1,136 @@
 # =============================================================================
-# NEXNUM ALERTING RULES
-# =============================================================================
-# 
-# These rules trigger alerts sent to Alertmanager, which routes them to
-# configured receivers (Telegram, Slack, Email, etc.)
-#
-# Alert Severity Levels:
-#   - critical: Requires immediate attention (pages on-call)
-#   - warning: Should be addressed soon (notifications)
-#   - info: Informational, may not require action
-#
+# NEXNUM INDUSTRIAL ALERT RULES (v2.0)
 # =============================================================================
 
 groups:
   # ===========================================================================
-  # API & APPLICATION HEALTH
+  # ⚡ API & APPLICATION HEALTH
   # ===========================================================================
-  - name: api_alerts
+  - name: api_reliability
     interval: 15s
     rules:
-      # -----------------------------------------------------------------------
-      # HIGH ERROR RATE
-      # -----------------------------------------------------------------------
       - alert: HighErrorRate
         expr: |
           (
-            sum(rate(http_requests_total{status_code=~"5.."}[5m])) /
-            sum(rate(http_requests_total[5m]))
+            sum(rate(nexnum_http_requests_total{status_code=~"5.."}[5m])) /
+            sum(rate(nexnum_http_requests_total[5m]))
           ) * 100 > 5
         for: 2m
         labels:
           severity: critical
-          team: backend
+          tier: api
         annotations:
           summary: "🚨 High API error rate ({{ printf \"%.1f\" $value }}%)"
-          description: "Error rate has exceeded 5% for the last 2 minutes. Check logs immediately."
-          runbook_url: "https://wiki.nexnum.com/runbooks/high-error-rate"
+          description: "NexNum API is returning internal errors. Check logs for trace IDs."
 
-      - alert: ElevatedErrorRate
+      - alert: CriticalLatency
         expr: |
-          (
-            sum(rate(http_requests_total{status_code=~"5.."}[5m])) /
-            sum(rate(http_requests_total[5m]))
-          ) * 100 > 1
-        for: 5m
-        labels:
-          severity: warning
-          team: backend
-        annotations:
-          summary: "⚠️ Elevated error rate ({{ printf \"%.1f\" $value }}%)"
-          description: "Error rate above 1% for 5 minutes. Monitor closely."
-
-      # -----------------------------------------------------------------------
-      # SLOW API RESPONSES
-      # -----------------------------------------------------------------------
-      - alert: SlowAPIResponses
-        expr: |
-          histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
-        for: 3m
-        labels:
-          severity: warning
-          team: backend
-        annotations:
-          summary: "🐢 Slow API responses (P95: {{ printf \"%.2f\" $value }}s)"
-          description: "95th percentile latency exceeds 2 seconds."
-
-      - alert: CriticalAPILatency
-        expr: |
-          histogram_quantile(0.99, rate(http_request_duration_seconds_bucket[5m])) > 5
+          histogram_quantile(0.99, sum(rate(nexnum_http_request_duration_seconds_bucket[5m])) by (le)) > 5
         for: 2m
         labels:
           severity: critical
-          team: backend
+          tier: api
         annotations:
-          summary: "🚨 Critical API latency (P99: {{ printf \"%.2f\" $value }}s)"
-          description: "99th percentile latency exceeds 5 seconds. Check DB/Redis."
+          summary: "🐢 Critical API Latency (P99: {{ printf \"%.2f\" $value }}s)"
+          description: "API response time is extremely high. Possible DB Lock contention."
 
-      # -----------------------------------------------------------------------
-      # API DOWN
-      # -----------------------------------------------------------------------
-      - alert: APIDown
-        expr: up{job="nexnum-api"} == 0
+  # ===========================================================================
+  # 💰 BUSINESS & FINANCIAL INTEGRITY (Critical)
+  # ===========================================================================
+  - name: business_integrity
+    interval: 30s
+    rules:
+      - alert: WalletInconsistencyDetected
+        expr: |
+          sum(nexnum_wallet_balance_cache_mismatch_total) > 0
         for: 1m
         labels:
           severity: critical
-          team: backend
+          tier: financial
         annotations:
-          summary: "🔴 API is DOWN"
-          description: "NexNum API is not responding to health checks."
+          summary: "⚖️ WALLET INTEGRITY FAILURE"
+          description: "Discrepancy detected between user balance cache and transaction ledger. Manual audit required."
+
+      - alert: ProviderSyncFailed
+        expr: |
+          time() - nexnum_provider_last_sync_timestamp > 86400
+        for: 15m
+        labels:
+          severity: warning
+          tier: platform
+        annotations:
+          summary: "📡 Provider Sync Lag"
+          description: "Provider pricing hasn't synced in 24 hours. Catalog may be stale."
 
   # ===========================================================================
-  # PURCHASE & WALLET
+  # ⚙️ WORKER & PERF
   # ===========================================================================
-  - name: business_alerts
+  - name: worker_health
     interval: 30s
     rules:
-      # -----------------------------------------------------------------------
-      # PURCHASE FAILURES
-      # -----------------------------------------------------------------------
-      - alert: HighPurchaseFailureRate
+      - alert: QueueExhaustion
         expr: |
-          (
-            sum(rate(wallet_transactions_total{type="purchase",status="error"}[10m])) /
-            sum(rate(wallet_transactions_total{type="purchase"}[10m]))
-          ) * 100 > 10
+          sum(nexnum_worker_queue_depth{state="pending"}) > 500
         for: 5m
         labels:
           severity: critical
-          team: platform
+          tier: backend
         annotations:
-          summary: "💳 High purchase failure rate ({{ printf \"%.1f\" $value }}%)"
-          description: "More than 10% of purchases are failing. Check provider status."
-
-      # -----------------------------------------------------------------------
-      # PROVIDER FAILURES
-      # -----------------------------------------------------------------------
-      - alert: ProviderHighErrorRate
-        expr: |
-          (
-            sum by(provider) (rate(provider_api_calls_total{status="error"}[10m])) /
-            sum by(provider) (rate(provider_api_calls_total[10m]))
-          ) * 100 > 20
-        for: 5m
-        labels:
-          severity: warning
-          team: platform
-        annotations:
-          summary: "📡 Provider {{ $labels.provider }} error rate high ({{ printf \"%.1f\" $value }}%)"
-          description: "Consider disabling or switching provider."
-
-      - alert: ProviderDown
-        expr: |
-          sum by(provider) (rate(provider_api_calls_total{status="error"}[5m])) > 0 and
-          sum by(provider) (rate(provider_api_calls_total{status="success"}[5m])) == 0
-        for: 3m
-        labels:
-          severity: critical
-          team: platform
-        annotations:
-          summary: "🔴 Provider {{ $labels.provider }} appears DOWN"
-          description: "No successful calls in last 5 minutes, only errors."
+          summary: "🚨 Queue Exhaustion"
+          description: "Pending jobs > 500 for 5m. Workers cannot keep up with traffic."
 
   # ===========================================================================
-  # QUEUE & WORKERS
+  # 💾 INFRASTRUCTURE
   # ===========================================================================
-  - name: queue_alerts
+  - name: infra_hardened
     interval: 30s
     rules:
-      # -----------------------------------------------------------------------
-      # QUEUE BACKLOG
-      # -----------------------------------------------------------------------
-      - alert: QueueBacklogHigh
-        expr: queue_depth{state="active"} > 100
-        for: 5m
-        labels:
-          severity: warning
-          team: backend
-        annotations:
-          summary: "📥 Queue backlog high ({{ $value }} jobs)"
-          description: "Active queue has more than 100 pending jobs."
-
-      - alert: QueueBacklogCritical
-        expr: queue_depth{state="active"} > 500
-        for: 3m
-        labels:
-          severity: critical
-          team: backend
-        annotations:
-          summary: "🚨 Queue backlog CRITICAL ({{ $value }} jobs)"
-          description: "Queue is severely backed up. Scale workers or investigate."
-
-      # -----------------------------------------------------------------------
-      # FAILED JOBS
-      # -----------------------------------------------------------------------
-      - alert: HighFailedJobRate
-        expr: |
-          increase(queue_depth{state="failed"}[30m]) > 10
-        for: 5m
-        labels:
-          severity: warning
-          team: backend
-        annotations:
-          summary: "❌ High job failure rate ({{ $value }} failures in 30m)"
-          description: "Jobs are failing at elevated rate. Check worker logs."
-
-      # -----------------------------------------------------------------------
-      # STUCK QUEUE
-      # -----------------------------------------------------------------------
-      - alert: QueueStuck
-        expr: |
-          queue_depth{state="active"} > 0 and 
-          rate(queue_depth{state="active"}[10m]) == 0
+      - alert: DiskSpaceLow
+        expr: nexnum_system_disk_usage_percent > 85
         for: 10m
         labels:
-          severity: critical
-          team: backend
+          severity: warning
         annotations:
-          summary: "🔒 Queue appears STUCK"
-          description: "Active jobs exist but no progress for 10 minutes. Workers may be dead."
+          summary: "💽 Disk Space Low"
+          description: "Host disk usage > 85%. Prune Docker images/logs immediately."
 
   # ===========================================================================
-  # INFRASTRUCTURE
+  # ⚖️ EXECUTIVE & COMPLIANCE
   # ===========================================================================
-  - name: infra_alerts
-    interval: 60s
+  - name: executive_control
+    interval: 1m
     rules:
-      # -----------------------------------------------------------------------
-      # MEMORY
-      # -----------------------------------------------------------------------
-      - alert: HighMemoryUsage
-        expr: nodejs_heap_size_used_bytes / nodejs_heap_size_total_bytes * 100 > 85
+      - alert: ZombieWorkerDetection
+        expr: |
+          sum(nexnum_worker_queue_depth{state="pending"}) > 0 and
+          sum(rate(nexnum_worker_jobs_processed_total[10m])) == 0
         for: 5m
-        labels:
-          severity: warning
-          team: backend
-        annotations:
-          summary: "💾 High memory usage ({{ printf \"%.0f\" $value }}%)"
-          description: "Node.js heap usage exceeds 85%."
-
-      - alert: CriticalMemoryUsage
-        expr: nodejs_heap_size_used_bytes / nodejs_heap_size_total_bytes * 100 > 95
-        for: 2m
         labels:
           severity: critical
-          team: backend
+          tier: operations
         annotations:
-          summary: "🚨 Critical memory usage ({{ printf \"%.0f\" $value }}%)"
-          description: "OOM likely imminent. Restart or scale."
+          summary: "🧟 ZOMBIE WORKERS"
+          description: "Pending jobs exist but processing rate is zero. Workers are likely hung or dead."
 
-      # -----------------------------------------------------------------------
-      # DATABASE
-      # -----------------------------------------------------------------------
-      - alert: DatabaseConnectionsHigh
-        expr: pg_stat_activity_count > 90
-        for: 5m
-        labels:
-          severity: warning
-          team: dba
-        annotations:
-          summary: "🗄️ Database connections high ({{ $value }})"
-          description: "Approaching connection limit."
-
-      # -----------------------------------------------------------------------
-      # REDIS  
-      # -----------------------------------------------------------------------
-      - alert: RedisDown
-        expr: up{job="redis"} == 0
-        for: 1m
+      - alert: FinancialAnomalyRefundRate
+        expr: |
+          sum(increase(nexnum_wallet_refunds_total[1h])) > 
+          sum(increase(nexnum_wallet_deposits_total[1h])) * 0.5
+        for: 15m
         labels:
           severity: critical
-          team: backend
+          tier: security
         annotations:
-          summary: "🔴 Redis is DOWN"
-          description: "Redis not responding. Sessions and caching affected."
+          summary: "💸 Financial Anomaly: High Refund Rate"
+          description: "Refunds have exceeded 50% of deposits in the last hour. Possible attack or system failure."
 
-  # ===========================================================================
-  # AUTHENTICATION & SECURITY
-  # ===========================================================================
-  - name: security_alerts
-    interval: 60s
-    rules:
-      # -----------------------------------------------------------------------
-      # FAILED LOGIN SPIKE
-      # -----------------------------------------------------------------------
-      - alert: FailedLoginSpike
+      - alert: SLABreachLatency
         expr: |
-          increase(auth_events_total{event="login",status="failure"}[5m]) > 50
-        for: 2m
+          histogram_quantile(0.99, sum(rate(nexnum_http_request_duration_seconds_bucket[24h])) by (le)) > 3
+        for: 1h
         labels:
           severity: warning
-          team: security
+          tier: executive
         annotations:
-          summary: "🔐 Failed login spike ({{ $value }} in 5m)"
-          description: "Possible brute force attack. Review IPs."
-
-      # -----------------------------------------------------------------------
-      # REGISTRATION SPIKE
-      # -----------------------------------------------------------------------
-      - alert: RegistrationSpike
-        expr: |
-          increase(auth_events_total{event="register",status="success"}[10m]) > 100
-        for: 5m
-        labels:
-          severity: warning
-          team: platform
-        annotations:
-          summary: "📈 Registration spike ({{ $value }} in 10m)"
-          description: "Unusual signup activity. May be bot attack."
+          summary: "📉 24h SLA Warning"
+          description: "P99 latency has exceeded 3s over a 24-hour window. Performance is trending downwards."

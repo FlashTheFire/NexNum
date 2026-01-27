@@ -69,20 +69,19 @@ class Logger {
         if (!this.isDev || Logger.hasSplashed) return
         Logger.hasSplashed = true
 
+        // Simple clear once
         console.clear()
         process.stdout.write('\x1Bc')
 
-        setTimeout(() => {
-            console.clear()
-            process.stdout.write('\x1Bc')
+        console.log(`
+  ${C.bgBlue}${C.bold}${C.white}  NEXNUM CORE ENGINE  ${C.reset}
 
-            console.log(`\n${C.bgBlue}${C.bold}${C.white}  ${title.toUpperCase()}  ${C.reset}\n`)
-            console.log(`${C.cyan}${S.success}  Status:    ${C.green}${C.bold}READY${C.reset}`)
-            console.log(`${C.cyan}${S.bolt} Server:    ${C.white}http://localhost:3000${C.reset}`)
-            console.log(`${C.cyan}${S.clock}  Mode:      ${C.yellow}Development${C.reset}\n`)
+${C.green}${S.success}${C.reset}  Status:    ${C.green}READY${C.reset}
+${C.yellow}${S.bolt}${C.reset} Server:    ${C.blue}http://localhost:3000${C.reset}
+${C.blue}${S.clock}${C.reset}  Mode:      ${C.yellow}Development${C.reset}
 
-            console.log(`${C.darkGray}${'─'.repeat(60)}${C.reset}`)
-        }, 1500)
+${C.darkGray}────────────────────────────────────────────────────────────${C.reset}
+`)
     }
 
     // ───────────────────────────────────────────────────────────────────────
@@ -238,6 +237,10 @@ class Logger {
     error(message: string, meta?: Record<string, any>) { this.log('error', message, meta) }
     debug(message: string, meta?: Record<string, any>) { this.log('debug', message, meta) }
 
+    shutdown() {
+        // Implementation removed at user request
+    }
+
     divider() {
         if (!this.isDev) return
         this.liftDashboard()
@@ -255,8 +258,14 @@ class Logger {
         try { return await cb() } finally { this.divider() }
     }
 
-    request(_label: string, _method: string, _path: string, _meta?: Record<string, any>) { }
-    response(_label: string, _method: string, _path: string, _status: number, _meta?: Record<string, any>) { }
+    request(label: string, method: string, path: string, meta?: Record<string, any>) {
+        this.log('info', `📡 [${label}] ${method} ${path}`, { type: 'upstream_request', ...meta })
+    }
+
+    response(label: string, method: string, path: string, status: number, meta?: Record<string, any>) {
+        const level = status >= 400 ? 'warn' : 'info'
+        this.log(level, `📥 [${label}] ${status} ${method} ${path}`, { type: 'upstream_response', status, ...meta })
+    }
 }
 
 export const logger = new Logger()

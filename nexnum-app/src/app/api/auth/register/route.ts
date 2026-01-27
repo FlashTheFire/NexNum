@@ -32,15 +32,6 @@ export const POST = apiHandler(async (request, { body }) => {
         )
     }
 
-    // 2. Verify CAPTCHA
-    const captchaResult = await verifyCaptcha(captchaToken, ip)
-    if (!captchaResult.success) {
-        return NextResponse.json(
-            { error: captchaResult.error },
-            { status: 400 }
-        )
-    }
-
     // Check if email already exists
     const existingUser = await prisma.user.findUnique({
         where: { email: email.toLowerCase() }
@@ -103,6 +94,7 @@ export const POST = apiHandler(async (request, { body }) => {
         email: user.email,
         name: user.name,
         role: user.role,
+        emailVerified: user.emailVerified,
         version: 1 // Initial version
     })
 
@@ -125,6 +117,7 @@ export const POST = apiHandler(async (request, { body }) => {
     rateLimit: 'auth',
     security: {
         requireBrowserCheck: true, // Block bots
-        browserCheckLevel: 'basic'
+        browserCheckLevel: 'basic',
+        requireCaptcha: true // Enterprise protection
     }
 })

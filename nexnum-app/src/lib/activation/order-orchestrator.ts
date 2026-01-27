@@ -24,6 +24,7 @@ import { prisma } from '@/lib/core/db'
 import { logger } from '@/lib/core/logger'
 import { WalletService } from '@/lib/wallet/wallet'
 import { ActivationService } from './activation-service'
+import { ActivationKernel } from './activation-kernel'
 import { lifecycleManager } from './number-lifecycle-manager'
 import { MultiSmsHandler } from '@/lib/sms/multi-sms-handler'
 import { BatchPollManager, getActiveNumbersForPolling } from './batch-poll-manager'
@@ -131,7 +132,7 @@ export class OrderOrchestrator {
                 idempotencyKey
             })
 
-            walletTimer
+            walletTimer() // Stop timer for wallet operation
 
             // 3. Record state transition (INIT → RESERVED)
             order_state_transitions_total.labels('INIT', 'RESERVED', providerId).inc()
@@ -143,6 +144,7 @@ export class OrderOrchestrator {
             if (!provider) {
                 // Rollback reservation
                 await WalletService.rollback(userId, price, activation.activationId, 'Provider not found')
+                await ActivationKernel.transition(activation.activationId, 'FAILED', { reason: 'Provider not found' })
                 order_state_transitions_total.labels('RESERVED', 'FAILED', providerId).inc()
 
                 return {
@@ -161,15 +163,14 @@ export class OrderOrchestrator {
                     operator: operatorId
                 })
             } catch (providerError: any) {
-                // Provider failed - rollback and refund
-                logger.error('[OrderOrchestrator] Provider failed', {
+                // Provider failed - standard fallback
+                logger.error('[OrderOrchestrator] Provider failed before acquisition', {
                     providerId,
                     error: providerError.message
                 })
 
                 await WalletService.rollback(userId, price, activation.activationId, `Provider error: ${providerError.message}`)
-                await ActivationService.markFailed(activation.activationId, providerError.message)
-
+                await ActivationKernel.transition(activation.activationId, 'FAILED', { reason: providerError.message })
                 order_state_transitions_total.labels('RESERVED', 'FAILED', providerId).inc()
                 wallet_refunds_total.labels('provider_error').inc()
 
@@ -180,24 +181,67 @@ export class OrderOrchestrator {
                 }
             }
 
-            // 5. Success - confirm activation and commit funds
-            const expiresAt = new Date(Date.now() + 10 * 60 * 1000) // 10 min default
+            // --- SAGA START: Atomically commit to DB or queue Compensation ---
+            try {
+                const expiresAt = new Date(Date.now() + 10 * 60 * 1000) // 10 min default
 
-            await ActivationService.confirmActive(activation.activationId, {
-                providerActivationId: numberResult.id,
-                phoneNumber: numberResult.phone,
-                expiresAt
-            })
+                await prisma.$transaction(async (tx) => {
+                    // 1. Confirm Activation via Kernel (Forensic log)
+                    await ActivationKernel.transition(activation.activationId, 'ACTIVE', {
+                        reason: 'Saga: Number acquired and confirmed',
+                        tx
+                    })
 
-            // Commit the reserved funds
-            await WalletService.commit(
-                userId,
-                price,
-                activation.activationId,
-                `Purchase: ${serviceName || serviceCode} (${countryCode})`
-            )
+                    // 2. Commit the reserved funds
+                    await WalletService.commit(
+                        userId,
+                        price,
+                        activation.activationId,
+                        `Purchase: ${serviceName || serviceCode} (${countryCode})`,
+                        undefined,
+                        tx as any
+                    )
 
-            order_state_transitions_total.labels('RESERVED', 'ACTIVE', providerId).inc()
+                    // 3. Finalize Activation record details
+                    await tx.activation.update({
+                        where: { id: activation.activationId },
+                        data: {
+                            providerActivationId: numberResult.id,
+                            phoneNumber: numberResult.phone,
+                            expiresAt
+                        }
+                    })
+                })
+                order_state_transitions_total.labels('RESERVED', 'ACTIVE', providerId).inc() // Metric for successful transition
+            } catch (sagaError: any) {
+                // DB FAILED AFTER NUMBER BOUGHT! 
+                // CRITICAL: Must queue compensation task (Cancel at provider)
+                logger.error('[OrderOrchestrator] SAGA CRITICAL FAILURE: Number bought but DB commit failed. Queueing compensation.', {
+                    activationId: activation.activationId,
+                    providerActivationId: numberResult.id,
+                    error: sagaError.message
+                })
+
+                await ActivationKernel.dispatchEvent(
+                    activation.activationId,
+                    'saga.compensate.cancel_number',
+                    { providerActivationId: numberResult.id, providerId },
+                    prisma
+                )
+
+                // Still attempt to mark as failed in a new tx
+                await ActivationKernel.transition(activation.activationId, 'FAILED', {
+                    reason: `Saga Failure: ${sagaError.message}`
+                }).catch(() => { })
+                order_state_transitions_total.labels('RESERVED', 'FAILED', providerId).inc() // Metric for failed transition
+
+                return {
+                    success: false,
+                    error: 'System synchronization failed. Number will be auto-cancelled.',
+                    errorCode: 'SYSTEM_ERROR'
+                }
+            }
+            // --- SAGA END ---
 
             // 6. Schedule polling
             await lifecycleManager.schedulePolling(

@@ -71,7 +71,7 @@ export const EmailLayout = ({ preview, children }: EmailLayoutProps) => {
                                             <td style={{ paddingRight: '16px', verticalAlign: 'middle' }}>
                                                 {/* Logo Icon */}
                                                 <img
-                                                    src={`${baseUrl}/logos/nexnum-logo.svg`}
+                                                    src={`${baseUrl}/assets/brand/nexnum-logo.svg`}
                                                     width="40"
                                                     height="40"
                                                     alt="NexNum"

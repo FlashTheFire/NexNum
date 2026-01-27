@@ -167,7 +167,7 @@ export function NotificationRequester() {
 
                                     <div className="h-16 w-16 rounded-[20px] bg-gradient-to-br from-[#222] to-[#111] flex items-center justify-center relative border-t border-white/10 shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
                                         <Image
-                                            src="/logos/nexnum-logo.svg"
+                                            src="/assets/brand/nexnum-logo.svg"
                                             alt="NexNum"
                                             width={32}
                                             height={32}
@@ -262,7 +262,7 @@ export function NotificationRequester() {
                                             <div className="relative h-12 w-12 rounded-[14px] bg-[#0A0A0C] border border-white/5 flex items-center justify-center shrink-0 shadow-inner">
                                                 <div className="absolute inset-0 bg-[hsl(var(--neon-lime))] opacity-5 blur-md" />
                                                 <Image
-                                                    src="/logos/nexnum-logo.svg"
+                                                    src="/assets/brand/nexnum-logo.svg"
                                                     alt="NexNum"
                                                     width={22}
                                                     height={22}

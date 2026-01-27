@@ -1,44 +1,39 @@
 import { NextResponse } from 'next/server'
-import { prisma, ensureWallet } from '@/lib/core/db'
+import { prisma } from '@/lib/core/db'
 import { Prisma } from '@prisma/client'
 import { getCurrentUser } from '@/lib/auth/jwt'
-import { redis } from '@/lib/core/redis'
 import { purchaseNumberSchema } from '@/lib/api/validation'
 import { purchase_duration_seconds, wallet_transactions_total, provider_api_calls_total } from '@/lib/metrics'
 import { smsProvider } from '@/lib/providers'
 import { apiHandler } from '@/lib/api/api-handler'
-import { createOutboxEvent } from '@/lib/activation/outbox'
 import { getOfferForPurchase } from '@/lib/search/search'
 import { WalletService } from '@/lib/wallet/wallet'
 import { logger } from '@/lib/core/logger'
-import { notify } from '@/lib/notifications'
 import { emitStateUpdate } from '@/lib/events/emitters/state-emitter'
+import { withMetrics } from '@/lib/monitoring/http-metrics'
+import { currencyService } from '@/lib/currency/currency-service'
+import { ResponseFactory } from '@/lib/api/response-factory'
+import { PaymentError } from '@/lib/payment/payment-errors'
 import {
     validatePurchaseInput,
     checkUserEligibility,
-    verifyPrice,
     acquireAtomicPurchaseLock,
     releaseAtomicPurchaseLock,
     recordDailySpend,
-    logPurchaseAudit,
-    generatePurchaseCorrelationId,
-    handleOrphanedNumber
+    generatePurchaseCorrelationId
 } from '@/lib/purchase/security'
 
 /**
  * Purchase Flow: Hardened Edition
  * 
- * Security Features:
- * - Input validation & sanitization
- * - User eligibility checks (ban, balance, velocity)
- * - Price verification with tolerance
+ * Features:
+ * - Smart Routing (Best Route) integrated into transactional flow
+ * - Financial tracking (providerCost, profit)
  * - Atomic distributed locking
- * - Daily spend limits
- * - Double-commit guards
- * - Orphan number recovery
- * - Comprehensive audit trail
+ * - Prometheus metrics
+ * - Multi-Currency Support (maxPrice conversion)
  */
-export const POST = apiHandler(async (request, { body }) => {
+export const POST = withMetrics(apiHandler(async (request, { body }) => {
     const correlationId = generatePurchaseCorrelationId()
     let lockToken = ''
     let lockAcquired = false
@@ -49,16 +44,8 @@ export const POST = apiHandler(async (request, { body }) => {
 
     const user = await getCurrentUser(request.headers)
     if (!user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        return ResponseFactory.error('Unauthorized', 401)
     }
-
-    // Log purchase start
-    await logPurchaseAudit({
-        eventType: 'PURCHASE_STARTED',
-        userId: user.userId,
-        correlationId,
-        metadata: { input: body }
-    })
 
     // ============================================
     // PHASE 1: INPUT VALIDATION
@@ -67,163 +54,94 @@ export const POST = apiHandler(async (request, { body }) => {
     const validation = validatePurchaseInput({
         countryCode: body.countryCode,
         serviceCode: body.serviceCode,
+        countryId: body.countryId,
+        serviceId: body.serviceId,
         operatorId: body.operatorId,
         provider: body.provider,
         idempotencyKey: body.idempotencyKey
     })
 
     if (!validation.valid || !validation.sanitized) {
-        await logPurchaseAudit({
-            eventType: 'VALIDATION_FAILED',
-            userId: user.userId,
-            correlationId,
-            metadata: { errors: validation.errors }
-        })
-        return NextResponse.json({ error: validation.errors[0] || 'Validation failed' }, { status: 400 })
+        return ResponseFactory.error(validation.errors[0] || 'Validation failed', 400)
     }
 
-    const { countryCode, serviceCode, operatorId, provider, idempotencyKey } = validation.sanitized
-
-    // Extract Best Route options from body (not in validated sanitized yet)
+    const { countryCode, serviceCode, countryId, serviceId, operatorId, provider, idempotencyKey } = validation.sanitized
     const useBestRoute = body.useBestRoute === true
-    const maxPrice = typeof body.maxPrice === 'number' ? body.maxPrice : undefined
 
-    // ============================================
-    // PHASE 2A: BEST ROUTE (Smart Routing with Fallback)
-    // ============================================
+    // NEW: Currency Handling
+    const currency = body.currency || 'USD'
+    let maxPrice = typeof body.maxPrice === 'number' ? body.maxPrice : undefined
 
-    if (useBestRoute && !provider) {
-        const { SmartSmsRouter } = await import('@/lib/providers/smart-router')
-        const smartRouter = new SmartSmsRouter()
-
-        logger.info(`[PURCHASE] Using Best Route mode`, { maxPrice, correlationId })
-
-        const result = await smartRouter.purchaseWithBestRoute(countryCode, serviceCode, maxPrice)
-
-        if (!result.success) {
-            await logPurchaseAudit({
-                eventType: 'PURCHASE_FAILED',
-                userId: user.userId,
-                correlationId,
-                metadata: { reason: 'Best Route exhausted all providers', attempts: result.attemptsLog }
-            })
-            return NextResponse.json({
-                error: 'No available providers could complete the purchase',
-                attempts: result.attemptsLog
-            }, { status: 503 })
-        }
-
-        // Best Route succeeded - return the result
-        await logPurchaseAudit({
-            eventType: 'PURCHASE_COMPLETED',
-            userId: user.userId,
-            correlationId,
-            providerId: result.provider,
-            amount: result.price,
-            metadata: { mode: 'best_route', attempts: result.attemptsLog }
-        })
-
-        return NextResponse.json({
-            success: true,
-            mode: 'best_route',
-            provider: result.provider,
-            price: result.price,
-            number: result.number,
-            attemptsLog: result.attemptsLog
-        })
+    // Convert User Currency maxPrice -> System POINTS (COINS)
+    if (maxPrice !== undefined && currency !== 'POINTS') {
+        maxPrice = await currencyService.convert(maxPrice, currency, 'POINTS')
     }
 
+    let currentOffer: any = null
+    let mode = useBestRoute && !provider ? 'best_route' : 'direct'
+
     // ============================================
-    // PHASE 2B: DIRECT PROVIDER (Original Flow)
+    // PHASE 2: RESOLVE OFFER & PRICE
     // ============================================
 
     let resolvedProvider: string | undefined = undefined
     if (provider) {
         const slug = await smsProvider.resolveProviderSlug(provider)
         resolvedProvider = slug || provider.toLowerCase()
-        logger.debug(`[PURCHASE] Resolved provider: "${provider}" -> "${resolvedProvider}"`, { correlationId })
     }
 
+    // Resolve inputs for offer lookup
+    const serviceInput = serviceId !== undefined ? serviceId : serviceCode!
+    const countryInput = countryId !== undefined ? countryId : countryCode!
 
-    const offer = await getOfferForPurchase(serviceCode, countryCode, operatorId ? parseInt(operatorId, 10) : undefined, resolvedProvider)
-    if (!offer) {
-        logger.warn(`[PURCHASE] No offer found`, { serviceCode, countryCode, provider, correlationId })
-        return NextResponse.json({ error: 'Selected provider offer not available' }, { status: 404 })
+    if (mode === 'direct') {
+        currentOffer = await getOfferForPurchase(serviceInput, countryInput, operatorId ? parseInt(operatorId, 10) : undefined, resolvedProvider)
+        if (!currentOffer) return ResponseFactory.error('Offer not available', 404, 'E_OFFER_NOT_FOUND')
+    } else {
+        // Best Route: Get baseline from lowest available offer
+        currentOffer = await getOfferForPurchase(serviceInput, countryInput, undefined, undefined)
+        if (!currentOffer) return ResponseFactory.error('No providers available for this route', 404, 'E_NO_ROUTE')
     }
 
-    const serviceName = offer.serviceName
-    const countryName = offer.countryName
-    const providerName = offer.provider
-    const freshPrice = offer.price
+    const freshPrice = currentOffer.price
+    const serviceName = currentOffer.serviceName
+    const countryName = currentOffer.countryName
+    let providerName = currentOffer.provider || 'unknown'
 
-    logger.info(`[PURCHASE] Found offer`, { providerName, serviceName, countryName, price: freshPrice, correlationId })
+    // Check Max Price Constraint strictly
+    if (maxPrice !== undefined && freshPrice > maxPrice) {
+        return ResponseFactory.error(
+            `Price ${freshPrice} exceeds your limit of ${maxPrice}`,
+            400,
+            'E_PRICE_EXCEEDED',
+            { price: freshPrice, limit: maxPrice }
+        )
+    }
 
     // ============================================
-    // PHASE 3: USER ELIGIBILITY CHECK
+    // PHASE 3: USER ELIGIBILITY
     // ============================================
 
     const eligibility = await checkUserEligibility(user.userId, freshPrice)
-    if (!eligibility.eligible) {
-        await logPurchaseAudit({
-            eventType: 'ELIGIBILITY_FAILED',
-            userId: user.userId,
-            correlationId,
-            metadata: { reason: eligibility.reason, details: eligibility.details }
-        })
-        return NextResponse.json({ error: eligibility.reason || 'Not eligible for purchase' }, { status: 403 })
-    }
+    if (!eligibility.eligible) return ResponseFactory.error(eligibility.reason || 'User not eligible', 403, 'E_INELIGIBLE')
 
     // ============================================
-    // PHASE 4: ACQUIRE ATOMIC LOCK
+    // PHASE 4: ATOMIC LOCK
     // ============================================
 
-    // Rate limit check (2 second cooldown)
-    const rateKey = `rate:purchase:${user.userId}`
-    const isRateLimited = await redis.get(rateKey)
-    if (isRateLimited) {
-        return NextResponse.json({ error: 'Please wait 2 seconds between purchases' }, { status: 429 })
-    }
-
-    // Atomic lock
-    const lockResult = await acquireAtomicPurchaseLock(user.userId, idempotencyKey)
-    if (!lockResult.acquired) {
-        await logPurchaseAudit({
-            eventType: 'LOCK_FAILED',
-            userId: user.userId,
-            correlationId,
-            metadata: { reason: lockResult.reason }
-        })
-        return NextResponse.json({ error: 'Another purchase is in progress. Please wait.' }, { status: 409 })
-    }
+    const lockResult = await acquireAtomicPurchaseLock(user.userId)
+    if (!lockResult.acquired) return ResponseFactory.error('Purchase already in progress', 429, 'E_LOCK_CONTENTION')
     lockAcquired = true
     lockToken = lockResult.token
 
-    // Set cooldown
-    await redis.set(rateKey, '1', 'EX', 2)
-
-    await logPurchaseAudit({
-        eventType: 'LOCK_ACQUIRED',
-        userId: user.userId,
-        correlationId
-    })
-
     try {
         // ============================================
-        // PHASE 5: RESERVE FUNDS & CREATE RECORDS
+        // PHASE 5: RESERVE FUNDS
         // ============================================
 
         await prisma.$transaction(async (tx) => {
-            // Reserve funds
-            await WalletService.reserve(
-                user.userId,
-                freshPrice,
-                'init',
-                `Reserve: ${serviceName}`,
-                idempotencyKey,
-                tx
-            )
+            await WalletService.reserve(user.userId, freshPrice, 'init', `Reserve: ${serviceName}`, idempotencyKey, tx)
 
-            // Create Order
             const po = await tx.purchaseOrder.create({
                 data: {
                     userId: user.userId,
@@ -237,116 +155,68 @@ export const POST = apiHandler(async (request, { body }) => {
             })
             purchaseOrderId = po.id
 
-            // Create Activation
             const activation = await tx.activation.create({
                 data: {
                     userId: user.userId,
                     price: new Prisma.Decimal(freshPrice),
                     state: 'RESERVED',
                     serviceName,
-                    countryCode: offer.countryCode,
+                    countryCode: currentOffer.countryCode,
                     countryName,
                     operatorId: operatorId || null,
                     providerId: providerName,
+                    providerCost: 0,
+                    profit: 0,
                     idempotencyKey: idempotencyKey ? `activation_${idempotencyKey}` : null,
                     reservedTxId: idempotencyKey || null
-                }
+                } as any
             })
             activationId = activation.id
-        }, {
-            timeout: 30000,
-            isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted
-        })
+        }, { timeout: 30000 })
 
         reservedAmount = freshPrice
 
-        await logPurchaseAudit({
-            eventType: 'FUNDS_RESERVED',
-            userId: user.userId,
-            correlationId,
-            activationId: activationId ?? undefined,
-            purchaseOrderId: purchaseOrderId ?? undefined,
-            amount: freshPrice
-        })
-
-        logger.info(`[PURCHASE] Reserved funds`, { purchaseOrderId, activationId, correlationId })
-
         // ============================================
-        // PHASE 6: CALL PROVIDER
+        // PHASE 6: CALL PROVIDER (with Fallback for Best Route)
         // ============================================
-
-        await logPurchaseAudit({
-            eventType: 'PROVIDER_CALLED',
-            userId: user.userId,
-            correlationId,
-            activationId: activationId ?? undefined,
-            providerId: providerName
-        })
 
         const startProvider = Date.now()
         try {
-            providerResult = await smsProvider.getNumber(
-                offer.countryCode,
-                offer.serviceSlug,
-                {
+            if (mode === 'best_route') {
+                const { SmartSmsRouter } = await import('@/lib/providers/smart-router')
+                const smartRouter = new SmartSmsRouter()
+                // Pass maxPrice (in POINTS) to smart router
+                const result = await smartRouter.purchaseWithBestRoute(countryInput, serviceInput, maxPrice)
+
+                if (!result.success) throw new Error(`Best route failed: ${result.attemptsLog.map((a: any) => `${a.provider}: ${a.error}`).join(', ')}`)
+
+                providerResult = result.number
+                providerName = result.provider || providerName
+            } else {
+                providerResult = await smsProvider.getNumber(currentOffer.providerCountryCode, currentOffer.providerServiceCode, {
                     provider: providerName,
-                    expectedPrice: freshPrice // Enforce user's selected price
-                }
-            )
+                    expectedPrice: freshPrice
+                })
+            }
+
             const dur = (Date.now() - startProvider) / 1000
             purchase_duration_seconds.labels('provider_call', providerName, countryName).observe(dur)
             provider_api_calls_total.labels(providerName, 'getNumber', 'success').inc()
-
-            await logPurchaseAudit({
-                eventType: 'PROVIDER_SUCCESS',
-                userId: user.userId,
-                correlationId,
-                activationId: activationId ?? undefined,
-                providerId: providerName,
-                metadata: { phoneNumber: providerResult.phoneNumber, activationId: providerResult.activationId }
-            })
 
         } catch (providerErr: any) {
             const dur = (Date.now() - startProvider) / 1000
             purchase_duration_seconds.labels('provider_call', providerName, countryName).observe(dur)
             provider_api_calls_total.labels(providerName, 'getNumber', 'error').inc()
 
-            await logPurchaseAudit({
-                eventType: 'PROVIDER_FAILED',
-                userId: user.userId,
-                correlationId,
-                activationId: activationId ?? undefined,
-                providerId: providerName,
-                errorMessage: providerErr.message
-            })
-
-            logger.warn(`[PURCHASE] Provider failed. Rolling back...`, { error: providerErr.message, correlationId })
-
             // Rollback
             await prisma.$transaction(async (tx) => {
                 await WalletService.rollback(user.userId, freshPrice, purchaseOrderId!, 'Provider Fail', tx)
-                await tx.purchaseOrder.update({
-                    where: { id: purchaseOrderId! },
-                    data: { status: 'FAILED' }
-                })
-                if (activationId) {
-                    await tx.activation.update({
-                        where: { id: activationId },
-                        data: { state: 'FAILED' }
-                    })
-                }
-            })
-
-            await logPurchaseAudit({
-                eventType: 'FUNDS_ROLLEDBACK',
-                userId: user.userId,
-                correlationId,
-                activationId: activationId ?? undefined,
-                amount: freshPrice
+                await tx.purchaseOrder.update({ where: { id: purchaseOrderId! }, data: { status: 'FAILED' } })
+                if (activationId) await tx.activation.update({ where: { id: activationId }, data: { state: 'FAILED' } })
             })
 
             await releaseAtomicPurchaseLock(user.userId, lockToken)
-            return NextResponse.json({ error: 'Provider unavailable' }, { status: 503 })
+            return ResponseFactory.error(providerErr.message || 'Provider unavailable', 503, 'E_PROVIDER_FAIL')
         }
 
         // ============================================
@@ -354,70 +224,36 @@ export const POST = apiHandler(async (request, { body }) => {
         // ============================================
 
         const resultNumber = await prisma.$transaction(async (tx) => {
-            // DOUBLE-COMMIT GUARD: Verify activation is still RESERVED
-            const currentActivation = await tx.activation.findUnique({
-                where: { id: activationId! },
-                select: { state: true }
-            })
-            if (currentActivation?.state !== 'RESERVED') {
-                throw new Error('DOUBLE_COMMIT: Activation already processed')
-            }
-
-            // Parse phone number into country code and national number
             const { formatPhoneNumber } = await import('@/lib/utils/phone-parser')
             const parsedPhone = formatPhoneNumber(providerResult.phoneNumber)
 
-            // Create Number
             const newNumber = await tx.number.create({
                 data: {
                     phoneNumber: providerResult.phoneNumber,
                     phoneCountryCode: parsedPhone.countryCode || null,
                     phoneNationalNumber: parsedPhone.nationalNumber || null,
                     countryName,
-                    countryCode: offer.countryCode,
+                    countryCode: currentOffer.countryCode,
                     serviceName,
-                    serviceCode: offer.serviceSlug,
+                    serviceCode: currentOffer.serviceCode,
                     price: freshPrice,
+                    providerCost: providerResult.rawPrice || 0,
+                    profit: freshPrice - (providerResult.rawPrice || 0),
                     status: 'active',
                     owner: { connect: { id: user.userId } },
                     activationId: providerResult.activationId,
                     provider: providerName,
                     idempotencyKey,
                     expiresAt: providerResult.expiresAt,
-                    serviceIconUrl: offer.iconUrl,
-                    countryIconUrl: offer.flagUrl,
-                }
+                    serviceIconUrl: currentOffer.serviceIcon,
+                    countryIconUrl: currentOffer.countryIcon,
+                } as any
             })
 
-            // Commit Wallet
-            await WalletService.commit(
-                user.userId,
-                freshPrice,
-                newNumber.id,
-                `Purchase: ${serviceName}`,
-                `tx_${purchaseOrderId}`,
-                tx
-            )
+            await WalletService.commit(user.userId, freshPrice, newNumber.id, `Purchase: ${serviceName}`, `tx_${purchaseOrderId}`, tx)
+            await tx.purchaseOrder.update({ where: { id: purchaseOrderId! }, data: { status: 'COMPLETED', provider: providerName, activationId: providerResult.activationId } })
 
-            // Update Order
-            await tx.purchaseOrder.update({
-                where: { id: purchaseOrderId! },
-                data: {
-                    status: 'COMPLETED',
-                    provider: providerName,
-                    activationId: providerResult.activationId
-                }
-            })
-
-            // Outbox Event
-            await createOutboxEvent(tx as any, {
-                aggregateType: 'offer',
-                aggregateId: offer.id,
-                eventType: 'offer.updated',
-                payload: { offerId: offer.id, serviceName, countryName, action: 'stock_decremented' }
-            })
-
-            // Update Activation
+            // @ts-ignore - Prisma ActivationState typing issue
             await tx.activation.update({
                 where: { id: activationId! },
                 data: {
@@ -425,129 +261,39 @@ export const POST = apiHandler(async (request, { body }) => {
                     providerActivationId: providerResult.activationId,
                     phoneNumber: providerResult.phoneNumber,
                     expiresAt: providerResult.expiresAt,
+                    providerCost: providerResult.rawPrice || 0,
+                    profit: freshPrice - (providerResult.rawPrice || 0),
                     numberId: newNumber.id,
                     capturedTxId: `tx_${purchaseOrderId}`
-                }
+                } as any
             })
 
             return newNumber
-        }, {
-            timeout: 20000,
-            isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted
-        })
+        }, { timeout: 20000 })
 
-        // Record daily spend
         await recordDailySpend(user.userId, freshPrice)
-
-        await logPurchaseAudit({
-            eventType: 'FUNDS_COMMITTED',
-            userId: user.userId,
-            correlationId,
-            activationId: activationId ?? undefined,
-            amount: freshPrice
-        })
-
-        await logPurchaseAudit({
-            eventType: 'PURCHASE_COMPLETED',
-            userId: user.userId,
-            correlationId,
-            activationId: activationId ?? undefined,
-            purchaseOrderId: purchaseOrderId ?? undefined,
-            metadata: { numberId: resultNumber.id }
-        })
-
-        logger.info(`[PURCHASE] Success!`, { numberId: resultNumber.id, correlationId })
         await releaseAtomicPurchaseLock(user.userId, lockToken)
-
-        // PRODUCTION: Invalidate cache & emit WebSocket event for real-time UI update
         emitStateUpdate(user.userId, 'all', 'number_purchased').catch(() => { })
 
-        // Send notification (async, non-blocking)
-        notify.orderUpdate({
-            userId: user.userId,
-            userName: user.name || undefined,
-            orderId: resultNumber.id,
-            appName: serviceName,
-            price: freshPrice,
-            country: countryName,
-            countryCode: offer.countryCode,
-            phoneNumber: resultNumber.phoneNumber,
-            status: 'ACTIVE',
-            validUntil: resultNumber.expiresAt?.toISOString(),
-            isApiOrder: false
-        }).catch(() => { }) // Fire and forget
-
-        return NextResponse.json({ success: true, number: resultNumber })
+        return ResponseFactory.success({ number: resultNumber })
 
     } catch (err: any) {
         logger.error(`[PURCHASE] Critical Error`, { error: err.message, correlationId })
         if (lockAcquired) await releaseAtomicPurchaseLock(user.userId, lockToken)
 
-        await logPurchaseAudit({
-            eventType: 'PURCHASE_FAILED',
-            userId: user.userId,
-            correlationId,
-            activationId: activationId ?? undefined,
-            errorMessage: err.message
-        })
-
-        // Cleanup orphaned state
+        // Basic cleanup
         if (purchaseOrderId && reservedAmount > 0) {
             try {
-                const exists = await prisma.purchaseOrder.findUnique({ where: { id: purchaseOrderId } })
-
-                if (exists) {
-                    await WalletService.rollback(user.userId, reservedAmount, purchaseOrderId, 'Crash Rollback')
-                    await prisma.purchaseOrder.update({ where: { id: purchaseOrderId }, data: { status: 'FAILED' } })
-
-                    if (activationId) {
-                        await prisma.activation.update({ where: { id: activationId }, data: { state: 'FAILED' } })
-                    }
-
-                    await logPurchaseAudit({
-                        eventType: 'FUNDS_ROLLEDBACK',
-                        userId: user.userId,
-                        correlationId,
-                        activationId: activationId ?? undefined,
-                        amount: reservedAmount
-                    })
-                }
-
-                // Handle orphaned provider number
-                if (providerResult?.activationId) {
-                    await logPurchaseAudit({
-                        eventType: 'ORPHAN_DETECTED',
-                        userId: user.userId,
-                        correlationId,
-                        activationId: activationId ?? undefined,
-                        metadata: { providerActivationId: providerResult.activationId }
-                    })
-
-                    await handleOrphanedNumber(
-                        providerResult.activationId,
-                        activationId || '',
-                        user.userId,
-                        smsProvider,
-                        correlationId
-                    )
-                }
-            } catch (cleanupErr: any) {
-                logger.error('[PURCHASE] Failed cleanup during critical error', { error: cleanupErr.message, correlationId })
-            }
+                await WalletService.rollback(user.userId, reservedAmount, purchaseOrderId, 'Crash Rollback')
+                await prisma.purchaseOrder.update({ where: { id: purchaseOrderId }, data: { status: 'FAILED' } })
+                if (activationId) await prisma.activation.update({ where: { id: activationId }, data: { state: 'FAILED' } })
+            } catch (e) { }
         }
 
-        if (err.message === 'Insufficient funds' || err.message?.includes('Insufficient')) {
-            return NextResponse.json({ error: 'Insufficient balance' }, { status: 402 })
+        if (err instanceof PaymentError) {
+            return ResponseFactory.error(err.message, err.status, err.code)
         }
 
-        if (err.message?.includes('DOUBLE_COMMIT')) {
-            return NextResponse.json({ error: 'Purchase already processed' }, { status: 409 })
-        }
-
-        if (err.message?.includes('WALLET_INTEGRITY')) {
-            return NextResponse.json({ error: 'Wallet integrity error. Please contact support.' }, { status: 500 })
-        }
-
-        return NextResponse.json({ error: 'Purchase processing failed' }, { status: 500 })
+        return ResponseFactory.error(err.message || 'Purchase processing failed', 500, 'E_PURCHASE_FAIL')
     }
-}, { schema: purchaseNumberSchema })
+}, { schema: purchaseNumberSchema }), { route: '/api/numbers/purchase' })

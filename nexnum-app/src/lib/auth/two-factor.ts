@@ -1,6 +1,7 @@
 import { TOTP } from 'otplib'
 import QRCode from 'qrcode'
 import crypto from 'crypto'
+import { logger } from '@/lib/core/logger'
 
 const SERVICE_NAME = 'NexNum'
 
@@ -34,8 +35,8 @@ export function verifyTwoFactorToken(token: string, secret: string): boolean {
     try {
         // @ts-ignore - otplib types might define verify as taking strings, but runtime verifies object
         return totp.verify({ token, secret })
-    } catch (e) {
-        console.error('2FA Verification error:', e)
+    } catch (e: any) {
+        logger.error('2FA Verification error', { error: e.message })
         return false
     }
 }

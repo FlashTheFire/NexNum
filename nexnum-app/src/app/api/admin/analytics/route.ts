@@ -9,9 +9,10 @@ import { requireAdmin } from '@/lib/auth/requireAdmin'
  * Returns comprehensive analytics data:
  * - Revenue metrics (daily, weekly, monthly)
  * - User growth trends
- * - Provider performance
+ * - Provider performance (Advanced Metrics Engine)
  * - Transaction volumes
  */
+import { AdvancedMetricsCalculator } from '@/lib/metrics/advanced-metrics'
 export async function GET(request: Request) {
     const auth = await requireAdmin(request)
     if (auth.error) return auth.error
@@ -40,6 +41,8 @@ export async function GET(request: Request) {
             providerStats,
             recentActivity,
             numberStats,
+            profitData,
+            advancedMetrics,
         ] = await Promise.all([
             // Total users
             prisma.user.count(),
@@ -94,10 +97,23 @@ export async function GET(request: Request) {
                 by: ['status'],
                 _count: true
             }),
+
+            // Profit data - fetch raw records for period to calculate daily profit
+            prisma.number.findMany({
+                where: { createdAt: { gte: startDate } },
+                // @ts-ignore - Prisma types might be out of sync in IDE
+                select: { createdAt: true, profit: true }
+            }),
+
+            // Advanced Metrics (Provider health, margins, etc.)
+            new AdvancedMetricsCalculator(60 * 24).calculateAll() // 24h window for advanced metrics
         ])
 
         // Process revenue into chart-friendly format
         const revenueByDay = processRevenueData(revenueData, startDate, now)
+
+        // Process profit into chart-friendly format (Manual Aggregation to avoid Prisma groupBy type issues)
+        const profitByDay = processProfitData(profitData, startDate, now)
 
         // Calculate totals
         const totalRevenue = revenueData.reduce((sum, item) =>
@@ -129,6 +145,19 @@ export async function GET(request: Request) {
             },
             charts: {
                 revenue: revenueByDay,
+                profit: processProfitData(profitData, startDate, now),
+            },
+            advanced: {
+                overallHealth: advancedMetrics.aggregate.overallHealthScore,
+                slaCompliance: advancedMetrics.aggregate.platformSlaCompliance,
+                avgMargin: advancedMetrics.aggregate.avgMargin,
+                providers: advancedMetrics.providers.map(p => ({
+                    id: p.providerId,
+                    name: p.providerName,
+                    successRate: p.adjustedSuccessRate.value,
+                    latency: p.providerLatencyEfficiency.value,
+                    margin: p.marginPerService.value
+                }))
             },
             providers: providerStats.map(p => ({
                 ...p,
@@ -181,6 +210,37 @@ function processRevenueData(
         const dayEntry = days.find(d => d.date === date)
         if (dayEntry) {
             dayEntry.revenue += Number(item._sum.amount) || 0
+        }
+    }
+
+    return days
+}
+
+/**
+ * Process raw profit data into daily chart format
+ */
+function processProfitData(
+    data: any[],
+    startDate: Date,
+    endDate: Date
+): { date: string; profit: number }[] {
+    const dayMs = 24 * 60 * 60 * 1000
+    const days: { date: string; profit: number }[] = []
+
+    let current = new Date(startDate)
+    while (current <= endDate) {
+        days.push({
+            date: current.toISOString().split('T')[0],
+            profit: 0
+        })
+        current = new Date(current.getTime() + dayMs)
+    }
+
+    for (const item of data) {
+        const date = new Date(item.createdAt).toISOString().split('T')[0]
+        const dayEntry = days.find(d => d.date === date)
+        if (dayEntry) {
+            dayEntry.profit += Number(item.profit) || 0
         }
     }
 

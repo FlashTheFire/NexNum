@@ -30,6 +30,8 @@ interface AlertmanagerPayload {
     }>
 }
 
+import { timingSafeEqual } from '@/lib/core/isomorphic-crypto'
+
 // Verify webhook secret
 function verifyWebhookSecret(request: NextRequest): boolean {
     const secret = process.env.ALERT_WEBHOOK_SECRET
@@ -39,8 +41,16 @@ function verifyWebhookSecret(request: NextRequest): boolean {
     if (!authHeader) return false
 
     const token = authHeader.replace('Bearer ', '')
-    return token === secret
+
+    // Senior Note: Use timing-safe comparison for any authentication-related strings
+    const tokenBuf = Buffer.from(token)
+    const secretBuf = Buffer.from(secret)
+
+    if (tokenBuf.length !== secretBuf.length) return false
+
+    return timingSafeEqual(tokenBuf, secretBuf)
 }
+
 
 export async function POST(request: NextRequest) {
     // Verify secret

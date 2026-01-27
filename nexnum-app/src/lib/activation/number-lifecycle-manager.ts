@@ -27,6 +27,9 @@ import {
     lifecycle_job_duration,
 } from '@/lib/metrics'
 
+import { redis, REDIS_KEYS } from '@/lib/core/redis'
+import { v4 as uuidv4 } from 'uuid'
+
 // pg-boss types - use any due to CommonJS compatibility issues
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type PgBossInstance = any
@@ -167,6 +170,8 @@ class NumberLifecycleManager {
             // 3. Register job handlers
             await this.registerHandlers()
 
+            // 4. Start Worker Heartbeat
+            this.startHeartbeat()
 
 
             // 4. Setup Circuit Breaker for provider calls
@@ -395,14 +400,36 @@ class NumberLifecycleManager {
     }
 
     /**
+     * Permanent Worker Heartbeat
+     */
+    private workerId = uuidv4()
+    private heartbeatTimer: NodeJS.Timeout | null = null
+
+    private startHeartbeat() {
+        const sendHeartbeat = async () => {
+            try {
+                const key = `heartbeat:worker:lifecycle:${this.workerId}`
+                await redis.set(key, Date.now().toString(), 'EX', 15)
+                logger.debug('[Lifecycle:Heartbeat] Beat sent', { workerId: this.workerId })
+            } catch (err) {
+                logger.warn('[Lifecycle:Heartbeat] Failed to send beat', { error: err })
+            }
+        }
+
+        // Initial beat
+        sendHeartbeat()
+        this.heartbeatTimer = setInterval(sendHeartbeat, 10000) // 10s intervals
+    }
+
+    /**
      * Graceful shutdown
      */
     async shutdown(): Promise<void> {
         if (this.isShuttingDown) return
         this.isShuttingDown = true
 
+        if (this.heartbeatTimer) clearInterval(this.heartbeatTimer)
         logger.info('[Lifecycle] Shutting down...')
-
         try {
             if (this.boss) {
                 await this.boss.stop({ graceful: true, timeout: 10000 })
@@ -550,7 +577,9 @@ class NumberLifecycleManager {
                     const { healthMonitor } = await import('@/lib/providers/health-monitor')
                     const provider = await prisma.provider.findFirst({ where: { name: number.provider }, select: { id: true } })
                     if (provider) {
-                        healthMonitor.recordSmsCount(provider.id, number.smsMessages.length).catch(console.error)
+                        healthMonitor.recordSmsCount(provider.id, number.smsMessages.length).catch(err => {
+                            logger.error('[Lifecycle] Failed to record stats', { providerId: provider.id, error: err.message })
+                        })
                     }
                 }
 

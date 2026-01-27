@@ -45,7 +45,7 @@ jobs:
         run: npm run lint || true  # Don't fail on lint warnings initially
       
       - name: Type check
-        run: npx tsc --noEmit
+        run: npm run typecheck
       
       - name: Run tests
         run: npm test -- --passWithNoTests

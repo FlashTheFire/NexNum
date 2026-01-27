@@ -1,16 +1,15 @@
 /**
- * API Key Authentication Middleware
+ * API Key Authentication Middleware (Professional Edition)
  * 
- * Middleware for authenticating requests using API keys.
- * Supports both Bearer token and X-API-Key header formats.
+ * Standardized middleware for authenticating requests using API keys.
+ * Integrated with ResponseFactory for industrial consistency.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { validateApiKey, hasPermission, getRateLimit } from './api-keys'
 import type { ApiKey } from '@prisma/client'
 import { rateLimiters } from '@/lib/auth/ratelimit'
-
-// Use the existing rate limiter from lib/auth/ratelimit.ts
+import { ResponseFactory } from './response-factory'
 
 export interface ApiAuthContext {
     apiKey: ApiKey
@@ -25,38 +24,19 @@ export interface ApiAuthResult {
 }
 
 /**
- * Standard API error response
- */
-export function apiError(message: string, status: number = 400, code?: string): NextResponse {
-    return NextResponse.json({
-        success: false,
-        error: {
-            message,
-            code: code || 'API_ERROR',
-            status
-        }
-    }, { status })
-}
-
-/**
  * Extract API key from request
- * SECURITY: Only headers are supported. Query params were removed to prevent keys in logs.
+ * SECURITY: Only headers are supported. 
  */
 function extractApiKey(request: NextRequest): string | null {
-    // Check Authorization header (Bearer token)
     const authHeader = request.headers.get('authorization')
     if (authHeader?.startsWith('Bearer ')) {
         return authHeader.slice(7)
     }
 
-    // Check X-API-Key header
     const apiKeyHeader = request.headers.get('x-api-key')
     if (apiKeyHeader) {
         return apiKeyHeader
     }
-
-    // REMOVED: Query parameter support (security risk - keys appear in logs)
-    // const apiKeyParam = url.searchParams.get('api_key')
 
     return null
 }
@@ -65,17 +45,11 @@ function extractApiKey(request: NextRequest): string | null {
  * Get client IP from request
  */
 function getClientIp(request: NextRequest): string | undefined {
-    // Check for forwarded IP
     const forwarded = request.headers.get('x-forwarded-for')
-    if (forwarded) {
-        return forwarded.split(',')[0].trim()
-    }
+    if (forwarded) return forwarded.split(',')[0].trim()
 
-    // Check real IP header
     const realIp = request.headers.get('x-real-ip')
-    if (realIp) {
-        return realIp
-    }
+    if (realIp) return realIp
 
     return undefined
 }
@@ -89,7 +63,7 @@ export async function authenticateApiKey(request: NextRequest): Promise<ApiAuthR
     if (!rawKey) {
         return {
             success: false,
-            error: apiError('API key required. Provide via Authorization header (Bearer) or X-API-Key header.', 401, 'MISSING_API_KEY')
+            error: ResponseFactory.error('API key required. Provide via Authorization or X-API-Key header.', 401, 'E_MISSING_API_KEY')
         }
     }
 
@@ -99,18 +73,18 @@ export async function authenticateApiKey(request: NextRequest): Promise<ApiAuthR
     if (!result.valid || !result.key) {
         return {
             success: false,
-            error: apiError(result.error || 'Invalid API key', 401, 'INVALID_API_KEY')
+            error: ResponseFactory.error(result.error || 'Invalid API key', 401, 'E_INVALID_API_KEY')
         }
     }
 
     const apiKey = result.key
 
-    // Check rate limit using existing rate limiter
+    // Check rate limit
     const keyLimit = getRateLimit(apiKey)
-    const rateLimitResult = await rateLimiters.api.limit(`apikey:${apiKey.id}`)
+    const rateLimitResult = await rateLimiters.api.limit(`apikey:${apiKey.id}`, keyLimit)
 
     if (!rateLimitResult.success) {
-        const response = apiError('Rate limit exceeded', 429, 'RATE_LIMIT_EXCEEDED')
+        const response = ResponseFactory.error('Rate limit exceeded', 429, 'E_RATE_LIMIT_EXCEEDED')
         response.headers.set('X-RateLimit-Limit', keyLimit.toString())
         response.headers.set('X-RateLimit-Remaining', '0')
         response.headers.set('X-RateLimit-Reset', rateLimitResult.reset.toString())
@@ -132,7 +106,7 @@ export async function authenticateApiKey(request: NextRequest): Promise<ApiAuthR
  */
 export function requirePermission(context: ApiAuthContext, permission: string): NextResponse | null {
     if (!hasPermission(context.apiKey, permission)) {
-        return apiError(`Permission denied. Required: ${permission}`, 403, 'PERMISSION_DENIED')
+        return ResponseFactory.error(`Permission denied. Required: ${permission}`, 403, 'E_PERMISSION_DENIED')
     }
     return null
 }
@@ -153,23 +127,23 @@ export function withApiKeyAuth(
 
         const ctx = authResult.context!
 
-        // Check required permission
         if (requiredPermission) {
             const permError = requirePermission(ctx, requiredPermission)
             if (permError) return permError
         }
 
-        // Call the handler
         return handler(request, ctx)
     }
 }
 
-/**
- * Standard API success response
- */
-export function apiSuccess<T>(data: T, status: number = 200): NextResponse {
-    return NextResponse.json({
-        success: true,
-        data
-    }, { status })
+// ============================================================================
+// Compatibility Aliases (Standardizing on ResponseFactory)
+// ============================================================================
+
+export function apiSuccess<T>(data: T, status: number = 200) {
+    return ResponseFactory.success(data, status)
+}
+
+export function apiError(message: string, status: number = 400, code?: string) {
+    return ResponseFactory.error(message, status, code)
 }

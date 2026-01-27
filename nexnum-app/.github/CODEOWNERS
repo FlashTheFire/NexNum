@@ -1,37 +1,35 @@
 # Code Owners
-# Explicit ownership boundaries for security, backend, and devops teams
+# Explicit ownership boundaries for security, core, and devops
 
 # ============================================
-# 🔒 SECURITY TEAM (security-sensitive paths)
+# 🔒 SECURITY & FINANCE (Critical Path)
 # ============================================
-/src/lib/auth/            @your-org/security-team
-/src/lib/security/        @your-org/security-team
-/src/lib/wallet/          @your-org/security-team
+/src/lib/auth/            @FlashTheFire
+/src/lib/security/        @FlashTheFire
+/src/lib/wallet/          @FlashTheFire
 
 # ============================================
-# ⚙️ BACKEND TEAM (API and core logic)
+# ⚙️ CORE BACKEND (API and Business Logic)
 # ============================================
-/src/app/api/             @your-org/backend-team
-/src/config/              @your-org/backend-team
-/src/workers/             @your-org/backend-team
-/src/lib/activation/      @your-org/backend-team
-/src/lib/sms-providers/   @your-org/backend-team
-/src/lib/sms/             @your-org/backend-team
-/src/lib/purchase/        @your-org/backend-team
+/src/app/api/             @FlashTheFire
+/src/config/              @FlashTheFire
+/src/workers/             @FlashTheFire
+/src/lib/activation/      @FlashTheFire
+/src/lib/sms-providers/   @FlashTheFire
 
 # Database schema and migrations
-/prisma/                  @your-org/backend-team
-/.env.example             @your-org/backend-team
+/prisma/                  @FlashTheFire
 
 # ============================================
-# 🚀 DEVOPS TEAM (infrastructure and CI/CD)
+# 🚀 DEVOPS & INFRASTRUCTURE
 # ============================================
-/.github/                 @your-org/devops-team
-/Dockerfile               @your-org/devops-team
-/docker-compose.yml       @your-org/devops-team
-/infra/                   @your-org/devops-team
+/.github/                 @FlashTheFire
+/infra/                   @FlashTheFire
+/Dockerfile               @FlashTheFire
+/docker-compose.prod.yml  @FlashTheFire
+/Caddyfile                @FlashTheFire
 
 # ============================================
-# DEFAULT (all other files)
+# DEFAULT
 # ============================================
-* @your-org/backend-team
+*                         @FlashTheFire

@@ -37,14 +37,20 @@ export const topupSchema = z.object({
 // ============================================
 
 export const purchaseNumberSchema = z.object({
-    countryCode: z.string().min(1, 'Country identifier is required'),
-    serviceCode: z.string().min(1, 'Service code is required'),
+    countryCode: z.string().optional(),
+    serviceCode: z.string().optional(),
+    countryId: z.number().int().optional(),
+    serviceId: z.number().int().optional(),
     operatorId: z.number().int().optional(),
     provider: z.string().optional(),
     idempotencyKey: z.string().uuid('Invalid idempotency key'),
     // Best Route options
     useBestRoute: z.boolean().optional(),
     maxPrice: z.number().positive().optional(),
+    currency: z.string().optional(),
+}).refine(data => (data.countryCode && data.serviceCode) || (data.countryId !== undefined && data.serviceId !== undefined), {
+    message: "Either (countryCode and serviceCode) or (countryId and serviceId) must be provided",
+    path: ["countryId"]
 })
 
 export const searchNumbersSchema = z.object({
@@ -60,9 +66,14 @@ export const searchNumbersSchema = z.object({
 // UTILITY FUNCTIONS
 // ============================================
 
+export type ValidationError = {
+    field: string
+    message: string
+}
+
 export type ValidationResult<T> =
     | { success: true; data: T }
-    | { success: false; error: string }
+    | { success: false; error: string; issues: ValidationError[] }
 
 export function validate<T>(
     schema: z.ZodSchema<T>,
@@ -74,13 +85,16 @@ export function validate<T>(
         return { success: true, data: result.data }
     }
 
-    // Get first error message
-    const firstError = result.error.issues[0]
-    const errorMessage = firstError.path.length > 0
-        ? `${firstError.path.join('.')}: ${firstError.message}`
-        : firstError.message
+    const issues: ValidationError[] = result.error.issues.map(issue => ({
+        field: issue.path.join('.'),
+        message: issue.message
+    }))
 
-    return { success: false, error: errorMessage }
+    return {
+        success: false,
+        error: issues[0]?.message || 'Validation failed',
+        issues
+    }
 }
 
 // ============================================

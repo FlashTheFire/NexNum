@@ -1,118 +1,39 @@
 # Contributing to NexNum
 
-Thank you for your interest in contributing to NexNum!
+We love contributions! This project is an enterprise-grade platform, so we maintain high standards for code quality, security, and documentation.
 
-## Development Setup
+## 🚀 Getting Started
 
-### Prerequisites
-- Node.js 20+
-- Docker & Docker Compose
-- Git
+1.  **Fork** the repository and clone it locally.
+2.  **Install** dependencies: `npm install`.
+3.  **Setup** environment: `cp .env.example .env` and fill in required keys.
+4.  **Local Dev**: `npm run dev` (Turbopack).
 
-### Quick Start
+## 🛠️ Project Standards
 
-```bash
-# Clone the repository
-git clone https://github.com/your-org/nexnum.git
-cd nexnum/nexnum-app
+### 📝 Code Quality
+- **TypeScript**: No `any`. Use interfaces and Zod schemas for all external data.
+- **Logging**: Use the centralized `logger` (Pino) instead of `console.log`.
+- **Error Handling**: Use `ResponseFactory` for API responses to ensure standardized envelopes.
 
-# Copy environment file
-cp .env.example .env
+### 🧪 Testing
+- All core logic in `src/lib` should have unit tests.
+- Run `npm run typecheck` before pushing.
 
-# Start infrastructure (Redis, MeiliSearch)
-docker-compose up -d
+### 🏠 Infrastructure
+If you are contributing to our infrastructure (`infra/` folder):
+- **Portability**: Ensure scripts work on Ubuntu 22.04.
+- **Security**: Never expose Redis or Postgres ports to the public internet.
 
-# Install dependencies
-npm install
+## 🤝 Pull Request Process
 
-# Generate Prisma client
-npx prisma generate
+1.  Create a fresh branch for your feature/fix.
+2.  Use the [PR Template](./pull_request_template.md).
+3.  **Verify the Build**: Ensure `npm run build` passes locally on your machine.
+4.  Submit the PR and wait for review from @FlashTheFire.
 
-# Run development server
-npm run dev
-```
-
-## Code Standards
-
-### TypeScript
-- Use TypeScript strict mode
-- No `any` types (use `unknown` if needed)
-- Export types alongside functions
-
-### Styling
-- Use Prettier for formatting
-- Follow ESLint rules
-- Use CSS modules or Tailwind classes
-
-### Commits
-- Follow [Conventional Commits](https://www.conventionalcommits.org/)
-- Format: `type(scope): description`
-- Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
-
-Examples:
-```
-feat(auth): add two-factor authentication
-fix(wallet): correct balance calculation
-docs(readme): update setup instructions
-```
-
-## Pull Request Process
-
-1. **Create a feature branch** from `develop`:
-   ```bash
-   git checkout -b feat/your-feature
-   ```
-
-2. **Make your changes** with tests
-
-3. **Ensure CI passes**:
-   ```bash
-   npm run lint
-   npx tsc --noEmit
-   npm test
-   ```
-
-4. **Push and create PR** against `develop`
-
-5. **Address review feedback**
-
-6. **Squash and merge** when approved
-
-## Project Structure
-
-```
-src/
-├── app/           # Next.js pages & API routes
-├── components/    # React components
-├── config/        # Configuration (centralized)
-├── lib/           # Core business logic
-│   ├── auth/      # Authentication
-│   ├── wallet/    # Wallet operations
-│   ├── sms/       # SMS handling
-│   └── workers/   # Background workers
-├── hooks/         # React hooks
-└── types/         # TypeScript types
-```
-
-## Testing
-
-```bash
-# Run all tests
-npm test
-
-# Run with coverage
-npm run test:coverage
-
-# Run specific test
-npm test -- path/to/test.ts
-```
-
-## Need Help?
-
-- Check existing issues and PRs
-- Read the docs in `/docs`
-- Open a new issue for bugs or features
+## 🔒 Security
+If you find a security bug, please **do not** open an issue. Follow the instructions in [SECURITY.md](./SECURITY.md).
 
 ---
-
-Thank you for contributing! 🎉
+*Thank you for making NexNum better!*

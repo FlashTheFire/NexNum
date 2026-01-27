@@ -155,8 +155,26 @@ async function processEvent(event: any) {
             await handleRefund(payload.activationId)
             break
 
+        case 'saga.compensate.cancel_number':
+            await handleSagaCancel(payload.providerActivationId, payload.providerId)
+            break
+
         default:
             logger.warn(`[ActivationOutbox] Unknown event type: ${eventType}`)
+    }
+}
+
+/**
+ * Handle saga.compensate.cancel_number
+ */
+async function handleSagaCancel(providerActivationId: string, providerId: string) {
+    logger.info(`[ActivationOutbox:Saga] Compensating: Cancelling ${providerActivationId} at provider ${providerId}`)
+    try {
+        await smsProvider.cancelNumber(providerActivationId)
+        logger.success(`[ActivationOutbox:Saga] Successfully cancelled orphaned number: ${providerActivationId}`)
+    } catch (err: any) {
+        logger.error(`[ActivationOutbox:Saga] Failed to cancel orphaned number: ${err.message}`)
+        throw err // Retry
     }
 }
 

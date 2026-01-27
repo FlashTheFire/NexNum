@@ -2,81 +2,83 @@
 import crypto from 'crypto'
 
 const ALGORITHM = 'aes-256-gcm'
-const IV_LENGTH = 12 // 96 bits for GCM
-const AUTH_TAG_LENGTH = 16 // 128 bits standard
+const IV_LENGTH = 12
+const AUTH_TAG_LENGTH = 16
+const CURRENT_VERSION = 'v1'
 
-// Lazy load key to support runtime env injection
-const getKey = () => {
-    const keyHex = process.env.ENCRYPTION_KEY
-    if (!keyHex) {
-        throw new Error('ENCRYPTION_KEY environment variable is not set')
+/**
+ * Key Management (Enterprise Key-Ring Pattern)
+ */
+const getEncryptionKeys = () => {
+    const key = process.env.ENCRYPTION_KEY
+    if (!key) throw new Error('ENCRYPTION_KEY is required')
+
+    // In a pro setup, we'd have a map of versions to keys
+    // For now, we use a single key mapped to 'v1'
+    return {
+        v1: key.length === 64 ? Buffer.from(key, 'hex') : crypto.scryptSync(key, 'salt', 32)
     }
-    // Handle both 32-byte hex string (64 chars) or raw 32-byte string
-    // Ideally use 64-char hex string
-    if (keyHex.length === 64) {
-        return Buffer.from(keyHex, 'hex')
-    }
-    // Fallback (not recommended for new setups but robust)
-    return crypto.scryptSync(keyHex, 'salt', 32)
 }
 
 /**
- * Encrypts a string using AES-256-GCM
- * Format: iv:auth_tag:encrypted_content (all hex)
+ * Encrypts a string using AES-256-GCM with Versioning
+ * Format: [version]:iv:auth_tag:encrypted_content
  */
 export const encrypt = (text: string): string => {
     if (!text) return ''
 
-    const key = getKey()
+    const keys = getEncryptionKeys()
+    const key = keys[CURRENT_VERSION]
     const iv = crypto.randomBytes(IV_LENGTH)
 
-    // Create cipher
     const cipher = crypto.createCipheriv(ALGORITHM, key, iv)
-
-    // Encrypt
     let encrypted = cipher.update(text, 'utf8', 'hex')
     encrypted += cipher.final('hex')
 
-    // Get auth tag
     const authTag = cipher.getAuthTag()
 
-    // Return formatted string
-    return `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`
+    return `${CURRENT_VERSION}:${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`
 }
 
 /**
- * Decrypts a string using AES-256-GCM
- * Expects format: iv:auth_tag:encrypted_content
+ * Decrypts a string supporting Legacy and Versioned formats
  */
 export const decrypt = (text: string): string => {
     if (!text) return ''
 
-    // Check if it looks encrypted (contains colons and hex)
-    if (!text.includes(':')) {
-        // SECURITY: Throw error for unencrypted data in production
-        // In dev, allow gradual migration
+    const isVersioned = text.startsWith('v1:')
+    const isLegacy = text.includes(':') && !isVersioned
+
+    if (!isVersioned && !isLegacy) {
         if (process.env.NODE_ENV === 'production') {
-            throw new Error('Attempted to decrypt unencrypted data')
+            throw new Error('Attempted to decrypt unencrypted/unrecognized data')
         }
         return text
     }
 
     const parts = text.split(':')
-    if (parts.length !== 3) {
-        throw new Error('Invalid encrypted data format')
+    const keys = getEncryptionKeys()
+
+    let ivHex, authTagHex, encryptedHex, key
+
+    if (isVersioned) {
+        // v1:iv:tag:data
+        const [version, iv, tag, data] = parts
+        key = (keys as any)[version]
+        if (!key) throw new Error(`Unknown encryption version: ${version}`)
+        ivHex = iv; authTagHex = tag; encryptedHex = data;
+    } else {
+        // Legacy: iv:tag:data (assumed v1 key)
+        [ivHex, authTagHex, encryptedHex] = parts
+        key = keys.v1
     }
 
-    const [ivHex, authTagHex, encryptedHex] = parts
-
-    const key = getKey()
     const iv = Buffer.from(ivHex, 'hex')
     const authTag = Buffer.from(authTagHex, 'hex')
 
-    // Create decipher
     const decipher = crypto.createDecipheriv(ALGORITHM, key, iv)
     decipher.setAuthTag(authTag)
 
-    // Decrypt
     let decrypted = decipher.update(encryptedHex, 'hex', 'utf8')
     decrypted += decipher.final('utf8')
 

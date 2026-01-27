@@ -1,19 +1,23 @@
-// Load Environment FIRST
-import dotenv from 'dotenv';
-import path from 'path';
-const envPath = path.resolve(process.cwd(), '.env');
-dotenv.config({ path: envPath });
+/**
+ * Industrial Socket Server Entry Point
+ * 
+ * Powered by CoreOrchestrator for unified lifecycle management.
+ */
 
 import { createServer } from 'http';
 import { SocketService } from './lib/socket/server';
 import { logger } from './lib/core/logger';
+import { orchestrator } from './lib/core/orchestrator';
 
 const PORT = parseInt(process.env.SOCKET_PORT || '3951', 10);
 
 async function bootstrap() {
-    logger.info('[SocketEntry] Starting Socket Server...');
+    // 1. Unified Bootstrap (Env, DB, Redis, Signals)
+    await orchestrator.bootstrap('Standalone:Socket');
 
-    // Minimal HTTP Server
+    logger.info('[SocketEntry] Initializing HTTP & Socket Services...');
+
+    // 2. HTTP Base Server
     const httpServer = createServer((req, res) => {
         if (req.url === '/health') {
             res.writeHead(200);
@@ -24,25 +28,21 @@ async function bootstrap() {
         res.end();
     });
 
-    // Initialize Socket Service
+    // 3. Socket.io Service Layer
     const socketService = new SocketService(httpServer);
 
-    // Listen
-    httpServer.listen(PORT, () => {
-        logger.info(`[SocketEntry] Listening on port ${PORT}`);
-        logger.info(`[SocketEntry] Path: /api/socket`);
-    });
-
-    // Graceful Shutdown
-    const shutdown = async () => {
-        logger.info('[SocketEntry] Shutting down...');
+    // 4. Register Shutdown Hooks
+    orchestrator.onShutdown(async () => {
+        logger.info('[SocketEntry] Shutting down socket service...');
         await socketService.cleanup();
         httpServer.close();
-        process.exit(0);
-    };
+    });
 
-    process.on('SIGTERM', shutdown);
-    process.on('SIGINT', shutdown);
+    // 5. Start Execution
+    httpServer.listen(PORT, () => {
+        logger.success(`[SocketEntry] Listening on port ${PORT}`);
+        logger.info(`[SocketEntry] Path: /api/socket`);
+    });
 }
 
 bootstrap().catch((e) => {

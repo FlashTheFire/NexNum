@@ -55,7 +55,7 @@ export const ExpiredCard = memo(({ number }: ExpiredCardProps) => {
                         <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-[#111318] overflow-hidden">
                             <SafeImage
                                 src={number.countryIconUrl}
-                                fallbackSrc="/flags/un.svg"
+                                fallbackSrc="/assets/flags/un.svg"
                                 alt={number.countryName}
                                 className="w-full h-full object-cover"
                                 loading="lazy"

@@ -299,7 +299,7 @@ function ProviderCard({ provider, onRefresh, onEdit, isGlobalSyncing }: { provid
                 <div className="flex items-center gap-3">
                     <div className="w-11 h-11 rounded-xl bg-white/5 flex items-center justify-center text-lg overflow-hidden shrink-0 border border-white/5">
                         {provider.logoUrl ? (
-                            <SafeImage src={provider.logoUrl} fallbackSrc="/images/placeholder_provider.png" alt={provider.displayName} className="w-full h-full object-cover" hideOnError />
+                            <SafeImage src={provider.logoUrl} fallbackSrc="/assets/images/placeholder_provider.png" alt={provider.displayName} className="w-full h-full object-cover" hideOnError />
                         ) : (
                             <SeverIcon name={provider.displayName} />
                         )}
@@ -381,7 +381,7 @@ function ProviderCard({ provider, onRefresh, onEdit, isGlobalSyncing }: { provid
                     <div className="flex items-center gap-3">
                         <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center text-2xl overflow-hidden shrink-0">
                             {provider.logoUrl ? (
-                                <SafeImage src={provider.logoUrl} fallbackSrc="/images/placeholder_provider.png" alt={provider.displayName} className="w-full h-full object-cover" hideOnError />
+                                <SafeImage src={provider.logoUrl} fallbackSrc="/assets/images/placeholder_provider.png" alt={provider.displayName} className="w-full h-full object-cover" hideOnError />
                             ) : (
                                 <SeverIcon name={provider.displayName} />
                             )}
@@ -1002,7 +1002,7 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                             />
                         </div>
 
-                        {/* Internal Slug Field */}
+                        {/* Provider ID Field */}
                         <div className="p-4 bg-white/5 rounded-xl border border-white/5 space-y-3">
                             <div className="flex items-center gap-2">
                                 <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
@@ -1010,10 +1010,10 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                 </div>
                                 <div className="flex-1">
                                     <div className="flex items-center gap-1.5">
-                                        <label className="text-sm font-medium text-white">Internal Slug</label>
+                                        <label className="text-sm font-medium text-white">Provider ID</label>
                                         <InfoTooltip content={<>A <TT>unique machine-readable</TT> identifier. Use <TT>lowercase letters</TT>, numbers, and underscores only. Example: <TTCode>fivesim</TTCode>, <TTCode>sms_activate</TTCode>. <TT>Cannot be changed</TT> after creation.</>} />
                                     </div>
-                                    <span className="text-[10px] text-white/40">Unique identifier used in API calls (lowercase, no spaces)</span>
+                                    <span className="text-[10px] text-white/40">Unique system identifier used for routing and configuration</span>
                                 </div>
                             </div>
                             <Input

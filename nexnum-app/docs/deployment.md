@@ -1,204 +1,97 @@
-# Deployment Runbook
+# Deployment Runbook (VPS / EC2)
 
-Production deployment guide for NexNum Backend API/Admin Service.
+This guide documents the "Professional Infrastructure" deployment strategy for NexNum, optimized for cost-efficiency (AWS Free Tier) and reliability.
 
----
+## Infrastructure Architecture
 
-## Prerequisites
+**The "Smart Startup Stack"**
+- **Compute**: AWS EC2 `t3.micro` (or DigitalOcean Droplet).
+- **OS**: Ubuntu 22.04 LTS.
+- **Orchestration**: Docker Compose (Single Host).
+- **Gateway**: Caddy (Auto-HTTPS/SSL).
+- **State**:
+    - **App**: Stateless (Docker).
+    - **DB**: External (Supabase Free Tier) OR Self-hosted Postgres (Docker).
+    - **Cache**: Self-hosted Redis (Docker).
+    - **Search**: Self-hosted MeiliSearch (Docker).
 
-- Docker & Docker Compose
-- Access to container registry
-- PostgreSQL database provisioned
-- Redis instance provisioned
-- MeiliSearch instance (cloud or self-hosted)
-- Secret manager access (production)
+## 1. Initial Server Setup (One-Time)
 
----
+### Provisioning
+1.  Launch Ubuntu 22.04 Instance.
+2.  Open Inbound Ports: `22` (SSH), `80` (HTTP), `443` (HTTPS).
+3.  **Security**: Do NOT open port 3000 or 6379 to the internet.
 
-## Environment Configuration
+### Initialization Script
+We have automated the hardening process. Connect via SSH and run:
 
-### Development (.env)
 ```bash
-cp .env.example .env
-# Edit with development values
+# Clone Repo
+git clone https://github.com/FlashTheFire/NexNum.git
+cd NexNum/nexnum-app
+
+# Run Setup Wizard
+# - Creates 4GB Swap (Prevents OOM on 1GB RAM)
+# - Installs Docker & Compose
+# - Configures Fail2ban
+sudo ./infra/vps/setup.sh
 ```
 
-### Production (Secret Manager)
-Production secrets should be stored in your secret manager:
-- `DATABASE_URL`
-- `REDIS_URL`
-- `JWT_SECRET`
-- `ENCRYPTION_KEY`
-- Provider API keys
+## 2. Configuration (`.env.production`)
 
----
+Create the production environment file:
 
-## Build
-
-### Docker Build
 ```bash
-# Build production image
-docker build -t nexnum-api:latest .
-
-# Tag for registry
-docker tag nexnum-api:latest your-registry/nexnum-api:v1.0.0
-docker push your-registry/nexnum-api:v1.0.0
+cp .env.example .env.production
+nano .env.production
 ```
 
-### Verify Build
-```bash
-# Test image locally
-docker run --rm -p 3000:3000 \
-  -e DATABASE_URL="..." \
-  -e REDIS_URL="..." \
-  -e JWT_SECRET="..." \
-  nexnum-api:latest
-
-# Check health
-curl http://localhost:3000/api/health
+**Critical Variables**:
+```ini
+NODE_ENV=production
+DATABASE_URL="postgres://user:pass@host:5432/db"
+REDIS_URL="redis://redis:6379"
+MEILI_HOST="http://meilisearch:7700"
+DOMAIN_NAME="api.yourdomain.com"
 ```
 
----
+## 3. Deployment Workflow ("GitOps Lite")
 
-## Deploy to Staging
+We use a simple "Pull & Restart" strategy which is robust and requires zero external CI/CD complexity (though GitHub Actions is supported).
 
-### 1. Update Configuration
-Ensure staging secrets are configured in your secret manager.
-
-### 2. Run Migrations
+### Option A: Manual Deploy (SSH)
 ```bash
-# Connect to staging DB
-DATABASE_URL="staging_url" npx prisma migrate deploy
+./infra/vps/deploy.sh localhost
 ```
 
-### 3. Seed Data
+### Option B: GitHub Actions (Automated)
+Push to `main`. The `.github/workflows/deploy.yml` pipeline will:
+1.  SSH into your VPS.
+2.  Pull the latest code.
+3.  Execute `deploy.sh`.
+
+*Requires `VPS_HOST`, `VPS_USER`, `VPS_KEY`, `ENV_PRODUCTION` secrets in GitHub.*
+
+## 4. Troubleshooting
+
+### Logs
+View logs for all services:
 ```bash
-DATABASE_URL="staging_url" npx tsx scripts/seeds/run-all.ts
+docker compose -f docker-compose.prod.yml logs -f
+```
+View specific service:
+```bash
+docker compose -f docker-compose.prod.yml logs -f nexnum-api
 ```
 
-### 4. Deploy Container
+### "JavaScript Heap Out of Memory"
+If the build fails on t2.micro:
+1.  Ensure Swap is active: `free -h` (Should show 4GiB Swap).
+2.  Re-run setup if needed: `sudo ./infra/vps/setup.sh`.
+
+### SSL Issues
+Caddy handles SSL automatically. To debug:
 ```bash
-# K8s example
-kubectl apply -f infra/k8s/staging/
-
-# Or docker-compose
-docker-compose -f docker-compose.staging.yml up -d
+docker compose -f docker-compose.prod.yml logs -f caddy
 ```
-
-### 5. Verify
-```bash
-# Health check
-curl https://staging.nexnum.com/api/health
-
-# Ready check (includes DB + Redis)
-curl https://staging.nexnum.com/api/health/ready
-```
-
----
-
-## Promote to Production
-
-### Pre-Flight Checklist
-- [ ] Staging tests passed
-- [ ] Database migrations tested
-- [ ] Rollback migration prepared
-- [ ] Monitoring alerts configured
-- [ ] On-call notified
-
-### 1. Database Backup
-```bash
-pg_dump $PROD_DATABASE_URL > backup_$(date +%Y%m%d_%H%M%S).sql
-```
-
-### 2. Run Migrations
-```bash
-DATABASE_URL="$PROD_DATABASE_URL" npx prisma migrate deploy
-```
-
-### 3. Deploy
-```bash
-# K8s rolling update
-kubectl set image deployment/nexnum-api \
-  nexnum-api=your-registry/nexnum-api:v1.0.0
-
-# Monitor rollout
-kubectl rollout status deployment/nexnum-api
-```
-
-### 4. Verify
-```bash
-# Health endpoints
-curl https://api.nexnum.com/api/health
-curl https://api.nexnum.com/api/health/ready
-
-# Smoke test
-curl https://api.nexnum.com/api/v1/providers
-```
-
-### 5. Monitor
-- Check Sentry for errors
-- Check Prometheus metrics
-- Monitor logs for 15 minutes
-
----
-
-## Rollback
-
-### Quick Rollback (Container)
-```bash
-# K8s
-kubectl rollout undo deployment/nexnum-api
-
-# Docker
-docker-compose down
-docker-compose -f docker-compose.yml.backup up -d
-```
-
-### Database Rollback
-```bash
-# Restore from backup
-psql $PROD_DATABASE_URL < backup_YYYYMMDD_HHMMSS.sql
-
-# Or run down migration
-DATABASE_URL="$PROD_DATABASE_URL" npx prisma migrate resolve --rolled-back MIGRATION_NAME
-```
-
----
-
-## Health Endpoints
-
-| Endpoint | Purpose |
-|----------|---------|
-| `GET /api/health` | Basic liveness (always 200 if running) |
-| `GET /api/health/ready` | Readiness (DB + Redis connected) |
-| `GET /api/metrics` | Prometheus metrics |
-
----
-
-## Troubleshooting
-
-### Container won't start
-```bash
-# Check logs
-docker logs nexnum-api
-
-# Common issues:
-# - Missing env vars
-# - DB connection failed
-# - Port already in use
-```
-
-### Database connection issues
-```bash
-# Test direct connection
-psql $DATABASE_URL
-
-# Check Prisma
-npx prisma db pull
-```
-
-### Redis connection issues
-```bash
-# Test connection
-redis-cli -u $REDIS_URL ping
-```
+*Note: Ensure your Domain DNS A-Record points to the VPS IP.*

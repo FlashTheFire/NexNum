@@ -5,6 +5,7 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Zap, Menu, X, ChevronDown } from "lucide-react";
 import LanguageSwitcher from "@/components/common/LanguageSwitcher";
+import CurrencySelector from "@/components/common/CurrencySelector";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTranslations } from "next-intl";
@@ -53,7 +54,7 @@ export default function Navbar({ hideLogin = false, hideRegister = false }: Navb
                             <div className="relative">
                                 <div className="w-10 h-10 bg-gradient-to-br from-[hsl(var(--neon-lime))] to-[hsl(72,70%,40%)] rounded-xl flex items-center justify-center shadow-lg shadow-[hsl(var(--neon-lime)/0.25)] group-hover:shadow-[hsl(var(--neon-lime)/0.4)] transition-all duration-300 group-hover:scale-105 p-1.5">
                                     <Image
-                                        src="/logos/nexnum-logo.svg"
+                                        src="/assets/brand/nexnum-logo.svg"
                                         alt="NexNum Logo"
                                         width={28}
                                         height={28}
@@ -96,7 +97,8 @@ export default function Navbar({ hideLogin = false, hideRegister = false }: Navb
 
                         {/* Desktop Actions */}
                         <div className="hidden lg:flex items-center gap-3">
-                            <div className="mr-1">
+                            <div className="flex items-center gap-1.5 mr-1">
+                                <CurrencySelector />
                                 <LanguageSwitcher />
                             </div>
                             {!hideLogin && (
@@ -126,6 +128,7 @@ export default function Navbar({ hideLogin = false, hideRegister = false }: Navb
 
                         {/* Mobile Actions (Switcher + Menu) */}
                         <div className="lg:hidden flex items-center gap-2">
+                            <CurrencySelector />
                             <LanguageSwitcher />
                             <button
                                 className="p-2.5 text-gray-400 hover:text-white rounded-xl hover:bg-white/[0.06] transition-all"

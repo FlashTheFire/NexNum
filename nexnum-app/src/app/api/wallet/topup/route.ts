@@ -1,83 +1,67 @@
 import { NextResponse } from 'next/server'
-import { prisma, ensureWallet } from '@/lib/core/db'
+import { ensureWallet } from '@/lib/core/db'
 import { WalletService } from '@/lib/wallet/wallet'
-import { getCurrentUser } from '@/lib/auth/jwt'
 import { checkIdempotency } from '@/lib/core/redis'
 import { topupSchema } from '@/lib/api/validation'
 import { apiHandler } from '@/lib/api/api-handler'
 import { emitStateUpdate } from '@/lib/events/emitters/state-emitter'
+import { ResponseFactory } from '@/lib/api/response-factory'
+import { PaymentError } from '@/lib/payment/payment-errors'
 
-export const POST = apiHandler(async (request, { body }) => {
-    // Body validated by apiHandler
-    if (!body) throw new Error('Body is required')
-
-    const user = await getCurrentUser(request.headers)
-    if (!user) {
-        return NextResponse.json(
-            { error: 'Unauthorized' },
-            { status: 401 }
-        )
-    }
-
+/**
+ * Professional Top-Up Endpoint
+ * 
+ * Handles wallet credits with strict idempotency and industrial error reporting.
+ */
+export const POST = apiHandler(async (request, { body, user }) => {
+    // Body is validated by apiHandler schema
     const { amount, idempotencyKey } = body
 
-    // Check idempotency (prevent duplicate transactions)
+    // 1. Idempotency Guard (Redis-backed)
     const isNewRequest = await checkIdempotency(idempotencyKey)
-
     if (!isNewRequest) {
-        return NextResponse.json({
-            success: true,
+        return ResponseFactory.success({
             message: 'Transaction already processed',
             duplicate: true,
         })
     }
 
-    // Ensure wallet exists
-    const walletId = await ensureWallet(user.userId)
+    try {
+        // 2. Ensure Infrastructure
+        await ensureWallet(user.userId)
 
-    // PROCESS TOP-UP ATOMICALLY
-    // Now using centralized Service for consistency
-    const transaction = await WalletService.credit(
-        user.userId,
-        amount,
-        'topup',
-        `Wallet top-up: $${amount.toFixed(2)}`,
-        idempotencyKey
-    )
+        // 3. Process Atmoic Transaction
+        const transaction = await WalletService.credit(
+            user.userId,
+            amount,
+            'topup',
+            `Wallet top-up: $${amount.toFixed(2)}`,
+            idempotencyKey
+        )
 
-    // Audit log (best effort, non-blocking)
-    prisma.auditLog.create({
-        data: {
-            userId: user.userId,
-            action: 'wallet.topup',
-            resourceType: 'wallet',
-            resourceId: walletId,
-            metadata: {
-                amount,
-                transactionId: transaction.id,
-                idempotencyKey,
+        // 4. Update State (Real-time and Sync)
+        const newBalance = await WalletService.getBalance(user.userId)
+        emitStateUpdate(user.userId, 'wallet', 'deposit').catch(() => { })
+
+        // 5. Success Envelope
+        return ResponseFactory.success({
+            transaction: {
+                id: transaction.id,
+                amount: Number(transaction.amount),
+                type: transaction.type,
+                createdAt: transaction.createdAt,
             },
-            ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
+            newBalance,
+        })
+
+    } catch (error: any) {
+        // Specialized Financial Error Handling
+        if (error instanceof PaymentError) {
+            return ResponseFactory.error(error.message, error.status, error.code)
         }
-    }).catch(console.error)
-
-    // Get new balance
-    // Faster to read from updated wallet than aggregate
-    const newBalance = await WalletService.getBalance(user.userId)
-
-    // Emit real-time update
-    emitStateUpdate(user.userId, 'wallet', 'deposit').catch(() => { })
-
-    return NextResponse.json({
-        success: true,
-        transaction: {
-            id: transaction.id,
-            amount: Number(transaction.amount),
-            type: transaction.type,
-            createdAt: transaction.createdAt,
-        },
-        newBalance,
-    })
+        throw error // Let global handler catch unknown errors
+    }
 }, {
-    schema: topupSchema
+    schema: topupSchema,
+    requiresAuth: true
 })

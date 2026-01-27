@@ -121,7 +121,7 @@ export const POST = apiHandler(async (request, { body }) => {
                 if (provider) {
                     const { healthMonitor } = await import('@/lib/providers/health-monitor')
                     // Record FAILURE (false) - pass 0 latency as irrelevant
-                    healthMonitor.recordRequest(provider.id, false, 0).catch(console.error)
+                    healthMonitor.recordRequest(provider.id, false, 0, undefined, 'TRANSIENT').catch(console.error)
                 }
             }
         }

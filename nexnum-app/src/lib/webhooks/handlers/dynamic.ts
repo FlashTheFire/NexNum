@@ -23,4 +23,11 @@ export class DynamicWebhookHandler extends BaseWebhookHandler {
     parse(body: any): WebhookPayload {
         return this.dynamicProvider.parseWebhook(body)
     }
+
+    /**
+     * Verify webhook using DynamicProvider's security logic
+     */
+    verify(body: string, headers: Record<string, string | string[] | undefined>, ip: string) {
+        return this.dynamicProvider.verifyWebhook(body, headers, ip)
+    }
 }

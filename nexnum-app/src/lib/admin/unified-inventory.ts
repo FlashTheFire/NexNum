@@ -18,9 +18,9 @@ export type InventoryItemType = 'country' | 'service' | 'auto'
 
 export interface InventoryIdentity {
     providerId: string    // UUID
-    providerSlug: string  // e.g. "mock-sms"
+    providerCode: string  // e.g. "mock-sms"
     itemId: string        // UUID of the item (ProviderCountry or ProviderService)
-    externalId: string    // Slug/Code of the item (e.g. "us" or "wa")
+    externalId: string    // Normalizer Code of the item (e.g. "us" or "wa")
     type: 'country' | 'service'
     displayName: string
 }
@@ -41,34 +41,35 @@ export interface ActionResult {
 export class UnifiedInventoryService {
 
     /**
-     * Resolve Provider ID from slug or UUID
+     * Resolve Provider ID from code or UUID
      */
-    private async resolveProvider(providerIdOrSlug: string): Promise<{ id: string, slug: string } | null> {
+    private async resolveProvider(providerIdOrCode: string): Promise<{ id: string, code: string } | null> {
         const provider = await prisma.provider.findFirst({
             where: {
                 OR: [
-                    { id: providerIdOrSlug },
-                    { name: providerIdOrSlug }
+                    { id: providerIdOrCode },
+                    { name: providerIdOrCode }
                 ]
             },
             select: { id: true, name: true }
         })
-        return provider ? { id: provider.id, slug: provider.name } : null
+        return provider ? { id: provider.id, code: provider.name } : null
     }
 
     /**
-     * Resolve an Inventory Item by external ID (slug)
+     * Resolve an Inventory Item by external ID (code)
      * Smartly checks both tables if type is 'auto'
      */
     public async resolveIdentity(
-        providerIdOrSlug: string,
+        providerIdOrCode: string,
         externalId: string,
         type: InventoryItemType = 'auto'
     ): Promise<InventoryIdentity | null> {
 
-        const provider = await this.resolveProvider(providerIdOrSlug)
+        const provider = await this.resolveProvider(providerIdOrCode)
+
         if (!provider) {
-            console.warn(`[UnifiedInventory] Provider not found: ${providerIdOrSlug}`)
+            console.warn(`[UnifiedInventory] Provider not found: ${providerIdOrCode}`)
             return null
         }
 
@@ -106,7 +107,7 @@ export class UnifiedInventoryService {
     private mapService(provider: any, item: any): InventoryIdentity {
         return {
             providerId: provider.id,
-            providerSlug: provider.slug,
+            providerCode: provider.code,
             itemId: item.id,
             externalId: item.externalId,
             type: 'service',
@@ -117,7 +118,7 @@ export class UnifiedInventoryService {
     private mapCountry(provider: any, item: any): InventoryIdentity {
         return {
             providerId: provider.id,
-            providerSlug: provider.slug,
+            providerCode: provider.code,
             itemId: item.id,
             externalId: item.externalId,
             type: 'country',
@@ -235,17 +236,19 @@ export class UnifiedInventoryService {
         // Count affected pricing records
         let pricingCount = 0
         if (identity.type === 'service') {
-            pricingCount = await prisma.providerPricing.count({ where: { serviceId: identity.itemId } })
+            // pricingCount = await prisma.providerPricing.count({ where: { serviceId: identity.itemId } })
         } else {
-            pricingCount = await prisma.providerPricing.count({ where: { countryId: identity.itemId } })
+            // pricingCount = await prisma.providerPricing.count({ where: { countryId: identity.itemId } })
         }
 
         if (permanent) {
             // Delete pricing first
+            // STUB: ProviderPricing is deleted. 
+            // In the future, this should trigger MeiliSearch deletion by filter.
             if (identity.type === 'service') {
-                await prisma.providerPricing.deleteMany({ where: { serviceId: identity.itemId } })
+                // await prisma.providerPricing.deleteMany({ where: { serviceId: identity.itemId } })
             } else {
-                await prisma.providerPricing.deleteMany({ where: { countryId: identity.itemId } })
+                // await prisma.providerPricing.deleteMany({ where: { countryId: identity.itemId } })
             }
 
             // Delete item

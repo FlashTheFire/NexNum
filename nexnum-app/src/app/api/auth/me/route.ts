@@ -43,6 +43,7 @@ export async function GET(request: Request) {
                 // @ts-ignore - Prisma linter sync issue
                 preferredCurrency: dbUser.preferredCurrency,
                 createdAt: dbUser.createdAt,
+                emailVerified: dbUser.emailVerified,
             },
             wallet: {
                 id: dbUser.wallet?.id,

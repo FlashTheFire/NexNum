@@ -1,237 +1,137 @@
-/**
- * Webhook Signature Verification
- * 
- * Verifies webhook signatures from providers to ensure authenticity
- * Supports HMAC-SHA256 and timestamp-based replay protection
- */
-
-// @ts-ignore
-import crypto = require('crypto')
+import crypto from 'crypto'
+import { timingSafeEqual } from '@/lib/core/isomorphic-crypto'
 import { WebhookVerificationResult } from '@/lib/sms/types'
 import { logger } from '@/lib/core/logger'
 
-declare var Buffer: any;
-
-// ============================================
-// VERIFICATION CONFIG
-// ============================================
-
-interface VerificationConfig {
-    /** Webhook secret from provider */
-    secret: string
-
-    /** Algorithm (default: sha256) */
-    algorithm?: string
-
-    /** Header name for signature */
-    signatureHeader?: string
-
-    /** Header name for timestamp */
-    timestampHeader?: string
-
-    /** Maximum time drift allowed (seconds) */
-    maxTimeDrift?: number
-}
-
-// ============================================
-// VERIFIER CLASS
-// ============================================
-
+/**
+ * Industrial Webhook Security Suite
+ * 
+ * Implements HMAC-SHA256 verification with strict replay protection
+ * and timing-attack resilient comparison.
+ */
 export class WebhookVerifier {
     /**
-     * Verify HMAC-SHA256 signature
+     * Standardized HMAC-SHA256 verification
+     * Protects against timing attacks and payload tampering.
      */
     static verifyHmac(
         payload: string,
         signature: string,
         secret: string,
-        algorithm: string = 'sha256'
+        timestamp?: string | number,
+        maxDrift: number = 300 // 5 minutes
     ): WebhookVerificationResult {
         try {
-            // Compute expected signature
-            const expectedSignature = crypto
-                .createHmac(algorithm, secret)
-                .update(payload)
-                .digest('hex')
+            if (!signature || !secret) {
+                return { valid: false, error: 'Missing signature or secret' }
+            }
 
-            // Compare signatures (constant-time comparison)
-            const valid = crypto.timingSafeEqual(
-                Buffer.from(signature),
-                Buffer.from(expectedSignature)
-            )
+            // 1. Replay Protection (if timestamp provided)
+            if (timestamp) {
+                const timeResult = this.verifyTimestamp(timestamp, maxDrift)
+                if (!timeResult.valid) return timeResult
+            }
+
+            // 2. Signature Reconstruction
+            // Professional pattern: sign "timestamp.payload" to prevent signature reuse
+            const stringToSign = timestamp ? `${timestamp}.${payload}` : payload
+            const hmac = crypto.createHmac('sha256', secret)
+            hmac.update(stringToSign)
+            const expectedSignature = hmac.digest('hex')
+
+            // 3. Timing-Safe Comparison
+            // Senior Note: Buffer lengths MUST match for timingSafeEqual or it throws.
+            const sigBuf = Buffer.from(signature, 'hex')
+            const expectedBuf = Buffer.from(expectedSignature, 'hex')
+
+            if (sigBuf.length !== expectedBuf.length) {
+                return { valid: false, error: 'Signature length mismatch' }
+            }
+
+            const valid = timingSafeEqual(sigBuf, expectedBuf)
 
             if (!valid) {
-                return {
-                    valid: false,
-                    error: 'Signature mismatch',
-                }
+                logger.warn('[SECURITY] Webhook signature mismatch', {
+                    provided: signature.substring(0, 8) + '...',
+                    expected: expectedSignature.substring(0, 8) + '...'
+                })
+                return { valid: false, error: 'Signature mismatch' }
             }
 
             return { valid: true }
         } catch (error: any) {
-            logger.error('HMAC verification error', { error: error.message })
-            return {
-                valid: false,
-                error: error.message,
-            }
+            logger.error('Webhook verification critical failure', { error: error.message })
+            return { valid: false, error: 'Verification procedure failed' }
         }
     }
 
     /**
-     * Verify timestamp to prevent replay attacks
+     * Replay Attack Mitigation
+     * Validates that the request was generated within a safe time window.
      */
     static verifyTimestamp(
         timestamp: string | number,
-        maxDrift: number = 300 // 5 minutes default
+        maxDrift: number = 300
     ): WebhookVerificationResult {
         try {
             const webhookTime = typeof timestamp === 'string'
                 ? parseInt(timestamp, 10)
                 : timestamp
 
+            if (isNaN(webhookTime)) {
+                return { valid: false, error: 'Invalid timestamp format' }
+            }
+
             const now = Math.floor(Date.now() / 1000)
             const drift = Math.abs(now - webhookTime)
 
             if (drift > maxDrift) {
+                logger.warn('[SECURITY] Webhook timestamp drift detected', { drift, maxDrift })
                 return {
                     valid: false,
-                    error: `Timestamp drift too large: ${drift}s`,
+                    error: `Timestamp drift too large (${drift}s)`,
                     timeDrift: drift,
                 }
             }
 
-            return {
-                valid: true,
-                timeDrift: drift,
-            }
+            return { valid: true, timeDrift: drift }
         } catch (error: any) {
-            return {
-                valid: false,
-                error: error.message,
-            }
+            return { valid: false, error: error.message }
         }
     }
 
     /**
-     * Verify full webhook request
+     * IP Filter (Optional secondary layer)
      */
-    static verify(
-        payload: string,
-        headers: Record<string, string | string[] | undefined>,
-        config: VerificationConfig
-    ): WebhookVerificationResult {
-        // Get signature from headers
-        const signatureHeader = config.signatureHeader || 'x-signature'
-        const signature = this.getHeader(headers, signatureHeader)
+    static verifyIp(ip: string, allowedIps: string[]): WebhookVerificationResult {
+        if (!allowedIps || allowedIps.length === 0) return { valid: true }
 
-        if (!signature) {
-            return {
-                valid: false,
-                error: `Missing signature header: ${signatureHeader}`,
+        const isWhitelisted = allowedIps.some(allowed => {
+            if (allowed.includes('/')) {
+                // CIDR check placeholder (could use 'ipaddr.js')
+                return false
             }
-        }
+            return allowed === ip
+        })
 
-        // Verify signature
-        const signatureResult = this.verifyHmac(
-            payload,
-            signature,
-            config.secret,
-            config.algorithm
-        )
-
-        if (!signatureResult.valid) {
-            return signatureResult
-        }
-
-        // Verify timestamp if configured
-        if (config.timestampHeader && config.maxTimeDrift) {
-            const timestamp = this.getHeader(headers, config.timestampHeader)
-            if (timestamp) {
-                const timestampResult = this.verifyTimestamp(
-                    timestamp,
-                    config.maxTimeDrift
-                )
-                if (!timestampResult.valid) {
-                    return timestampResult
-                }
-            }
+        if (!isWhitelisted) {
+            return { valid: false, error: `IP ${ip} not in authorized whitelist` }
         }
 
         return { valid: true }
     }
 
     /**
-     * Get header value (case-insensitive)
+     * Normalized Header Helper
      */
-    private static getHeader(
+    static getHeader(
         headers: Record<string, string | string[] | undefined>,
         name: string
     ): string | null {
         const lowerName = name.toLowerCase()
-
-        for (const [key, value] of Object.entries(headers)) {
-            if (key.toLowerCase() === lowerName) {
-                return Array.isArray(value) ? value[0] : value || null
-            }
-        }
-
-        return null
-    }
-}
-
-// ============================================
-// PROVIDER-SPECIFIC VERIFIERS
-// ============================================
-
-export class FiveSimWebhookVerifier {
-    /**
-     * 5sim doesn't use signatures, verify by IP instead
-     */
-    static verify(ip: string): WebhookVerificationResult {
-        // 5sim webhook IPs (check their documentation)
-        const allowedIps = [
-            '167.235.198.205',
-            // Add more as needed
-        ]
-
-        if (allowedIps.includes(ip)) {
-            return { valid: true }
-        }
-
-        return {
-            valid: false,
-            error: `IP not whitelisted: ${ip}`,
-        }
-    }
-}
-
-export class GrizzlySmsWebhookVerifier {
-    /**
-     * GrizzlySMS uses HMAC-SHA256
-     */
-    static verify(
-        payload: string,
-        signature: string,
-        secret: string
-    ): WebhookVerificationResult {
-        return WebhookVerifier.verifyHmac(payload, signature, secret)
-    }
-}
-
-export class HeroSmsWebhookVerifier {
-    /**
-     * HeroSMS verification (check their docs)
-     */
-    static verify(
-        payload: string,
-        headers: Record<string, string | string[] | undefined>,
-        secret: string
-    ): WebhookVerificationResult {
-        return WebhookVerifier.verify(payload, headers, {
-            secret,
-            signatureHeader: 'x-hero-signature',
-            timestampHeader: 'x-hero-timestamp',
-            maxTimeDrift: 300,
-        })
+        const found = Object.entries(headers).find(([k]) => k.toLowerCase() === lowerName)
+        if (!found) return null
+        const val = found[1]
+        return Array.isArray(val) ? val[0] : (val || null)
     }
 }

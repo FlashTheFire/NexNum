@@ -76,7 +76,7 @@ export default function Auth3DLaptop() {
                                     <div className="flex items-center gap-2">
                                         <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[hsl(var(--neon-lime)/0.3)] to-[hsl(var(--neon-lime)/0.1)] flex items-center justify-center">
                                             <Image
-                                                src="/logos/nexnum-logo.svg"
+                                                src="/assets/brand/nexnum-logo.svg"
                                                 alt="NexNum"
                                                 width={18}
                                                 height={18}

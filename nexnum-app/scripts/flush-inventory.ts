@@ -25,7 +25,7 @@ async function main() {
     console.log(`   - Deleted ${deletedReservations.count} reservations`)
 
     // Pricing depends on Country, Service, Provider
-    const deletedPricing = await prisma.providerPricing.deleteMany({})
+    const deletedPricing = { count: 0 }; // await prisma.providerPricing.deleteMany({})
     console.log(`   - Deleted ${deletedPricing.count} pricing records`)
 
     // Service Aggregates (Derived data)

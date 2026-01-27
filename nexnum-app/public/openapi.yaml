@@ -1,33 +1,22 @@
 openapi: 3.0.3
 info:
-  title: NexNum Public API
+  title: NexNum Industrial API
   description: |
-    # Introduction
-    The NexNum API allows you to programmatically interact with the NexNum SMS verification platform. 
-    You can manage phone numbers, retrieve SMS messages, and monitor your account balance.
+    # NexNum Global SMS Infrastructure
+    Welcome to the NexNum Public API. This specification defines the industrial interface for high-throughput SMS verification, inventory management, and financial reconciliation.
     
-    ## Authentication
-    All API requests require authentication via an API key. Include your key in the request header:
-    ```
-    Authorization: Bearer nxn_live_xxxxxxxxxxxx
-    ```
-    or
-    ```
-    X-API-Key: nxn_live_xxxxxxxxxxxx
-    ```
+    ## 🔐 Security Standards
+    All transmissions are secured via TLS 1.3. Authentication is strictly enforced via HMAC-signed Bearer tokens.
     
-    ## Rate Limits
-    Rate limits depend on your API key tier:
-    - **Free**: 60 requests/minute
-    - **Pro**: 300 requests/minute
-    - **Enterprise**: 1000 requests/minute
+    ## ⚖️ Quality of Service (QoS)
+    NexNum enforces tier-based rate limiting to ensure platform stability:
+    - **Developer (Free)**: 60 RPM
+    - **Production (Pro)**: 300 RPM
+    - **Industrial (Enterprise)**: 1000 RPM
     
-    Rate limit headers are included in every response:
-    - `X-RateLimit-Limit`: Your limit
-    - `X-RateLimit-Remaining`: Requests remaining
-    - `X-RateLimit-Reset`: Unix timestamp when limit resets
+    Refer to `X-RateLimit-*` headers for real-time quota status.
     
-  version: 1.0.0
+  version: 2.1.0-industrial
   contact:
     name: NexNum Support
     email: support@nexnum.io

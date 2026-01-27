@@ -1,7 +1,10 @@
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["driverAdapters"]
+  binaryTargets   = ["native", "linux-musl-openssl-3.0.x", "debian-openssl-3.0.x"]
 }
+
+
 
 datasource db {
   provider = "postgresql"
@@ -103,9 +106,10 @@ model NotificationPreferences {
 model Wallet {
   id           String              @id @default(uuid())
   userId       String              @unique @map("user_id")
-  balance      Decimal             @default(0.00) @db.Decimal(12, 2)
-  reserved     Decimal             @default(0.00) @db.Decimal(12, 2)
+  balance      Decimal             @default(0.00) @db.Decimal(18, 8)
+  reserved     Decimal             @default(0.00) @db.Decimal(18, 8)
   createdAt    DateTime            @default(now()) @map("created_at")
+  updatedAt    DateTime            @default(now()) @updatedAt @map("updated_at")
   transactions WalletTransaction[]
   user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -115,7 +119,7 @@ model Wallet {
 model WalletTransaction {
   id             String   @id @default(uuid())
   walletId       String   @map("wallet_id")
-  amount         Decimal  @db.Decimal(12, 2)
+  amount         Decimal  @db.Decimal(18, 8)
   type           String
   description    String?
   idempotencyKey String?  @unique @map("idempotency_key")
@@ -123,7 +127,7 @@ model WalletTransaction {
   createdAt      DateTime @default(now()) @map("created_at")
   wallet         Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
 
-  @@index([walletId])
+  @@index([walletId, createdAt])
   @@map("wallet_transactions")
 }
 
@@ -160,6 +164,8 @@ model Number {
   serviceCode          String?      @map("service_code")
   serviceIconUrl       String?      @map("service_icon_url")
   price                Decimal      @db.Decimal(8, 2)
+  providerCost         Decimal      @default(0.0) @map("provider_cost") @db.Decimal(8, 4)
+  profit               Decimal      @default(0.0) @db.Decimal(8, 4)
   status               String       @default("available")
   ownerId              String?      @map("owner_id")
   activationId         String?      @map("activation_id")
@@ -227,20 +233,22 @@ model AuditLog {
 // LOOKUP TABLES (Reference data for display)
 // ============================================
 
-// Service lookup: code → display details
+// Service lookup: serviceId → display details
 model ServiceLookup {
-  code    String  @id // e.g., "wa", "tg", "fb"
-  name    String // e.g., "WhatsApp"
-  iconUrl String? @map("icon_url") // Optional icon/logo URL
+  serviceId   Int     @id @map("id") // The numeric ID (serviceId)
+  serviceCode String  @unique @map("service_code") // Canonical Key (derived from name)
+  serviceName String  @map("name") // e.g., "WhatsApp"
+  serviceIcon String? @map("icon_url") // Optional icon/logo URL
 
   @@map("service_lookups")
 }
 
-// Country lookup: code → display details  
+// Country lookup: countryId → display details  
 model CountryLookup {
-  code    String  @id // ISO code: "US", "IN", "GB"
-  name    String // e.g., "United States"
-  flagUrl String? @map("flag_url") // Flag image URL
+  countryId   Int     @id @map("id") // The numeric ID (countryId)
+  countryCode String  @unique @map("country_code") // Canonical Key (derived from name)
+  countryName String  @map("name") // e.g., "United States"
+  countryIcon String? @map("flag_url") // Flag image URL
 
   @@map("country_lookups")
 }
@@ -251,7 +259,7 @@ model CountryLookup {
 
 model Provider {
   id          String  @id @default(uuid())
-  name        String  @unique // Internal slug (e.g., "5sim")
+  name        String  @unique // Provider ID/Slug (e.g., "5sim")
   displayName String  @map("display_name")
   description String?
   logoUrl     String? @map("logo_url")
@@ -276,7 +284,7 @@ model Provider {
 
 
   priceMultiplier Decimal @default(1.0) @map("price_multiplier") @db.Decimal(5, 2)
-  fixedMarkup     Decimal @default(0.0) @map("fixed_markup") @db.Decimal(8, 2)
+  fixedMarkup     Decimal @default(0.0) @map("fixed_markup") @db.Decimal(18, 8)
   currency        String  @default("USD")
 
   // --- Advanced Normalization ---
@@ -311,7 +319,6 @@ model Provider {
   testResults ProviderTestResult[]
   countries   ProviderCountry[]
   services    ProviderService[]
-  pricing     ProviderPricing[]
   healthLogs  ProviderHealthLog[]
 
   @@index([isActive])
@@ -336,7 +343,6 @@ model ProviderCountry {
   lastSyncAt DateTime @default(now()) @map("last_sync_at")
 
   provider Provider          @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  pricing  ProviderPricing[]
 
   @@unique([providerId, externalId])
   @@index([providerId])
@@ -356,7 +362,6 @@ model ProviderService {
   lastSyncAt DateTime @default(now()) @map("last_sync_at")
 
   provider Provider          @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  pricing  ProviderPricing[]
 
   @@unique([providerId, externalId])
   @@index([providerId])
@@ -364,34 +369,7 @@ model ProviderService {
   @@map("provider_services")
 }
 
-// Provider-specific pricing (replaces MeiliSearch-only approach)
-model ProviderPricing {
-  id              String   @id @default(uuid())
-  providerId      String   @map("provider_id")
-  countryId       String   @map("country_id")
-  serviceId       String   @map("service_id")
-  operator        String? // Optional operator code (e.g., "virtual21")
-  cost            Decimal  @db.Decimal(8, 4) // Raw cost from provider API
-  providerRawCost Decimal? @map("provider_raw_cost") @db.Decimal(8, 6) // Original provider cost for reconciliation
-  sellPrice       Decimal  @db.Decimal(8, 2) // After markup applied
-  stock           Int      @default(0)
-  deleted         Boolean  @default(false) // Soft delete for sync
-  lastSyncAt      DateTime @default(now()) @map("last_sync_at")
-
-  provider     Provider           @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  country      ProviderCountry    @relation(fields: [countryId], references: [id], onDelete: Cascade)
-  service      ProviderService    @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-  reservations OfferReservation[]
-
-  @@unique([providerId, countryId, serviceId, operator])
-  @@index([providerId])
-  @@index([countryId])
-  @@index([serviceId])
-  @@index([sellPrice])
-  @@index([stock])
-  @@index([deleted, stock, serviceId]) // Aggregate calculation speedup
-  @@map("provider_pricing")
-}
+// NOTE: ProviderPricing DELETED - All pricing now lives in MeiliSearch (Full-Mili Architecture)
 
 model ProviderTestResult {
   id           String   @id @default(uuid())
@@ -478,7 +456,7 @@ model OutboxEvent {
 // Reservation for preventing double-sells
 model OfferReservation {
   id                    String            @id @default(uuid())
-  pricingId             String            @map("pricing_id") // Reference to ProviderPricing
+  offerId               String            @map("offer_id") // MeiliSearch Offer ID (was pricing_id)
   userId                String            @map("user_id")
   quantity              Int               @default(1)
   expiresAt             DateTime          @map("expires_at") // TTL for reservation
@@ -489,10 +467,10 @@ model OfferReservation {
   confirmedAt           DateTime?         @map("confirmed_at")
 
   user    User            @relation(fields: [userId], references: [id])
-  pricing ProviderPricing @relation(fields: [pricingId], references: [id])
+  // pricing ProviderPricing @relation(fields: [pricingId], references: [id])  <-- DELETED
 
   @@index([userId])
-  @@index([pricingId])
+  @@index([offerId])
   @@index([status, expiresAt])
   @@map("offer_reservations")
 }
@@ -543,7 +521,9 @@ model Activation {
   id     String          @id @default(uuid())
   userId String          @map("user_id")
   state  ActivationState @default(RESERVED)
-  price  Decimal         @db.Decimal(8, 2)
+  price  Decimal         @db.Decimal(18, 8)
+  providerCost Decimal         @default(0.0) @map("provider_cost") @db.Decimal(18, 8)
+  profit       Decimal         @default(0.0) @db.Decimal(18, 8)
 
   // Wallet Transaction References
   reservedTxId String? @map("reserved_tx_id")
@@ -567,18 +547,39 @@ model Activation {
   // Linked Number (if created)
   numberId String? @unique @map("number_id")
 
-  // Idempotency
+  // Idempotency & Tracking
   idempotencyKey String? @unique @map("idempotency_key")
+  traceId        String? @map("trace_id")
 
   // Metadata
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  @@index([userId])
-  @@index([state])
+  // Forensic History
+  history ActivationStateHistory[]
+
+  @@index([userId, state])
+  @@index([state, expiresAt])
   @@index([state, createdAt])
-  @@index([providerId])
+  @@index([providerId, state])
   @@map("activations")
+}
+
+model ActivationStateHistory {
+  id            String          @id @default(uuid())
+  activationId  String          @map("activation_id")
+  state         ActivationState
+  previousState ActivationState? @map("previous_state")
+  reason        String?
+  metadata      Json?
+  traceId       String?         @map("trace_id")
+  createdAt     DateTime        @default(now()) @map("created_at")
+
+  activation Activation @relation(fields: [activationId], references: [id], onDelete: Cascade)
+
+  @@index([activationId])
+  @@index([createdAt])
+  @@map("activation_state_history")
 }
 
 // ============================================

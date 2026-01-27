@@ -9,40 +9,44 @@ export class SocketRateLimiter {
     /**
      * Attempts to register a new connection for a user.
      * Returns true if allowed, false if limit exceeded.
+     * 
+     * Uses an Atomic Lua Script for 100% precision in a distributed environment.
      */
     static async tryAcquire(userId: string, socketId: string): Promise<boolean> {
         const key = `${this.KEY_PREFIX}:${userId}`;
 
         try {
-            // Transaction: Add socket, get count, set expiry (cleanup safe)
-            const pipeline = redis.multi();
-            pipeline.sadd(key, socketId);
-            pipeline.scard(key);
-            pipeline.expire(key, 86400); // 24h cleanup safety
+            // LUA SCRIPT:
+            // 1. Check current set size
+            // 2. If size < MAX, add the socketId and return 1
+            // 3. Otherwise return 0
+            const script = `
+                local limit = tonumber(ARGV[2])
+                local current = redis.call("SCARD", KEYS[1])
+                if current < limit then
+                    redis.call("SADD", KEYS[1], ARGV[1])
+                    redis.call("EXPIRE", KEYS[1], 86400)
+                    return 1
+                else
+                    -- Check if socketId is already in the set (idempotency)
+                    if redis.call("SISMEMBER", KEYS[1], ARGV[1]) == 1 then
+                        return 1
+                    end
+                    return 0
+                end
+            `;
 
-            const results = await pipeline.exec();
-            if (!results) return false;
+            const result = await redis.eval(script, 1, key, socketId, this.MAX_CONNECTIONS_PER_USER);
 
-            // results[1] is result of scard (current count)
-            // format: [error, result]
-            const countError = results[1][0];
-            const count = results[1][1] as number;
-
-            if (countError) throw countError;
-
-            if (count > this.MAX_CONNECTIONS_PER_USER) {
-                // Rollback: Remove the socket we just added
-                await redis.srem(key, socketId);
-                logger.warn(`[SocketLimiter] User ${userId} exceeded limit (${count}/${this.MAX_CONNECTIONS_PER_USER})`);
+            if (result === 0) {
+                logger.warn(`[SocketLimiter] User ${userId} connection limit reached`);
                 return false;
             }
 
             return true;
-
         } catch (error) {
             logger.error('[SocketLimiter] Error acquiring lock', error);
-            // Fail open or closed? 
-            // Fail open (allow connection) avoids outage during Redis blip
+            // Fail open to avoid blocking users during Redis issues
             return true;
         }
     }

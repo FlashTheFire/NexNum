@@ -90,7 +90,7 @@ export default function LoginPage() {
                                             <div className="absolute inset-0 rounded-2xl bg-[hsl(var(--neon-lime)/0.3)] blur-xl" />
                                             <div className="relative w-14 h-14 rounded-2xl bg-gradient-to-br from-[hsl(var(--neon-lime)/0.4)] to-[hsl(var(--neon-lime)/0.1)] flex items-center justify-center border border-[hsl(var(--neon-lime)/0.3)]">
                                                 <Image
-                                                    src="/logos/nexnum-logo.svg"
+                                                    src="/assets/brand/nexnum-logo.svg"
                                                     alt="NexNum"
                                                     width={38}
                                                     height={38}

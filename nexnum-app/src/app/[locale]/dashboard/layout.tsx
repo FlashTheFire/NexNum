@@ -102,6 +102,13 @@ export default function DashboardLayout({
         }
     }, [isLoading, isAuthenticated, router])
 
+    // Email verification enforcement - redirect unverified users
+    useEffect(() => {
+        if (!isLoading && isAuthenticated && user && !user.emailVerified) {
+            router.push("/auth/pending-verification")
+        }
+    }, [isLoading, isAuthenticated, user, router])
+
     const handleLogout = async () => {
         await logout()
         router.push("/")
@@ -113,6 +120,11 @@ export default function DashboardLayout({
 
     if (!isAuthenticated) {
         return null
+    }
+
+    // Block render while checking verification
+    if (isAuthenticated && user && !user.emailVerified) {
+        return <LoadingScreen status="Checking verification..." />
     }
 
     return (

@@ -1,73 +1,96 @@
+
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/core/db'
 import { getCurrentUser } from '@/lib/auth/jwt'
 import { apiHandler } from '@/lib/api/api-handler'
+import { z } from 'zod'
 import { smsProvider } from '@/lib/providers'
+import { emitStateUpdate } from '@/lib/events/emitters/state-emitter'
 
-/**
- * Complete Activation Manually
- * 
- * Allows user to mark an activation as "Completed" (Status 6) if they have received SMS.
- * This stops polling and releases the number at the provider level without refunding.
- */
+const completeNumberSchema = z.object({
+    numberId: z.string().uuid('Invalid number ID'),
+})
+
 export const POST = apiHandler(async (request, { body }) => {
+    // 1. Auth & Input Validation
     const user = await getCurrentUser(request.headers)
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { numberId } = body
 
-    if (!numberId) {
-        return NextResponse.json({ error: 'Number ID required' }, { status: 400 })
-    }
-
-    // 1. Get Number
+    // 2. Fetch Active Number
     const number = await prisma.number.findUnique({
-        where: { id: numberId },
-        include: { _count: { select: { smsMessages: true } } }
+        where: { id: numberId }
     })
 
     if (!number) {
         return NextResponse.json({ error: 'Number not found' }, { status: 404 })
     }
 
+    // @ts-ignore - Prisma typing check
     if (number.ownerId !== user.userId) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        return NextResponse.json({ error: 'Not your number' }, { status: 403 })
     }
 
-    // 2. Validate Status
-    if (number.status !== 'active' && number.status !== 'pending') {
-        return NextResponse.json({ error: `Cannot complete number in '${number.status}' status` }, { status: 400 })
-    }
-
-    // 3. Validate SMS Presence (Safety check)
-    // We generally only allow completing if services was actually used (has SMS), 
-    // otherwise they should cancel (and refund).
-    if (number._count.smsMessages === 0) {
+    if (number.status !== 'active') {
         return NextResponse.json({
-            error: 'No SMS received. Please use "Cancel" to refund the order instead.'
-        }, { status: 400 })
+            success: true,
+            message: 'Number already completed or inactive',
+            number
+        })
     }
 
-    console.log(`[COMPLETE] Completing number ${numberId} for user ${user.userId}`)
-
-    // 4. Notify Provider (Status 6 = Activation Complete)
+    // 3. Provider Call: Set Status 6 (Activation Complete)
+    let providerSuccess = false
     try {
-        if (smsProvider.setStatus) {
-            await smsProvider.setStatus(number.activationId, 6)
-            console.log(`[COMPLETE] Provider notified (Status 6)`)
+        // Fetch related activation manually (no relation in schema)
+        const activation = await prisma.activation.findUnique({
+            where: { numberId: number.id }
+        })
+
+        if (activation?.providerActivationId && number.provider) {
+            // Status 6 = ACTIVATION_COMPLETE in standard SMS protocols
+            // SmartRouter expects "provider:id" format
+            const compositeId = `${number.provider}:${activation.providerActivationId}`
+            await smsProvider.setStatus(compositeId, 6)
+            providerSuccess = true
         }
-    } catch (err: any) {
-        // Log but continue - we want to update local state regardless
-        console.warn(`[COMPLETE] Provider update warning:`, err.message)
+    } catch (err) {
+        console.warn(`[COMPLETE] Failed to set provider status for ${numberId}:`, err)
+        // We continue even if provider API fails, as user action is paramount locally
     }
 
-    // 5. Update Local DB
-    await prisma.number.update({
-        where: { id: numberId },
-        data: {
-            status: 'completed',
+    // 4. Update Database
+    const updatedNumber = await prisma.$transaction(async (tx) => {
+        // Complete the number
+        const n = await tx.number.update({
+            where: { id: numberId },
+            data: {
+                status: 'completed',
+                expiresAt: new Date() // Expire immediately
+            }
+        })
+
+        // Complete the activation
+        if (number.activationId) {
+            await tx.activation.update({
+                where: { id: number.activationId },
+                data: { state: 'RECEIVED' }
+            })
         }
+
+        return n
     })
 
-    return NextResponse.json({ success: true, status: 'completed' })
+    // 5. Emit Update to Frontend
+    emitStateUpdate(user.userId, 'numbers', 'completed').catch(() => { })
+
+    return NextResponse.json({
+        success: true,
+        message: 'Activation marked as complete',
+        number: updatedNumber
+    })
+
+}, {
+    schema: completeNumberSchema
 })

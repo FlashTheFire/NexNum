@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { MeiliSearch } from 'meilisearch'
 import { prisma } from '@/lib/core/db'
 import { healthMonitor } from '@/lib/providers/health-monitor'
+import { generateCanonicalCode, normalizeCountryName } from '@/lib/normalizers/service-identity'
 
 const meili = new MeiliSearch({
     host: process.env.MEILISEARCH_HOST || 'http://127.0.0.1:7700',
@@ -108,9 +109,8 @@ export async function GET(request: NextRequest) {
         // Build filter
         const filters: string[] = []
 
-        // Service filter (by slug or name)
-        const serviceSlug = serviceInput.toLowerCase().trim()
-        filters.push(`(serviceSlug = "${serviceSlug}" OR serviceName = "${serviceInput}")`)
+        // Service filter (Strict Name Match)
+        filters.push(`serviceName = "${serviceInput}"`)
 
         // Stock filter
         if (!includeOutOfStock) {
@@ -119,12 +119,11 @@ export async function GET(request: NextRequest) {
 
         // Optional filters
         if (countryInput) {
-            const countryClean = countryInput.toLowerCase().trim()
-            filters.push(`(countryCode = "${countryClean}" OR countryName = "${countryInput}")`)
+            filters.push(`countryName = "${countryInput}"`)
         }
 
         if (providerInput) {
-            filters.push(`provider = "${providerInput.toLowerCase()}"`)
+            filters.push(`providerName = "${providerInput}"`)
         }
 
         // Fetch all matching offers
@@ -143,9 +142,8 @@ export async function GET(request: NextRequest) {
             }, { status: 404 })
         }
 
-        // Get service info from first offer
         const serviceInfo = {
-            code: offers[0].serviceSlug,
+            code: generateCanonicalCode(offers[0].serviceName),
             name: offers[0].serviceName,
             iconUrl: offers[0].iconUrl
         }
@@ -164,8 +162,8 @@ export async function GET(request: NextRequest) {
         let bestDeal = { country: '', provider: '', price: Infinity }
 
         for (const offer of offers) {
-            const countryKey = offer.countryCode
-            const providerKey = offer.provider
+            const countryKey = normalizeCountryName(offer.countryName)
+            const providerKey = offer.providerName
 
             // Track provider stats
             if (!providerStatsMap.has(providerKey)) {
@@ -184,7 +182,7 @@ export async function GET(request: NextRequest) {
             // Build country row
             if (!countryMap.has(countryKey)) {
                 countryMap.set(countryKey, {
-                    countryCode: offer.countryCode,
+                    countryCode: generateCanonicalCode(offer.countryName),
                     countryName: offer.countryName,
                     flagUrl: offer.flagUrl,
                     providers: [],

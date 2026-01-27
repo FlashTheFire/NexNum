@@ -1,14 +1,9 @@
-/**
- * Sensitive Action Protection
- * 
- * Extra verification layer for critical operations:
- * - Re-authentication requirements
- * - CAPTCHA integration points
- * - Session elevation
- */
-
 import { prisma } from '@/lib/core/db'
+import { redis } from '@/lib/core/redis'
+import { logger } from '@/lib/core/logger'
+import { verifyCaptcha as verifyHCaptcha } from './captcha'
 import bcrypt from 'bcryptjs'
+import crypto from 'crypto'
 
 // Actions that require extra verification
 export const SENSITIVE_ACTIONS = [
@@ -32,9 +27,7 @@ export interface ElevatedSession {
 
 // Elevated session duration (5 minutes)
 const ELEVATION_DURATION_MS = 5 * 60 * 1000
-
-// In-memory store for elevated sessions (use Redis in production for multi-instance)
-const elevatedSessions = new Map<string, ElevatedSession>()
+const REDIS_ELEVATION_PREFIX = 'security:elevation:'
 
 /**
  * Require re-authentication for sensitive action
@@ -62,7 +55,7 @@ export async function requireReauth(
 
     // Create elevated session
     const now = Date.now()
-    const token = `${userId}:${action}:${now}`
+    const token = await generateElevationToken(userId, action)
     const session: ElevatedSession = {
         userId,
         elevatedAt: now,
@@ -70,49 +63,59 @@ export async function requireReauth(
         action
     }
 
-    elevatedSessions.set(token, session)
+    // Persist to Redis with TTL
+    const key = `${REDIS_ELEVATION_PREFIX}${token}`
+    await redis.set(key, JSON.stringify(session), 'PX', ELEVATION_DURATION_MS)
 
-    // Cleanup old sessions
-    cleanupExpiredSessions()
+    logger.info(`[Security] Elevation granted for user ${userId}`, { action })
 
     return { success: true, token }
+}
+
+async function generateElevationToken(userId: string, action: string): Promise<string> {
+    const random = crypto.randomUUID?.() || Math.random().toString(36).substring(2)
+    const raw = `${userId}:${action}:${random}:${Date.now()}`
+    return crypto.createHash('sha256').update(raw).digest('hex')
 }
 
 /**
  * Verify elevated session for an action
  */
-export function verifyElevation(
+export async function verifyElevation(
     token: string,
     userId: string,
     action: SensitiveAction
-): { valid: boolean; error?: string } {
-    const session = elevatedSessions.get(token)
+): Promise<{ valid: boolean; error?: string }> {
+    const key = `${REDIS_ELEVATION_PREFIX}${token}`
+    const data = await redis.get(key)
 
-    if (!session) {
-        return { valid: false, error: 'Re-authentication required' }
+    if (!data) {
+        return { valid: false, error: 'Re-authentication required (Session expired or invalid)' }
     }
 
-    if (session.userId !== userId) {
-        return { valid: false, error: 'Session mismatch' }
-    }
+    try {
+        const session = JSON.parse(data as string) as ElevatedSession
 
-    if (session.action !== action) {
-        return { valid: false, error: 'Action mismatch' }
-    }
+        if (session.userId !== userId) {
+            return { valid: false, error: 'Session mismatch' }
+        }
 
-    if (Date.now() > session.expiresAt) {
-        elevatedSessions.delete(token)
-        return { valid: false, error: 'Session expired, please re-authenticate' }
-    }
+        if (session.action !== action) {
+            return { valid: false, error: 'Action mismatch' }
+        }
 
-    return { valid: true }
+        return { valid: true }
+    } catch (e) {
+        return { valid: false, error: 'Malformed elevation data' }
+    }
 }
 
 /**
  * Consume elevated session (one-time use)
  */
-export function consumeElevation(token: string): void {
-    elevatedSessions.delete(token)
+export async function consumeElevation(token: string): Promise<void> {
+    const key = `${REDIS_ELEVATION_PREFIX}${token}`
+    await redis.del(key)
 }
 
 /**
@@ -123,46 +126,17 @@ export function requiresElevation(action: string): boolean {
 }
 
 /**
- * Cleanup expired sessions
+ * CAPTCHA verification (Production Hardened)
  */
-function cleanupExpiredSessions(): void {
-    const now = Date.now()
-    for (const [token, session] of elevatedSessions.entries()) {
-        if (session.expiresAt < now) {
-            elevatedSessions.delete(token)
-        }
+export async function checkActionCaptcha(token: string, remoteIp?: string): Promise<boolean> {
+    const result = await verifyHCaptcha(token, remoteIp)
+
+    if (!result.success && process.env.NODE_ENV === 'production') {
+        logger.warn('[Security] CAPTCHA verification failed', { error: result.error, ip: remoteIp })
     }
+
+    return result.success
 }
-
-/**
- * CAPTCHA verification placeholder
- * Integrate with hCaptcha or reCAPTCHA
- */
-export async function verifyCaptcha(token: string): Promise<boolean> {
-    // TODO: Implement actual CAPTCHA verification
-    // Example for hCaptcha:
-    // const response = await fetch('https://hcaptcha.com/siteverify', {
-    //     method: 'POST',
-    //     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    //     body: `secret=${HCAPTCHA_SECRET}&response=${token}`
-    // })
-    // const data = await response.json()
-    // return data.success
-
-    if (process.env.NODE_ENV !== 'production') {
-        return true // Skip in development
-    }
-
-    // In production, require real CAPTCHA
-    if (!process.env.HCAPTCHA_SECRET) {
-        console.warn('CAPTCHA not configured, skipping verification')
-        return true
-    }
-
-    // Placeholder - implement actual verification
-    return token.length > 0
-}
-
 /**
  * Rate limit check for suspicious activity
  */

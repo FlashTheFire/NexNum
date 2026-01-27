@@ -45,7 +45,7 @@ function useInView(options = {}) {
 export interface Provider {
     displayName: string;
     serviceName: string;
-    serviceSlug: string;
+    serviceCode: string;
     countryName: string;
     countryCode: string;
     flagUrl?: string;
@@ -63,9 +63,7 @@ export interface Provider {
 }
 
 interface ProviderSelectorProps {
-    serviceCode: string;
     serviceName: string;
-    countryCode: string;
     countryName: string;
     onBuy: (provider: Provider) => void;
     sortOption: "relevance" | "price_asc" | "stock_desc";
@@ -92,9 +90,7 @@ const CardSkeleton = () => (
 );
 
 export default function ProviderSelector({
-    serviceCode,
     serviceName,
-    countryCode,
     countryName,
     onBuy,
     sortOption,
@@ -169,7 +165,7 @@ export default function ProviderSelector({
         setPage(1);
         setHasMore(true);
         fetchProviders(1, true);
-    }, [serviceCode, countryCode, sortOption]);
+    }, [serviceName, countryName, sortOption]);
 
     const fetchProviders = async (pageToFetch: number, isReset: boolean) => {
         if (isReset) setLoading(true);
@@ -177,7 +173,7 @@ export default function ProviderSelector({
 
         try {
             const res = await fetch(
-                `/api/search/providers?service=${encodeURIComponent(serviceCode)}&country=${encodeURIComponent(countryCode)}&page=${pageToFetch}&limit=20&sort=${sortOption}`
+                `/api/search/providers?service=${encodeURIComponent(serviceName)}&country=${encodeURIComponent(countryName)}&page=${pageToFetch}&limit=20&sort=${sortOption}`
             );
             const data = await res.json();
 
@@ -516,9 +512,9 @@ export default function ProviderSelector({
                                             const constructedProvider: Provider = {
                                                 displayName: matched.name,
                                                 serviceName: serviceName,
-                                                serviceSlug: serviceCode,
+                                                serviceCode: '', // Legacy, not used in UI display but kept in interface
                                                 countryName: countryName,
-                                                countryCode: countryCode,
+                                                countryCode: '',
                                                 // Assuming default/missing icon and flag if not available, won't break onBuy usually
                                                 price: matched.price,
                                                 stock: matched.stock,

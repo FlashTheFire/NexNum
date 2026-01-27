@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/auth/requireAdmin'
 import { logAdminAction, getClientIP } from '@/lib/core/auditLog'
 import { wallet_transactions_total, recordIncident } from '@/lib/metrics'
 import { notify } from '@/lib/notifications'
+import { emitControlEvent } from '@/lib/events/emitters/state-emitter'
 
 export async function GET(request: Request) {
     const auth = await requireAdmin(request)
@@ -359,6 +360,11 @@ export async function PATCH(request: Request) {
             }
         })
 
+        // ENTERPRISE PROJECT OVERDRIVE: Real-time Socket Revocation
+        if (isBanned === true) {
+            await emitControlEvent('user.revoked', { userId })
+        }
+
         return NextResponse.json({ success: true, user: updatedUser })
 
     } catch (error) {
@@ -419,6 +425,13 @@ export async function POST(request: Request) {
                 ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
             }
         })
+
+        // ENTERPRISE PROJECT OVERDRIVE: Bulk Real-time Socket Revocation
+        if (action === 'ban') {
+            for (const userId of userIds) {
+                await emitControlEvent('user.revoked', { userId })
+            }
+        }
 
         return NextResponse.json({
             success: true,

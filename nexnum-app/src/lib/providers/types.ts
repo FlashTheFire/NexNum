@@ -23,6 +23,7 @@ export interface NumberResult {
     serviceCode: string
     serviceName?: string
     price: number | null
+    rawPrice?: number | null // New: Raw cost from provider (before markups)
     expiresAt: Date
 }
 
@@ -53,10 +54,10 @@ export interface SmsProvider {
     getCountries(): Promise<Country[]>
 
     // Get services for a country
-    getServices(countryCode: string): Promise<Service[]>
+    getServices(countryCode: string | number): Promise<Service[]>
 
     // Purchase a number
-    getNumber?(countryCode: string, serviceCode: string, options?: { operator?: string; maxPrice?: string | number }): Promise<NumberResult>
+    getNumber?(countryCode: string | number, serviceCode: string | number, options?: { operator?: string; maxPrice?: string | number }): Promise<NumberResult>
 
     // Check status and get SMS
     getStatus?(activationId: string): Promise<StatusResult>

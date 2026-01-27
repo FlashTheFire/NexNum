@@ -17,20 +17,20 @@ import { searchCountries } from "@/lib/search/search";
 export async function GET(req: Request) {
     try {
         const { searchParams } = new URL(req.url);
-        const serviceSlug = searchParams.get("service");
+        const serviceCode = searchParams.get("service");
         const q = searchParams.get("q") || "";
         const page = parseInt(searchParams.get("page") || "1");
         const limit = parseInt(searchParams.get("limit") || "50");
         const sort = (searchParams.get("sort") || "name") as 'name' | 'price' | 'stock';
 
-        if (!serviceSlug) {
+        if (!serviceCode) {
             return NextResponse.json(
                 { error: "Missing required param: service" },
                 { status: 400 }
             );
         }
 
-        const result = await searchCountries(serviceSlug, q, { page, limit, sort });
+        const result = await searchCountries(serviceCode, q, { page, limit, sort });
 
         // Map to API response format
         const items = result.countries.map(country => ({

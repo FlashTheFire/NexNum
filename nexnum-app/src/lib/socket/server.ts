@@ -7,6 +7,7 @@ import { AuthenticatedSocket, socketAuth } from './auth';
 import type { Server as HttpServer } from 'http';
 import { EventEnvelopeSchema } from '@/lib/events/schema';
 import { SocketRateLimiter } from './limiter';
+import { PresenceMonitor } from './presence';
 
 export class SocketService {
     private io: Server;
@@ -38,6 +39,15 @@ export class SocketService {
             path: '/api/socket', // Custom path to avoid conflict/easy proxying
             transports: ['polling', 'websocket'], // Allow both transports
             allowEIO3: true, // Allow Engine.IO v3 clients
+        });
+
+        // ERROR BOUNDARY: Global Engine.IO Errors
+        this.io.engine.on('connection_error', (err) => {
+            logger.error('[SocketEngine] Connection Error', {
+                code: err.req ? 'REQ_ERR' : 'GEN_ERR',
+                message: err.message,
+                context: err.context
+            });
         });
 
         this.setupAdapter();
@@ -91,14 +101,25 @@ export class SocketService {
 
             // 2. Auto-Join User Room
             const userRoom = `user:${userId}`;
-            socket.join(userRoom);
+            await socket.join(userRoom);
+
+            // 3. Track Presence (Distributed)
+            await PresenceMonitor.trackOnline(userId);
 
             logger.info(`[Socket] User connected: ${userId} (Joined ${userRoom})`);
 
-            // 3. Handle Disconnect
+            // 4. Handle Disconnect
             socket.on('disconnect', async (reason) => {
                 logger.debug(`[Socket] User disconnected: ${userId}`, { reason });
-                await SocketRateLimiter.release(userId, socket.id);
+                await Promise.all([
+                    SocketRateLimiter.release(userId, socket.id),
+                    PresenceMonitor.trackOffline(userId)
+                ]);
+            });
+
+            // ERROR BOUNDARY: Per-socket errors
+            socket.on('error', (err) => {
+                logger.error('[Socket] Client Error', { userId, error: err.message });
             });
         });
     }
@@ -131,7 +152,16 @@ export class SocketService {
 
                 const event = parsed.data;
 
-                // 2. Emit to Room
+                // 2. Handle INTERNAL Control Events (Kill Switch)
+                if (event.type === 'user.revoked') {
+                    const userId = event.payload.userId as string;
+                    if (userId) {
+                        this.killUserSessions(userId);
+                    }
+                    return;
+                }
+
+                // 3. Emit to Room
                 // We emit using the event 'type' as the socket event name
                 // e.g. client.on('sms.received', (payload) => {})
                 this.io.to(event.room).emit(event.type, event.payload);
@@ -145,6 +175,32 @@ export class SocketService {
                 logger.error('[SocketService] Error processing Redis message', e);
             }
         });
+    }
+
+    /**
+     * Forcefully disconnect all active sockets for a user.
+     * Used for real-time ban enforcement or security revocation.
+     */
+    private killUserSessions(userId: string) {
+        const room = `user:${userId}`;
+        const sockets = this.io.sockets.adapter.rooms.get(room);
+
+        if (sockets && sockets.size > 0) {
+            logger.warn(`[SocketService] REVOKING SESSIONS for user ${userId} (${sockets.size} sockets)`);
+            this.io.to(room).emit('security.revoked', { reason: 'Account suspended or token revoked' });
+            this.io.in(room).disconnectSockets(true);
+        }
+    }
+
+    /**
+     * Get global connection statistics
+     */
+    public async getStats() {
+        const totalConnections = this.io.engine.clientsCount;
+        return {
+            totalConnections,
+            adapter: 'redis'
+        };
     }
 
     public async cleanup() {

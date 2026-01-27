@@ -696,21 +696,27 @@ export class AdvancedMetricsCalculator {
     }
 
     private calcCostPerSuccess(transactions: any[], activations: any[]): MetricValue {
-        const successful = activations.filter(a =>
+        const successfulActivations = activations.filter(a =>
             a.state === 'COMPLETED' || a.state === 'SMS_RECEIVED'
-        ).length
+        )
+        const successful = successfulActivations.length
 
         if (successful === 0) return this.emptyMetric('Cost per Successful Operation', '$')
 
-        const totalCost = transactions
-            .filter(t => t.type === 'purchase' || t.type === 'commit')
-            .reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0)
+        // Use specific providerCost if available, otherwise fallback to transaction estimation
+        const totalCost = successfulActivations.reduce((sum, a) => {
+            const cost = Number(a.providerCost || 0)
+            if (cost > 0) return sum + cost
+
+            // Legacy Fallback: Try to estimate from price
+            return sum + (Number(a.price || 0) * 0.7) // Assume 30% margin for legacy
+        }, 0)
 
         const value = Math.round((totalCost / successful) * 100) / 100
         return {
             value,
             unit: '$',
-            status: 'good', // Context dependent
+            status: 'good',
             description: 'Average provider cost per successful order'
         }
     }
@@ -737,13 +743,20 @@ export class AdvancedMetricsCalculator {
     }
 
     private calcMarginPerService(transactions: any[], activations: any[]): MetricValue {
-        const revenue = activations
-            .filter(a => a.state === 'COMPLETED' || a.state === 'SMS_RECEIVED')
-            .reduce((sum, a) => sum + Number(a.price || 0), 0)
+        const successfulActivations = activations.filter(a =>
+            a.state === 'COMPLETED' || a.state === 'SMS_RECEIVED'
+        )
 
-        const cost = transactions
-            .filter(t => t.type === 'purchase' || t.type === 'commit')
-            .reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0)
+        const revenue = successfulActivations.reduce((sum, a) => sum + Number(a.price || 0), 0)
+
+        // Calculate cost using source-of-truth providerCost field
+        const cost = successfulActivations.reduce((sum, a) => {
+            const pCost = Number(a.providerCost || 0)
+            if (pCost > 0) return sum + pCost
+
+            // Legacy fallback
+            return sum + (Number(a.price || 0) * 0.7)
+        }, 0)
 
         if (revenue === 0) return this.emptyMetric('Margin per Service', '%')
 

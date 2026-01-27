@@ -18,7 +18,7 @@ export interface SafeImageProps extends ImgHTMLAttributes<HTMLImageElement> {
  * - Prevention of recursive error loops
  */
 export const SafeImage = forwardRef<HTMLImageElement, SafeImageProps>(
-    ({ src, alt, className, fallbackSrc = '/flags/un.svg', hideOnError = false, onError, ...props }, ref) => {
+    ({ src, alt, className, fallbackSrc = '/assets/flags/un.svg', hideOnError = false, onError, ...props }, ref) => {
         const [imgSrc, setImgSrc] = useState<string | undefined>(src as string)
         const [hasError, setHasError] = useState(false)
 

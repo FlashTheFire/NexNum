@@ -15,8 +15,8 @@ self.addEventListener('push', function (event) {
 
         const options = {
             body: body || 'New notification',
-            icon: icon || '/logos/nexnum-logo.svg',
-            badge: '/logos/nexnum-logo.svg', // Trying SVG for badge too, or keep badge generic if needed. Let's use logo for brand consistency.
+            icon: icon || '/assets/brand/nexnum-logo.svg',
+            badge: '/assets/brand/nexnum-logo.svg',
             vibrate: [100, 50, 100],
             data: {
                 dateOfArrival: Date.now(),

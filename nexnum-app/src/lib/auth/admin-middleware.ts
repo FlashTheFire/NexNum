@@ -1,53 +1,25 @@
 import { NextResponse } from 'next/server'
-import { verifyToken } from '@/lib/auth/jwt'
-import { redis } from '@/lib/core/redis'
+import { getCurrentUser } from './jwt'
+import { SecurityLogger } from './security-logger'
 
-const LOGS_KEY = 'admin:api_logs'
-const MAX_LOGS = 100
-
-// Log an API request to Redis
-async function logApiRequest(request: Request, status: number = 200, duration: number = 0) {
-    try {
-        const url = new URL(request.url)
-        const logEntry = {
-            id: crypto.randomUUID(),
-            timestamp: new Date().toISOString(),
-            method: request.method,
-            path: url.pathname,
-            status,
-            duration,
-            ip: request.headers.get('x-forwarded-for') || 'unknown'
-        }
-
-        // Push to Redis list (non-blocking, fire and forget)
-        await redis.lpush(LOGS_KEY, JSON.stringify(logEntry))
-        await redis.ltrim(LOGS_KEY, 0, MAX_LOGS - 1)
-    } catch (e) {
-        // Don't let logging errors affect the request
-        console.error('API log error:', e)
-    }
-}
-
+/**
+ * Professional Admin API Middleware
+ * 
+ * Protects admin routes with industrial-grade session verification
+ * and forensic auditing via SecurityLogger.
+ */
 export async function adminMiddleware(request: Request) {
-    const startTime = Date.now()
-    const token = request.headers.get('cookie')?.split('auth-token=')[1]?.split(';')[0]
+    // 1. Session Verification
+    const user = await getCurrentUser(request.headers)
 
-    if (!token) {
-        await logApiRequest(request, 401, Date.now() - startTime)
+    if (!user || user.role !== 'ADMIN') {
+        // Log Unauthorized Access Attempt
+        await SecurityLogger.log(request, 401, user?.userId, 'Illegal admin access attempt')
         return NextResponse.redirect(new URL('/login', request.url))
     }
 
-    const payload = await verifyToken(token)
-    if (!payload) {
-        await logApiRequest(request, 401, Date.now() - startTime)
-        return NextResponse.redirect(new URL('/login', request.url))
-    }
-
-    // Log successful admin API access
-    await logApiRequest(request, 200, Date.now() - startTime)
+    // 2. Log Successful Admin Action (Fire and Forget)
+    SecurityLogger.log(request, 200, user.userId)
 
     return NextResponse.next()
 }
-
-// Export logApiRequest for use in other API routes
-export { logApiRequest }

@@ -3,6 +3,7 @@ import { DynamicProvider } from '@/lib/providers/dynamic-provider'
 import { SmsProvider, Country, Service, NumberResult, StatusResult } from '@/lib/providers/types'
 import { healthMonitor } from '@/lib/providers/health-monitor'
 import { logger } from '@/lib/core/logger'
+import { PredictiveThrottler } from '@/lib/core/rate-limit'
 
 import { redis } from '@/lib/core/redis'
 
@@ -12,6 +13,14 @@ const CACHE_TTL = 30 // 30 seconds (Fresh enough, but prevents DB spam)
 
 export class SmartSmsRouter implements SmsProvider {
     name = 'SmartRouter'
+
+    /**
+     * Lifecycle: Initialize the router and its sub-systems
+     */
+    async init(): Promise<void> {
+        logger.info('[SmartRouter] Initializing enterprise routing engine...')
+        // Potential future: Warm up caches or establish persistent connections
+    }
 
     private async getActiveProviders(): Promise<DynamicProvider[]> {
         try {
@@ -94,6 +103,7 @@ export class SmartSmsRouter implements SmsProvider {
      */
     private async selectProviderWeighted(
         providers: DynamicProvider[],
+        country?: string | number,
         providerData?: Map<string, { price: number, stock: number }>
     ): Promise<DynamicProvider[]> {
         if (providers.length <= 1) return providers
@@ -101,11 +111,19 @@ export class SmartSmsRouter implements SmsProvider {
         const scored: { provider: DynamicProvider; score: number }[] = []
 
         for (const provider of providers) {
-            const health = await healthMonitor.getHealth(provider.config.id)
+            const health = await healthMonitor.getHealth(provider.config.id, country)
             const data = providerData?.get(provider.name)
 
+            // --- THOMPSON SAMPLING (EXPLORE/EXPLOIT) ---
+            // Beta Distribution approximation: 
+            // We add a small random variance to the success rate to allow "exploration" 
+            // of providers that haven't been tried recently or have high potential.
+            const baseSuccess = health.successRate || 0.5
+            const explorationFactor = 0.1 / (1 + (health.consecutiveFailures || 0))
+            const sampledSuccess = baseSuccess + (Math.random() - 0.5) * explorationFactor
+            const successRate = Math.max(0.01, Math.min(1.0, sampledSuccess))
+
             // Factors
-            const successRate = health.successRate || 0.5
             // New: Use Real SMS Delivery Time instead of API Latency
             const deliveryTime = Math.max(health.avgDeliveryTime || 15000, 2000) // Min 2s floor
             // Multi-SMS Bonus
@@ -115,14 +133,17 @@ export class SmartSmsRouter implements SmsProvider {
             const adminWeight = Number((provider.config as any).weight) || 1.0
             const priorityBoost = 1 / (Number(provider.config.priority) || 1) // Lower priority number = higher boost
 
+            // --- SYSTEM HEALTH PRESSURE PENALTY ---
+            // If the local system is under heavy load (high loop lag), we penalize 
+            // high-latency providers more heavily to reduce the duration of open handles.
+            const pressureFactor = PredictiveThrottler.getPressureFactor()
+            const healthPenalty = 1 + (pressureFactor - 1) * (deliveryTime / 20000)
+
             // Stock Factor (Logarithmic to avoid skewing for huge stock)
-            // If stock is 0 (or unknown), we treat it as very low score but not zero (unless strict).
-            // log10(1) = 0, so we use log10(stock + 10) to ensure > 1 base factor
             const stock = data?.stock || 0
-            const stockFactor = stock > 0 ? Math.log10(stock + 10) : 0.1 // Penalty for no stock
+            const stockFactor = stock > 0 ? Math.log10(stock + 10) : 0.1
 
             // Price Factor
-            // If we have exact price, use it. Otherwise use generic multiplier.
             const priceFactor = data?.price ? (data.price * costMultiplier) : costMultiplier
 
             // Normalize Delivery Time (10s = 1.0, 60s = 6.0)
@@ -130,17 +151,16 @@ export class SmartSmsRouter implements SmsProvider {
 
             // Calculate score
             // High success rate, HIGH STOCK, low latency, low cost = high score
-            const score = (successRate * adminWeight * priorityBoost * stockFactor) / (normalizedTime * priceFactor)
+            // healthPenalty reduces score for slow providers during system pressure
+            const score = (successRate * adminWeight * priorityBoost * stockFactor) / (normalizedTime * priceFactor * healthPenalty)
 
             scored.push({ provider, score })
 
             logger.debug('Provider score calculated', {
                 provider: provider.name,
-                successRate,
+                country: country || 'GLOBAL',
+                successRate: successRate.toFixed(3),
                 deliveryTime,
-                smsBonus: multiSmsBoost,
-                stock,
-                cost: data?.price,
                 score: score.toFixed(3)
             })
         }
@@ -167,7 +187,7 @@ export class SmartSmsRouter implements SmsProvider {
      * Hides sensitive admin config (weights, exact margins) but exposes
      * final price and generic reliability score.
      */
-    async getRankedProviders(country: string, service: string): Promise<any[]> {
+    async getRankedProviders(country: string | number, service: string | number): Promise<any[]> {
         const cacheKey = `cache:quotes:${country}:${service}`
 
         try {
@@ -203,11 +223,11 @@ export class SmartSmsRouter implements SmsProvider {
             logger.warn('Failed to fetch provider data from search index', { error: e })
         }
 
-        const ranked = await this.selectProviderWeighted(providers, providerData)
+        const ranked = await this.selectProviderWeighted(providers, country, providerData)
 
         // Map to safe public structure
         const result = await Promise.all(ranked.map(async (p, index) => {
-            const health = await healthMonitor.getHealth(p.config.id)
+            const health = await healthMonitor.getHealth(p.config.id, country)
             const data = providerData.get(p.name)
 
             return {
@@ -257,7 +277,7 @@ export class SmartSmsRouter implements SmsProvider {
         }
     }
 
-    async getServices(countryCode: string): Promise<Service[]> {
+    async getServices(countryCode: string | number): Promise<Service[]> {
         const providers = await this.getActiveProviders()
         if (providers.length === 0) throw new Error("No active providers available")
 
@@ -297,7 +317,7 @@ export class SmartSmsRouter implements SmsProvider {
         return allServices
     }
 
-    async getNumber(countryCode: string, serviceCode: string, options?: {
+    async getNumber(countryCode: string | number, serviceCode: string | number, options?: {
         operator?: string;
         maxPrice?: string | number;
         provider?: string;
@@ -334,7 +354,7 @@ export class SmartSmsRouter implements SmsProvider {
             }
         } else {
             // Apply weighted selection for best provider order
-            providers = await this.selectProviderWeighted(providers)
+            providers = await this.selectProviderWeighted(providers, countryCode)
         }
 
         const checkedProviders: string[] = []
@@ -342,17 +362,17 @@ export class SmartSmsRouter implements SmsProvider {
         for (const provider of providers) {
             const startTime = Date.now()
             try {
-                logger.info(`SmartRouter: Attempting purchase from ${provider.name}...`)
+                logger.info(`SmartRouter: Attempting purchase from ${provider.name} for ${countryCode}...`)
 
                 // Pass maxPrice to limit what the provider can charge
                 const result = await provider.getNumber(countryCode, serviceCode, {
                     operator: options?.operator,
-                    maxPrice: expectedPrice || options?.maxPrice // Use expected price as max
+                    maxPrice: providerPreference ? undefined : (expectedPrice || options?.maxPrice)
                 })
 
-                // Record success
+                // Record success (with country facet)
                 const latency = Date.now() - startTime
-                await healthMonitor.recordRequest(provider.config.id, true, latency)
+                await healthMonitor.recordRequest(provider.config.id, true, latency, countryCode)
 
                 // Apply Pricing Rules to the result
                 const mult = Number(provider.config.priceMultiplier) || 1.0
@@ -361,17 +381,19 @@ export class SmartSmsRouter implements SmsProvider {
                 return {
                     ...result,
                     activationId: `${provider.name}:${result.activationId}`,
-                    price: ((result.price || 0) * mult) + fixed
+                    price: ((result.price || 0) * mult) + fixed,
+                    rawPrice: result.rawPrice // Pass through the base cost (POINTS)
                 }
             } catch (e: any) {
-                // Record failure
-                const latency = Date.now() - startTime
-                await healthMonitor.recordRequest(provider.config.id, false, latency)
-
                 // Check for structured ProviderError
                 const errorType = e.errorType || 'UNKNOWN'
                 const isNoStock = e.isNoStock ?? false
                 const isPermanent = e.isPermanent ?? false
+
+                // Record failure (with country facet)
+                const latency = Date.now() - startTime
+                const mappedErrorType = isPermanent ? 'SYSTEMIC' : (errorType === 'TIMEOUT' ? 'TIMEOUT' : 'TRANSIENT')
+                await healthMonitor.recordRequest(provider.config.id, false, latency, countryCode, mappedErrorType)
 
                 logger.warn(`SmartRouter: Purchase failed on ${provider.name}: ${e.message}`, {
                     errorType,
@@ -432,7 +454,8 @@ export class SmartSmsRouter implements SmsProvider {
                     // Treat terminal business states (LifecycleTerminal) as a success for health monitoring
                     // This prevents healthy providers from being flagged as "degraded" just because an order timed out.
                     const isSuccess = e.isLifecycleTerminal || false
-                    await healthMonitor.recordRequest(provider.config.id, isSuccess, latency)
+                    const errStatus = isSuccess ? undefined : (e.isPermanent ? 'SYSTEMIC' : (e.errorType === 'TIMEOUT' ? 'TIMEOUT' : 'TRANSIENT'))
+                    await healthMonitor.recordRequest(provider.config.id, isSuccess, latency, undefined, errStatus as any)
 
                     throw e
                 }
@@ -577,8 +600,8 @@ export class SmartSmsRouter implements SmsProvider {
      * Only tries providers where price <= maxPrice (if specified)
      */
     async purchaseWithBestRoute(
-        country: string,
-        service: string,
+        country: string | number,
+        service: string | number,
         maxPrice?: number
     ): Promise<{
         success: boolean
@@ -646,5 +669,12 @@ export class SmartSmsRouter implements SmsProvider {
 
         // All providers failed
         return { success: false, attemptsLog }
+    }
+
+    /**
+     * Graceful Shutdown
+     */
+    async shutdown(): Promise<void> {
+        logger.info('[SmartRouter] Shutdown sequence complete.')
     }
 }

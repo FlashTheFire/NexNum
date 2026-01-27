@@ -48,22 +48,31 @@ export async function getCachedServices(): Promise<ServiceInfo[]> {
     // Fetch from DB
     const services = await prisma.serviceLookup.findMany({
         select: {
-            code: true,
-            name: true,
-            iconUrl: true
+            serviceCode: true,
+            serviceName: true,
+            serviceIcon: true
         },
-        orderBy: { name: 'asc' }
+        orderBy: { serviceName: 'asc' }
     })
 
     // Cache result
     try {
-        await redis.set(cacheKey, JSON.stringify(services), 'EX', CACHE_TTL.SERVICES)
-        logger.debug('[Cache] Services SET', { count: services.length })
+        const mapped = services.map(s => ({
+            code: s.serviceCode,
+            name: s.serviceName,
+            iconUrl: s.serviceIcon
+        }));
+        await redis.set(cacheKey, JSON.stringify(mapped), 'EX', CACHE_TTL.SERVICES)
+        logger.debug('[Cache] Services SET', { count: mapped.length })
+        return mapped;
     } catch (error) {
         logger.warn('[Cache] Failed to cache services', { error })
+        return services.map(s => ({
+            code: s.serviceCode,
+            name: s.serviceName,
+            iconUrl: s.serviceIcon
+        }));
     }
-
-    return services
 }
 
 /**
@@ -82,23 +91,29 @@ export async function getCachedService(code: string): Promise<ServiceInfo | null
     }
 
     const service = await prisma.serviceLookup.findUnique({
-        where: { code },
+        where: { serviceCode: code },
         select: {
-            code: true,
-            name: true,
-            iconUrl: true
+            serviceCode: true,
+            serviceName: true,
+            serviceIcon: true
         }
     })
 
     if (service) {
+        const mapped = {
+            code: service.serviceCode,
+            name: service.serviceName,
+            iconUrl: service.serviceIcon
+        };
         try {
-            await redis.set(cacheKey, JSON.stringify(service), 'EX', CACHE_TTL.SERVICES)
+            await redis.set(cacheKey, JSON.stringify(mapped), 'EX', CACHE_TTL.SERVICES)
         } catch (error) {
             // Non-fatal
         }
+        return mapped;
     }
 
-    return service
+    return null
 }
 
 // ============================================================================
@@ -124,22 +139,31 @@ export async function getCachedCountries(): Promise<CountryInfo[]> {
     // Fetch from DB
     const countries = await prisma.countryLookup.findMany({
         select: {
-            code: true,
-            name: true,
-            flagUrl: true
+            countryCode: true,
+            countryName: true,
+            countryIcon: true
         },
-        orderBy: { name: 'asc' }
+        orderBy: { countryName: 'asc' }
     })
 
     // Cache result
     try {
-        await redis.set(cacheKey, JSON.stringify(countries), 'EX', CACHE_TTL.COUNTRIES)
-        logger.debug('[Cache] Countries SET', { count: countries.length })
+        const mapped = countries.map(c => ({
+            code: c.countryCode,
+            name: c.countryName,
+            flagUrl: c.countryIcon
+        }));
+        await redis.set(cacheKey, JSON.stringify(mapped), 'EX', CACHE_TTL.COUNTRIES)
+        logger.debug('[Cache] Countries SET', { count: mapped.length })
+        return mapped;
     } catch (error) {
         logger.warn('[Cache] Failed to cache countries', { error })
+        return countries.map(c => ({
+            code: c.countryCode,
+            name: c.countryName,
+            flagUrl: c.countryIcon
+        }));
     }
-
-    return countries
 }
 
 /**
@@ -158,23 +182,29 @@ export async function getCachedCountry(code: string): Promise<CountryInfo | null
     }
 
     const country = await prisma.countryLookup.findUnique({
-        where: { code },
+        where: { countryCode: code },
         select: {
-            code: true,
-            name: true,
-            flagUrl: true
+            countryCode: true,
+            countryName: true,
+            countryIcon: true
         }
     })
 
     if (country) {
+        const mapped = {
+            code: country.countryCode,
+            name: country.countryName,
+            flagUrl: country.countryIcon
+        };
         try {
-            await redis.set(cacheKey, JSON.stringify(country), 'EX', CACHE_TTL.COUNTRIES)
+            await redis.set(cacheKey, JSON.stringify(mapped), 'EX', CACHE_TTL.COUNTRIES)
         } catch (error) {
             // Non-fatal
         }
+        return mapped;
     }
 
-    return country
+    return null
 }
 
 // ============================================================================

@@ -19,7 +19,7 @@ export async function GET(request: Request) {
         // Get all offers for aggregation
         const result = await index.search('', {
             limit: 50000,
-            attributesToRetrieve: ['countryCode', 'countryName', 'serviceSlug', 'serviceName', 'provider', 'stock', 'isActive', 'lastSyncedAt'],
+            attributesToRetrieve: ['countryCode', 'countryName', 'serviceCode', 'serviceName', 'providerName', 'stock', 'isActive', 'lastSyncedAt'],
         })
 
         const countries = new Set<string>()
@@ -35,14 +35,14 @@ export async function GET(request: Request) {
                 countries.add(hit.countryName.toLowerCase())
             }
 
-            // Count unique services (by slug)
-            if (hit.serviceSlug) {
-                services.add(hit.serviceSlug.toLowerCase())
+            // Count unique services (by name)
+            if (hit.serviceName) {
+                services.add(hit.serviceName.toLowerCase())
             }
 
             // Count providers
-            if (hit.provider) {
-                providers.add(hit.provider)
+            if (hit.providerName) {
+                providers.add(hit.providerName)
             }
 
             // Count hidden

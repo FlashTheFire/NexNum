@@ -85,7 +85,7 @@ export class WebhookService {
 
     /**
      * Dispatch an event to all matching webhooks
-     * This enqueues jobs for the worker to process
+     * This enqueues jobs for the industrial worker to process
      */
     static async dispatch(userId: string, event: string, payload: any): Promise<void> {
         // Find active webhooks for this user that subscribe to this event
@@ -99,13 +99,8 @@ export class WebhookService {
 
         if (webhooks.length === 0) return
 
-        // In a real production system, we would push to a Redis queue here (e.g., BullMQ or pg-boss).
-        // For this implementation, we'll create WebhookDelivery records immediately to track them,
-        // (The actual HTTP delivery would be handled by a worker picking these up).
-
-        // SPRINT 0: We will just log the "Intent to deliver" by creating pending deliveries.
-        // The Worker will poll/subscribe to these.
-
+        // Professional Persistence: Store the delivery intent immediately
+        const now = new Date()
         const deliveryPromises = webhooks.map(wh =>
             prisma.webhookDelivery.create({
                 data: {
@@ -113,11 +108,13 @@ export class WebhookService {
                     event,
                     payload,
                     status: 'pending',
-                    nextRetryAt: new Date() // Ready to process now
+                    nextRetryAt: now, // Process immediately
+                    attempts: 0
                 }
             })
         )
 
-        await Promise.all(deliveryPromises)
+        // Bulk creation (using Promise.all for parallelism in enqueuing)
+        await Promise.allSettled(deliveryPromises)
     }
 }

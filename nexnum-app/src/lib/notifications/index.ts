@@ -25,6 +25,7 @@
  */
 
 import nodemailer from 'nodemailer'
+import { EmailTemplates } from './templates'
 import { Telegraf } from 'telegraf'
 import { redis } from '@/lib/core/redis'
 import { prisma } from '@/lib/core/db'
@@ -547,44 +548,11 @@ class EmailChannel {
         }
     }
 
+
     async sendDepositConfirmation(payload: DepositPayload): Promise<boolean> {
         if (!this.transporter || !payload.userEmail) return false
 
-        const html = `
-<!DOCTYPE html>
-<html>
-<head><style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-    .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 10px 10px 0 0; }
-    .content { background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; }
-    .amount { font-size: 32px; font-weight: bold; color: #2d3748; }
-    .details { background: white; padding: 20px; border-radius: 8px; margin-top: 20px; }
-    .detail-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; }
-    .footer { text-align: center; margin-top: 20px; color: #718096; font-size: 12px; }
-</style></head>
-<body>
-<div class="container">
-    <div class="header">
-        <h1>💎 Deposit Confirmed</h1>
-    </div>
-    <div class="content">
-        <div class="amount">${payload.amount.toFixed(2)} Points</div>
-        <p>Your deposit has been successfully credited to your account.</p>
-        <div class="details">
-            <div class="detail-row"><span>Transaction ID</span><span>${payload.depositId}</span></div>
-            <div class="detail-row"><span>Payment Method</span><span>${payload.paidFrom}</span></div>
-            <div class="detail-row"><span>Type</span><span>${payload.paymentType}</span></div>
-            <div class="detail-row"><span>Date</span><span>${(payload.timestamp || new Date()).toLocaleString()}</span></div>
-        </div>
-    </div>
-    <div class="footer">
-        <p>Thank you for using NexNum!</p>
-    </div>
-</div>
-</body>
-</html>
-        `.trim()
+        const html = EmailTemplates.depositConfirmation(payload)
 
         try {
             await this.transporter.sendMail({
@@ -604,41 +572,7 @@ class EmailChannel {
     async sendOrderUpdate(payload: OrderPayload, userEmail?: string): Promise<boolean> {
         if (!this.transporter || !userEmail) return false
 
-        const statusText = {
-            PENDING: 'Your order is being processed',
-            ACTIVE: 'Your number is ready and waiting for SMS',
-            COMPLETED: 'Your order has been completed successfully',
-            CANCELLED: 'Your order has been cancelled',
-            EXPIRED: 'Your order has expired'
-        }
-
-        const html = `
-<!DOCTYPE html>
-<html>
-<head><style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-    .status { padding: 20px; border-radius: 10px; text-align: center; margin-bottom: 20px; }
-    .status.COMPLETED { background: #c6f6d5; color: #22543d; }
-    .status.PENDING, .status.ACTIVE { background: #fefcbf; color: #744210; }
-    .status.CANCELLED, .status.EXPIRED { background: #fed7d7; color: #742a2a; }
-    .details { background: #f8f9fa; padding: 20px; border-radius: 8px; }
-</style></head>
-<body>
-<div class="container">
-    <div class="status ${payload.status}">
-        <h2>${statusText[payload.status]}</h2>
-    </div>
-    <div class="details">
-        <p><strong>Service:</strong> ${payload.appName}</p>
-        <p><strong>Number:</strong> +${payload.phoneNumber}</p>
-        <p><strong>Region:</strong> ${payload.country}</p>
-        ${payload.smsList?.length ? `<p><strong>SMS Codes:</strong> ${payload.smsList.join(', ')}</p>` : ''}
-    </div>
-</div>
-</body>
-</html>
-        `.trim()
+        const html = EmailTemplates.orderUpdate(payload)
 
         try {
             await this.transporter.sendMail({
@@ -666,7 +600,7 @@ class EmailChannel {
                 to,
                 subject: `🚨 [${payload.severity.toUpperCase()}] ${payload.title}`,
                 text: payload.message,
-                html: `<h2>${payload.title}</h2><p>${payload.message}</p>`
+                html: EmailTemplates.alert(payload.title, payload.message)
             })
             return true
         } catch {

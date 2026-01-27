@@ -45,11 +45,9 @@ export default function BuyPage() {
             })
 
             if (selectedCountryParam && !selectedCountry) {
-                // We don't have the ID, but we can pass the name. 
-                // We'll set the ID to the name temporarily, and let CountrySelector handle the "highlight by name" logic if possible,
-                // or we update CountrySelector to check name too.
+                // Use name as identity for country as well
                 setSelectedCountry({
-                    id: selectedCountryParam, // Placeholder, usually numeric but using name here
+                    id: selectedCountryParam,
                     name: selectedCountryParam,
                     code: ''
                 })
@@ -94,7 +92,7 @@ export default function BuyPage() {
             const providerName = provider.isBestRoute ? undefined : provider.displayName;
             const options = provider.isBestRoute ? { useBestRoute: true, maxPrice: provider.maxPrice } : undefined;
 
-            const result = await purchaseNumber(provider.countryCode, provider.serviceSlug, providerName, options)
+            const result = await purchaseNumber(provider.countryCode, provider.serviceCode, providerName, options)
             if (!result.success) throw new Error(result.error || "Purchase failed")
 
             await fetchBalance()
@@ -103,7 +101,20 @@ export default function BuyPage() {
             router.push(`/sms/${result.number?.id || ''}`)
         } catch (error: any) {
             toast.dismiss(toastId)
-            toast.error("Purchase Failed", { description: error.message })
+
+            // Smart Error Handling (Phase 55)
+            if (error.code === 'E_INSUFFICIENT_FUNDS') {
+                toast.error("Insufficient Funds", {
+                    description: "You need more credit to complete this purchase.",
+                    action: {
+                        label: "Top Up Now",
+                        onClick: () => router.push('/dashboard/wallet/deposit')
+                    },
+                    duration: 8000
+                })
+            } else {
+                toast.error("Purchase Failed", { description: error.message })
+            }
         }
     }
 
@@ -198,9 +209,7 @@ export default function BuyPage() {
                                 transition={{ duration: 0.2 }}
                             >
                                 <ProviderSelector
-                                    serviceCode={selectedService.id}
                                     serviceName={selectedService.name}
-                                    countryCode={selectedCountry.code || selectedCountry.id}
                                     countryName={selectedCountry.name}
                                     onBuy={handlePurchase}
                                     sortOption={sortOption}

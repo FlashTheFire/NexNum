@@ -23,7 +23,7 @@ import { useMemo } from "react"
 interface ProviderStatus {
     id: string
     name: string
-    slug: string
+    code: string
     logoUrl?: string
     status: 'online' | 'maintenance' | 'offline'
 }
@@ -58,7 +58,7 @@ interface AggregatedCountry {
 
 interface AggregatedService {
     canonicalName: string
-    canonicalSlug: string
+    canonicalCode: string
     providers: Array<{
         provider: string
         externalId: string
@@ -135,7 +135,7 @@ export default function InventoryPage() {
 
     // Open edit modal helper
     const openEditModal = (type: 'country' | 'service', provider: string, externalId: string, name: string, imageUrl?: string) => {
-        const providerData = providers.find(p => p.slug.toLowerCase() === provider.toLowerCase())
+        const providerData = providers.find(p => p.code.toLowerCase() === provider.toLowerCase())
         setEditModal({
             isOpen: true,
             type,
@@ -193,10 +193,10 @@ export default function InventoryPage() {
     }
 
     // Get provider ID from slug
-    const getProviderId = (providerSlug: string) => {
-        // Find provider by matching slug to provider name
-        const provider = providers.find(p => p.slug.toLowerCase() === providerSlug.toLowerCase())
-        return provider?.id || providerSlug
+    const getProviderId = (providerCode: string) => {
+        // Find provider by matching code to provider name
+        const provider = providers.find(p => p.code.toLowerCase() === providerCode.toLowerCase())
+        return provider?.id || providerCode
     }
 
     // Bulk action handler
@@ -263,7 +263,7 @@ export default function InventoryPage() {
                 setProviders(providerList.map((p: any) => ({
                     id: p.name.toLowerCase(),
                     name: p.displayName || p.name,
-                    slug: p.name,
+                    code: p.name,
                     logoUrl: p.logoUrl || `/providers/${p.name.toLowerCase()}.png`,
                     status: p.isActive ? 'online' : 'offline'
                 })))
@@ -389,9 +389,9 @@ export default function InventoryPage() {
             const type = activeTab === 'countries' ? 'country' : 'service' as const
 
             return {
-                id: `${item.provider || item.countryCode || item.canonicalSlug}:${item.externalId || item.countryCode || item.canonicalSlug}`,
+                id: `${item.provider || item.countryCode || item.canonicalCode}:${item.externalId || item.countryCode || item.canonicalCode}`,
                 provider: item.provider || primaryProvider.provider || 'mixed',
-                externalId: item.externalId || primaryProvider.externalId || item.countryCode || item.canonicalSlug || 'unknown',
+                externalId: item.externalId || primaryProvider.externalId || item.countryCode || item.canonicalCode || 'unknown',
                 name: item.name || item.displayName || item.canonicalName || 'Unknown',
                 type: type,
                 iconUrl: item.iconUrl || item.flagUrl,
@@ -458,7 +458,7 @@ export default function InventoryPage() {
                                     </div>
                                     <div className="min-w-0">
                                         <h4 className="text-xs font-bold text-white truncate">{p.name}</h4>
-                                        <code className="text-[9px] text-gray-500 font-mono">@{p.slug}</code>
+                                        <code className="text-[9px] text-gray-500 font-mono">@{p.code}</code>
                                         <div className="flex items-center gap-1.5 mt-1">
                                             <div className={`w-1 h-1 rounded-full ${p.status === 'online' ? 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]' : 'bg-yellow-500'}`} />
                                             <span className="text-[9px] text-gray-500 uppercase font-bold tracking-tighter">{p.status}</span>

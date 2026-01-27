@@ -1,45 +1,53 @@
 # Changelog
 
-All notable changes to NexNum will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+All notable changes to NexNum are documented in this file. NexNum adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
 ### Added
-- Centralized configuration system (`src/config/`)
-- Zod schema validation for environment variables
-- GitHub Actions CI/CD pipeline
-- CONTRIBUTING.md and CODEOWNERS files
-- Production guard for mock SMS provider
-
-### Changed
-- Reorganized scripts into `db/`, `debug/`, `security/`, `sync/`, `utils/`
-- Workers now use central config (`LimitsConfig`, `TimeoutsConfig`, `WorkersConfig`)
-- Updated `.env.example` with 47+ configuration variables
-
-### Removed
-- Root-level debug scripts (moved to `scripts/debug/`)
-- Stale log and build artifact files
+- **Infrastructure**: "Smart Startup" AWS Free Tier strategy with `infra/vps` setup scripts.
+- **Documentation**: Consolidated 5-pillar technical library in `docs/`.
+- **Security**: Fingerprinting and improved `SECURITY.md` guidance.
 
 ### Fixed
-- Import paths for relocated scripts
-- OfferDocument type mismatch with `operatorDisplayName`
-- Missing `@types/uuid` package
+- **Build**: Fixed Next.js 16 build crashes on Windows by disabling `standalone` output on `win32`.
+- **API Client**: Removed server-only `async_hooks` dependency from frontend `api-client.ts`.
+- **OpenAPI**: Corrected Zod extension registration to prevent runtime `TypeError`.
+
+---
+
+## [1.0.0] - "Hardened Release" - 2026-01-27
+
+This release transforms NexNum from a functional prototype to a **production-grade enterprise system**.
+
+### 🛡️ Enterprise Security
+- **Rate Limiting**: Multi-tier Redis-backed throttling for API, Auth, and Admin routes.
+- **Financial Integrity**: 
+    - Implemented **Two-Phase Commit** (Reserve -> Commit) purchase pattern.
+    - Added `SELECT FOR UPDATE` row locking for wallet balances.
+- **Security Headers**: Strict CSP, HSTS, and anti-sniffing via `middleware.ts`.
+
+### 👁️ Advanced Observability
+- **Logging**: Switched to **Pino** for structured JSON logging (Datadog/CloudWatch ready).
+- **Monitoring**: Exposed Prometheus metrics at `/api/metrics`.
+- **Sentry**: Full-stack error tracking for Client, Server, and Edge layers.
+
+### ⚡ UX & Performance
+- **Optimistic UI**: Instant "Reserve..." state for purchase cards and real-time wallet balance updates.
+- **Resilience**: Integrated **Opossum Circuit Breakers** for all SMS provider integrations.
+- **SEO**: Added JSON-LD software snippets and a high-performance dynamic sitemap.
+
+### 🛠️ technical
+- **Patterns**: Implementation of the Transactional Outbox pattern for reliable async processing.
+- **Build**: Multi-stage Docker optimization for standalone production output.
 
 ---
 
 ## [0.1.0] - 2026-01-24
 
 ### Added
-- Initial release of NexNum SMS activation platform
-- Multi-provider SMS integration (5sim, HeroSMS, GrizzlySMS, SMSBower, OnlineSim)
-- Real-time SMS polling and notifications
-- Wallet system with transaction history
-- Admin dashboard with provider management
-- MeiliSearch integration for fast search
-- i18n support (9 languages)
-- Push notifications via Web Push API
-- Two-factor authentication
-- Rate limiting and security hardening
+- Initial release of NexNum SMS activation platform.
+- Multi-provider integration (5sim, SMS-Activate, etc.).
+- Admin dashboard with dynamic provider configuration.
+- i18n support for 9 languages.
+- MeiliSearch global search integration.

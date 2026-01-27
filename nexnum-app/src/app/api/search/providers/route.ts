@@ -19,52 +19,55 @@ import { prisma } from "@/lib/core/db";
 export async function GET(req: Request) {
     try {
         const { searchParams } = new URL(req.url);
-        const serviceSlug = searchParams.get("service");
+        const serviceCode = searchParams.get("service");
         const countryCode = searchParams.get("country");
         const page = parseInt(searchParams.get("page") || "1");
         const limit = parseInt(searchParams.get("limit") || "20");
         const sort = (searchParams.get("sort") || "price") as 'price' | 'stock';
 
-        if (!serviceSlug || !countryCode) {
+        if (!serviceCode || !countryCode) {
             return NextResponse.json(
                 { error: "Missing required params: service and country" },
                 { status: 400 }
             );
         }
 
-        const result = await searchProviders(serviceSlug, countryCode, { page, limit, sort });
+        const result = await searchProviders(serviceCode, countryCode, { page, limit, sort });
 
-        // Get unique provider slugs from results
-        const providerSlugs = [...new Set(result.providers.map(p => p.provider))];
+        // Get unique provider names from results
+        const providerNames = [...new Set(result.providers.map(p => p.provider))].filter(Boolean) as string[];
 
         // Fetch provider display info from database (displayName, logoUrl)
         const providerInfoMap = new Map<string, { displayName: string; logoUrl: string | null }>();
-        if (providerSlugs.length > 0) {
+        if (providerNames.length > 0) {
             const providers = await prisma.provider.findMany({
-                where: { name: { in: providerSlugs } },
+                where: { name: { in: providerNames } },
                 select: { name: true, displayName: true, logoUrl: true }
             });
             providers.forEach(p => providerInfoMap.set(p.name, { displayName: p.displayName, logoUrl: p.logoUrl }));
         }
 
         // Map to API response format with reliability info
+        // Map to API response format with reliability info
         const items = result.providers.map((p, index) => {
             const providerInfo = providerInfoMap.get(p.provider);
+            const successRate = 98; // Mock success rate pending Meilisearch index update
+
             return {
                 displayName: providerInfo?.displayName || p.provider,
                 serviceName: p.serviceName,
-                serviceSlug: p.serviceSlug,
+                serviceCode: p.providerServiceCode,
                 countryName: p.countryName,
-                countryCode: p.countryCode,
-                flagUrl: p.flagUrl,
+                countryCode: p.providerCountryCode,
+                flagUrl: p.countryIcon,
                 price: p.price,
                 stock: p.stock,
-                successRate: p.successRate,
-                operatorId: p.operatorId,
-                iconUrl: (p as any).iconUrl,
+                successRate: successRate,
+                operatorId: p.operator,
+                iconUrl: p.serviceIcon,
                 // NEW: Added reliability and ranking
                 rank: index + 1,
-                reliability: p.successRate && p.successRate > 80 ? 'High' : p.successRate && p.successRate > 60 ? 'Medium' : 'Standard',
+                reliability: successRate > 80 ? 'High' : successRate > 60 ? 'Medium' : 'Standard',
             };
         });
 

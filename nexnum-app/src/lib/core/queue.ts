@@ -1,6 +1,7 @@
 import { PgBoss, Job } from 'pg-boss'
 import { prisma } from '@/lib/core/db'
 import { logger } from '@/lib/core/logger'
+import { getTraceId, withRequestContext } from '@/lib/api/request-context'
 
 // Queue Names
 export const QUEUES = {
@@ -10,7 +11,8 @@ export const QUEUES = {
     PROVIDER_SYNC: 'provider-sync',
     SCHEDULED_SYNC: 'scheduled-sync',
     LIFECYCLE_CLEANUP: 'lifecycle-cleanup',
-    PAYMENT_RECONCILE: 'payment-reconcile'
+    PAYMENT_RECONCILE: 'payment-reconcile',
+    MASTER_WORKER: 'master-worker'
 } as const
 
 class QueueService {
@@ -60,7 +62,12 @@ class QueueService {
         if (!this.isReady) await this.start()
         if (!this.boss) throw new Error('Queue not initialized')
         try {
-            const jobId = await this.boss.send(queue, data, options)
+            // Automatically attach traceId to all published jobs
+            const enrichedData = {
+                ...data,
+                _traceId: getTraceId()
+            }
+            const jobId = await this.boss.send(queue, enrichedData, options)
             return jobId
         } catch (error: any) {
             logger.error(`Failed to publish to ${queue}`, { error: error.message })
@@ -101,8 +108,18 @@ class QueueService {
         if (!this.boss) throw new Error('Queue not initialized')
         if (!this.isReady) await this.start()
 
+        const wrappedHandler = async (jobs: Job<any>[]) => {
+            // For batch processing, we use the traceId of the first job or generate a new one
+            const firstJob = jobs[0]
+            const traceId = firstJob?.data?._traceId || `worker_${Date.now().toString(36)}`
+
+            return withRequestContext({ traceId }, async () => {
+                return handler(jobs)
+            })
+        }
+
         try {
-            await this.boss!.work(queue, handler)
+            await this.boss!.work(queue, wrappedHandler)
             logger.info(`Worker registered for ${queue}`)
         } catch (error: any) {
             logger.error(`Failed to register worker for ${queue}`, { error: error.message })

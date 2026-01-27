@@ -130,35 +130,31 @@ const FlagImage = ({
     );
 };
 
-// --- InfoBadge Component ---
+// --- InfoBadge Component (Simplified) ---
 const InfoBadge = ({
     icon: Icon,
     value,
-    label,
-    isSelected,
     variant = "default"
 }: {
     icon: any;
     value: string;
-    label: string;
-    isSelected: boolean;
     variant?: "default" | "success" | "warning" | "danger" | "info";
 }) => {
-    const variants = {
-        default: "bg-white/5 text-gray-400 border-white/10",
-        success: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-        warning: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-        danger: "bg-red-500/10 text-red-400 border-red-500/20",
-        info: "bg-blue-500/10 text-blue-400 border-blue-500/20"
+    const textColors = {
+        default: "text-gray-400",
+        success: "text-emerald-400",
+        warning: "text-amber-400",
+        danger: "text-red-400",
+        info: "text-blue-400"
     };
 
     return (
         <div className={cn(
-            "flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-medium transition-all",
-            isSelected ? "bg-white/10 border-white/20 text-white" : variants[variant]
+            "flex items-center gap-1.5 text-[10px] font-medium transition-all",
+            textColors[variant]
         )}>
-            <Icon className="w-2.5 h-2.5" />
-            <span>{value}</span>
+            <Icon className="w-3 h-3" />
+            <span>{value} Stocks</span>
         </div>
     );
 };
@@ -281,12 +277,10 @@ const CountryCard = React.memo(({
 
                 {/* Badges Row */}
                 {selectedService && (
-                    <div className="flex flex-wrap items-center gap-1">
+                    <div className="flex flex-wrap items-center gap-1 mt-1">
                         <InfoBadge
                             icon={Package}
                             value={formatStock(country.totalStock)}
-                            label="stock"
-                            isSelected={isSelected}
                             variant={
                                 stockStatus === "out" ? "danger" :
                                     stockStatus === "low" ? "warning" :
@@ -307,16 +301,28 @@ const CountryCard = React.memo(({
                         ? "bg-[hsl(var(--neon-lime)/0.1)]"
                         : "bg-white/[0.03] group-hover:bg-white/[0.06]"
                 )}>
-                    <div className="text-[8px] uppercase tracking-wider text-gray-500 font-medium leading-tight">
+                    <div className="text-[8px] uppercase tracking-wider text-gray-500 font-medium leading-tight mb-0.5">
                         From
                     </div>
                     <div className={cn(
-                        "text-base font-bold tabular-nums leading-tight",
+                        "text-base font-bold tabular-nums leading-tight flex items-baseline justify-end gap-0.5",
                         isSelected
                             ? "text-[hsl(var(--neon-lime))]"
                             : "text-white group-hover:text-[hsl(var(--neon-lime))]"
                     )}>
-                        {formatPrice(country.minPrice)}
+                        {(() => {
+                            const formatted = formatPrice(country.minPrice);
+                            const parts = formatted.split('.');
+                            if (parts.length === 2) {
+                                return (
+                                    <>
+                                        <span>{parts[0]}</span>
+                                        <span className="text-[0.7em] opacity-80">.{parts[1]}</span>
+                                    </>
+                                );
+                            }
+                            return formatted;
+                        })()}
                     </div>
                 </div>
             )}

@@ -96,14 +96,36 @@ export class MockSmsProvider {
     }
 
     async purchaseNumber(countryCode: string, serviceCode: string): Promise<MockActivation> {
-        // Validate inputs
+        const spanId = Math.random().toString(36).substring(7)
+        logger.info(`[MockSMS] Purchase Start`, { spanId, countryCode, serviceCode })
+
+        // 1. Simulate Network Latency (100-300ms)
+        await new Promise(r => setTimeout(r, 100 + Math.random() * 200))
+
+        // 2. Validate inputs
         if (!MOCK_COUNTRIES[countryCode as keyof typeof MOCK_COUNTRIES]) {
-            throw new Error('NO_NUMBERS') // Invalid country usually returns NO_NUMBERS
+            logger.warn(`[MockSMS] Invalid Country`, { spanId, countryCode })
+            const error: any = new Error('Country not supported')
+            error.code = 'NO_NUMBERS'
+            throw error
         }
 
         const service = MOCK_SERVICES.find(s => s.code === serviceCode)
         if (!service) {
-            throw new Error('BAD_SERVICE')
+            logger.warn(`[MockSMS] Invalid Service`, { spanId, serviceCode })
+            // Simulate provider error code structure
+            const error: any = new Error('Service not found')
+            error.code = 'BAD_SERVICE'
+            throw error
+        }
+
+        // 3. Simulate Random Provider Failure (5% chance)
+        // Helps verify retry logic and circuit breakers in development
+        if (Math.random() < 0.05) {
+            logger.warn(`[MockSMS] Simulating Random Provider Failure`, { spanId })
+            const error: any = new Error('Simulated upstream congestion')
+            error.code = 'NO_NUMBERS' // Common "out of stock" response
+            throw error
         }
 
         // Generate mock data
@@ -132,11 +154,13 @@ export class MockSmsProvider {
         this.orders.set(id, activation)
         this.balance -= cost
 
-        logger.info('[MockSMS] Purchased number', {
+        logger.info('[MockSMS] Purchased number Success', {
+            spanId,
             id,
             phoneNumber,
             service: serviceCode,
-            country: countryCode
+            country: countryCode,
+            cost
         })
 
         return activation

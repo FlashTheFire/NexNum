@@ -1,14 +1,13 @@
-# Prometheus Configuration for NexNum
-# 
-# This configuration file sets up Prometheus to scrape metrics from
-# the NexNum API and defines alerting rules.
+# =============================================================================
+# PROMETHEUS CONFIGURATION (Industrial v2.0)
+# =============================================================================
 
 global:
-  scrape_interval: 15s
-  evaluation_interval: 15s
+  scrape_interval: 10s
+  evaluation_interval: 10s
   external_labels:
-    environment: '${ENVIRONMENT:-development}'
-    region: '${REGION:-local}'
+    site: 'nexnum-hq'
+    env: '${NODE_ENV:-production}'
 
 # Alertmanager configuration
 alerting:
@@ -16,38 +15,47 @@ alerting:
     - static_configs:
         - targets: ['alertmanager:9093']
 
-# Load alert rules
+# Load consolidated rules
 rule_files:
   - "alerts.yml"
 
 # Scrape configurations
 scrape_configs:
-  # NexNum API metrics
-  - job_name: 'nexnum-api'
+  # NexNum Core Service
+  - job_name: 'nexnum-core'
     static_configs:
-      - targets: ['host.docker.internal:3000']
+      - targets: ['nexnum-app:3000']
     metrics_path: '/api/metrics'
     scheme: http
-    scrape_interval: 10s
-    scrape_timeout: 5s
-    # For production with authentication:
-    # bearer_token_file: '/etc/prometheus/bearer_token'
-    # tls_config:
-    #   insecure_skip_verify: false
+    scrape_timeout: 9s
 
-  # Redis exporter (if using redis_exporter container)
+  # Redis Engine
   - job_name: 'redis'
     static_configs:
       - targets: ['redis-exporter:9121']
-    scrape_interval: 30s
 
-  # PostgreSQL exporter (if using postgres_exporter container)
+  # Database Engine
   - job_name: 'postgres'
     static_configs:
       - targets: ['postgres-exporter:9187']
-    scrape_interval: 30s
 
-  # Prometheus self-monitoring
-  - job_name: 'prometheus'
+  # Host Metrics (Hardware health)
+  - job_name: 'node-exporter'
     static_configs:
-      - targets: ['localhost:9090']
+      - targets: ['node-exporter:9100']
+
+  # Synthetic Monitoring (External Health)
+  - job_name: 'blackbox'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+        - http://nexnum-app:3000/api/health
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115

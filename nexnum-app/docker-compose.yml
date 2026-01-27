@@ -1,4 +1,4 @@
-version: '3.8'
+# NexNum Infrastructure Overview
 
 # Local development services
 # PostgreSQL & Redis use cloud services (Supabase/Upstash)
@@ -24,6 +24,10 @@ services:
       - SMS_FINGERPRINT_SECRET=${SMS_FINGERPRINT_SECRET:-development_fingerprint_secret}
       - MEILISEARCH_HOST=http://meilisearch:7700
       - MEILISEARCH_API_KEY=${MEILISEARCH_API_KEY}
+      - ALERT_WEBHOOK_SECRET=${ALERT_WEBHOOK_SECRET}
+      - METRICS_SCRAPE_TOKEN=${METRICS_SCRAPE_TOKEN}
+      - NEXT_DISABLE_INTERNAL_WORKERS=true
+
     depends_on:
       redis:
         condition: service_healthy
@@ -68,7 +72,8 @@ services:
     ports:
       - "5540:5540"
     volumes:
-      - redis_insight_data:/data
+      - redis_insight_data:/db
+
     restart: unless-stopped
     depends_on:
       - redis
@@ -89,6 +94,24 @@ services:
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
     depends_on:
       redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    container_name: nexnum-worker
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=redis://:dev_redis_pass@nexnum-redis:6379
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - MEILISEARCH_HOST=http://meilisearch:7700
+      - MEILISEARCH_API_KEY=${MEILISEARCH_API_KEY}
+    depends_on:
+      redis:
+        condition: service_healthy
+      meilisearch:
         condition: service_healthy
 
   # ============================================
@@ -161,6 +184,10 @@ services:
       - '--config.file=/etc/alertmanager/alertmanager.yml'
       - '--storage.path=/alertmanager'
       - '--web.external-url=http://localhost:9093'
+      - '--cluster.listen-address=' # Disable gossip to avoid port conflicts and logs spam
+
+    environment:
+      - ALERT_SECRET=${ALERT_WEBHOOK_SECRET}
     restart: unless-stopped
     healthcheck:
       test: [ "CMD", "wget", "-q", "--spider", "http://localhost:9093/-/healthy" ]

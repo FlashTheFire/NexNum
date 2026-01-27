@@ -37,8 +37,8 @@ export default function NotFound() {
                         <div
                             className="relative w-full h-full bg-[hsl(var(--neon-lime))] shadow-[0_0_10px_hsl(var(--neon-lime)/0.3)]"
                             style={{
-                                WebkitMaskImage: 'url("/logos/nexnum-logo-outline.svg")',
-                                maskImage: 'url("/logos/nexnum-logo-outline.svg")',
+                                WebkitMaskImage: 'url("/assets/brand/nexnum-logo-outline.svg")',
+                                maskImage: 'url("/assets/brand/nexnum-logo-outline.svg")',
                                 WebkitMaskRepeat: 'no-repeat',
                                 maskRepeat: 'no-repeat',
                                 WebkitMaskPosition: 'center',
@@ -54,8 +54,8 @@ export default function NotFound() {
                         <div
                             className="relative w-full h-full bg-white shadow-[0_5px_15px_rgba(0,0,0,0.5)]"
                             style={{
-                                WebkitMaskImage: 'url("/logos/nexnum-logo.svg")',
-                                maskImage: 'url("/logos/nexnum-logo.svg")',
+                                WebkitMaskImage: 'url("/assets/brand/nexnum-logo.svg")',
+                                maskImage: 'url("/assets/brand/nexnum-logo.svg")',
                                 WebkitMaskRepeat: 'no-repeat',
                                 maskRepeat: 'no-repeat',
                                 WebkitMaskPosition: 'center',

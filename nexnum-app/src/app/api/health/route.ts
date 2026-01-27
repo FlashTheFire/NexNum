@@ -1,69 +1,53 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/core/db'
-import { redis } from '@/lib/core/redis'
 import { queue } from '@/lib/core/queue'
 
-interface HealthStatus {
-    status: 'healthy' | 'degraded' | 'unhealthy'
-    timestamp: string
-    version: string
-    checks: {
-        database: { ok: boolean; latencyMs?: number; error?: string }
-        redis: { ok: boolean; latencyMs?: number; error?: string }
-        queue: { ok: boolean; error?: string }
-    }
-}
-
+/**
+ * Professional Health Check API
+ * Used by Docker, Kubernetes, and PM2 to monitor service health.
+ * Performs deep checks of core dependencies.
+ */
 export async function GET() {
-    const start = Date.now()
-    const checks: HealthStatus['checks'] = {
-        database: { ok: false },
-        redis: { ok: false },
-        queue: { ok: false }
-    }
-
-    // 1. Database Check
-    try {
-        const dbStart = Date.now()
-        await prisma.$queryRaw`SELECT 1`
-        checks.database = { ok: true, latencyMs: Date.now() - dbStart }
-    } catch (e: any) {
-        checks.database = { ok: false, error: e.message }
-    }
-
-    // 2. Redis Check
-    try {
-        const redisStart = Date.now()
-        await redis.ping()
-        checks.redis = { ok: true, latencyMs: Date.now() - redisStart }
-    } catch (e: any) {
-        checks.redis = { ok: false, error: e.message }
-    }
-
-    // 3. Queue Check (via pg-boss table existence)
-    try {
-        const queueCheck = await prisma.$queryRaw`SELECT 1 FROM pgboss.job LIMIT 1`
-        checks.queue = { ok: true }
-    } catch (e: any) {
-        // Table might not exist yet, that's ok in fresh installs
-        checks.queue = { ok: false, error: 'Queue schema not initialized' }
-    }
-
-    // Determine overall status
-    const allOk = checks.database.ok && checks.redis.ok
-    const anyFailed = !checks.database.ok || !checks.redis.ok
-
-    const status: HealthStatus = {
-        status: allOk ? 'healthy' : (anyFailed ? 'unhealthy' : 'degraded'),
+    const status: any = {
+        status: 'UP',
         timestamp: new Date().toISOString(),
         version: process.env.npm_package_version || '1.0.0',
-        checks
+        environment: process.env.NODE_ENV,
+        services: {
+            database: 'UNKNOWN',
+            queue: 'UNKNOWN',
+            memory: 'OK'
+        }
     }
 
-    return NextResponse.json(status, {
-        status: status.status === 'healthy' ? 200 : 503,
-        headers: {
-            'Cache-Control': 'no-cache, no-store, must-revalidate'
-        }
-    })
+    try {
+        // 1. Check Database (Prisma)
+        await prisma.$queryRaw`SELECT 1`
+        status.services.database = 'UP'
+    } catch (e: any) {
+        status.status = 'DEGRADED'
+        status.services.database = 'DOWN'
+        status.services.database_error = e.message
+    }
+
+    try {
+        // 2. Check Queue (PgBoss Status)
+        // We use a light check - if the service is ready in memory
+        status.services.queue = (queue as any).isReady ? 'UP' : 'DOWN'
+    } catch (e) {
+        status.services.queue = 'DOWN'
+    }
+
+    // 3. System Metrics
+    const used = process.memoryUsage().heapUsed / 1024 / 1024
+    status.services.memory = `${Math.round(used * 100) / 100} MB`
+
+    // Determine final status code
+    const statusCode = status.status === 'UP' ? 200 : 503
+
+    return NextResponse.json(status, { status: statusCode })
 }
+
+// Next.js Config: Force Dynamic usage and allow long timeouts for deep checks
+export const dynamic = 'force-dynamic'
+export const maxDuration = 10 

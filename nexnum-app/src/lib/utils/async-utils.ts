@@ -97,3 +97,60 @@ export class Semaphore {
         }
     }
 }
+
+/**
+ * Retry a function with exponential backoff
+ */
+export async function retryWithBackoff<T>(
+    fn: () => Promise<T>,
+    options: {
+        maxRetries?: number
+        initialDelay?: number
+        maxDelay?: number
+        factor?: number
+        onRetry?: (error: any, attempt: number) => void
+    } = {}
+): Promise<T> {
+    const {
+        maxRetries = 3,
+        initialDelay = 1000,
+        maxDelay = 10000,
+        factor = 2,
+        onRetry
+    } = options
+
+    let lastError: any
+    let delay = initialDelay
+
+    for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+        try {
+            return await fn()
+        } catch (error) {
+            lastError = error
+            if (attempt > maxRetries) break
+
+            if (onRetry) onRetry(error, attempt)
+
+            await sleep(delay)
+            delay = Math.min(delay * factor, maxDelay)
+        }
+    }
+
+    throw lastError
+}
+
+/**
+ * Wrap a promise with a timeout guard
+ */
+export function withTimeout<T>(
+    promise: Promise<T>,
+    timeoutMs: number,
+    errorMessage: string = 'Operation timed out'
+): Promise<T> {
+    return Promise.race([
+        promise,
+        new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error(errorMessage)), timeoutMs)
+        })
+    ])
+}

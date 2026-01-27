@@ -29,11 +29,11 @@ const CONFIG = {
         perUser: { limit: 1000, windowMs: 3600_000 },    // 1000 actions/hr per user
     },
 
-    // Fingerprinting - SECURITY: Require in production
+    // Fingerprinting - SECURITY: Mandatory in production
     FINGERPRINT_SECRET: (() => {
-        const secret = process.env.SMS_FINGERPRINT_SECRET
+        const secret = process.env.SMS_FINGERPRINT_SECRET || process.env.FINGERPRINT_SALT
         if (!secret && process.env.NODE_ENV === 'production') {
-            console.error('WARNING: SMS_FINGERPRINT_SECRET not configured in production')
+            console.error('CRITICAL: FINGERPRINT_SALT or SMS_FINGERPRINT_SECRET missing')
         }
         return secret || 'dev-only-fingerprint-secret'
     })(),

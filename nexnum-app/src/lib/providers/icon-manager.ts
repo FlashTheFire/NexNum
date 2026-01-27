@@ -2,12 +2,13 @@
 import fs from 'fs';
 import path from 'path';
 import https from 'https';
-import { getSlugFromName, resolveToCanonicalName } from '@/lib/normalizers/service-identity';
+import { generateCanonicalCode, getCanonicalName } from '@/lib/normalizers/service-identity';
 import { prisma } from '@/lib/core/db';
 import { getMetadataProvider } from './provider-factory';
-import { logger } from '@/lib/logging/logger';
+import { logger } from '@/lib/core/logger';
+import { Semaphore } from '@/lib/utils/async-utils';
 
-const ICONS_DIR = path.resolve(process.cwd(), 'public/icons/services');
+const ICONS_DIR = path.resolve(process.cwd(), 'public/assets/icons/services');
 
 export interface IconSyncResult {
     downloaded: number;
@@ -81,6 +82,7 @@ export class ProviderIconManager {
      */
     async syncAllProviders(): Promise<IconSyncResult> {
         const result: IconSyncResult = { downloaded: 0, upgraded: 0, skipped: 0, errors: 0 };
+        const semaphore = new Semaphore(5); // Process 5 icons concurrently
 
         logger.info('[IconManager] Starting universal provider sync...');
 
@@ -91,35 +93,44 @@ export class ProviderIconManager {
                 const engine = getMetadataProvider(provider);
                 const services = await engine.getServices('us');
 
-                for (const s of services) {
-                    if (!s.iconUrl) continue;
+                const syncPromises = services.map(async (s) => {
+                    if (!s.iconUrl) return;
 
-                    const canonicalName = resolveToCanonicalName(s.name);
-                    const slug = getSlugFromName(canonicalName);
-                    const dest = path.join(ICONS_DIR, `${slug}.webp`);
+                    await semaphore.acquire();
+                    try {
+                        const canonicalName = getCanonicalName(s.name);
+                        const slug = generateCanonicalCode(canonicalName);
+                        // Standardize on .webp for local storage
+                        const dest = path.join(ICONS_DIR, `${slug}.webp`);
 
-                    const remoteSize = await this.getRemoteFileSize(s.iconUrl);
-                    if (remoteSize === 0) continue;
+                        const remoteSize = await this.getRemoteFileSize(s.iconUrl);
+                        if (remoteSize === 0) return;
 
-                    let shouldDownload = false;
-                    if (fs.existsSync(dest)) {
-                        const localSize = fs.statSync(dest).size;
-                        if (remoteSize > (localSize + 100)) {
-                            shouldDownload = true;
-                            result.upgraded++;
+                        let shouldDownload = false;
+                        if (fs.existsSync(dest)) {
+                            const localSize = fs.statSync(dest).size;
+                            // Only upgrade if remote is significantly larger (>100 bytes diff)
+                            if (remoteSize > (localSize + 100)) {
+                                shouldDownload = true;
+                                result.upgraded++;
+                            } else {
+                                result.skipped++;
+                            }
                         } else {
-                            result.skipped++;
+                            shouldDownload = true;
+                            result.downloaded++;
                         }
-                    } else {
-                        shouldDownload = true;
-                        result.downloaded++;
-                    }
 
-                    if (shouldDownload) {
-                        const success = await this.downloadFile(s.iconUrl, dest);
-                        if (!success) result.errors++;
+                        if (shouldDownload) {
+                            const success = await this.downloadFile(s.iconUrl, dest);
+                            if (!success) result.errors++;
+                        }
+                    } finally {
+                        semaphore.release();
                     }
-                }
+                });
+
+                await Promise.all(syncPromises);
             } catch (e) {
                 logger.error(`[IconManager] Provider ${provider.name} failed:`, e);
                 result.errors++;

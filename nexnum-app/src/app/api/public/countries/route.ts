@@ -22,22 +22,22 @@ export async function GET(req: Request) {
             const { prisma } = await import('@/lib/core/db');
             const [countries, total] = await Promise.all([
                 prisma.countryLookup.findMany({
-                    where: q ? { name: { contains: q, mode: 'insensitive' } } : {},
+                    where: q ? { countryName: { contains: q, mode: 'insensitive' } } : {},
                     take: limit,
                     skip: (page - 1) * limit,
-                    orderBy: { name: 'asc' }
+                    orderBy: { countryName: 'asc' }
                 }),
                 prisma.countryLookup.count({
-                    where: q ? { name: { contains: q, mode: 'insensitive' } } : {}
+                    where: q ? { countryName: { contains: q, mode: 'insensitive' } } : {}
                 })
             ]);
 
             return NextResponse.json({
                 items: countries.map(c => ({
-                    id: c.code,
-                    name: c.name,
-                    code: c.code,
-                    flagUrl: c.flagUrl,
+                    id: c.countryCode,
+                    name: c.countryName,
+                    code: c.countryCode,
+                    flagUrl: c.countryIcon,
                     minPrice: 0, // No specific price without service
                     totalStock: 0,
                     serverCount: 0

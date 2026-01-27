@@ -43,7 +43,7 @@ export default function ForgotPasswordPage() {
             <AuthLayout title="Check your inbox" description={`We sent a reset link to ${email}`}>
                 <div className="text-center">
                     <Button variant="outline" className="w-full" asChild>
-                        <Link href="/auth/login">Back to Login</Link>
+                        <Link href="/login">Back to Login</Link>
                     </Button>
                 </div>
             </AuthLayout>
@@ -73,7 +73,7 @@ export default function ForgotPasswordPage() {
                 </Button>
 
                 <div className="text-center text-sm">
-                    <Link href="/auth/login" className="text-muted-foreground hover:text-white transition-colors">
+                    <Link href="/login" className="text-muted-foreground hover:text-white transition-colors">
                         Back to Login
                     </Link>
                 </div>

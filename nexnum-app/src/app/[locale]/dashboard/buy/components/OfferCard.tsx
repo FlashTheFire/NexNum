@@ -47,7 +47,7 @@ export const OfferCard = ({ offer, onBuy, disabled }: OfferCardProps) => {
                     <div className="flex items-center gap-2">
                         <SafeImage
                             src={`https://flagcdn.com/w20/${offer.countryCode.toLowerCase()}.png`}
-                            fallbackSrc="/flags/un.svg"
+                            fallbackSrc="/assets/flags/un.svg"
                             alt={offer.countryName}
                             className="w-5 h-[15px] object-cover rounded-[2px] opacity-80"
                             hideOnError

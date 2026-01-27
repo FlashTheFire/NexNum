@@ -16,6 +16,9 @@ import { prisma } from '@/lib/core/db'
 import { getProviderAdapter } from '@/lib/providers/provider-factory'
 import { logger } from '@/lib/core/logger'
 import { multi_sms_sequences_total, sms_delivery_latency_seconds } from '@/lib/metrics'
+import { CodeExtractor } from './code-extractor'
+import { smsAudit } from './audit'
+import { EventDispatcher } from '@/lib/core/event-dispatcher'
 
 // ============================================================================
 // Types
@@ -70,7 +73,7 @@ export class MultiSmsHandler {
         numberId: string,
         activationId: string,
         providerId: string,
-        messages: Array<{ code?: string; text?: string; content?: string; id?: string }>
+        messages: Array<{ id?: string; code?: string; text?: string; content?: string; sender?: string; receivedAt?: Date }>
     ): Promise<{ stored: number; requestedNext: boolean }> {
         const result = { stored: 0, requestedNext: false }
 
@@ -92,7 +95,8 @@ export class MultiSmsHandler {
 
         // Process each new message
         for (const msg of messages) {
-            const code = msg.code || this.extractCode(msg.text || msg.content || '')
+            const codeResult = CodeExtractor.extract(msg.text || msg.content || '', undefined, number.serviceName || undefined)
+            const code = codeResult?.code
             const content = msg.text || msg.content || ''
 
             // Check for duplicates (same code or content)
@@ -108,36 +112,63 @@ export class MultiSmsHandler {
             // Store new SMS
             const ordinal = existingCount + result.stored + 1
 
-            await prisma.smsMessage.create({
+            const storedMsg = await prisma.smsMessage.create({
                 data: {
                     numberId,
                     code: code || null,
                     content,
-                    sender: 'Provider',
+                    sender: msg.sender || 'Provider',
+                    receivedAt: msg.receivedAt || new Date()
                 }
             })
 
             result.stored++
 
-            // Record SMS delivery latency for first SMS
-            if (ordinal === 1 && number.purchasedAt) {
-                const latencySeconds = (Date.now() - number.purchasedAt.getTime()) / 1000
-                sms_delivery_latency_seconds
-                    .labels(number.provider || 'unknown', number.serviceName || 'unknown')
-                    .observe(latencySeconds)
+            // RECORD UNIFORM LATENCY (Every SMS works as first SMS)
+            const lastEventTime = number.smsMessages.length > 0
+                ? number.smsMessages[number.smsMessages.length - 1].receivedAt.getTime()
+                : number.purchasedAt?.getTime() || Date.now()
+
+            const latencySeconds = (Date.now() - lastEventTime) / 1000
+
+            sms_delivery_latency_seconds
+                .labels(number.provider || 'unknown', number.serviceName || 'unknown')
+                .observe(latencySeconds)
+
+            // PROFESSIONAL AUDIT TRAIL
+            await smsAudit.logSmsIngested(numberId, storedMsg.id, ordinal, latencySeconds)
+
+            // ENTERPRISE EVENT DISPATCH (Phase 39)
+            if (number.ownerId) {
+                await EventDispatcher.dispatch(number.ownerId, 'sms.received', {
+                    numberId,
+                    activationId,
+                    phoneNumber: number.phoneNumber,
+                    sms: {
+                        id: storedMsg.id,
+                        sender: storedMsg.sender,
+                        content: storedMsg.content,
+                        code: storedMsg.code,
+                        ordinal,
+                        receivedAt: storedMsg.receivedAt
+                    }
+                })
             }
 
-            logger.info('[MultiSMS] SMS stored', {
+            logger.info('[MultiSMS] SMS ingested (Uniform Equality)', {
                 numberId,
                 ordinal,
-                hasCode: !!code
+                latency: `${latencySeconds.toFixed(2)}s`,
+                hasCode: !!code,
+                isMismatched: codeResult?.isMismatched
             })
         }
 
-        // Auto-request next SMS if appropriate
+        // RECURSIVE NEXT TRIGGER
         const totalMessages = existingCount + result.stored
 
         if (totalMessages < CONFIG.MAX_SMS_COUNT) {
+            // Signal provider for more, regardless of ordinal
             result.requestedNext = await this.requestNextSms(numberId, activationId, providerId)
         }
 

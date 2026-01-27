@@ -14,10 +14,17 @@ export const SmsReceivedPayload = z.object({
     receivedAt: z.string().datetime(), // ISO string from Date
 });
 
+// 2. State Updated Event (Wallet/Numbers/etc)
+export const StateUpdatedPayload = z.object({
+    stateType: z.enum(['wallet', 'numbers', 'notification', 'all']),
+    userId: z.string(),
+    reason: z.string().optional(),
+});
+
 // The Master Registry Map
 export const EVENT_REGISTRY = {
     'sms.received': SmsReceivedPayload,
-    // Future: 'wallet.balance_updated': ...
+    'state.updated': StateUpdatedPayload,
 } as const;
 
 export type EventType = keyof typeof EVENT_REGISTRY;

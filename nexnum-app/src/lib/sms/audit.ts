@@ -232,7 +232,8 @@ class SmsAuditService {
         messageId: string,
         userId: string,
         providerId: string,
-        details: { sender: string; hasCode: boolean; contentHash: string }
+        details: { sender: string; hasCode: boolean; contentHash: string },
+        correlationId?: string
     ): Promise<void> {
         await this.logImmediate({
             eventType: 'SMS_RECEIVED',
@@ -240,20 +241,39 @@ class SmsAuditService {
             messageId,
             userId,
             providerId,
-            details
+            details,
+            correlationId
+        })
+    }
+
+    async logSmsIngested(
+        numberId: string,
+        messageId: string,
+        ordinal: number,
+        latency: number,
+        correlationId?: string
+    ): Promise<void> {
+        await this.log({
+            eventType: 'SMS_RECEIVED', // Reuse or add INGESTED
+            numberId,
+            messageId,
+            details: { ordinal, latency: `${latency.toFixed(2)}s` },
+            correlationId
         })
     }
 
     async logDuplicate(
         numberId: string,
         messageId: string,
-        reason: 'composite_id' | 'content_hash' | 'time_window'
+        reason: 'composite_id' | 'content_hash' | 'time_window',
+        correlationId?: string
     ): Promise<void> {
         await this.log({
             eventType: 'SMS_DUPLICATE',
             numberId,
             messageId,
-            details: { reason }
+            details: { reason },
+            correlationId
         })
     }
 

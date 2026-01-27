@@ -142,6 +142,26 @@ export class CurrencyService {
     }
 
     /**
+     * Get all active currencies for the UI selector
+     */
+    async getActiveCurrencies(): Promise<CurrencyInfo[]> {
+        await this.ensureRates();
+        // @ts-ignore
+        const currencies = await prisma.currency.findMany({
+            where: { isActive: true },
+            orderBy: { code: 'asc' }
+        });
+
+        return currencies.map(c => ({
+            code: c.code,
+            name: c.name,
+            symbol: c.symbol,
+            rate: Number(c.rate),
+            isBase: c.code === 'USD'
+        }));
+    }
+
+    /**
      * Get system settings (display currency, points rate etc)
      */
     async getSettings() {

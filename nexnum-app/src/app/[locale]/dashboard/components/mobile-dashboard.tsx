@@ -355,7 +355,7 @@ export function MobileDashboard() {
                                                             <img
                                                                 alt={num.countryName}
                                                                 className="w-full h-full rounded-full object-cover shadow-sm ring-1 ring-white/10"
-                                                                src={num.countryIconUrl || '/flags/un.svg'}
+                                                                src={num.countryIconUrl || '/assets/flags/un.svg'}
                                                             />
                                                         </div>
                                                     </div>

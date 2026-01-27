@@ -1,5 +1,39 @@
-
 import { redis } from '@/lib/core/redis'
+import { IndustrialHealthCollector } from '@/lib/telemetry/health'
+import { logger } from './logger'
+
+/**
+ * Predictive Throttler Engine
+ * 
+ * Dynamically adjusts system "difficulty" based on real-time health telemetry.
+ */
+export class PredictiveThrottler {
+    /**
+     * Calculate a multiplier for rate limit intervals based on system pressure.
+     * 1.0 = Normal (No pressure)
+     * 2.0+ = Throttling active
+     */
+    static getPressureFactor(): number {
+        const lag = IndustrialHealthCollector.getLag()
+
+        // Elite Pressure Scaling Algorithm:
+        // - < 100ms lag: 1.0 (Safe zone)
+        // - 100ms - 500ms lag: Linear scaling from 1.0 to 3.0
+        // - > 500ms lag: Exponential scaling to protect the process
+
+        if (lag < 0.1) return 1.0
+
+        if (lag >= 0.1 && lag <= 0.5) {
+            // Linear scaling (y = mx + c)
+            // (0.1, 1.0), (0.5, 3.0) -> m = 5
+            return 1.0 + (lag - 0.1) * 5
+        }
+
+        // Emergency exponential saturation protection
+        const factor = 3.0 + Math.pow((lag - 0.5) * 4, 2)
+        return Math.min(factor, 10.0) // Cap at 10x
+    }
+}
 
 /**
  * Distributed Rate Limiter
@@ -17,6 +51,13 @@ export class DistributedRateLimiter {
      * @param intervalMs - Minimum time needed between requests (e.g. 1000ms = 1 req/sec)
      */
     static async reserveSlot(providerId: string, intervalMs: number): Promise<number> {
+        const pressureFactor = PredictiveThrottler.getPressureFactor()
+        const dynamicInterval = Math.ceil(intervalMs * pressureFactor)
+
+        if (pressureFactor > 1.2) {
+            logger.warn(`[PredictiveThrottler] Applying Pressure Factor: ${pressureFactor.toFixed(2)}x to ${providerId}`)
+        }
+
         const key = `ratelimit:provider:${providerId}`
         const now = Date.now()
 
@@ -83,7 +124,7 @@ export class DistributedRateLimiter {
             return execution_time
         `
 
-        const execTimeRaw = await redis.eval(refinedScript, 1, key, intervalMs, now)
+        const execTimeRaw = await redis.eval(refinedScript, 1, key, dynamicInterval, now)
         const executionTime = Number(execTimeRaw)
 
         const waitTime = Math.max(0, executionTime - now)

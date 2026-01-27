@@ -59,7 +59,7 @@
 - [💳 Wallet System](#-wallet-system)
 - [🎨 Design System](#-design-system)
 - [📈 Monitoring](#-monitoring)
-- [☁️ Production Deployment](#️-production-deployment-aws-amplify)
+- [☁️ Production Deployment](#-production-deployment-vps--ec2)
 - [🔒 Security](#-security)
 - [📚 Documentation](#-documentation)
 - [📄 License](#-license)
@@ -192,7 +192,7 @@ flowchart TB
 </td>
 <td align="center" width="96">
 <img src="https://skillicons.dev/icons?i=aws" width="48" height="48" alt="AWS" />
-<br><sub><b>AWS ECS</b></sub>
+<br><sub><b>AWS EC2</b></sub>
 </td>
 <td align="center" width="96">
 <img src="https://skillicons.dev/icons?i=prometheus" width="48" height="48" alt="Prometheus" />
@@ -597,79 +597,79 @@ GET /api/metrics         # 📈 Prometheus metrics endpoint
 
 ---
 
-## ☁️ Production Deployment (AWS Amplify)
+## ☁️ Production Deployment (VPS / EC2)
 
-NexNum is optimized for **AWS Amplify** - the recommended deployment platform for Next.js applications.
+The recommended **"Senior Level"** deployment method for cost efficiency and control. Uses the `infra/vps` GitOps workflow.
 
-### Why AWS Amplify?
+### 🗺️ The "GitOps Lite" Workflow
 
-| Feature | Benefit |
-|---------|---------|
-| ✅ **Native Next.js 16 Support** | SSR, API routes, Image optimization |
-| ✅ **Free Tier (12 months)** | $100 credits + always-free Lambda |
-| ✅ **Commercial Use Allowed** | Unlike Vercel Hobby plan |
-| ✅ **Auto CI/CD** | Deploy on every GitHub push |
-| ✅ **Global CDN** | CloudFront included |
+```mermaid
+sequenceDiagram
+    participant Dev as 👨‍💻 Developer
+    participant Git as 🐙 GitHub
+    participant VPS as ☁️ Raw VPS (EC2/DO)
+    participant Script as 📜 setup.sh
+    participant Caddy as 🔒 Caddy (SSL)
+    participant App as ⚡ NexNum API
 
-### Production Stack (FREE Tier)
+    Dev->>Git: Push Code (main)
+    Dev->>VPS: SSH Login
+    VPS->>Git: git clone / git pull
+    VPS->>Script: sudo ./infra/vps/setup.sh
+    Note right of Script: Installs Docker, Swap, Fail2ban
+    VPS->>VPS: docker compose up -d
+    Caddy->>App: Reverse Proxy (Internal :3000)
+    Caddy->>VPS: Auto-Issue HTTPS Cert
+    Note over Caddy, App: 🚀 Live on https://api.yourdomain.com
+```
+
+### 🚀 Easy Deploy Guide (3 Steps)
+
+We have automated the boring stuff.
+
+#### 1. Provision Server
+Launch a **Ubuntu 22.04 LTS** instance (AWS `t3.micro` or DigitalOcean Droplet).
+- Open Ports: `22` (SSH), `80` (HTTP), `443` (HTTPS).
+- **Do NOT** open port 3000.
+
+#### 2. Initialize (One-Time)
+SSH into your fresh server and run our magic script:
+
+```bash
+# Clone the repo
+git clone https://github.com/FlashTheFire/NexNum.git
+cd NexNum/nexnum-app
+
+# Run the setup wizard (Creates Swap, Installs Docker)
+sudo ./infra/vps/setup.sh
+```
+
+#### 3. Go Live
+Config your environment and launch:
+
+```bash
+# Set secrets
+cp .env.example .env.production
+nano .env.production
+
+# Launch with Auto-SSL
+DOMAIN_NAME=api.your-domain.com ./infra/vps/deploy.sh localhost
+```
+
+### 💾 Cost optimized Stack (Free Tier Compatible)
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                   NexNum Production                     │
+│              NexNum "Smart Startup" Stack               │
 ├─────────────────────────────────────────────────────────┤
-│  ☁️  AWS Amplify    → Next.js hosting           (FREE) │
-│  🗃️  Supabase       → PostgreSQL database       (FREE) │
-│  ⚡  Redis          → Cache (Docker)            (FREE) │
-│  📧  SMTP           → Transactional emails      (NodeMailer)│
-│  🔍  MeiliSearch    → Search (Docker)           (FREE) │
+│  ☁️  VPS/EC2        → AWS Free Tier (t2/t3.micro) ($0)  │
+│  🗃️  Supabase       → PostgreSQL Database         (FREE)│
+│  ⚡  Redis          → Self-Hosted (Docker)        (FREE)│
+│  🔒  Caddy          → Auto-HTTPS / SSL            (FREE)│
 ├─────────────────────────────────────────────────────────┤
-│  💰 TOTAL: $0/month                                     │
+│  💰 TOTAL: $0/month (for 12 months)                     │
+│  ⚠️ Limits: 750hrs instance, 100GB bandwidth, 30GB SSD  │
 └─────────────────────────────────────────────────────────┘
-```
-
-### Quick Deploy to AWS
-
-```bash
-# 1️⃣ Install Amplify CLI
-npm install -g @aws-amplify/cli
-
-# 2️⃣ Configure AWS credentials
-amplify configure
-
-# 3️⃣ Initialize Amplify in your project
-amplify init
-
-# 4️⃣ Add hosting
-amplify add hosting
-# Select: Hosting with Amplify Console
-# Select: Continuous deployment
-
-# 5️⃣ Deploy
-amplify publish
-```
-
-### Environment Variables (AWS Console)
-
-Set these in **Amplify Console → App Settings → Environment Variables**:
-
-```env
-DATABASE_URL=postgresql://user:pass@host:5432/db
-DIRECT_URL=postgresql://user:pass@host:5432/db
-REDIS_URL=redis://default:xxx@xxx.upstash.io:6379
-JWT_SECRET=your-secret-key
-NEXT_PUBLIC_API_URL=https://your-app.amplifyapp.com
-```
-
-### Alternative: Docker Deployment
-
-For VPS or self-hosted environments:
-
-```bash
-# Build image
-docker build -t nexnum-app .
-
-# Run with env file
-docker run -p 3000:3000 --env-file .env nexnum-app
 ```
 
 ---
@@ -699,43 +699,42 @@ docker run -p 3000:3000 --env-file .env nexnum-app
 <tr>
 <td width="50%">
 
-#### 🏗️ Architecture & Design
+#### 🏗️ Architecture & Theory
 | Doc | Description |
 |-----|-------------|
-| [� Architecture](nexnum-app/docs/architecture.md) | System design & data flow |
-| [🔌 API Reference](nexnum-app/docs/api-reference.md) | All endpoints & examples |
-| [⚙️ Env Variables](nexnum-app/docs/env-reference.md) | 47+ config options |
+| [🏗️ Architecture](nexnum-app/docs/architecture.md) | System design & data flow |
+| [🔌 API Reference](nexnum-app/docs/api-reference.md) | Standard envelope & endpoints |
+| [🔒 Security](nexnum-app/docs/security.md) | Auth, Audit & Secrets |
 
 </td>
 <td width="50%">
 
-#### 🚀 Operations & Deployment
+#### 🚀 Operations & Cloud
 | Doc | Description |
 |-----|-------------|
-| [☁️ Deployment](nexnum-app/docs/deployment.md) | AWS/Docker deploy guide |
-| [🔑 Secrets](nexnum-app/docs/secret-manager-migration.md) | Secret manager setup |
-| [✅ Release](nexnum-app/docs/release-checklist.md) | Pre-release checklist |
+| [☁️ Deployment](nexnum-app/docs/deployment.md) | VPS/EC2 Production Guide |
+| [⚙️ Operations](nexnum-app/docs/operations.md) | Backups & Incident Response |
+| [📝 Env Reference](nexnum-app/docs/env-reference.md) | Full config dictionary |
 
 </td>
 </tr>
 <tr>
 <td width="50%">
 
-#### 🔒 Security & Performance
-| Doc | Description |
-|-----|-------------|
-| [🛡️ Security Audit](nexnum-app/docs/security-audit.md) | Auth, rate limits, audit |
-| [⚡ Performance](nexnum-app/docs/performance-guide.md) | Caching & optimization |
-
-</td>
-<td width="50%">
-
-#### 👥 Contributing
+#### 🤝 Open Source
 | Doc | Description |
 |-----|-------------|
 | [🤝 Contributing](nexnum-app/CONTRIBUTING.md) | Setup & PR process |
 | [📝 Changelog](nexnum-app/CHANGELOG.md) | Version history |
 | [👮 Code Owners](nexnum-app/CODEOWNERS) | Team ownership |
+
+</td>
+<td width="50%">
+
+#### 📚 Full Index
+| Doc | Description |
+|-----|-------------|
+| [📖 Docs Index](nexnum-app/docs/README.md) | Master documentation hub |
 
 </td>
 </tr>

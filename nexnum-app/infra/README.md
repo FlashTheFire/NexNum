@@ -1,52 +1,43 @@
-# Infrastructure
+# NexNum Infrastructure (AWS EC2 / VPS)
 
-Deployment infrastructure for NexNum.
+This directory contains the optimized infrastructure scripts for running the NexNum platform on a standard Linux VPS (like the **AWS Free Tier t3.micro**).
 
-## Directory Structure
+## 📁 Contents
 
-```
-infra/
-├── aws/                    # AWS ECS deployment (recommended)
-│   ├── task-definition.json
-│   ├── deploy.sh
-│   └── README.md
-├── k8s/                    # Kubernetes manifests (alternative)
-│   ├── deployment.yaml
-│   ├── service.yaml
-│   └── hpa.yaml
-└── README.md
-```
+- **[setup.sh](./setup.sh)**: One-click initialization script. Hardens the OS, configures 4GB Swap (essential for 1GB RAM), and installs Docker.
+- **[deploy.sh](./deploy.sh)**: Fast GitOps-lite deployment script via SSH.
 
-## Deployment Options
+---
 
-### 1. AWS ECS + Docker (Recommended)
+## 🚀 Quick Start (Production)
 
-**Primary deployment method using AWS Fargate.**
+### 1. Provision Server
+Launch a **Ubuntu 22.04 LTS** instance on AWS.
+- Use **Free Tier** eligible instances (`t2.micro` or `t3.micro`).
+- Open Ports: `22` (SSH), `80` (HTTP), `443` (HTTPS).
 
+### 2. Initialize Server
+SSH into your server and run the setup directly from your repo:
 ```bash
-# Deploy to staging
-./infra/aws/deploy.sh staging v1.0.0
-
-# Deploy to production
-./infra/aws/deploy.sh production v1.0.0
+git clone https://github.com/FlashTheFire/NexNum.git
+cd NexNum/nexnum-app
+chmod +x infra/setup.sh
+sudo ./infra/setup.sh
 ```
 
-See [aws/README.md](./aws/README.md) for full setup.
-
-### 2. Docker Compose (Self-hosted/VPS)
-
+### 3. Deploy Updates
+From your local machine or GitHub Actions:
 ```bash
-docker-compose -f docker-compose.prod.yml up -d
+./infra/deploy.sh user@host.ip
 ```
 
-### 3. Kubernetes (Alternative)
+---
 
-See [k8s/README.md](./k8s/README.md)
+## ⚙️ How it Works
+NexNum runs as a unified stack via **Docker Compose**.
+- **Caddy**: Manages SSL and routes traffic.
+- **App**: Next.js Standalone build.
+- **MeiliSearch**: Search Engine.
+- **Redis**: Caching & Rate Limiting.
 
-## Resource Requirements
-
-| Component | CPU | Memory |
-|-----------|-----|--------|
-| API (per task) | 0.5 vCPU | 1024 MB |
-| Worker | 0.25 vCPU | 512 MB |
-
+See the root `README.md` for the full architecture diagram.

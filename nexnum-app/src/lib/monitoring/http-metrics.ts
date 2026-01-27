@@ -27,7 +27,7 @@ interface MetricsOptions {
 
 type RouteHandler = (
     request: NextRequest,
-    context?: { params?: Record<string, string> }
+    context?: { params?: Promise<Record<string, string>> | Record<string, string> }
 ) => Promise<NextResponse> | NextResponse
 
 // ============================================================================
@@ -51,7 +51,7 @@ export function withMetrics(
     handler: RouteHandler,
     options: MetricsOptions
 ): RouteHandler {
-    return async (request: NextRequest, context?: { params?: Record<string, string> }) => {
+    return async (request: NextRequest, context?: { params?: Promise<Record<string, string>> | Record<string, string> }) => {
         if (options.skip) {
             return handler(request, context)
         }

@@ -7,8 +7,8 @@ export async function POST() {
         console.log('🗑️  Cleaning provider data...')
 
         // Delete provider pricing
-        const pricingDeleted = await prisma.providerPricing.deleteMany({})
-        console.log(`   Deleted ${pricingDeleted.count} pricing records`)
+        const pricingDeleted = { count: 0 } // await prisma.providerPricing.deleteMany({})
+        // console.log(`   Deleted ${pricingDeleted.count} pricing records`)
 
         // Delete provider services
         const servicesDeleted = await prisma.providerService.deleteMany({})
