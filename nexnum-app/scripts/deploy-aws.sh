@@ -63,5 +63,5 @@ fi
 echo "💎 [NEXNUM] Synchronizing Database Schema..."
 # sudo docker compose exec app ./node_modules/.bin/prisma generate || echo "⚠️ Prisma generation handled in build-time."
 
-echo "✨ [NEXNUM] Deployment Complete. Application is live on port 3001."
+echo "✨ [NEXNUM] Deployment Complete. Application is live on port 3000."
 echo "🔗 Infrastructure Dashboard: http://$(curl -s ifconfig.me):3100"
