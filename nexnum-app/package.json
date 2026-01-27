@@ -6,7 +6,7 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "dev": "next dev --turbo",
+    "dev": "cross-env HOST=0.0.0.0 next dev --turbo",
     "dev:full": "npx concurrently -n dev,socket -c blue,magenta \"npm run dev\" \"npm run services:socket\"",
     "build": "next build",
     "start": "next start",
@@ -17,11 +17,16 @@
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
     "infra:up": "docker compose up -d redis meilisearch",
+    "infra:monitoring": "docker compose --profile monitoring up -d",
     "infra:down": "docker compose down",
+    "dev:all": "npm run infra:monitoring && npm run dev",
     "services:worker": "npx tsx -r dotenv/config src/worker-entry.ts",
     "services:socket": "npx tsx -r dotenv/config src/socket-entry.ts",
     "services:queue": "npx tsx -r dotenv/config scripts/verify-queue.ts",
-    "bootstrap": "npx tsx scripts/bootstrap.ts"
+    "bootstrap": "npx tsx scripts/bootstrap.ts",
+    "deploy:aws": "bash scripts/deploy-aws.sh",
+    "data:archive": "bash scripts/archive-data.sh",
+    "data:restore": "bash scripts/restore-data.sh"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^8.4.0",

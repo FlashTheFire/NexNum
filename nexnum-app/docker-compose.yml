@@ -10,6 +10,11 @@ services:
   # Port: 3001 (Avoids 3000 which is used by "npm run dev")
   # ============================================
   app:
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     build:
       context: .
       dockerfile: Dockerfile
@@ -17,16 +22,19 @@ services:
     restart: unless-stopped
     ports:
       - "3001:3000"
+    env_file:
+      - .env
     environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - REDIS_URL=redis://:dev_redis_pass@nexnum-redis:6379
-      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
-      - SMS_FINGERPRINT_SECRET=${SMS_FINGERPRINT_SECRET:-development_fingerprint_secret}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-dev_redis_pass}@nexnum-redis:6379
       - MEILISEARCH_HOST=http://meilisearch:7700
-      - MEILISEARCH_API_KEY=${MEILISEARCH_API_KEY}
-      - ALERT_WEBHOOK_SECRET=${ALERT_WEBHOOK_SECRET}
-      - METRICS_SCRAPE_TOKEN=${METRICS_SCRAPE_TOKEN}
       - NEXT_DISABLE_INTERNAL_WORKERS=true
+      - RECONCILE_INTERVAL_MS=${RECONCILE_INTERVAL_MS:-60000}
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
     depends_on:
       redis:
@@ -79,6 +87,11 @@ services:
       - redis
 
   socket-server:
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     build:
       context: .
       dockerfile: Dockerfile.socket
@@ -90,13 +103,28 @@ services:
       - NODE_ENV=development
       - PORT=3951
       - DATABASE_URL=${DATABASE_URL}
-      - REDIS_URL=${REDIS_URL:-redis://redis:6379/1}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-dev_redis_pass}@nexnum-redis:6379
+      - JWT_SECRET=${JWT_SECRET}
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - MEILISEARCH_HOST=http://meilisearch:7700
+      - MEILISEARCH_API_KEY=${MEILISEARCH_API_KEY}
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "--spider", "http://localhost:3951/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
     depends_on:
       redis:
         condition: service_healthy
 
   worker:
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     build:
       context: .
       dockerfile: Dockerfile.worker
@@ -104,10 +132,13 @@ services:
     restart: unless-stopped
     environment:
       - DATABASE_URL=${DATABASE_URL}
-      - REDIS_URL=redis://:dev_redis_pass@nexnum-redis:6379
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-dev_redis_pass}@nexnum-redis:6379
+      - JWT_SECRET=${JWT_SECRET}
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
       - MEILISEARCH_HOST=http://meilisearch:7700
       - MEILISEARCH_API_KEY=${MEILISEARCH_API_KEY}
+      - RECONCILE_INTERVAL_MS=${RECONCILE_INTERVAL_MS:-60000}
+
     depends_on:
       redis:
         condition: service_healthy
@@ -171,6 +202,71 @@ services:
       timeout: 10s
       retries: 3
 
+  # --- LOGGING LAYER ---
+  loki:
+    image: grafana/loki:2.9.0
+    container_name: nexnum-loki
+    profiles: [ "monitoring" ]
+    volumes:
+      - ./monitoring/loki-config.yml:/etc/loki/local-config.yaml
+    ports:
+      - "3101:3101"
+    command: -config.file=/etc/loki/local-config.yaml
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:2.9.0
+    container_name: nexnum-promtail
+    profiles: [ "monitoring" ]
+    volumes:
+      - /var/log:/var/log
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ./monitoring/promtail-config.yml:/etc/promtail/config.yml
+    command: -config.file=/etc/promtail/config.yml
+    restart: unless-stopped
+
+  # --- SYNTHETIC PROBES ---
+  blackbox-exporter:
+    image: prom/blackbox-exporter:latest
+    container_name: nexnum-blackbox
+    profiles: [ "monitoring" ]
+    volumes:
+      - ./monitoring/blackbox.yml:/etc/blackbox_exporter/config.yml
+    restart: unless-stopped
+
+  # --- EXPORTERS ---
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: nexnum-node-exporter
+    profiles: [ "monitoring" ]
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+    restart: unless-stopped
+
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: nexnum-redis-exporter
+    profiles: [ "monitoring" ]
+    environment:
+      - REDIS_ADDR=redis://nexnum-redis:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-dev_redis_pass}
+    restart: unless-stopped
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: nexnum-postgres-exporter
+    profiles: [ "monitoring" ]
+    environment:
+      - DATA_SOURCE_NAME=${DATABASE_URL}
+      - PG_EXPORTER_DISABLE_SETTINGS_METRICS=true # Fixes NULL conversion error in short_desc
+    restart: unless-stopped
+
   alertmanager:
     image: prom/alertmanager:v0.26.0
     container_name: nexnum-alertmanager
@@ -184,8 +280,7 @@ services:
       - '--config.file=/etc/alertmanager/alertmanager.yml'
       - '--storage.path=/alertmanager'
       - '--web.external-url=http://localhost:9093'
-      - '--cluster.listen-address=' # Disable gossip to avoid port conflicts and logs spam
-
+      - '--cluster.listen-address='
     environment:
       - ALERT_SECRET=${ALERT_WEBHOOK_SECRET}
     restart: unless-stopped

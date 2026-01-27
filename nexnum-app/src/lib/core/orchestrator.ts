@@ -30,7 +30,11 @@ class CoreOrchestrator {
         if (this.isInitialized) return
         this.isInitialized = true
 
+        // 0. Senior-Grade Branding (Splash)
+        logger.splash()
+
         logger.info(`[Orchestrator] 🚀 Bootstrapping Core (${context})...`)
+
 
         try {
             // 1. Environment Validation (Fail Fast)

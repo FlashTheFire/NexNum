@@ -28,18 +28,20 @@ receivers:
   # General Operations Channel (Telegram)
   - name: 'ops-telegram'
     webhook_configs:
-      - url: 'http://nexnum-app:3000/api/alerts/telegram'
+      - url: 'http://host.docker.internal:3000/api/alerts/telegram'
         send_resolved: true
+
         http_config:
-          bearer_token: '${ALERT_SECRET}'
+          bearer_token: "nexnum-internal-monitoring-secret-9912"
 
   # Emergency Channel (Telegram + Email Backup)
   - name: 'ops-telegram-critical'
     webhook_configs:
-      - url: 'http://nexnum-app:3000/api/alerts/telegram'
+      - url: 'http://host.docker.internal:3000/api/alerts/telegram'
         send_resolved: true
+
         http_config:
-          bearer_token: '${ALERT_SECRET}'
+          bearer_token: "nexnum-internal-monitoring-secret-9912"
 
     email_configs:
       - to: 'admin@nexnum.com'

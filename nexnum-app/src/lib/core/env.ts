@@ -40,6 +40,9 @@ const envSchema = z.object({
     // App
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
     NEXT_PUBLIC_APP_URL: z.string().url().optional(),
+
+    // Monitoring
+    ALERT_WEBHOOK_SECRET: z.string().optional(),
 })
 
 export type Env = z.infer<typeof envSchema>

@@ -27,7 +27,11 @@ const C = {
     darkGray: "\x1b[38;5;238m",
     lightGreen: "\x1b[38;5;114m",
     orange: "\x1b[38;5;208m",
-    bgBlue: "\x1b[44m", // Added from mock-api
+    // NexNum Brand Palette
+    neonLime: "\x1b[38;5;190m",  // Closest to #C6FF00
+    deepTeal: "\x1b[38;5;30m",   // Closest to #0F2E2E
+    frost: "\x1b[38;5;255m",     // Clean #FFFFFF10 equivalent
+    bgCharcoal: "\x1b[48;5;232m", // Deep Background
 }
 
 const S = {
@@ -37,8 +41,21 @@ const S = {
     error: "✖",
     bolt: "⚡",
     box: "❯",
-    clock: "⏱️", // Added from mock-api
+    clock: "⏱️",
+    chip: "📟",
+    server: "🖥️",
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NexNum "Command Center" Branding (Industrial Grade)
+// ─────────────────────────────────────────────────────────────────────────────
+const BANNER = `
+   ${C.neonLime} _  _ ${C.frost} _____  ${C.neonLime}__  __ ${C.frost} _  _  ${C.neonLime} _  _  ${C.frost} __  __ 
+   ${C.neonLime}| \\| |${C.frost}| ____| ${C.neonLime}\\ \\/ / ${C.frost}| \\| | ${C.neonLime}| | | | ${C.frost}|  \\/  |
+   ${C.neonLime}| .  |${C.frost}|  _|   ${C.neonLime} >  <  ${C.frost}| .  | ${C.neonLime}| |_| | ${C.frost}| |\\/| |
+   ${C.neonLime}|_|\\_|${C.frost}|_____| ${C.neonLime}/_/\\_\\ ${C.frost}|_|\\_| ${C.neonLime} \\___/  ${C.frost}|_|  |_|
+          ${C.deepTeal}${C.bold}INDUSTRIAL CORE ENGINE • v1.0.0${C.reset}
+`
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Logger Class (Single-Line In-Place Dashboard)
@@ -65,24 +82,36 @@ class Logger {
     // ───────────────────────────────────────────────────────────────────────
     // Splash Screen
     // ───────────────────────────────────────────────────────────────────────
-    splash(title: string = "NEXNUM Core Engine") {
+    splash() {
         if (!this.isDev || Logger.hasSplashed) return
         Logger.hasSplashed = true
 
-        // Simple clear once
-        console.clear()
-        process.stdout.write('\x1Bc')
+        const osMod = require('os')
+        const platform = process.platform.toUpperCase()
+        const arch = process.arch.toUpperCase()
+        const node = process.version
+        const memory = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(1)
+        const cpu = osMod.cpus()[0].model.split('@')[0].trim()
 
+        // Network Discovery
+        const nets = osMod.networkInterfaces()
+        const localIp = (Object.values(nets).flat().find((i: any) => i && i.family === 'IPv4' && !i.internal) as any)?.address || '127.0.0.1'
+
+        // Industrial Clear
+        process.stdout.write('\x1B[2J\x1B[H')
+
+        process.stdout.write(BANNER)
         console.log(`
-  ${C.bgBlue}${C.bold}${C.white}  NEXNUM CORE ENGINE  ${C.reset}
+   ${C.neonLime}${S.chip}${C.reset}  ${C.bold}SYSTEM OS  ${C.reset} ${C.gray}›${C.reset} ${C.frost}${platform} (${arch})${C.reset}
+   ${C.neonLime}${S.server}${C.reset}  ${C.bold}HARDWARE   ${C.reset} ${C.gray}›${C.reset} ${C.frost}${cpu}${C.reset}
+   ${C.neonLime}${S.server}${C.reset}  ${C.bold}NETWORK    ${C.reset} ${C.gray}›${C.reset} ${C.frost}http://${localIp}:3000${C.reset}
+   ${C.neonLime}${S.clock}${C.reset}  ${C.bold}ENGINE     ${C.reset} ${C.gray}›${C.reset} ${C.neonLime}${C.bold}ACTIVE${C.reset} ${C.dim}• ${memory}MB HEAP • Node ${node}${C.reset}
 
-${C.green}${S.success}${C.reset}  Status:    ${C.green}READY${C.reset}
-${C.yellow}${S.bolt}${C.reset} Server:    ${C.blue}http://localhost:3000${C.reset}
-${C.blue}${S.clock}${C.reset}  Mode:      ${C.yellow}Development${C.reset}
-
-${C.darkGray}────────────────────────────────────────────────────────────${C.reset}
+${C.deepTeal}────────────────────────────────────────────────────────────${C.reset}
 `)
     }
+
+
 
     // ───────────────────────────────────────────────────────────────────────
     // Core Log Method (Lift-and-Drop)
@@ -97,11 +126,11 @@ ${C.darkGray}──────────────────────�
         if (this.levelValue(level as LogLevel) < minLevel) return
 
         let symbol = S.info
-        let color = C.cyan
+        let color = C.neonLime // Brand Primary
 
         if (level === 'error') { symbol = S.error; color = C.red }
-        else if (level === 'warn') { symbol = S.warn; color = C.yellow }
-        else if (level === 'success') { symbol = S.success; color = C.green }
+        else if (level === 'warn') { symbol = S.warn; color = C.orange }
+        else if (level === 'success') { symbol = S.success; color = C.neonLime }
 
         const durationStr = meta?.durationMs !== undefined ? ` ${C.dim}${meta.durationMs}ms${C.reset}` : ""
         const cleanMeta = meta ? (() => { const { durationMs, ...rest } = meta; return Object.keys(rest).length > 0 ? rest : undefined })() : undefined
@@ -111,7 +140,7 @@ ${C.darkGray}──────────────────────�
         this.liftDashboard()
 
         // Print log
-        console.log(`${C.gray}${this.ts()}${C.reset} ${color}${symbol}${C.reset} ${message}${durationStr}${metaStr}`)
+        console.log(`${C.deepTeal}${this.ts()}${C.reset} ${color}${symbol}${C.reset} ${C.frost}${message}${C.reset}${durationStr}${metaStr}`)
 
         // Drop dashboard (reprint line)
         this.dropDashboard()

@@ -34,19 +34,36 @@ import { timingSafeEqual } from '@/lib/core/isomorphic-crypto'
 
 // Verify webhook secret
 function verifyWebhookSecret(request: NextRequest): boolean {
-    const secret = process.env.ALERT_WEBHOOK_SECRET
-    if (!secret) return true // If not configured, allow all (dev mode)
+    let secret = process.env.ALERT_WEBHOOK_SECRET
+    if (!secret) {
+        console.warn('[Alerts] ALERT_WEBHOOK_SECRET not set')
+        return true
+    }
+
+    // Strip quotes if present (standardizes .env parsing across environments)
+    secret = secret.replace(/^["'](.*)["']$/, '$1')
 
     const authHeader = request.headers.get('authorization')
-    if (!authHeader) return false
+    if (!authHeader) {
+        console.warn('[Alerts] Missing Authorization header')
+        return false
+    }
 
-    const token = authHeader.replace('Bearer ', '')
+    const token = authHeader.replace('Bearer ', '').trim()
 
-    // Senior Note: Use timing-safe comparison for any authentication-related strings
+    // Professional Diagnostics (Dev only)
+    if (process.env.NODE_ENV === 'development') {
+        const maskedToken = token.length > 4 ? `${token.substring(0, 2)}...${token.substring(token.length - 2)}` : '***'
+        console.log(`[Alerts] Auth Verification: SecretLen=${secret.length}, TokenLen=${token.length}`)
+        console.log(`[Alerts] Token Diagnostic: [${maskedToken}]`)
+    }
+
     const tokenBuf = Buffer.from(token)
     const secretBuf = Buffer.from(secret)
 
-    if (tokenBuf.length !== secretBuf.length) return false
+    if (tokenBuf.length !== secretBuf.length) {
+        return false
+    }
 
     return timingSafeEqual(tokenBuf, secretBuf)
 }

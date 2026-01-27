@@ -41,10 +41,9 @@ RUN adduser --system --uid 1001 worker
 # Copy production artifacts
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./
-COPY --from=builder /app/src/workers ./src/workers
-COPY --from=builder /app/src/lib ./src/lib
-COPY --from=builder /app/src/config ./src/config
+COPY --from=builder /app/src ./src
 COPY --from=builder /app/prisma ./prisma
+
 COPY --from=builder /app/tsconfig.json ./tsconfig.json
 
 USER worker

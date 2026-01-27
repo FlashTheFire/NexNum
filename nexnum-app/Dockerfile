@@ -24,7 +24,10 @@ COPY . .
 
 # Build the application
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN npm run build
+RUN DATABASE_URL=postgres://localhost:5432/placeholder \
+    JWT_SECRET=placeholder_for_build_must_be_32_chars_long \
+    ENCRYPTION_KEY=placeholder_for_build_must_be_32_chars_long \
+    npm run build
 # Prune for production
 RUN --mount=type=cache,target=/root/.npm npm prune --omit=dev
 
