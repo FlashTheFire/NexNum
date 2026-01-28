@@ -99,7 +99,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             const data = await login({ email, password });
 
             // Check for 2FA Challenge
-            if (data.requires2Fa) {
+            if (data && data.requires2Fa) {
                 set({
                     requires2Fa: true,
                     tempToken: data.tempToken,
@@ -107,6 +107,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                     error: null
                 });
                 return true;
+            }
+
+            if (!data) {
+                throw new Error('Authentication response was invalid');
             }
 
             // Save token and user to cache
@@ -158,14 +162,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             }
 
             // Success
-            // Assuming validate route returns token in data.token
             const authToken = data.token;
+            const user = data.data?.user || data.user;
 
-            saveToken(authToken);
-            saveUser(data.data.user);
+            if (authToken) saveToken(authToken);
+            if (user) saveUser(user);
 
             set({
-                user: data.data.user,
+                user: user,
                 token: authToken,
                 isAuthenticated: true,
                 isLoading: false,

@@ -8,6 +8,7 @@ import { apiHandler } from '@/lib/api/api-handler'
 import { sendVerificationEmail } from '@/lib/auth/email-verification'
 import { verifyCaptcha } from '@/lib/security/captcha'
 import { auth_events_total } from '@/lib/metrics'
+import { ResponseFactory } from '@/lib/api/response-factory'
 
 export const POST = apiHandler(async (request, { body }) => {
     // Body validation provided by registerSchema
@@ -103,8 +104,7 @@ export const POST = apiHandler(async (request, { body }) => {
 
     auth_events_total.labels('register', 'success').inc()
 
-    return NextResponse.json({
-        success: true,
+    return ResponseFactory.success({
         user: {
             id: user.id,
             name: user.name,

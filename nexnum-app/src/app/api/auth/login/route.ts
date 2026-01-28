@@ -7,6 +7,7 @@ import bcrypt from 'bcryptjs'
 import { apiHandler } from '@/lib/api/api-handler'
 import { verifyCaptcha } from '@/lib/security/captcha'
 import { auth_events_total } from '@/lib/metrics'
+import { ResponseFactory } from '@/lib/api/response-factory'
 
 export const POST = apiHandler(async (request, { body }) => {
     // Body is already validated by apiHandler using loginSchema
@@ -112,8 +113,7 @@ export const POST = apiHandler(async (request, { body }) => {
 
     auth_events_total.labels('login', 'success').inc()
 
-    return NextResponse.json({
-        success: true,
+    return ResponseFactory.success({
         user: {
             id: user.id,
             name: user.name,

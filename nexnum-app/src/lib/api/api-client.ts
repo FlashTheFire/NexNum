@@ -127,7 +127,9 @@ class NexNumClient {
 
             return {
                 success: response.ok,
-                data: response.ok ? data.data : undefined, // ResponseFactory wraps payload in "data"
+                data: response.ok
+                    ? (data.data !== undefined ? data.data : data)
+                    : undefined,
                 error: !response.ok ? (data.error || 'Request failed') : undefined,
                 code: data.code,
                 details: data.details,
