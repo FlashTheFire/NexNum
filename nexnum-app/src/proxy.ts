@@ -73,7 +73,10 @@ export default async function proxy(request: NextRequest) {
 
 function attachSecurityHeaders(response: NextResponse) {
     response.headers.set('X-DNS-Prefetch-Control', 'on')
-    response.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload')
+    const IS_SECURE = process.env.NEXT_PUBLIC_APP_URL?.startsWith('https://') || false
+    if (IS_SECURE) {
+        response.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload')
+    }
     response.headers.set('X-XSS-Protection', '1; mode=block')
     response.headers.set('X-Frame-Options', 'SAMEORIGIN')
     response.headers.set('X-Content-Type-Options', 'nosniff')

@@ -14,7 +14,8 @@
 import { cookies } from 'next/headers'
 import { randomBytes, createHmac } from 'crypto'
 
-const CSRF_COOKIE_NAME = process.env.NODE_ENV === 'production' ? '__Host-csrf-token' : 'csrf-token'
+const IS_SECURE = process.env.NEXT_PUBLIC_APP_URL?.startsWith('https://') || false
+const CSRF_COOKIE_NAME = (process.env.NODE_ENV === 'production' && IS_SECURE) ? '__Host-csrf-token' : 'csrf-token'
 const CSRF_HEADER_NAME = 'x-csrf-token'
 const CSRF_SECRET = process.env.CSRF_SECRET || process.env.JWT_SECRET
 
@@ -89,7 +90,7 @@ export async function setCSRFCookie(): Promise<string> {
 
     cookieStore.set(CSRF_COOKIE_NAME, token, {
         httpOnly: false, // Client needs to read this to send in header
-        secure: process.env.NODE_ENV === 'production',
+        secure: IS_SECURE,
         sameSite: 'strict',
         path: '/',
         maxAge: CSRF_TOKEN_EXPIRY / 1000

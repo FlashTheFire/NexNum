@@ -85,8 +85,10 @@ function isAllowedOrigin(origin: string): boolean {
  */
 export function applySecurityHeaders(response: Response): Response {
     const headers = new Headers(response.headers)
+    const IS_SECURE = process.env.NEXT_PUBLIC_APP_URL?.startsWith('https://') || false
 
     for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
+        if (key === 'Strict-Transport-Security' && !IS_SECURE) continue
         headers.set(key, value)
     }
 

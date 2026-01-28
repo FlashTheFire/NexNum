@@ -10,6 +10,7 @@ if (!JWT_SECRET_RAW && process.env.NODE_ENV === 'production') {
 }
 const JWT_SECRET = new TextEncoder().encode(JWT_SECRET_RAW || 'dev-only-not-for-production')
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d'
+const IS_SECURE = process.env.NEXT_PUBLIC_APP_URL?.startsWith('https://') || false
 
 export interface TokenPayload extends JWTPayload {
     userId: string
@@ -117,7 +118,7 @@ export async function setAuthCookie(token: string): Promise<void> {
     const cookieStore = await cookies()
     cookieStore.set('token', token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        secure: IS_SECURE,
         sameSite: 'lax',
         maxAge: 60 * 60 * 24 * 7, // 7 days
         path: '/',
