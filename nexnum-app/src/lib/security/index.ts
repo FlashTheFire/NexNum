@@ -12,7 +12,7 @@ import { checkBrowser, requireRealBrowser } from './browser-check'
 import { generateFingerprint, getFingerprintId } from './fingerprint'
 import { validateRequestSignature } from './request-signing'
 import { API_SECURITY_HEADERS } from './headers'
-import { verifyCaptcha } from './captcha'
+import { verifyCaptcha, getCaptchaSiteKey } from './captcha'
 import { logger } from '@/lib/core/logger'
 import { RiskSentinel, RiskSignal } from './risk-sentinel'
 
@@ -204,7 +204,10 @@ export async function runSecurityChecks(
     }
 
     // 5. CAPTCHA Verification (Strict)
-    if (opts.requireCaptcha && !hasApiKey) {
+    // Only enforce if requireCaptcha is true AND a provider is actually configured
+    const isCaptchaConfigured = !!getCaptchaSiteKey() && (!!process.env.HCAPTCHA_SECRET || !!process.env.RECAPTCHA_SECRET)
+
+    if (opts.requireCaptcha && !hasApiKey && isCaptchaConfigured) {
         const captchaToken = headers.get('x-captcha-token')
         if (!captchaToken) {
             return {
