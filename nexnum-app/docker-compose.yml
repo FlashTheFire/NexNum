@@ -149,7 +149,6 @@ services:
       - MEILISEARCH_HOST=http://nexnum-meilisearch:7700
       - RECONCILE_INTERVAL_MS=${RECONCILE_INTERVAL_MS:-60000}
       - FORCE_SYNC=true
-      - SYNC_PROVIDER=grizzlysms
 
     depends_on:
       redis:

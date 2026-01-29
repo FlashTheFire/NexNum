@@ -22,9 +22,14 @@ else
     echo "ℹ️ [NEXNUM] Swap already configured."
 fi
 
-# 2. SYSTEM UPDATES
-echo "🔄 [NEXNUM] Updating system packages..."
-sudo apt-get update -y && sudo apt-get upgrade -y
+# 2. SYSTEM UPDATES (Fast Mode: Skip upgrade unless requested)
+if [[ "$*" == *"--full"* ]]; then
+    echo "🔄 [NEXNUM] Performing full system update..."
+    sudo apt-get update -y && sudo apt-get upgrade -y
+else
+    echo "⚡ [NEXNUM] Fast Mode: Skipping system upgrade."
+    sudo apt-get update -y > /dev/null
+fi
 
 # 3. DOCKER CHECK
 if ! [ -x "$(command -v docker)" ]; then
@@ -47,17 +52,13 @@ echo "📦 [NEXNUM] Orchestrating core services..."
 # Caddy acts as the edge proxy for SSL/TLS termination
 sudo docker compose up -d --build app worker socket-server meilisearch redis caddy
 
-echo "📊 [NEXNUM] Evaluating memory for monitoring stack..."
-# STOCKHOLM OPTIMIZATION: Check for eu-north-1 specific performance
-REGION=$(curl -s http://169.254.169.254/latest/meta-data/placement/region || echo "unknown")
-echo "📍 [NEXNUM] Detected Region: $REGION"
-
+# 5. MONITORING STACK (Agile Activation)
 FREE_RAM=$(free -m | awk '/^Mem:/{print $7}')
-if [ $FREE_RAM -gt 200 ] || [ "$REGION" == "eu-north-1" ]; then
-    echo "🟢 [NEXNUM] Deploying monitoring fleet (Optimized for $REGION)..."
+if [ $FREE_RAM -gt 500 ]; then
+    echo "🟢 [NEXNUM] RAM Health OK ($FREE_RAM MB). Activating monitoring..."
     sudo docker compose --profile monitoring up -d
 else
-    echo "⚠️ [NEXNUM] Low RAM detected. Monitoring stack will remain offline."
+    echo "⚠️ [NEXNUM] Conservative Mode: Monitoring stack remains offline (RAM: $FREE_RAM MB)."
 fi
 
 # 6. DATABASE SYNC & PRISMA
