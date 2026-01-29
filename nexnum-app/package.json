@@ -24,6 +24,7 @@
     "services:socket": "npx tsx -r dotenv/config src/socket-entry.ts",
     "services:queue": "npx tsx -r dotenv/config scripts/verify-queue.ts",
     "services:sync-trigger": "npx tsx -r dotenv/config src/scripts/trigger-sync.ts",
+    "services:activate-provider": "npx tsx -r dotenv/config src/scripts/activate-provider.ts",
     "bootstrap": "npx tsx scripts/bootstrap.ts",
     "deploy:aws": "bash scripts/deploy-aws.sh",
     "data:archive": "bash scripts/archive-data.sh",

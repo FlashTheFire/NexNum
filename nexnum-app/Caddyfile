@@ -2,7 +2,11 @@
     email your-email@example.com
 }
 
-:80, :443 {
+:80 {
+    reverse_proxy nexnum-app:3000
+}
+
+:443 {
     tls internal
     reverse_proxy nexnum-app:3000
 }
