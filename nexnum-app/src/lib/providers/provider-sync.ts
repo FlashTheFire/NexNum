@@ -19,7 +19,7 @@ import pLimit from 'p-limit'
 import { indexOffers, OfferDocument, deleteOffersByProvider, INDEXES, SHADOW_PREFIX, swapShadowToPrimary, initSearchIndexes } from '@/lib/search/search'
 import { logAdminAction } from '@/lib/core/auditLog'
 import * as dotenv from 'dotenv'
-import { Worker } from 'node:worker_threads'
+// Senior-Level Optimization: worker_threads is only loaded dynamically to prevent Turbopack build panics
 dotenv.config()
 import { RateLimitedQueue } from '@/lib/utils/async-utils'
 import { recordProviderSync } from '@/lib/metrics'
@@ -860,21 +860,24 @@ export function startWorkerSync(providerName: string, options?: SyncOptions): Pr
     return new Promise((resolve, reject) => {
         const workerPath = path.join(process.cwd(), 'src/lib/providers/sync-worker.ts')
 
-        // Senior-Level: Use Node 20+ ESM loaders for workers instead of legacy require(tsx/register)
-        const worker = new Worker(workerPath, {
-            execArgv: ['--import', 'tsx', '-r', 'dotenv/config'],
-            workerData: { providerName, options }
-        })
+        // Senior-Level: Use Node 20+ ESM loaders for workers. 
+        // We use a dynamic import to satisfy Turbopack during the Next.js build phase.
+        import('node:worker_threads').then(({ Worker }) => {
+            const worker = new Worker(workerPath, {
+                execArgv: ['--import', 'tsx', '-r', 'dotenv/config'],
+                workerData: { providerName, options }
+            })
 
-        worker.on('message', (msg) => {
-            if (msg.status === 'success') resolve(msg.result)
-            else reject(new Error(msg.error))
-        })
+            worker.on('message', (msg) => {
+                if (msg.status === 'success') resolve(msg.result)
+                else reject(new Error(msg.error))
+            })
 
-        worker.on('error', reject)
-        worker.on('exit', (code) => {
-            if (code !== 0) reject(new Error(`Worker stopped with exit code ${code}`))
-        })
+            worker.on('error', reject)
+            worker.on('exit', (code) => {
+                if (code !== 0) reject(new Error(`Worker stopped with exit code ${code}`))
+            })
+        }).catch(reject)
     })
 }
 
