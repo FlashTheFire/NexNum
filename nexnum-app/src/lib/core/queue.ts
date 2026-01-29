@@ -27,7 +27,8 @@ class QueueService {
             this.boss = new PgBoss({
                 connectionString: url,
                 max: 10, // Increased from 2 to 10
-                application_name: 'NexNum-Queue'
+                application_name: 'NexNum-Queue',
+                queueCacheIntervalSeconds: 5 // Industrial speed: refresh cache every 5s instead of 60s
             })
 
             this.boss.on('error', (error) => {
@@ -80,27 +81,31 @@ class QueueService {
 
                     // VERIFICATION: Prove the manager is stable
                     // If this fails, the internal cache is definitely not initialized
-                    try {
-                        const status = await (this.boss! as any).getQueueStats(QUEUES.PROVIDER_SYNC)
-                        logger.debug(`Queue verified: ${status.name} ready.`)
-                        break // Success!
-                    } catch (ve: any) {
-                        logger.warn('Queue synchronization in progress, retrying cache population...', { error: ve.message })
-
-                        // Force manual cache population if manager failed it
-                        if (ve.message?.includes('not initialized')) {
-                            try {
-                                // Accessing internal manager property to populate cache
-                                await (this.boss! as any).onCacheQueues()
-                                // Re-verify
-                                await (this.boss! as any).getQueueStats(QUEUES.PROVIDER_SYNC)
-                                logger.info('Queue cache manually initialized and verified.')
+                    let cacheReady = false
+                    for (let v = 0; v < 3; v++) {
+                        try {
+                            // Using any because getQueueStats might not be in all PgBoss types
+                            const status = await (this.boss! as any).getQueueStats(QUEUES.PROVIDER_SYNC)
+                            logger.debug(`Queue verified: ${status.name} ready (Attempt ${v + 1}).`)
+                            cacheReady = true
+                            break
+                        } catch (ve: any) {
+                            if (ve.message?.includes('not initialized')) {
+                                logger.warn(`Queue cache initialization heartbeat failed (v=${v + 1}), waiting for auto-population...`)
+                                // Wait 2s for the 5s interval config to kick in
+                                await new Promise(r => setTimeout(r, 2000))
+                            } else if (ve.message?.includes('not exist')) {
+                                // Queue doesn't exist yet, we just created it.
+                                // Manager is alive if it knows it doesn't exist.
+                                cacheReady = true
                                 break
-                            } catch (me: any) {
-                                throw new Error(`Manual cache population failed: ${me.message}`)
+                            } else {
+                                throw ve
                             }
                         }
                     }
+
+                    if (!cacheReady) throw new Error('Queue manager started but internal cache heartbeat timed out')
 
                     break
                 } catch (error: any) {
