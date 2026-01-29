@@ -5,12 +5,12 @@
  */
 
 import { NextResponse } from 'next/server'
-import { requireAdmin } from '@/lib/auth/requireAdmin'
+import { AuthGuard } from '@/lib/auth/guard'
 import { meili, INDEXES } from '@/lib/search/search'
 import { prisma } from '@/lib/core/db'
 
 export async function GET(request: Request) {
-    const auth = await requireAdmin(request)
+    const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 
     try {
@@ -84,3 +84,4 @@ export async function GET(request: Request) {
         })
     }
 }
+

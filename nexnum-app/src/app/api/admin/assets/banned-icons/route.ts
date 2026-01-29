@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/core/db'
-import { requireAdmin } from '@/lib/auth/requireAdmin'
+import { AuthGuard } from '@/lib/auth/guard'
 
 export async function GET(request: Request) {
-    const auth = await requireAdmin(request)
+    const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 
     const icons = await (prisma as any).bannedIcon.findMany({
@@ -13,7 +13,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-    const auth = await requireAdmin(request)
+    const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 
     try {
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-    const auth = await requireAdmin(request)
+    const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 
     try {
@@ -46,3 +46,4 @@ export async function DELETE(request: Request) {
         return NextResponse.json({ error: "Failed to delete" }, { status: 500 })
     }
 }
+

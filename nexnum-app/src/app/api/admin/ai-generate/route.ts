@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { NormalizationDiscoveryService } from '@/lib/ai/discovery-service'
 
+import { AuthGuard } from '@/lib/auth/guard'
+
 /**
  * Administrative AI Generation Route
  * 
@@ -8,8 +10,7 @@ import { NormalizationDiscoveryService } from '@/lib/ai/discovery-service'
  * to the NormalizationDiscoveryService (Universal AI Brain).
  */
 export async function POST(req: NextRequest) {
-  const { requireAdmin } = await import('@/lib/auth/requireAdmin')
-  const auth = await requireAdmin(req)
+  const auth = await AuthGuard.requireAdmin()
   if (auth.error) return auth.error
 
   try {
@@ -41,3 +42,4 @@ export async function POST(req: NextRequest) {
     )
   }
 }
+

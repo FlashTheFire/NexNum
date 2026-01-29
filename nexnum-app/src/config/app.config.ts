@@ -70,8 +70,7 @@ export const WorkersConfig = {
 // FEATURE FLAGS
 // ============================================
 export const FeaturesConfig = {
-    /** Enable mock SMS provider (development only) */
-    mockProvider: process.env.ENABLE_MOCK_PROVIDER === 'true',
+
 
     /** Enable debug logging */
     debugMode: process.env.DEBUG === 'true',

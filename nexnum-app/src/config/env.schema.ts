@@ -42,13 +42,7 @@ export const envSchema = z.object({
     NEXT_PUBLIC_SITE_URL: z.string().url().optional(),
 
     // ── SMS Providers ─────────────────────────
-    SMS_PROVIDER: z.string().default('herosms'),
 
-    HERO_SMS_API_URL: z.string().default('https://herosms.one/stubs/handler_api.php'),
-    GRIZZLYSMS_API_URL: z.string().default('https://api.grizzlysms.com/stubs/handler_api.php'),
-    SMSBOWER_API_URL: z.string().default('https://smsbower.com/api'),
-    FIVESIM_API_URL: z.string().default('https://5sim.net/v1'),
-    ONLINESIM_API_URL: z.string().default('https://onlinesim.io/api'),
 
     // ── Limits ────────────────────────────────
     DAILY_SPEND_LIMIT: positiveNumber.default(100),
@@ -73,7 +67,7 @@ export const envSchema = z.object({
     CLEANUP_INTERVAL_MS: z.coerce.number().int().positive().default(120000),
 
     // ── Feature Flags ─────────────────────────
-    ENABLE_MOCK_PROVIDER: z.string().optional().transform(v => v === 'true'),
+
     DEBUG: z.string().optional().transform(v => v === 'true'),
     MAINTENANCE_MODE: z.string().optional().transform(v => v === 'true'),
     ENABLE_SMS_FINGERPRINTING: z.string().optional().transform(v => v !== 'false'),  // Default true

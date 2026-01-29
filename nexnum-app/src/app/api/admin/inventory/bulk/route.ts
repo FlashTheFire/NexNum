@@ -5,14 +5,14 @@
  */
 
 import { NextResponse } from 'next/server'
-import { requireAdmin } from '@/lib/auth/requireAdmin'
+import { AuthGuard } from '@/lib/auth/guard'
 import {
     bulkCountryOperation,
     bulkServiceOperation
 } from '@/lib/admin/inventory-manager'
 
 export async function POST(request: Request) {
-    const auth = await requireAdmin(request)
+    const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 
     try {
@@ -53,9 +53,9 @@ export async function POST(request: Request) {
         let result
 
         if (type === 'countries') {
-            result = await bulkCountryOperation(items, action, permanent, auth.userId)
+            result = await bulkCountryOperation(items, action, permanent, auth.user.userId)
         } else {
-            result = await bulkServiceOperation(items, action, permanent, auth.userId)
+            result = await bulkServiceOperation(items, action, permanent, auth.user.userId)
         }
 
         return NextResponse.json(result)
@@ -64,3 +64,4 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
 }
+

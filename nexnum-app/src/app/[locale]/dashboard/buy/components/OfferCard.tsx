@@ -5,7 +5,7 @@ import { SafeImage } from "@/components/ui/safe-image";
 
 export interface SearchOffer {
     id: string;
-    provider: string; // "smsbower"
+    provider: string; // "provider-a"
     countryCode: string; // "22"
     countryName: string; // "India"
     serviceCode: string; // "wa"

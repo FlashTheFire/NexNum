@@ -13,8 +13,9 @@ async function trigger() {
         await orchestrator.bootstrap('CLI:Sync-Trigger')
         await queue.start()
 
-        console.log('📡 [CLI] Publishing PROVIDER_SYNC job for grizzlysms to queue...')
-        const jobId = await queue.publish(QUEUES.PROVIDER_SYNC, { provider: 'grizzlysms' })
+        const provider = process.argv[2] || 'mock'
+        console.log(`📡 [CLI] Publishing PROVIDER_SYNC job for ${provider} to queue...`)
+        const jobId = await queue.publish(QUEUES.PROVIDER_SYNC, { provider })
 
         console.log(`✅ [CLI] Industrial Sync Job Queued successfully. ID: ${jobId}`)
         console.log('⏳ [CLI] Waiting for worker to pick up the job...')

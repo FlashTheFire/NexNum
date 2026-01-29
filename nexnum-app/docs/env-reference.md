@@ -32,7 +32,7 @@ Complete reference for all environment variables in NexNum.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `SMS_PROVIDER` | `herosms` | Default SMS provider |
+| `SMS_PROVIDER` | `mock` | Default SMS provider |
 
 
 
@@ -40,11 +40,9 @@ Complete reference for all environment variables in NexNum.
 
 | Variable | Default |
 |----------|---------|
-| `HERO_SMS_API_URL` | `https://herosms.one/stubs/handler_api.php` |
-| `GRIZZLYSMS_API_URL` | `https://api.grizzlysms.com/stubs/handler_api.php` |
-| `SMSBOWER_API_URL` | `https://smsbower.com/api` |
-| `FIVESIM_API_URL` | `https://5sim.net/v1` |
-| `ONLINESIM_API_URL` | `https://onlinesim.io/api` |
+| `PROVIDER_A_API_URL` | `https://api.provider-a.com/v1` |
+| `PROVIDER_B_API_URL` | `https://api.provider-b.com/stubs/api.php` |
+| `GENERIC_SMS_API_URL` | `https://generic-sms.com/api` |
 
 ## Limits
 

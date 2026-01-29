@@ -2,13 +2,13 @@
 // Types synchronized with schema
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/core/db'
-import { getProviderAdapter, getMetadataProvider } from '@/lib/providers/provider-factory'
+import { getProviderAdapter } from '@/lib/providers/provider-factory'
 import { DynamicProvider } from '@/lib/providers/dynamic-provider'
-import { requireAdmin } from '@/lib/auth/requireAdmin'
+import { AuthGuard } from '@/lib/auth/guard'
 import { SmsProvider } from '@/lib/providers/types'
 
 export async function POST(req: Request, source: { params: Promise<{ id: string }> }) {
-    const auth = await requireAdmin(req)
+    const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 
     const { id } = await source.params
@@ -45,8 +45,8 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
         // Main engine for all operations
         engine = getProviderAdapter(provider)
 
-        // Metadata engine (same as main engine in strict mode)
-        metadataEngine = getMetadataProvider(provider)
+        // Metadata engine (same as main engine)
+        metadataEngine = engine
 
         let result: any
 

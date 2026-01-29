@@ -10,7 +10,7 @@ import { Prisma } from '@prisma/client'
 import { logger } from '@/lib/core/logger'
 import { emitControlEvent } from '@/lib/events/emitters/state-emitter'
 import { ForensicDispatcher } from './forensic-dispatcher'
-import { reportFinancialHealth } from '@/lib/metrics'
+import { wallet_sentinel_drift_total, wallet_sentinel_status } from '@/lib/metrics'
 
 export class FinancialSentinel {
     private static ALLOWED_DRIFT = 0.01 // Maximum acceptable rounding drift
@@ -67,7 +67,8 @@ export class FinancialSentinel {
             const status = drift.greaterThan(this.ALLOWED_DRIFT) ? 1 : 0;
 
             // Industrial Telemetry Reporting
-            reportFinancialHealth(driftNum, status);
+            wallet_sentinel_drift_total.set(driftNum);
+            wallet_sentinel_status.set(status);
 
             if (status === 1) {
                 logger.error(`[Sentinel] FINANCIAL INTEGRITY BREACH for user ${userId}`, {

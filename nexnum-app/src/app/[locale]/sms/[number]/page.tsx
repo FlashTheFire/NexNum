@@ -77,8 +77,8 @@ export default function SMSPage() {
             // 2. If valid UUID, try fetching specific number details
             if (identifier.includes('-')) {
                 setIsFetchingLocal(true)
-                import("@/lib/api/api-client").then(({ getNumberDetails }) => {
-                    getNumberDetails(identifier).then(num => {
+                import("@/lib/api/api-client").then(({ api }) => {
+                    api.getNumberDetails(identifier).then(num => {
                         if (num) setLocalNumber(num)
                         setIsFetchingLocal(false)
                     })

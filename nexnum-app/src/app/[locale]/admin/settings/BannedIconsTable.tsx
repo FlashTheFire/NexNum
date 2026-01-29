@@ -148,7 +148,7 @@ export function BannedIconsTable() {
                                 <Label>Description (Optional)</Label>
                                 <Input
                                     className="bg-gray-800 border-gray-700"
-                                    placeholder="e.g. 5sim Bad Bear"
+                                    placeholder="e.g. Invalid Service Icon"
                                     value={newDesc}
                                     onChange={(e) => setNewDesc(e.target.value)}
                                 />

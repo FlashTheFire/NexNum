@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { requireUser } from '@/lib/auth/requireUser'
+import { AuthGuard } from '@/lib/auth/guard'
 import { SmartSmsRouter } from '@/lib/providers/smart-router'
 import { z } from 'zod'
 
@@ -12,7 +12,7 @@ const schema = z.object({
 })
 
 export async function POST(request: Request) {
-    const auth = await requireUser(request)
+    const auth = await AuthGuard.requireUser()
     if (auth.error) return auth.error
 
     try {
@@ -56,3 +56,4 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Failed to generate quote' }, { status: 500 })
     }
 }
+

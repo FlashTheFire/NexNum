@@ -2,12 +2,12 @@
 // Types synchronized with schema
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/core/db'
-import { requireAdmin, redactProvidersSecrets, redactProviderSecrets } from '@/lib/auth/requireAdmin'
+import { AuthGuard, redactProvidersSecrets, redactProviderSecrets } from '@/lib/auth/guard'
 import { logAdminAction, getClientIP } from '@/lib/core/auditLog'
 import { SettingsService } from '@/lib/settings'
 
 export async function GET(req: Request) {
-    const auth = await requireAdmin(req)
+    const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 
     try {
@@ -40,7 +40,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-    const auth = await requireAdmin(req)
+    const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 
     try {
@@ -111,7 +111,7 @@ export async function POST(req: Request) {
 
         // Audit log the creation
         await logAdminAction({
-            userId: auth.userId,
+            userId: auth.user.userId,
             action: 'PROVIDER_CREATE',
             resourceType: 'Provider',
             resourceId: provider.id,
@@ -126,3 +126,4 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
     }
 }
+

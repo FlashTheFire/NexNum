@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { requireAdmin } from '@/lib/auth/requireAdmin'
+import { AuthGuard } from '@/lib/auth/guard'
 import {
     searchAdminCountries,
     searchAdminServices,
@@ -7,7 +7,7 @@ import {
 } from '@/lib/search/search'
 
 export async function GET(request: Request) {
-    const auth = await requireAdmin(request)
+    const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 
     const { searchParams } = new URL(request.url)
@@ -52,3 +52,4 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: 'Failed to fetch inventory from search engine' }, { status: 500 });
     }
 }
+

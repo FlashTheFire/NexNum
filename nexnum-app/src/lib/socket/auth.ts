@@ -1,5 +1,4 @@
 import { Socket } from 'socket.io';
-import { ExtendedError } from 'socket.io/dist/namespace';
 import { verifyToken } from '@/lib/auth/jwt';
 import { prisma } from '@/lib/core/db';
 import { redis } from '@/lib/core/redis';
@@ -17,7 +16,7 @@ export interface AuthenticatedSocket extends Socket {
  * Socket.io Middleware for JWT Authentication
  * Performs strict validation including DB checks for Ban/Token Version.
  */
-export async function socketAuth(socket: Socket, next: (err?: ExtendedError) => void) {
+export async function socketAuth(socket: Socket, next: (err?: any) => void) {
     try {
         let token = socket.handshake.auth.token || socket.handshake.headers.authorization?.split(' ')[1];
 

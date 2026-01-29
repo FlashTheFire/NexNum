@@ -3,14 +3,13 @@
  * 
  * Professional operational intelligence dashboard endpoint.
  * 
- * Endpoints:
  * GET /api/admin/metrics/advanced                    → All providers, all metrics
- * GET /api/admin/metrics/advanced?provider=grizzlysms → Single provider metrics
+ * GET /api/admin/metrics/advanced?provider=provider-a → Single provider metrics
  * GET /api/admin/metrics/advanced?window=1440        → Custom time window (minutes)
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAdmin } from '@/lib/auth/requireAdmin'
+import { AuthGuard } from '@/lib/auth/guard'
 import { AdvancedMetricsCalculator, SystemMetrics, ProviderMetrics } from '@/lib/metrics/advanced-metrics'
 
 // Cache for expensive calculations
@@ -18,7 +17,7 @@ let metricsCache: { data: SystemMetrics; expiry: number } | null = null
 const CACHE_TTL_MS = 30 * 1000 // 30 seconds
 
 export async function GET(request: NextRequest) {
-    const auth = await requireAdmin(request)
+    const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 
     const { searchParams } = new URL(request.url)

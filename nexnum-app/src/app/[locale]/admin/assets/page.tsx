@@ -129,7 +129,7 @@ export default function BannedIconsPage() {
                             <div className="space-y-2">
                                 <label className="text-xs text-gray-400">Description (Optional)</label>
                                 <Input
-                                    placeholder="Reason (e.g. 5sim Logo)"
+                                    placeholder="Reason (e.g. Offensive Icon)"
                                     value={newDesc}
                                     onChange={e => setNewDesc(e.target.value)}
                                     className="bg-black/20 border-white/10"

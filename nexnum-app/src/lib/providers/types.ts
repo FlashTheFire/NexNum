@@ -2,7 +2,6 @@
 
 export interface Country {
     code: string     // Primary Identifier (Universal)
-    id?: string      // Legacy/Provider Specific
     name: string
     flagUrl?: string | null
     [key: string]: any // Support the preservation of any mapped fields
@@ -10,7 +9,6 @@ export interface Country {
 
 export interface Service {
     code: string     // Primary Identifier (Universal)
-    id?: string      // Legacy/Provider Specific
     name: string
     iconUrl?: string | null
     [key: string]: any // Support the preservation of any mapped fields

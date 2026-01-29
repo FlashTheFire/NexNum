@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { ZodError, ZodSchema } from 'zod'
 import { logger } from '@/lib/core/logger'
+import { AuthGuard } from '@/lib/auth/guard'
 import { rateLimiters, RatelimitType } from '@/lib/auth/ratelimit'
 import { runSecurityChecks, SecurityOptions, createSecurityErrorResponse, API_SECURITY_HEADERS } from '@/lib/security'
 import { ResponseFactory } from './response-factory'
@@ -118,12 +119,11 @@ export function apiHandler<T = any>(
 
                 // 3.5 Authentication (Optional)
                 if (options.requiresAuth) {
-                    const { requireUser } = await import('@/lib/auth/requireUser')
-                    const authResult = await requireUser(req)
+                    const authResult = await AuthGuard.requireUser()
                     if (authResult.error) {
                         return ResponseFactory.error('Unauthorized', 401, 'E_UNAUTHORIZED')
                     }
-                    user = { userId: authResult.userId }
+                    user = { userId: authResult.user.userId }
                 }
 
                 // 4. Execute Handler with security context

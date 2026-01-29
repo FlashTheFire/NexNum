@@ -703,13 +703,9 @@ export class AdvancedMetricsCalculator {
 
         if (successful === 0) return this.emptyMetric('Cost per Successful Operation', '$')
 
-        // Use specific providerCost if available, otherwise fallback to transaction estimation
         const totalCost = successfulActivations.reduce((sum, a) => {
             const cost = Number(a.providerCost || 0)
-            if (cost > 0) return sum + cost
-
-            // Legacy Fallback: Try to estimate from price
-            return sum + (Number(a.price || 0) * 0.7) // Assume 30% margin for legacy
+            return sum + cost
         }, 0)
 
         const value = Math.round((totalCost / successful) * 100) / 100

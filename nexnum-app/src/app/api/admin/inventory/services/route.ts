@@ -6,7 +6,7 @@
  */
 
 import { NextResponse } from 'next/server'
-import { requireAdmin } from '@/lib/auth/requireAdmin'
+import { AuthGuard } from '@/lib/auth/guard'
 import {
     toggleServiceVisibility,
     deleteService,
@@ -16,7 +16,7 @@ import {
 import { prisma } from '@/lib/core/db'
 
 export async function PATCH(request: Request) {
-    const auth = await requireAdmin(request)
+    const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 
     try {
@@ -30,7 +30,7 @@ export async function PATCH(request: Request) {
             )
         }
 
-        // Resolve provider ID (handle slugs like 'mock-sms')
+        // Resolve provider ID (handle slugs like 'sms-activate')
         const provider = await prisma.provider.findFirst({
             where: {
                 OR: [
@@ -49,11 +49,11 @@ export async function PATCH(request: Request) {
         let result
 
         if (action === 'hide') {
-            result = await toggleServiceVisibility(targetProviderId, externalId, false, auth.userId)
+            result = await toggleServiceVisibility(targetProviderId, externalId, false, auth.user.userId)
         } else if (action === 'unhide') {
-            result = await toggleServiceVisibility(targetProviderId, externalId, true, auth.userId)
+            result = await toggleServiceVisibility(targetProviderId, externalId, true, auth.user.userId)
         } else if (action === 'edit' && updates) {
-            result = await updateService(targetProviderId, externalId, updates, auth.userId)
+            result = await updateService(targetProviderId, externalId, updates, auth.user.userId)
         } else {
             return NextResponse.json(
                 { error: 'Invalid action. Use: hide, unhide, or edit' },
@@ -73,7 +73,7 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-    const auth = await requireAdmin(request)
+    const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 
     try {
@@ -102,7 +102,7 @@ export async function DELETE(request: Request) {
             return NextResponse.json({ error: 'Provider not found' }, { status: 404 })
         }
 
-        const result = await deleteService(provider.id, externalId, permanent, auth.userId)
+        const result = await deleteService(provider.id, externalId, permanent, auth.user.userId)
 
         if (!result.success) {
             return NextResponse.json({ error: result.message }, { status: 400 })
@@ -114,3 +114,4 @@ export async function DELETE(request: Request) {
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
 }
+

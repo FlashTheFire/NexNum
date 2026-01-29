@@ -62,7 +62,7 @@ export type InventoryViewMode = 'aggregated' | 'raw';
 
 export interface OfferDocument {
     id: string;           // Composite: provider_country_service_operator
-    provider: string;     // Provider slug (e.g. "5sim", "grizzlysms")
+    provider: string;     // Provider slug (e.g. "provider-a", "provider-b")
 
     // === SQL Registry IDs (For linking back) ===
     serviceId?: number;    // FK to ServiceLookup.serviceId

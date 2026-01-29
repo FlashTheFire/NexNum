@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/core/db'
 import { redis } from '@/lib/core/redis'
-import { requireAdmin } from '@/lib/auth/requireAdmin'
+import { AuthGuard } from '@/lib/auth/guard'
 import { registry } from '@/lib/metrics'
 import { withMetrics } from '@/lib/monitoring/http-metrics'
-import { updateActiveNumbers, updateWorkerQueue, updateSystemMetrics, updateDbConnections } from '@/lib/metrics'
+import { updateActiveNumbers, updateWorkerQueue, updateHardwareStats, updateDbConnections } from '@/lib/metrics'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,7 +49,7 @@ interface CommandCenterData {
  * Includes system status, KPIs, active incidents, and recent activity.
  */
 export async function GET(request: Request) {
-    const auth = await requireAdmin(request)
+    const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 
     try {
@@ -152,7 +152,7 @@ async function getKPIs(): Promise<CommandCenterData['kpis']> {
         const p99Latency = cachedP99 ? parseFloat(cachedP99) : 0
 
         // UPDATE PROMETHEUS METRICS
-        updateActiveNumbers('total', activeRentals)
+        updateActiveNumbers(activeRentals)
 
         // Update worker queue depth
         // Query job stats (similar to /api/admin/jobs/retry logic)
@@ -168,7 +168,7 @@ async function getKPIs(): Promise<CommandCenterData['kpis']> {
         updateWorkerQueue('default', getJobCount('created'), getJobCount('active'), getJobCount('failed'))
 
         // Update System Metrics
-        updateSystemMetrics()
+        updateHardwareStats(0)
 
         // Update DB Connections
         // Try to get metrics from Prisma if available, otherwise estimate or skip

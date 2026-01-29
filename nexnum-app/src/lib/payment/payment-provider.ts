@@ -15,36 +15,9 @@ export interface PaymentProvider {
 }
 
 /**
- * Mock Provider for Development/Testing
+ * Factory to get configured provider
  */
-export class MockPaymentProvider implements PaymentProvider {
-    name = 'MockProvider'
-
-    async charge(amount: number, currency: string, sourceId: string): Promise<ChargeResult> {
-        // Simulate network latency
-        await new Promise(resolve => setTimeout(resolve, 500))
-
-        if (sourceId === 'simulate_error') {
-            throw PaymentError.declined('Mock bank declined transaction')
-        }
-
-        return {
-            transactionId: `mock_tx_${Date.now()}_${Math.random().toString(36).substring(7)}`,
-            amount,
-            currency,
-            status: 'success',
-            metadata: { source: 'mock', env: process.env.NODE_ENV }
-        }
-    }
-
-    async refund(transactionId: string): Promise<boolean> {
-        await new Promise(resolve => setTimeout(resolve, 300))
-        return true
-    }
-}
-
-// Factory to get configured provider
 export function getPaymentProvider(): PaymentProvider {
     // In future, switch on process.env.PAYMENT_PROVIDER
-    return new MockPaymentProvider()
+    throw new Error('Payment provider not configured. Please implement a real payment provider for production use.');
 }

@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/core/db'
-import { requireAdmin } from '@/lib/auth/requireAdmin'
+import { AuthGuard } from '@/lib/auth/guard'
 
 /**
  * User Search API
  * GET /api/admin/users/search?q=query&role=USER|ADMIN&status=active|banned
  */
 export async function GET(request: Request) {
-    const auth = await requireAdmin(request)
+    const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 
     const { searchParams } = new URL(request.url)
@@ -107,3 +107,4 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: 'Search failed' }, { status: 500 })
     }
 }
+

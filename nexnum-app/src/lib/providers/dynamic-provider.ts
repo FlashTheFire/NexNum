@@ -1456,26 +1456,17 @@ export class DynamicProvider implements SmsProvider {
             const response = await this.request('getCountries')
             const items = this.parseResponse(response, 'getCountries')
 
-            // Import image proxy
-            const { proxyImage } = await import('@/lib/utils/image-proxy')
-
             return Promise.all(items.map(async (i) => {
                 // Determine Code/Name strictly from mapping, no fallbacks
                 const code = String(i.code ?? i.id ?? '')
                 const name = String(i.name ?? '')
-
-                // Proxy flag URL if present in the mapped result
-                let flagUrl = i.flagUrl ?? undefined
-                if (flagUrl && typeof flagUrl === 'string') {
-                    const result = await proxyImage(flagUrl)
-                    flagUrl = result.url || flagUrl
-                }
+                const flagUrl = i.flagUrl ?? undefined
 
                 return {
                     ...i, // Preserve all mapped fields
                     code,
                     name,
-                    flagUrl: flagUrl || undefined
+                    flagUrl: (flagUrl && typeof flagUrl === 'string') ? flagUrl : undefined
                 }
             }))
         }, CACHE_TTL.COUNTRIES)
@@ -1530,19 +1521,13 @@ export class DynamicProvider implements SmsProvider {
                 const code = String(s.code ?? s.id ?? '')
                 const name = String(s.name ?? '')
 
-                // Proxy icon URL if present
-                const { proxyImage } = await import('@/lib/utils/image-proxy')
-                let iconUrl = s.iconUrl ?? undefined
-                if (iconUrl && typeof iconUrl === 'string') {
-                    const result = await proxyImage(iconUrl)
-                    iconUrl = result.url || iconUrl
-                }
+                const iconUrl = s.iconUrl ?? undefined
 
                 return {
                     ...s, // Preserve all mapped fields
                     code,
                     name,
-                    iconUrl: iconUrl || undefined
+                    iconUrl: (iconUrl && typeof iconUrl === 'string') ? iconUrl : undefined
                 }
             }))
         }, CACHE_TTL.SERVICES)

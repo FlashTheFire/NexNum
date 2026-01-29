@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { requireAdmin } from '@/lib/auth/requireAdmin'
+import { AuthGuard } from '@/lib/auth/guard'
 import { redis } from '@/lib/core/redis'
 
 export const dynamic = 'force-dynamic'
@@ -19,7 +19,7 @@ export interface ApiLogEntry {
 
 // GET - Fetch recent logs from Redis
 export async function GET(request: Request) {
-    const auth = await requireAdmin(request)
+    const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 
     try {
@@ -39,3 +39,4 @@ export async function GET(request: Request) {
         return NextResponse.json({ logs: [] })
     }
 }
+

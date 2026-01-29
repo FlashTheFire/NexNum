@@ -34,7 +34,7 @@ export interface SmsResult {
     /** When the SMS was received by provider */
     receivedAt: Date
 
-    /** Provider name (e.g., "5sim", "grizzlysms") */
+    /** Provider ID (e.g., "provider-a", "provider-b") */
     provider: string
 
     /** Raw provider response for debugging */

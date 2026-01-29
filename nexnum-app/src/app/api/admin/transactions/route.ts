@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/core/db'
-import { requireAdmin } from '@/lib/auth/requireAdmin'
+import { AuthGuard } from '@/lib/auth/guard'
 
 export async function GET(request: Request) {
-    const auth = await requireAdmin(request)
+    const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 
     const { searchParams } = new URL(request.url)
@@ -65,3 +65,4 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: 'Failed to fetch transactions' }, { status: 500 })
     }
 }
+

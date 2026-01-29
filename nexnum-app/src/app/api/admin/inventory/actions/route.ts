@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
-import { requireAdmin } from '@/lib/auth/requireAdmin'
+import { AuthGuard } from '@/lib/auth/guard'
 import { unifiedInventory, InventoryItemType, InventoryAction } from '@/lib/admin/unified-inventory'
 
 export async function POST(request: Request) {
-    const auth = await requireAdmin(request)
+    const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 
     try {
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
             )
         }
 
-        const result = await unifiedInventory.dispatchAction(auth.userId, {
+        const result = await unifiedInventory.dispatchAction(auth.user.userId, {
             providerId,
             externalId,
             type: (type as InventoryItemType) || 'auto',
@@ -40,3 +40,4 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
 }
+

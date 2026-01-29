@@ -63,3 +63,15 @@ export class AuthGuard {
         return { user, error: null }
     }
 }
+
+/**
+ * Data Protection Helpers
+ */
+export function redactProviderSecrets<T extends Record<string, any>>(provider: T) {
+    const { authKey, ...safeProvider } = provider
+    return safeProvider
+}
+
+export function redactProvidersSecrets<T extends Record<string, any>>(providers: T[]) {
+    return providers.map(redactProviderSecrets)
+}

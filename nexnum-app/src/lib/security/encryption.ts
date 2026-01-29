@@ -47,30 +47,19 @@ export const decrypt = (text: string): string => {
     if (!text) return ''
 
     const isVersioned = text.startsWith('v1:')
-    const isLegacy = text.includes(':') && !isVersioned
 
-    if (!isVersioned && !isLegacy) {
-        // Fallback: If data is not encrypted, return it as-is.
-        // This supports legacy keys or manual DB edits.
+    if (!isVersioned) {
+        // Enforce versioned format for all encrypted data
         return text
     }
 
     const parts = text.split(':')
     const keys = getEncryptionKeys()
 
-    let ivHex, authTagHex, encryptedHex, key
-
-    if (isVersioned) {
-        // v1:iv:tag:data
-        const [version, iv, tag, data] = parts
-        key = (keys as any)[version]
-        if (!key) throw new Error(`Unknown encryption version: ${version}`)
-        ivHex = iv; authTagHex = tag; encryptedHex = data;
-    } else {
-        // Legacy: iv:tag:data (assumed v1 key)
-        [ivHex, authTagHex, encryptedHex] = parts
-        key = keys.v1
-    }
+    // v1:iv:tag:data
+    const [version, ivHex, authTagHex, encryptedHex] = parts
+    const key = (keys as any)[version]
+    if (!key) throw new Error(`Unknown encryption version: ${version}`)
 
     const iv = Buffer.from(ivHex, 'hex')
     const authTag = Buffer.from(authTagHex, 'hex')

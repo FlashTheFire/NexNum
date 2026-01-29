@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-import * as api from '@/lib/api/api-client'
+import { api, type SmsMessage, type PhoneNumber } from '@/lib/api/api-client'
 import { getCountryFlagUrlSync } from "@/lib/normalizers/country-flags"
 
 // Request deduplication cache
@@ -56,7 +56,7 @@ interface GlobalState {
     userProfile: UserProfile
     activeNumbers: ActiveNumber[]
     transactions: Transaction[]
-    smsMessages: api.SmsMessage[]
+    smsMessages: SmsMessage[]
 
     // Loading states
     isLoadingBalance: boolean
@@ -75,10 +75,10 @@ interface GlobalState {
 
     // Actions - Mutations via API
     topUp: (amount: number) => Promise<{ success: boolean; error?: string }>
-    purchaseNumber: (countryCode: string, serviceCode: string, provider?: string, options?: { useBestRoute?: boolean; maxPrice?: number }) => Promise<{ success: boolean; number?: api.PhoneNumber; error?: string; code?: string; details?: any }>
+    purchaseNumber: (countryCode: string, serviceCode: string, provider?: string, options?: { useBestRoute?: boolean; maxPrice?: number }) => Promise<{ success: boolean; number?: PhoneNumber; error?: string; code?: string; details?: any }>
     cancelNumber: (id: string) => Promise<{ success: boolean; error?: string }>
     completeNumber: (id: string) => Promise<{ success: boolean; error?: string }>
-    pollSms: (numberId: string) => Promise<api.SmsMessage[]>
+    pollSms: (numberId: string) => Promise<SmsMessage[]>
     updateNumber: (id: string, data: Partial<ActiveNumber>) => void
 
     // UI State
@@ -192,7 +192,7 @@ export const useGlobalStore = create<GlobalState>()(
             fetchBalance: async () => {
                 return dedupe('balance', async () => {
                     set({ isLoadingBalance: true })
-                    const result = await api.getWalletBalance()
+                    const result = await api.getBalance()
                     if (result.success && result.data) {
                         set({
                             userProfile: { balance: result.data.balance },
@@ -239,7 +239,7 @@ export const useGlobalStore = create<GlobalState>()(
             fetchTransactions: async () => {
                 return dedupe('transactions', async () => {
                     set({ isLoadingTransactions: true })
-                    const result = await api.getWalletTransactions(1, 50)
+                    const result = await api.getTransactions(1, 50)
                     if (result.success === false || !result.data) {
                         set({ isLoadingTransactions: false })
                         return
@@ -279,7 +279,7 @@ export const useGlobalStore = create<GlobalState>()(
                 }))
 
                 try {
-                    const result = await api.topUpWallet(amount)
+                    const result = await api.topUp(amount)
                     if (result.success && result.data?.newBalance !== undefined) {
                         set({ userProfile: { balance: result.data.newBalance } })
                         // Refresh via batch endpoint for consistent state
@@ -321,7 +321,7 @@ export const useGlobalStore = create<GlobalState>()(
                 }))
 
                 try {
-                    const result = await api.purchaseNumber(countryCode, serviceCode, provider)
+                    const result = await api.purchase({ countryCode, serviceCode, provider })
 
                     if (result.success && result.data?.number) {
                         const n = result.data.number

@@ -6,8 +6,8 @@
  * Query Modes:
  * 1. /api/matrix?service=discord                           → All countries × All providers
  * 2. /api/matrix?service=discord&country=india             → Selected country × All providers
- * 3. /api/matrix?service=discord&provider=grizzlysms       → All countries × Selected provider
- * 4. /api/matrix?service=discord&country=india&provider=grizzlysms → Specific offer
+ * 3. /api/matrix?service=example&provider=provider-a       → All countries × Selected provider
+ * 4. /api/matrix?service=example&country=usa&provider=provider-a → Specific offer
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -99,7 +99,7 @@ export async function GET(request: NextRequest) {
     if (!serviceInput) {
         return NextResponse.json({
             error: 'service parameter required',
-            usage: '/api/matrix?service=discord[&country=india][&provider=grizzlysms]'
+            usage: '/api/matrix?service=example[&country=usa][&provider=provider-a]'
         }, { status: 400 })
     }
 

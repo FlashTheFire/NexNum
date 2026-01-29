@@ -7,7 +7,7 @@
  * - Active Handle/Request Counts
  */
 
-import { system_event_loop_lag_seconds, updateSystemMetrics } from '@/lib/metrics'
+import { system_event_loop_lag_seconds, updateHardwareStats } from '@/lib/metrics'
 import { logger } from '@/lib/core/logger'
 
 const COLLECTION_INTERVAL_MS = 10000 // 10 seconds for standard polling
@@ -70,7 +70,7 @@ export class IndustrialHealthCollector {
     private static collect() {
         try {
             // 1. Update standard system metrics (Memory, Uptime)
-            updateSystemMetrics()
+            updateHardwareStats(0) // Default 0 for disk in this collector
 
             // 2. Log extreme lag for forensics if detected
             // (Standard metrics are already handled by monitorEventLoop)

@@ -362,7 +362,7 @@ components:
           properties:
             provider:
               type: string
-              example: "5sim"
+              example: "provider-a"
 
     CancelResponse:
       type: object

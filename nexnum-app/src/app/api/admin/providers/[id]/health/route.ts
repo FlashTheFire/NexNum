@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { healthMonitor } from '@/lib/providers/health-monitor'
-import { requireAdmin } from '@/lib/auth/requireAdmin'
+import { AuthGuard } from '@/lib/auth/guard'
 
 /**
  * GET - Get health status for a provider
@@ -25,7 +25,7 @@ export async function POST(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const auth = await requireAdmin(req)
+    const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 
     const { id } = await params

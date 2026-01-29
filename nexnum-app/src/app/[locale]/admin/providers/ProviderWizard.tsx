@@ -191,8 +191,8 @@ export default function ProviderWizard({ onComplete, onCancel }: WizardProps) {
                 priceMultiplier: '1.2',
                 fixedMarkup: '0.00',
                 currency: 'USD',
-                endpoints: JSON.parse(t.endpoints),
-                mappings: JSON.parse(t.mappings)
+                endpoints: (t as any).endpoints,
+                mappings: (t as any).mappings
             })
         }
         setStep(2)
@@ -367,45 +367,40 @@ export default function ProviderWizard({ onComplete, onCancel }: WizardProps) {
                                             }}
                                         >
                                             {/* Provider Template Cards */}
-                                            {[
-                                                { key: 'mock-sms', logo: '/providers/mock.png', name: 'Mock SMS', desc: 'Local Dev Simulation', color: 'from-violet-500/20 to-fuchsia-500/20', border: 'border-violet-500/20 hover:border-violet-500/50' },
-                                                { key: '5sim', logo: '/providers/5sim.png', name: '5sim', desc: 'Virtual numbers worldwide', color: 'from-blue-500/20 to-cyan-500/20', border: 'border-blue-500/20 hover:border-blue-500/50' },
-                                                { key: 'grizzlysms', logo: '/providers/grizzlysms.png', name: 'GrizzlySMS', desc: 'SMS-Activate compatible', color: 'from-amber-500/20 to-orange-500/20', border: 'border-amber-500/20 hover:border-amber-500/50' },
-                                                { key: 'smsbower', logo: '/providers/smsbower.png', name: 'SMSBower', desc: 'Affordable SMS service', color: 'from-green-500/20 to-emerald-500/20', border: 'border-green-500/20 hover:border-green-500/50' },
-
-                                                { key: 'herosms', logo: '/providers/herosms.png', name: 'HeroSMS', desc: 'Text/Regex SMS provider', color: 'from-red-500/20 to-pink-500/20', border: 'border-red-500/20 hover:border-red-500/50' },
-                                            ].map((provider) => (
-                                                <motion.div
-                                                    key={provider.key}
-                                                    variants={{
-                                                        hidden: { opacity: 0, y: 15, scale: 0.95 },
-                                                        visible: { opacity: 1, y: 0, scale: 1 }
-                                                    }}
-                                                    whileHover={{ scale: 1.05, y: -3 }}
-                                                    whileTap={{ scale: 0.98 }}
-                                                    onClick={() => selectBlueprint('template', provider.key)}
-                                                    className={`group relative w-[140px] md:w-[180px] shrink-0 bg-gradient-to-br ${provider.color} border ${provider.border} rounded-xl md:rounded-2xl p-3 md:p-4 cursor-pointer transition-shadow hover:shadow-lg`}
-                                                >
-                                                    <div className="flex flex-col items-center gap-2 md:gap-3">
-                                                        <div className="w-12 h-12 md:w-16 md:h-16 rounded-xl bg-white/10 backdrop-blur-sm border border-white/10 flex items-center justify-center overflow-hidden shadow-lg">
-                                                            <SafeImage
-                                                                src={provider.logo}
-                                                                fallbackSrc="/assets/images/placeholder_provider.png"
-                                                                alt={provider.name}
-                                                                className="w-full h-full object-cover"
-                                                                hideOnError
-                                                            />
+                                            {Object.values(PROVIDER_TEMPLATES)
+                                                .filter((t: any) => t.key !== 'empty')
+                                                .map((provider: any) => (
+                                                    <motion.div
+                                                        key={provider.key}
+                                                        variants={{
+                                                            hidden: { opacity: 0, y: 15, scale: 0.95 },
+                                                            visible: { opacity: 1, y: 0, scale: 1 }
+                                                        }}
+                                                        whileHover={{ scale: 1.05, y: -3 }}
+                                                        whileTap={{ scale: 0.98 }}
+                                                        onClick={() => selectBlueprint('template', provider.key)}
+                                                        className={`group relative w-[140px] md:w-[180px] shrink-0 bg-gradient-to-br ${provider.color} border ${provider.border} rounded-xl md:rounded-2xl p-3 md:p-4 cursor-pointer transition-shadow hover:shadow-lg`}
+                                                    >
+                                                        <div className="flex flex-col items-center gap-2 md:gap-3">
+                                                            <div className="w-12 h-12 md:w-16 md:h-16 rounded-xl bg-white/10 backdrop-blur-sm border border-white/10 flex items-center justify-center overflow-hidden shadow-lg">
+                                                                <SafeImage
+                                                                    src={provider.logo}
+                                                                    fallbackSrc="/assets/images/placeholder_provider.png"
+                                                                    alt={provider.name}
+                                                                    className="w-full h-full object-cover"
+                                                                    hideOnError
+                                                                />
+                                                            </div>
+                                                            <div className="text-center">
+                                                                <h4 className="text-xs md:text-sm font-bold text-white group-hover:text-white/90">{provider.name}</h4>
+                                                                <p className="text-[9px] md:text-[10px] text-white/50 line-clamp-1">{provider.description}</p>
+                                                            </div>
                                                         </div>
-                                                        <div className="text-center">
-                                                            <h4 className="text-xs md:text-sm font-bold text-white group-hover:text-white/90">{provider.name}</h4>
-                                                            <p className="text-[9px] md:text-[10px] text-white/50 line-clamp-1">{provider.desc}</p>
+                                                        <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-white/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <ArrowRight size={10} className="text-white" />
                                                         </div>
-                                                    </div>
-                                                    <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-white/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        <ArrowRight size={10} className="text-white" />
-                                                    </div>
-                                                </motion.div>
-                                            ))}
+                                                    </motion.div>
+                                                ))}
 
                                             {/* Custom / Empty Card */}
                                             <motion.div
@@ -891,7 +886,7 @@ export default function ProviderWizard({ onComplete, onCancel }: WizardProps) {
                                             </div>
                                             <ul className="space-y-2">
                                                 <li className="text-[10px] text-gray-500 leading-snug">
-                                                    • <strong>GrizzlySMS/5sim:</strong> Use <code className="text-orange-400">?api_key={'{authKey}'}</code> in the URL if the global header is overridden.
+                                                    • <strong>Custom Rules:</strong> Use <code className="text-orange-400">?api_key={'{authKey}'}</code> in the URL if the global header is overridden.
                                                 </li>
                                                 <li className="text-[10px] text-gray-500 leading-snug">
                                                     • <strong>Mappings:</strong> Use <code className="text-purple-400">$key</code> to capture dynamic object keys as data.

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { requireAdmin } from '@/lib/auth/requireAdmin'
+import { AuthGuard } from '@/lib/auth/guard'
 import { EmailService } from '@/lib/email'
 import { WelcomeEmail } from '@/components/emails/WelcomeEmail'
 import { VerificationEmail } from '@/components/emails/VerificationEmail'
@@ -12,7 +12,7 @@ import { MaintenanceEmail } from '@/components/emails/MaintenanceEmail'
 import { InvoiceEmail } from '@/components/emails/InvoiceEmail'
 
 export async function POST(request: Request) {
-    const auth = await requireAdmin(request)
+    const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 
     try {
@@ -35,6 +35,7 @@ export async function POST(request: Request) {
             case 'deposit':
                 subject = 'Test: Deposit Receipt'
                 component = TransactionEmail({
+                    name: 'Test User',
                     type: 'deposit',
                     amount: 50.00,
                     currency: 'USD',
@@ -46,6 +47,7 @@ export async function POST(request: Request) {
             case 'purchase':
                 subject = 'Test: Purchase Receipt'
                 component = TransactionEmail({
+                    name: 'Test User',
                     type: 'purchase',
                     amount: 2.50,
                     currency: 'USD',
@@ -75,6 +77,7 @@ export async function POST(request: Request) {
             case 'security':
                 subject = 'Security Alert: New Sign-in'
                 component = SecurityAlertEmail({
+                    name: 'Admin User',
                     type: 'login',
                     ip: '203.0.113.195',
                     location: 'San Francisco, CA',
@@ -85,6 +88,7 @@ export async function POST(request: Request) {
             case 'apiKey':
                 subject = 'API Key Created'
                 component = ApiKeyEmail({
+                    name: 'Admin User',
                     action: 'created',
                     keyName: 'Production API Key',
                     keyPrefix: 'sk_live_'
@@ -131,3 +135,4 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Failed to send test email' }, { status: 500 })
     }
 }
+

@@ -989,7 +989,7 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                 <div className="flex-1">
                                     <div className="flex items-center gap-1.5">
                                         <label className="text-sm font-medium text-white">Display Name</label>
-                                        <InfoTooltip content={<>The <TT>friendly name</TT> shown to users in the UI. Choose something recognizable like <TTCode>5sim</TTCode> or <TTCode>SMS-Activate</TTCode>.</>} />
+                                        <InfoTooltip content={<>The <TT>friendly name</TT> shown to users in the UI. Choose something recognizable like <TTCode>Main Provider</TTCode> or <TTCode>Backup SMS</TTCode>.</>} />
                                     </div>
                                     <span className="text-[10px] text-white/40">Shown to users in the interface</span>
                                 </div>
@@ -998,7 +998,7 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                 value={formData.displayName}
                                 onChange={e => setFormData({ ...formData, displayName: e.target.value })}
                                 className="bg-black/30 border-white/10 text-white h-11 text-sm"
-                                placeholder="e.g. 5sim, SMS-Activate, GrizzlySMS"
+                                placeholder="e.g. My Premium Provider, Global SMS"
                             />
                         </div>
 
@@ -1011,7 +1011,7 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                 <div className="flex-1">
                                     <div className="flex items-center gap-1.5">
                                         <label className="text-sm font-medium text-white">Provider ID</label>
-                                        <InfoTooltip content={<>A <TT>unique machine-readable</TT> identifier. Use <TT>lowercase letters</TT>, numbers, and underscores only. Example: <TTCode>fivesim</TTCode>, <TTCode>sms_activate</TTCode>. <TT>Cannot be changed</TT> after creation.</>} />
+                                        <InfoTooltip content={<>A <TT>unique machine-readable</TT> identifier. Use <TT>lowercase letters</TT>, numbers, and underscores only. Example: <TTCode>provider_one</TTCode>, <TTCode>sms_global</TTCode>. <TT>Cannot be changed</TT> after creation.</>} />
                                     </div>
                                     <span className="text-[10px] text-white/40">Unique system identifier used for routing and configuration</span>
                                 </div>
@@ -1021,7 +1021,7 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                 onChange={e => setFormData({ ...formData, name: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') })}
                                 className="bg-black/30 border-white/10 text-white font-mono h-11 text-sm"
                                 disabled={!isCreating}
-                                placeholder="e.g. fivesim, sms_activate"
+                                placeholder="e.g. provider_one, sms_global"
                             />
                             {!isCreating && (
                                 <p className="text-[10px] text-yellow-500/70 flex items-center gap-1">
@@ -1040,7 +1040,7 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                 <div className="flex-1">
                                     <div className="flex items-center gap-1.5">
                                         <label className="text-sm font-medium text-white">API Base URL</label>
-                                        <InfoTooltip content={<>The <TT>root URL</TT> for all API requests. Endpoints will be appended to this. Example: <TTCode>https://5sim.net/v1</TTCode></>} />
+                                        <InfoTooltip content={<>The <TT>root URL</TT> for all API requests. Endpoints will be appended to this. Example: <TTCode>https://api.provider.com/v1</TTCode></>} />
                                     </div>
                                     <span className="text-[10px] text-white/40">The root URL for all API endpoints</span>
                                 </div>

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/core/db'
-import { requireAdmin } from '@/lib/auth/requireAdmin'
+import { AuthGuard } from '@/lib/auth/guard'
 import { logAdminAction, getClientIP } from '@/lib/core/auditLog'
 import { z } from 'zod'
 
@@ -16,7 +16,7 @@ const getSchema = z.object({
 })
 
 export async function GET(request: Request) {
-    const auth = await requireAdmin(request)
+    const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 
     const { searchParams } = new URL(request.url)
@@ -57,7 +57,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-    const auth = await requireAdmin(request)
+    const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 
     try {
@@ -77,7 +77,7 @@ export async function POST(request: Request) {
         })
 
         await logAdminAction({
-            userId: auth.userId,
+            userId: auth.user.userId,
             action: 'BANNED_ICON_ADD',
             resourceType: 'BannedIcon',
             resourceId: banned.hash,
@@ -92,7 +92,7 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-    const auth = await requireAdmin(request)
+    const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 
     try {
@@ -106,7 +106,7 @@ export async function DELETE(request: Request) {
         await prisma.bannedIcon.delete({ where: { hash } })
 
         await logAdminAction({
-            userId: auth.userId,
+            userId: auth.user.userId,
             action: 'BANNED_ICON_REMOVE',
             resourceType: 'BannedIcon',
             resourceId: hash,
@@ -118,3 +118,4 @@ export async function DELETE(request: Request) {
         return NextResponse.json({ error: 'Failed to remove ban' }, { status: 500 })
     }
 }
+

@@ -253,6 +253,37 @@ export const search_empty_results_total = register('nexnum_search_empty_results_
     registers: [registry]
 }))
 
+// 8. Batch Polling Metrics
+export const batch_poll_duration_seconds = register('nexnum_batch_poll_duration_seconds', () => new Histogram({
+    name: 'nexnum_batch_poll_duration_seconds',
+    help: 'Duration of batch polling operations',
+    labelNames: ['provider'],
+    buckets: [0.1, 0.25, 0.5, 1, 2, 5, 10, 30],
+    registers: [registry]
+}))
+
+export const batch_poll_items_total = register('nexnum_batch_poll_items_total', () => new Counter({
+    name: 'nexnum_batch_poll_items_total',
+    help: 'Total items processed in batch polls',
+    labelNames: ['provider', 'result'],
+    registers: [registry]
+}))
+
+export const batch_poll_api_calls_saved = register('nexnum_batch_poll_api_calls_saved', () => new Counter({
+    name: 'nexnum_batch_poll_api_calls_saved',
+    help: 'API calls saved by batch polling (vs individual)',
+    labelNames: ['provider'],
+    registers: [registry]
+}))
+
+export const polling_active_jobs = register('nexnum_polling_active_jobs', () => new Gauge({
+    name: 'nexnum_polling_active_jobs',
+    help: 'Current number of active polling jobs',
+    labelNames: ['provider'],
+    registers: [registry]
+}))
+
+// 9. Search & SMS
 export const multi_sms_sequences_total = register('nexnum_multi_sms_sequences_total', () => new Counter({
     name: 'nexnum_multi_sms_sequences_total',
     help: 'Total multi-SMS sequences processed',
@@ -303,36 +334,6 @@ export const ai_budget_spend_usd = register('nexnum_ai_budget_spend_usd', () => 
     registers: [registry]
 }))
 
-// 8. Compatibility Aliases (Batch/Legacy)
-export const batch_poll_duration_seconds = register('nexnum_batch_poll_duration_seconds', () => new Histogram({
-    name: 'nexnum_batch_poll_duration_seconds',
-    help: 'Duration of batch polling operations',
-    labelNames: ['provider'],
-    buckets: [0.1, 0.25, 0.5, 1, 2, 5, 10, 30],
-    registers: [registry]
-}))
-
-export const batch_poll_items_total = register('nexnum_batch_poll_items_total', () => new Counter({
-    name: 'nexnum_batch_poll_items_total',
-    help: 'Total items processed in batch polls',
-    labelNames: ['provider', 'result'],
-    registers: [registry]
-}))
-
-export const batch_poll_api_calls_saved = register('nexnum_batch_poll_api_calls_saved', () => new Counter({
-    name: 'nexnum_batch_poll_api_calls_saved',
-    help: 'API calls saved by batch polling (vs individual)',
-    labelNames: ['provider'],
-    registers: [registry]
-}))
-
-export const polling_active_jobs = register('nexnum_polling_active_jobs', () => new Gauge({
-    name: 'nexnum_polling_active_jobs',
-    help: 'Current number of active polling jobs',
-    labelNames: ['provider'],
-    registers: [registry]
-}))
-
 // --- INSTRUMENTATION HELPERS ---
 
 /**
@@ -340,15 +341,6 @@ export const polling_active_jobs = register('nexnum_polling_active_jobs', () => 
  */
 export function recordFinancialIntegrity(status: 0 | 1 | 2) {
     wallet_integrity_status.set(status)
-}
-
-/**
- * Backward compatible financial health reporting
- */
-export function reportFinancialHealth(drift: number, status: number) {
-    wallet_sentinel_drift_total.set(Math.abs(drift))
-    wallet_sentinel_status.set(status)
-    wallet_integrity_status.set(status as any)
 }
 
 /**
@@ -386,22 +378,11 @@ export function updateHardwareStats(diskPercent: number) {
 }
 
 /**
- * Alias for backward compatibility
- */
-export function updateSystemMetrics() {
-    updateHardwareStats(0) // Placeholder
-}
-
-/**
  * Updates Active Numbers Count (Backward Compatible)
  */
-export function updateActiveNumbers(type: string | number, count?: number) {
-    if (typeof type === 'number') {
-        active_numbers.set(type)
-    } else if (count !== undefined) {
-        active_numbers.set(count)
-        active_orders_gauge.set({ status: 'ACTIVE', provider: 'total' }, count)
-    }
+export function updateActiveNumbers(count: number) {
+    active_numbers.set(count)
+    active_orders_gauge.set({ status: 'ACTIVE', provider: 'total' }, count)
 }
 
 /**
@@ -411,9 +392,6 @@ export function updateWorkerQueue(queue: string, waiting: number, active: number
     worker_queue_depth.set({ queue, state: 'pending' }, waiting)
     worker_queue_depth.set({ queue, state: 'active' }, active)
     worker_queue_depth.set({ queue, state: 'failed' }, failed)
-
-    // Legacy mapping
-    polling_active_jobs.set({ provider: queue }, active)
 }
 
 /**

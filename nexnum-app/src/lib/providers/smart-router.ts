@@ -61,7 +61,7 @@ export class SmartSmsRouter implements SmsProvider {
 
     /**
      * Resolve generic provider name/display name to internal slug
-     * e.g. "NexPremium" -> "grizzlysms"
+     * e.g. "NexPremium" -> "provider-a"
      */
     async resolveProviderSlug(input: string): Promise<string | null> {
         if (!input) return null
@@ -322,16 +322,13 @@ export class SmartSmsRouter implements SmsProvider {
         maxPrice?: string | number;
         provider?: string;
         expectedPrice?: number;  // The price user selected from offers
-        testMode?: boolean
     }): Promise<NumberResult> {
         let providers = await this.getHealthyProviders() // Use healthy providers only
         if (providers.length === 0) throw new Error("No healthy providers available")
 
         const providerPreference = options?.provider
         const expectedPrice = options?.expectedPrice
-        const testMode = options?.testMode
 
-        // 0. If testMode is requested, bypass real providers and return mock data
 
 
         // If preference is specified, strictly use that provider only (Phase 11 Update)

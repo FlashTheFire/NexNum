@@ -3,13 +3,13 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/core/db"
 import { getProviderAdapter } from "@/lib/providers/provider-factory"
 import { DynamicProvider } from "@/lib/providers/dynamic-provider"
-import { requireAdmin } from "@/lib/auth/requireAdmin"
+import { AuthGuard } from "@/lib/auth/guard"
 
 // POST /api/admin/providers/balance-check
 // Trigger sync for all active providers
 export async function POST(request: Request) {
     // Require admin authentication
-    const auth = await requireAdmin(request)
+    const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 
     try {
@@ -54,7 +54,7 @@ export async function POST(request: Request) {
 // Get current low balance alerts
 export async function GET(request: Request) {
     // Require admin authentication
-    const auth = await requireAdmin(request)
+    const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 
     try {
@@ -86,3 +86,4 @@ export async function GET(request: Request) {
         )
     }
 }
+

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/core/db'
 import { redis } from '@/lib/core/redis'
-import { requireAdmin } from '@/lib/auth/requireAdmin'
+import { AuthGuard } from '@/lib/auth/guard'
 import { meili, INDEXES } from '@/lib/search/search'
 import { registry } from '@/lib/metrics'
 
@@ -82,7 +82,7 @@ interface ApplicationMetrics {
 }
 
 export async function GET(request: Request) {
-    const auth = await requireAdmin(request)
+    const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 
     const timestamp = new Date().toISOString()
@@ -352,3 +352,4 @@ async function getApplicationMetrics(): Promise<ApplicationMetrics> {
         cpuUsage: cpu
     }
 }
+

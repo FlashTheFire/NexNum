@@ -12,8 +12,8 @@
  * Query Dimensions:
  * - By Service: /api/admin/unified-metrics?service=discord
  * - By Country: /api/admin/unified-metrics?country=india
- * - By Provider: /api/admin/unified-metrics?provider=grizzlysms
- * - Combined: /api/admin/unified-metrics?service=discord&country=india&provider=grizzlysms
+ * - By Provider: /api/admin/unified-metrics?provider=provider-a
+ * - Combined: /api/admin/unified-metrics?service=example&country=usa&provider=provider-a
  * - All: /api/admin/unified-metrics (platform-wide overview)
  */
 
@@ -21,7 +21,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { MeiliSearch } from 'meilisearch'
 import { prisma } from '@/lib/core/db'
 import { redis } from '@/lib/core/redis'
-import { requireAdmin } from '@/lib/auth/requireAdmin'
+import { AuthGuard } from '@/lib/auth/guard'
 import { healthMonitor } from '@/lib/providers/health-monitor'
 import { AdvancedMetricsCalculator } from '@/lib/metrics/advanced-metrics'
 import { normalizeServiceName, normalizeCountryName } from '@/lib/normalizers/service-identity'
@@ -148,7 +148,7 @@ interface UnifiedMetricsResponse {
 // =============================================================================
 
 export async function GET(request: NextRequest) {
-    const auth = await requireAdmin(request)
+    const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 
     const { searchParams } = new URL(request.url)

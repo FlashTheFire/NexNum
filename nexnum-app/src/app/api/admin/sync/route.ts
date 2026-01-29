@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
-import { requireAdmin } from '@/lib/auth/requireAdmin'
+import { AuthGuard } from '@/lib/auth/guard'
 import { logAdminAction, getClientIP } from '@/lib/core/auditLog'
 import { queue, QUEUES } from '@/lib/core/queue'
 
 export async function POST(request: Request) {
-    const auth = await requireAdmin(request)
+    const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 
     try {
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
 
         // Audit log the sync action
         await logAdminAction({
-            userId: auth.userId,
+            userId: auth.user.userId,
             action: 'SYNC_TRIGGERED',
             resourceType: 'Provider',
             resourceId: provider || 'ALL',
@@ -42,4 +42,5 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Sync trigger failed: ' + (error as Error).message }, { status: 500 })
     }
 }
+
 

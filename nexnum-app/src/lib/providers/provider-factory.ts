@@ -46,16 +46,12 @@ export class ProviderRegistry {
     }
 }
 
-/**
- * Legacy Factory Interface (Maintained for compatibility but routes to Registry)
- */
+
 export function getProviderAdapter(provider: Provider): SmsProvider {
     return ProviderRegistry.getProvider(provider)
 }
 
-export function getMetadataProvider(provider: Provider): SmsProvider {
-    return ProviderRegistry.getProvider(provider)
-}
+export const getMetadataProvider = getProviderAdapter
 
 
 

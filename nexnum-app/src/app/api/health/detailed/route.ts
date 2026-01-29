@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/core/db'
 import { redis } from '@/lib/core/redis'
 import { meili, INDEXES } from '@/lib/search/search'
-import { requireAdmin } from '@/lib/auth/requireAdmin'
+import { AuthGuard } from '@/lib/auth/guard'
 import os from 'os'
 
 export const dynamic = 'force-dynamic'
@@ -90,7 +90,7 @@ interface DetailedHealthResponse {
  */
 export async function GET(request: Request) {
     // Require admin authentication
-    const auth = await requireAdmin(request)
+    const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 
     const startTime = Date.now()
@@ -500,3 +500,4 @@ function deriveOverallStatus(checks: DependencyCheck[]): HealthStatus {
     if (hasDegraded) return 'degraded'
     return 'healthy'
 }
+

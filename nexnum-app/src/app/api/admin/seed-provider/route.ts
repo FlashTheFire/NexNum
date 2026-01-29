@@ -7,7 +7,7 @@ import { DynamicProvider } from '@/lib/providers/dynamic-provider'
 // ----------------------------------------------------------------------------
 const REAL_PROVIDER_CONFIG = {
     // Unique identifier (slug)
-    slug: 'my-real-provider', // e.g. '5sim', 'sms-activate'
+    slug: 'my-real-provider', // e.g. 'provider-a', 'provider-b'
 
     // Display Name
     name: 'My Real Provider',

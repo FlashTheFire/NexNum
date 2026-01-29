@@ -142,15 +142,6 @@ export function AIConfigAssistant({ isOpen, onClose, step, onApply }: AIConfigAs
             // Set detected type
             setProviderType(report.providerType || 'json_api')
 
-            if (data.mock) {
-                // Handle mock data specifically
-                if (report.missing && report.missing.length > 0) {
-                    setMissingKeys(report.missing)
-                    setConfidence(report.confidence || 0.5)
-                    setStatus('resolving')
-                    return
-                }
-            }
 
             if (report.missing && report.missing.length > 0) {
                 setMissingKeys(report.missing)
@@ -323,7 +314,7 @@ export function AIConfigAssistant({ isOpen, onClose, step, onApply }: AIConfigAs
                         <h4 className="text-sm font-bold text-amber-100">Missing Information Detected</h4>
                     </div>
                     <p className="text-xs text-amber-200/70">
-                        The AI couldn't confidently find details for <strong className="text-amber-100">{displayLabel}</strong>.
+                        The AI couldn&apos;t confidently find details for <strong className="text-amber-100">{displayLabel}</strong>.
                     </p>
                 </div>
 

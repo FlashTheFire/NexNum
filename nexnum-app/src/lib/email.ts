@@ -25,8 +25,7 @@ export class EmailService {
         const pass = process.env.SMTP_PASS
 
         if (!host || !user || !pass) {
-            console.warn('[EmailService] SMTP credentials missing. Emails will be mocked.')
-            return null
+            throw new Error('[EmailService] SMTP credentials missing. Email sending requires a configured SMTP server.');
         }
 
         this.transporter = nodemailer.createTransport({
@@ -64,22 +63,6 @@ export class EmailService {
             // 3. Get Transporter
             const transporter = this.getTransporter()
 
-            // 4. Mock sending if not configured
-            if (!transporter) {
-                if (process.env.NODE_ENV === 'production') {
-                    console.error('[EmailService] CRITICAL: SMTP not configured in production!')
-                    return { success: false, error: 'Email service not configured' }
-                }
-
-                console.log('📧 [Email Mock - DEV ONLY] -----------------------')
-                console.log(`From: ${from}`)
-                console.log(`To: ${to}`)
-                console.log(`Subject: ${subject}`)
-                console.log('--- HTML Preview (truncated) ---')
-                console.log(html.substring(0, 500) + '...')
-                console.log('------------------------------------------------')
-                return { success: true, id: 'mock-dev-only' }
-            }
 
             // 5. Send Email
             if (process.env.NODE_ENV !== 'production') {

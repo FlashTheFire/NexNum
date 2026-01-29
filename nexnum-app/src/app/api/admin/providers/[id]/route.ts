@@ -9,7 +9,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/core/db'
-import { requireAdmin } from '@/lib/auth/requireAdmin'
+import { AuthGuard } from '@/lib/auth/guard'
 import { healthMonitor } from '@/lib/providers/health-monitor'
 import { logger } from '@/lib/core/logger'
 
@@ -19,7 +19,7 @@ interface RouteParams {
 
 // GET - Get single provider details
 export async function GET(request: Request, { params }: RouteParams) {
-    const auth = await requireAdmin(request)
+    const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 
     const { id } = await params
@@ -81,7 +81,7 @@ const ProviderUpdateSchema = z.object({
 
 // PATCH - Update provider settings
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
-    const auth = await requireAdmin(request)
+    const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 
     const { id } = await params
@@ -122,12 +122,12 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         // Handle circuit commands first (Redis operations)
         if (openCircuit === true) {
             await healthMonitor.openCircuit(id)
-            logger.info('Admin force-opened circuit', { providerId: id, adminId: auth.userId })
+            logger.info('Admin force-opened circuit', { providerId: id, adminId: auth.user.userId })
 
             // Log audit
             await prisma.auditLog.create({
                 data: {
-                    userId: auth.userId,
+                    userId: auth.user.userId,
                     action: 'provider.circuit_open',
                     resourceType: 'provider',
                     resourceId: id,
@@ -140,11 +140,11 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
         if (closeCircuit === true) {
             await healthMonitor.closeCircuit(id)
-            logger.info('Admin force-closed circuit', { providerId: id, adminId: auth.userId })
+            logger.info('Admin force-closed circuit', { providerId: id, adminId: auth.user.userId })
 
             await prisma.auditLog.create({
                 data: {
-                    userId: auth.userId,
+                    userId: auth.user.userId,
                     action: 'provider.circuit_close',
                     resourceType: 'provider',
                     resourceId: id,
@@ -195,7 +195,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         // Audit log
         await prisma.auditLog.create({
             data: {
-                userId: auth.userId,
+                userId: auth.user.userId,
                 action: 'provider.update',
                 resourceType: 'provider',
                 resourceId: id,
@@ -204,7 +204,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
             }
         })
 
-        logger.info('Provider updated', { providerId: id, changes: updateData, adminId: auth.userId })
+        logger.info('Provider updated', { providerId: id, changes: updateData, adminId: auth.user.userId })
 
         return NextResponse.json({ success: true, provider: updated })
 

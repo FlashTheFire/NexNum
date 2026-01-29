@@ -18,7 +18,7 @@ export type InventoryItemType = 'country' | 'service' | 'auto'
 
 export interface InventoryIdentity {
     providerId: string    // UUID
-    providerCode: string  // e.g. "mock-sms"
+    providerCode: string  // e.g. "sms-activate"
     itemId: string        // UUID of the item (ProviderCountry or ProviderService)
     externalId: string    // Normalizer Code of the item (e.g. "us" or "wa")
     type: 'country' | 'service'

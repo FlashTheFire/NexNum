@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/core/db'
-import { requireAdmin } from '@/lib/auth/requireAdmin'
+import { AuthGuard } from '@/lib/auth/guard'
 import { logAdminAction, getClientIP } from '@/lib/core/auditLog'
 import { wallet_transactions_total, recordIncident } from '@/lib/metrics'
 import { notify } from '@/lib/notifications'
 import { emitControlEvent } from '@/lib/events/emitters/state-emitter'
 
 export async function GET(request: Request) {
-    const auth = await requireAdmin(request)
+    const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 
     const { searchParams } = new URL(request.url)
@@ -242,7 +242,7 @@ export async function GET(request: Request) {
 
 // Update User (Role/Ban)
 export async function PATCH(request: Request) {
-    const auth = await requireAdmin(request)
+    const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 
     try {
@@ -254,7 +254,7 @@ export async function PATCH(request: Request) {
         }
 
         // Prevent self-demotion/ban
-        if (auth.userId === userId && (role === 'USER' || isBanned === true)) {
+        if (auth.user.userId === userId && (role === 'USER' || isBanned === true)) {
             return NextResponse.json({ error: 'Cannot demote or ban yourself' }, { status: 400 })
         }
 
@@ -285,14 +285,14 @@ export async function PATCH(request: Request) {
                     walletId,
                     amount: walletAdjustment,
                     type: walletAdjustment > 0 ? 'admin_credit' : 'admin_debit',
-                    description: adjustmentReason || `Admin adjustment by ${auth.userId}`,
+                    description: adjustmentReason || `Admin adjustment by ${auth.user.userId}`,
                 }
             })
 
             // Audit log for wallet adjustment
             await prisma.auditLog.create({
                 data: {
-                    userId: auth.userId,
+                    userId: auth.user.userId,
                     action: 'admin.wallet_adjustment',
                     resourceType: 'wallet',
                     resourceId: walletId,
@@ -351,7 +351,7 @@ export async function PATCH(request: Request) {
         // Audit log
         await prisma.auditLog.create({
             data: {
-                userId: auth.userId,
+                userId: auth.user.userId,
                 action: 'admin.user_update',
                 resourceType: 'user',
                 resourceId: userId,
@@ -375,7 +375,7 @@ export async function PATCH(request: Request) {
 
 // Bulk actions
 export async function POST(request: Request) {
-    const auth = await requireAdmin(request)
+    const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 
     try {
@@ -387,7 +387,7 @@ export async function POST(request: Request) {
         }
 
         // Prevent bulk action on self
-        if (userIds.includes(auth.userId) && ['ban', 'demote'].includes(action)) {
+        if (userIds.includes(auth.user.userId) && ['ban', 'demote'].includes(action)) {
             return NextResponse.json({ error: 'Cannot perform this action on yourself' }, { status: 400 })
         }
 
@@ -417,7 +417,7 @@ export async function POST(request: Request) {
         // Audit log for bulk action
         await prisma.auditLog.create({
             data: {
-                userId: auth.userId,
+                userId: auth.user.userId,
                 action: `admin.bulk_${action}`,
                 resourceType: 'user',
                 resourceId: 'bulk',

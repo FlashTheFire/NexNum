@@ -176,19 +176,4 @@ class NexNumClient {
 
 export const api = NexNumClient.getInstance()
 
-// ============================================================================
-// Functional Shims (Restored for backward compatibility)
-// ============================================================================
-
-export const getWalletBalance = () => api.getBalance()
-export const topUpWallet = (amount: number) => api.topUp(amount)
-export const getWalletTransactions = (page?: number, limit?: number) => api.getTransactions(page, limit)
-export const getCountries = () => api.getCountries()
-export const getServices = (countryCode: string) => api.getServices(countryCode)
-export const purchaseNumber = (countryCode: string, serviceCode: string, provider?: string) => api.purchase({ countryCode, serviceCode, provider })
-export const getMyNumbers = (status?: string, page?: number, limit?: number) => api.getMyNumbers(status, page, limit)
-export const getNumberDetails = (id: string) => api.getNumberDetails(id)
-export const cancelNumber = (id: string) => api.cancelNumber(id)
-export const pollSms = (numberId: string) => api.pollSms(numberId)
-
 export * from './auth-api'

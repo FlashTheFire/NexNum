@@ -1,13 +1,13 @@
 
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/core/db'
-import { requireAdmin } from '@/lib/auth/requireAdmin'
+import { AuthGuard } from '@/lib/auth/guard'
 import { logAdminAction, getClientIP } from '@/lib/core/auditLog'
 import { writeFile, mkdir } from 'fs/promises'
 import path from 'path'
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-    const auth = await requireAdmin(req)
+    const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 
     const { id } = await params
@@ -59,7 +59,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
         // Audit log the upload
         await logAdminAction({
-            userId: auth.userId,
+            userId: auth.user.userId,
             action: 'PROVIDER_UPDATE',
             resourceType: 'Provider',
             resourceId: id,

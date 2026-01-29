@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { requireAdmin } from '@/lib/auth/requireAdmin'
+import { AuthGuard } from '@/lib/auth/guard'
 import { logAdminAction } from '@/lib/core/auditLog'
 import { SettingsService, AppSettings } from '@/lib/settings'
 
@@ -8,7 +8,7 @@ import { SettingsService, AppSettings } from '@/lib/settings'
  * Retrieve all admin settings
  */
 export async function GET(request: Request) {
-    const auth = await requireAdmin(request)
+    const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 
     try {
@@ -28,7 +28,7 @@ export async function GET(request: Request) {
  * Update admin settings
  */
 export async function PATCH(request: Request) {
-    const auth = await requireAdmin(request)
+    const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 
     try {
@@ -53,7 +53,7 @@ export async function PATCH(request: Request) {
 
         // Log the action
         await logAdminAction({
-            userId: auth.userId,
+            userId: auth.user.userId,
             action: 'SETTINGS_CHANGE',
             resourceType: 'settings',
             resourceId: section,
@@ -74,3 +74,4 @@ export async function PATCH(request: Request) {
         return NextResponse.json({ error: 'Failed to update settings' }, { status: 500 })
     }
 }
+

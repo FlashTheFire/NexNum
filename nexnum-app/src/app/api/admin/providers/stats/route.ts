@@ -7,11 +7,11 @@
 
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/core/db'
-import { requireAdmin } from '@/lib/auth/requireAdmin'
+import { AuthGuard } from '@/lib/auth/guard'
 import { healthMonitor } from '@/lib/providers/health-monitor'
 
 export async function GET(request: Request) {
-    const auth = await requireAdmin(request)
+    const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 
     try {
@@ -103,3 +103,4 @@ function calculateScore(health: any, provider: any): number {
         ((successRate * adminWeight * priorityBoost) / (normalizedLatency * costMultiplier)) * 100
     ) / 100
 }
+

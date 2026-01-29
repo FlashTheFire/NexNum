@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/core/db'
-import { requireAdmin } from '@/lib/auth/requireAdmin'
+import { AuthGuard } from '@/lib/auth/guard'
 import { logAdminAction, AuditAction } from '@/lib/core/auditLog'
 import { updateWorkerQueue } from '@/lib/metrics'
 
@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic'
  * Creates an audit log entry.
  */
 export async function POST(request: Request) {
-    const auth = await requireAdmin(request)
+    const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 
     try {
@@ -47,7 +47,7 @@ export async function POST(request: Request) {
         // Create audit log
         await logAdminAction({
             action: 'ADMIN_RETRY_JOBS' as AuditAction,
-            userId: auth.userId,
+            userId: auth.user.userId,
             metadata: {
                 jobsRetried: beforeCount,
                 timestamp: new Date().toISOString()
@@ -78,7 +78,7 @@ export async function POST(request: Request) {
  * Get count of failed jobs that can be retried.
  */
 export async function GET(request: Request) {
-    const auth = await requireAdmin(request)
+    const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 
     try {
@@ -110,3 +110,4 @@ export async function GET(request: Request) {
         )
     }
 }
+

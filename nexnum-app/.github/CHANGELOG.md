@@ -47,7 +47,7 @@ This release transforms NexNum from a functional prototype to a **production-gra
 
 ### Added
 - Initial release of NexNum SMS activation platform.
-- Multi-provider integration (5sim, SMS-Activate, etc.).
+- Multi-provider integration (Generic REST/Dynamic support).
 - Admin dashboard with dynamic provider configuration.
 - i18n support for 9 languages.
 - MeiliSearch global search integration.

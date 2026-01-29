@@ -118,9 +118,9 @@ flowchart TB
     
     subgraph Providers["🔌 Provider Layer"]
         DP["DynamicProvider Engine"]
-        P1["5sim"]
-        P2["GrizzlySMS"]
-        P3["SMS-Activate"]
+        P1["Provider-A"]
+        P2["Provider-B"]
+        P3["Provider-C"]
         MORE["+ More..."]
     end
     
@@ -302,7 +302,7 @@ nexnum-app/
 │   │   │
 │   │   ├── 📂 sms-providers/      # 🔌 Provider implementations
 │   │   │   ├── types.ts           #    └─ SmsProvider interface
-│   │   │   └── fivesim.ts         #    └─ 5sim reference implementation
+│   │   │   └── reference-impl.ts  #    └─ Provider reference implementation
 │   │   │
 │   │   ├── 💰 Wallet & Transactions
 │   │   │   ├── wallet.ts          #    └─ Balance operations

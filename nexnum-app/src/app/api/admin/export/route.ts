@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/core/db'
-import { requireAdmin } from '@/lib/auth/requireAdmin'
+import { AuthGuard } from '@/lib/auth/guard'
 
 /**
  * Export API for Admin Reports
  * GET /api/admin/export?type=transactions|users|audit
  */
 export async function GET(request: Request) {
-    const auth = await requireAdmin(request)
+    const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 
     const { searchParams } = new URL(request.url)
@@ -167,3 +167,4 @@ function generateCSV(headers: string[], data: any[]): string {
 
     return [headerRow, ...dataRows].join('\n')
 }
+
