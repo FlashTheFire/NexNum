@@ -91,6 +91,16 @@ export async function startQueueWorker() {
             });
         }
 
+        if (process.env.FORCE_SYNC === 'true') {
+            logger.info('[Worker] FORCE_SYNC enabled: Triggering immediate grizzlysms sync...');
+            try {
+                const { syncProviderData } = await import('./lib/providers/provider-sync');
+                await syncProviderData('grizzlysms');
+                logger.info('[Worker] Force sync completed successfully.');
+            } catch (err: any) {
+                logger.error('[Worker] Force sync failed:', err.message);
+            }
+        }
     } catch (e) {
         logger.error('[Worker] Fatal startup error:', e);
     }
