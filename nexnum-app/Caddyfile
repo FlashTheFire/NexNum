@@ -5,5 +5,4 @@
 :80, :443 {
     tls internal
     reverse_proxy nexnum-app:3000
-    reverse_proxy /socket.io/* nexnum-app:3000
 }
