@@ -1,12 +1,13 @@
 {
     email your-email@example.com
+    auto_https off
 }
 
 http://51.21.249.203, http://localhost {
     reverse_proxy nexnum-app:3000
 }
 
-51.21.249.203, localhost {
+https://51.21.249.203, https://localhost {
     tls internal
     reverse_proxy nexnum-app:3000
 }
