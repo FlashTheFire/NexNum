@@ -50,9 +50,8 @@ export const decrypt = (text: string): string => {
     const isLegacy = text.includes(':') && !isVersioned
 
     if (!isVersioned && !isLegacy) {
-        if (process.env.NODE_ENV === 'production') {
-            throw new Error('Attempted to decrypt unencrypted/unrecognized data')
-        }
+        // Fallback: If data is not encrypted, return it as-is.
+        // This supports legacy keys or manual DB edits.
         return text
     }
 
