@@ -275,11 +275,11 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
     try {
         // Pre-load ALL service names from ServiceLookup table for fallback
         const allServiceLookups = await (prisma.serviceLookup as any).findMany({
-            select: { serviceCode: true, name: true }
+            select: { serviceCode: true, serviceName: true }
         })
         allServiceLookups.forEach(s => {
-            serviceMap.set(s.serviceCode, s.name)
-            serviceMap.set(s.serviceCode.toLowerCase(), s.name)
+            serviceMap.set(s.serviceCode, s.serviceName)
+            serviceMap.set(s.serviceCode.toLowerCase(), s.serviceName)
         })
         console.log(`[SYNC] Pre-loaded ${allServiceLookups.length} service names from lookup table`)
 
@@ -602,7 +602,7 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
         }
 
         // Pre-cache numeric IDs for search indexing
-        const allServiceIds = await (prisma.serviceLookup as any).findMany({ select: { serviceCode: true, id: true } })
+        const allServiceIds = await (prisma.serviceLookup as any).findMany({ select: { serviceCode: true, serviceId: true } })
         const allCountryIds = await (prisma.countryLookup as any).findMany({ select: { countryCode: true, id: true } })
 
         const serviceCodeToNumeric = new Map<string, number>(allServiceIds.map((s: any) => [s.serviceCode, s.id]))
