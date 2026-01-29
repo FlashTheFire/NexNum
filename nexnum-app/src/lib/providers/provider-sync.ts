@@ -19,7 +19,7 @@ import pLimit from 'p-limit'
 import { indexOffers, OfferDocument, deleteOffersByProvider, INDEXES, SHADOW_PREFIX, swapShadowToPrimary, initSearchIndexes } from '@/lib/search/search'
 import { logAdminAction } from '@/lib/core/auditLog'
 import * as dotenv from 'dotenv'
-import { Worker } from 'worker_threads'
+import { Worker } from 'node:worker_threads'
 dotenv.config()
 import { RateLimitedQueue } from '@/lib/utils/async-utils'
 import { recordProviderSync } from '@/lib/metrics'
