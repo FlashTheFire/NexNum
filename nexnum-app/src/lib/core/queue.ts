@@ -59,55 +59,66 @@ class QueueService {
 
         this.startPromise = (async () => {
             let attempts = 5
-            let delay = 1000
+            let delay = 3000 // 3s between attempts for real industrial breathing room
 
             while (attempts > 0) {
                 try {
-                    logger.debug(`Queue Service starting (Attempt ${6 - attempts})...`)
+                    const currentAttempt = 6 - attempts
+                    logger.debug(`Queue Service starting (Attempt ${currentAttempt}/5)...`)
+
+                    // Step 1: Core Start
                     await this.boss!.start()
 
-                    // Create basic queues
+                    // Step 2: Ensure critical queues exist
                     for (const queueName of Object.values(QUEUES)) {
                         try {
                             await this.boss!.createQueue(queueName)
                         } catch (e: any) {
-                            if (!e.message && !e.message?.includes('already exists')) {
+                            if (e.message && !e.message.includes('already exists')) {
                                 logger.warn(`Queue creation warning for ${queueName}`, { error: e.message })
                             }
                         }
                     }
 
-                    this.isReady = true
-
-                    // VERIFICATION: Prove the manager is stable
-                    // If this fails, the internal cache is definitely not initialized
+                    // Step 3: Industrial Heartbeat - Prove the cache is initialized
+                    // PgBoss.start() swallows internal cache population errors. 
+                    // Calling getQueues() directly forces those errors to surface.
                     let cacheReady = false
                     for (let v = 0; v < 3; v++) {
                         try {
-                            // Using any because getQueueStats might not be in all PgBoss types
+                            // First, prove the DB connection by fetching all queues (no internal cache needed)
+                            const allQueues = await this.boss!.getQueues()
+                            logger.debug(`Queue DB Connection verified. Found ${allQueues?.length || 0} queues via direct query.`)
+
+                            // Second, prove the manager's cache is populated (the source of 500 errors)
                             const status = await (this.boss! as any).getQueueStats(QUEUES.PROVIDER_SYNC)
-                            logger.debug(`Queue verified: ${status.name} ready (Attempt ${v + 1}).`)
+                            logger.debug(`Queue verified: ${status.name} ready & cached (Attempt ${v + 1}/3).`)
+
                             cacheReady = true
+                            this.isReady = true
                             break
                         } catch (ve: any) {
                             if (ve.message?.includes('not initialized')) {
-                                logger.warn(`Queue cache initialization heartbeat failed (v=${v + 1}), waiting for auto-population...`)
-                                // Wait 2s for the 5s interval config to kick in
+                                logger.warn(`Queue cache initialization heartbeat failed (v=${v + 1}/3), waiting for auto-population...`, { detail: ve.message })
                                 await new Promise(r => setTimeout(r, 2000))
                             } else if (ve.message?.includes('not exist')) {
-                                // Queue doesn't exist yet, we just created it.
-                                // Manager is alive if it knows it doesn't exist.
+                                logger.debug(`Queue ${QUEUES.PROVIDER_SYNC} recognized but empty. Cache is initialized.`)
                                 cacheReady = true
+                                this.isReady = true
                                 break
                             } else {
+                                logger.error('Queue Heartbeat threw industrial error', { error: ve.message })
                                 throw ve
                             }
                         }
                     }
 
-                    if (!cacheReady) throw new Error('Queue manager started but internal cache heartbeat timed out')
-
-                    break
+                    if (cacheReady) {
+                        logger.info('Queue Service started successfully and verified.')
+                        break
+                    } else {
+                        throw new Error('Queue manager started but metadata cache heartbeat timed out')
+                    }
                 } catch (error: any) {
                     attempts--
                     if (attempts === 0) {
@@ -120,13 +131,11 @@ class QueueService {
                         throw error
                     }
 
-                    logger.warn(`Queue startup failed, retrying in ${delay}ms...`, { error: error.message })
+                    logger.warn(`Queue startup attempted but failed, retrying in ${delay}ms...`, { error: error.message })
                     await new Promise(r => setTimeout(r, delay))
-                    delay *= 1.5
+                    delay *= 1.2
                 }
             }
-
-            logger.info('Queue Service started successfully')
         })()
 
         return this.startPromise
@@ -136,7 +145,6 @@ class QueueService {
         if (!this.isReady) await this.start()
         if (!this.boss) throw new Error('Queue not initialized')
         try {
-            // Automatically attach traceId to all published jobs
             const enrichedData = {
                 ...data,
                 _traceId: getTraceId()
@@ -183,7 +191,6 @@ class QueueService {
         if (!this.isReady) await this.start()
 
         const wrappedHandler = async (jobs: Job<any>[]) => {
-            // For batch processing, we use the traceId of the first job or generate a new one
             const firstJob = jobs[0]
             const traceId = firstJob?.data?._traceId || `worker_${Date.now().toString(36)}`
 
@@ -201,9 +208,6 @@ class QueueService {
         }
     }
 
-    /**
-     * Schedule a recurring job (Cron)
-     */
     async schedule(queue: string, cron: string, data?: any) {
         if (!this.isReady) await this.start()
         if (!this.boss) throw new Error('Queue not initialized')
@@ -216,21 +220,12 @@ class QueueService {
             throw error
         }
     }
-    /**
-     * Check if there are any active or created jobs in a queue
-     */
+
     async getQueueStatus(queue: string) {
         if (!this.isReady) await this.start()
         if (!this.boss) throw new Error('Queue not initialized')
 
         try {
-            // Count jobs directly from DB since pg-boss instance might not expose getQueueSize
-            // Schema is typically 'pgboss', table is 'job'
-
-            // Note: pg-boss documentation says state is 'created', 'active', etc.
-            // Queue name is in the 'name' column.
-
-            // Using prisma raw query for speed and reliability independent of library version
             const counts = await prisma.$queryRaw<any[]>`
                 SELECT state, COUNT(*) as count 
                 FROM pgboss.job 
@@ -244,7 +239,6 @@ class QueueService {
 
             if (Array.isArray(counts)) {
                 counts.forEach(row => {
-                    // row.count comes back as BigInt from Postgres
                     const count = Number(row.count)
                     if (row.state === 'active' || row.state === 'retry') active += count
                     if (row.state === 'created') pending += count
@@ -259,14 +253,10 @@ class QueueService {
             }
         } catch (error: any) {
             logger.error(`Failed to get status for ${queue}`, { error: error.message })
-            // Return empty status rather than crashing, to keep UI stable
             return { queue, active: 0, pending: 0, isSyncing: false, error: error.message }
         }
     }
 
-    /**
-     * Gracefully stop the queue (for shutdown)
-     */
     async stop() {
         if (!this.boss) return
         try {
