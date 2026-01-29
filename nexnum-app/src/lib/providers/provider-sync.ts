@@ -893,11 +893,14 @@ export async function syncAllProviders(): Promise<SyncResult[]> {
     }
 
     const results: SyncResult[] = []
+    const syncTarget = process.env.SYNC_PROVIDER // e.g. "grizzlysms"
     const allProviders = await prisma.provider.findMany({ where: { isActive: true } })
-    const providers = allProviders.filter(p => p.name.toLowerCase() === 'grizzlysms')
+    const providers = syncTarget
+        ? allProviders.filter(p => p.name.toLowerCase() === syncTarget.toLowerCase())
+        : allProviders
 
     if (providers.length === 0) {
-        console.warn(`[SYNC] grizzlysms provider not found or inactive. Skipping sync.`)
+        console.warn(`[SYNC] No active providers found${syncTarget ? ` for target: ${syncTarget}` : ''}. Skipping sync.`)
         return []
     }
 

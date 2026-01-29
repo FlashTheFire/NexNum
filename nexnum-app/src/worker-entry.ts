@@ -92,10 +92,11 @@ export async function startQueueWorker() {
         }
 
         if (process.env.FORCE_SYNC === 'true') {
-            logger.info('[Worker] FORCE_SYNC enabled: Triggering immediate grizzlysms sync...');
+            const syncTarget = process.env.SYNC_PROVIDER;
+            logger.info(`[Worker] FORCE_SYNC enabled${syncTarget ? ` for ${syncTarget}` : ''}: Triggering immediate sync...`);
             try {
-                const { syncProviderData } = await import('./lib/providers/provider-sync');
-                await syncProviderData('grizzlysms');
+                const { syncAllProviders } = await import('./lib/providers/provider-sync');
+                await syncAllProviders();
                 logger.info('[Worker] Force sync completed successfully.');
             } catch (err: any) {
                 logger.error('[Worker] Force sync failed:', err.message);
