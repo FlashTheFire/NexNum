@@ -2,11 +2,11 @@
     email your-email@example.com
 }
 
-:80 {
+http://51.21.249.203, http://localhost {
     reverse_proxy nexnum-app:3000
 }
 
-:443 {
+51.21.249.203, localhost {
     tls internal
     reverse_proxy nexnum-app:3000
 }
