@@ -146,8 +146,9 @@ services:
       - .env
     environment:
       - REDIS_URL=redis://:${REDIS_PASSWORD:-dev_redis_pass}@nexnum-redis:6379
-      - MEILISEARCH_HOST=http://meilisearch:7700
+      - MEILISEARCH_HOST=http://nexnum-meilisearch:7700
       - RECONCILE_INTERVAL_MS=${RECONCILE_INTERVAL_MS:-60000}
+      - FORCE_SYNC=true
 
     depends_on:
       redis:
