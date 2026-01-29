@@ -1,5 +1,5 @@
 import { parentPort, workerData } from 'node:worker_threads'
-import { syncProviderData } from './provider-sync'
+import { syncProviderData } from './provider-sync.ts'
 
 /**
  * Sync Worker Thread
