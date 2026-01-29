@@ -1,10 +1,25 @@
 # NexNum Infrastructure Overview
-
-# Local development services
-# PostgreSQL & Redis use cloud services (Supabase/Upstash)
-# Only Meilisearch runs locally
+# Industrial Standard: Managed Environment Injection & Edge Proxy
 
 services:
+  # ============================================
+  # Reverse Proxy (SSL/HTTPS)
+  # ============================================
+  caddy:
+    image: caddy:2-alpine
+    container_name: nexnum-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOM_NAME: ${DOMAIN_NAME:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
   # ============================================
   # MAIN APPLICATION (Production Build)
   # Port: 3000 (Standardized for Production)
@@ -20,13 +35,13 @@ services:
       dockerfile: Dockerfile
     container_name: nexnum-app
     restart: unless-stopped
-    ports:
-      - "80:3000"
+    # ports:
+    #   - "3000:3000" # Expose via Caddy only
     env_file:
       - .env
     environment:
       - REDIS_URL=redis://:${REDIS_PASSWORD:-dev_redis_pass}@nexnum-redis:6379
-      - MEILISEARCH_HOST=http://meilisearch:7700
+      - MEILISEARCH_HOST=http://nexnum-meilisearch:7700
       - NEXT_DISABLE_INTERNAL_WORKERS=true
       - RECONCILE_INTERVAL_MS=${RECONCILE_INTERVAL_MS:-60000}
     healthcheck:
@@ -98,15 +113,13 @@ services:
     restart: unless-stopped
     ports:
       - "3951:3951"
+    env_file:
+      - .env
     environment:
       - NODE_ENV=development
       - PORT=3951
-      - DATABASE_URL=${DATABASE_URL}
       - REDIS_URL=redis://:${REDIS_PASSWORD:-dev_redis_pass}@nexnum-redis:6379
-      - JWT_SECRET=${JWT_SECRET}
-      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
       - MEILISEARCH_HOST=http://meilisearch:7700
-      - MEILISEARCH_API_KEY=${MEILISEARCH_API_KEY}
     healthcheck:
       test: [ "CMD", "wget", "-q", "--spider", "http://localhost:3951/health" ]
       interval: 30s
@@ -129,13 +142,11 @@ services:
       dockerfile: Dockerfile.worker
     container_name: nexnum-worker
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
-      - DATABASE_URL=${DATABASE_URL}
       - REDIS_URL=redis://:${REDIS_PASSWORD:-dev_redis_pass}@nexnum-redis:6379
-      - JWT_SECRET=${JWT_SECRET}
-      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
       - MEILISEARCH_HOST=http://meilisearch:7700
-      - MEILISEARCH_API_KEY=${MEILISEARCH_API_KEY}
       - RECONCILE_INTERVAL_MS=${RECONCILE_INTERVAL_MS:-60000}
 
     depends_on:
@@ -293,4 +304,8 @@ volumes:
   grafana_data:
     driver: local
   alertmanager_data:
+    driver: local
+  caddy_data:
+    driver: local
+  caddy_config:
     driver: local

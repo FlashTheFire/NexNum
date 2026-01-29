@@ -3,6 +3,6 @@
 }
 
 {$DOMAIN_NAME:localhost} {
-    reverse_proxy nexnum-api:3000
-    reverse_proxy /socket.io/* nexnum-api:3000
+    reverse_proxy nexnum-app:3000
+    reverse_proxy /socket.io/* nexnum-app:3000
 }
