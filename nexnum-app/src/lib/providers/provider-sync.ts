@@ -893,7 +893,13 @@ export async function syncAllProviders(): Promise<SyncResult[]> {
     }
 
     const results: SyncResult[] = []
-    const providers = await prisma.provider.findMany({ where: { isActive: true } })
+    const allProviders = await prisma.provider.findMany({ where: { isActive: true } })
+    const providers = allProviders.filter(p => p.name.toLowerCase() === 'grizzlysms')
+
+    if (providers.length === 0) {
+        console.warn(`[SYNC] grizzlysms provider not found or inactive. Skipping sync.`)
+        return []
+    }
 
     // Professional: Process Isolation
     // High-volume providers are synced in parallel workers
