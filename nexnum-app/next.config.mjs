@@ -120,7 +120,11 @@ const nextConfig = {
                 net: false,
                 tls: false,
                 crypto: false,
+                worker_threads: false,
             };
+        } else {
+            // Enterprise: Shield server build from background-only native dependencies
+            config.externals = [...(config.externals || []), 'worker_threads', 'tsx'];
         }
 
         if (config.treeshake) {
