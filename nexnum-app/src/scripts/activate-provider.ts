@@ -1,15 +1,9 @@
 import 'dotenv/config'
 import { prisma } from '../lib/core/db'
-import { encrypt } from '../lib/security/encryption'
 
 async function activate() {
     const providerName = 'grizzlysms'
-    const apiKey = process.env.GRIZZLY_API_KEY
     console.log(`🚀 [ACTIVATE] Target: ${providerName}`)
-
-    if (!apiKey) {
-        console.warn('⚠️ No GRIZZLY_API_KEY found in .env. Auth key will not be updated.')
-    }
 
     const config = {
         name: providerName,
@@ -20,10 +14,9 @@ async function activate() {
         apiBaseUrl: 'https://api.grizzlysms.com/stubs/handler_api.php',
         websiteUrl: 'https://grizzlysms.com',
 
-        // Auth Config
+        // Auth Config (Key managed via DB/Admin Panel)
         authType: 'query_param',
         authQueryParam: 'api_key',
-        ...(apiKey ? { authKey: encrypt(apiKey) } : {}),
 
         // Endpoints
         endpoints: {
