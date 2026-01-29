@@ -860,13 +860,9 @@ export function startWorkerSync(providerName: string, options?: SyncOptions): Pr
     return new Promise((resolve, reject) => {
         const workerPath = path.join(process.cwd(), 'src/lib/providers/sync-worker.ts')
 
-        // Note: In development with tsx, we use -r tsx to run TS worker
-        const worker = new Worker(`
-            require('dotenv').config();
-            require('tsx/register');
-            require('${workerPath.replace(/\\/g, '/')}');
-        `, {
-            eval: true,
+        // Senior-Level: Use Node 20+ ESM loaders for workers instead of legacy require(tsx/register)
+        const worker = new Worker(workerPath, {
+            execArgv: ['--import', 'tsx', '-r', 'dotenv/config'],
             workerData: { providerName, options }
         })
 
