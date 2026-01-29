@@ -2,7 +2,10 @@ import Redis from 'ioredis'
 
 // Redis client initialization (Singleton)
 const getRedisConfig = () => {
-    const url = process.env.REDIS_URL || 'redis://:dev_redis_pass@localhost:6379'
+    // In Docker-compose, 'redis' is the host. Locally, 'localhost' is used.
+    const isDocker = process.env.DOCKER_CONTAINER === 'true' || process.env.NODE_ENV === 'production'
+    const defaultHost = isDocker ? 'redis' : 'localhost'
+    const url = process.env.REDIS_URL || `redis://:dev_redis_pass@${defaultHost}:6379`
     return url;
 };
 

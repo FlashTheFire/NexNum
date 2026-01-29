@@ -54,61 +54,74 @@ class QueueService {
         if (!this.boss) return
         if (this.isReady) return
 
-        // Prevent concurrent start attempts (Race Condition Fix)
         if (this.startPromise) return this.startPromise
 
         this.startPromise = (async () => {
-            try {
-                logger.debug('Queue Service starting...')
-                await this.boss!.start()
+            let attempts = 5
+            let delay = 1000
 
-                // Ensure critical queues exist
-                for (const queueName of Object.values(QUEUES)) {
-                    try {
-                        await this.boss!.createQueue(queueName)
-                    } catch (e: any) {
-                        // Ignore "already exists" errors, but log others
-                        if (!e.message.includes('already exists')) {
-                            logger.warn(`Queue creation warning for ${queueName}`, { error: e.message })
+            while (attempts > 0) {
+                try {
+                    logger.debug(`Queue Service starting (Attempt ${6 - attempts})...`)
+                    await this.boss!.start()
+
+                    // Create basic queues
+                    for (const queueName of Object.values(QUEUES)) {
+                        try {
+                            await this.boss!.createQueue(queueName)
+                        } catch (e: any) {
+                            if (!e.message && !e.message?.includes('already exists')) {
+                                logger.warn(`Queue creation warning for ${queueName}`, { error: e.message })
+                            }
                         }
                     }
-                }
 
-                this.isReady = true
+                    this.isReady = true
 
-                // FINAL VERIFICATION: Prove the manager is ready and cache is initialized
-                // This prevents the "Queue cache is not initialized" error by forcing a cache-dependent call
-                try {
-                    // We check if the primary sync queue is recognized by the manager
-                    // Using "any" because getQueueStats type might be missing from some pg-boss types
-                    await (this.boss! as any).getQueueStats(QUEUES.PROVIDER_SYNC)
-                    logger.debug(`Queue Verification successful for ${QUEUES.PROVIDER_SYNC}`)
-                } catch (ve: any) {
-                    if (ve.message?.includes('not exist')) {
-                        // Queue doesn't exist yet, that's fine if we just created it
-                        // The cache is still initialized if it got this far
-                        logger.debug('Queue cache initialized (verified via existence check)')
-                    } else if (ve.message?.includes('cache is not initialized')) {
-                        // This is what we're trying to prevent/catch
+                    // VERIFICATION: Prove the manager is stable
+                    // If this fails, the internal cache is definitely not initialized
+                    try {
+                        const status = await (this.boss! as any).getQueueStats(QUEUES.PROVIDER_SYNC)
+                        logger.debug(`Queue verified: ${status.name} ready.`)
+                        break // Success!
+                    } catch (ve: any) {
+                        logger.warn('Queue synchronization in progress, retrying cache population...', { error: ve.message })
+
+                        // Force manual cache population if manager failed it
+                        if (ve.message?.includes('not initialized')) {
+                            try {
+                                // Accessing internal manager property to populate cache
+                                await (this.boss! as any).onCacheQueues()
+                                // Re-verify
+                                await (this.boss! as any).getQueueStats(QUEUES.PROVIDER_SYNC)
+                                logger.info('Queue cache manually initialized and verified.')
+                                break
+                            } catch (me: any) {
+                                throw new Error(`Manual cache population failed: ${me.message}`)
+                            }
+                        }
+                    }
+
+                    break
+                } catch (error: any) {
+                    attempts--
+                    if (attempts === 0) {
                         this.isReady = false
                         this.startPromise = null
-                        throw new Error(`PgBoss Manager started but Cache failed to initialize: ${ve.message}`)
-                    } else {
-                        logger.warn('Queue Post-start verification warning', { error: ve.message })
+                        logger.error('Queue Final Startup Failure', {
+                            error: error.message,
+                            code: error.code
+                        })
+                        throw error
                     }
-                }
 
-                logger.info('Queue Service started successfully')
-            } catch (error: any) {
-                this.isReady = false
-                this.startPromise = null // Allow retry
-                logger.error('Queue Failed to start', {
-                    error: error.message,
-                    code: error.code,
-                    detail: error.detail
-                })
-                throw error
+                    logger.warn(`Queue startup failed, retrying in ${delay}ms...`, { error: error.message })
+                    await new Promise(r => setTimeout(r, delay))
+                    delay *= 1.5
+                }
             }
+
+            logger.info('Queue Service started successfully')
         })()
 
         return this.startPromise
