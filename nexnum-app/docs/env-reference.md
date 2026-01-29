@@ -34,15 +34,7 @@ Complete reference for all environment variables in NexNum.
 |----------|---------|-------------|
 | `SMS_PROVIDER` | `herosms` | Default SMS provider |
 
-### Provider API Keys
 
-| Variable | Description |
-|----------|-------------|
-| `HERO_SMS_API_KEY` | HeroSMS API key |
-| `GRIZZLYSMS_API_KEY` | GrizzlySMS API key |
-| `SMSBOWER_API_KEY` | SMSBower API key |
-| `FIVESIM_API_KEY` | 5sim API key |
-| `ONLINESIM_API_KEY` | OnlineSim API key |
 
 ### Provider URLs
 

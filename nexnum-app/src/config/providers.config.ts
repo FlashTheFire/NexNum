@@ -16,36 +16,36 @@ export interface ProviderConfig {
 export const ProvidersConfig = {
     herosms: {
         apiUrl: process.env.HERO_SMS_API_URL || 'https://hero-sms.com/stubs/handler_api.php',
-        apiKey: process.env.HERO_SMS_API_KEY,
-        enabled: !!process.env.HERO_SMS_API_KEY,
+        apiKey: undefined,
+        enabled: false,
         priority: parseInt(process.env.HERO_SMS_PRIORITY || '1', 10),
     },
 
     grizzlysms: {
         apiUrl: process.env.GRIZZLYSMS_API_URL || 'https://api.grizzlysms.com/stubs/handler_api.php',
-        apiKey: process.env.GRIZZLYSMS_API_KEY,
-        enabled: !!process.env.GRIZZLYSMS_API_KEY,
+        apiKey: undefined,
+        enabled: false,
         priority: parseInt(process.env.GRIZZLYSMS_PRIORITY || '2', 10),
     },
 
     smsbower: {
         apiUrl: process.env.SMSBOWER_API_URL || 'https://smsbower.org/stubs/handler_api.php',
-        apiKey: process.env.SMSBOWER_API_KEY,
-        enabled: !!process.env.SMSBOWER_API_KEY,
+        apiKey: undefined,
+        enabled: false,
         priority: parseInt(process.env.SMSBOWER_PRIORITY || '3', 10),
     },
 
     fivesim: {
         apiUrl: process.env.FIVESIM_API_URL || 'https://5sim.net/v1',
-        apiKey: process.env.FIVESIM_API_KEY,
-        enabled: !!process.env.FIVESIM_API_KEY,
+        apiKey: undefined,
+        enabled: false,
         priority: parseInt(process.env.FIVESIM_PRIORITY || '4', 10),
     },
 
     onlinesim: {
         apiUrl: process.env.ONLINESIM_API_URL || 'https://onlinesim.io/api',
-        apiKey: process.env.ONLINESIM_API_KEY,
-        enabled: !!process.env.ONLINESIM_API_KEY,
+        apiKey: undefined,
+        enabled: false,
         priority: parseInt(process.env.ONLINESIM_PRIORITY || '5', 10),
     },
 } as const

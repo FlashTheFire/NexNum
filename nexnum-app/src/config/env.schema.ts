@@ -44,19 +44,10 @@ export const envSchema = z.object({
     // ── SMS Providers ─────────────────────────
     SMS_PROVIDER: z.string().default('herosms'),
 
-    HERO_SMS_API_KEY: z.string().optional(),
     HERO_SMS_API_URL: z.string().default('https://herosms.one/stubs/handler_api.php'),
-
-    GRIZZLYSMS_API_KEY: z.string().optional(),
     GRIZZLYSMS_API_URL: z.string().default('https://api.grizzlysms.com/stubs/handler_api.php'),
-
-    SMSBOWER_API_KEY: z.string().optional(),
     SMSBOWER_API_URL: z.string().default('https://smsbower.com/api'),
-
-    FIVESIM_API_KEY: z.string().optional(),
     FIVESIM_API_URL: z.string().default('https://5sim.net/v1'),
-
-    ONLINESIM_API_KEY: z.string().optional(),
     ONLINESIM_API_URL: z.string().default('https://onlinesim.io/api'),
 
     // ── Limits ────────────────────────────────
@@ -156,13 +147,7 @@ export function validateProductionRequirements(): string[] {
         if (!process.env.ENCRYPTION_KEY) missing.push('ENCRYPTION_KEY')
         if (!process.env.CSRF_SECRET) missing.push('CSRF_SECRET (must be separate from JWT_SECRET)')
 
-        // At least one SMS provider must be configured
-        const hasProvider = ['HERO_SMS_API_KEY', 'GRIZZLYSMS_API_KEY', 'SMSBOWER_API_KEY', 'FIVESIM_API_KEY', 'ONLINESIM_API_KEY']
-            .some(key => !!process.env[key])
 
-        if (!hasProvider) {
-            missing.push('At least one SMS provider API key')
-        }
     }
 
     return missing
