@@ -1925,7 +1925,6 @@ export class DynamicProvider implements SmsProvider {
             const optimizer = getOptimizer({
                 costWeight: settings.priceOptimization.costWeight,
                 stockWeight: settings.priceOptimization.stockWeight,
-                rateWeight: settings.priceOptimization.rateWeight,
                 minStock: settings.priceOptimization.minStock
             })
 

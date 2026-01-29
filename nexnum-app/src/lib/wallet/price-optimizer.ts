@@ -36,13 +36,11 @@ export interface PriceOption {
 }
 
 export interface OptimizerConfig {
-    /** Weight for cost factor (0-1), default: 0.5 */
+    /** Weight for cost factor (0-1), default: 0.6 */
     costWeight: number
-    /** Weight for stock availability (0-1), default: 0.3 */
+    /** Weight for stock availability (0-1), default: 0.4 */
     stockWeight: number
-    /** Weight for success rate (0-1), default: 0.2 */
-    rateWeight: number
-    /** Minimum stock threshold (exclude options below this), default: 0 */
+    /** Minimum stock threshold (exclude options below this), default: 1 */
     minStock: number
     /** Profit Protection: Min points profit per purchase */
     minProfitPoints: number
@@ -59,7 +57,6 @@ export interface ScoredOption extends PriceOption {
     breakdown: {
         costScore: number
         stockScore: number
-        rateScore: number
     }
 }
 
@@ -68,9 +65,8 @@ export interface ScoredOption extends PriceOption {
 // ============================================================================
 
 export const DEFAULT_OPTIMIZER_CONFIG: OptimizerConfig = {
-    costWeight: 0.4,      // Slightly reduced to accommodate latency
-    stockWeight: 0.25,
-    rateWeight: 0.2,
+    costWeight: 0.6,      // Higher weight for cost (lower is better)
+    stockWeight: 0.4,     // Weight for stock availability (higher is better)
     minStock: 1,          // Default to needing at least 1 in stock
     minProfitPoints: 5.0, // Default 5 points profit floor
     minMarginPercent: 0.05, // Default 5% margin floor
@@ -88,11 +84,10 @@ export class PriceOptimizer {
         this.config = { ...DEFAULT_OPTIMIZER_CONFIG, ...config }
 
         // Normalize weights to sum to 1.0
-        const totalWeight = this.config.costWeight + this.config.stockWeight + this.config.rateWeight
+        const totalWeight = this.config.costWeight + this.config.stockWeight
         if (totalWeight > 0) {
             this.config.costWeight /= totalWeight
             this.config.stockWeight /= totalWeight
-            this.config.rateWeight /= totalWeight
         }
     }
 
@@ -163,55 +158,17 @@ export class PriceOptimizer {
             stockScore = 1
         }
 
-        // Success Rate Score: Use best available rate metric
-        let rateScore = 0.5 // Neutral default
-        let latencyScore = 0.5 // Default neutral
-
-        if (option.successRate !== undefined) {
-            // Direct success rate (0-100, higher is better)
-            rateScore = option.successRate / 100
-        }
-
-        if (option.metadata) {
-            // 1. Latency Scoring (Lower is better)
-            const latency = option.metadata.avgLatencyMs
-            if (latency) {
-                // Heuristic: Over 5000ms is poor (score 0), under 500ms is elite (score 1)
-                latencyScore = Math.max(0, 1 - (latency / 5000))
-            }
-
-            // 2. Success Rate from failure rates
-            const rate720 = option.metadata.rate720
-            const rate168 = option.metadata.rate168
-            const rate72 = option.metadata.rate72
-            const rate24 = option.metadata.rate24
-
-            if (rate720 !== undefined && rate720 >= 0) {
-                rateScore = 1 - (rate720 / 100)
-            } else if (rate168 !== undefined && rate168 >= 0) {
-                rateScore = 1 - (rate168 / 100)
-            } else if (rate72 !== undefined && rate72 >= 0) {
-                rateScore = 1 - (rate72 / 100)
-            } else if (rate24 !== undefined && rate24 >= 0) {
-                rateScore = 1 - (rate24 / 100)
-            }
-        }
-
-        // Composite Score (Expanded for Latency)
-        // Adjust weights slightly to incorporate latencyScore
+        // Simple Composite Score: Cost + Stock only
         const score =
             (costScore * this.config.costWeight) +
-            (stockScore * this.config.stockWeight) +
-            (rateScore * this.config.rateWeight) +
-            (latencyScore * 0.15) // Static 15% weight for latency
+            (stockScore * this.config.stockWeight)
 
         return {
             ...option,
             score: Math.min(1, Math.max(0, score)), // Clamp to [0, 1]
             breakdown: {
                 costScore,
-                stockScore,
-                rateScore
+                stockScore
             }
         }
     }

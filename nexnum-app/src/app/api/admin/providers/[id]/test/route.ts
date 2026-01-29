@@ -75,34 +75,16 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
                 break
 
             case 'getBalance':
-                if (engine instanceof DynamicProvider) {
-                    await (engine as any).request('getBalance')
-                    result = { balance: (engine as any).parseResponse(engine.lastRawResponse, 'getBalance')[0]?.balance ?? 0 }
-                } else {
-                    result = { balance: await engine.getBalance?.() ?? 0 }
-                }
+                const balance = await engine.getBalance?.() ?? 0
+                result = { balance }
                 break
             case 'getCountries':
-                // FORCE REFRESH: To show trace, we must bypass cache.
-                if (metadataEngine instanceof DynamicProvider) {
-                    const res = await (metadataEngine as any).request('getCountries');
-                    const items = (metadataEngine as any).parseResponse(res, 'getCountries');
-                    result = { count: items.length, first: items.slice(0, 5) }
-                } else {
-                    const countries = await metadataEngine.getCountries()
-                    result = { count: countries.length, first: countries.slice(0, 5) }
-                }
+                const countries = await metadataEngine.getCountries()
+                result = { count: countries.length, first: countries.slice(0, 5) }
                 break
             case 'getServices':
-                // FORCE REFRESH: To show trace, we must bypass cache.
-                if (metadataEngine instanceof DynamicProvider) {
-                    const res = await (metadataEngine as any).request('getServices', { country: params.country || '' });
-                    const items = (metadataEngine as any).parseResponse(res, 'getServices');
-                    result = { count: items.length, first: items.slice(0, 5) }
-                } else {
-                    const services = await metadataEngine.getServices(params.country || '')
-                    result = { count: services.length, first: services.slice(0, 5) }
-                }
+                const services = await metadataEngine.getServices(params.country || '')
+                result = { count: services.length, first: services.slice(0, 5) }
                 break
             case 'getNumber':
                 if (!params.country || !params.service) throw new Error('Country and Service params required')
@@ -121,14 +103,9 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
                 break
             case 'getPrices':
                 // Get prices with optional country/service filters
-                if (engine instanceof DynamicProvider) {
-                    const res = await (engine as any).request('getPrices', { country: params.country || '', service: params.service || '' });
-                    const items = (engine as any).parseResponse(res, 'getPrices');
-                    result = { count: items.length, first: items.slice(0, 5) }
-                } else {
-                    const prices = await (engine as any).getPrices(params.country || undefined, params.service || undefined)
-                    result = { count: prices.length, first: prices.slice(0, 5) }
-                }
+                // Always use the engine's getPrices method to ensure optimization logic is applied
+                const prices = await (engine as any).getPrices(params.country || undefined, params.service || undefined)
+                result = { count: prices.length, first: prices.slice(0, 5) }
                 break
             case 'cancelNumber':
                 if (!params.id) throw new Error('Activation ID required')
@@ -149,22 +126,12 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
                 const endpoints = provider.endpoints as any
                 if (endpoints && endpoints.getBalance) {
                     action = 'getBalance'
-                    if (engine instanceof DynamicProvider) {
-                        await (engine as any).request('getBalance')
-                        result = { balance: (engine as any).parseResponse(engine.lastRawResponse, 'getBalance')[0]?.balance ?? 0 }
-                    } else {
-                        result = { balance: await engine.getBalance() }
-                    }
+                    const balance = await engine.getBalance?.() ?? 0
+                    result = { balance }
                 } else {
                     action = 'getCountries'
-                    if (engine instanceof DynamicProvider) {
-                        const res = await (engine as any).request('getCountries');
-                        const items = (engine as any).parseResponse(res, 'getCountries');
-                        result = { count: items.length, first: items[0] }
-                    } else {
-                        const c = await engine.getCountries()
-                        result = { count: c.length, first: c[0] }
-                    }
+                    const c = await engine.getCountries()
+                    result = { count: c.length, first: c[0] }
                 }
         }
 

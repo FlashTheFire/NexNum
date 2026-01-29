@@ -20,7 +20,6 @@ export interface AppSettings {
         enabled: boolean
         costWeight: number      // 0-1
         stockWeight: number     // 0-1
-        rateWeight: number      // 0-1
         minStock: number
     }
     rateLimit: {
@@ -52,10 +51,9 @@ const DEFAULT_SETTINGS: AppSettings = {
     },
     priceOptimization: {
         enabled: true,
-        costWeight: 0.5,     // Cost is most important
-        stockWeight: 0.3,    // Stock availability matters
-        rateWeight: 0.2,     // Success rate is bonus
-        minStock: 0,         // Accept all stock levels
+        costWeight: 0.6,     // Cost is most important
+        stockWeight: 0.4,    // Stock availability matters
+        minStock: 1,         // Require at least 1 in stock
     },
     rateLimit: {
         apiLimit: 300,
