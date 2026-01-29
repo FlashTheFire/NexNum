@@ -14,13 +14,6 @@ interface AIConfigAssistantProps {
     onApply: (data: Record<string, unknown>) => void
 }
 
-const PROMPTS = {
-    2: `You are an Elite API Architect. Analyze the provided documentation and extract the Primary Identity.`,
-    3: `You are an Elite Security Consultant. Analyze the authentication section.`,
-    5: `You are a Principal Integration Engineer. Design a complete "Endpoints" and "Mappings" architecture.`,
-    full: `You are the Lead Master Architect for NexNum. Generate a PURE, PRODUCTION-READY configuration bundle.`
-}
-
 const STEP_TITLES = {
     2: "Generate Provider Identity",
     3: "Detect Authentication",
@@ -203,7 +196,7 @@ export function AIConfigAssistant({ isOpen, onClose, step, onApply }: AIConfigAs
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    prompt: PROMPTS[step] + "\n\n" + documentation,
+                    prompt: documentation,
                     step,
                     mode: 'generate',
                     supplements,

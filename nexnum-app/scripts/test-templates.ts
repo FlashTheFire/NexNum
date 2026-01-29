@@ -4,7 +4,7 @@ import { ConfirmEmail } from '../src/components/emails/ConfirmEmail'
 import { WelcomeEmail } from '../src/components/emails/WelcomeEmail'
 import { PasswordResetEmail } from '../src/components/emails/PasswordResetEmail'
 
-const TEST_EMAIL = 'flashsmsofficial.01@gmail.com' //process.env.SMTP_USER || 'test@example.com' //'udayscriptsx@gmail.com'
+const TEST_EMAIL = 'flashsmsofficial@gmail.com' //process.env.SMTP_USER || 'test@example.com' //'udayscriptsx@gmail.com'
 
 async function testConfirmEmail() {
     console.log(`\n📧 Sending ConfirmEmail to ${TEST_EMAIL}...`)

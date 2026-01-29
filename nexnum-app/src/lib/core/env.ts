@@ -21,6 +21,9 @@ const envSchema = z.object({
     // JWT
     JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
 
+    // Encryption
+    ENCRYPTION_KEY: z.string().min(32, 'ENCRYPTION_KEY is required for provider security (use 32+ chars)'),
+
     // Sentry
     SENTRY_DSN: z.string().url().optional(),
     SENTRY_ORG: z.string().optional(),

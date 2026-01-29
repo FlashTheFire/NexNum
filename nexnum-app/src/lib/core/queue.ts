@@ -18,22 +18,32 @@ export const QUEUES = {
 class QueueService {
     private boss: PgBoss | null = null
     private isReady = false
+    private startPromise: Promise<void> | null = null
 
     constructor() {
         const url = process.env.DIRECT_URL || process.env.DATABASE_URL
         if (url) {
+            // Industrial defaults: Increase pool size for production stability
             this.boss = new PgBoss({
                 connectionString: url,
-                max: 2
+                max: 10, // Increased from 2 to 10
+                application_name: 'NexNum-Queue'
             })
-            this.boss.on('error', (error) => logger.error('Queue Client Error', { error: error.message }))
+
+            this.boss.on('error', (error) => {
+                logger.error('Queue Client Error', {
+                    error: error.message,
+                    stack: error.stack
+                })
+                // Critical: Reset ready state if we get a connection error
+                if (error.message.includes('connection') || error.message.includes('terminat')) {
+                    this.isReady = false
+                    this.startPromise = null
+                }
+            })
 
             if (process.env.DIRECT_URL) {
                 logger.debug('Queue Initialized using DIRECT_URL')
-            } else {
-                if (process.env.NODE_ENV !== 'development') {
-                    logger.warn('Queue Initialized using DATABASE_URL')
-                }
             }
         } else {
             logger.warn('Queue No URL set, disabled')
@@ -41,21 +51,67 @@ class QueueService {
     }
 
     async start() {
-        if (!this.boss || this.isReady) return
+        if (!this.boss) return
+        if (this.isReady) return
 
-        try {
-            await this.boss.start()
-            for (const queueName of Object.values(QUEUES)) {
+        // Prevent concurrent start attempts (Race Condition Fix)
+        if (this.startPromise) return this.startPromise
+
+        this.startPromise = (async () => {
+            try {
+                logger.debug('Queue Service starting...')
+                await this.boss!.start()
+
+                // Ensure critical queues exist
+                for (const queueName of Object.values(QUEUES)) {
+                    try {
+                        await this.boss!.createQueue(queueName)
+                    } catch (e: any) {
+                        // Ignore "already exists" errors, but log others
+                        if (!e.message.includes('already exists')) {
+                            logger.warn(`Queue creation warning for ${queueName}`, { error: e.message })
+                        }
+                    }
+                }
+
+                this.isReady = true
+
+                // FINAL VERIFICATION: Prove the manager is ready and cache is initialized
+                // This prevents the "Queue cache is not initialized" error by forcing a cache-dependent call
                 try {
-                    await this.boss.createQueue(queueName)
-                } catch (e) { }
+                    // We check if the primary sync queue is recognized by the manager
+                    // Using "any" because getQueueStats type might be missing from some pg-boss types
+                    await (this.boss! as any).getQueueStats(QUEUES.PROVIDER_SYNC)
+                    logger.debug(`Queue Verification successful for ${QUEUES.PROVIDER_SYNC}`)
+                } catch (ve: any) {
+                    if (ve.message?.includes('not exist')) {
+                        // Queue doesn't exist yet, that's fine if we just created it
+                        // The cache is still initialized if it got this far
+                        logger.debug('Queue cache initialized (verified via existence check)')
+                    } else if (ve.message?.includes('cache is not initialized')) {
+                        // This is what we're trying to prevent/catch
+                        this.isReady = false
+                        this.startPromise = null
+                        throw new Error(`PgBoss Manager started but Cache failed to initialize: ${ve.message}`)
+                    } else {
+                        logger.warn('Queue Post-start verification warning', { error: ve.message })
+                    }
+                }
+
+                logger.info('Queue Service started successfully')
+            } catch (error: any) {
+                this.isReady = false
+                this.startPromise = null // Allow retry
+                logger.error('Queue Failed to start', {
+                    error: error.message,
+                    code: error.code,
+                    detail: error.detail
+                })
+                throw error
             }
-            this.isReady = true
-            logger.info('Queue Service started')
-        } catch (error) {
-            logger.error('Queue Failed to start', { error: error['message'] })
-            throw error
-        }
+        })()
+
+        return this.startPromise
     }
 
     async publish(queue: string, data: any, options?: any) {

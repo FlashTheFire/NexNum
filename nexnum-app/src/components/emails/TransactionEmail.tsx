@@ -4,11 +4,13 @@ import {
     Section,
     Text,
     Hr,
+    Img,
 } from '@react-email/components'
 import EmailLayout from './Layout'
-import { components, colors, spacing } from './theme'
+import { components, colors } from './theme'
 
 interface TransactionEmailProps {
+    name: string
     type: 'deposit' | 'purchase'
     amount: number
     currency: string
@@ -18,6 +20,7 @@ interface TransactionEmailProps {
 }
 
 export const TransactionEmail = ({
+    name,
     type,
     amount,
     currency = 'USD',
@@ -27,105 +30,108 @@ export const TransactionEmail = ({
 }: TransactionEmailProps) => {
     const isDeposit = type === 'deposit'
     const symbol = isDeposit ? '+' : '-'
-    const color = isDeposit ? colors.state.success.text : colors.state.error.text
+    const accentColor = isDeposit ? '#C6FF00' : '#FF6B6B'
+    const iconUrl = isDeposit ? "https://i.ibb.co/j9hcTVyW/download.png" : "https://i.ibb.co/MyqdHHLY/download.png"
 
     return (
         <EmailLayout preview={`Transaction Receipt: ${currency} ${amount.toFixed(2)}`}>
-            <Heading style={components.text.h1}>
-                {isDeposit ? 'Payment Received' : 'Order Confirmation'}
+            <Heading
+                style={{
+                    ...components.h1,
+                    color: colors.brand.primary,
+                    fontFamily: 'Rajdhani, sans-serif',
+                    textTransform: 'uppercase',
+                    letterSpacing: '1px'
+                }}>
+                {isDeposit ? 'Protocol Funded' : 'Order Confirmed'}
             </Heading>
 
-            <Section style={amountContainer}>
-                <Text style={{ ...amountText, color }}>
-                    {symbol}{currency} {amount.toFixed(2)}
-                </Text>
-                <Text style={statusText}>Successful</Text>
-            </Section>
-
-            <Text style={{ ...components.text.body, textAlign: 'center' }}>
-                Here is the receipt for your recent transaction on NexNum.
+            <Text style={{ ...components.text, color: colors.text.secondary }}>
+                Hello <strong>{name}</strong>,
+                <br />
+                Your recent transaction has been processed and verified on the network.
             </Text>
 
-            <Section style={detailsContainer}>
-                <div style={row}>
-                    <Text style={label}>Reference ID</Text>
-                    <Text style={value}>{referenceId}</Text>
-                </div>
-                <Hr style={divider} />
-                <div style={row}>
-                    <Text style={label}>Date</Text>
-                    <Text style={value}>{date}</Text>
-                </div>
-                <Hr style={divider} />
-                <div style={row}>
-                    <Text style={label}>Description</Text>
-                    <Text style={value}>{description}</Text>
-                </div>
+            <Section style={receiptCard}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <tr>
+                        <td style={{ width: '140px', verticalAlign: 'middle' }}>
+                            <Img src={iconUrl} width="120" height="120" style={{ borderRadius: '16px', display: 'block' }} />
+                        </td>
+                        <td style={{ verticalAlign: 'middle' }}>
+                            <Text style={{
+                                margin: '0',
+                                color: colors.text.primary,
+                                fontWeight: 'bold',
+                                fontSize: '24px',
+                                fontFamily: 'Quantico'
+                            }}>
+                                {symbol}{currency} {amount.toFixed(2)}
+                            </Text>
+                            <Text style={{ margin: '0', color: colors.text.tertiary, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                                Transaction Successful
+                            </Text>
+                        </td>
+                    </tr>
+                </table>
+
+                <Hr style={{ borderColor: 'rgba(255,255,255,0.05)', margin: '20px 0' }} />
+
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <tr>
+                        <td style={labelCell}>REFERENCE</td>
+                        <td style={valueCell}>{referenceId}</td>
+                    </tr>
+                    <tr>
+                        <td style={labelCell}>TIMESTAMP</td>
+                        <td style={valueCell}>{date}</td>
+                    </tr>
+                    <tr>
+                        <td style={labelCell}>DESCRIPTION</td>
+                        <td style={valueCell}>{description}</td>
+                    </tr>
+                </table>
             </Section>
 
-            <Section style={styles.btnContainer}>
-                <Button style={components.button.secondary} href="https://neaxnum.io/dashboard/history">
-                    View Transaction
+            <Section style={{ textAlign: 'center', marginTop: '32px' }}>
+                <Button
+                    style={{
+                        ...components.button.primary,
+                        borderRadius: '8px',
+                        padding: '12px 24px',
+                        fontFamily: 'Quantico'
+                    }}
+                    href="https://nexnum.io/dashboard/history"
+                >
+                    View History &rarr;
                 </Button>
             </Section>
         </EmailLayout>
     )
 }
 
-// Styles
-const amountContainer = {
-    textAlign: 'center' as const,
-    marginBottom: spacing.xl,
+const receiptCard = {
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    border: `1px solid ${colors.border.subtle}`,
+    borderRadius: '16px',
+    padding: '32px',
+    marginTop: '24px',
 }
 
-const amountText = {
-    fontSize: '36px',
-    fontWeight: '800',
-    margin: '0',
+const labelCell = {
+    color: colors.text.tertiary,
+    fontSize: '10px',
+    fontWeight: 'bold',
+    padding: '4px 0',
+    fontFamily: 'Rajdhani, sans-serif'
 }
 
-const statusText = {
-    color: colors.neutral.text.tertiary,
-    fontSize: '14px',
-    textTransform: 'uppercase' as const,
-    letterSpacing: '1px',
-    marginTop: '4px',
-}
-
-const detailsContainer = {
-    backgroundColor: 'rgba(51, 65, 85, 0.2)',
-    borderRadius: '8px',
-    padding: spacing.md,
-    marginBottom: spacing.lg,
-}
-
-const row = {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-}
-
-const label = {
-    color: colors.neutral.text.tertiary,
-    fontSize: '14px',
-    margin: '0',
-}
-
-const value = {
-    color: colors.neutral.text.primary,
-    fontSize: '14px',
-    fontWeight: '500',
-    margin: '0',
+const valueCell = {
+    color: colors.text.secondary,
+    fontSize: '11px',
     textAlign: 'right' as const,
-}
-
-const divider = {
-    borderColor: colors.neutral.border,
-    margin: '12px 0',
-}
-
-const styles = {
-    btnContainer: { textAlign: 'center' as const }
+    padding: '4px 0',
+    fontFamily: 'monospace'
 }
 
 export default TransactionEmail

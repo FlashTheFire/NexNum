@@ -385,11 +385,11 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
             const countriesToUpsert: typeof countries = []
 
             for (const c of countries) {
-                const externalId = String(c.id || c.code || 'unknown')
+                const externalId = String(c.code)
                 const canonicalName = getCanonicalName(c.name || 'Unknown')
-                const canonicalCode = getCountryIsoCode(c.code || c.id) || generateCanonicalCode(canonicalName)
-                const metaFlagUrl = getCountryFlagUrlSync(c.code || c.id)
-                const validFlagUrl = c.flagUrl || metaFlagUrl || (isValidImageUrl((c as any).flag) ? (c as any).flag : null)
+                const canonicalCode = getCountryIsoCode(c.code) || generateCanonicalCode(canonicalName)
+                const metaFlagUrl = getCountryFlagUrlSync(c.code)
+                const validFlagUrl = c.flagUrl || metaFlagUrl || null
 
                 const existing = countryDiffMap.get(externalId)
                 if (existing) {
@@ -409,11 +409,11 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
             if (countriesToUpsert.length > 0) {
                 console.log(`[SYNC] ${provider.name}: Smart Sync -> Upserting ${countriesToUpsert.length} changed/new countries (Skipped ${countries.length - countriesToUpsert.length})...`)
                 const countryPromises = countriesToUpsert.map(c => limit(async () => {
-                    const externalId = String(c.id || c.code || 'unknown')
+                    const externalId = String(c.code)
                     const canonicalName = getCanonicalName(c.name || 'Unknown')
-                    const canonicalCode = getCountryIsoCode(c.code || c.id) || generateCanonicalCode(canonicalName)
-                    const metaFlagUrl = getCountryFlagUrlSync(c.code || c.id)
-                    const validFlagUrl = c.flagUrl || metaFlagUrl || (isValidImageUrl((c as any).flag) ? (c as any).flag : null)
+                    const canonicalCode = getCountryIsoCode(c.code) || generateCanonicalCode(canonicalName)
+                    const metaFlagUrl = getCountryFlagUrlSync(c.code)
+                    const validFlagUrl = c.flagUrl || metaFlagUrl || null
 
                     // RESOLVE CENTRAL REGISTRY ID
                     const central = await CentralRegistry.resolveCountryId(provider.name, externalId, c.name || 'Unknown')
@@ -464,7 +464,7 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
             const servicesToUpsert: typeof services = []
 
             for (const s of services) {
-                const serviceCode = s.id || s.code
+                const serviceCode = String(s.code)
                 if (!serviceCode) continue
 
                 // Pre-calculate canonical values for comparison
@@ -538,7 +538,7 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
             if (servicesToUpsert.length > 0) {
                 console.log(`[SYNC] ${provider.name}: Smart Sync -> Upserting ${servicesToUpsert.length} changed/new services (Skipped ${services.length - servicesToUpsert.length})...`)
                 const servicePromises = servicesToUpsert.map(s => limit(async () => {
-                    const serviceCode = s.id || s.code
+                    const serviceCode = String(s.code)
                     if (!serviceCode) return
 
                     let canonicalName = getCanonicalName(s.name || 'Unknown')

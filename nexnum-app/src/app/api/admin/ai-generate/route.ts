@@ -27,7 +27,8 @@ export async function POST(req: NextRequest) {
     const config = await NormalizationDiscoveryService.generateConfiguration({
       docPrompt: prompt,
       providerType: providerType || 'json_api',
-      supplements
+      supplements,
+      step
     })
 
     return NextResponse.json({ result: config })

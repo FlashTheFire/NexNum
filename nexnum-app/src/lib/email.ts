@@ -48,8 +48,15 @@ export class EmailService {
     static async send({ to, subject, component }: SendEmailParams) {
         try {
             // 1. Get settings for sender address or use env/default
-            const settings = await SettingsService.getSettings()
-            const from = settings.general.emailSender || process.env.FROM_EMAIL || '"NexNum" <noreply@nexnum.com>'
+            let from = process.env.FROM_EMAIL || '"NexNum" <noreply@nexnum.com>'
+            try {
+                const settings = await SettingsService.getSettings()
+                if (settings.general.emailSender) {
+                    from = settings.general.emailSender
+                }
+            } catch (e) {
+                console.warn('[EmailService] Failed to fetch settings, using defaults.')
+            }
 
             // 2. Render React component to HTML
             const html = await render(component)

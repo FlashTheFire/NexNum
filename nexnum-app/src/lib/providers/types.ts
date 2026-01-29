@@ -1,18 +1,19 @@
 // SMS Provider Interfaces
 
 export interface Country {
-    id: string
-    code?: string
+    code: string     // Primary Identifier (Universal)
+    id?: string      // Legacy/Provider Specific
     name: string
-    flagUrl?: string | null  // Country flag URL from provider
+    flagUrl?: string | null
+    [key: string]: any // Support the preservation of any mapped fields
 }
 
 export interface Service {
-    id: string
-    code?: string
+    code: string     // Primary Identifier (Universal)
+    id?: string      // Legacy/Provider Specific
     name: string
-    price?: number
-    iconUrl?: string | null  // Service icon URL
+    iconUrl?: string | null
+    [key: string]: any // Support the preservation of any mapped fields
 }
 
 export interface NumberResult {

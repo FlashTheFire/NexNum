@@ -19,6 +19,11 @@ export const redis = new Redis(getRedisConfig(), {
         return false;
     },
     retryStrategy(times) {
+        // Stop retrying after 3 times in non-production environments to prevent hangs
+        if (process.env.NODE_ENV !== 'production' && times > 3) {
+            console.warn('[Redis] Max retries reached. Procedding without Redis.');
+            return null; // Stop retrying
+        }
         const delay = Math.min(times * 100, 3000);
         return delay;
     }

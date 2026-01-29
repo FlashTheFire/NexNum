@@ -230,6 +230,7 @@ export class DynamicProvider implements SmsProvider {
 
         // Initialize trace variables in outer scope for catch block access
         let urlObj: URL | null = null
+        let headers: Record<string, string> = {}
         let maskedHeaders: Record<string, string> = {}
         const startTime = Date.now()
 
@@ -265,13 +266,16 @@ export class DynamicProvider implements SmsProvider {
             queryParams.forEach((val, key) => urlObj!.searchParams.append(key, val))
 
             // Build Headers
-            const headers = ProviderRequestBuilder.buildHeaders(
+            headers = ProviderRequestBuilder.buildHeaders(
                 epConfig.headers,
                 this.config.authType,
                 rawAuthKey,
                 this.config.authHeader,
                 urlObj.origin
             )
+
+            // Mask headers for trace (done early so it's available if fetch fails)
+            maskedHeaders = this.maskHeaders(headers)
 
             // 3. Attach common headers (Trace ID)
             headers['X-Trace-ID'] = getTraceId()
@@ -487,6 +491,21 @@ export class DynamicProvider implements SmsProvider {
                 }
             }
         }
+    }
+
+    private maskHeaders(headers: Record<string, string>): Record<string, string> {
+        const masked: Record<string, string> = {}
+        const sensitiveKeys = ['authorization', 'api-key', 'apikey', 'token', 'auth-key', 'x-api-key', 'x-auth-token']
+
+        for (const [key, value] of Object.entries(headers)) {
+            const lowerKey = key.toLowerCase()
+            if (sensitiveKeys.includes(lowerKey) || (this.config.authHeader && lowerKey === this.config.authHeader.toLowerCase())) {
+                masked[key] = value.length > 8 ? `${value.substring(0, 4)}...${value.substring(value.length - 4)}` : '********'
+            } else {
+                masked[key] = value
+            }
+        }
+        return masked
     }
 
     // Helper to extract flattened values using wildcards "data.*.items"
@@ -1371,44 +1390,11 @@ export class DynamicProvider implements SmsProvider {
     private mapFields(item: any, fields: Record<string, string>, context: any = {}): any {
         const result: any = {}
 
-        // Common field name fallbacks (ordered by priority)
-        const fieldFallbacks: Record<string, string[]> = {
-            'name': ['name', 'eng', 'title', 'text', 'label', 'rus', 'chn'],
-            'countryName': ['name', 'eng', 'title', 'country_name', 'rus'],
-            'serviceName': ['name', 'title', 'service', 'service_name'],
-            'id': ['id', 'code', 'key', 'value'],
-            'code': ['code', 'id', 'short_name', 'iso'],
-            'countryId': ['id', 'code', 'country_id', 'country_code'],
-            'countryISO': ['iso', 'iso2', 'code', 'country_code'],
-            'serviceId': ['id', 'code', 'service_id', 'service_code'],
-        }
-
         for (const [targetField, sourcePath] of Object.entries(fields)) {
             let value = this.getValue(item, sourcePath, context)
 
-            // If value is undefined and we have fallbacks for this target field, try them
-            if (value === undefined || value === null) {
-                const fallbacks = fieldFallbacks[targetField]
-                if (fallbacks) {
-                    for (const fb of fallbacks) {
-                        // Try direct property
-                        if (item[fb] !== undefined) {
-                            value = item[fb]
-                            break
-                        }
-                        // Try with value. prefix (for dictionary context)
-                        if (context.value && context.value[fb] !== undefined) {
-                            value = context.value[fb]
-                            break
-                        }
-                    }
-                }
-            }
-
             // Smart Unwrap: If retrieved value is an object (e.g. from '$value') and contains the target field, extract it
-            // This fixes cases where mapping points to a wrapper object { cost: 10.54 } instead of the value 10.54
             if (value && typeof value === 'object' && !Array.isArray(value)) {
-                // Case-insensitive check for robustness
                 const subKey = Object.keys(value).find(k => k.toLowerCase() === targetField.toLowerCase())
                 if (subKey) {
                     value = value[subKey]
@@ -1418,11 +1404,10 @@ export class DynamicProvider implements SmsProvider {
             result[targetField] = value
         }
 
-        // Apply Transformations
+        // Apply Transformations strictly from config
         if (this.config.mappings && context.mappingKey) {
             const mapConfig = (this.config.mappings as any)[context.mappingKey]
 
-            // 1. Field-level transformations
             if (mapConfig?.transform) {
                 for (const [field, rule] of Object.entries(mapConfig.transform)) {
                     if (result[field] !== undefined && result[field] !== null) {
@@ -1432,7 +1417,7 @@ export class DynamicProvider implements SmsProvider {
                         else if (rule === 'boolean') result[field] = Boolean(val)
                         else if (rule === 'uppercase') result[field] = String(val).toUpperCase()
                         else if (rule === 'lowercase') result[field] = String(val).toLowerCase()
-                        // NEW: urlTemplate - e.g., "https://example.com/image/{value}.webp"
+                        else if (rule === 'trim') result[field] = String(val).trim()
                         else if (typeof rule === 'string' && rule.includes('{value}')) {
                             result[field] = rule.replace('{value}', String(val))
                         }
@@ -1440,31 +1425,14 @@ export class DynamicProvider implements SmsProvider {
                 }
             }
 
-            // 2. NEW: Apply iconUrlTemplate (Universal Dynamic Logic) - Fallback ONLY
-            if (mapConfig?.iconUrlTemplate) {
-                // Only apply if iconUrl is missing or looks like a fragment (not a URL)
-                const currentIcon = result.iconUrl
-                const isFullUrl = typeof currentIcon === 'string' && currentIcon.startsWith('http')
-
-                if (!isFullUrl) {
-                    const template = mapConfig.iconUrlTemplate
-                    result.iconUrl = template.replace(/{{([^}]+)}}/g, (match, fieldName) => {
-                        const cleanFieldName = fieldName.trim()
-                        // Try to get from mapped result first
-                        if (result[cleanFieldName] !== undefined && result[cleanFieldName] !== null) {
-                            return String(result[cleanFieldName])
-                        }
-                        // Fallback to raw item
-                        if (item[cleanFieldName] !== undefined && item[cleanFieldName] !== null) {
-                            return String(item[cleanFieldName])
-                        }
-                        // Fallback to context
-                        if (context[cleanFieldName] !== undefined && context[cleanFieldName] !== null) {
-                            return String(context[cleanFieldName])
-                        }
-                        return match // Keep placeholder if not found
-                    })
-                }
+            // Universal Template-based Fallbacks
+            if (mapConfig?.iconUrlTemplate && !result.iconUrl) {
+                const template = mapConfig.iconUrlTemplate
+                result.iconUrl = template.replace(/{{([^}]+)}}/g, (match, fieldName) => {
+                    const cleanFieldName = fieldName.trim()
+                    const val = result[cleanFieldName] ?? item[cleanFieldName] ?? context[cleanFieldName]
+                    return val !== undefined && val !== null ? String(val) : match
+                })
             }
         }
 
@@ -1491,22 +1459,23 @@ export class DynamicProvider implements SmsProvider {
             // Import image proxy
             const { proxyImage } = await import('@/lib/utils/image-proxy')
 
-            return Promise.all(items.map(async (i, idx) => {
-                const id = String(i.id ?? idx)
-                const code = String(i.code ?? i.id ?? '').toLowerCase()
+            return Promise.all(items.map(async (i) => {
+                // Determine Code/Name strictly from mapping, no fallbacks
+                const code = String(i.code ?? i.id ?? '')
+                const name = String(i.name ?? '')
 
-                // Proxy flag URL to hide provider URLs
-                let flagUrl = i.flagUrl ?? i.flag ?? i.icon ?? undefined
-                if (flagUrl) {
+                // Proxy flag URL if present in the mapped result
+                let flagUrl = i.flagUrl ?? undefined
+                if (flagUrl && typeof flagUrl === 'string') {
                     const result = await proxyImage(flagUrl)
                     flagUrl = result.url || flagUrl
                 }
 
                 return {
-                    id,
-                    code: code !== id && code ? code : undefined,
-                    name: String(i.name ?? i.country ?? 'Unknown'),
-                    flagUrl
+                    ...i, // Preserve all mapped fields
+                    code,
+                    name,
+                    flagUrl: flagUrl || undefined
                 }
             }))
         }, CACHE_TTL.COUNTRIES)
@@ -1556,23 +1525,24 @@ export class DynamicProvider implements SmsProvider {
 
             const items = this.parseResponse(response, 'getServices')
 
-            return Promise.all(items.map(async (s, idx) => {
-                const id = String(s.id ?? s.code ?? idx)
+            return Promise.all(items.map(async (s) => {
+                // Determine Code/Name strictly from mapping, no fallbacks
                 const code = String(s.code ?? s.id ?? '')
+                const name = String(s.name ?? '')
 
-                // Proxy icon URL to hide provider URLs
+                // Proxy icon URL if present
                 const { proxyImage } = await import('@/lib/utils/image-proxy')
-                let iconUrl = s.iconUrl ?? s.icon ?? undefined
-                if (iconUrl) {
+                let iconUrl = s.iconUrl ?? undefined
+                if (iconUrl && typeof iconUrl === 'string') {
                     const result = await proxyImage(iconUrl)
                     iconUrl = result.url || iconUrl
                 }
 
                 return {
-                    id,
-                    code: code !== id ? code : undefined,
-                    name: String(s.name ?? 'Unknown'),
-                    iconUrl
+                    ...s, // Preserve all mapped fields
+                    code,
+                    name,
+                    iconUrl: iconUrl || undefined
                 }
             }))
         }, CACHE_TTL.SERVICES)
@@ -1605,24 +1575,21 @@ export class DynamicProvider implements SmsProvider {
             throw new Error(`Failed to parse number response. No data returned or mapping failed. Raw: ${JSON.stringify(this.lastRawResponse)}`)
         }
 
-        // Check for presence of ANY valid ID or phone number field
-        const hasId = mapped.id || mapped.activationId || mapped.orderId
-        const hasPhone = mapped.phone || mapped.phoneNumber || mapped.number
+        // Required Fields for NexNum Core
+        const activationId = String(mapped.activationId || mapped.id || mapped.orderId || '')
+        const phoneNumber = String(mapped.phoneNumber || mapped.phone || mapped.number || '')
 
-        if (!hasId && !hasPhone) {
-            // Detailed error for debugging
-            const missing = []
-            if (!hasId) missing.push('id/activationId')
-            if (!hasPhone) missing.push('phone/number')
-            throw new Error(`Failed to parse number response. Missing: ${missing.join(', ')}. Got: ${JSON.stringify(mapped)}`)
+        if (!activationId || !phoneNumber) {
+            throw new Error(`Failed to parse number response. Missing required fields (mapped activationId or phoneNumber). Got: ${JSON.stringify(mapped)}`)
         }
 
         // CURRENCY & MARGIN LOGIC (Real-time)
         let normalizedPrice: number | null = null
         let baseCost: number | null = null
 
-        if ((mapped.price ?? mapped.cost) !== undefined) {
-            const rawPriceNum = Number(mapped.price ?? mapped.cost ?? 0)
+        const rawPriceValue = mapped.price ?? mapped.cost
+        if (rawPriceValue !== undefined) {
+            const rawPriceNum = Number(rawPriceValue || 0)
             baseCost = await currencyService.normalizeProviderPrice(rawPriceNum, this.config.name)
 
             const multiplier = Number(this.config.priceMultiplier || 1.0)
@@ -1633,13 +1600,14 @@ export class DynamicProvider implements SmsProvider {
         }
 
         return {
-            activationId: String(mapped.id || mapped.activationId || mapped.orderId),
-            phoneNumber: String(mapped.phone || mapped.phoneNumber || mapped.number),
+            ...mapped, // Preserve ALL mapped fields for universal usage
+            activationId,
+            phoneNumber,
             countryCode: String(countryCode),
             serviceCode: String(serviceCode),
             price: normalizedPrice,
-            rawPrice: baseCost, // NEW: The actual cost in platform currency (POINTS)
-            expiresAt: new Date(Date.now() + 15 * 60 * 1000)
+            rawPrice: baseCost,
+            expiresAt: new Date(Date.now() + ((this.config as any).activationExpiryMinutes || 15) * 60 * 1000)
         }
     }
 
@@ -1674,26 +1642,28 @@ export class DynamicProvider implements SmsProvider {
         }
 
         const messages = []
-        if (mapped.sms || mapped.code || mapped.message) {
-            const smsList = Array.isArray(mapped.sms) ? mapped.sms : [mapped.sms || mapped]
+        // Strict mapping for SMS content/code
+        const smsContent = mapped.sms || mapped.text || mapped.content || mapped.message
+        const smsCode = mapped.code || mapped.pin || mapped.otp
+
+        if (smsContent || smsCode) {
+            const smsList = Array.isArray(smsContent) ? smsContent : [mapped] // If not array, treat mapped object as single SMS context
             messages.push(...smsList.filter(Boolean).map((s: any) => {
-                // Determine a stable ID for deduplication in the worker
-                // Protocol 1: SMS-Activate / Grizzly often just return the status/code without a stable SMS ID
-                // We generate a deterministic one: sms_{activationId}_{code}
-                const code = s.code || s.text || s.message || ''
-                const stableId = s.id || `sms_${activationId}_${code}`
+                const code = s.code || smsCode || ''
+                const stableId = s.id || s.smsId || `sms_${activationId}_${code}`
 
                 return {
+                    ...s, // Preserve all mapped fields in SMS object
                     id: String(stableId),
                     sender: s.sender || s.from || 'System',
-                    content: s.text || s.content || s.message || '',
-                    code: s.code,
-                    receivedAt: new Date()
+                    content: s.text || s.content || s.message || String(smsContent || ''),
+                    code: String(code),
+                    receivedAt: s.receivedAt ? new Date(s.receivedAt) : new Date()
                 }
             }))
         }
 
-        return { status, messages }
+        return { ...mapped, status, messages }
     }
 
     /**
@@ -1887,7 +1857,9 @@ export class DynamicProvider implements SmsProvider {
         const response = await this.request('getBalance')
         const items = this.parseResponse(response, 'getBalance')
         const mapped = items[0] || {}
-        return Number(mapped.balance || mapped.amount || mapped.value || 0)
+
+        // Total control: use only mapped balance or fallback to 0
+        return Number(mapped.balance || mapped.amount || 0)
     }
 
 
@@ -2064,26 +2036,26 @@ export class DynamicProvider implements SmsProvider {
         const fields = webhookConfig.fields || {}
 
         // Helper to get value with multiple potential keys/paths
-        const getAny = (keys: string[], obj: any) => {
-            for (const k of keys) {
-                if (!k) continue
-                // Handle dot notation
-                const val = k.split('.').reduce((o, x) => (o || {})[x], obj)
+        const getVal = (path: string | undefined, defaultKeys: string[], obj: any) => {
+            if (path) return path.split('.').reduce((o, x) => (o || {})[x], obj)
+
+            // Fallback to strict defaults only if no path provided
+            for (const k of defaultKeys) {
+                const val = obj[k]
                 if (val !== undefined && val !== null && val !== '') return val
             }
             return undefined
         }
 
-        // Smart defaults covering standard provider formats (5sim, Grizzly, SMSBower, etc.)
-        const activationId = getAny([fields.activationId, 'activationId', 'id', 'activation_id', 'order_id', 'orderId'], body)
-        const text = getAny([fields.text, 'text', 'smsText', 'message', 'content', 'sms_text', 'msg'], body)
-        const code = getAny([fields.code, 'code', 'smsCode', 'verification_code', 'pin', 'otp'], body)
-        const sender = getAny([fields.sender, 'sender', 'from', 'service', 'app', 'origin'], body)
-        const receivedAtStr = getAny([fields.receivedAt, 'receivedAt', 'received_at', 'timestamp', 'dateTime', 'time'], body)
+        const activationId = getVal(fields.activationId, ['activationId', 'id', 'order_id'], body)
+        const text = getVal(fields.text, ['text', 'message', 'sms'], body)
+        const code = getVal(fields.code, ['code', 'pin', 'otp'], body)
+        const sender = getVal(fields.sender, ['sender', 'from'], body)
+        const receivedAtStr = getVal(fields.receivedAt, ['receivedAt', 'timestamp'], body)
 
         return {
             provider: this.config.name,
-            eventType: 'sms.received', // Default for now, can be mapped if needed
+            eventType: 'sms.received',
             activationId: String(activationId || Date.now()),
             sms: {
                 text: String(text || ''),

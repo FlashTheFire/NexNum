@@ -75,45 +75,33 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
                 break
 
             case 'getBalance':
-                result = { balance: await engine.getBalance?.() ?? 0 }
+                if (engine instanceof DynamicProvider) {
+                    await (engine as any).request('getBalance')
+                    result = { balance: (engine as any).parseResponse(engine.lastRawResponse, 'getBalance')[0]?.balance ?? 0 }
+                } else {
+                    result = { balance: await engine.getBalance?.() ?? 0 }
+                }
                 break
             case 'getCountries':
-                // Use metadataEngine
-
                 // FORCE REFRESH: To show trace, we must bypass cache.
-                // DynamicProvider doesn't expose skipCache directly in interface, so we hack it or rely on a new method.
-                // Best approach: cast to DynamicProvider and access request method directly or add a skipCache arg to getCountries.
-
-                let countries;
                 if (metadataEngine instanceof DynamicProvider) {
-                    // For testing: we want to trace the request, so we bypass the public getCountries cache wrapper
                     const res = await (metadataEngine as any).request('getCountries');
                     const items = (metadataEngine as any).parseResponse(res, 'getCountries');
-                    // Manually map fields to match getCountries output style (simplified)
-                    countries = items.map((i: any) => ({
-                        id: String(i.id || i.code),
-                        name: String(i.name || i.country),
-                        code: String(i.code || i.id)
-                    }));
+                    result = { count: items.length, first: items.slice(0, 5) }
                 } else {
-                    countries = await metadataEngine.getCountries()
-                }
-
-                result = {
-                    count: countries.length,
-                    first: countries.slice(0, 5), // Return first 5 for better debugging
-
+                    const countries = await metadataEngine.getCountries()
+                    result = { count: countries.length, first: countries.slice(0, 5) }
                 }
                 break
             case 'getServices':
-                // Country is optional - some providers list all services without it
-                // Use metadata engine
-
-                const services = await metadataEngine.getServices(params.country || '')
-                result = {
-                    count: services.length,
-                    first: services.slice(0, 5), // Return first 5 for better debugging
-
+                // FORCE REFRESH: To show trace, we must bypass cache.
+                if (metadataEngine instanceof DynamicProvider) {
+                    const res = await (metadataEngine as any).request('getServices', { country: params.country || '' });
+                    const items = (metadataEngine as any).parseResponse(res, 'getServices');
+                    result = { count: items.length, first: items.slice(0, 5) }
+                } else {
+                    const services = await metadataEngine.getServices(params.country || '')
+                    result = { count: services.length, first: services.slice(0, 5) }
                 }
                 break
             case 'getNumber':
@@ -133,11 +121,13 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
                 break
             case 'getPrices':
                 // Get prices with optional country/service filters
-                const dynamicEnginePrices = engine as DynamicProvider
-                const prices = await dynamicEnginePrices.getPrices(params.country || undefined, params.service || undefined)
-                result = {
-                    count: prices.length,
-                    first: prices.slice(0, 5) // Return first 5 prices for preview
+                if (engine instanceof DynamicProvider) {
+                    const res = await (engine as any).request('getPrices', { country: params.country || '', service: params.service || '' });
+                    const items = (engine as any).parseResponse(res, 'getPrices');
+                    result = { count: items.length, first: items.slice(0, 5) }
+                } else {
+                    const prices = await (engine as any).getPrices(params.country || undefined, params.service || undefined)
+                    result = { count: prices.length, first: prices.slice(0, 5) }
                 }
                 break
             case 'cancelNumber':
@@ -159,12 +149,22 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
                 const endpoints = provider.endpoints as any
                 if (endpoints && endpoints.getBalance) {
                     action = 'getBalance'
-                    const bal = await engine.getBalance()
-                    result = { balance: bal }
+                    if (engine instanceof DynamicProvider) {
+                        await (engine as any).request('getBalance')
+                        result = { balance: (engine as any).parseResponse(engine.lastRawResponse, 'getBalance')[0]?.balance ?? 0 }
+                    } else {
+                        result = { balance: await engine.getBalance() }
+                    }
                 } else {
                     action = 'getCountries'
-                    const c = await engine.getCountries()
-                    result = { count: c.length, first: c[0] }
+                    if (engine instanceof DynamicProvider) {
+                        const res = await (engine as any).request('getCountries');
+                        const items = (engine as any).parseResponse(res, 'getCountries');
+                        result = { count: items.length, first: items[0] }
+                    } else {
+                        const c = await engine.getCountries()
+                        result = { count: c.length, first: c[0] }
+                    }
                 }
         }
 
