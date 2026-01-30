@@ -484,8 +484,8 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
     const [formData, setFormData] = useState({
         name: '', displayName: '', apiBaseUrl: '', authType: 'bearer', authKey: '',
         authQueryParam: '', authHeader: '',
-        endpoints: '{\n  "getCountries": { "method": "GET", "path": "" }\n}',
-        mappings: '{\n  "getCountries": { "type": "json_object", "rootPath": "$" }\n}',
+        endpoints: '{\n  "getCountriesList": { "method": "GET", "path": "" }\n}',
+        mappings: '{\n  "getCountriesList": { "type": "json_object", "rootPath": "$" }\n}',
         isActive: false, priority: 0, providerType: 'rest',
         priceMultiplier: '1.0', fixedMarkup: '0.00', currency: 'USD',
         normalizationMode: 'AUTO', normalizationRate: '', apiPair: '', depositSpent: '', depositReceived: '', depositCurrency: 'USD',
@@ -1067,8 +1067,8 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                     description: 'Fetch provider data (countries, services, prices)',
                                     color: 'blue',
                                     functions: [
-                                        { key: 'getCountries', label: 'Countries', icon: Globe, desc: 'List available countries' },
-                                        { key: 'getServices', label: 'Services', icon: Package, desc: 'List services by country' },
+                                        { key: 'getCountriesList', label: 'Countries', icon: Globe, desc: 'List available countries' },
+                                        { key: 'getServicesList', label: 'Services', icon: Package, desc: 'List services by country' },
                                         { key: 'getPrices', label: 'Prices', icon: BarChart3, desc: 'Get pricing data' },
                                         { key: 'getBalance', label: 'Balance', icon: DollarSign, desc: 'Check account balance' },
                                     ]
@@ -1080,8 +1080,8 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                     functions: [
                                         { key: 'getNumber', label: 'Buy Number', icon: Phone, desc: 'Purchase activation' },
                                         { key: 'getStatus', label: 'Get Status', icon: Eye, desc: 'Check SMS status' },
-                                        { key: 'setStatus', label: 'Set Status', icon: Settings, desc: 'Confirm/reject SMS' },
-                                        { key: 'cancelNumber', label: 'Cancel', icon: XCircle, desc: 'Cancel and refund' },
+                                        { key: 'setResendCode', label: 'Resend', icon: RefreshCw, desc: 'Request next SMS' },
+                                        { key: 'setCancel', label: 'Cancel', icon: XCircle, desc: 'Cancel and refund' },
                                     ]
                                 }
                             ]
@@ -1825,7 +1825,7 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                             <div className="flex justify-between"><code className="text-white/70">getNumber</code><span className="text-white/30">Buy number</span></div>
                                             <div className="flex justify-between"><code className="text-white/70">getStatus</code><span className="text-white/30">Check SMS</span></div>
                                             <div className="flex justify-between"><code className="text-white/70">getBalance</code><span className="text-white/30">Check funds</span></div>
-                                            <div className="flex justify-between"><code className="text-white/70">cancelNumber</code><span className="text-white/30">Refund</span></div>
+                                            <div className="flex justify-between"><code className="text-white/70">setCancel</code><span className="text-white/30">Refund</span></div>
                                         </div>
                                     </div>
 
@@ -1864,7 +1864,7 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                         <div className="flex items-center gap-1.5">
                                             <label className="text-sm font-semibold text-white">Endpoints</label>
                                             <span className="px-1.5 py-0.5 bg-blue-500/20 text-blue-300 text-[9px] font-medium rounded">API ROUTES</span>
-                                            <InfoTooltip content={<>Define API routes for each action: <TTCode>getNumber</TTCode> (purchase), <TTCode>getStatus</TTCode> (check SMS), <TTCode>getBalance</TTCode>, <TTCode>cancelNumber</TTCode>. Use placeholders: <TTCode>{'{country}'}</TTCode>, <TTCode>{'{id}'}</TTCode></>} />
+                                            <InfoTooltip content={<>Define API routes for each action: <TTCode>getNumber</TTCode> (purchase), <TTCode>getStatus</TTCode> (check SMS), <TTCode>getBalance</TTCode>, <TTCode>setCancel</TTCode>. Use placeholders: <TTCode>{'{country}'}</TTCode>, <TTCode>{'{id}'}</TTCode></>} />
                                         </div>
                                         <span className="text-[10px] text-white/40">Where to send requests for each action</span>
                                     </div>
@@ -1899,7 +1899,7 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                     { key: 'getNumber', label: 'Purchase', desc: 'Buy number' },
                                     { key: 'getStatus', label: 'Status', desc: 'Check SMS' },
                                     { key: 'getBalance', label: 'Balance', desc: 'Check funds' },
-                                    { key: 'cancelNumber', label: 'Cancel', desc: 'Refund' },
+                                    { key: 'setCancel', label: 'Cancel', desc: 'Refund' },
                                 ].map(action => (
                                     <div key={action.key} className="p-2 bg-black/20 rounded-lg border border-white/5 text-center">
                                         <code className="text-[9px] text-blue-400 font-mono block mb-0.5">{action.key}</code>
@@ -2041,11 +2041,11 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                                 onClick={async () => {
                                                     // 1. Basic Info
                                                     await runTest('getBalance')
-                                                    const cRes = await runTest('getCountries')
+                                                    const cRes = await runTest('getCountriesList')
                                                     const country = cRes?.parsed?.first?.[0]?.iso || cRes?.parsed?.first?.[0]?.id || 'us'
 
                                                     // 2. Services & Prices
-                                                    const sRes = await runTest('getServices', { country })
+                                                    const sRes = await runTest('getServicesList', { country })
                                                     const service = sRes?.parsed?.first?.[0]?.slug || sRes?.parsed?.first?.[0]?.id || 'wa'
 
                                                     await runTest('getPrices', { country, service })
@@ -2059,7 +2059,7 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                                         await runTest('getStatus', { id })
 
                                                         // Cancel immediately to refund
-                                                        await runTest('cancelNumber', { id })
+                                                        await runTest('setCancel', { id })
                                                     }
                                                 }}
                                                 disabled={isTesting}
@@ -2080,12 +2080,12 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                         <div className="flex items-center gap-3">
                                             {[
                                                 { key: 'getBalance', label: 'Balance', icon: Wallet, color: 'emerald' },
-                                                { key: 'getCountries', label: 'Countries', icon: Globe, color: 'blue' },
-                                                { key: 'getServices', label: 'Services', icon: Smartphone, color: 'purple' },
+                                                { key: 'getCountriesList', label: 'Countries', icon: Globe, color: 'blue' },
+                                                { key: 'getServicesList', label: 'Services', icon: Smartphone, color: 'purple' },
                                                 { key: 'getPrices', label: 'Prices', icon: DollarSign, color: 'amber' },
                                                 { key: 'getNumber', label: 'Purchase', icon: Phone, color: 'cyan' },
                                                 { key: 'getStatus', label: 'Status', icon: Eye, color: 'pink' },
-                                                { key: 'cancelNumber', label: 'Refund', icon: XCircle, color: 'red' },
+                                                { key: 'setCancel', label: 'Cancel', icon: XCircle, color: 'red' },
                                             ].map((step, idx, arr) => {
                                                 const isActive = testAction === step.key
                                                 const hasResult = testResults?.[step.key]
@@ -2135,14 +2135,14 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
 
                                         {[
                                             { key: 'getBalance', label: 'Check Balance', icon: Wallet, color: 'emerald', borderColor: 'border-l-emerald-500' },
-                                            { key: 'getCountries', label: 'Fetch Countries', icon: Globe, color: 'blue', borderColor: 'border-l-blue-500' },
-                                            { key: 'getServices', label: 'Fetch Services', icon: Smartphone, color: 'purple', borderColor: 'border-l-purple-500' },
+                                            { key: 'getCountriesList', label: 'Fetch Countries', icon: Globe, color: 'blue', borderColor: 'border-l-blue-500' },
+                                            { key: 'getServicesList', label: 'Fetch Services', icon: Smartphone, color: 'purple', borderColor: 'border-l-purple-500' },
                                             { key: 'getPrices', label: 'Check Prices', icon: DollarSign, color: 'amber', borderColor: 'border-l-amber-500' },
                                             // Lifecycle Actions
                                             { key: 'getNumber', label: 'Buy Number', icon: Phone, color: 'cyan', borderColor: 'border-l-cyan-500' },
                                             { key: 'getStatus', label: 'Get Status', icon: Eye, color: 'pink', borderColor: 'border-l-pink-500' },
-                                            { key: 'setStatus', label: 'Set Status', icon: Settings, color: 'orange', borderColor: 'border-l-orange-500' },
-                                            { key: 'cancelNumber', label: 'Cancel Number', icon: XCircle, color: 'red', borderColor: 'border-l-red-500' },
+                                            { key: 'setComplete', label: 'Set Complete', icon: CheckCircle, color: 'emerald', borderColor: 'border-l-emerald-500' },
+                                            { key: 'setCancel', label: 'Cancel Number', icon: XCircle, color: 'red', borderColor: 'border-l-red-500' },
                                         ].map((row) => {
                                             const result = testResults?.[row.key]
                                             const isRunning = isTesting && testAction === row.key
@@ -2167,17 +2167,14 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                                     { key: 'operator', label: 'Operator', required: false, placeholder: 'any' },
                                                     { key: 'maxPrice', label: 'Max Price', required: false, placeholder: '5.00', type: 'number' }
                                                 ],
-                                                getServices: [{ key: 'country', label: 'Country', required: false, placeholder: 'us (optional)' }],
+                                                getServicesList: [{ key: 'country', label: 'Country', required: false, placeholder: 'us (optional)' }],
                                                 getPrices: [
                                                     { key: 'country', label: 'Country', required: true, placeholder: 'us' },
                                                     { key: 'service', label: 'Service', required: false, placeholder: 'wa' }
                                                 ],
                                                 getStatus: [{ key: 'id', label: 'Activation ID', required: true, placeholder: 'ID' }],
-                                                setStatus: [
-                                                    { key: 'id', label: 'Activation ID', required: true, placeholder: 'ID' },
-                                                    { key: 'status', label: 'Status', required: true, type: 'select', options: [{ value: '6', label: 'Complete (6)' }, { value: '8', label: 'Cancel (8)' }, { value: '3', label: 'Retry (3)' }, { value: '1', label: 'Ready (1)' }] }
-                                                ],
-                                                cancelNumber: [{ key: 'id', label: 'Activation ID', required: true, placeholder: 'ID' }]
+                                                setComplete: [{ key: 'id', label: 'Activation ID', required: true, placeholder: 'ID' }],
+                                                setCancel: [{ key: 'id', label: 'Activation ID', required: true, placeholder: 'ID' }]
                                             }[row.key as keyof typeof configFields]
 
                                             return (
