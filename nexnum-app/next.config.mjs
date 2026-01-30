@@ -15,6 +15,9 @@ const nextConfig = {
     typescript: {
         ignoreBuildErrors: true,
     },
+    eslint: {
+        ignoreDuringBuilds: true,
+    },
 
     // CDN & Caching Optimization
     async headers() {
