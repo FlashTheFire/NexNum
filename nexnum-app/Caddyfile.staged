@@ -1,3 +1,0 @@
-:80 {
-    reverse_proxy nexnum-api:3000
-}
