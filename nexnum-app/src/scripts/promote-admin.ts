@@ -1,4 +1,4 @@
-import { prisma } from '../src/lib/core/db'
+import { prisma } from '../lib/core/db'
 
 async function main() {
     const email = process.argv[2]

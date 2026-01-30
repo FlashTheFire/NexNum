@@ -2,7 +2,7 @@
 import { config } from 'dotenv'
 config()
 
-import { queue } from '../src/lib/core/queue'
+import { queue } from '../lib/core/queue'
 
 async function verify() {
     console.log('Testing Queue connection...')
