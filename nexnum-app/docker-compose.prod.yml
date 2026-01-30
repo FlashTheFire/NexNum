@@ -96,6 +96,8 @@ services:
     volumes:
       - redis_data:/data
     restart: unless-stopped
+    env_file:
+      - .env.production
     healthcheck:
       test: [ "CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-strongpassword}", "ping" ]
       interval: 10s
@@ -117,6 +119,8 @@ services:
     volumes:
       - meili_data:/meili_data
     restart: unless-stopped
+    env_file:
+      - .env.production
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:7700/health" ]
       interval: 30s
