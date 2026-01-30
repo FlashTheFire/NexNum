@@ -12,6 +12,8 @@ import { prisma } from '@/lib/core/db'
 import { AuthGuard } from '@/lib/auth/guard'
 import { healthMonitor } from '@/lib/providers/health-monitor'
 import { logger } from '@/lib/core/logger'
+import { logAdminAction, getClientIP } from '@/lib/core/auditLog'
+import { deleteOffersByProvider } from '@/lib/search/search'
 
 interface RouteParams {
     params: Promise<{ id: string }>
@@ -210,6 +212,56 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     } catch (error: any) {
         logger.error('Provider update failed', { error: error.message })
+        return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+}
+
+// DELETE - Remove provider and its data
+export async function DELETE(request: NextRequest, { params }: RouteParams) {
+    const auth = await AuthGuard.requireAdmin()
+    if (auth.error) return auth.error
+
+    const { id } = await params
+
+    try {
+        // 1. Get provider slug for MeiliSearch cleanup
+        const provider = await prisma.provider.findUnique({
+            where: { id },
+            select: { name: true, displayName: true }
+        })
+
+        if (!provider) {
+            return NextResponse.json({ error: 'Provider not found' }, { status: 404 })
+        }
+
+        // 2. Cleanup MeiliSearch Documents
+        await deleteOffersByProvider(provider.name)
+
+        // 3. Delete from PostgreSQL (Cascales relates like ProviderCountry, ProviderService)
+        await prisma.provider.delete({
+            where: { id }
+        })
+
+        // 4. Log the action
+        await logAdminAction({
+            userId: auth.user.userId,
+            action: 'PROVIDER_DELETE',
+            resourceType: 'Provider',
+            resourceId: id,
+            metadata: { name: provider.name, displayName: provider.displayName },
+            ipAddress: getClientIP(request)
+        })
+
+        logger.info('Provider deleted permanently', {
+            providerId: id,
+            name: provider.name,
+            adminId: auth.user.userId
+        })
+
+        return NextResponse.json({ success: true, message: 'Provider deleted successfully' })
+
+    } catch (error: any) {
+        logger.error('Provider deletion failed', { error: error.message })
         return NextResponse.json({ error: error.message }, { status: 500 })
     }
 }
