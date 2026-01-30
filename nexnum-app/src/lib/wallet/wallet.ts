@@ -4,6 +4,7 @@ import { wallet_transactions_total } from '@/lib/metrics'
 import { EventDispatcher } from '@/lib/core/event-dispatcher'
 import { FinancialSentinel } from './sentinel'
 import { PaymentError } from '@/lib/payment/payment-errors'
+import { logger } from '@/lib/core/logger'
 
 export class WalletService {
     /**
@@ -107,7 +108,11 @@ export class WalletService {
 
         // GUARD: Check reserved amount (warn but don't block - handles race conditions)
         if (wallet.reserved.lessThan(decAmount)) {
-            console.warn(`[Wallet] WARN: Reserved (${wallet.reserved}) < Commit (${decAmount}). Proceeding anyway.`)
+            logger.warn('Reserved amount less than commit amount - proceeding', {
+                reserved: wallet.reserved.toString(),
+                commitAmount: decAmount.toString(),
+                userId
+            })
             // Don't throw - this can happen with concurrent transactions
             // The balance check below is the critical guard
         }
@@ -205,7 +210,7 @@ export class WalletService {
                 where: { idempotencyKey }
             })
             if (existing) {
-                console.log(`[Wallet] Idempotent request merged: ${idempotencyKey}`)
+                logger.debug('Idempotent wallet request merged', { idempotencyKey })
                 return existing
             }
         }
