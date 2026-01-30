@@ -679,6 +679,23 @@ class NumberLifecycleManager {
             stored: result.stored,
             requestedNext: result.requestedNext
         })
+
+        // 4. NEW: Resume polling for multi-SMS (Recursive Backend Flow)
+        // If the order is still active, we must continue polling to catch subsequent SMS
+        const updatedNumber = await prisma.number.findUnique({
+            where: { id: numberId },
+            select: { status: true }
+        })
+
+        if (updatedNumber?.status === 'active') {
+            logger.debug('[Lifecycle] Resuming poll for multi-SMS sequence', { numberId })
+            await this.boss!.send(CONFIG.QUEUE_POLL, {
+                ...jobData,
+                attempt: 0, // Reset attempt for new SMS phase
+            }, {
+                startAfter: CONFIG.POLL_INTERVAL_SECONDS, // Poll after standard interval (5s)
+            })
+        }
     }
 
     // --------------------------------------------------------------------------

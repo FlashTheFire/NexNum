@@ -56,7 +56,8 @@ const CONFIG = {
     MAX_SMS_COUNT: 5,
 
     // Delay before requesting next SMS (ms)
-    NEXT_SMS_REQUEST_DELAY_MS: 2000,
+    // Optimization: Reduced from 2000 to 500 for "instant" V2.0 feel
+    NEXT_SMS_REQUEST_DELAY_MS: 500,
 }
 
 // ============================================================================
