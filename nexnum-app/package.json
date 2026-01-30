@@ -19,13 +19,12 @@
     "dev:all": "npm run infra:monitoring && npm run dev",
     "services:worker": "npx tsx -r dotenv/config src/worker-entry.ts",
     "services:socket": "npx tsx -r dotenv/config src/socket-entry.ts",
-    "services:queue": "npx tsx -r dotenv/config scripts/verify-queue.ts",
+    "services:queue": "npx tsx -r dotenv/config src/scripts/verify-queue.ts",
     "services:sync-trigger": "npx tsx -r dotenv/config src/scripts/trigger-sync.ts",
-    "services:activate-provider": "npx tsx -r dotenv/config src/scripts/activate-provider.ts",
-    "bootstrap": "npx tsx scripts/bootstrap.ts",
-    "deploy:aws": "bash scripts/deploy-aws.sh",
-    "data:archive": "bash scripts/archive-data.sh",
-    "data:restore": "bash scripts/restore-data.sh"
+    "bootstrap": "npx tsx src/scripts/bootstrap.ts",
+    "deploy:aws": "bash infra/deploy-aws.sh",
+    "data:archive": "bash infra/archive-data.sh",
+    "data:restore": "bash infra/restore-data.sh"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^8.4.0",
