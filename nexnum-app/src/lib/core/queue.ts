@@ -23,10 +23,10 @@ class QueueService {
     constructor() {
         const url = process.env.DIRECT_URL || process.env.DATABASE_URL
         if (url) {
-            // Industrial defaults: Increase pool size for production stability
+            // PgBouncer-compatible: reduced pool size for session mode
             this.boss = new PgBoss({
                 connectionString: url,
-                max: 10, // Increased from 2 to 10
+                max: 3, // Reduced from 10 for PgBouncer session mode compatibility
                 application_name: 'NexNum-Queue',
                 queueCacheIntervalSeconds: 5 // Industrial speed: refresh cache every 5s instead of 60s
             })

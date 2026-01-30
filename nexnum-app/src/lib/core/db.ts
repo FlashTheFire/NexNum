@@ -27,11 +27,23 @@ function createPrismaClient(url?: string): PrismaClient {
     const isProduction = process.env.NODE_ENV === 'production'
     const pool = new Pool({
         connectionString,
-        max: isProduction ? 20 : 5, // Increased for pro scaling
+        max: isProduction ? 5 : 3, // Reduced for PgBouncer session mode compatibility
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 5000, // Faster failure
         maxUses: 7500, // Recycle connections to prevent memory leaks
     })
+
+    // Graceful shutdown to release connections back to PgBouncer pool
+    const shutdown = async () => {
+        try {
+            await pool.end()
+        } catch (e) {
+            console.error('Pool shutdown error:', e)
+        }
+        process.exit(0)
+    }
+    process.on('SIGTERM', shutdown)
+    process.on('SIGINT', shutdown)
 
     const adapter = new PrismaPg(pool)
 
