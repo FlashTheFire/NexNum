@@ -373,7 +373,7 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
         if (!skipMetadataSync) {
             console.log(`[SYNC] ${provider.name}: Fetching fresh metadata...`)
 
-            countries = await engine.getCountries()
+            countries = await engine.getCountriesList()
             countriesCount = countries.length
 
             const existingCountryData = await prisma.providerCountry.findMany({
@@ -444,12 +444,12 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
 
             // Fetch services
             try {
-                services = await engine.getServices('')
+                services = await engine.getServicesList('')
             } catch (e) {
                 try {
-                    services = await engine.getServices('us')
+                    services = await engine.getServicesList('us')
                 } catch (e2) {
-                    if (countries.length > 0) services = await engine.getServices(countries[0].code)
+                    if (countries.length > 0) services = await engine.getServicesList(countries[0].code)
                 }
             }
             servicesCount = services.length

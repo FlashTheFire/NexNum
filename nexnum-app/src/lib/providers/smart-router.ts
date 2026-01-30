@@ -257,27 +257,26 @@ export class SmartSmsRouter implements SmsProvider {
         return filteredResult
     }
 
-    // --- Core Methods ---
+    // --- Core Methods (API Standardization v2.0) ---
 
-    async getCountries(): Promise<Country[]> {
+    async getCountriesList(): Promise<Country[]> {
         const providers = await this.getActiveProviders()
         if (providers.length === 0) throw new Error("No active providers available")
 
         // Strategy: Return countries from the highest priority provider
-        // TODO: In future, we could aggregate countries from all providers
         try {
-            return await providers[0].getCountries()
+            return await providers[0].getCountriesList()
         } catch (e) {
             // Failover to next provider?
             if (providers.length > 1) {
                 console.warn(`SmartRouter: Primary provider ${providers[0].name} failed to get countries, failing over to ${providers[1].name}`)
-                return await providers[1].getCountries()
+                return await providers[1].getCountriesList()
             }
             throw e
         }
     }
 
-    async getServices(countryCode: string | number): Promise<Service[]> {
+    async getServicesList(countryCode: string | number): Promise<Service[]> {
         const providers = await this.getActiveProviders()
         if (providers.length === 0) throw new Error("No active providers available")
 
@@ -285,7 +284,7 @@ export class SmartSmsRouter implements SmsProvider {
         const results = await Promise.allSettled(
             providers.map(async (provider) => {
                 try {
-                    const services = await provider.getServices(countryCode)
+                    const services = await provider.getServicesList(countryCode)
 
                     // Apply Pricing Rules
                     const mult = Number(provider.config.priceMultiplier) || 1.0
@@ -473,7 +472,7 @@ export class SmartSmsRouter implements SmsProvider {
         throw new Error("Could not check status: activation ID not found on any active provider")
     }
 
-    async cancelNumber(activationId: string): Promise<void> {
+    async setCancel(activationId: string): Promise<void> {
 
         const [providerName, realId] = this.parseActivationId(activationId)
 
@@ -481,7 +480,7 @@ export class SmartSmsRouter implements SmsProvider {
             const providers = await this.getActiveProviders()
             const provider = providers.find(p => p.name === providerName)
             if (provider) {
-                return provider.cancelNumber(realId)
+                return provider.setCancel!(realId)
             }
         }
 
@@ -489,13 +488,20 @@ export class SmartSmsRouter implements SmsProvider {
         const providers = await this.getActiveProviders()
         for (const provider of providers) {
             try {
-                await provider.cancelNumber(activationId)
-                return
+                if (provider.setCancel) {
+                    await provider.setCancel(activationId)
+                    return
+                }
             } catch (e) {
                 continue
             }
         }
         throw new Error("Could not cancel number")
+    }
+
+    /** @deprecated Use setCancel instead */
+    async cancelNumber(activationId: string): Promise<void> {
+        return this.setCancel(activationId)
     }
 
     async setStatus(activationId: string, status: number | string): Promise<any> {
@@ -512,19 +518,24 @@ export class SmartSmsRouter implements SmsProvider {
         throw new Error("Could not set status: activation ID invalid or provider not found")
     }
 
-    async nextSms(activationId: string): Promise<void> {
+    async setResendCode(activationId: string): Promise<void> {
         const [providerName, realId] = this.parseActivationId(activationId)
 
         if (providerName && realId) {
             const providers = await this.getActiveProviders()
             const provider = providers.find(p => p.name === providerName)
-            if (provider && provider.nextSms) {
-                return provider.nextSms(realId)
+            if (provider && provider.setResendCode) {
+                return provider.setResendCode(realId)
             }
         }
 
         // No fallback loop for actions that require specific provider knowledge
         throw new Error("Could not request next SMS: activation ID invalid or provider not found")
+    }
+
+    /** @deprecated Use setResendCode instead */
+    async nextSms(activationId: string): Promise<void> {
+        return this.setResendCode(activationId)
     }
 
     async getBalance(): Promise<number> {

@@ -55,11 +55,11 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
                 // Parallel fetch for dashboard view
                 const [bal, cnt, srv] = await Promise.all([
                     engine.getBalance?.().catch(e => ({ error: e.message })) ?? { error: 'Not supported' },
-                    metadataEngine.getCountries().then(c => c.slice(0, 3)).catch(e => []),
+                    metadataEngine.getCountriesList().then(c => c.slice(0, 3)).catch(e => []),
                     // For services, we need a country. Try first country or default 'usa'/'ru'
-                    metadataEngine.getCountries().then(async (c) => {
+                    metadataEngine.getCountriesList().then(async (c) => {
                         const target = c[0]?.code || 'usa'
-                        const s = await metadataEngine!.getServices(target)
+                        const s = await metadataEngine!.getServicesList(target)
                         return { services: s.slice(0, 3), country: target }
                     }).catch(e => ({ services: [], country: '?' }))
                 ])
@@ -78,12 +78,12 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
                 const balance = await engine.getBalance?.() ?? 0
                 result = { balance }
                 break
-            case 'getCountries':
-                const countries = await metadataEngine.getCountries()
+            case 'getCountriesList':
+                const countries = await metadataEngine.getCountriesList()
                 result = { count: countries.length, first: countries.slice(0, 5) }
                 break
-            case 'getServices':
-                const services = await metadataEngine.getServices(params.country || '')
+            case 'getServicesList':
+                const services = await metadataEngine.getServicesList(params.country || '')
                 result = { count: services.length, first: services.slice(0, 5) }
                 break
             case 'getNumber':
@@ -107,30 +107,49 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
                 const prices = await (engine as any).getPrices(params.country || undefined, params.service || undefined)
                 result = { count: prices.length, first: prices.slice(0, 5) }
                 break
-            case 'cancelNumber':
+            case 'setCancel':
                 if (!params.id) throw new Error('Activation ID required')
-                if (!engine.cancelNumber) throw new Error('cancelNumber is not supported by this provider')
-                await engine.cancelNumber(params.id)
+                if (!engine.setCancel) throw new Error('setCancel is not supported by this provider')
+                await engine.setCancel(params.id)
                 result = { success: true, message: 'Number cancelled' }
                 break
-            case 'setStatus':
-                // Set activation status: -1 (cancel), 1 (ready), 3 (retry), 6 (complete), 8 (ban)
+            case 'setResendCode':
                 if (!params.id) throw new Error('Activation ID required')
-                if (!params.status) throw new Error('Status required (-1, 1, 3, 6, or 8)')
+                if (!engine.setResendCode) throw new Error('setResendCode is not supported by this provider')
+                await engine.setResendCode(params.id)
+                result = { success: true, message: 'Next SMS requested' }
+                break
+            case 'setComplete':
+                if (!params.id) throw new Error('Activation ID required')
+                if (!engine.setComplete) throw new Error('setComplete is not supported by this provider')
+                await engine.setComplete(params.id)
+                result = { success: true, message: 'Activation marked complete' }
+                break
+            case 'setStatus':
+                // @deprecated - Disallowed in v2.0 but kept for emergency debug
+                if (!params.id) throw new Error('Activation ID required')
+                if (!params.status) throw new Error('Status required')
                 const dynamicEngineForStatus = engine as DynamicProvider
                 const statusResult = await dynamicEngineForStatus.setStatus(params.id, params.status)
-                result = { success: true, message: 'Status updated', response: statusResult }
+                result = { success: true, message: 'Status updated (Deprecated)', response: statusResult }
+                break
+            case 'cancelNumber':
+                // Backward compatibility alias
+                if (!params.id) throw new Error('Activation ID required')
+                if (!engine.setCancel) throw new Error('setCancel is not supported by this provider')
+                await engine.setCancel(params.id)
+                result = { success: true, message: 'Number cancelled (Alias)' }
                 break
             default:
-                // Default connection test (getCountries or getBalance)
+                // Default connection test (getCountriesList or getBalance)
                 const endpoints = provider.endpoints as any
                 if (endpoints && endpoints.getBalance) {
                     action = 'getBalance'
                     const balance = await engine.getBalance?.() ?? 0
                     result = { balance }
                 } else {
-                    action = 'getCountries'
-                    const c = await engine.getCountries()
+                    action = 'getCountriesList'
+                    const c = await engine.getCountriesList()
                     result = { count: c.length, first: c[0] }
                 }
         }
@@ -162,8 +181,8 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
     const duration = Date.now() - startTime
 
     // Only save result if it's the default test or specifically requested
-    // (We might not want to log every "getServices" lookup as a test result check)
-    if (action === 'test' || action === 'getCountries' || action === 'getBalance') {
+    // (We might not want to log every "getServicesList" lookup as a test result check)
+    if (action === 'test' || action === 'getCountriesList' || action === 'getBalance') {
         await prisma.providerTestResult.create({
             data: {
                 provider: { connect: { id } },
@@ -180,7 +199,7 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
 
     // Determine which engine's trace to use based on action
     let traceEngine: any = null
-    if (['getCountries', 'getServices'].includes(action)) {
+    if (['getCountriesList', 'getServicesList'].includes(action)) {
         // Metadata operations use metadataEngine
         // Metadata operations use metadataEngine
         traceEngine = metadataEngine

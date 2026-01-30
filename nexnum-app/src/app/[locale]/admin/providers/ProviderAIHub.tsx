@@ -30,81 +30,113 @@ export function ProviderAIHub({ currentData, onUpdate }: ProviderAIHubProps) {
         setResult(null)
 
         try {
-            // Construct the user prompt based on mode
-            // The system prompt comes from the core AI-generate API
-            let userPrompt = input
-            let apiMode = 'generate' // Default mode for API
-            let step: 'full' | number = 'full'
+            let requestBody: any = {}
 
             if (mode === 'general') {
-                // Full provider analysis - send to API with current context
-                userPrompt = [
-                    `### CURRENT PROVIDER DATA:`,
-                    `Endpoints: ${JSON.stringify(currentData.endpoints)}`,
-                    `Mappings: ${JSON.stringify(currentData.mappings)}`,
-                    ``,
-                    `### TASK: Analyze and optimize the configuration. Fill in any missing endpoints or fix mapping issues.`,
-                    ``,
-                    `### DOCUMENTATION:`,
-                    input
-                ].join('\n')
+                // Full provider analysis - analyze + generate
+                requestBody = {
+                    mode: 'generate',
+                    step: 'full',
+                    prompt: [
+                        `### CURRENT PROVIDER DATA:`,
+                        `Endpoints: ${JSON.stringify(currentData.endpoints)}`,
+                        `Mappings: ${JSON.stringify(currentData.mappings)}`,
+                        ``,
+                        `### TASK: Analyze and optimize the configuration. Fill in any missing endpoints or fix mapping issues.`,
+                        ``,
+                        `### DOCUMENTATION:`,
+                        input
+                    ].join('\n'),
+                    providerType: 'json_api'
+                }
             } else if (mode === 'endpoint') {
-                // Single endpoint focus
-                step = 5 // Use step 5 for endpoint generation
-                userPrompt = [
-                    `### TARGET ENDPOINT: ${selectedEndpoint}`,
-                    ``,
-                    `### CURRENT CONFIG:`,
-                    JSON.stringify({
-                        endpoint: typeof currentData.endpoints === 'string'
-                            ? (JSON.parse(currentData.endpoints)[selectedEndpoint] || {})
-                            : (currentData.endpoints?.[selectedEndpoint] || {}),
-                        mapping: typeof currentData.mappings === 'string'
-                            ? (JSON.parse(currentData.mappings)[selectedEndpoint] || {})
-                            : (currentData.mappings?.[selectedEndpoint] || {})
-                    }, null, 2),
-                    ``,
-                    `### REQUIREMENTS:`,
-                    `1. Generate endpoint config: { method, path, queryParams }`,
-                    `2. Generate mapping config: { type, fields, rootPath?, regex?, errors? }`,
-                    `3. For lifecycle endpoints (getNumber, getStatus, setStatus, cancelNumber, nextSms), include error patterns:`,
-                    `   - errors.patterns format: { "ERROR_TYPE": "pattern to match" }`,
-                    `   - Universal error types: NO_NUMBERS, NO_BALANCE, BAD_KEY, BAD_SERVICE, NO_ACTIVATION, SERVER_ERROR`,
-                    `   - Note: nextSms is for requesting a second SMS on the same number (often 'setStatus' status=3 or specific endpoint)`,
-                    ``,
-                    `### DOCUMENTATION:`,
-                    input
-                ].join('\n')
+                // Single endpoint focus - use generate with step 5
+                requestBody = {
+                    mode: 'generate',
+                    step: 5,
+                    prompt: [
+                        `### TARGET ENDPOINT: ${selectedEndpoint}`,
+                        ``,
+                        `### CURRENT CONFIG:`,
+                        JSON.stringify({
+                            endpoint: typeof currentData.endpoints === 'string'
+                                ? (JSON.parse(currentData.endpoints)[selectedEndpoint] || {})
+                                : (currentData.endpoints?.[selectedEndpoint] || {}),
+                            mapping: typeof currentData.mappings === 'string'
+                                ? (JSON.parse(currentData.mappings)[selectedEndpoint] || {})
+                                : (currentData.mappings?.[selectedEndpoint] || {})
+                        }, null, 2),
+                        ``,
+                        `### REQUIREMENTS:`,
+                        `1. Generate endpoint config: { method, path, queryParams }`,
+                        `2. Generate mapping config: { type, fields, rootPath?, transform?, errors? }`,
+                        `3. Use standardized method names: getCountriesList, getServicesList, setCancel, setResendCode, setComplete`,
+                        `4. Use $atDepth:N for multi-level structures, fallback chains (price|cost|amount)`,
+                        `5. Apply transforms for numeric fields: "transform": { "cost": "number" }`,
+                        ``,
+                        `### DOCUMENTATION:`,
+                        input
+                    ].join('\n'),
+                    providerType: 'json_api'
+                }
             } else if (mode === 'debug') {
-                // Debug mode - fix broken config
-                userPrompt = [
-                    `### DEBUGGING ENDPOINT: ${selectedEndpoint}`,
-                    ``,
-                    `### CURRENT BROKEN CONFIG:`,
-                    JSON.stringify(currentData.mappings?.[selectedEndpoint] || {}, null, 2),
-                    ``,
-                    `### ERROR TRACE OR ISSUE:`,
-                    input,
-                    ``,
-                    `### TASK: Fix the configuration to resolve this error. Return corrected endpoint and mapping.`
-                ].join('\n')
+                // Debug mode - use discover for self-healing
+                // First, detect if input looks like JSON response or error trace
+                const isJsonResponse = input.trim().startsWith('{') || input.trim().startsWith('[')
+
+                if (isJsonResponse) {
+                    // Use discover mode for raw response analysis
+                    requestBody = {
+                        mode: 'discover',
+                        rawResponse: input,
+                        discoveryType: selectedEndpoint.includes('Country') ? 'INV_COUNTRY' :
+                            selectedEndpoint.includes('Service') ? 'INV_SERVICE' :
+                                selectedEndpoint.includes('Price') ? 'INV_SERVICE' :
+                                    selectedEndpoint.includes('Balance') ? 'BALANCE' :
+                                        selectedEndpoint.includes('Status') ? 'SMS_STATUS' : 'INV_SERVICE',
+                        providerName: currentData.name || 'unknown'
+                    }
+                } else {
+                    // Error trace - use generate mode to fix
+                    requestBody = {
+                        mode: 'generate',
+                        step: 5,
+                        prompt: [
+                            `### DEBUGGING ENDPOINT: ${selectedEndpoint}`,
+                            ``,
+                            `### CURRENT BROKEN CONFIG:`,
+                            JSON.stringify(currentData.mappings?.[selectedEndpoint] || {}, null, 2),
+                            ``,
+                            `### ERROR TRACE OR ISSUE:`,
+                            input,
+                            ``,
+                            `### TASK: Fix the configuration to resolve this error. Return corrected endpoint and mapping.`,
+                            `Use $atDepth:N for multi-level structures, fallback chains, and proper transforms.`
+                        ].join('\n'),
+                        providerType: 'json_api'
+                    }
+                }
             }
 
             const res = await fetch('/api/admin/ai-generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    prompt: userPrompt,
-                    mode: apiMode,
-                    step,
-                    // NO systemPromptOverride - let API use its core detailed prompts
-                })
+                body: JSON.stringify(requestBody)
             })
 
             const data = await res.json()
-            if (!res.ok) throw new Error(data.error || "Analysis failed")
+            if (!res.ok) throw new Error(data.error || data.details || "Analysis failed")
 
-            setResult(data.result)
+            // Handle discover mode result (wraps mapping for selected endpoint)
+            if (requestBody.mode === 'discover' && data.result) {
+                setResult({
+                    mappings: { [selectedEndpoint]: data.result }
+                })
+            } else {
+                setResult(data.result)
+            }
+
+            toast.success(`AI ${requestBody.mode === 'discover' ? 'discovered mapping' : 'generated config'} successfully`)
         } catch (error: any) {
             toast.error(error.message || "AI Analysis failed")
         } finally {

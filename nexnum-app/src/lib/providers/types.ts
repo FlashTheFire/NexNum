@@ -49,30 +49,69 @@ export interface StatusResult {
 export interface SmsProvider {
     name: string
 
-    // Get available countries
-    getCountries(): Promise<Country[]>
+    // ═══════════════════════════════════════════════════════════════════════
+    // INVENTORY METHODS (get*List) - API Standardization v2.0
+    // ═══════════════════════════════════════════════════════════════════════
 
-    // Get services for a country
-    getServices(countryCode: string | number): Promise<Service[]>
+    /** Get available countries */
+    getCountriesList(): Promise<Country[]>
 
-    // Purchase a number
-    getNumber?(countryCode: string | number, serviceCode: string | number, options?: { operator?: string; maxPrice?: string | number }): Promise<NumberResult>
+    /** Get services for a country */
+    getServicesList(countryCode: string | number): Promise<Service[]>
 
-    // Check status and get SMS
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // TRANSACTION METHODS (get*)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /** Purchase a number */
+    getNumber?(countryCode: string | number, serviceCode: string | number, options?: {
+        operator?: string
+        maxPrice?: string | number
+    }): Promise<NumberResult>
+
+    /** Check status and get SMS */
     getStatus?(activationId: string): Promise<StatusResult>
 
-    // Cancel/release a number
-    cancelNumber?(activationId: string): Promise<void>
-
-    // Get balance (optional, for monitoring)
+    /** Get provider balance */
     getBalance?(): Promise<number>
 
-    // Confirm or cancel activation (optional)
-    setStatus?(activationId: string, status: number | string): Promise<any>
+    /** Get prices (optional, for optimization) */
+    getPrices?(countryCode?: string, serviceCode?: string): Promise<any[]>
 
-    // Request next SMS (New Standard)
+    // ═══════════════════════════════════════════════════════════════════════
+    // ACTION METHODS (set*)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /** @alias setCancel - Standardized naming v2.0 */
+    setCancel?(activationId: string): Promise<void>
+
+    /** @alias setResendCode - Standardized naming v2.0 */
+    setResendCode?(activationId: string): Promise<void>
+
+    /** Mark activation as complete (NEW) */
+    setComplete?(activationId: string): Promise<void>
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // DEPRECATED - DO NOT USE IN NEW CODE
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /** @deprecated Use getCountriesList instead */
+    getCountries?(): Promise<Country[]>
+
+    /** @deprecated Use getServicesList instead */
+    getServices?(countryCode?: string | number): Promise<Service[]>
+
+    /** @deprecated Use setCancel instead */
+    cancelNumber?(activationId: string): Promise<void>
+
+    /** @deprecated Use setResendCode instead */
     nextSms?(activationId: string): Promise<void>
 
-    // Get prices (optional, optimization)
-    getPrices?(countryCode?: string, serviceCode?: string): Promise<any[]>
+    /**
+     * @deprecated Use setCancel or setComplete instead
+     * This method exposed internal provider logic and is now disallowed
+     */
+    setStatus?(activationId: string, status: number | string): Promise<any>
 }
+

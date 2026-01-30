@@ -6,13 +6,13 @@ import { unstable_cache } from 'next/cache'
 
 // Cached Data Fetchers
 const getCachedCountries = unstable_cache(
-    async () => smsProvider.getCountries(),
+    async () => smsProvider.getCountriesList(),
     ['countries-list'],
     { revalidate: 300 } // 5 minutes
 )
 
 const getCachedServices = unstable_cache(
-    async (country: string) => smsProvider.getServices(country),
+    async (country: string) => smsProvider.getServicesList(country),
     ['services-list'],
     { revalidate: 60 } // 1 minute
 )

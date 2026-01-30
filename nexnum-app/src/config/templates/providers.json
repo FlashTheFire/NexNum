@@ -10,11 +10,11 @@
         "color": "from-blue-500/20 to-cyan-500/20",
         "border": "border-blue-500/20 hover:border-blue-500/50",
         "endpoints": {
-            "getCountries": {
+            "getCountriesList": {
                 "method": "GET",
                 "path": "https://5sim.net/v1/guest/countries"
             },
-            "getServices": {
+            "getServicesList": {
                 "method": "GET",
                 "path": "https://5sim.net/v1/guest/products/any/any"
             },
@@ -34,7 +34,7 @@
                 "method": "GET",
                 "path": "https://5sim.net/v1/user/check/$id"
             },
-            "cancelNumber": {
+            "setCancel": {
                 "method": "GET",
                 "path": "https://5sim.net/v1/user/cancel/$id"
             },
@@ -52,7 +52,7 @@
             }
         },
         "mappings": {
-            "getCountries": {
+            "getCountriesList": {
                 "type": "json_dictionary",
                 "fields": {
                     "name": "text_en|$key",
@@ -61,7 +61,7 @@
                     "countryCode": "$key"
                 }
             },
-            "getServices": {
+            "getServicesList": {
                 "type": "json_dictionary",
                 "fields": {
                     "service": "$key",
@@ -109,7 +109,7 @@
                     "ACCESS_ACTIVATION": "completed"
                 }
             },
-            "cancelNumber": {
+            "setCancel": {
                 "type": "json_object",
                 "fields": {
                     "id": "id",
@@ -158,11 +158,11 @@
         "color": "from-amber-500/20 to-orange-500/20",
         "border": "border-amber-500/20 hover:border-amber-500/50",
         "endpoints": {
-            "getCountries": {
+            "getCountriesList": {
                 "method": "GET",
                 "path": "https://api.grizzlysms.com/stubs/handler_api.php?action=getCountries&api_key={authKey}"
             },
-            "getServices": {
+            "getServicesList": {
                 "method": "GET",
                 "path": "https://api.grizzlysms.com/stubs/handler_api.php?action=getServicesList&country={country}&lang=en&api_key={authKey}"
             },
@@ -174,7 +174,7 @@
                 "method": "GET",
                 "path": "https://api.grizzlysms.com/stubs/handler_api.php?action=getStatus&id={id}&api_key={authKey}"
             },
-            "cancelNumber": {
+            "setCancel": {
                 "method": "GET",
                 "path": "https://api.grizzlysms.com/stubs/handler_api.php?action=setStatus&id={id}&status=8&api_key={authKey}"
             },
@@ -194,7 +194,7 @@
             }
         },
         "mappings": {
-            "getCountries": {
+            "getCountriesList": {
                 "type": "json_array",
                 "rootPath": "$",
                 "fields": {
@@ -203,7 +203,7 @@
                     "name": "eng"
                 }
             },
-            "getServices": {
+            "getServicesList": {
                 "type": "json_dictionary",
                 "fields": {
                     "id": "$key",
@@ -228,7 +228,7 @@
                     "code": "2"
                 }
             },
-            "cancelNumber": {
+            "setCancel": {
                 "type": "text_regex",
                 "regex": "ACCESS_CANCEL",
                 "fields": {
@@ -274,14 +274,14 @@
         "color": "from-green-500/20 to-emerald-500/20",
         "border": "border-green-500/20 hover:border-green-500/50",
         "endpoints": {
-            "getCountries": {
+            "getCountriesList": {
                 "method": "GET",
                 "path": "https://smsbower.online/stubs/handler_api.php",
                 "queryParams": {
                     "action": "getCountries"
                 }
             },
-            "getServices": {
+            "getServicesList": {
                 "method": "GET",
                 "path": "https://smsbower.online/stubs/handler_api.php",
                 "queryParams": {
@@ -308,7 +308,7 @@
                     "id": "$id"
                 }
             },
-            "cancelNumber": {
+            "setCancel": {
                 "method": "GET",
                 "path": "https://smsbower.online/stubs/handler_api.php",
                 "queryParams": {
@@ -335,7 +335,7 @@
             }
         },
         "mappings": {
-            "getCountries": {
+            "getCountriesList": {
                 "type": "json_array",
                 "fields": {
                     "id": "id",
@@ -344,7 +344,7 @@
                     "name_cn": "chn"
                 }
             },
-            "getServices": {
+            "getServicesList": {
                 "type": "json_array",
                 "rootPath": "services",
                 "fields": {
@@ -391,7 +391,7 @@
                     }
                 }
             },
-            "cancelNumber": {
+            "setCancel": {
                 "type": "text_regex",
                 "regex": "ACCESS_CANCEL",
                 "fields": {
@@ -444,11 +444,11 @@
         "color": "from-red-500/20 to-pink-500/20",
         "border": "border-red-500/20 hover:border-red-500/50",
         "endpoints": {
-            "getCountries": {
+            "getCountriesList": {
                 "method": "GET",
                 "path": "https://hero-sms.com/stubs/handler_api.php?action=getCountries&api_key={authKey}"
             },
-            "getServices": {
+            "getServicesList": {
                 "method": "GET",
                 "path": "https://hero-sms.com/stubs/handler_api.php?action=getServicesList&country={country}&lang=en&api_key={authKey}"
             },
@@ -460,7 +460,7 @@
                 "method": "GET",
                 "path": "https://hero-sms.com/stubs/handler_api.php?action=getStatus&id={id}&api_key={authKey}"
             },
-            "cancelNumber": {
+            "setCancel": {
                 "method": "GET",
                 "path": "https://hero-sms.com/stubs/handler_api.php?action=setStatus&id={id}&status=8&api_key={authKey}"
             },
@@ -470,7 +470,7 @@
             }
         },
         "mappings": {
-            "getCountries": {
+            "getCountriesList": {
                 "type": "json_array",
                 "rootPath": "$",
                 "fields": {
@@ -479,7 +479,7 @@
                     "code": "id"
                 }
             },
-            "getServices": {
+            "getServicesList": {
                 "type": "json_array",
                 "rootPath": "services",
                 "fields": {
@@ -511,7 +511,7 @@
                     "CANCEL": "cancelled"
                 }
             },
-            "cancelNumber": {
+            "setCancel": {
                 "type": "text_regex",
                 "regex": "ACCESS_CANCEL",
                 "fields": {

@@ -32,26 +32,24 @@ const STEP_DESCRIPTIONS = {
 const MAX_WORDS = 2000
 const REQUIRED_KEYS = [
     'auth',
-    'getCountries',
-    'getServices',
+    'getCountriesList',
+    'getServicesList',
     'getNumber',
     'getStatus',
-    'setStatus',
-    'cancelNumber',
-    'nextSms',
+    'setCancel',
+    'setResendCode',
     'getBalance',
     'getPrices'
 ]
 
 const KEY_LABELS: Record<string, string> = {
     auth: "Authentication Details",
-    getCountries: "Get Countries Endpoint",
-    getServices: "Get Services Endpoint",
+    getCountriesList: "Get Countries List Endpoint",
+    getServicesList: "Get Services List Endpoint",
     getNumber: "Get Number Endpoint",
     getStatus: "Get Status Endpoint",
-    setStatus: "Set Status Endpoint",
-    cancelNumber: "Cancel Number Endpoint",
-    nextSms: "Next SMS Endpoint",
+    setCancel: "Cancel Activation Endpoint",
+    setResendCode: "Resend Code Endpoint",
     getBalance: "Get Balance Endpoint",
     getPrices: "Get Prices Endpoint"
 }

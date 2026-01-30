@@ -3,26 +3,87 @@ import { Input } from "@/components/ui/input"
 import { Globe, Search } from "lucide-react"
 
 // --- Types & Constants ---
+// API Standardization v2.0 - Universal Method Naming Convention
 
-export const ENDPOINT_METHODS = ['getCountries', 'getServices', 'getNumber', 'getStatus', 'getBalance', 'cancelNumber', 'getPrices']
-export const METHOD_PARAMS = {
-    getCountries: ['{authKey}'],
-    getServices: ['{country}', '{authKey}'],
-    getNumber: ['{country}', '{service}', '{authKey}'],
-    getStatus: ['{id}', '{authKey}'],
-    cancelNumber: ['{id}', '{authKey}'],
+/**
+ * Standardized API Methods
+ * - get*List: Retrieve collections (countries, services)
+ * - get*: Retrieve single items or status
+ * - set*: Perform actions that change state
+ */
+export const ENDPOINT_METHODS = [
+    'getBalance',
+    'getCountriesList',
+    'getServicesList',
+    'getPrices',
+    'getNumber',
+    'getStatus',
+    'setResendCode',
+    'setCancel',
+    'setComplete'
+] as const
+
+export type EndpointMethod = typeof ENDPOINT_METHODS[number]
+
+/**
+ * Method Parameters
+ * - Required: authKey (all), country/service (context-dependent)
+ * - Optional: maxPrice, operator
+ */
+export const METHOD_PARAMS: Record<EndpointMethod, string[]> = {
     getBalance: ['{authKey}'],
-    getPrices: ['{country}', '{service}', '{authKey}']
+    getCountriesList: ['{service}', '{authKey}'],          // service: optional filter
+    getServicesList: ['{country}', '{authKey}'],           // country: optional filter
+    getPrices: ['{country}', '{service}', '{authKey}'],
+    getNumber: ['{country}', '{service}', '{maxPrice}', '{operator}', '{authKey}'],
+    getStatus: ['{id}', '{authKey}'],
+    setResendCode: ['{id}', '{authKey}'],
+    setCancel: ['{id}', '{authKey}'],
+    setComplete: ['{id}', '{authKey}']
 }
 
-export const MAPPING_FIELDS = {
-    getCountries: ['id', 'name', 'code'],
-    getServices: ['id', 'name', 'code', 'price', 'count'],
-    getNumber: ['id', 'phone', 'price'],
-    getStatus: ['status', 'code', 'sms'],
+/**
+ * Universal Field Mappings
+ * These are the ONLY field names allowed in NexNum output
+ */
+export const MAPPING_FIELDS: Record<EndpointMethod, string[]> = {
     getBalance: ['balance'],
-    getPrices: ['cost', 'count', 'country', 'service', 'operator']
+    getCountriesList: ['name', 'code'],
+    getServicesList: ['name', 'code'],
+    getPrices: ['cost', 'count', 'country', 'service', 'operator'],
+    getNumber: ['id', 'phone', 'price', 'country', 'service', 'operator'],
+    getStatus: ['status', 'code'],
+    setResendCode: ['status'],
+    setCancel: ['status'],
+    setComplete: ['status']
 }
+
+/**
+ * Universal Field Names - Canonical Reference
+ * NO OTHER FIELD NAMES ARE ALLOWED IN OUTPUT
+ */
+export const UNIVERSAL_FIELDS = {
+    // Account
+    balance: 'balance',
+    // Inventory
+    name: 'name',
+    code: 'code',
+    // Pricing
+    cost: 'cost',
+    count: 'count',
+    country: 'country',
+    service: 'service',
+    operator: 'operator',
+    // Purchase
+    id: 'id',
+    phone: 'phone',
+    price: 'price',
+    // Status
+    status: 'status'
+} as const
+
+export type UniversalFieldName = keyof typeof UNIVERSAL_FIELDS
+
 
 export function safeParse(jsonString: string) {
     try {
@@ -44,12 +105,16 @@ export function VariableHelper({ onInsert, context = 'endpoint' }: { onInsert: (
         { label: 'Country', value: '{country}', desc: 'Selected country code' },
         { label: 'Service', value: '{service}', desc: 'Selected service code' },
         { label: 'Activation ID', value: '{id}', desc: 'Transaction ID' },
-        { label: 'Ref ID', value: '{ref}', desc: 'Referral ID (Optional)' },
+        { label: 'Max Price', value: '{maxPrice}', desc: 'Maximum price filter' },
+        { label: 'Operator', value: '{operator}', desc: 'Network operator' },
     ] : [
         { label: 'Root Object', value: '$', desc: 'JSON Root' },
-        { label: 'Current Key', value: '$key', desc: 'Object Key Name' },
+        { label: 'Current Key', value: '$key', desc: 'Current level key' },
+        { label: 'Parent Key', value: '$parentKey', desc: 'Parent level key' },
+        { label: 'Grand Parent', value: '$grandParentKey', desc: 'Grandparent level key' },
+        { label: 'At Depth', value: '$atDepth:0', desc: 'Key at specific depth' },
         { label: 'First Value', value: '$firstValue', desc: 'First Object Value' },
-        { label: 'First Key', value: '$firstKey', desc: 'First Object Key' },
+        { label: 'Default', value: '$default:', desc: 'Fallback if null/undefined' },
     ]
 
     return (
@@ -75,7 +140,7 @@ export function VariableHelper({ onInsert, context = 'endpoint' }: { onInsert: (
 }
 
 export function EndpointEditor({ endpoints, onChange }: { endpoints: any, onChange: (e: any) => void }) {
-    const [activeMethod, setActiveMethod] = useState('getCountries')
+    const [activeMethod, setActiveMethod] = useState<EndpointMethod>('getBalance')
 
     const setEndpoint = (updates: any) => {
         onChange({
@@ -172,7 +237,7 @@ export function EndpointEditor({ endpoints, onChange }: { endpoints: any, onChan
 }
 
 export function MappingEditor({ mappings, onChange }: { mappings: any, onChange: (m: any) => void }) {
-    const [activeMethod, setActiveMethod] = useState('getCountries')
+    const [activeMethod, setActiveMethod] = useState<EndpointMethod>('getCountriesList')
 
     const setMapping = (updates: any) => {
         onChange({
@@ -193,7 +258,7 @@ export function MappingEditor({ mappings, onChange }: { mappings: any, onChange:
                 {Object.keys(MAPPING_FIELDS).map(method => (
                     <button
                         key={method}
-                        onClick={() => setActiveMethod(method)}
+                        onClick={() => setActiveMethod(method as EndpointMethod)}
                         className={`text-[10px] md:text-xs px-2 md:px-3 py-1 md:py-1.5 rounded-full transition-colors whitespace-nowrap shrink-0 ${activeMethod === method ? 'bg-blue-500 text-white' : 'bg-white/5 text-white/40 hover:bg-white/10'}`}
                     >
                         {method.replace('get', '').replace('cancel', 'Cancel ')}

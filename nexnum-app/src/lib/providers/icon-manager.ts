@@ -91,7 +91,7 @@ export class ProviderIconManager {
         for (const provider of activeProviders) {
             try {
                 const engine = getMetadataProvider(provider);
-                const services = await engine.getServices('us');
+                const services = await engine.getServicesList('us');
 
                 const syncPromises = services.map(async (s) => {
                     if (!s.iconUrl) return;

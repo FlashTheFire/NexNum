@@ -545,6 +545,30 @@ export class DynamicProvider implements SmsProvider {
         if (path === '$grandParentKey' || path === '$grandparentKey') return context.grandParentKey
         if (path === '$operatorKey') return context.operatorKey
 
+        // ═══════════════════════════════════════════════════════════════════
+        // NEW: Depth & Path Accessors (API Standardization v2.0)
+        // ═══════════════════════════════════════════════════════════════════
+
+        // $greatGrandParentKey - 4-level nesting support
+        if (path === '$greatGrandParentKey' || path === '$greatGrandparentKey') return context.greatGrandParentKey
+        // $parentValue - parent object value
+        if (path === '$parentValue') return context.parentValue
+        // $rootKey - first-level key (always country in pricing)
+        if (path === '$rootKey') return context.rootKey
+        // $depth - current nesting level (0-indexed)
+        if (path === '$depth') return context.depth ?? 0
+        // $isLeaf - boolean: no deeper nesting
+        if (path === '$isLeaf') return context.isLeaf ?? false
+        // $path - full dot-path from root (debugging only)
+        if (path === '$path') return context.path ?? ''
+        // $ancestors - array of all parent keys (debugging only)
+        if (path === '$ancestors') return context.ancestors ?? []
+        // $atDepth:N - key at specific depth level
+        if (path.startsWith('$atDepth:')) {
+            const depthIndex = parseInt(path.substring(9))
+            return context.ancestors?.[depthIndex] ?? context.key
+        }
+
         // NEW: Handle fallback chains (cost|price|amount)
         if (path.includes('|')) {
             const fallbacks = path.split('|').map(p => p.trim())
@@ -1160,12 +1184,32 @@ export class DynamicProvider implements SmsProvider {
         // This filters out garbage nodes (like "Prcl") that lack a valid provider ID
         const requiredField = nestingConfig?.requiredField ?? (extractOperators ? 'provider_id' : undefined)
 
+        // API Standardization v2.0: Track depth and ancestors for $atDepth:N accessor
+        const currentDepth = (parentContext.depth ?? -1) + 1
+        const currentAncestors = parentContext.ancestors ?? []
+
         for (const [key, value] of Object.entries(obj)) {
-            if (isDebug) console.log(`[DEBUG_MAPPING] Processing Key="${key}" (ExtractOps=${extractOperators}, ProvidersKey=${providersKey})`)
+            if (isDebug) console.log(`[DEBUG_MAPPING] Processing Key="${key}" (ExtractOps=${extractOperators}, ProvidersKey=${providersKey}, Depth=${currentDepth})`)
+
+            // Build enhanced context for new depth accessors
+            const enhancedContext = {
+                ...parentContext,
+                key,
+                value,
+                depth: currentDepth,
+                ancestors: [...currentAncestors, key],
+                path: currentAncestors.length > 0 ? `${currentAncestors.join('.')}.${key}` : key,
+                rootKey: currentAncestors[0] ?? key,
+                parentValue: parentContext.value,
+                greatGrandParentKey: parentContext.grandParentKey
+            }
 
             if (typeof value !== 'object' || value === null) {
-                // Simple value: wrap it
-                results.push(this.mapFields({ value }, this.resolveEffectiveFields({ value }, mapConfig), { ...parentContext, key, value }))
+                // Simple value: wrap it - isLeaf = true
+                results.push(this.mapFields({ value }, this.resolveEffectiveFields({ value }, mapConfig), {
+                    ...enhancedContext,
+                    isLeaf: true
+                }))
                 continue
             }
 
@@ -1181,15 +1225,17 @@ export class DynamicProvider implements SmsProvider {
                             continue
                         }
 
-                        // IMPORTANT: Use 'operatorKey' for the provider ID, keep 'key' as service
-                        // This prevents $key from resolving to the operator ID
-                        const mapped = this.mapFields(providerData, this.resolveEffectiveFields(providerData, mapConfig), {
-                            ...parentContext,
-                            key: key,              // Service code (e.g., "aez") - NOT providerKey!
-                            operatorKey: providerKey, // Operator/Provider ID (e.g., "11", "145")
-                            value: providerData,
-                            parentKey: parentContext.parentKey || parentContext.key
-                        })
+                        // Build operator-level context
+                        const operatorContext = {
+                            ...enhancedContext,
+                            operatorKey: providerKey,
+                            depth: currentDepth + 1,
+                            ancestors: [...currentAncestors, key, providerKey],
+                            path: `${currentAncestors.join('.')}.${key}.${providerKey}`.replace(/^\./, ''),
+                            isLeaf: true
+                        }
+
+                        const mapped = this.mapFields(providerData, this.resolveEffectiveFields(providerData, mapConfig), operatorContext)
                         // Always set service from outer key (the actual service code)
                         mapped.service = key
                         // Set operator from providerKey if not already mapped
@@ -1202,31 +1248,22 @@ export class DynamicProvider implements SmsProvider {
 
             // Check if this level contains actual data fields
             const hasData = this.hasDataFields(value)
+            enhancedContext.isLeaf = hasData
 
-            // RELAXED LOGIC: Process entry even if requiredField is missing, just don't treat it as a valid operator
-            // Previous strict skip logic removed as per user request (Phase 11)
-
-            if (isDebug) console.log(`[DEBUG_MAPPING] Key="${key}" hasData=${hasData}`)
+            if (isDebug) console.log(`[DEBUG_MAPPING] Key="${key}" hasData=${hasData} depth=${currentDepth}`)
 
             if (extractOperators) {
                 if (hasData) {
                     // Leaf node with data - extract
-                    const mapped = this.mapFields(value, this.resolveEffectiveFields(value, mapConfig), {
-                        ...parentContext,
-                        key,
-                        value
-                    })
+                    const mapped = this.mapFields(value, this.resolveEffectiveFields(value, mapConfig), enhancedContext)
                     // Auto-assign operator from key ONLY if NOT in strict operator mode
-                    // If we are extracting operators, we expect explicit IDs (e.g. via provider_id mapping).
-                    // If missing, leave generic (undefined), don't fallback to key (e.g. "Prcl").
                     if (!mapped.operator && !extractOperators) mapped.operator = key
-
                     results.push(mapped)
                 } else {
-                    // Nested structure - RECURSE deeper
+                    // Nested structure - RECURSE deeper with updated context
                     const nestedResults = this.parseJsonDictionary(value, mapConfig, {
-                        ...parentContext,
-                        grandParentKey: parentContext.key || parentContext.parentKey, // Best guess at grandfather
+                        ...enhancedContext,
+                        grandParentKey: parentContext.key || parentContext.parentKey,
                         parentKey: key
                     })
                     results.push(...nestedResults)
@@ -1237,12 +1274,12 @@ export class DynamicProvider implements SmsProvider {
             // Standard dictionary (no extractOperators flag)
             if (hasData) {
                 // Leaf node - extract
-                const mapped = this.mapFields(value, this.resolveEffectiveFields(value, mapConfig), { ...parentContext, key, value })
+                const mapped = this.mapFields(value, this.resolveEffectiveFields(value, mapConfig), enhancedContext)
                 results.push(mapped)
             } else {
-                // Nested structure - RECURSE deeper even in standard mode
+                // Nested structure - RECURSE deeper
                 const nestedResults = this.parseJsonDictionary(value, mapConfig, {
-                    ...parentContext,
+                    ...enhancedContext,
                     grandParentKey: parentContext.key || parentContext.parentKey,
                     parentKey: key
                 })
@@ -1440,21 +1477,16 @@ export class DynamicProvider implements SmsProvider {
     }
 
     /**
-     * Get countries from provider
-     * 
-     * - id: unique identifier
-     * - code: country code (e.g., "us", "uk")
-     * - name: display name
-     * - flag: optional icon URL
+     * Get countries from provider (API Standardization v2.0)
      */
-    async getCountries(): Promise<Country[]> {
+    async getCountriesList(): Promise<Country[]> {
         // Use cache-aside pattern
         const cacheKey = CACHE_KEYS.countryList(this.name)
 
         return cacheGet(cacheKey, async () => {
 
-            const response = await this.request('getCountries')
-            const items = this.parseResponse(response, 'getCountries')
+            const response = await this.request('getCountriesList')
+            const items = this.parseResponse(response, 'getCountriesList')
 
             return Promise.all(items.map(async (i) => {
                 // Determine Code/Name strictly from mapping, no fallbacks
@@ -1471,6 +1503,13 @@ export class DynamicProvider implements SmsProvider {
             }))
         }, CACHE_TTL.COUNTRIES)
     }
+
+    /** @deprecated Use getCountriesList instead */
+    async getCountries(): Promise<Country[]> {
+        console.warn(`[DynamicProvider:${this.name}] DEPRECATED: getCountries() called. Use getCountriesList() instead.`)
+        return this.getCountriesList()
+    }
+
 
     /**
      * Resolve a canonical code or numeric ID to the provider's external ID
@@ -1501,9 +1540,9 @@ export class DynamicProvider implements SmsProvider {
     }
 
     /**
-     * Get services from provider
+     * Get services from provider (API Standardization v2.0)
      */
-    async getServices(countryCode: string | number): Promise<Service[]> {
+    async getServicesList(countryCode: string | number): Promise<Service[]> {
         // Use cache-aside pattern
         const cacheKey = CACHE_KEYS.serviceList(this.name) + `:${countryCode}`
 
@@ -1512,9 +1551,9 @@ export class DynamicProvider implements SmsProvider {
             const externalCountry = await this.resolveExternalId('country', countryCode)
 
             // Logic simplified to strict dynamic
-            const response = await this.request('getServices', { country: externalCountry })
+            const response = await this.request('getServicesList', { country: externalCountry })
 
-            const items = this.parseResponse(response, 'getServices')
+            const items = this.parseResponse(response, 'getServicesList')
 
             return Promise.all(items.map(async (s) => {
                 // Determine Code/Name strictly from mapping, no fallbacks
@@ -1532,6 +1571,13 @@ export class DynamicProvider implements SmsProvider {
             }))
         }, CACHE_TTL.SERVICES)
     }
+
+    /** @deprecated Use getServicesList instead */
+    async getServices(countryCode?: string | number): Promise<Service[]> {
+        console.warn(`[DynamicProvider:${this.name}] DEPRECATED: getServices() called. Use getServicesList() instead.`)
+        return this.getServicesList(countryCode || '')
+    }
+
 
     async getNumber(countryCode: string | number, serviceCode: string | number, options?: { operator?: string; maxPrice?: string | number }): Promise<NumberResult> {
         // Strict Mode: No fallback
@@ -1778,61 +1824,73 @@ export class DynamicProvider implements SmsProvider {
         return chunks
     }
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // ACTION METHODS (set*) - API Standardization v2.0
+    // ═══════════════════════════════════════════════════════════════════════
+
+    async setCancel(activationId: string): Promise<void> {
+        const response = await this.request('setCancel', { id: activationId })
+        this.checkForErrors(response, 'setCancel', (this.config.mappings as any)?.setCancel)
+    }
+
+    /** @deprecated Use setCancel instead */
     async cancelNumber(activationId: string): Promise<void> {
-
-
-
-        const response = await this.request('cancelNumber', { id: activationId })
-        this.checkForErrors(response, 'cancelNumber', (this.config.mappings as any)?.cancelNumber)
+        console.warn(`[DynamicProvider:${this.name}] DEPRECATED: cancelNumber() called. Use setCancel() instead.`)
+        return this.setCancel(activationId)
     }
 
     /**
-     * Set activation status (SMS Activate protocol)
-     * 
-     * Status codes:
-     * -1: Cancel activation
-     *  1: Inform about readiness (SMS sent)
-     *  3: Request another code (retry)
-     *  6: Complete activation
-     *  8: Ban/cancel activation
-     * 
-     * Returns raw response for debugging
+     * @deprecated Use setCancel or setComplete instead
+     * This method exposed internal provider logic and is now disallowed
      */
     async setStatus(activationId: string, status: string | number): Promise<any> {
-
-
-        // Implementation for dynamic setStatus if endpoints exist
-        // Currently just a placeholder or could be implemented via request
         try {
             const response = await this.request('setStatus', { id: activationId, status: String(status) })
-            // Parse the response to get a meaningful result
             const items = this.parseResponse(response, 'setStatus')
             const mapped = items[0] || {}
 
-            // SMS Activate responses: ACCESS_READY, ACCESS_RETRY_GET, ACCESS_ACTIVATION, ACCESS_CANCEL
             return {
                 raw: response.data,
                 parsed: mapped,
                 success: true
             }
         } catch (e: any) {
-            // Some providers might not support explicit setStatus via API in the same way 
-            // or it might be part of the request result
-            // For now we assume if request succeeds, it's done
             if (e.message?.includes('404')) {
-                // Ignore missing endpoints for setStatus if not configured
                 return { raw: null, parsed: {}, success: false, error: e.message }
             }
             throw e
         }
     }
 
-    async nextSms(activationId: string): Promise<void> {
-
-
-        const response = await this.request('nextSms', { id: activationId })
-        this.checkForErrors(response, 'nextSms', (this.config.mappings as any)?.nextSms)
+    async setResendCode(activationId: string): Promise<void> {
+        const response = await this.request('setResendCode', { id: activationId })
+        this.checkForErrors(response, 'setResendCode', (this.config.mappings as any)?.setResendCode)
     }
+
+    /** @deprecated Use setResendCode instead */
+    async nextSms(activationId: string): Promise<void> {
+        console.warn(`[DynamicProvider:${this.name}] DEPRECATED: nextSms() called. Use setResendCode() instead.`)
+        return this.setResendCode(activationId)
+    }
+
+    /**
+     * Mark activation as complete (NEW - API Standardization v2.0)
+     * Uses setStatus with status 6 (Complete) or dedicated endpoint
+     */
+    async setComplete(activationId: string): Promise<void> {
+        const endpoints = this.config.endpoints as Record<string, any>
+
+        // Prefer dedicated setComplete endpoint if configured
+        if (endpoints['setComplete']) {
+            const response = await this.request('setComplete', { id: activationId })
+            this.checkForErrors(response, 'setComplete', (this.config.mappings as any)?.setComplete)
+            return
+        }
+
+        // Fallback: use setStatus with status 6 (Complete activation)
+        await this.setStatus(activationId, 6)
+    }
+
 
     async getBalance(): Promise<number> {
 

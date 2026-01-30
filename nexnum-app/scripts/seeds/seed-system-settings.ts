@@ -37,8 +37,8 @@ const PROVIDERS = {
         authType: 'bearer',
         providerType: 'rest',
         endpoints: {
-            getCountries: { method: 'GET', path: 'https://5sim.net/v1/guest/countries' },
-            getServices: { method: 'GET', path: 'https://5sim.net/v1/guest/products/any/any' },
+            getCountriesList: { method: 'GET', path: 'https://5sim.net/v1/guest/countries' },
+            getServicesList: { method: 'GET', path: 'https://5sim.net/v1/guest/products/any/any' },
             getNumber: {
                 method: 'GET',
                 path: 'https://5sim.net/v1/user/buy/activation/$country/$operator/$product',
@@ -52,7 +52,7 @@ const PROVIDERS = {
                 }
             },
             getStatus: { method: 'GET', path: 'https://5sim.net/v1/user/check/$id' },
-            cancelNumber: { method: 'GET', path: 'https://5sim.net/v1/user/cancel/$id' },
+            setCancel: { method: 'GET', path: 'https://5sim.net/v1/user/cancel/$id' },
             getBalance: { method: 'GET', path: 'https://5sim.net/v1/user/profile' },
             getPrices: {
                 method: 'GET',
@@ -61,7 +61,7 @@ const PROVIDERS = {
             }
         },
         mappings: {
-            getCountries: {
+            getCountriesList: {
                 type: 'json_dictionary',
                 fields: {
                     name: 'text_en|$key',
@@ -70,7 +70,7 @@ const PROVIDERS = {
                     countryCode: '$key'
                 }
             },
-            getServices: {
+            getServicesList: {
                 type: 'json_dictionary',
                 fields: {
                     service: '$key',
@@ -118,7 +118,7 @@ const PROVIDERS = {
                     ACCESS_ACTIVATION: 'completed'
                 }
             },
-            cancelNumber: {
+            setCancel: {
                 type: 'json_object',
                 fields: {
                     id: 'id',
@@ -162,16 +162,16 @@ const PROVIDERS = {
         authQueryParam: 'api_key',
         providerType: 'hybrid',
         endpoints: {
-            getCountries: { method: 'GET', path: 'https://hero-sms.com/stubs/handler_api.php?action=getCountries&api_key={authKey}' },
-            getServices: { method: 'GET', path: 'https://hero-sms.com/stubs/handler_api.php?action=getServicesList&country={country}&lang=en&api_key={authKey}' },
+            getCountriesList: { method: 'GET', path: 'https://hero-sms.com/stubs/handler_api.php?action=getCountries&api_key={authKey}' },
+            getServicesList: { method: 'GET', path: 'https://hero-sms.com/stubs/handler_api.php?action=getServicesList&country={country}&lang=en&api_key={authKey}' },
             getNumber: { method: 'GET', path: 'https://hero-sms.com/stubs/handler_api.php?action=getNumber&service={service}&country={country}&api_key={authKey}' },
             getStatus: { method: 'GET', path: 'https://hero-sms.com/stubs/handler_api.php?action=getStatus&id={id}&api_key={authKey}' },
-            cancelNumber: { method: 'GET', path: 'https://hero-sms.com/stubs/handler_api.php?action=setStatus&id={id}&status=8&api_key={authKey}' },
+            setCancel: { method: 'GET', path: 'https://hero-sms.com/stubs/handler_api.php?action=setStatus&id={id}&status=8&api_key={authKey}' },
             getBalance: { method: 'GET', path: 'https://hero-sms.com/stubs/handler_api.php?action=getBalance&api_key={authKey}' }
         },
         mappings: {
-            getCountries: { type: 'json_array', rootPath: '$', fields: { id: 'id', name: 'eng', code: 'id' } },
-            getServices: { type: 'json_array', rootPath: 'services', fields: { id: 'code', name: 'name', code: 'code' } },
+            getCountriesList: { type: 'json_array', rootPath: '$', fields: { id: 'id', name: 'eng', code: 'id' } },
+            getServicesList: { type: 'json_array', rootPath: 'services', fields: { id: 'code', name: 'name', code: 'code' } },
             getNumber: { type: 'text_regex', regex: 'ACCESS_NUMBER:(\\d+):(\\d+)', fields: { id: '1', phone: '2', price: '0' } },
             getStatus: {
                 type: 'text_regex',
@@ -184,7 +184,7 @@ const PROVIDERS = {
                     CANCEL: 'cancelled'
                 }
             },
-            cancelNumber: { type: 'text_regex', regex: 'ACCESS_CANCEL', fields: { status: '0' } },
+            setCancel: { type: 'text_regex', regex: 'ACCESS_CANCEL', fields: { status: '0' } },
             getBalance: { type: 'text_regex', regex: 'ACCESS_BALANCE:([\\d.]+)', fields: { balance: '1' } }
         }
     }
