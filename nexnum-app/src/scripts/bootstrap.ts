@@ -1,6 +1,6 @@
 import 'dotenv/config'
 import { prisma } from '../lib/core/db'
-import { seedSystemSettings } from './seeds/seed-system-settings'
+import { seedSystemSettings } from './seed-system-settings'
 import { initSearchIndexes, meili, INDEXES } from '../lib/search/search'
 import { syncAllProviders } from '../lib/providers/provider-sync'
 import { execSync } from 'child_process'
