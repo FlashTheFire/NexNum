@@ -33,6 +33,7 @@ import { isValidImageUrl } from '@/lib/utils/utils'
 import { currencyService } from '@/lib/currency/currency-service'
 import crypto from 'crypto';
 import { CentralRegistry } from '@/lib/normalizers/central-registry';
+import { logger } from '@/lib/core/logger';
 
 // ============================================
 // CONSTANTS

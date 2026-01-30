@@ -1,5 +1,6 @@
 import { parentPort, workerData } from 'node:worker_threads'
 import { syncProviderData } from './provider-sync.ts'
+import { logger } from '@/lib/core/logger'
 
 /**
  * Sync Worker Thread
@@ -13,15 +14,17 @@ async function runSync() {
     const { providerName, options } = workerData
 
     try {
-        console.log(`[WORKER] Starting sync for ${providerName}...`)
+        logger.info('Worker sync started', { provider: providerName })
         const result = await syncProviderData(providerName, options)
         parentPort.postMessage({ status: 'success', result })
-    } catch (error: any) {
-        console.error(`[WORKER] Sync failed for ${providerName}:`, error)
-        parentPort.postMessage({ status: 'error', error: error.message })
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error)
+        logger.error('Worker sync failed', { provider: providerName, error: message })
+        parentPort.postMessage({ status: 'error', error: message })
     } finally {
         process.exit(0)
     }
 }
 
 runSync()
+
