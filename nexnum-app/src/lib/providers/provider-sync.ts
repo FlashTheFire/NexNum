@@ -972,12 +972,21 @@ export async function syncAllProviders(): Promise<SyncResult[]> {
     // High-volume providers are synced in parallel workers
     const syncPromises = providers.map(async (provider) => {
         try {
-            // For small providers, or if workers are restricted, we could run in-thread
-            // But for senior-level resilience, we offload all.
-            const result = await startWorkerSync(provider.name)
+            // Senior-Level Optimization: In production standalone mode, tsx loader is unavailable.
+            // We run the sync in-process for stability. In development, we keep workers for isolation.
+            let result: SyncResult;
+            if (process.env.NODE_ENV === 'production') {
+                logger.info('Running provider sync in-process (Production Mode)', {
+                    context: 'SYNC',
+                    provider: provider.name
+                })
+                result = await syncProviderData(provider.name)
+            } else {
+                result = await startWorkerSync(provider.name)
+            }
             results.push(result)
         } catch (e) {
-            logger.error('Failed to sync provider in worker', {
+            logger.error('Failed to sync provider', {
                 context: 'SYNC',
                 provider: provider.name,
                 error: (e as any).message
