@@ -23,7 +23,7 @@ WORKDIR /app
 COPY src ./src
 COPY messages ./messages
 COPY public ./public
-COPY next.config.mjs tsconfig.json prisma.config.ts ./
+COPY next.config.mjs tsconfig.json ./
 # Prune for production
 
 RUN --mount=type=cache,target=/root/.npm npm prune --omit=dev

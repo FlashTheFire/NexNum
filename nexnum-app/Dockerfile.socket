@@ -22,7 +22,7 @@ RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/
 WORKDIR /app
 COPY src ./src
 COPY messages ./messages
-COPY next.config.mjs tsconfig.json prisma.config.ts ./
+COPY next.config.mjs tsconfig.json ./
 # Prune for production
 
 RUN --mount=type=cache,target=/root/.npm npm prune --omit=dev
