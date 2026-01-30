@@ -140,7 +140,6 @@ const nextConfig = {
         return config;
     },
     */
-    turbopack: {},
 };
 
 const sentryWebpackPluginOptions = {
