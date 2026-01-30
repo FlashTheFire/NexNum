@@ -37,7 +37,7 @@ interface ProviderConfig {
   authHeader?: string;
   
   endpoints: {
-    [key in 'getCountries' | 'getServices' | 'getNumber' | 'getStatus' | 'cancelNumber' | 'getBalance' | 'getPrices']: {
+    [key in 'getCountriesList' | 'getServicesList' | 'getNumber' | 'getStatus' | 'cancelNumber' | 'getBalance' | 'getPrices']: {
         method: 'GET' | 'POST';
         path: string;
         queryParams?: Record<string, string>;
@@ -46,54 +46,181 @@ interface ProviderConfig {
   };
 
   mappings: {
-    [key in 'getCountries' | 'getServices' | 'getNumber' | 'getStatus' | 'cancelNumber' | 'getBalance' | 'getPrices']: any;
+    [key in 'getCountriesList' | 'getServicesList' | 'getNumber' | 'getStatus' | 'cancelNumber' | 'getBalance' | 'getPrices']: any;
   };
 }
 \`\`\`
 `
 
 const SPECIAL_ACCESSORS_REF = `
-### ≡ƒöº SPECIAL ACCESSORS (FULL REFERENCE)
+### 🔧 SPECIAL ACCESSORS (FULL REFERENCE v2.0)
 
-#### Context & Hierarchy:
-- \`$key\`: Immediate key (e.g., Operator ID).
-- \`$parentKey\`: Parent key (e.g., Service Code).
-- \`$grandParentKey\`: Grandparent key (e.g., Country Code).
+#### Context Hierarchy (Multi-Level Navigation):
+| Accessor | Returns | Use Case |
+|:---|:---|:---|
+| \`$key\` | Current dictionary key | Service/Operator code |
+| \`$parentKey\` | Parent level key | Country when at service level |
+| \`$grandParentKey\` | Grandparent key | Root at 2 levels up |
+| \`$greatGrandParentKey\` | Great-grandparent key | For 4-level nesting |
+| \`$rootKey\` | First-level key | Always country in pricing |
+| \`$value\` | Current object value | The leaf data |
+| \`$parentValue\` | Parent object value | Parent container |
+| \`$index\` | Array element position | 0, 1, 2... |
+| \`$operatorKey\` | Operator/Provider ID | Provider key in nested |
 
-#### Array/Collection:
-- \`$first\` / \`$last\` - First/last element.
-- \`$values\` / \`$keys\` - All values/keys as array.
-- \`$length\` / \`$count\` - Length of array/object.
-- \`$sum\` / \`$avg\` / \`$min\` / \`$max\` - Numeric operations.
-- \`$unique\` / \`$flatten\` / \`$reverse\` / \`$sort\`.
+#### Depth & Path (For Multi-Level Structures):
+| Accessor | Returns | Output Field? |
+|:---|:---|:---|
+| \`$atDepth:N\` | Key at specific depth level | ✅ Yes - USE THIS |
+| \`$depth\` | Current nesting level | ❌ Debug only |
+| \`$isLeaf\` | Boolean - no children | ❌ Debug only |
+| \`$path\` | Full dot-path from root | ❌ Debug only |
+| \`$ancestors\` | Array of parent keys | ❌ Debug only |
 
-#### Manipulation & Logic:
-- \`$lowercase\` / \`$uppercase\` / \`$trim\`.
-- \`$split:,\` / \`$join:,\` / \`$replace:old:new\`.
-- \`$number\` / \`$int\` / \`$float\` / \`$string\` / \`$boolean\`.
-- \`$default:value\` / \`$ifEmpty:value\`.
+**CRITICAL**: For 3+ level nesting, prefer \`$atDepth:N\` over hierarchy accessors:
+\`\`\`json
+"fields": {
+  "country": "$atDepth:0",
+  "service": "$atDepth:1",
+  "operator": "$atDepth:2|'any'",
+  "cost": "price",
+  "count": "count"
+}
+\`\`\`
+
+#### Array Operations:
+- \`$first\` / \`$last\` - First/last element
+- \`$values\` / \`$keys\` - All values/keys as array
+- \`$length\` / \`$count\` - Length of array/object
+- \`$sum\` / \`$avg\` / \`$min\` / \`$max\` - Numeric aggregations
+- \`$unique\` / \`$flatten\` / \`$reverse\` / \`$sort\` - Array transforms
+- \`$slice:0:5\` - Array slice
+
+#### String Operations:
+- \`$lowercase\` / \`$uppercase\` / \`$trim\`
+- \`$split:,\` / \`$join:,\` / \`$replace:old:new\`
+- \`$substring:0:5\` / \`$padStart:5:0\` / \`$padEnd:5:0\`
+
+#### Type Conversion:
+- \`$number\` / \`$int\` / \`$float\` / \`$string\` / \`$boolean\`
+- \`$json\` (parse string to object) / \`$stringify\` (object to string)
+
+#### Conditionals & Defaults:
+- \`$default:value\` - Default if null/undefined
+- \`$ifEmpty:value\` - Default if empty string
+- \`$exists\` - Boolean existence check
+
+#### Metadata:
+- \`$firstKey\` / \`$firstValue\` - First key/value in object
 `
 
 const CONFIGURATION_STRATEGIES = `
-### ≡ƒöÑ CONFIGURATION STRATEGIES (ARCHITECTURAL REFERENCE)
+### 🔑 MAPPING TYPES (8 Total)
 
-#### STRATEGY A: NUMERICAL NESTED (3-Level)
+| Type | Use Case | Raw Response Example |
+|:---|:---|:---|
+| \`json_array\` | List of objects | \`[{"id": 1}, {"id": 2}]\` |
+| \`json_object\` | Single object result | \`{"balance": 100.50}\` |
+| \`json_dictionary\` | Key-value nested | \`{"us": {...}, "uk": {...}}\` |
+| \`json_value\` | Single primitive | \`100.50\` |
+| \`json_array_positional\` | Ordered tuple | \`["123", "+1555", "0.50"]\` |
+| \`json_keyed_value\` | ID to value map | \`{"123": "pending"}\` |
+| \`json_nested_array\` | 2D table | \`[["id","phone"],["1","+1"]]\` |
+| \`text_regex\` | Plain text | \`ACCESS_OK:123456\` |
+
+### 🔑 CONFIGURATION STRATEGIES (ARCHITECTURAL REFERENCE)
+
+#### STRATEGY A: NUMERICAL NESTED (3-Level) - Use \`$atDepth:N\`
 *Structure:* \`Country -> Service -> Operator -> { price, count }\`
-*Approach:* Use "json_dictionary" with "nestingLevels": { "extractOperators": true }.
-*Mapping:* "country": "$grandParentKey", "service": "$parentKey", "operator": "$key".
+*Approach:* Use "json_dictionary" with depth accessors
+*Mapping:*
+\`\`\`json
+{
+  "type": "json_dictionary",
+  "fields": {
+    "country": "$atDepth:0",
+    "service": "$atDepth:1",
+    "operator": "$atDepth:2|'any'",
+    "cost": "price",
+    "count": "count"
+  },
+  "transform": { "cost": "number", "count": "number" }
+}
+\`\`\`
 
 #### STRATEGY B: STANDARD NESTED (2-Level)
 *Structure:* \`Country -> Service -> { price, count }\`
-*Approach:* Use "json_dictionary".
-*Mapping:* "country": "$parentKey", "service": "$key".
+*Mapping:*
+\`\`\`json
+{
+  "type": "json_dictionary",
+  "fields": {
+    "country": "$parentKey",
+    "service": "$key",
+    "cost": "price|cost|amount"
+  }
+}
+\`\`\`
 
 #### STRATEGY C: FLAT ARRAY
 *Structure:* \`[ { country: "us", service: "wa", price: 1.0 }, ... ]\`
-*Approach:* Use "json_array" with "rootPath" if needed.
+*Mapping:*
+\`\`\`json
+{
+  "type": "json_array",
+  "rootPath": "data.items",
+  "fields": { "code": "id", "name": "title" }
+}
+\`\`\`
 
-#### STRATEGY D: POSITIONAL ARRAY
-*Structure:* \`["ID123", "+1555", "0.50"]\`
-*Approach:* Use "json_array_positional" with "positionFields".
+#### STRATEGY D: TEXT REGEX
+*Structure:* \`ACCESS_NUMBER:123456:+15551234567\`
+*Mapping:*
+\`\`\`json
+{
+  "type": "text_regex",
+  "regex": "ACCESS_NUMBER:(\\\\d+):(\\\\+?\\\\d+)",
+  "fields": { "id": "1", "phone": "2" }
+}
+\`\`\`
+
+#### STRATEGY E: DICTIONARY WITH OPERATOR EXTRACTION
+*Structure:* \`{ "whatsapp": { "providers": { "11": {...} } } }\`
+*Mapping:*
+\`\`\`json
+{
+  "type": "json_dictionary",
+  "nestingLevels": {
+    "extractOperators": true,
+    "providersKey": "providers",
+    "requiredField": "provider_id"
+  },
+  "fields": {
+    "service": "$key",
+    "operator": "$operatorKey",
+    "cost": "price"
+  }
+}
+\`\`\`
+
+### 🎯 UNIVERSAL OUTPUT FIELDS (Canonical Names)
+
+| Endpoint | Required Fields |
+|:---|:---|
+| \`getCountriesList\` | \`code\`, \`name\` |
+| \`getServicesList\` | \`code\`, \`name\` |
+| \`getPrices\` | \`cost\`, \`count\`, \`country\`, \`service\`, \`operator\` |
+| \`getNumber\` | \`id\`, \`phone\`, \`price\` |
+| \`getStatus\` | \`status\`, \`code\`, \`fullSms\` |
+| \`getBalance\` | \`balance\` |
+
+### ⚡ BEST PRACTICES
+
+1. **ALWAYS use fallback chains**: \`"cost": "price|cost|amount|rate"\`
+2. **ALWAYS apply transforms** for numeric fields: \`"transform": { "cost": "number" }\`
+3. **Use \`$default\`** for optional fields: \`"operator": "operator.$default:'any'"\`
+4. **Use \`$atDepth:N\`** for multi-level structures (NOT nestingLevels)
+5. **Configure statusMapping** for all status endpoints
 `
 
 // --- FULL MASTER PROMPTS ---

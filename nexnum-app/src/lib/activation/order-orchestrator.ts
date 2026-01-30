@@ -224,7 +224,7 @@ export class OrderOrchestrator {
 
                 await ActivationKernel.dispatchEvent(
                     activation.activationId,
-                    'saga.compensate.cancel_number',
+                    'saga.compensate.set_cancel',
                     { providerActivationId: numberResult.id, providerId },
                     prisma
                 )
