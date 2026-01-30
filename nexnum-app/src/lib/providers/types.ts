@@ -41,6 +41,14 @@ export type NumberStatus =
     | 'expired'      // Timed out
     | 'error'        // Provider error
 
+export interface PriceData {
+    country: string
+    service: string
+    operator?: string
+    cost: number
+    count: number
+}
+
 export interface StatusResult {
     status: NumberStatus
     messages: SmsMessage[]

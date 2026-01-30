@@ -52,6 +52,7 @@ interface Provider {
     depositSpent?: number
     depositReceived?: number
     depositCurrency?: string
+    useGlobalSync: boolean
 }
 
 
@@ -488,10 +489,9 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
         mappings: '{\n  "getCountriesList": { "type": "json_object", "rootPath": "$" }\n}',
         isActive: false, priority: 0, providerType: 'rest',
         priceMultiplier: '1.0', fixedMarkup: '0.00', currency: 'USD',
+        useGlobalSync: false,
         normalizationMode: 'AUTO', normalizationRate: '', apiPair: '', depositSpent: '', depositReceived: '', depositCurrency: 'USD',
         // Dynamic Engine Settings (schema fields)
-        // Dynamic Engine Settings (schema fields)
-
     })
 
     const [availableCurrencies, setAvailableCurrencies] = useState<any[]>([])
@@ -553,6 +553,7 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                 depositSpent: provider.depositSpent ? String(provider.depositSpent) : '',
                 depositReceived: provider.depositReceived ? String(provider.depositReceived) : '',
                 depositCurrency: (provider as any).depositCurrency || 'USD',
+                useGlobalSync: (provider as any).useGlobalSync || false,
                 // Dynamic Engine Settings (schema fields)
             })
             // Reset test state on provider open
@@ -1385,6 +1386,40 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                     }`}>
                                     <div className={`w-6 h-6 rounded-full bg-white shadow-md transition-all ${formData.isActive ? 'translate-x-6' : 'translate-x-0'
                                         }`} />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Global Sync Toggle (OPTIMIZATION) */}
+                        <div
+                            onClick={() => setFormData({ ...formData, useGlobalSync: !formData.useGlobalSync })}
+                            className={`p-4 rounded-xl border cursor-pointer transition-all ${formData.useGlobalSync
+                                ? 'bg-blue-500/10 border-blue-500/30 ring-1 ring-blue-500/20 shadow-lg shadow-blue-500/10'
+                                : 'bg-white/[0.03] border-white/5 hover:bg-white/5'
+                                }`}
+                        >
+                            <div className="flex items-center gap-4">
+                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${formData.useGlobalSync ? 'bg-blue-500/30' : 'bg-white/10'
+                                    }`}>
+                                    <Zap className={`w-6 h-6 ${formData.useGlobalSync ? 'text-blue-400' : 'text-white/20'}`} />
+                                </div>
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                        <h4 className={`text-sm font-bold ${formData.useGlobalSync ? 'text-blue-300' : 'text-white/60'}`}>
+                                            Global Single-Fetch Sync
+                                        </h4>
+                                        <div className="px-1.5 py-0.5 rounded bg-blue-500/20 border border-blue-500/30 text-[8px] font-black text-blue-400 uppercase tracking-widest">
+                                            Optimization
+                                        </div>
+                                    </div>
+                                    <p className="text-xs text-white/30 mt-0.5 leading-snug">
+                                        {formData.useGlobalSync
+                                            ? 'Fetching all prices in ONE request. Highly recommended for large providers.'
+                                            : 'Fetch prices per country. Use only if provider doesn’t support global price hooks.'}
+                                    </p>
+                                </div>
+                                <div className={`w-12 h-6 rounded-full p-1 transition-all ${formData.useGlobalSync ? 'bg-blue-600' : 'bg-white/10'}`}>
+                                    <div className={`w-4 h-4 rounded-full bg-white shadow-lg transition-all ${formData.useGlobalSync ? 'translate-x-6' : 'translate-x-0'}`} />
                                 </div>
                             </div>
                         </div>

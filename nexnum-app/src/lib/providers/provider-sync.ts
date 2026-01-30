@@ -12,6 +12,7 @@
 import { prisma } from '@/lib/core/db'
 import { Provider } from '@prisma/client'
 import { DynamicProvider } from './dynamic-provider'
+import { PriceData } from './types'
 import fs from 'fs'
 import path from 'path'
 import https from 'https'
@@ -603,10 +604,10 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
 
         // Pre-cache numeric IDs for search indexing
         const allServiceIds = await (prisma.serviceLookup as any).findMany({ select: { serviceCode: true, serviceId: true } })
-        const allCountryIds = await (prisma.countryLookup as any).findMany({ select: { countryCode: true, id: true } })
+        const allCountryIds = await (prisma.countryLookup as any).findMany({ select: { countryCode: true, countryId: true } })
 
-        const serviceCodeToNumeric = new Map<string, number>(allServiceIds.map((s: any) => [s.serviceCode, s.id]))
-        const countryCodeToNumeric = new Map<string, number>(allCountryIds.map((c: any) => [c.countryCode, c.id]))
+        const serviceCodeToNumeric = new Map<string, number>(allServiceIds.map((s: any) => [s.serviceCode, s.serviceId]))
+        const countryCodeToNumeric = new Map<string, number>(allCountryIds.map((c: any) => [c.countryCode, c.countryId]))
 
         // 3. Sync Prices (DEEP SEARCH ENGINE) - Always use Dynamic Engine
         console.log(`[SYNC] ${provider.name}: Starting price sync for ${countries.length} countries...`)
@@ -649,172 +650,136 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
         const pointsRate = Number(systemSettings.pointsRate)
 
         const allOffers: OfferDocument[] = []
-        const pricingBatch: any[] = []
-
-        // --- SHADOW INDEXING (PHASE 24) ---
-        const shadowIndexName = `${SHADOW_PREFIX}${provider.name.toLowerCase()}`
-        console.log(`[SYNC] ${provider.name}: Initializing shadow index ${shadowIndexName}...`)
-        await initSearchIndexes(shadowIndexName)
-
         // Operator mapping: Track provider+externalOperator -> internal sequential ID
         const operatorMap = new Map<string, number>()
         let operatorCounter = 1
 
-        // User requested "super fast" but safe (120-180 req/min).
-        const limiter = new RateLimitedQueue(50, 180)
+        const processPrices = async (prices: PriceData[], country?: { code: string; name: string }) => {
+            const currentCountryOffers: OfferDocument[] = []
+            const currentCountryCode = country?.code || ''
 
-        const promises = countries.map(country => limiter.add(async () => {
-            try {
-                const prices = await engine.getPrices(country.code)
-                if (prices.length > 0) {
-                    const countryDbId = countryIdMap.get(country.code)
+            for (const p of prices) {
+                if (p.count <= 0) continue
 
-                    const countryOffers: OfferDocument[] = []
+                // Visibility Checks
+                const countryCode = p.country || currentCountryCode
+                const isCountryVisible = countryVisibilityMap.get(countryCode) !== false
+                const isServiceVisible = serviceVisibilityMap.get(p.service) !== false &&
+                    serviceVisibilityMap.get(p.service.toLowerCase()) !== false
+                const isActive = isCountryVisible && isServiceVisible
 
-                    for (const p of prices) {
-                        if (p.count <= 0) continue
+                let svcName = serviceMap.get(p.service)
+                if (!svcName) svcName = serviceMap.get(p.service.toLowerCase())
+                if (!svcName) {
+                    svcName = serviceMap.get(p.service) || p.service
+                }
 
-                        const isCountryVisible = countryVisibilityMap.get(country.code) !== false
-                        const isServiceVisible = serviceVisibilityMap.get(p.service) !== false &&
-                            serviceVisibilityMap.get(p.service.toLowerCase()) !== false
-                        const isActive = isCountryVisible && isServiceVisible
+                // CURRENCY & MARGIN LOGIC (Optimized Sync)
+                const providerRawCost = Number(p.cost)
+                const baseCostUSD = providerRawCost / (effectiveProviderRate || 1.0)
+                const baseCostPoints = baseCostUSD * pointsRate
 
-                        let svcName = serviceMap.get(p.service)
-                        if (!svcName) svcName = serviceMap.get(p.service.toLowerCase())
-                        if (!svcName) {
-                            svcName = serviceMap.get(p.service) || p.service
-                            if (/^\d+$/.test(p.service)) {
-                                console.warn(`[SYNC] Service code "${p.service}" has no mapped name. Please add to ServiceLookup.`)
+                const multiplier = Number(provider.priceMultiplier || 1.0)
+                const markupUsd = Number(provider.fixedMarkup || 0.0)
+                const markupPoints = markupUsd * pointsRate
+
+                const sellPrice = (baseCostPoints * multiplier) + markupPoints
+
+                // OPERATOR MAPPING
+                const externalOp = p.operator != null ? String(p.operator) : 'default'
+                const opKey = `${provider.name}_${externalOp}`
+                if (!operatorMap.has(opKey)) {
+                    operatorMap.set(opKey, operatorCounter++)
+                }
+                const internalOpId = operatorMap.get(opKey)!
+
+                // Prepare OfferDocument for MeiliSearch
+                const canonicalSvcName = getCanonicalName(svcName)
+                const canonicalCtyName = normalizeCountryName(p.country || country?.name || 'Unknown')
+                const canonicalSvcCode = generateCanonicalCode(canonicalSvcName)
+                const canonicalCtyCode = generateCanonicalCode(canonicalCtyName)
+
+                allOffers.push({
+                    id: `${provider.name}_${countryCode}_${p.service}_${externalOp}`.toLowerCase().replace(/[^a-z0-9_]/g, ''),
+                    provider: provider.name,
+                    providerCountryCode: countryCode,
+                    countryName: canonicalCtyName,
+                    countryId: countryCodeToNumeric.get(canonicalCtyCode),
+                    countryIcon: getCountryFlagUrlSync(canonicalCtyName) || getCountryFlagUrlSync(p.country || country?.name || '') || '',
+                    providerServiceCode: p.service,
+                    serviceName: canonicalSvcName,
+                    serviceId: serviceCodeToNumeric.get(canonicalSvcCode),
+                    serviceIcon: (() => {
+                        const canonKey = getCanonicalKey(p.service) || getCanonicalKey(svcName) || generateCanonicalCode(canonicalSvcName) || p.service.toLowerCase()
+                        const iconsDir = path.join(process.cwd(), 'public/assets/icons/services')
+                        let finalExt = '.webp'
+                        let foundLocal = false
+
+                        if (fs.existsSync(iconsDir)) {
+                            for (const ext of ['.svg', '.webp', '.png', '.jpg', '.jpeg']) {
+                                if (fs.existsSync(path.join(iconsDir, `${canonKey}${ext}`))) {
+                                    finalExt = ext
+                                    foundLocal = true
+                                    break
+                                }
                             }
                         }
 
-                        // CURRENCY & MARGIN LOGIC (Optimized Sync)
-                        const providerRawCost = Number(p.cost)
-                        const baseCostUSD = providerRawCost / (effectiveProviderRate || 1.0)
-                        const baseCostPoints = baseCostUSD * pointsRate
+                        const localPath = `/assets/icons/services/${canonKey}${finalExt}`
+                        if (foundLocal) return localPath
 
-                        const multiplier = Number(provider.priceMultiplier || 1.0)
-                        const markupUsd = Number(provider.fixedMarkup || 0.0)
-                        const markupPoints = markupUsd * pointsRate
-
-                        const sellPrice = (baseCostPoints * multiplier) + markupPoints
-
-                        // OPERATOR MAPPING
-                        const externalOp = p.operator != null ? String(p.operator) : 'default'
-                        const opKey = `${provider.name}_${externalOp}`
-                        if (!operatorMap.has(opKey)) {
-                            operatorMap.set(opKey, operatorCounter++)
-                        }
-                        const internalOpId = operatorMap.get(opKey)!
-
-                        // Prepare DB pricing record
-                        const serviceDbId = serviceIdMap.get(p.service)
-                        if (countryDbId && serviceDbId) {
-                            pricingBatch.push({
-                                providerId: provider.id,
-                                countryId: countryDbId,
-                                serviceId: serviceDbId,
-                                operator: p.operator != null ? String(p.operator) : null,
-                                cost: Number(baseCostUSD.toFixed(4)),
-                                providerRawCost: Number(providerRawCost.toFixed(6)),
-                                sellPrice: Number(sellPrice.toFixed(2)),
-                                stock: p.count,
-                                lastSyncAt: new Date()
-                            })
+                        const providerIcon = iconUrlMap.get(p.service) || iconUrlMap.get(p.service.toLowerCase())
+                        if (providerIcon && isValidImageUrl(providerIcon)) {
+                            downloadImageToLocal(providerIcon, path.join(process.cwd(), 'public', localPath)).catch(() => { })
                         }
 
-                        // Prepare OfferDocument for MeiliSearch
-                        const canonicalSvcName = getCanonicalName(svcName)
-                        const canonicalCtyName = normalizeCountryName(country.name || 'Unknown')
-                        const canonicalSvcCode = generateCanonicalCode(canonicalSvcName)
-                        const canonicalCtyCode = generateCanonicalCode(canonicalCtyName)
-
-                        countryOffers.push({
-                            id: `${provider.name}_${p.country}_${p.service}_${externalOp}`.toLowerCase().replace(/[^a-z0-9_]/g, ''),
-                            provider: provider.name,
-                            providerCountryCode: p.country, // Raw code from provider
-                            countryName: canonicalCtyName,
-                            countryId: countryCodeToNumeric.get(canonicalCtyCode),
-                            countryIcon: getCountryFlagUrlSync(canonicalCtyName) || getCountryFlagUrlSync(country.name || '') || getCountryFlagUrlSync(p.country) || '',
-                            providerServiceCode: p.service, // Raw code from provider
-                            serviceName: canonicalSvcName,
-                            serviceId: serviceCodeToNumeric.get(canonicalSvcCode),
-                            serviceIcon: (() => {
-                                // 1. Determine local path first
-                                const canonKey = getCanonicalKey(p.service) || getCanonicalKey(svcName) || generateCanonicalCode(canonicalSvcName) || p.service.toLowerCase()
-
-                                const iconsDir = path.join(process.cwd(), 'public/assets/icons/services')
-                                let finalExt = '.webp'
-                                let foundLocal = false
-
-                                if (fs.existsSync(iconsDir)) {
-                                    for (const ext of ['.svg', '.webp', '.png', '.jpg', '.jpeg']) {
-                                        if (fs.existsSync(path.join(iconsDir, `${canonKey}${ext}`))) {
-                                            finalExt = ext
-                                            foundLocal = true
-                                            break
-                                        }
-                                    }
-                                }
-
-                                const localPath = `/assets/icons/services/${canonKey}${finalExt}`
-                                const fullPath = path.join(process.cwd(), 'public', localPath)
-
-                                // Check existence synchronously
-                                if (foundLocal) {
-                                    return localPath
-                                }
-
-                                // 2. If missing but provider has URL, try to download via side-effect (fire-and-forget)
-                                const providerIcon = iconUrlMap.get(p.service) || iconUrlMap.get(p.service.toLowerCase())
-                                if (providerIcon && isValidImageUrl(providerIcon)) {
-                                    downloadImageToLocal(providerIcon, fullPath).catch(() => { })
-                                }
-
-                                // 3. Fallback to Dicebear (Professional Placeholder)
-                                const nameForIcon = canonKey || p.service
-                                return `https://api.dicebear.com/7.x/initials/svg?seed=${nameForIcon}&backgroundColor=000000&chars=2`
-                            })(),
-                            operator: String(internalOpId),
-                            price: Number(sellPrice.toFixed(2)),
-                            rawPrice: Number(providerRawCost.toFixed(6)),
-                            stock: p.count,
-                            lastSyncedAt: Date.now(),
-                            isActive: isActive
-                        })
-                    }
-
-                    if (countryOffers.length > 0) {
-                        allOffers.push(...countryOffers)
-                        pricesCount += countryOffers.length
-                    }
-                }
-            } catch (e) {
-                console.warn(`[SYNC] Failed to fetch prices for ${country.code}:`, e)
+                        const nameForIcon = canonKey || p.service
+                        return `https://api.dicebear.com/7.x/initials/svg?seed=${nameForIcon}&backgroundColor=000000&chars=2`
+                    })(),
+                    operator: String(internalOpId),
+                    price: Number(sellPrice.toFixed(2)),
+                    rawPrice: Number(providerRawCost.toFixed(6)),
+                    stock: p.count,
+                    lastSyncedAt: Date.now(),
+                    isActive: isActive
+                })
+                pricesCount++
             }
-        }))
+        }
 
-        await Promise.all(promises)
+        const isGlobalSync = (provider as any).useGlobalSync === true
 
-        // Index to Shadow index first
+        if (isGlobalSync) {
+            console.log(`[SYNC] ${provider.name}: Using Single-Fetch optimization (Global Prices)...`)
+            const prices = await engine.getPrices()
+            await processPrices(prices)
+        } else {
+            const limiter = new RateLimitedQueue(50, 180)
+            const promises = countries.map(country => limiter.add(async () => {
+                try {
+                    const prices = await engine.getPrices(country.code)
+                    if (prices.length > 0) {
+                        await processPrices(prices, country)
+                    }
+                } catch (e) {
+                    console.warn(`[SYNC] Failed to fetch prices for ${country.code}:`, e)
+                }
+            }))
+            await Promise.all(promises)
+        }
+
+        // 4. Indexing (Chunked for Memory Efficiency)
         if (allOffers.length > 0) {
-            console.log(`[SYNC] ${provider.name}: Indexing ${allOffers.length} offers to shadow index...`)
-            await indexOffers(allOffers, shadowIndexName)
+            console.log(`[SYNC] ${provider.name}: Indexing ${allOffers.length} offers in chunks...`)
 
-            // ATOMIC SWAP: Move shadow data into live index per-provider
-            // Professional Note: Since multiple providers share the 'offers' index, 
-            // a global swap is risky if we want per-provider updates.
-            // However, with MeiliSearch, we can delete documents by filter and then add.
-            // BUT a true Atomic Swap replaces the ENTIRE index.
-
-            // REFINED STRATEGY FOR PHASE 24: 
-            // We use 'deleteByFilter' + 'addDocuments' for most syncs.
-            // We only use 'swapIndexes' if we are doing a FULL RE-SYNC of all data.
-
-            // For per-provider atomic feel, we rely on MeiliSearch's task queue being sequential for the same index.
-            // Let's implement documented "delete then add" in a single task sequence.
-            await deleteOffersByProvider(provider.name)
-            await indexOffers(allOffers)
+            // Professional Note: We avoid shadow indexing for per-provider updates to minimize memory overhead.
+            // We rely on MeiliSearch's atomic document replacement (primaryKey) for consistency.
+            const CHUNK_SIZE = 5000
+            for (let i = 0; i < allOffers.length; i += CHUNK_SIZE) {
+                const chunk = allOffers.slice(i, i + CHUNK_SIZE)
+                await indexOffers(chunk)
+                console.log(`[SYNC] ${provider.name}: Indexed chunk ${Math.floor(i / CHUNK_SIZE) + 1}/${Math.ceil(allOffers.length / CHUNK_SIZE)}`)
+            }
         }
 
     } catch (e) {
@@ -847,6 +812,11 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
 export async function syncProviderData(providerName: string, options?: SyncOptions): Promise<SyncResult> {
     const provider = await prisma.provider.findUnique({ where: { name: providerName } })
     if (provider) {
+        // RESILIENCE: Fetch use_global_sync via raw SQL to bypass Prisma schema sync issues in production
+        const raw: any[] = await prisma.$queryRawUnsafe(`SELECT use_global_sync FROM providers WHERE id = $1`, provider.id)
+        if (raw && raw[0]) {
+            (provider as any).useGlobalSync = raw[0].use_global_sync || false
+        }
         return await syncDynamic(provider, options)
     } else {
         throw new Error(`Provider ${providerName} not found via DB`)

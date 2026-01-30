@@ -296,7 +296,7 @@ export class DynamicProvider implements SmsProvider {
             // 0. Logging Request
             logger.request(`DynamicProvider:${this.name}`, epConfig.method, urlObj.toString())
 
-            const startTime = Date.now()
+            const upstreamStartTime = Date.now()
             let responseData: any = null
             let responseStatus = 0
 
@@ -366,7 +366,7 @@ export class DynamicProvider implements SmsProvider {
             responseStatus = response.status;
 
             // Log Response early
-            logger.response(`DynamicProvider:${this.name}`, epConfig.method, urlObj.toString(), responseStatus, { durationMs: Date.now() - startTime })
+            logger.response(`DynamicProvider:${this.name}`, epConfig.method, urlObj.toString(), responseStatus, { durationMs: Date.now() - upstreamStartTime })
 
             if (!response.ok) {
                 const text = await response.text()
@@ -379,7 +379,7 @@ export class DynamicProvider implements SmsProvider {
                     headers: maskedHeaders,
                     responseStatus,
                     responseBody: text,
-                    requestTime: Date.now() - startTime
+                    requestTime: Date.now() - upstreamStartTime
                 }
 
 
@@ -389,7 +389,7 @@ export class DynamicProvider implements SmsProvider {
                     this.name,
                     epConfig.method,
                     response.status,
-                    (Date.now() - startTime) / 1000
+                    (Date.now() - upstreamStartTime) / 1000
                 )
 
                 throw new ProviderApiError(
@@ -435,14 +435,14 @@ export class DynamicProvider implements SmsProvider {
                 headers: maskedHeaders,
                 responseStatus,
                 responseBody: responseData,
-                requestTime: Date.now() - startTime
+                requestTime: Date.now() - upstreamStartTime
             }
 
             // Save raw response for test console debugging
             this.lastRawResponse = responseData
 
             // 5. Record Latency for Proactive Monitoring
-            this.recordLatency(Date.now() - startTime)
+            this.recordLatency(Date.now() - upstreamStartTime)
 
             return result
 
@@ -475,16 +475,20 @@ export class DynamicProvider implements SmsProvider {
 
         if (history.length >= 5) {
             const avg = history.reduce((a, b) => a + b, 0) / history.length
-            if (latencyMs > avg * (1 + DynamicProvider.VOLATILITY_THRESHOLD)) {
+
+            // Industrial Tuning: Only warn if it's > 50% above average AND above 2000ms (Latency Floor)
+            // This prevents "fast" providers (50ms) from tripping just because they occasionally hit 300ms.
+            const threshold = Math.max(avg * (1 + DynamicProvider.VOLATILITY_THRESHOLD), 2000)
+
+            if (latencyMs > threshold) {
                 logger.warn(`[DynamicProvider:${this.name}] Proactive Health Warning: Latency Volatility Detected`, {
                     current: `${latencyMs}ms`,
                     average: `${avg.toFixed(0)}ms`,
                     deviation: `${((latencyMs / avg) - 1) * 100}%`
                 })
 
-                // QUARANTINE: If 3 out of last 5 requests are >150% of average, open breaker
-                // This protects against "stuttering" providers that don't hard-fail but slow down the system.
-                const spikes = history.filter(l => l > avg * 1.5).length
+                // QUARANTINE: If 3 out of last 5 requests exceed the threshold, open breaker
+                const spikes = history.filter(l => l > threshold).length
                 if (spikes >= 3) {
                     logger.error(`[DynamicProvider:${this.name}] ☣️ Industrial Anomaly Quarantine: Tripping circuit due to chronic latency volatility`)
                     this.getBreaker().open()

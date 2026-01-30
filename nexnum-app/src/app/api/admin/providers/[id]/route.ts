@@ -75,7 +75,7 @@ const ProviderUpdateSchema = z.object({
     endpoints: z.any().optional(),
     mappings: z.any().optional(),
     // Logic Flags
-
+    useGlobalSync: z.boolean().optional(),
     normalizationMode: z.string().optional(),
 }).refine(data => Object.keys(data).length > 0, {
     message: "No valid update fields provided"
@@ -118,7 +118,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
             authQueryParam,
             endpoints,
             mappings,
-            normalizationMode
+            normalizationMode,
+            useGlobalSync
         } = validation.data
 
         // Handle circuit commands first (Redis operations)
@@ -184,6 +185,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         if (endpoints !== undefined) updateData.endpoints = endpoints
         if (mappings !== undefined) updateData.mappings = mappings
         if (normalizationMode !== undefined) updateData.normalizationMode = normalizationMode
+        if (useGlobalSync !== undefined) updateData.useGlobalSync = useGlobalSync
 
         if (Object.keys(updateData).length === 0) {
             return NextResponse.json({ error: 'No update fields provided' }, { status: 400 })

@@ -235,7 +235,7 @@ model AuditLog {
 
 // Service lookup: serviceId → display details
 model ServiceLookup {
-  serviceId   Int     @id @map("id") // The numeric ID (serviceId)
+  serviceId   Int     @id @default(autoincrement()) @map("id") // The numeric ID (serviceId)
   serviceCode String  @unique @map("service_code") // Canonical Key (derived from name)
   serviceName String  @map("name") // e.g., "WhatsApp"
   serviceIcon String? @map("icon_url") // Optional icon/logo URL
@@ -245,7 +245,7 @@ model ServiceLookup {
 
 // Country lookup: countryId → display details  
 model CountryLookup {
-  countryId   Int     @id @map("id") // The numeric ID (countryId)
+  countryId   Int     @id @default(autoincrement()) @map("id") // The numeric ID (countryId)
   countryCode String  @unique @map("country_code") // Canonical Key (derived from name)
   countryName String  @map("name") // e.g., "United States"
   countryIcon String? @map("flag_url") // Flag image URL
@@ -301,6 +301,7 @@ model Provider {
   lastBalanceSync DateTime? @map("last_balance_sync")
 
   isActive Boolean @default(false) @map("is_active")
+  useGlobalSync Boolean @default(false) @map("use_global_sync")
   priority Int     @default(0) // Higher = tried first
 
   // --- Sync tracking ---

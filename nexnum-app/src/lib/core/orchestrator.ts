@@ -43,7 +43,8 @@ class CoreOrchestrator {
             // 2. Resource Warming (Pre-flight connectivity)
             await Promise.all([
                 this.warmPrisma(),
-                this.warmRedis()
+                this.warmRedis(),
+                this.warmMeiliSearch()
             ])
 
             // 3. Initialize Signal Handling
@@ -119,6 +120,17 @@ class CoreOrchestrator {
         const ping = await redis.ping()
         if (ping !== 'PONG') throw new Error('Redis PING failed')
         logger.debug('[Orchestrator] Redis connected')
+    }
+
+    private async warmMeiliSearch() {
+        try {
+            const { initSearchIndexes } = await import('@/lib/search/search')
+            await initSearchIndexes()
+            logger.debug('[Orchestrator] MeiliSearch indexes initialized')
+        } catch (error) {
+            logger.error('[Orchestrator] MeiliSearch warming failed', { error })
+            // We don't fail bootstrap for search indexes (non-critical compared to DB/Redis)
+        }
     }
 
     private initSignalHandling() {

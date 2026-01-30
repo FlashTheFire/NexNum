@@ -118,14 +118,14 @@ export async function resolveNumericIdToName(type: 'service' | 'country', id: nu
 
     if (type === 'service') {
         const lookup = await (prisma.serviceLookup as any).findUnique({
-            where: { id: numId }
+            where: { serviceId: numId }
         })
-        return lookup?.name || null
+        return lookup?.serviceName || null
     } else {
         const lookup = await (prisma.countryLookup as any).findUnique({
-            where: { id: numId }
+            where: { countryId: numId }
         })
-        return lookup?.name || null
+        return lookup?.countryName || null
     }
 }
 

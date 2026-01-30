@@ -14,37 +14,41 @@ export class CentralRegistry {
      * Maps a Provider Service to our Internal Service ID
      */
     static async resolveServiceId(providerName: string, externalId: string, rawName: string): Promise<{ id: number; name: string; code: string }> {
-        // 1. Get the clean identity (e.g., "wa" -> "WhatsApp")
         const canonicalName = getCanonicalName(rawName)
         const canonicalCode = generateCanonicalCode(canonicalName)
 
-        // 2. Look up in the Central Lookup Table
+        // 1. Look up in the Central Lookup Table
         let lookup = await (prisma.serviceLookup as any).findUnique({
             where: { serviceCode: canonicalCode }
         })
 
-        // 3. If missing, Auto-Assign Next ID (Management)
+        // 2. Auto-Assign if missing
         if (!lookup) {
-            // Get highest current ID to increment
-            const lastId = await (prisma.serviceLookup as any).findFirst({
-                orderBy: { id: 'desc' }
-            })
-            const nextId = (lastId?.id || 0) + 1
-
-            lookup = await (prisma.serviceLookup as any).create({
-                data: {
-                    id: nextId,
-                    serviceCode: canonicalCode,
-                    name: canonicalName
+            try {
+                lookup = await (prisma.serviceLookup as any).create({
+                    data: {
+                        serviceCode: canonicalCode,
+                        serviceName: canonicalName
+                    }
+                })
+                logger.info(`[REGISTRY] New Service Registered: ${canonicalName} -> ID: ${lookup.serviceId}`)
+            } catch (error: any) {
+                // If collision on canonicalCode, just re-fetch
+                if (error.code === 'P2002') {
+                    lookup = await (prisma.serviceLookup as any).findUnique({
+                        where: { serviceCode: canonicalCode }
+                    })
+                } else {
+                    throw error
                 }
-            })
-
-            logger.info(`[REGISTRY] New Service Registered: ${canonicalName} -> ID: ${nextId}`)
+            }
         }
 
+        if (!lookup) throw new Error(`[REGISTRY] Failed to resolve Service ID for ${canonicalName}`)
+
         return {
-            id: lookup.id,
-            name: lookup.name,
+            id: lookup.serviceId,
+            name: lookup.serviceName,
             code: lookup.serviceCode
         }
     }
@@ -53,36 +57,40 @@ export class CentralRegistry {
      * Maps a Provider Country to our Internal Country ID
      */
     static async resolveCountryId(providerName: string, externalId: string, rawName: string): Promise<{ id: number; name: string; code: string }> {
-        // 1. Standardize Country Name
         const canonicalName = getCanonicalName(rawName)
         const canonicalCode = generateCanonicalCode(canonicalName)
 
-        // 2. Look up in the Central Lookup Table
+        // 1. Look up in the Central Lookup Table
         let lookup = await (prisma.countryLookup as any).findUnique({
             where: { countryCode: canonicalCode }
         })
 
-        // 3. Auto-Assign if missing
+        // 2. Auto-Assign if missing
         if (!lookup) {
-            const lastId = await (prisma.countryLookup as any).findFirst({
-                orderBy: { id: 'desc' }
-            })
-            const nextId = (lastId?.id === undefined || lastId.id === null) ? 1 : (lastId.id + 1)
-
-            lookup = await (prisma.countryLookup as any).create({
-                data: {
-                    id: nextId,
-                    countryCode: canonicalCode,
-                    name: canonicalName
+            try {
+                lookup = await (prisma.countryLookup as any).create({
+                    data: {
+                        countryCode: canonicalCode,
+                        countryName: canonicalName
+                    }
+                })
+                logger.info(`[REGISTRY] New Country Registered: ${canonicalName} -> ID: ${lookup.countryId}`)
+            } catch (error: any) {
+                if (error.code === 'P2002') {
+                    lookup = await (prisma.countryLookup as any).findUnique({
+                        where: { countryCode: canonicalCode }
+                    })
+                } else {
+                    throw error
                 }
-            })
-
-            logger.info(`[REGISTRY] New Country Registered: ${canonicalName} -> ID: ${nextId}`)
+            }
         }
 
+        if (!lookup) throw new Error(`[REGISTRY] Failed to resolve Country ID for ${canonicalName}`)
+
         return {
-            id: lookup.id,
-            name: lookup.name,
+            id: lookup.countryId,
+            name: lookup.countryName,
             code: lookup.countryCode
         }
     }
