@@ -89,11 +89,26 @@ export default async function LocaleLayout({
     params: Promise<{ locale: string }>;
 }) {
     const { locale } = await params;
+    setRequestLocale(locale);
+    const messages = await getMessages();
 
     return (
         <html lang={locale} className="dark" suppressHydrationWarning>
-            <body className="antialiased">
-                {children}
+            <body className={`${inter.className} antialiased`}>
+                <ThemeProvider
+                    attribute="class"
+                    defaultTheme="dark"
+                    enableSystem
+                    disableTransitionOnChange
+                >
+                    <NextIntlClientProvider messages={messages}>
+                        <CurrencyProvider>
+                            <JsonLd />
+                            {children}
+                            <Toaster richColors position="top-right" />
+                        </CurrencyProvider>
+                    </NextIntlClientProvider>
+                </ThemeProvider>
             </body>
         </html>
     );
