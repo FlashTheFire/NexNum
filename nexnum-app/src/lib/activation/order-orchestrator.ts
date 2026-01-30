@@ -405,9 +405,10 @@ export class OrderOrchestrator {
     }
 
     /**
-     * Request resend SMS (for multi-SMS services)
+     * Request a resend of the SMS code for an active order
+     * Standardized to setResendCode in v2.0
      */
-    static async requestResendSms(orderId: string, userId: string): Promise<{ success: boolean; error?: string }> {
+    static async requestResendCode(orderId: string, userId: string): Promise<{ success: boolean; error?: string }> {
         const order = await prisma.activation.findFirst({
             where: { id: orderId, userId }
         })

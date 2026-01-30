@@ -409,7 +409,7 @@ export async function handleOrphanedNumber(
 
     // 1. Try to cancel at provider
     try {
-        await smsProvider.cancelNumber(providerActivationId)
+        await smsProvider.setCancel(providerActivationId)
         await logPurchaseAudit({
             eventType: 'ORPHAN_CANCELLED',
             userId,

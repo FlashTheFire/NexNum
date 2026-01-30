@@ -155,7 +155,7 @@ async function processEvent(event: any) {
             await handleRefund(payload.activationId)
             break
 
-        case 'saga.compensate.cancel_number':
+        case 'saga.compensate.set_cancel':
             await handleSagaCancel(payload.providerActivationId, payload.providerId)
             break
 
@@ -170,7 +170,7 @@ async function processEvent(event: any) {
 async function handleSagaCancel(providerActivationId: string, providerId: string) {
     logger.info(`[ActivationOutbox:Saga] Compensating: Cancelling ${providerActivationId} at provider ${providerId}`)
     try {
-        await smsProvider.cancelNumber(providerActivationId)
+        await smsProvider.setCancel(providerActivationId)
         logger.success(`[ActivationOutbox:Saga] Successfully cancelled orphaned number: ${providerActivationId}`)
     } catch (err: any) {
         logger.error(`[ActivationOutbox:Saga] Failed to cancel orphaned number: ${err.message}`)
@@ -225,7 +225,7 @@ async function handleProviderRequest(activationId: string, payload: any) {
             // MUST CANCEL AT PROVIDER TO AVOID LOSS
             logger.error(`[ActivationOutbox] CRITICAL CONFLICT: Number bought but state changed. Canceling at provider: ${providerResult.activationId}`)
             try {
-                await smsProvider.cancelNumber(providerResult.activationId)
+                await smsProvider.setCancel(providerResult.activationId)
             } catch (cancelErr: any) {
                 logger.error(`[ActivationOutbox] Failed to cancel orphaned number: ${cancelErr.message}`)
             }

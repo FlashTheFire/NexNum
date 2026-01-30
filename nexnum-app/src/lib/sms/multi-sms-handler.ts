@@ -205,19 +205,27 @@ export class MultiSmsHandler {
 
             const adapter = getProviderAdapter(provider)
 
-            // 1. Prefer the new standard 'nextSms' method
-            if ('nextSms' in adapter) {
+            // 1. Prefer the standardized v2.0 'setResendCode' method
+            if ('setResendCode' in adapter && typeof adapter.setResendCode === 'function') {
                 await new Promise(resolve => setTimeout(resolve, CONFIG.NEXT_SMS_REQUEST_DELAY_MS))
-                await adapter.nextSms!(activationId)
-                logger.info('[MultiSMS] Requested next SMS (via nextSms)', { numberId, activationId })
+                await adapter.setResendCode(activationId)
+                logger.info('[MultiSMS] Requested resend code (via setResendCode)', { numberId, activationId })
                 return true
             }
 
-            // 2. Fallback: Dedicated resend endpoint
-            if ('resendSms' in adapter) {
+            // 2. Backward Compatibility: nextSms
+            if ('nextSms' in adapter && typeof (adapter as any).nextSms === 'function') {
+                await new Promise(resolve => setTimeout(resolve, CONFIG.NEXT_SMS_REQUEST_DELAY_MS))
+                await (adapter as any).nextSms(activationId)
+                logger.warn('[MultiSMS] Requested next SMS (via DEPRECATED nextSms)', { numberId, activationId })
+                return true
+            }
+
+            // 3. Fallback: Dedicated resend endpoint
+            if ('resendSms' in adapter && typeof (adapter as any).resendSms === 'function') {
                 await new Promise(resolve => setTimeout(resolve, CONFIG.NEXT_SMS_REQUEST_DELAY_MS))
                 await (adapter as any).resendSms(activationId)
-                logger.info('[MultiSMS] Resend requested', { numberId, activationId })
+                logger.warn('[MultiSMS] Requested next SMS (via DEPRECATED resendSms)', { numberId, activationId })
                 return true
             }
 

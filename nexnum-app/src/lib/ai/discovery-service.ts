@@ -37,7 +37,7 @@ interface ProviderConfig {
   authHeader?: string;
   
   endpoints: {
-    [key in 'getCountriesList' | 'getServicesList' | 'getNumber' | 'getStatus' | 'cancelNumber' | 'getBalance' | 'getPrices']: {
+    [key in 'getCountriesList' | 'getServicesList' | 'getNumber' | 'getStatus' | 'setCancel' | 'getBalance' | 'getPrices']: {
         method: 'GET' | 'POST';
         path: string;
         queryParams?: Record<string, string>;
@@ -46,7 +46,7 @@ interface ProviderConfig {
   };
 
   mappings: {
-    [key in 'getCountriesList' | 'getServicesList' | 'getNumber' | 'getStatus' | 'cancelNumber' | 'getBalance' | 'getPrices']: any;
+    [key in 'getCountriesList' | 'getServicesList' | 'getNumber' | 'getStatus' | 'setCancel' | 'getBalance' | 'getPrices']: any;
   };
 }
 \`\`\`

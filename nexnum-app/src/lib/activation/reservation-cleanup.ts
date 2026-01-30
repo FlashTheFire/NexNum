@@ -174,7 +174,7 @@ async function cleanupExpiredNumbers(): Promise<number> {
                         }
 
                         // 2. Active Cancellation
-                        await smsProvider.cancelNumber(num.activationId)
+                        await smsProvider.setCancel(num.activationId)
                         logger.info(`[NUMBER-CLEANUP] Cancelled at provider: ${num.activationId}`)
                     } catch (err: any) {
                         logger.warn(`[NUMBER-CLEANUP] Provider check/cancel failed for ${num.id}: ${err.message}`)

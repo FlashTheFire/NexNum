@@ -588,7 +588,7 @@ class NumberLifecycleManager {
 
             // No SMS - cancel at provider and refund
             try {
-                await smsProvider.cancelNumber(number.activationId)
+                await smsProvider.setCancel(number.activationId)
             } catch (e) {
                 logger.warn('[Lifecycle] Provider cancel failed, still refunding', {
                     numberId,
