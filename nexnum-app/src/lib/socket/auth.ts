@@ -95,7 +95,7 @@ export async function socketAuth(socket: Socket, next: (err?: any) => void) {
 
         next();
     } catch (err) {
-        logger.error('[Socket] Auth middleware error', err);
+        logger.error('[Socket] Auth middleware error', { error: err });
         next(new Error('Authentication error: Internal Server Error'));
     }
 }

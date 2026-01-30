@@ -45,7 +45,7 @@ export class SocketRateLimiter {
 
             return true;
         } catch (error) {
-            logger.error('[SocketLimiter] Error acquiring lock', error);
+            logger.error('[SocketLimiter] Error acquiring lock', { error });
             // Fail open to avoid blocking users during Redis issues
             return true;
         }
@@ -59,7 +59,7 @@ export class SocketRateLimiter {
         try {
             await redis.srem(key, socketId);
         } catch (error) {
-            logger.error('[SocketLimiter] Error releasing lock', error);
+            logger.error('[SocketLimiter] Error releasing lock', { error });
         }
     }
 }

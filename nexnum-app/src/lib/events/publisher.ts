@@ -83,7 +83,7 @@ export class EventPublisher {
             await Promise.all([pubPromise, streamPromise]);
 
         } catch (error) {
-            logger.error(`[Event] Failed to publish ${type}`, error);
+            logger.error(`[Event] Failed to publish ${type}`, { error });
             throw error; // Propagate error to worker so it knows publishing failed
         }
     }

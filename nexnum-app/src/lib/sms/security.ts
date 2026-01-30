@@ -9,6 +9,7 @@
 
 import crypto from 'crypto'
 import { logger } from '@/lib/core/logger'
+import { smsAudit } from './audit'
 
 // ============================================
 // CONFIGURATION
@@ -33,7 +34,7 @@ const CONFIG = {
     FINGERPRINT_SECRET: (() => {
         const secret = process.env.SMS_FINGERPRINT_SECRET || process.env.FINGERPRINT_SALT
         if (!secret && process.env.NODE_ENV === 'production') {
-            console.error('CRITICAL: FINGERPRINT_SALT or SMS_FINGERPRINT_SECRET missing')
+            logger.error('CRITICAL: FINGERPRINT_SALT or SMS_FINGERPRINT_SECRET missing', { context: 'SECURITY' })
         }
         return secret || 'dev-only-fingerprint-secret'
     })(),
@@ -369,13 +370,18 @@ export function logAnomaly(
 ): void {
     if (!anomaly.detected) return
 
-    logger.warn(`[ANOMALY:${anomaly.type}] ${anomaly.details}`, {
-        ...context,
+    logger.warn(`Anomaly detected: ${anomaly.type}`, {
+        context: 'SECURITY',
+        details: anomaly.details,
         severity: anomaly.severity,
-        anomalyType: anomaly.type
+        anomalyType: anomaly.type,
+        ...context
     })
 
-    // TODO: Store in audit table for forensics
+    // Persist to audit table for forensics
+    smsAudit.logAnomaly(anomaly, context).catch(err => {
+        logger.error('Failed to persist anomaly to audit table', { error: err.message, anomaly })
+    })
 }
 
 // ============================================

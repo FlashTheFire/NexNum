@@ -516,7 +516,7 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
 
     // Testing State
     const [testAction, setTestAction] = useState('test')
-    const [testParams, setTestParams] = useState({ country: '', service: '', operator: '', maxPrice: '', id: '', status: '' })
+    const [testParams, setTestParams] = useState<Record<string, string>>({ country: '', service: '', operator: '', maxPrice: '', id: '', status: '' })
     const [testResults, setTestResults] = useState<Record<string, any>>({}) // Multi-test results
     const [expandedTest, setExpandedTest] = useState<string | null>(null) // Which test row is expanded
     const [selectedMapping, setSelectedMapping] = useState<string>('')
@@ -910,13 +910,14 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                 <span className="text-sm text-white/60 flex-1">Quick start with template:</span>
                                 <select
                                     onChange={(e) => {
-                                        const template = PROVIDER_TEMPLATES[e.target.value]
+                                        const templateKey = e.target.value as keyof typeof PROVIDER_TEMPLATES
+                                        const template = PROVIDER_TEMPLATES[templateKey]
                                         if (template) {
                                             setFormData({
                                                 ...formData,
                                                 name: e.target.value,
                                                 displayName: template.displayName,
-                                                apiBaseUrl: template.apiBaseUrl,
+                                                apiBaseUrl: template.baseUrl,
                                                 authType: template.authType,
                                                 endpoints: JSON.stringify(template.endpoints, null, 2),
                                                 mappings: JSON.stringify(template.mappings, null, 2),
@@ -927,7 +928,7 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                     className="h-9 px-3 rounded-lg bg-blue-500/20 border border-blue-500/30 text-xs font-medium text-blue-300 focus:outline-none cursor-pointer"
                                 >
                                     <option value="" disabled>Choose template...</option>
-                                    {Object.keys(PROVIDER_TEMPLATES).map((key) => (
+                                    {(Object.keys(PROVIDER_TEMPLATES) as Array<keyof typeof PROVIDER_TEMPLATES>).map((key) => (
                                         <option key={key} value={key}>{PROVIDER_TEMPLATES[key].displayName}</option>
                                     ))}
                                 </select>
@@ -2184,7 +2185,7 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                             const isExpanded = expandedTest === row.key
 
                                             // Safer Color Mapping for Tailwind
-                                            const colors = {
+                                            const colorsMap: Record<string, { bg: string; text: string; border: string }> = {
                                                 emerald: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/20' },
                                                 blue: { bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/20' },
                                                 purple: { bg: 'bg-purple-500/10', text: 'text-purple-400', border: 'border-purple-500/20' },
@@ -2193,9 +2194,11 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                                 pink: { bg: 'bg-pink-500/10', text: 'text-pink-400', border: 'border-pink-500/20' },
                                                 orange: { bg: 'bg-orange-500/10', text: 'text-orange-400', border: 'border-orange-500/20' },
                                                 red: { bg: 'bg-red-500/10', text: 'text-red-400', border: 'border-red-500/20' },
-                                            }[row.color as keyof typeof colors] || { bg: 'bg-white/5', text: 'text-white', border: 'border-white/10' }
+                                            }
+                                            const colors = colorsMap[row.color] || { bg: 'bg-white/5', text: 'text-white', border: 'border-white/10' }
 
-                                            const configFields = {
+                                            type ConfigField = { key: string; label: string; required: boolean; placeholder: string; type?: string; options?: { value: string; label: string }[] }
+                                            const configFieldsMap: Record<string, ConfigField[]> = {
                                                 getNumber: [
                                                     { key: 'country', label: 'Country', required: true, placeholder: 'us' },
                                                     { key: 'service', label: 'Service', required: true, placeholder: 'wa' },
@@ -2210,7 +2213,8 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                                 getStatus: [{ key: 'id', label: 'Activation ID', required: true, placeholder: 'ID' }],
                                                 setComplete: [{ key: 'id', label: 'Activation ID', required: true, placeholder: 'ID' }],
                                                 setCancel: [{ key: 'id', label: 'Activation ID', required: true, placeholder: 'ID' }]
-                                            }[row.key as keyof typeof configFields]
+                                            }
+                                            const configFields = configFieldsMap[row.key]
 
                                             return (
                                                 <div key={row.key} className="border-b border-white/5 last:border-0">

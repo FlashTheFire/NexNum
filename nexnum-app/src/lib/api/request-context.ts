@@ -5,7 +5,6 @@
  * Each request gets a unique ID that flows through logs and Sentry
  */
 
-import { AsyncLocalStorage } from 'async_hooks'
 import { randomUUID } from '@/lib/core/isomorphic-crypto'
 
 interface RequestContext {
@@ -17,8 +16,28 @@ interface RequestContext {
     method?: string
 }
 
-// AsyncLocalStorage for request-scoped context
-const requestContext = new AsyncLocalStorage<RequestContext>()
+// Isomorphic AsyncLocalStorage initialization
+let requestContext: any;
+
+if (typeof window === 'undefined') {
+    try {
+        // Use require to avoid build-time resolution in client bundles
+        const { AsyncLocalStorage } = require('async_hooks');
+        requestContext = new AsyncLocalStorage();
+    } catch (e) {
+        // Fallback for environments without ALS
+        requestContext = {
+            getStore: () => undefined,
+            run: (_: any, fn: () => any) => fn()
+        };
+    }
+} else {
+    // Browser fallback
+    requestContext = {
+        getStore: () => undefined,
+        run: (_: any, fn: () => any) => fn()
+    };
+}
 
 /**
  * Generate a short, readable request ID

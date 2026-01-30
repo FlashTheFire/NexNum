@@ -131,7 +131,7 @@ export async function refreshAllServiceAggregates() {
         return finalStats.length
 
     } catch (error) {
-        logger.error('[AGGREGATES] Refresh failed critical:', error)
+        logger.error('[AGGREGATES] Refresh failed critical:', { error })
         return 0
     }
 }
@@ -198,7 +198,7 @@ export async function getServiceAggregates(options?: {
                 }
             }
         } catch (e) {
-            logger.warn('[SEARCH] Meili search failed, using DB fallback:', e)
+            logger.warn('[SEARCH] Meili search failed, using DB fallback:', { error: e })
             where = {
                 OR: [
                     { serviceCode: { contains: options.query, mode: 'insensitive' } },

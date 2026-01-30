@@ -1,4 +1,4 @@
-import { AppError } from '@/lib/api/response-factory'
+import { AppError } from '@/lib/core/errors'
 
 export type PaymentErrorCode =
     | 'E_INSUFFICIENT_FUNDS'
@@ -9,8 +9,8 @@ export type PaymentErrorCode =
     | 'E_INTEGRITY_BREACH'
 
 export class PaymentError extends AppError {
-    constructor(message: string, code: PaymentErrorCode, status: number = 400) {
-        super(message, status, code)
+    constructor(message: string, code: string, status: number = 400) {
+        super(message, code as any, status)
         this.name = 'PaymentError'
     }
 

@@ -16,6 +16,7 @@ export const POST = apiHandler(async (request, { body }) => {
     const user = await getCurrentUser(request.headers)
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+    if (!body) return NextResponse.json({ error: 'Missing request body' }, { status: 400 })
     const { numberId } = body
 
     // 2. Fetch Active Number

@@ -117,18 +117,28 @@ export interface AlertPayload {
 // ============================================================================
 
 class TelegramChannel {
-    private bot: Telegraf | null = null
+    private _botInstance: Telegraf | null = null
     private channelId: string
 
     constructor() {
         this.channelId = CONFIG.telegram.adminChannel
+    }
 
-        if (CONFIG.telegram.enabled) {
-            this.bot = new Telegraf(CONFIG.telegram.botToken)
-            logger.info('[Telegram] Channel initialized')
-        } else {
-            logger.warn('[Telegram] Disabled - missing TELEGRAM_BOT_TOKEN or TELEGRAM_ADMIN_CHANNEL')
-        }
+    private get bot(): Telegraf | null {
+        if (this._botInstance) return this._botInstance
+        if (!CONFIG.telegram.enabled) return null
+
+        // Skip initialization during build if not already initialized
+        const isBuilding =
+            process.env.NEXT_PHASE === 'phase-production-build' ||
+            process.env.NEXT_IS_BUILDING === '1' ||
+            process.argv.some(arg => arg.includes('next-build') || (arg.includes('next') && process.argv.includes('build')));
+
+        if (isBuilding) return null
+
+        this._botInstance = new Telegraf(CONFIG.telegram.botToken)
+        logger.info('[Telegram] Channel initialized')
+        return this._botInstance
     }
 
     // --------------------------------------------------------------------------
@@ -529,23 +539,32 @@ ${payload.smsList && payload.smsList.length > 0 ? `🔐 <b>Codes »</b> <code>${
 // ============================================================================
 
 class EmailChannel {
-    private transporter: nodemailer.Transporter | null = null
+    private _transporterInstance: nodemailer.Transporter | null = null
 
-    constructor() {
-        if (CONFIG.email.enabled) {
-            this.transporter = nodemailer.createTransport({
-                host: CONFIG.email.host,
-                port: CONFIG.email.port,
-                secure: CONFIG.email.port === 465,
-                auth: {
-                    user: CONFIG.email.user,
-                    pass: CONFIG.email.pass
-                }
-            })
-            logger.info('[Email] SMTP transport initialized')
-        } else {
-            logger.warn('[Email] Disabled - missing SMTP_USER or SMTP_PASS')
-        }
+    constructor() { }
+
+    private get transporter(): nodemailer.Transporter | null {
+        if (this._transporterInstance) return this._transporterInstance
+        if (!CONFIG.email.enabled) return null
+
+        const isBuilding =
+            process.env.NEXT_PHASE === 'phase-production-build' ||
+            process.env.NEXT_IS_BUILDING === '1' ||
+            process.argv.some(arg => arg.includes('next-build') || (arg.includes('next') && process.argv.includes('build')));
+
+        if (isBuilding) return null
+
+        this._transporterInstance = nodemailer.createTransport({
+            host: CONFIG.email.host,
+            port: CONFIG.email.port,
+            secure: CONFIG.email.port === 465,
+            auth: {
+                user: CONFIG.email.user,
+                pass: CONFIG.email.pass
+            }
+        })
+        logger.info('[Email] SMTP transport initialized')
+        return this._transporterInstance
     }
 
 
@@ -614,14 +633,38 @@ class EmailChannel {
 // ============================================================================
 
 class NotificationManager {
-    private telegram: TelegramChannel
-    private email: EmailChannel
-
     constructor() {
-        this.telegram = new TelegramChannel()
-        this.email = new EmailChannel()
-        logger.info('[NotificationManager] Initialized')
+        // Channels are now lazy
     }
+
+    private _telegram: TelegramChannel | null = null
+    private _email: EmailChannel | null = null
+
+    private get telegram(): TelegramChannel {
+        if (!this._telegram) this._telegram = new TelegramChannel()
+        return this._telegram
+    }
+
+    private get email(): EmailChannel {
+        if (!this._email) this._email = new EmailChannel()
+        return this._email
+    }
+
+    private init() {
+        if (!this._initialized) {
+            const isBuilding =
+                process.env.NEXT_PHASE === 'phase-production-build' ||
+                process.env.NEXT_IS_BUILDING === '1' ||
+                process.argv.some(arg => arg.includes('next-build') || (arg.includes('next') && process.argv.includes('build')));
+
+            if (!isBuilding) {
+                logger.info('[NotificationManager] Initialized')
+                this._initialized = true
+            }
+        }
+    }
+
+    private _initialized = false
 
     /**
      * Send deposit notification to all enabled channels

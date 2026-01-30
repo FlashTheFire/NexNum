@@ -198,7 +198,9 @@ export default function SettingsPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     section: activeTab,
-                    updates: settings[activeTab],
+                    updates: (activeTab === 'general' || activeTab === 'pricing' || activeTab === 'rateLimit' || activeTab === 'notifications')
+                        ? settings[activeTab]
+                        : {},
                 }),
             })
 

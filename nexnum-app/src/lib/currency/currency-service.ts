@@ -1,6 +1,7 @@
 
 import { prisma } from '../core/db'
 import { Prisma } from '@prisma/client'
+import { logger } from '@/lib/core/logger'
 
 export interface CurrencyInfo {
     code: string
@@ -204,7 +205,7 @@ export class CurrencyService {
      */
     async syncRates() {
         try {
-            console.log("Syncing exchange rates...")
+            logger.info('Syncing exchange rates from external API...', { context: 'CURRENCY' })
             // Frankfurter API for fiat (relative to EUR by default, but we can use USD)
             const response = await fetch('https://api.frankfurter.app/latest?from=USD')
             if (!response.ok) throw new Error('Failed to fetch fiat rates')
@@ -223,9 +224,9 @@ export class CurrencyService {
             // Clear cache to force reload
             this.ratesCache.clear()
             this.lastUpdate = 0
-            console.log("Rates synced successfully.")
-        } catch (e) {
-            console.error("Rate sync failed:", e)
+            logger.info('Exchange rates synced successfully', { context: 'CURRENCY' })
+        } catch (e: any) {
+            logger.error('Rate sync failed', { context: 'CURRENCY', error: e.message })
         }
     }
 }

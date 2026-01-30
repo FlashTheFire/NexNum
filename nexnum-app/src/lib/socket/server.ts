@@ -67,13 +67,13 @@ export class SocketService {
             this.subClient = new Redis(redisUrl);
 
             // ioredis connects automatically, but we can handle errors
-            this.pubClient.on('error', (err) => logger.error('[SocketService] PubClient Error', err));
-            this.subClient.on('error', (err) => logger.error('[SocketService] SubClient Error', err));
+            this.pubClient.on('error', (err) => logger.error('[SocketService] PubClient Error', { error: err }));
+            this.subClient.on('error', (err) => logger.error('[SocketService] SubClient Error', { error: err }));
 
             this.io.adapter(createAdapter(this.pubClient, this.subClient));
             logger.info('[SocketService] Redis Adapter Connected');
         } catch (e) {
-            logger.error('[SocketService] Failed to connect Redis Adapter', e);
+            logger.error('[SocketService] Failed to connect Redis Adapter', { error: e });
         }
     }
 
@@ -131,7 +131,7 @@ export class SocketService {
     private startEventSubscription() {
         this.eventSubscriber.subscribe('events:global', (err) => {
             if (err) {
-                logger.error('[SocketService] Failed to subscribe to events channel', err);
+                logger.error('[SocketService] Failed to subscribe to events channel', { error: err });
             } else {
                 logger.info('[SocketService] Listening to "events:global"');
             }
@@ -172,7 +172,7 @@ export class SocketService {
                 });
 
             } catch (e) {
-                logger.error('[SocketService] Error processing Redis message', e);
+                logger.error('[SocketService] Error processing Redis message', { error: e });
             }
         });
     }

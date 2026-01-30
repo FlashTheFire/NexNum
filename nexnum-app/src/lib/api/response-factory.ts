@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { API_SECURITY_HEADERS } from '@/lib/security'
 import { getRequestId, getTraceId } from './request-context'
+import { AppError } from '@/lib/core/errors'
 
 /**
  * Professional API Response Factory
@@ -8,17 +9,6 @@ import { getRequestId, getTraceId } from './request-context'
  * Standardizes the JSON envelope for all API responses.
  * Automatically injects Security and Correlation headers.
  */
-
-export class AppError extends Error {
-    constructor(
-        public message: string,
-        public status: number = 400,
-        public code: string = 'E_UNKNOWN'
-    ) {
-        super(message)
-        this.name = 'AppError'
-    }
-}
 
 export class ResponseFactory {
     /**
@@ -53,7 +43,7 @@ export class ResponseFactory {
             {
                 success: false,
                 error: message,
-                code: code || `E_HTTP_${status}`,
+                code: code || `HTTP_${status}`,
                 details
             },
             { status, headers: this.getHeaders() }

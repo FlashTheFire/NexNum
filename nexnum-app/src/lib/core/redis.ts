@@ -1,4 +1,5 @@
 import Redis from 'ioredis'
+import { logger } from './logger'
 
 // Redis client initialization (Singleton)
 const getRedisConfig = () => {
@@ -9,31 +10,64 @@ const getRedisConfig = () => {
     return url;
 };
 
-// Singleton Redis Client
-// PRO TIP: In a cluster environment, use new Redis.Cluster()
-export const redis = new Redis(getRedisConfig(), {
-    maxRetriesPerRequest: null,
-    enableReadyCheck: true,
-    reconnectOnError(err) {
-        const targetError = 'READONLY';
-        if (err.message.includes(targetError)) {
-            return true;
-        }
-        return false;
-    },
-    retryStrategy(times) {
-        // Stop retrying after 3 times in non-production environments to prevent hangs
-        if (process.env.NODE_ENV !== 'production' && times > 3) {
-            console.warn('[Redis] Max retries reached. Procedding without Redis.');
-            return null; // Stop retrying
-        }
-        const delay = Math.min(times * 100, 3000);
-        return delay;
-    }
-});
+// Internal Redis instance
+let _redis: Redis | null = null;
 
-redis.on('error', (err) => {
-    console.error('[Redis] Connection Error:', err);
+// Helper to get or create Redis instance
+const getRedisClient = (): Redis => {
+    if (!_redis) {
+        // Skip connection if we are in a build environment that typically won't have Redis
+        // This is a safety measure to avoid hanging builds or noisy logs
+        const isBuilding =
+            process.env.NEXT_PHASE === 'phase-production-build' ||
+            process.env.NEXT_IS_BUILDING === '1' ||
+            process.env.npm_lifecycle_event === 'build';
+
+        _redis = new Redis(getRedisConfig(), {
+            maxRetriesPerRequest: null,
+            enableReadyCheck: !isBuilding, // Disable ready check during build
+            lazyConnect: true,            // Don't connect until first command
+            reconnectOnError(err) {
+                const targetError = 'READONLY';
+                if (err.message.includes(targetError)) {
+                    return true;
+                }
+                return false;
+            },
+            retryStrategy(times) {
+                // Stop retrying after 3 times in non-production environments to prevent hangs
+                if (process.env.NODE_ENV !== 'production' && times > 3) {
+                    logger.warn('Max Redis retries reached. Proceeding without Redis.', { context: 'CORE' });
+                    return null; // Stop retrying
+                }
+                const delay = Math.min(times * 100, 3000);
+                return delay;
+            }
+        });
+
+        _redis.on('error', (err) => {
+            // Only log errors if we are not in build mode or if it's a real connection error
+            if (!isBuilding) {
+                logger.error('Redis connection error', { context: 'CORE', error: err.message });
+            }
+        });
+    }
+    return _redis;
+};
+
+/**
+ * Lazy Redis Client (Singleton)
+ * Uses a Proxy to intercept calls and initialize only when used.
+ */
+export const redis = new Proxy({} as Redis, {
+    get(target, prop, receiver) {
+        const client = getRedisClient();
+        const value = Reflect.get(client, prop, receiver);
+        if (typeof value === 'function') {
+            return value.bind(client);
+        }
+        return value;
+    }
 });
 
 // Key patterns
@@ -122,7 +156,7 @@ export async function cacheGet<T>(
         return value
     } catch (error) {
         // If Redis fails, just fetch directly
-        console.warn('[Redis] Cache error, fetching directly:', error)
+        logger.warn('Redis cache get error, fetching directly', { context: 'CORE', key, error: (error as any).message })
         return fetchFn()
     }
 }
@@ -135,7 +169,7 @@ export async function cacheInvalidate(pattern: string): Promise<void> {
         // For single key deletion
         await redis.del(pattern)
     } catch (error) {
-        console.warn('[Redis] Cache invalidation error:', error)
+        logger.warn('Redis cache invalidation error', { context: 'CORE', pattern, error: (error as any).message })
     }
 }
 
@@ -151,7 +185,7 @@ export async function cacheSet<T>(
         const stringified = typeof value === 'string' ? value : JSON.stringify(value)
         await redis.set(key, stringified, 'EX', ttlSeconds)
     } catch (error) {
-        console.warn('[Redis] Cache set error:', error)
+        logger.warn('Redis cache set error', { context: 'CORE', key, error: (error as any).message })
     }
 }
 

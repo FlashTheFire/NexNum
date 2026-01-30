@@ -81,6 +81,12 @@ export interface SmsProvider {
     /** Check status and get SMS */
     getStatus?(activationId: string): Promise<StatusResult>
 
+    /** Batch status check (v2.1) */
+    getStatusBatch?(activationIds: string[]): Promise<Map<string, StatusResult>>
+
+    /** Request next SMS code (v2.0) */
+    setResendCode?(activationId: string): Promise<void>
+
     /** Get provider balance */
     getBalance?(): Promise<number>
 

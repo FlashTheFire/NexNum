@@ -56,7 +56,7 @@ export const EmailLayout = ({ preview, children }: EmailLayoutProps) => {
                         fontStyle="normal"
                     />
                 </Head>
-                <Preview>{preview}</Preview>
+                <Preview>{preview || ''}</Preview>
 
                 <Body style={components.main}>
                     <Container style={components.container}>

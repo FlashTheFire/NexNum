@@ -432,7 +432,14 @@ export class UnifiedPollManager {
                     throw new Error(`Provider ${item.providerId} not found`)
                 }
 
+                if (!item.activationId) {
+                    throw new Error(`Activation ID missing for number ${item.numberId}`)
+                }
+
                 const adapter = getProviderAdapter(provider)
+                if (!adapter.getStatus) {
+                    throw new Error(`Provider ${provider.name} does not support getStatus`)
+                }
                 const status = await adapter.getStatus(item.activationId)
 
                 return {

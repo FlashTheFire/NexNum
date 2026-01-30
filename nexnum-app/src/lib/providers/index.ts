@@ -9,3 +9,7 @@ export const smsProvider = new SmartSmsRouter()
 export * from './types'
 export * from './dynamic-provider'
 export * from './provider-factory'
+export { healthMonitor } from './health-monitor'
+export { syncProviderData, syncAllProviders, startSyncScheduler, stopSyncScheduler } from './provider-sync'
+
+

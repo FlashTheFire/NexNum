@@ -13,7 +13,7 @@ const withBundleAnalyzer = bundleAnalyzer({
 const nextConfig = {
     // Stockholm Production Fast-Path: Resolve t3.small Resource Deadlock
     typescript: {
-        ignoreBuildErrors: true,
+        ignoreBuildErrors: false,
     },
 
     // CDN & Caching Optimization
@@ -103,6 +103,7 @@ const nextConfig = {
         ],
     },
 
+    /*
     experimental: {
         optimizePackageImports: [
             'lucide-react',
@@ -111,7 +112,9 @@ const nextConfig = {
             'date-fns',
         ],
     },
+    */
 
+    /*
     webpack: (config, { isServer }) => {
         if (!isServer) {
             config.resolve.fallback = {
@@ -133,6 +136,8 @@ const nextConfig = {
 
         return config;
     },
+    */
+    turbopack: {},
 };
 
 const sentryWebpackPluginOptions = {
@@ -145,7 +150,7 @@ const sentryWebpackPluginOptions = {
     dryRun: !process.env.SENTRY_AUTH_TOKEN,
 };
 
-let config = withNextIntl(nextConfig);
+const config = withNextIntl(nextConfig);
 config = withBundleAnalyzer(config);
 
 if (process.env.SENTRY_DSN) {

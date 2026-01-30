@@ -531,8 +531,8 @@ export default function CountrySelector({
             >
                 <AnimatePresence>
                     {sortedCountries.map((country, index) => {
-                        const isSelected = selectedCountryId === country.id ||
-                            (selectedCountryId && country.name.toLowerCase() === selectedCountryId.toLowerCase());
+                        const isSelected = Boolean(selectedCountryId === country.id ||
+                            (selectedCountryId && country.name.toLowerCase() === selectedCountryId.toLowerCase()));
                         const stockStatus = getStockStatus(country.totalStock);
                         const isOutOfStock = stockStatus === "out";
 

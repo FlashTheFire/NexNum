@@ -30,7 +30,8 @@ import { MultiSmsHandler } from '@/lib/sms/multi-sms-handler'
 import { BatchPollManager, getActiveNumbersForPolling } from './batch-poll-manager'
 import { getNextPollDelay, describePollStrategy } from './adaptive-poll-strategy'
 import { canTransition, isRefundable, transition, STATE_METADATA } from './activation-state-machine'
-import type { ActivationState } from '@prisma/client'
+import type { ActivationState, Prisma } from '@prisma/client'
+import { NumberResult } from '@/lib/providers/types'
 import {
     order_state_transitions_total,
     order_processing_duration_seconds,
@@ -156,9 +157,9 @@ export class OrderOrchestrator {
 
             const adapter = getProviderAdapter(provider)
 
-            let numberResult
+            let numberResult: NumberResult
             try {
-                numberResult = await adapter.getNumber(countryCode, serviceCode, {
+                numberResult = await adapter.getNumber!(countryCode, serviceCode, {
                     maxPrice: price,
                     operator: operatorId
                 })
@@ -199,15 +200,15 @@ export class OrderOrchestrator {
                         activation.activationId,
                         `Purchase: ${serviceName || serviceCode} (${countryCode})`,
                         undefined,
-                        tx as any
+                        tx
                     )
 
                     // 3. Finalize Activation record details
                     await tx.activation.update({
                         where: { id: activation.activationId },
                         data: {
-                            providerActivationId: numberResult.id,
-                            phoneNumber: numberResult.phone,
+                            providerActivationId: numberResult.activationId,
+                            phoneNumber: numberResult.phoneNumber,
                             expiresAt
                         }
                     })
@@ -218,14 +219,14 @@ export class OrderOrchestrator {
                 // CRITICAL: Must queue compensation task (Cancel at provider)
                 logger.error('[OrderOrchestrator] SAGA CRITICAL FAILURE: Number bought but DB commit failed. Queueing compensation.', {
                     activationId: activation.activationId,
-                    providerActivationId: numberResult.id,
-                    error: sagaError.message
+                    providerActivationId: numberResult.activationId,
+                    error: (sagaError as Error).message
                 })
 
                 await ActivationKernel.dispatchEvent(
                     activation.activationId,
                     'saga.compensate.set_cancel',
-                    { providerActivationId: numberResult.id, providerId },
+                    { providerActivationId: numberResult.activationId, providerId },
                     prisma
                 )
 
@@ -246,7 +247,7 @@ export class OrderOrchestrator {
             // 6. Schedule polling
             await lifecycleManager.schedulePolling(
                 activation.activationId,
-                numberResult.id,
+                numberResult.activationId,
                 userId
             )
 
@@ -258,15 +259,15 @@ export class OrderOrchestrator {
 
             logger.info('[OrderOrchestrator] Purchase complete', {
                 orderId: activation.activationId,
-                phoneNumber: numberResult.phone,
+                phoneNumber: numberResult.phoneNumber,
                 duration
             })
 
             return {
                 success: true,
                 orderId: activation.activationId,
-                activationId: numberResult.id,
-                phoneNumber: numberResult.phone
+                activationId: numberResult.activationId,
+                phoneNumber: numberResult.phoneNumber
             }
 
         } catch (error: any) {
@@ -368,7 +369,11 @@ export class OrderOrchestrator {
                 if (provider) {
                     const adapter = getProviderAdapter(provider)
                     try {
-                        await adapter.cancelNumber(number.activationId)
+                        if (adapter.setCancel) {
+                            await adapter.setCancel(number.activationId)
+                        } else if (adapter.cancelNumber) {
+                            await adapter.cancelNumber(number.activationId)
+                        }
                     } catch (e) {
                         logger.warn('[OrderOrchestrator] Provider cancel failed, continuing', { orderId, error: e })
                     }

@@ -41,9 +41,19 @@ class CoreOrchestrator {
             validateEnv()
 
             // 2. Resource Warming (Pre-flight connectivity)
+            // If we are in the build phase, failures should be non-fatal
+            const isBuild =
+                process.env.NEXT_PHASE === 'phase-production-build' ||
+                process.env.NEXT_IS_BUILDING === '1' ||
+                process.env.npm_lifecycle_event === 'build' ||
+                process.argv.some(arg => arg.includes('next-build') || (arg.includes('next') && process.argv.includes('build')));
+
             await Promise.all([
                 this.warmPrisma(),
-                this.warmRedis(),
+                this.warmRedis().catch(e => {
+                    if (isBuild) logger.warn('[Orchestrator] Redis warm-up failed during build (expected if no Redis available)')
+                    else throw e
+                }),
                 this.warmMeiliSearch()
             ])
 
@@ -54,6 +64,18 @@ class CoreOrchestrator {
             logger.success(`[Orchestrator] ✅ System READY (${context})`)
             logger.divider()
         } catch (error: any) {
+            const isBuild =
+                process.env.NEXT_PHASE === 'phase-production-build' ||
+                process.env.NEXT_IS_BUILDING === '1' ||
+                process.env.npm_lifecycle_event === 'build' ||
+                process.argv.some(arg => arg.includes('next-build') || (arg.includes('next') && process.argv.includes('build')));
+
+            if (isBuild) {
+                logger.warn(`[Orchestrator] ⚠️ Bootstrap encountered error during build phase, but continuing: ${error?.message}`)
+                this.state = 'READY' // Force ready for build to proceed
+                return
+            }
+
             logger.error(`[Orchestrator] ❌ FATAL BOOTSTRAP FAILURE (${context})`, {
                 errorMessage: error?.message || 'Unknown error',
                 stack: error?.stack

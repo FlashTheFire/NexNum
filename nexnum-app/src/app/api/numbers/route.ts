@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth/jwt'
 import { smsProvider } from '@/lib/providers'
+import { logger } from '@/lib/core/logger'
 
 import { unstable_cache } from 'next/cache'
 
@@ -51,7 +52,7 @@ export async function GET(request: Request) {
         })
 
     } catch (error) {
-        console.error('Get numbers error:', error)
+        logger.error('Get numbers error', { error, context: 'API_NUMBERS' })
         return NextResponse.json(
             { error: 'Internal server error' },
             { status: 500 }

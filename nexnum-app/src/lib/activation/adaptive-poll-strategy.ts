@@ -119,7 +119,7 @@ export class AdaptivePollStrategy {
         return {
             delaySeconds: baseDelay + this.jitter(baseDelay * 0.3),
             phase: phaseConfig.phase,
-            useBatch: orderAgeSeconds > 60 || lastPollError === true
+            useBatch: orderAgeSeconds > 60 || !!lastPollError
         }
     }
 

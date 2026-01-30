@@ -41,18 +41,31 @@ function createPrismaClient(url?: string): PrismaClient {
     })
 }
 
-export const prisma = globalForPrisma.prisma ?? createPrismaClient()
+const prismaProxy = new Proxy({} as PrismaClient, {
+    get: (target, prop, receiver) => {
+        if (!globalForPrisma.prisma) {
+            globalForPrisma.prisma = createPrismaClient()
+        }
+        return Reflect.get(globalForPrisma.prisma, prop, receiver)
+    }
+})
 
-// Read Replica Client (falls back to primary if no read replica configured)
-export const prismaRead = globalForPrisma.prismaRead ?? (
-    process.env.DATABASE_READ_URL
-        ? createPrismaClient(process.env.DATABASE_READ_URL)
-        : prisma
-)
+const prismaReadProxy = new Proxy({} as PrismaClient, {
+    get: (target, prop, receiver) => {
+        if (!globalForPrisma.prismaRead) {
+            globalForPrisma.prismaRead = process.env.DATABASE_READ_URL
+                ? createPrismaClient(process.env.DATABASE_READ_URL)
+                : (globalForPrisma.prisma ?? createPrismaClient())
+        }
+        return Reflect.get(globalForPrisma.prismaRead, prop, receiver)
+    }
+})
+
+export const prisma = prismaProxy
+export const prismaRead = prismaReadProxy
 
 if (process.env.NODE_ENV !== 'production') {
-    globalForPrisma.prisma = prisma
-    globalForPrisma.prismaRead = prismaRead
+    // We don't need to assign to globalForPrisma here since the Proxy handles it
 }
 
 

@@ -182,7 +182,7 @@ class QueueService {
         try {
             await this.boss.fail(queue, jobId, error)
         } catch (err) {
-            logger.error(`Failed to fail job ${jobId}`, { error: err['message'] })
+            logger.error(`Failed to fail job ${jobId}`, { error: (err as Error).message })
         }
     }
 

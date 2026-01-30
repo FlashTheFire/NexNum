@@ -35,8 +35,8 @@ export class PredictiveThrottler {
 
             if (!rawData || Object.keys(rawData).length === 0) return DEFAULT_CONFIG.maxParallel
 
-            const latency = parseInt(rawData.latency || '0')
-            const errorRate = parseFloat(rawData.errorRate || '0')
+            const latency = parseInt(rawData['latency'] || '0')
+            const errorRate = parseFloat(rawData['errorRate'] || '0')
 
             // 1. Critical Slowdown (High Errors)
             if (errorRate > DEFAULT_CONFIG.errorThreshold) {
@@ -56,7 +56,7 @@ export class PredictiveThrottler {
             }
 
             return DEFAULT_CONFIG.maxParallel
-        } catch (err) {
+        } catch (err: unknown) {
             return DEFAULT_CONFIG.maxParallel // Fail open
         }
     }

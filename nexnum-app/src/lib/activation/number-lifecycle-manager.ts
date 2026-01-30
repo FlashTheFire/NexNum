@@ -49,7 +49,7 @@ interface LifecycleJobData {
 
 interface ProviderStatusResult {
     status: string
-    messages: Array<{ code: string; text?: string }>
+    messages: Array<{ code?: string; content?: string }>
 }
 
 // ============================================================================
@@ -159,7 +159,7 @@ class NumberLifecycleManager {
                 maintenanceIntervalSeconds: 60 * 60,              // Run maintenance every hour
             })
 
-            this.boss.on('error', (error) => {
+            this.boss.on('error', (error: Error) => {
                 logger.error('[Lifecycle] pg-boss error', { error: error.message })
             })
 
@@ -205,10 +205,10 @@ class NumberLifecycleManager {
             this.lastError = null
             logger.info('[Lifecycle] NumberLifecycleManager initialized successfully')
 
-        } catch (error: any) {
-            this.lastError = error.message
+        } catch (error: unknown) {
+            this.lastError = (error as Error).message
             logger.error('[Lifecycle] Initialization failed - lifecycle manager disabled', {
-                error: error.message,
+                error: (error as Error).message,
                 hint: 'If using Supabase pooler, set DATABASE_URL_DIRECT env var with direct connection'
             })
             // Don't throw - app continues without lifecycle manager
@@ -505,9 +505,10 @@ class NumberLifecycleManager {
                     startAfter: pollDecision.delaySeconds,
                 })
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
+            const err = error as Error
             // Circuit breaker may throw if open
-            if (error.message?.includes('Breaker is open')) {
+            if (err.message?.includes('Breaker is open')) {
                 logger.warn('[Lifecycle] Circuit open, using adaptive backoff', { numberId })
 
                 const { getNextPollDelay } = await import('./unified-poll-manager')
@@ -535,7 +536,7 @@ class NumberLifecycleManager {
 
                 logger.warn('[Lifecycle] Poll error, retrying', {
                     numberId,
-                    error: error.message,
+                    error: err.message,
                     retryIn: pollDecision.delaySeconds
                 })
 
@@ -588,7 +589,9 @@ class NumberLifecycleManager {
 
             // No SMS - cancel at provider and refund
             try {
-                await smsProvider.setCancel(number.activationId)
+                if (number.activationId) {
+                    await smsProvider.setCancel(number.activationId)
+                }
             } catch (e) {
                 logger.warn('[Lifecycle] Provider cancel failed, still refunding', {
                     numberId,
@@ -601,15 +604,17 @@ class NumberLifecycleManager {
                 data: { status: 'cancelled' },
             })
 
-            await WalletService.refund(
-                number.ownerId,
-                number.price.toNumber(),
-                'refund',
-                number.id,
-                `Auto-refund: Timeout ${number.serviceName}`,
-                `refund_timeout_${number.id}`,
-                tx
-            )
+            if (number.ownerId) {
+                await WalletService.refund(
+                    number.ownerId,
+                    number.price.toNumber(),
+                    'refund',
+                    number.id,
+                    `Auto-refund: Timeout ${number.serviceName}`,
+                    `refund_timeout_${number.id}`,
+                    tx
+                )
+            }
 
             return { action: 'refund' as const, reason: 'timeout_no_sms' }
         })
@@ -624,7 +629,7 @@ class NumberLifecycleManager {
 
     private async onSmsReceived(
         jobData: LifecycleJobData,
-        messages: Array<{ code: string; text?: string }>
+        messages: Array<{ code?: string; content?: string }>
     ): Promise<void> {
         const { numberId, activationId, userId } = jobData
 

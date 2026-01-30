@@ -7,12 +7,13 @@
  */
 
 import * as Sentry from '@sentry/nextjs'
+import { logger } from '@/lib/core/logger'
 
 const SENTRY_DSN = process.env.NEXT_PUBLIC_SENTRY_DSN
 
 export function initSentry() {
     if (!SENTRY_DSN) {
-        console.warn('[Sentry] DSN not configured, error tracking disabled')
+        logger.warn('Sentry DSN not configured, error tracking disabled', { context: 'MONITORING' })
         return
     }
 
@@ -56,7 +57,7 @@ export function initSentry() {
         }
     })
 
-    console.log('[Sentry] Error tracking initialized')
+    logger.info('Sentry error tracking initialized', { context: 'MONITORING' })
 }
 
 /**
@@ -64,7 +65,7 @@ export function initSentry() {
  */
 export function captureError(error: Error, context?: Record<string, any>) {
     if (!SENTRY_DSN) {
-        console.error('[Error]', error, context)
+        logger.error('Error captured (Sentry disabled)', { error: error.message, ...context })
         return
     }
 
@@ -81,7 +82,8 @@ export function captureError(error: Error, context?: Record<string, any>) {
  */
 export function captureMessage(message: string, level: 'info' | 'warning' | 'error' = 'info') {
     if (!SENTRY_DSN) {
-        console.log(`[${level.toUpperCase()}]`, message)
+        const logMethod = level === 'error' ? 'error' : (level === 'warning' ? 'warn' : 'info')
+        logger[logMethod](message, { context: 'MONITORING' })
         return
     }
 

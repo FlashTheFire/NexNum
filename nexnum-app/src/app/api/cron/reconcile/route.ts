@@ -57,7 +57,7 @@ export async function GET(request: Request) {
                 })
                 results.purchaseOrders.succeeded++
             } catch (err) {
-                logger.error(`[Reconcile] PurchaseOrder ${order.id} failed`, err)
+                logger.error(`[Reconcile] PurchaseOrder ${order.id} failed`, { error: err })
                 results.purchaseOrders.failed++
             }
         }
@@ -92,7 +92,7 @@ export async function GET(request: Request) {
                 results.activations.succeeded++
                 logger.info(`[Reconcile] Activation ${activation.id} -> FAILED (stuck)`)
             } catch (err) {
-                logger.error(`[Reconcile] Activation ${activation.id} failed`, err)
+                logger.error(`[Reconcile] Activation ${activation.id} failed`, { error: err })
                 results.activations.failed++
             }
         }
@@ -130,14 +130,14 @@ export async function GET(request: Request) {
                 results.refunds.succeeded++
                 logger.info(`[Reconcile] Activation ${activation.id} -> REFUNDED`)
             } catch (err) {
-                logger.error(`[Reconcile] Refund for ${activation.id} failed`, err)
+                logger.error(`[Reconcile] Refund for ${activation.id} failed`, { error: err })
                 results.refunds.failed++
             }
         }
 
         return NextResponse.json({ success: true, results })
     } catch (err: any) {
-        logger.error('[Reconcile] Critical error', err)
+        logger.error('[Reconcile] Critical error', { error: err })
         return NextResponse.json({ error: err.message }, { status: 500 })
     }
 }

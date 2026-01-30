@@ -14,6 +14,7 @@ import { withMetrics } from '@/lib/monitoring/http-metrics'
 import { currencyService } from '@/lib/currency/currency-service'
 import { ResponseFactory } from '@/lib/api/response-factory'
 import { PaymentError } from '@/lib/payment/payment-errors'
+import { NumberResult } from '@/lib/providers/types'
 import {
     validatePurchaseInput,
     checkUserEligibility,
@@ -40,7 +41,7 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
     let purchaseOrderId: string | null = null
     let activationId: string | null = null
     let reservedAmount = 0
-    let providerResult: any = null
+    let providerResult: NumberResult | null = null
 
     const user = await getCurrentUser(request.headers)
     if (!user) {
@@ -52,13 +53,13 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
     // ============================================
 
     const validation = validatePurchaseInput({
-        countryCode: body.countryCode,
-        serviceCode: body.serviceCode,
-        countryId: body.countryId,
-        serviceId: body.serviceId,
-        operatorId: body.operatorId,
-        provider: body.provider,
-        idempotencyKey: body.idempotencyKey
+        countryCode: body?.countryCode,
+        serviceCode: body?.serviceCode,
+        countryId: body?.countryId,
+        serviceId: body?.serviceId,
+        operatorId: body?.operatorId,
+        provider: body?.provider,
+        idempotencyKey: body?.idempotencyKey
     })
 
     if (!validation.valid || !validation.sanitized) {
@@ -66,11 +67,11 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
     }
 
     const { countryCode, serviceCode, countryId, serviceId, operatorId, provider, idempotencyKey } = validation.sanitized
-    const useBestRoute = body.useBestRoute === true
+    const useBestRoute = body?.useBestRoute === true
 
     // NEW: Currency Handling
-    const currency = body.currency || 'USD'
-    let maxPrice = typeof body.maxPrice === 'number' ? body.maxPrice : undefined
+    const currency = body?.currency || 'USD'
+    let maxPrice = typeof body?.maxPrice === 'number' ? body.maxPrice : undefined
 
     // Convert User Currency maxPrice -> System POINTS (COINS)
     if (maxPrice !== undefined && currency !== 'POINTS') {
@@ -190,7 +191,7 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
 
                 if (!result.success) throw new Error(`Best route failed: ${result.attemptsLog.map((a: any) => `${a.provider}: ${a.error}`).join(', ')}`)
 
-                providerResult = result.number
+                providerResult = result.number || null
                 providerName = result.provider || providerName
             } else {
                 providerResult = await smsProvider.getNumber(currentOffer.providerCountryCode, currentOffer.providerServiceCode, {
@@ -216,7 +217,12 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
             })
 
             await releaseAtomicPurchaseLock(user.userId, lockToken)
-            return ResponseFactory.error(providerErr.message || 'Provider unavailable', 503, 'E_PROVIDER_FAIL')
+            const providerError = providerErr as Error
+            return ResponseFactory.error(providerError.message || 'Provider unavailable', 503, 'E_PROVIDER_FAIL')
+        }
+
+        if (!providerResult) {
+            throw new Error('Provider result is missing after successful call')
         }
 
         // ============================================
@@ -225,11 +231,11 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
 
         const resultNumber = await prisma.$transaction(async (tx) => {
             const { formatPhoneNumber } = await import('@/lib/utils/phone-parser')
-            const parsedPhone = formatPhoneNumber(providerResult.phoneNumber)
+            const parsedPhone = formatPhoneNumber(providerResult!.phoneNumber)
 
             const newNumber = await tx.number.create({
                 data: {
-                    phoneNumber: providerResult.phoneNumber,
+                    phoneNumber: providerResult!.phoneNumber,
                     phoneCountryCode: parsedPhone.countryCode || null,
                     phoneNationalNumber: parsedPhone.nationalNumber || null,
                     countryName,
@@ -237,35 +243,36 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
                     serviceName,
                     serviceCode: currentOffer.serviceCode,
                     price: freshPrice,
-                    providerCost: providerResult.rawPrice || 0,
-                    profit: freshPrice - (providerResult.rawPrice || 0),
+                    providerCost: providerResult!.rawPrice || 0,
+                    profit: freshPrice - (providerResult!.rawPrice || 0),
                     status: 'active',
                     owner: { connect: { id: user.userId } },
-                    activationId: providerResult.activationId,
+                    activationId: providerResult!.activationId,
                     provider: providerName,
                     idempotencyKey,
-                    expiresAt: providerResult.expiresAt,
+                    expiresAt: providerResult!.expiresAt,
                     serviceIconUrl: currentOffer.serviceIcon,
                     countryIconUrl: currentOffer.countryIcon,
-                } as any
+                }
             })
 
             await WalletService.commit(user.userId, freshPrice, newNumber.id, `Purchase: ${serviceName}`, `tx_${purchaseOrderId}`, tx)
-            await tx.purchaseOrder.update({ where: { id: purchaseOrderId! }, data: { status: 'COMPLETED', provider: providerName, activationId: providerResult.activationId } })
+            await tx.purchaseOrder.update({ where: { id: purchaseOrderId! }, data: { status: 'COMPLETED', provider: providerName, activationId: providerResult!.activationId } })
+
 
             // @ts-ignore - Prisma ActivationState typing issue
             await tx.activation.update({
                 where: { id: activationId! },
                 data: {
                     state: 'ACTIVE',
-                    providerActivationId: providerResult.activationId,
-                    phoneNumber: providerResult.phoneNumber,
-                    expiresAt: providerResult.expiresAt,
-                    providerCost: providerResult.rawPrice || 0,
-                    profit: freshPrice - (providerResult.rawPrice || 0),
+                    providerActivationId: providerResult!.activationId,
+                    phoneNumber: providerResult!.phoneNumber,
+                    expiresAt: providerResult!.expiresAt,
+                    providerCost: providerResult!.rawPrice || 0,
+                    profit: freshPrice - (providerResult!.rawPrice || 0),
                     numberId: newNumber.id,
                     capturedTxId: `tx_${purchaseOrderId}`
-                } as any
+                }
             })
 
             return newNumber
@@ -277,8 +284,9 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
 
         return ResponseFactory.success({ number: resultNumber })
 
-    } catch (err: any) {
-        logger.error(`[PURCHASE] Critical Error`, { error: err.message, correlationId })
+    } catch (err: unknown) {
+        const error = err as Error
+        logger.error(`[PURCHASE] Critical Error`, { error: error.message, correlationId })
         if (lockAcquired) await releaseAtomicPurchaseLock(user.userId, lockToken)
 
         // Basic cleanup
@@ -291,9 +299,9 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
         }
 
         if (err instanceof PaymentError) {
-            return ResponseFactory.error(err.message, err.status, err.code)
+            return ResponseFactory.error(err.message, err.statusCode, err.code)
         }
 
-        return ResponseFactory.error(err.message || 'Purchase processing failed', 500, 'E_PURCHASE_FAIL')
+        return ResponseFactory.error(error.message || 'Purchase processing failed', 500, 'E_PURCHASE_FAIL')
     }
 }, { schema: purchaseNumberSchema }), { route: '/api/numbers/purchase' })

@@ -67,7 +67,7 @@ export class ActivationService {
             'activation_reserve',
             `Reserve: ${input.serviceName}`,
             input.idempotencyKey ? `reserve_${input.idempotencyKey}` : undefined,
-            client as any
+            client as Prisma.TransactionClient
         )
 
         // Create Activation
@@ -145,7 +145,7 @@ export class ActivationService {
             activationId,
             `Purchase: ${activation.serviceName}`,
             `capture_${activationId}`,
-            client as any
+            client as Prisma.TransactionClient
         )
 
         // Update Activation via Kernel (Forensic + Transition)
@@ -200,7 +200,7 @@ export class ActivationService {
             activation.price.toNumber(),
             activationId,
             `Failed: ${reason}`,
-            client as any
+            client as Prisma.TransactionClient
         )
 
         // Update Activation via Kernel
@@ -237,7 +237,7 @@ export class ActivationService {
 
         // Guard: Check for any received messages
         const smsCount = await client.smsMessage.count({
-            where: { numberId: activation.numberId! }
+            where: { numberId: activation.numberId || '' }
         })
 
         if (smsCount > 0) {
@@ -258,7 +258,7 @@ export class ActivationService {
             activationId,
             `Refund: ${activation.state} ${activation.serviceName}`,
             `refund_${activationId}`,
-            client as any
+            client as Prisma.TransactionClient
         )
 
         // Update Activation via Kernel

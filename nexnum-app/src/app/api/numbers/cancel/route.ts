@@ -25,6 +25,7 @@ export const POST = apiHandler(async (request, { body }) => {
     const user = await getCurrentUser(request.headers)
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+    if (!body) return NextResponse.json({ error: 'Missing request body' }, { status: 400 })
     const { numberId, reason } = body
 
     // 1. Get Number
@@ -68,8 +69,12 @@ export const POST = apiHandler(async (request, { body }) => {
 
     // 2. Call Provider Cancel
     try {
-        await smsProvider.cancelNumber(number.activationId)
-        console.log(`[CANCEL] Provider cancellation successful`)
+        if (number.activationId) {
+            await smsProvider.cancelNumber(number.activationId)
+            console.log(`[CANCEL] Provider cancellation successful`)
+        } else {
+            console.warn(`[CANCEL] No activation ID found for number ${numberId}, skipping provider cancel`)
+        }
     } catch (err: any) {
         // Some providers error if already cancelled. We should double check status?
         console.warn(`[CANCEL] Provider cancel warning:`, err.message)

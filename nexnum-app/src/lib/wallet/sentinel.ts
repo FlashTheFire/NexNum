@@ -8,8 +8,9 @@
 import { prisma } from '@/lib/core/db'
 import { Prisma } from '@prisma/client'
 import { logger } from '@/lib/core/logger'
+import { AppError, ErrorCodes } from '@/lib/core/errors'
 import { emitControlEvent } from '@/lib/events/emitters/state-emitter'
-import { ForensicDispatcher } from './forensic-dispatcher'
+import { ForensicDispatcher, ForensicIncident } from './forensic-dispatcher'
 import { wallet_sentinel_drift_total, wallet_sentinel_status } from '@/lib/metrics'
 
 export class FinancialSentinel {
@@ -95,9 +96,13 @@ export class FinancialSentinel {
             return true;
 
         } catch (error) {
-            logger.error('[Sentinel] Verification system error', error);
+            logger.error('[Sentinel] Verification system error', { error: (error as any).message });
             // FAIL-CLOSED: If we can't verify, we block the transaction
-            throw new Error('FINANCIAL_SECURITY_EXCEPTION: Unable to verify wallet integrity');
+            throw new AppError(
+                'Financial security exception: Unable to verify wallet integrity',
+                ErrorCodes.SYSTEM_UNKNOWN,
+                500
+            );
         }
     }
 
@@ -106,7 +111,7 @@ export class FinancialSentinel {
      */
     private static async quarantineUser(
         userId: string,
-        forensics: any,
+        forensics: Omit<ForensicIncident, 'userId' | 'actionTaken' | 'timestamp'>,
         tx: Prisma.TransactionClient
     ) {
         // 1. Database Ban (Atomic)
@@ -140,7 +145,7 @@ export class FinancialSentinel {
                 action: 'security.integrity_breach',
                 resourceType: 'user',
                 resourceId: userId,
-                metadata: forensics,
+                metadata: forensics as unknown as Prisma.InputJsonValue,
                 ipAddress: '127.0.0.1'
             }
         });

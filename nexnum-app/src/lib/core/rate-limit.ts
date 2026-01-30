@@ -55,7 +55,7 @@ export class DistributedRateLimiter {
         const dynamicInterval = Math.ceil(intervalMs * pressureFactor)
 
         if (pressureFactor > 1.2) {
-            logger.warn(`[PredictiveThrottler] Applying Pressure Factor: ${pressureFactor.toFixed(2)}x to ${providerId}`)
+            logger.warn('Applying predictive throttling pressure factor', { context: 'THROTTLER', providerId, factor: pressureFactor.toFixed(2) })
         }
 
         const key = `ratelimit:provider:${providerId}`
@@ -192,8 +192,8 @@ export async function rateLimit(
             remaining: Math.max(0, remaining),
             reset: now + windowMs
         }
-    } catch (error) {
-        console.error('[RateLimit] Redis error, failing open:', error)
+    } catch (error: any) {
+        logger.error('Rate limit redis error, failing open', { context: 'RATE_LIMIT', key, error: error.message })
         // Fail open - allow request if Redis is down
         return {
             success: true,

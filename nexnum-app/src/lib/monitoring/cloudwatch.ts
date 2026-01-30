@@ -14,6 +14,8 @@ export interface MetricData {
     dimensions?: Record<string, string>
 }
 
+import { logger } from '@/lib/core/logger'
+
 // ============================================
 // METRIC BUFFER (for batching)
 // ============================================
@@ -37,7 +39,7 @@ export function recordMetric(metric: MetricData): void {
 
     // Flush if buffer is full
     if (metricBuffer.length >= MAX_BUFFER_SIZE) {
-        flushMetrics().catch(console.error)
+        flushMetrics().catch(err => logger.error('Failed to flush metrics', { context: 'MONITORING', error: err.message }))
     }
 }
 
@@ -63,12 +65,12 @@ export async function flushMetrics(): Promise<void> {
     // }))
 
     // For now, log metrics (can be picked up by CloudWatch Logs Insights)
-    console.log('[CloudWatch] Metrics:', JSON.stringify({
-        _type: 'METRICS',
+    logger.info('CloudWatch Metrics Flush', {
+        context: 'MONITORING',
         namespace: 'NexNum',
-        timestamp: new Date().toISOString(),
-        metrics,
-    }))
+        count: metrics.length,
+        metrics: JSON.stringify(metrics)
+    })
 }
 
 // ============================================
@@ -198,7 +200,7 @@ export async function stopMetricFlushing(): Promise<void> {
 
     // Flush remaining metrics
     await flushMetrics()
-    console.log('[CloudWatch] Metric flushing stopped')
+    logger.info('CloudWatch metric flushing stopped', { context: 'MONITORING' })
 }
 
 // Auto-start in production

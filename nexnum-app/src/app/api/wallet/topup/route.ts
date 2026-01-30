@@ -15,6 +15,9 @@ import { PaymentError } from '@/lib/payment/payment-errors'
  */
 export const POST = apiHandler(async (request, { body, user }) => {
     // Body is validated by apiHandler schema
+    if (!body || !user) {
+        return ResponseFactory.error('Invalid request context', 400)
+    }
     const { amount, idempotencyKey } = body
 
     // 1. Idempotency Guard (Redis-backed)
@@ -54,10 +57,10 @@ export const POST = apiHandler(async (request, { body, user }) => {
             newBalance,
         })
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         // Specialized Financial Error Handling
         if (error instanceof PaymentError) {
-            return ResponseFactory.error(error.message, error.status, error.code)
+            return ResponseFactory.error(error.message, error.statusCode, error.code)
         }
         throw error // Let global handler catch unknown errors
     }

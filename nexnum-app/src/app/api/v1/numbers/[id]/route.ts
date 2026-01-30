@@ -100,9 +100,12 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     // 2. Call Provider Cancel
     try {
-        await smsProvider.cancelNumber(number.activationId)
-    } catch (err: any) {
-        console.warn(`[V1 CANCEL] Provider cancel warning for ${id}:`, err.message)
+        if (number.activationId) {
+            await smsProvider.cancelNumber(number.activationId)
+        }
+    } catch (err: unknown) {
+        const error = err as Error
+        console.warn(`[V1 CANCEL] Provider cancel warning for ${id}:`, error.message)
         // Proceed even if provider warns, but maybe log it.
     }
 
@@ -118,11 +121,11 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
             // Refund logic uses 'number.price' which is Decimal in Prisma but checks often expect number.
             // WalletService.refund expects number or string? Checking implementation it takes number.
             await WalletService.refund(
-                number.ownerId,
+                number.ownerId!,
                 Number(number.price),
                 'refund',
                 number.id,
-                `Refund: Cancelled ${number.serviceName} (via API)`,
+                `Refund: Cancelled ${number.serviceName || 'Service'} (via API)`,
                 `refund_${number.id}`,
                 tx
             )
@@ -134,7 +137,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
             amount: Number(number.price)
         })
 
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.error(`[V1 CANCEL] Transaction failed:`, err)
         return apiError('Internal server error', 500)
     }

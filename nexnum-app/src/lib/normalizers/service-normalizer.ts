@@ -26,7 +26,7 @@ export interface AggregatedService {
         provider: string
         externalId: string
         name: string
-        code: string
+        code: string | undefined
         price: number
         originalPrice?: number
         count: number

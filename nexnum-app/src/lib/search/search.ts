@@ -277,8 +277,8 @@ export async function searchCountries(
             countries: countries.slice(start, start + limit),
             total: countries.length,
         }
-    } catch (error) {
-        logger.error('searchCountries failed:', error)
+    } catch (error: any) {
+        logger.error('searchCountries failed:', { error })
         return { countries: [], total: 0 }
     }
 }
@@ -359,8 +359,8 @@ export async function searchAdminCountries(
             items: items.slice(start, start + limit),
             total: items.length
         }
-    } catch (e) {
-        logger.error('searchAdminCountries failed:', e)
+    } catch (e: any) {
+        logger.error('searchAdminCountries failed:', { error: e })
         return { items: [], total: 0 }
     }
 }
@@ -465,9 +465,9 @@ export async function initSearchIndexes(indexName: string = INDEXES.OFFERS) {
             pagination: { maxTotalHits: 10000 }
         })
 
-        console.log('âœ… MeiliSearch "Deep Search" indexes initialized')
-    } catch (error) {
-        console.error('Failed to initialize search indexes:', error)
+        logger.info('MeiliSearch "Deep Search" indexes initialized', { context: 'SEARCH' })
+    } catch (error: any) {
+        logger.error('Failed to initialize search indexes', { context: 'SEARCH', error: error.message })
     }
 }
 
@@ -475,9 +475,9 @@ export async function initSearchIndexes(indexName: string = INDEXES.OFFERS) {
  * Force re-application of search settings (e.g. after config change)
  */
 export async function reconfigureIndexes() {
-    console.log('ðŸ”„ Reconfiguring search indexes with Deep Search settings...')
+    logger.info('Reconfiguring search indexes with Deep Search settings...', { context: 'SEARCH' })
     await initSearchIndexes()
-    console.log('âœ¨ Deep Search upgrade complete.')
+    logger.info('Deep Search upgrade complete.', { context: 'SEARCH' })
 }
 
 /**
@@ -530,8 +530,8 @@ export async function getServiceIconUrlByName(serviceName: string): Promise<stri
 
         // Final fallback: just return the first one available (including dicebear)
         return result.hits[0]?.serviceIcon;
-    } catch (error) {
-        console.error('Failed to lookup service icon:', error)
+    } catch (error: any) {
+        logger.error('Failed to lookup service icon', { context: 'SEARCH', serviceName, error: error.message })
     }
     return undefined
 }
@@ -690,8 +690,8 @@ export async function searchServices(
         }))
 
         return { services: enrichedServices, total: services.length }
-    } catch (error) {
-        logger.error('searchServices failed:', error)
+    } catch (error: any) {
+        logger.error('searchServices failed:', { error })
         return { services: [], total: 0 }
     }
 }
@@ -779,8 +779,8 @@ export async function searchAdminServices(
             items: items.slice(start, start + limit),
             total: items.length
         }
-    } catch (error) {
-        logger.error('searchAdminServices failed:', error)
+    } catch (error: any) {
+        logger.error('searchAdminServices failed:', { error })
         return { items: [], total: 0 }
     }
 }
@@ -829,7 +829,7 @@ export async function searchProviders(
             })
             return {
                 providers: numericResult.hits as OfferDocument[],
-                total: numericResult.totalHits
+                total: numericResult.estimatedTotalHits || 0
             }
         }
 
@@ -956,8 +956,8 @@ export async function searchProviders(
             providers: hits,
             total: result.estimatedTotalHits || 0,
         }
-    } catch (error) {
-        console.error('searchProviders failed:', error)
+    } catch (error: any) {
+        logger.error('searchProviders failed', { context: 'SEARCH', serviceCode, countryInput, error: error.message })
         return { providers: [], total: 0 }
     }
 }
@@ -1086,7 +1086,13 @@ export async function getOfferForPurchase(
             filter += ` AND provider = "${provider.toLowerCase()}"`
         }
 
-        console.log(`[PURCHASE] Looking up offer with filter:`, { serviceNameToFilter, countryNameToFilter, operatorId, provider })
+        logger.debug('[PURCHASE] Looking up offer with filter', {
+            context: 'SEARCH',
+            serviceNameToFilter,
+            countryNameToFilter,
+            operatorId,
+            provider
+        })
 
         const result = await index.search('', {
             filter,
@@ -1095,12 +1101,17 @@ export async function getOfferForPurchase(
         })
 
         if (result.hits.length === 0) {
-            console.warn(`[PURCHASE] No offer found for: ${serviceNameToFilter} / ${countryNameToFilter}`)
+            logger.warn('No offer found during purchase lookup', {
+                context: 'SEARCH',
+                service: serviceNameToFilter,
+                country: countryNameToFilter
+            })
             return null
         }
 
         const offer = result.hits[0] as OfferDocument
-        console.log(`[PURCHASE] Found offer:`, {
+        logger.debug('Found offer for purchase', {
+            context: 'SEARCH',
             providerName: offer.provider,
             price: offer.price,
             stock: offer.stock,
@@ -1108,8 +1119,8 @@ export async function getOfferForPurchase(
         })
 
         return offer
-    } catch (error) {
-        console.error('getOfferForPurchase failed:', error)
+    } catch (error: any) {
+        logger.error('getOfferForPurchase failed', { context: 'SEARCH', serviceInput, countryInput, error: error.message })
         return null
     }
 }
@@ -1186,8 +1197,8 @@ export async function searchOffers(
             hits: result.hits as OfferDocument[],
             total: result.estimatedTotalHits || 0
         }
-    } catch (error) {
-        console.error('searchOffers failed:', error)
+    } catch (error: any) {
+        logger.error('searchOffers failed', { context: 'SEARCH', query, filters, error: error.message })
         return { hits: [], total: 0 }
     }
 }
@@ -1217,10 +1228,10 @@ export async function indexOffers(offers: OfferDocument[], indexName: string = I
         })
 
         const task = await index.addDocuments(normalizedOffers, { primaryKey: 'id' })
-        console.log(`ðŸ“¦ Queued ${normalizedOffers.length} offers (task ${task.taskUid})`)
+        logger.info('Queued offers for indexing', { context: 'SEARCH', count: normalizedOffers.length, taskUid: task.taskUid })
         return task.taskUid
-    } catch (error) {
-        console.error('Failed to index offers:', error)
+    } catch (error: any) {
+        logger.error('Failed to index offers', { context: 'SEARCH', error: error.message })
         return undefined
     }
 }
@@ -1268,8 +1279,8 @@ export async function swapShadowToPrimary(shadowIndexName: string, primaryIndexN
 
         throw new Error(`Swap task ${task.taskUid} timed out after ${timeout}ms`);
 
-    } catch (error) {
-        logger.error('[SEARCH] Atomic swap critical failure:', error);
+    } catch (error: any) {
+        logger.error('[SEARCH] Atomic swap critical failure:', { error });
         throw error;
     }
 }
@@ -1282,8 +1293,8 @@ export async function deleteOffersByProvider(provider: string): Promise<void> {
         const index = meili.index(INDEXES.OFFERS)
         await index.deleteDocuments({ filter: `provider = "${provider}"` })
         console.log(`ðŸ—‘ï¸ Deleted offers for provider: ${provider}`)
-    } catch (error) {
-        console.error('Failed to delete offers:', error)
+    } catch (error: any) {
+        logger.error('Failed to delete offers', { context: 'SEARCH', provider, error: error.message })
     }
 }
 
@@ -1295,8 +1306,8 @@ export async function getIndexStats(): Promise<{ offers: number; lastSync?: numb
         const index = meili.index(INDEXES.OFFERS)
         const stats = await index.getStats()
         return { offers: stats.numberOfDocuments }
-    } catch (error) {
-        console.error('Failed to get index stats:', error)
+    } catch (error: any) {
+        logger.error('Failed to get index stats', { context: 'SEARCH', error: error.message })
         return { offers: 0 }
     }
 }
@@ -1317,15 +1328,15 @@ export async function waitForTask(taskUid: number, timeoutMs = 60000): Promise<b
 
             if (task.status === 'succeeded') return true
             if (task.status === 'failed') {
-                console.error(`Task ${taskUid} failed:`, task.error)
+                logger.error('MeiliSearch task failed', { context: 'SEARCH', taskUid, error: task.error })
                 return false
             }
             await new Promise(r => setTimeout(r, 1000))
-        } catch (error) {
-            console.error(`Error checking task ${taskUid}:`, error)
+        } catch (error: any) {
+            logger.error('Error checking MeiliSearch task', { context: 'SEARCH', taskUid, error: error.message })
             return false
         }
     }
-    console.error(`Task ${taskUid} timed out`)
+    logger.error('MeiliSearch task timed out', { context: 'SEARCH', taskUid })
     return false
 }

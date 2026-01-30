@@ -9,6 +9,7 @@
 
 import { prisma } from '@/lib/core/db'
 import { syncProviderToMeiliSearch } from '@/lib/admin/inventory-manager'
+import { logger } from '@/lib/core/logger'
 
 // ============================================
 // Types
@@ -69,7 +70,7 @@ export class UnifiedInventoryService {
         const provider = await this.resolveProvider(providerIdOrCode)
 
         if (!provider) {
-            console.warn(`[UnifiedInventory] Provider not found: ${providerIdOrCode}`)
+            logger.warn('Provider not found during inventory resolution', { context: 'UNIFIED_INVENTORY', providerIdOrCode })
             return null
         }
 
@@ -104,7 +105,7 @@ export class UnifiedInventoryService {
         return null
     }
 
-    private mapService(provider: any, item: any): InventoryIdentity {
+    private mapService(provider: { id: string, code: string }, item: { id: string, externalId: string, name: string }): InventoryIdentity {
         return {
             providerId: provider.id,
             providerCode: provider.code,
@@ -115,7 +116,7 @@ export class UnifiedInventoryService {
         }
     }
 
-    private mapCountry(provider: any, item: any): InventoryIdentity {
+    private mapCountry(provider: { id: string, code: string }, item: { id: string, externalId: string, name: string }): InventoryIdentity {
         return {
             providerId: provider.id,
             providerCode: provider.code,
@@ -170,14 +171,14 @@ export class UnifiedInventoryService {
             if (result.success) {
                 // Fire and forget sync to stay fast
                 syncProviderToMeiliSearch(identity.providerId).catch(err =>
-                    console.error('[UnifiedInventory] Post-action sync failed:', err)
+                    logger.error('Post-action sync failed', { context: 'UNIFIED_INVENTORY', error: err.message, providerId: identity.providerId })
                 )
             }
 
             return result
 
         } catch (error: any) {
-            console.error(`[UnifiedInventory] Action failed:`, error)
+            logger.error('Unified inventory action failed', { context: 'UNIFIED_INVENTORY', error: error.message, action: params.action })
             return { success: false, message: 'Internal server error', error: error.message }
         }
     }

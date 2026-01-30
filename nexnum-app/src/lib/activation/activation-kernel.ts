@@ -61,7 +61,7 @@ export class ActivationKernel {
                 where: { id: activationId },
                 data: {
                     state: toState,
-                    traceId: traceId as any // Workaround for Prisma type sync issue
+                    traceId: traceId as string // Cast to string specifically
                 }
             })
 
@@ -86,7 +86,7 @@ export class ActivationKernel {
             })
 
             // 6. Emit Side Effects
-            this.emitSideEffects(activation.userId, activationId, toState, reason).catch(e => {
+            this.emitSideEffects(activation.userId, activationId, toState, reason).catch((e: Error) => {
                 logger.warn(`[ActivationKernel] Side-effect emission failed for ${activationId}`, { error: e.message })
             })
 

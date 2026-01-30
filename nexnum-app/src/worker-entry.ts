@@ -99,11 +99,11 @@ export async function startQueueWorker() {
                 await syncAllProviders();
                 logger.info('[Worker] Force sync completed successfully.');
             } catch (err: any) {
-                logger.error('[Worker] Force sync failed:', err.message);
+                logger.error('[Worker] Force sync failed:', { error: err.message });
             }
         }
     } catch (e) {
-        logger.error('[Worker] Fatal startup error:', e);
+        logger.error('[Worker] Fatal startup error:', { error: e });
     }
 }
 

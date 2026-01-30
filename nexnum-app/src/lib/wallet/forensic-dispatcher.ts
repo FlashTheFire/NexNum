@@ -81,7 +81,7 @@ ${incident.lastTransactions.map(tx => `- [${tx.type.toUpperCase()}] ${tx.amount.
             logger.info(`[Forensic] Alert dispatched for user ${incident.userId}`);
 
         } catch (error) {
-            logger.error('[Forensic] Failed to dispatch alert', error);
+            logger.error('[Forensic] Failed to dispatch alert', { error });
         }
     }
 }

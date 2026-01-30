@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth/jwt'
 import { syncAllProviders, isSyncNeeded, getLastSyncInfo } from '@/lib/providers/provider-sync'
+import { logger } from '@/lib/core/logger'
 
 // GET - Get sync status and info
 export async function GET(request: Request) {
@@ -20,7 +21,7 @@ export async function GET(request: Request) {
         })
 
     } catch (error) {
-        console.error('Sync status error:', error)
+        logger.error('Sync status error', { error, context: 'API_SYNC' })
         return NextResponse.json(
             { error: 'Failed to get sync status' },
             { status: 500 }
@@ -41,15 +42,15 @@ export async function POST(request: Request) {
             )
         }
 
-        console.log(`[SYNC] Manual sync triggered by user ${user.userId}`)
+        logger.info(`Manual sync triggered by user ${user.userId}`, { context: 'API_SYNC', userId: user.userId })
 
         // Run sync in background (don't await)
         syncAllProviders()
             .then(results => {
-                console.log('[SYNC] Manual sync completed:', results)
+                logger.info('Manual sync completed', { results, context: 'API_SYNC' })
             })
             .catch(err => {
-                console.error('[SYNC] Manual sync failed:', err)
+                logger.error('Manual sync failed', { error: err, context: 'API_SYNC' })
             })
 
         return NextResponse.json({
@@ -58,7 +59,7 @@ export async function POST(request: Request) {
         })
 
     } catch (error) {
-        console.error('Sync trigger error:', error)
+        logger.error('Sync trigger error', { error, context: 'API_SYNC' })
         return NextResponse.json(
             { error: 'Failed to trigger sync' },
             { status: 500 }

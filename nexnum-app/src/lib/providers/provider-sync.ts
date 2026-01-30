@@ -12,7 +12,7 @@
 import { prisma } from '@/lib/core/db'
 import { Provider } from '@prisma/client'
 import { DynamicProvider } from './dynamic-provider'
-import { PriceData } from './types'
+import { PriceData, Country, Service } from './types'
 import fs from 'fs'
 import path from 'path'
 import https from 'https'
@@ -88,7 +88,11 @@ async function downloadImageToLocal(url: string, destPath: string, bannedSet?: S
                         const isBanned = (bannedSet && bannedSet.has(hash))
 
                         if (isBanned) {
-                            console.log(`[ICON_BANNED] Hash match for ${baseName} (${hash}). Ignoring.`);
+                            logger.warn('Provider icon hash match (Banned). Ignoring.', {
+                                context: 'ICON_BANNED',
+                                baseName,
+                                hash
+                            });
                             resolve(false);
                             return;
                         }
@@ -106,7 +110,10 @@ async function downloadImageToLocal(url: string, destPath: string, bannedSet?: S
                                 if (fileBase === baseName && ['.svg', '.webp', '.png', '.jpg', '.jpeg'].includes(fileExt)) {
                                     if (file !== `${baseName}${ext}`) {
                                         fs.unlinkSync(path.join(dir, file));
-                                        console.log(`[ICON_CLEAN] Removed inferior/duplicate format: ${file}`);
+                                        logger.info('Removed inferior/duplicate format', {
+                                            context: 'ICON_CLEAN',
+                                            file
+                                        });
                                     }
                                 }
                             }
@@ -141,7 +148,10 @@ export async function verifyAssetIntegrity(): Promise<{ removed: number, scanned
     if (!fs.existsSync(ICONS_DIR)) return { removed: 0, scanned: 0 };
 
     const files = fs.readdirSync(ICONS_DIR);
-    console.log(`[ASSETS] Scanning ${files.length} assets for integrity...`);
+    logger.info('Scanning assets for integrity', {
+        context: 'ASSETS',
+        count: files.length
+    });
     const bannedSet = await getBannedHashes();
 
     // 0. PRE-CLEANUP: Remove Double Extensions (e.g. .webp.webp)
@@ -154,7 +164,10 @@ export async function verifyAssetIntegrity(): Promise<{ removed: number, scanned
             try {
                 fs.unlinkSync(path.join(ICONS_DIR, file));
                 removed++;
-                console.log(`[ASSET_CLEAN] Removed double extension artifact: ${file}`);
+                logger.debug('Removed double extension artifact', {
+                    context: 'ASSET_CLEAN',
+                    file
+                });
             } catch (e) { }
         }
     }
@@ -191,7 +204,11 @@ export async function verifyAssetIntegrity(): Promise<{ removed: number, scanned
             // Keep index 0, delete others
             const [keep, ...trash] = variants;
             for (const file of trash) {
-                console.log(`[ASSET_DEDUP] Removing duplicate lower quality: ${file} (Keeping ${keep})`);
+                logger.debug('Removing duplicate lower quality asset', {
+                    context: 'ASSET_DEDUP',
+                    file,
+                    keeping: keep
+                });
                 fs.unlinkSync(path.join(ICONS_DIR, file));
                 removed++;
             }
@@ -276,14 +293,17 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
 
     try {
         // Pre-load ALL service names from ServiceLookup table for fallback
-        const allServiceLookups = await (prisma.serviceLookup as any).findMany({
+        const allServiceLookups = await prisma.serviceLookup.findMany({
             select: { serviceCode: true, serviceName: true }
         })
         allServiceLookups.forEach(s => {
             serviceMap.set(s.serviceCode, s.serviceName)
             serviceMap.set(s.serviceCode.toLowerCase(), s.serviceName)
         })
-        console.log(`[SYNC] Pre-loaded ${allServiceLookups.length} service names from lookup table`)
+        logger.info('Pre-loaded service names from lookup table', {
+            context: 'SYNC',
+            count: allServiceLookups.length
+        })
 
         // Update status to syncing
         await prisma.provider.update({
@@ -306,7 +326,11 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                 }
             })
         } catch (be) {
-            console.warn(`[SYNC] Failed to fetch balance for ${provider.name}`, be)
+            logger.warn('Failed to fetch provider balance', {
+                context: 'SYNC',
+                provider: provider.name,
+                error: (be as any).message
+            })
         }
 
         // 1. Countries (Dynamic)
@@ -314,8 +338,8 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
 
 
         // Initialize arrays
-        let countries: any[] = []
-        let services: any[] = []
+        let countries: Country[] = []
+        let services: Service[] = []
 
         // Check if we need fresh metadata (24h rule based on existing DB records)
         const existingCountryCount = await prisma.providerCountry.count({ where: { providerId: provider.id } })
@@ -333,7 +357,12 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
         const serviceVisibilityMap = new Map<string, boolean>()
 
         if (skipMetadataSync) {
-            console.log(`[SYNC] ${provider.name}: Using DB metadata (${hoursSinceMetadata.toFixed(1)}h old, ${existingCountryCount} countries)`)
+            logger.info('Using existing DB metadata for sync', {
+                context: 'SYNC',
+                provider: provider.name,
+                ageHours: hoursSinceMetadata.toFixed(1),
+                count: existingCountryCount
+            })
             const dbCountries = await prisma.providerCountry.findMany({
                 where: { providerId: provider.id },
                 select: { id: true, externalId: true, name: true, flagUrl: true, isActive: true }
@@ -342,7 +371,10 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
             // VALIDATION: Check for stale data (countries with 'Unknown' names or missing phoneCode)
             const hasStaleData = dbCountries.some(c => !c.name || c.name === 'Unknown' || c.name === c.externalId)
             if (hasStaleData) {
-                console.log(`[SYNC] ${provider.name}: Stale data detected (Unknown/missing names). Forcing fresh fetch...`)
+                logger.info('Stale provider metadata detected, forcing fresh fetch', {
+                    context: 'SYNC',
+                    provider: provider.name
+                })
                 skipMetadataSync = false
                 await prisma.providerCountry.deleteMany({ where: { providerId: provider.id } })
                 await prisma.providerService.deleteMany({ where: { providerId: provider.id } })
@@ -373,7 +405,10 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
         }
 
         if (!skipMetadataSync) {
-            console.log(`[SYNC] ${provider.name}: Fetching fresh metadata...`)
+            logger.info('Fetching fresh provider metadata', {
+                context: 'SYNC',
+                provider: provider.name
+            })
 
             countries = await engine.getCountriesList()
             countriesCount = countries.length
@@ -409,7 +444,12 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
             }
 
             if (countriesToUpsert.length > 0) {
-                console.log(`[SYNC] ${provider.name}: Smart Sync -> Upserting ${countriesToUpsert.length} changed/new countries (Skipped ${countries.length - countriesToUpsert.length})...`)
+                logger.debug('Smart Sync: Upserting country metadata', {
+                    context: 'SYNC',
+                    provider: provider.name,
+                    upsertCount: countriesToUpsert.length,
+                    skippedCount: countries.length - countriesToUpsert.length
+                })
                 const countryPromises = countriesToUpsert.map(c => limit(async () => {
                     const externalId = String(c.code)
                     const canonicalName = getCanonicalName(c.name || 'Unknown')
@@ -441,7 +481,10 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                 }))
                 await Promise.all(countryPromises)
             } else {
-                console.log(`[SYNC] ${provider.name}: Smart Sync -> No country metadata changes detected.`)
+                logger.info('Smart Sync: No country metadata changes detected', {
+                    context: 'SYNC',
+                    provider: provider.name
+                })
             }
 
             // Fetch services
@@ -515,7 +558,11 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                 if (!foundLocal && validIconUrl) {
                     // Fire and forget download to restore missing icons
                     downloadImageToLocal(validIconUrl, fullPath, bannedHashes).catch(err =>
-                        console.warn(`[ICON_SYNC] Failed to download ${canonKey}:`, err)
+                        logger.warn('Failed to download missing provider icon', {
+                            context: 'ICON_SYNC',
+                            canonKey,
+                            error: (err as any).message
+                        })
                     )
                 }
 
@@ -538,7 +585,12 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
             }
 
             if (servicesToUpsert.length > 0) {
-                console.log(`[SYNC] ${provider.name}: Smart Sync -> Upserting ${servicesToUpsert.length} changed/new services (Skipped ${services.length - servicesToUpsert.length})...`)
+                logger.debug('Smart Sync: Upserting service metadata', {
+                    context: 'SYNC',
+                    provider: provider.name,
+                    upsertCount: servicesToUpsert.length,
+                    skippedCount: services.length - servicesToUpsert.length
+                })
                 const servicePromises = servicesToUpsert.map(s => limit(async () => {
                     const serviceCode = String(s.code)
                     if (!serviceCode) return
@@ -579,7 +631,10 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                 }))
                 await Promise.all(servicePromises)
             } else {
-                console.log(`[SYNC] ${provider.name}: Smart Sync -> No service metadata changes detected.`)
+                logger.info('Smart Sync: No service metadata changes detected', {
+                    context: 'SYNC',
+                    provider: provider.name
+                })
             }
 
             // Update metadata sync timestamp
@@ -600,18 +655,27 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                     canonicalName === target ||
                     generateCanonicalCode(canonicalName) === target
             })
-            console.log(`[SYNC] ${provider.name}: Global Filter Applied -> ${countries.length} matching countries (${target})`)
+            logger.info('Global filter applied to provider sync', {
+                context: 'SYNC',
+                provider: provider.name,
+                target,
+                matchCount: countries.length
+            })
         }
 
         // Pre-cache numeric IDs for search indexing
-        const allServiceIds = await (prisma.serviceLookup as any).findMany({ select: { serviceCode: true, serviceId: true } })
-        const allCountryIds = await (prisma.countryLookup as any).findMany({ select: { countryCode: true, countryId: true } })
+        const allServiceIds = await prisma.serviceLookup.findMany({ select: { serviceCode: true, serviceId: true } })
+        const allCountryIds = await prisma.countryLookup.findMany({ select: { countryCode: true, countryId: true } })
 
-        const serviceCodeToNumeric = new Map<string, number>(allServiceIds.map((s: any) => [s.serviceCode, s.serviceId]))
-        const countryCodeToNumeric = new Map<string, number>(allCountryIds.map((c: any) => [c.countryCode, c.countryId]))
+        const serviceCodeToNumeric = new Map<string, number>(allServiceIds.map((s) => [s.serviceCode, s.serviceId]))
+        const countryCodeToNumeric = new Map<string, number>(allCountryIds.map((c) => [c.countryCode, c.countryId]))
 
         // 3. Sync Prices (DEEP SEARCH ENGINE) - Always use Dynamic Engine
-        console.log(`[SYNC] ${provider.name}: Starting price sync for ${countries.length} countries...`)
+        logger.info('Starting provider price sync', {
+            context: 'SYNC',
+            provider: provider.name,
+            countryCount: countries.length
+        })
 
         // Clear existing pricing for this provider before re-indexing
         if (!options?.skipWipe) {
@@ -751,7 +815,10 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
         const isGlobalSync = (provider as any).useGlobalSync === true
 
         if (isGlobalSync) {
-            console.log(`[SYNC] ${provider.name}: Using Single-Fetch optimization (Global Prices)...`)
+            logger.info('Using Single-Fetch optimization (Global Prices)', {
+                context: 'SYNC',
+                provider: provider.name
+            })
             const prices = await engine.getPrices()
             await processPrices(prices)
         } else {
@@ -763,7 +830,12 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                         await processPrices(prices, country)
                     }
                 } catch (e) {
-                    console.warn(`[SYNC] Failed to fetch prices for ${country.code}:`, e)
+                    logger.warn('Failed to fetch prices for country', {
+                        context: 'SYNC',
+                        provider: provider.name,
+                        country: country.code,
+                        error: (e as any).message
+                    })
                 }
             }))
             await Promise.all(promises)
@@ -771,7 +843,11 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
 
         // 4. Indexing (Chunked for Memory Efficiency)
         if (allOffers.length > 0) {
-            console.log(`[SYNC] ${provider.name}: Indexing ${allOffers.length} offers in chunks...`)
+            logger.info('Indexing offers in chunks', {
+                context: 'SYNC',
+                provider: provider.name,
+                offerCount: allOffers.length
+            })
 
             // Professional Note: We avoid shadow indexing for per-provider updates to minimize memory overhead.
             // We rely on MeiliSearch's atomic document replacement (primaryKey) for consistency.
@@ -779,13 +855,22 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
             for (let i = 0; i < allOffers.length; i += CHUNK_SIZE) {
                 const chunk = allOffers.slice(i, i + CHUNK_SIZE)
                 await indexOffers(chunk)
-                console.log(`[SYNC] ${provider.name}: Indexed chunk ${Math.floor(i / CHUNK_SIZE) + 1}/${Math.ceil(allOffers.length / CHUNK_SIZE)}`)
+                logger.debug('Indexed chunk', {
+                    context: 'SYNC',
+                    provider: provider.name,
+                    chunk: Math.floor(i / CHUNK_SIZE) + 1,
+                    totalChunks: Math.ceil(allOffers.length / CHUNK_SIZE)
+                })
             }
         }
 
     } catch (e) {
         error = e instanceof Error ? e.message : 'Unknown error'
-        console.error(`[SYNC] Dynamic ${provider.name} error:`, error)
+        logger.error('Dynamic provider sync failure', {
+            context: 'SYNC',
+            provider: provider.name,
+            error
+        })
     }
 
     // Update final status
@@ -814,7 +899,7 @@ export async function syncProviderData(providerName: string, options?: SyncOptio
     const provider = await prisma.provider.findUnique({ where: { name: providerName } })
     if (provider) {
         // RESILIENCE: Fetch use_global_sync via raw SQL to bypass Prisma schema sync issues in production
-        const raw: any[] = await prisma.$queryRawUnsafe(`SELECT use_global_sync FROM providers WHERE id = $1`, provider.id)
+        const raw = await prisma.$queryRawUnsafe<Array<{ use_global_sync: boolean }>>(`SELECT use_global_sync FROM providers WHERE id = $1`, provider.id)
         if (raw && raw[0]) {
             (provider as any).useGlobalSync = raw[0].use_global_sync || false
         }
@@ -853,13 +938,19 @@ export function startWorkerSync(providerName: string, options?: SyncOptions): Pr
 }
 
 export async function syncAllProviders(): Promise<SyncResult[]> {
-    console.log(`[SYNC] Starting full sync at ${new Date().toISOString()}`)
+    logger.info('Starting full provider sync', {
+        context: 'SYNC',
+        timestamp: new Date().toISOString()
+    })
 
     // Refresh exchange rates first to ensure accurate margins
     try {
         await currencyService.syncRates()
     } catch (e) {
-        console.error(`[SYNC] Failed to sync exchange rates:`, e)
+        logger.error('Failed to sync exchange rates during provider sync', {
+            context: 'SYNC',
+            error: (e as any).message
+        })
     }
 
     const results: SyncResult[] = []
@@ -870,7 +961,10 @@ export async function syncAllProviders(): Promise<SyncResult[]> {
         : allProviders
 
     if (providers.length === 0) {
-        console.warn(`[SYNC] No active providers found for target: ${syncTarget}. Skipping sync.`)
+        logger.warn('No active providers found for target sync', {
+            context: 'SYNC',
+            target: syncTarget
+        })
         return []
     }
 
@@ -883,31 +977,41 @@ export async function syncAllProviders(): Promise<SyncResult[]> {
             const result = await startWorkerSync(provider.name)
             results.push(result)
         } catch (e) {
-            console.error(`[SYNC] Failed to sync ${provider.name} in worker:`, e)
+            logger.error('Failed to sync provider in worker', {
+                context: 'SYNC',
+                provider: provider.name,
+                error: (e as any).message
+            })
         }
     })
 
     await Promise.all(syncPromises)
 
     // 4. Refresh precomputed aggregates for fast list responses
-    console.log(`[SYNC] Refreshing service aggregates...`)
+    logger.info('Refreshing service aggregates', { context: 'SYNC' })
     try {
         await refreshAllServiceAggregates()
     } catch (e) {
-        console.error(`[SYNC] Failed to refresh aggregates:`, e)
+        logger.error('Failed to refresh aggregates', {
+            context: 'SYNC',
+            error: (e as any).message
+        })
     }
 
     // 5. Sync Service Icons (Universal Advanced Manager)
-    console.log(`[SYNC] Starting advanced icon synchronization...`)
+    logger.info('Starting advanced icon synchronization', { context: 'SYNC' })
     try {
         const { ProviderIconManager } = await import('./icon-manager')
         const iconManager = new ProviderIconManager()
         await iconManager.syncAllProviders()
     } catch (e) {
-        console.error(`[SYNC] Failed to sync service icons:`, e)
+        logger.error('Failed to sync service icons', {
+            context: 'SYNC',
+            error: (e as any).message
+        })
     }
 
-    console.log(`[SYNC] Full sync completed`)
+    logger.info('Full provider sync completed', { context: 'SYNC' })
     return results
 }
 
@@ -931,9 +1035,9 @@ export async function getLastSyncInfo() {
 let syncIntervalId: NodeJS.Timeout | null = null
 export function startSyncScheduler() {
     if (syncIntervalId) return
-    console.log('[SYNC] Starting scheduler (every 12 hours)')
-    syncAllProviders().catch(console.error)
-    syncIntervalId = setInterval(() => syncAllProviders().catch(console.error), 12 * 60 * 60 * 1000)
+    logger.info('Starting provider sync scheduler', { context: 'SYNC', interval: '12 hours' })
+    syncAllProviders().catch(e => logger.error('Sync scheduler execution failed', { error: e.message }))
+    syncIntervalId = setInterval(() => syncAllProviders().catch(e => logger.error('Sync scheduler execution failed', { error: e.message })), 12 * 60 * 60 * 1000)
 }
 
 export function stopSyncScheduler() {

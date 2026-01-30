@@ -132,7 +132,7 @@ export class ProviderIconManager {
 
                 await Promise.all(syncPromises);
             } catch (e) {
-                logger.error(`[IconManager] Provider ${provider.name} failed:`, e);
+                logger.error(`[IconManager] Provider ${provider.name} failed:`, { error: e });
                 result.errors++;
             }
         }

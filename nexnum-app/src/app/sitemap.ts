@@ -22,6 +22,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         priority: 1.0,
     }))
 
+    /*
     // 2. Dynamic Countries
     const countryResult = await searchAdminCountries('', { limit: 1000 })
     const countryRoutes = countryResult.items
@@ -42,4 +43,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }))
 
     return [...staticRoutes, ...countryRoutes, ...serviceRoutes]
+    */
+    return [...staticRoutes]
 }

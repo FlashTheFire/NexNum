@@ -14,6 +14,7 @@
 import { prisma } from '@/lib/core/db'
 import { indexOffers, deleteOffersByProvider, OfferDocument, INDEXES } from '@/lib/search/search'
 import { logAdminAction } from '@/lib/core/auditLog'
+import { logger } from '@/lib/core/logger'
 
 
 // ============================================
@@ -52,7 +53,7 @@ export async function toggleCountryVisibility(
     adminId?: string
 ): Promise<InventoryActionResult> {
     try {
-        console.log(`[toggleCountryVisibility] Lookup: providerId=${providerId}, externalId=${externalId}`)
+        logger.debug('Toggling country visibility lookup', { context: 'ADMIN_INVENTORY', providerId, externalId })
 
         const country = await prisma.providerCountry.findFirst({
             where: { providerId, externalId }
@@ -62,7 +63,11 @@ export async function toggleCountryVisibility(
             // Debug: try finding just by externalId or providerId to see if we have partial match
             const countByProvider = await prisma.providerCountry.count({ where: { providerId } })
             const countByExternal = await prisma.providerCountry.count({ where: { externalId } })
-            console.log(`[toggleCountryVisibility] Country not found. Stats: Provider has ${countByProvider}, ExternalId found ${countByExternal} times.`)
+            logger.warn('Country not found for visibility toggle', {
+                context: 'ADMIN_INVENTORY',
+                providerCount: countByProvider,
+                externalCount: countByExternal
+            })
 
             // FALLBACK: Check if it's actually a Service (fixing frontend/Meili type confusion)
             const service = await prisma.providerService.findFirst({
@@ -70,7 +75,7 @@ export async function toggleCountryVisibility(
             })
 
             if (service) {
-                console.log(`[toggleCountryVisibility] Found SERVICE with this ID. Redirecting to toggleServiceVisibility...`)
+                logger.info('Found SERVICE with this ID, redirecting toggle', { context: 'ADMIN_INVENTORY', providerId, externalId })
                 return toggleServiceVisibility(providerId, externalId, isActive, adminId)
             }
 
@@ -102,7 +107,7 @@ export async function toggleCountryVisibility(
             affectedCount: 1
         }
     } catch (error: any) {
-        console.error('toggleCountryVisibility error:', error)
+        logger.error('Failed to toggle country visibility', { context: 'ADMIN_INVENTORY', error: error.message, providerId, externalId })
         return { success: false, message: 'Failed to toggle visibility', error: error.message }
     }
 }
@@ -127,7 +132,7 @@ export async function deleteCountry(
             // Fallback to service
             const service = await prisma.providerService.findFirst({ where: { providerId, externalId } })
             if (service) {
-                console.log(`[deleteCountry] Redirecting to deleteService for ${externalId}`)
+                logger.debug('Redirecting deleteCountry to deleteService', { context: 'ADMIN_INVENTORY', externalId })
                 return deleteService(providerId, externalId, permanent, adminId)
             }
             return { success: false, message: 'Country not found', error: 'NOT_FOUND' }
@@ -171,7 +176,7 @@ export async function deleteCountry(
             affectedCount: pricingCount + 1
         }
     } catch (error: any) {
-        console.error('deleteCountry error:', error)
+        logger.error('Failed to delete country', { context: 'ADMIN_INVENTORY', error: error.message, providerId, externalId })
         return { success: false, message: 'Failed to delete country', error: error.message }
     }
 }
@@ -194,7 +199,7 @@ export async function updateCountry(
             // Fallback to service
             const service = await prisma.providerService.findFirst({ where: { providerId, externalId } })
             if (service) {
-                console.log(`[updateCountry] Redirecting to updateService for ${externalId}`)
+                logger.debug('Redirecting updateCountry to updateService', { context: 'ADMIN_INVENTORY', externalId })
                 const serviceUpdates: ServiceUpdateData = {
                     name: updates.name,
                     iconUrl: updates.flagUrl
@@ -225,7 +230,7 @@ export async function updateCountry(
 
         return { success: true, message: 'Country updated successfully', affectedCount: 1 }
     } catch (error: any) {
-        console.error('updateCountry error:', error)
+        logger.error('Failed to update country', { context: 'ADMIN_INVENTORY', error: error.message, providerId, externalId })
         return { success: false, message: 'Failed to update country', error: error.message }
     }
 }
@@ -277,7 +282,7 @@ export async function toggleServiceVisibility(
             affectedCount: 1
         }
     } catch (error: any) {
-        console.error('toggleServiceVisibility error:', error)
+        logger.error('Failed to toggle service visibility', { context: 'ADMIN_INVENTORY', error: error.message, providerId, externalId })
         return { success: false, message: 'Failed to toggle visibility', error: error.message }
     }
 }
@@ -337,7 +342,7 @@ export async function deleteService(
             affectedCount: pricingCount + 1
         }
     } catch (error: any) {
-        console.error('deleteService error:', error)
+        logger.error('Failed to delete service', { context: 'ADMIN_INVENTORY', error: error.message, providerId, externalId })
         return { success: false, message: 'Failed to delete service', error: error.message }
     }
 }
@@ -381,7 +386,7 @@ export async function updateService(
 
         return { success: true, message: 'Service updated successfully', affectedCount: 1 }
     } catch (error: any) {
-        console.error('updateService error:', error)
+        logger.error('Failed to update service', { context: 'ADMIN_INVENTORY', error: error.message, providerId, externalId })
         return { success: false, message: 'Failed to update service', error: error.message }
     }
 }
@@ -528,7 +533,7 @@ export async function syncProviderToMeiliSearch(providerId: string): Promise<Inv
 
         // DEPRECATED: ProviderPricing is deleted. 
         // Re-indexing must be done via Sync Engine directly from Provider API.
-        console.warn('[Sync] syncProviderToMeiliSearch is deprecated/disabled in New Architecture')
+        logger.warn('syncProviderToMeiliSearch is deprecated/disabled in New Architecture', { context: 'ADMIN_INVENTORY' })
         /*
         while (true) {
              ... Logic removed ...
@@ -547,7 +552,7 @@ export async function syncProviderToMeiliSearch(providerId: string): Promise<Inv
             affectedCount: processedCount
         }
     } catch (error: any) {
-        console.error('syncProviderToMeiliSearch error:', error)
+        logger.error('Failed to sync provider to MeiliSearch', { context: 'ADMIN_INVENTORY', error: error.message, providerId })
         return { success: false, message: 'Failed to sync to MeiliSearch', error: error.message }
     }
 }
@@ -580,7 +585,7 @@ export async function getVisibilityStatus(
             })
         }
     } catch (error) {
-        console.error('getVisibilityStatus error:', error)
+        logger.error('Failed to get visibility status', { context: 'ADMIN_INVENTORY', error: (error as any).message })
     }
 
     return visibilityMap

@@ -1,12 +1,5 @@
 'use client'
 
-import { useEffect } from 'react'
-import { AlertTriangle } from 'lucide-react'
-import * as Sentry from '@sentry/nextjs'
-
-// Note: This root-level global-error page cannot use next-intl hooks
-// because it's outside the [locale] segment and has no i18n provider context.
-
 export default function GlobalError({
     error,
     reset,
@@ -14,33 +7,31 @@ export default function GlobalError({
     error: Error & { digest?: string }
     reset: () => void
 }) {
-    useEffect(() => {
-        console.error('Global Error:', error)
-        Sentry.captureException(error)
-    }, [error])
-
     return (
         <html>
-            <body className="bg-black text-white antialiased">
-                <div className="min-h-screen flex items-center justify-center p-4">
-                    <div className="max-w-md w-full text-center space-y-6">
-                        <div className="inline-flex p-4 rounded-full bg-red-500/10 border border-red-500/20 mb-4">
-                            <AlertTriangle className="h-10 w-10 text-red-500" />
-                        </div>
-
-                        <h1 className="text-3xl font-bold">Critical Error</h1>
-                        <p className="text-gray-400">
-                            Something went seriously wrong. Please reload the page.
-                        </p>
-
-                        <button
-                            onClick={reset}
-                            className="px-6 py-3 bg-[hsl(var(--neon-lime))] text-black font-bold rounded-xl hover:opacity-90 transition-opacity"
-                        >
-                            Reload Page
-                        </button>
-                    </div>
+            <body style={{ backgroundColor: 'black', color: 'white', fontFamily: 'sans-serif', margin: 0, padding: '2rem', textAlign: 'center' }}>
+                <h1 style={{ fontSize: '2rem', marginBottom: '1rem' }}>Critical System Error</h1>
+                <p style={{ color: '#888', marginBottom: '2rem' }}>
+                    The application encountered a fatal exception during the production build or runtime.
+                </p>
+                <div style={{ backgroundColor: '#111', padding: '1rem', borderRadius: '0.5rem', marginBottom: '2rem', textAlign: 'left', overflow: 'auto' }}>
+                    <code>{error.message || 'Unknown Error'}</code>
+                    {error.digest && <p style={{ fontSize: '0.8rem', color: '#555' }}>Digest: {error.digest}</p>}
                 </div>
+                <button
+                    onClick={() => reset()}
+                    style={{
+                        padding: '10px 20px',
+                        backgroundColor: '#ccff00',
+                        color: 'black',
+                        border: 'none',
+                        borderRadius: '8px',
+                        fontWeight: 'bold',
+                        cursor: 'pointer'
+                    }}
+                >
+                    Retry Initialization
+                </button>
             </body>
         </html>
     )

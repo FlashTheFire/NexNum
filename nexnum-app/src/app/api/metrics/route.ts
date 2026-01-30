@@ -1,5 +1,6 @@
 import { registry } from '@/lib/metrics'
 import { NextResponse } from 'next/server'
+import { logger } from '@/lib/core/logger'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,7 +42,7 @@ export async function GET(request: Request) {
             }
         })
     } catch (err) {
-        console.error('Metrics collection error:', err)
+        logger.error('Metrics collection error', { error: err, context: 'API_METRICS' })
         return NextResponse.json(
             { error: 'Failed to collect metrics' },
             { status: 500 }
@@ -58,7 +59,7 @@ function validateMetricsScraper(request: Request): boolean {
 
     // If no token configured, allow access (but log warning)
     if (!expectedToken) {
-        console.warn('[Metrics] METRICS_SCRAPE_TOKEN not configured - metrics endpoint is unprotected')
+        logger.warn('METRICS_SCRAPE_TOKEN not configured - metrics endpoint is unprotected', { context: 'API_METRICS' })
         return true
     }
 
@@ -77,7 +78,7 @@ function validateMetricsScraper(request: Request): boolean {
             || 'unknown'
 
         if (!allowedList.includes(clientIP)) {
-            console.warn(`[Metrics] Rejected scrape from IP: ${clientIP}`)
+            logger.warn(`Rejected scrape from IP: ${clientIP}`, { context: 'API_METRICS', ip: clientIP })
             return false
         }
     }

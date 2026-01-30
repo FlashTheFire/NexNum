@@ -44,7 +44,7 @@ export class PresenceMonitor {
         try {
             return await redis.scard(this.KEY_PREFIX)
         } catch (error) {
-            logger.error('[Presence] Failed to get online count', error)
+            logger.error('[Presence] Failed to get online count', { error })
             return 0
         }
     }

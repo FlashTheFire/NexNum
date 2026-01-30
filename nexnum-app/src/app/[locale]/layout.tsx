@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+export const dynamic = "force-dynamic";
 import { Inter } from "next/font/google";
 import "../globals.css";
 import { Toaster } from "sonner";
@@ -26,7 +27,7 @@ export const metadata: Metadata = {
     },
     description: "Instant access to premium virtual phone numbers for OTP verification. Compatible with WhatsApp, Telegram, Google, and 500+ services. Global coverage, best prices.",
     keywords: ["virtual number", "sms verification", "otp bypass", "temp number", "online sim", "receive sms", "fake number", "whatsapp verification"],
-    authors: [{ name: "NexNum Team" }],
+    authors: { name: "NexNum Team" },
     creator: "NexNum",
     publisher: "NexNum Inc.",
     icons: {
@@ -89,30 +90,10 @@ export default async function LocaleLayout({
 }) {
     const { locale } = await params;
 
-    // Enable static rendering
-    setRequestLocale(locale);
-
-    // Providing all messages to the client
-    // side is the easiest way to get started
-    const messages = await getMessages();
-
     return (
         <html lang={locale} className="dark" suppressHydrationWarning>
-            <body className={inter.className}>
-                <NextIntlClientProvider messages={messages}>
-                    <ThemeProvider
-                        attribute="class"
-                        defaultTheme="dark"
-                        enableSystem
-                        disableTransitionOnChange
-                    >
-                        <CurrencyProvider>
-                            <JsonLd />
-                            {children}
-                            <Toaster position="top-right" theme="dark" closeButton richColors />
-                        </CurrencyProvider>
-                    </ThemeProvider>
-                </NextIntlClientProvider>
+            <body className="antialiased">
+                {children}
             </body>
         </html>
     );

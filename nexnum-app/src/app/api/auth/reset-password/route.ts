@@ -9,6 +9,7 @@ const schema = z.object({
 })
 
 export const POST = apiHandler(async (request, { body }) => {
+    if (!body) return NextResponse.json({ error: 'Missing request body' }, { status: 400 })
     const { token, password } = body
 
     const result = await resetPassword(token, password)

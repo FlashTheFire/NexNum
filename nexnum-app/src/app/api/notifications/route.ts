@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth/jwt'
 import { NotificationService } from '@/lib/notifications/notification-service'
+import { logger } from '@/lib/core/logger'
 
 /**
  * GET /api/notifications - Get user's notifications (Cursor Paginator)
@@ -70,7 +71,7 @@ export async function GET(req: NextRequest) {
             unreadCount,
         })
     } catch (error: any) {
-        console.error('[Notifications API] Error:', error)
+        logger.error('Failed to fetch notifications', { error, context: 'API_NOTIFICATIONS' })
         return NextResponse.json({ error: 'Failed to fetch notifications' }, { status: 500 })
     }
 }
@@ -94,7 +95,7 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
     } catch (error: any) {
-        console.error('[Notifications API] Error:', error)
+        logger.error('Failed to update notifications', { error, context: 'API_NOTIFICATIONS' })
         return NextResponse.json({ error: 'Failed to update notifications' }, { status: 500 })
     }
 }

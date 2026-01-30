@@ -22,17 +22,10 @@ export interface PriceOption {
     successRate?: number
     /** Additional metadata */
     metadata?: {
-        rate?: number
-        rate1?: number
-        rate3?: number
-        rate24?: number
-        rate72?: number
-        rate168?: number
-        rate720?: number  // 7-day rolling average
-        [key: string]: any
+        [key: string]: unknown
     }
     /** Raw data for debugging */
-    raw?: any
+    raw?: unknown
 }
 
 export interface OptimizerConfig {
@@ -178,7 +171,7 @@ export class PriceOptimizer {
      * Returns flattened list with best operator per service
      */
     optimizePriceData(
-        data: Record<string, Record<string, any>>,
+        data: Record<string, Record<string, Record<string, unknown>>>,
         countryCode?: string
     ): Array<{
         country: string
@@ -188,7 +181,14 @@ export class PriceOptimizer {
         count: number
         score?: number
     }> {
-        const results: any[] = []
+        const results: Array<{
+            country: string
+            service: string
+            operator: string
+            cost: number
+            count: number
+            score?: number
+        }> = []
 
         for (const [serviceKey, serviceData] of Object.entries(data)) {
             if (typeof serviceData !== 'object' || serviceData === null) continue
@@ -196,18 +196,19 @@ export class PriceOptimizer {
             // Check if this service has multiple operators
             const operators: PriceOption[] = []
 
-            for (const [operatorKey, opData] of Object.entries(serviceData)) {
-                if (typeof opData !== 'object' || opData === null) continue
+            for (const [operatorKey, opDataRaw] of Object.entries(serviceData)) {
+                if (typeof opDataRaw !== 'object' || opDataRaw === null) continue
+                const opData = opDataRaw as Record<string, unknown>
 
                 const cost = Number(opData.cost ?? opData.price ?? 0)
                 const count = Number(opData.count ?? opData.qty ?? 0)
 
                 operators.push({
                     operator: operatorKey,
-                    providerId: opData.provider_id?.toString(),
+                    providerId: (opData.provider_id as any)?.toString(),
                     cost,
                     count,
-                    metadata: opData,
+                    metadata: opData as Record<string, unknown>,
                     raw: opData
                 })
             }

@@ -8,6 +8,7 @@ const schema = z.object({
 })
 
 export const POST = apiHandler(async (request, { body }) => {
+    if (!body) return NextResponse.json({ error: 'Missing request body' }, { status: 400 })
     const { email } = body
     const ip = request.headers.get('x-forwarded-for') || 'unknown'
 

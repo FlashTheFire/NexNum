@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ events });
 
     } catch (error) {
-        logger.error('[SyncAPI] Failed to sync events', error);
+        logger.error('[SyncAPI] Failed to sync events', { error });
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }

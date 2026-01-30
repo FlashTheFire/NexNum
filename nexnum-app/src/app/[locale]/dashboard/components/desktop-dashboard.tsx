@@ -196,7 +196,7 @@ export function DesktopDashboard() {
                                                 serviceIconUrl={num.serviceIconUrl}
                                                 smsCount={num.smsCount}
                                                 expiresAt={num.expiresAt}
-                                                status={num.status}
+                                                status={num.status || 'active'}
                                                 className="h-[140px]"
                                             />
                                         ))}

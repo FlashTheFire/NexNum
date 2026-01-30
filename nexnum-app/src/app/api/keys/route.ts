@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth/jwt'
 import { createApiKey, listApiKeys, CreateApiKeyInput } from '@/lib/api/api-keys'
 import { ApiTier } from '@prisma/client'
+import { logger } from '@/lib/core/logger'
 
 // GET /api/keys - List API keys
 export async function GET(request: Request) {
@@ -19,7 +20,7 @@ export async function GET(request: Request) {
         })
 
     } catch (error) {
-        console.error('List API keys error:', error)
+        logger.error('List API keys error', { error, context: 'API_KEYS' })
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
 }
@@ -64,7 +65,7 @@ export async function POST(request: Request) {
         }
 
     } catch (error) {
-        console.error('Create API key error:', error)
+        logger.error('Create API key error', { error, context: 'API_KEYS' })
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
 }

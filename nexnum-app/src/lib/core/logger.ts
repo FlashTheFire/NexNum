@@ -61,7 +61,7 @@ const BANNER = `
 // Logger Class (Single-Line In-Place Dashboard)
 // ═══════════════════════════════════════════════════════════════════════════
 class Logger {
-    private isDev = process.env.NODE_ENV === 'development'
+    private isDev = process.env.NODE_ENV === 'development' && process.env.NEXT_PHASE !== 'phase-production-build'
     private static hasSplashed = false
 
     // Dashboard State

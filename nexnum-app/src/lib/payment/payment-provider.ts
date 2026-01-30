@@ -5,7 +5,7 @@ export interface ChargeResult {
     amount: number
     currency: string
     status: 'success' | 'pending' | 'failed'
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
 }
 
 export interface PaymentProvider {

@@ -1,5 +1,5 @@
 
-import { SmsProvider, Country, Service, NumberResult, StatusResult, NumberStatus } from '@/lib/providers/types'
+import { SmsProvider, Country, Service, NumberResult, StatusResult, NumberStatus, PriceData } from '@/lib/providers/types'
 import { WebhookPayload, WebhookVerificationResult } from '@/lib/sms/types'
 import { WebhookVerifier } from '@/lib/webhooks/verify'
 import { Provider } from '@prisma/client'
@@ -258,20 +258,22 @@ export class DynamicProvider implements SmsProvider {
                 params,
                 rawAuthKey,
                 this.config.authType,
-                this.config.authQueryParam,
+                this.config.authQueryParam ?? undefined,
                 epConfig.method
             )
 
             // Merge params into URL
-            queryParams.forEach((val, key) => urlObj!.searchParams.append(key, val))
+            if (urlObj) {
+                queryParams.forEach((val, key) => urlObj!.searchParams.append(key, val))
+            }
 
             // Build Headers
             headers = ProviderRequestBuilder.buildHeaders(
                 epConfig.headers,
                 this.config.authType,
-                rawAuthKey,
-                this.config.authHeader,
-                urlObj.origin
+                rawAuthKey ?? undefined,
+                this.config.authHeader ?? undefined,
+                urlObj?.origin || ''
             )
 
             // Mask headers for trace (done early so it's available if fetch fails)
@@ -294,7 +296,9 @@ export class DynamicProvider implements SmsProvider {
             }
 
             // 0. Logging Request
-            logger.request(`DynamicProvider:${this.name}`, epConfig.method, urlObj.toString())
+            if (urlObj) {
+                logger.request(`DynamicProvider:${this.name}`, epConfig.method, urlObj.toString())
+            }
 
             const upstreamStartTime = Date.now()
             let responseData: any = null
@@ -456,7 +460,7 @@ export class DynamicProvider implements SmsProvider {
             if (!this.lastRequestTrace) {
                 this.lastRequestTrace = {
                     method: epConfig.method,
-                    url: urlObj.toString(),
+                    url: urlObj?.toString() ?? 'unknown',
                     headers: maskedHeaders,
                     responseStatus: 0,
                     responseBody: error.message,
@@ -536,6 +540,8 @@ export class DynamicProvider implements SmsProvider {
         return current
     }
 
+    // Helper to extract nested value from object by path "data.user.id"
+    // NOW SUPPORTS FALLBACK CHAINS: "cost|price|amount" tries each until one succeeds
     // Helper to extract nested value from object by path "data.user.id"
     // NOW SUPPORTS FALLBACK CHAINS: "cost|price|amount" tries each until one succeeds
     private getValue(obj: any, path: string, context: any = {}): any {
@@ -798,9 +804,10 @@ export class DynamicProvider implements SmsProvider {
             if (key.startsWith('$pick:')) {
                 const keysToKeep = key.substring(6).split(',').map(k => k.trim())
                 if (typeof o === 'object' && o !== null) {
-                    const result: any = {}
+                    const obj = o as Record<string, unknown>
+                    const result: Record<string, unknown> = {}
                     for (const k of keysToKeep) {
-                        if (k in o) result[k] = o[k]
+                        if (k in obj) result[k] = obj[k]
                     }
                     return result
                 }
@@ -810,8 +817,9 @@ export class DynamicProvider implements SmsProvider {
             if (key.startsWith('$omit:')) {
                 const keysToOmit = key.substring(6).split(',').map(k => k.trim())
                 if (typeof o === 'object' && o !== null) {
-                    const result: any = {}
-                    for (const [k, v] of Object.entries(o)) {
+                    const obj = o as Record<string, unknown>
+                    const result: Record<string, unknown> = {}
+                    for (const [k, v] of Object.entries(obj)) {
                         if (!keysToOmit.includes(k)) result[k] = v
                     }
                     return result
@@ -905,7 +913,7 @@ export class DynamicProvider implements SmsProvider {
         this.checkForErrors(response, mappingKey, mapConfig)
 
         if (!mapConfig) {
-            console.warn(`[DynamicProvider:${this.name}] No mapping for ${mappingKey}, returning raw`)
+            logger.warn('No mapping found for key, returning auto-parsed data', { context: 'DYNAMIC_PROVIDER', provider: this.name, mappingKey })
             return this.autoParseResponse(response.data)
         }
 
@@ -913,11 +921,11 @@ export class DynamicProvider implements SmsProvider {
 
         // Handle text responses
         if (responseType === 'text') {
-            return this.parseTextResponse(data, mapConfig)
+            return this.parseTextResponse(data as string, mapConfig)
         }
 
         // JSON responses
-        let root = data
+        let root = data as any
 
         // Step 1: Apply explicit rootPath if defined
         if (mapConfig.rootPath && mapConfig.rootPath !== '$') {
@@ -948,7 +956,11 @@ export class DynamicProvider implements SmsProvider {
 
             for (const wrapperKey of wrapperKeys) {
                 if (root[wrapperKey] !== undefined) {
-                    console.log(`[DynamicProvider:${this.name}] Auto-extracted nested data from '${wrapperKey}'`)
+                    logger.debug('Auto-extracted nested data from wrapper', {
+                        context: 'DynamicProvider',
+                        provider: this.name,
+                        wrapperKey
+                    })
                     root = root[wrapperKey]
                     break
                 }
@@ -956,7 +968,11 @@ export class DynamicProvider implements SmsProvider {
         }
 
         if (root === undefined || root === null) {
-            console.warn(`[DynamicProvider:${this.name}] Root path ${mapConfig.rootPath} returned null`)
+            logger.warn('Dynamic root path returned null', {
+                context: 'DynamicProvider',
+                provider: this.name,
+                rootPath: mapConfig.rootPath
+            })
             return []
         }
 
@@ -966,7 +982,10 @@ export class DynamicProvider implements SmsProvider {
         if (Array.isArray(root)) {
             // Data is an array, use json_array parsing regardless of declared type
             if (effectiveType !== 'json_array') {
-                console.log(`[DynamicProvider:${this.name}] Auto-switching to json_array (data is array)`)
+                logger.debug('Auto-switching to json_array (data is array)', {
+                    context: 'DynamicProvider',
+                    provider: this.name
+                })
                 effectiveType = 'json_array'
             }
         } else if (typeof root === 'object') {
@@ -975,7 +994,12 @@ export class DynamicProvider implements SmsProvider {
             if (keys.length > 0 && typeof root[keys[0]] === 'object') {
                 // Object of objects = dictionary
                 if (effectiveType !== 'json_dictionary') {
-                    if (process.env.DEBUG) console.log(`[DynamicProvider:${this.name}] Auto-switching to json_dictionary (object of objects)`)
+                    if (process.env.DEBUG) {
+                        logger.debug('Auto-switching to json_dictionary (object of objects)', {
+                            context: 'DynamicProvider',
+                            provider: this.name
+                        })
+                    }
                     effectiveType = 'json_dictionary'
                 }
             }
@@ -1193,7 +1217,15 @@ export class DynamicProvider implements SmsProvider {
         const currentAncestors = parentContext.ancestors ?? []
 
         for (const [key, value] of Object.entries(obj)) {
-            if (isDebug) console.log(`[DEBUG_MAPPING] Processing Key="${key}" (ExtractOps=${extractOperators}, ProvidersKey=${providersKey}, Depth=${currentDepth})`)
+            if (isDebug) {
+                logger.debug('Processing mapping key', {
+                    context: 'DEBUG_MAPPING',
+                    key,
+                    extractOperators,
+                    providersKey,
+                    depth: currentDepth
+                })
+            }
 
             // Build enhanced context for new depth accessors
             const enhancedContext = {
@@ -1219,13 +1251,25 @@ export class DynamicProvider implements SmsProvider {
 
             // 1. Providers Check + Required Field Filter
             if (providersKey && value[providersKey]) {
-                if (isDebug) console.log(`[DEBUG_MAPPING] Found providersKey "${providersKey}" in "${key}", extracting providers.`)
+                if (isDebug) {
+                    logger.debug('Found providersKey, extracting providers', {
+                        context: 'DEBUG_MAPPING',
+                        providersKey,
+                        key
+                    })
+                }
                 const providersObj = value[providersKey]
                 for (const [providerKey, providerData] of Object.entries(providersObj as Record<string, any>)) {
                     if (typeof providerData === 'object' && providerData !== null) {
                         // NEW: Check required field if configured OR default
                         if (requiredField && providerData[requiredField] === undefined) {
-                            if (isDebug) console.log(`[DEBUG_MAPPING] Skipping provider "${providerKey}" - missing required field "${requiredField}"`)
+                            if (isDebug) {
+                                logger.debug('Skipping provider - missing required field', {
+                                    context: 'DEBUG_MAPPING',
+                                    providerKey,
+                                    requiredField
+                                })
+                            }
                             continue
                         }
 
@@ -1254,7 +1298,14 @@ export class DynamicProvider implements SmsProvider {
             const hasData = this.hasDataFields(value)
             enhancedContext.isLeaf = hasData
 
-            if (isDebug) console.log(`[DEBUG_MAPPING] Key="${key}" hasData=${hasData} depth=${currentDepth}`)
+            if (isDebug) {
+                logger.debug('Processed mapping level', {
+                    context: 'DEBUG_MAPPING',
+                    key,
+                    hasData,
+                    depth: currentDepth
+                })
+            }
 
             if (extractOperators) {
                 if (hasData) {
@@ -1304,7 +1355,6 @@ export class DynamicProvider implements SmsProvider {
         const dataFieldNames = [
             'cost', 'price', 'amount', 'value', 'balance',
             'count', 'qty', 'stock', 'quantity', 'available', 'physicalCount',
-            'rate', 'rate720', 'rate168', 'rate72', 'rate24', 'rate1',
             'id', 'code', 'name', 'provider_id', 'activation', 'phone', 'status'
         ]
 
@@ -1469,7 +1519,7 @@ export class DynamicProvider implements SmsProvider {
             // Universal Template-based Fallbacks
             if (mapConfig?.iconUrlTemplate && !result.iconUrl) {
                 const template = mapConfig.iconUrlTemplate
-                result.iconUrl = template.replace(/{{([^}]+)}}/g, (match, fieldName) => {
+                result.iconUrl = template.replace(/{{([^}]+)}}/g, (match: string, fieldName: string) => {
                     const cleanFieldName = fieldName.trim()
                     const val = result[cleanFieldName] ?? item[cleanFieldName] ?? context[cleanFieldName]
                     return val !== undefined && val !== null ? String(val) : match
@@ -1510,7 +1560,7 @@ export class DynamicProvider implements SmsProvider {
 
     /** @deprecated Use getCountriesList instead */
     async getCountries(): Promise<Country[]> {
-        console.warn(`[DynamicProvider:${this.name}] DEPRECATED: getCountries() called. Use getCountriesList() instead.`)
+        logger.warn('DEPRECATED: getCountries() called. Use getCountriesList() instead.', { provider: this.name })
         return this.getCountriesList()
     }
 
@@ -1578,7 +1628,7 @@ export class DynamicProvider implements SmsProvider {
 
     /** @deprecated Use getServicesList instead */
     async getServices(countryCode?: string | number): Promise<Service[]> {
-        console.warn(`[DynamicProvider:${this.name}] DEPRECATED: getServices() called. Use getServicesList() instead.`)
+        logger.warn('DEPRECATED: getServices() called. Use getServicesList() instead.', { provider: this.name })
         return this.getServicesList(countryCode || '')
     }
 
@@ -1839,7 +1889,7 @@ export class DynamicProvider implements SmsProvider {
 
     /** @deprecated Use setCancel instead */
     async cancelNumber(activationId: string): Promise<void> {
-        console.warn(`[DynamicProvider:${this.name}] DEPRECATED: cancelNumber() called. Use setCancel() instead.`)
+        logger.warn('DEPRECATED: cancelNumber() called. Use setCancel() instead.', { provider: this.name })
         return this.setCancel(activationId)
     }
 
@@ -1873,7 +1923,7 @@ export class DynamicProvider implements SmsProvider {
 
     /** @deprecated Use setResendCode instead */
     async nextSms(activationId: string): Promise<void> {
-        console.warn(`[DynamicProvider:${this.name}] DEPRECATED: nextSms() called. Use setResendCode() instead.`)
+        logger.warn('DEPRECATED: nextSms() called. Use setResendCode() instead.', { provider: this.name })
         return this.setResendCode(activationId)
     }
 
@@ -1922,8 +1972,8 @@ export class DynamicProvider implements SmsProvider {
                 }
             })
             return balance
-        } catch (error) {
-            console.error(`[DynamicProvider:${this.name}] Failed to sync balance:`, error)
+        } catch (error: any) {
+            logger.error('Failed to sync provider balance', { provider: this.name, error: error.message })
             // throw error // Don't throw, just log so we don't break the loop if one fails
             return 0
         }
@@ -2115,11 +2165,4 @@ export class DynamicProvider implements SmsProvider {
     }
 }
 
-// Price data interface
-export interface PriceData {
-    country: string
-    service: string
-    operator?: string
-    cost: number
-    count: number
-}
+

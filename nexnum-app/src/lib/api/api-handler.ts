@@ -10,7 +10,7 @@ import { withRequestContext, generateRequestId } from '@/lib/api/request-context
 type ApiHandler<T> = (
     req: Request,
     context: {
-        params: any;
+        params?: Promise<any> | any;
         body?: T;
         user?: { userId: string; role?: string };
         security?: { fingerprint?: string; clientIp?: string }
@@ -40,7 +40,7 @@ export function apiHandler<T = any>(
     handler: ApiHandler<T>,
     options: ApiOptions<T> = {}
 ) {
-    return async (req: Request, context: { params: any }) => {
+    return async (req: Request, context?: { params?: Promise<any> | any }) => {
         const requestId = req.headers.get('X-Request-ID') || generateRequestId()
         const traceId = req.headers.get('X-Trace-ID') || requestId
 
@@ -128,7 +128,7 @@ export function apiHandler<T = any>(
 
                 // 4. Execute Handler with security context
                 const response = await handler(req, {
-                    ...context,
+                    params: context?.params,
                     body,
                     user,
                     security: {

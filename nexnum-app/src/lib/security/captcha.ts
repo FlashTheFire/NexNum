@@ -39,7 +39,7 @@ export async function verifyCaptcha(token: string, remoteIp?: string): Promise<C
 
     // Skip in development if not configured
     if (process.env.NODE_ENV === 'development') {
-        console.warn('[Captcha] No provider secret configured, skipping in development')
+        logger.warn('No captcha provider secret configured, skipping in development', { context: 'SECURITY' })
         return { success: true, provider: 'none' }
     }
 
@@ -73,8 +73,8 @@ async function verifyHCaptcha(token: string, remoteIp?: string): Promise<Captcha
             error: mapErrorCodes(data['error-codes'] || [], 'hcaptcha'),
             provider: 'hcaptcha'
         }
-    } catch (error) {
-        logger.error('[hCaptcha] Verification error:', error)
+    } catch (error: any) {
+        logger.error('hCaptcha verification error', { context: 'SECURITY', error: error.message })
         return { success: false, error: 'CAPTCHA service unavailable', provider: 'hcaptcha' }
     }
 }
@@ -106,8 +106,8 @@ async function verifyReCaptcha(token: string, remoteIp?: string): Promise<Captch
             error: mapErrorCodes(data['error-codes'] || [], 'recaptcha'),
             provider: 'recaptcha'
         }
-    } catch (error) {
-        logger.error('[reCAPTCHA] Verification error:', error)
+    } catch (error: any) {
+        logger.error('reCAPTCHA verification error', { context: 'SECURITY', error: error.message })
         return { success: false, error: 'CAPTCHA service unavailable', provider: 'recaptcha' }
     }
 }

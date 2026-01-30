@@ -15,6 +15,7 @@ import { MeiliSearch } from 'meilisearch'
 import { prisma } from '@/lib/core/db'
 import { healthMonitor } from '@/lib/providers/health-monitor'
 import { generateCanonicalCode, normalizeCountryName } from '@/lib/normalizers/service-identity'
+import { logger } from '@/lib/core/logger'
 
 const meili = new MeiliSearch({
     host: process.env.MEILISEARCH_HOST || 'http://127.0.0.1:7700',
@@ -272,7 +273,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json(response)
 
     } catch (error: any) {
-        console.error('Matrix API error:', error)
+        logger.error('Matrix API error', { error, context: 'API_MATRIX' })
         return NextResponse.json({ error: error.message }, { status: 500 })
     }
 }
@@ -291,7 +292,7 @@ async function getProviderHealthMap(): Promise<Map<string, any>> {
             map.set(p.name, health)
         }
     } catch (e) {
-        console.error('Failed to get provider health:', e)
+        logger.error('Failed to get provider health', { error: e, context: 'API_MATRIX' })
     }
     return map
 }
@@ -307,7 +308,7 @@ async function getProviderDisplayMap(): Promise<Map<string, string>> {
             map.set(p.name, p.displayName)
         }
     } catch (e) {
-        console.error('Failed to get provider names:', e)
+        logger.error('Failed to get provider names', { error: e, context: 'API_MATRIX' })
     }
     return map
 }

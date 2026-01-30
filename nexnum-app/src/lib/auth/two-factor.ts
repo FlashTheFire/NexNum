@@ -1,12 +1,12 @@
-import { TOTP } from 'otplib'
+import { TOTP } from '@otplib/totp'
 import QRCode from 'qrcode'
 import crypto from 'crypto'
 import { logger } from '@/lib/core/logger'
 
-const SERVICE_NAME = 'NexNum'
 
-// Instantiate TOTP class
+const SERVICE_NAME = 'NexNum'
 const totp = new TOTP()
+
 
 /**
  * Generates a new TOTP secret and otpauth URL for a user
@@ -31,10 +31,10 @@ export async function generateQrCode(otpauthUrl: string): Promise<string> {
 /**
  * Verifies a TOTP token against a secret
  */
-export function verifyTwoFactorToken(token: string, secret: string): boolean {
+export async function verifyTwoFactorToken(token: string, secret: string): Promise<boolean> {
     try {
-        // @ts-ignore - otplib types might define verify as taking strings, but runtime verifies object
-        return totp.verify({ token, secret })
+        const result = await totp.verify(token, { secret })
+        return result.valid
     } catch (e: any) {
         logger.error('2FA Verification error', { error: e.message })
         return false

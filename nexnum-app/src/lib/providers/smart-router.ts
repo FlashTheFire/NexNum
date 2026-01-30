@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/core/db'
+import { Prisma } from '@prisma/client'
 import { DynamicProvider } from '@/lib/providers/dynamic-provider'
 import { SmsProvider, Country, Service, NumberResult, StatusResult } from '@/lib/providers/types'
 import { healthMonitor } from '@/lib/providers/health-monitor'
@@ -11,6 +12,18 @@ import { redis } from '@/lib/core/redis'
 const ACTIVE_PROVIDERS_CACHE_KEY = 'cache:providers:active:config'
 const CACHE_TTL = 30 // 30 seconds (Fresh enough, but prevents DB spam)
 
+export interface ProviderQuote {
+    id: string
+    displayName: string
+    rank: number
+    tags: string[]
+    reliability: 'High' | 'Medium' | 'Low'
+    priceMultiplier: Prisma.Decimal | number
+    estimatedTime: number
+    stock: number
+    realPrice: number
+}
+
 export class SmartSmsRouter implements SmsProvider {
     name = 'SmartRouter'
 
@@ -18,7 +31,7 @@ export class SmartSmsRouter implements SmsProvider {
      * Lifecycle: Initialize the router and its sub-systems
      */
     async init(): Promise<void> {
-        logger.info('[SmartRouter] Initializing enterprise routing engine...')
+        logger.info('SmartRouter initializing enterprise routing engine', { context: 'ROUTER' })
         // Potential future: Warm up caches or establish persistent connections
     }
 
@@ -44,8 +57,8 @@ export class SmartSmsRouter implements SmsProvider {
 
             return providers.map(p => new DynamicProvider(p))
 
-        } catch (error) {
-            logger.error("SmartRouter: Failed to fetch active providers", { error })
+        } catch (error: any) {
+            logger.error("SmartRouter: Failed to fetch active providers", { context: 'ROUTER', error: error.message })
             // Emergency DB fetch if Redis fails
             try {
                 const providers = await prisma.provider.findMany({
@@ -187,7 +200,7 @@ export class SmartSmsRouter implements SmsProvider {
      * Hides sensitive admin config (weights, exact margins) but exposes
      * final price and generic reliability score.
      */
-    async getRankedProviders(country: string | number, service: string | number): Promise<any[]> {
+    async getRankedProviders(country: string | number, service: string | number): Promise<ProviderQuote[]> {
         const cacheKey = `cache:quotes:${country}:${service}`
 
         try {
@@ -218,15 +231,15 @@ export class SmartSmsRouter implements SmsProvider {
                     })
                 }
             }
-        } catch (e) {
+        } catch (e: any) {
             // Meilisearch failure - fallback to health-based scoring only
-            logger.warn('Failed to fetch provider data from search index', { error: e })
+            logger.warn('Failed to fetch provider data from search index', { context: 'ROUTER', error: e.message })
         }
 
         const ranked = await this.selectProviderWeighted(providers, country, providerData)
 
         // Map to safe public structure
-        const result = await Promise.all(ranked.map(async (p, index) => {
+        const result: ProviderQuote[] = await Promise.all(ranked.map(async (p, index): Promise<ProviderQuote> => {
             const health = await healthMonitor.getHealth(p.config.id, country)
             const data = providerData.get(p.name)
 
@@ -235,7 +248,7 @@ export class SmartSmsRouter implements SmsProvider {
                 displayName: p.config.displayName,
                 rank: index + 1,
                 tags: index === 0 ? ['Best Value', 'Fastest'] : [],
-                reliability: health.successRate > 0.8 ? 'High' : 'Medium',
+                reliability: (health.successRate > 0.8 ? 'High' : 'Medium') as 'High' | 'Medium',
                 priceMultiplier: p.config.priceMultiplier,
                 estimatedTime: health.avgLatency || 500,
                 // Return the real fetched data if available
@@ -250,7 +263,7 @@ export class SmartSmsRouter implements SmsProvider {
         // 2. Set Cache (non-blocking)
         if (filteredResult.length > 0) {
             redis.set(cacheKey, JSON.stringify(filteredResult), 'EX', 15).catch(err => {
-                logger.error('Failed to cache quote', { error: err })
+                logger.error('Failed to cache quote', { context: 'ROUTER', error: err.message })
             })
         }
 
@@ -266,10 +279,15 @@ export class SmartSmsRouter implements SmsProvider {
         // Strategy: Return countries from the highest priority provider
         try {
             return await providers[0].getCountriesList()
-        } catch (e) {
+        } catch (e: any) {
             // Failover to next provider?
             if (providers.length > 1) {
-                console.warn(`SmartRouter: Primary provider ${providers[0].name} failed to get countries, failing over to ${providers[1].name}`)
+                logger.warn('Primary provider failed to get countries, failing over', {
+                    context: 'ROUTER',
+                    primary: providers[0].name,
+                    failover: providers[1].name,
+                    error: e.message
+                })
                 return await providers[1].getCountriesList()
             }
             throw e
@@ -294,8 +312,13 @@ export class SmartSmsRouter implements SmsProvider {
                         ...s,
                         price: (s.price * mult) + fixed
                     }))
-                } catch (e) {
-                    console.warn(`SmartRouter: Provider ${provider.name} failed to get services for ${countryCode}`, e)
+                } catch (e: any) {
+                    logger.warn('Provider failed to get services during routing', {
+                        context: 'ROUTER',
+                        provider: provider.name,
+                        countryCode,
+                        error: e.message
+                    })
                     return []
                 }
             })
@@ -341,7 +364,8 @@ export class SmartSmsRouter implements SmsProvider {
 
             // Log price expectation for audit
             if (expectedPrice !== undefined) {
-                logger.info('SmartRouter: Provider selected with expected price', {
+                logger.info('Provider selected with expected price', {
+                    context: 'ROUTER',
                     provider: providerPreference,
                     expectedPrice,
                     priceMultiplier: Number(provider.config.priceMultiplier) || 1.0,
@@ -613,7 +637,7 @@ export class SmartSmsRouter implements SmsProvider {
         maxPrice?: number
     ): Promise<{
         success: boolean
-        number?: any
+        number?: NumberResult
         provider?: string
         price?: number
         attemptsLog: Array<{ provider: string, error?: string }>
@@ -683,6 +707,6 @@ export class SmartSmsRouter implements SmsProvider {
      * Graceful Shutdown
      */
     async shutdown(): Promise<void> {
-        logger.info('[SmartRouter] Shutdown sequence complete.')
+        logger.info('SmartRouter shutdown sequence complete', { context: 'ROUTER' })
     }
 }

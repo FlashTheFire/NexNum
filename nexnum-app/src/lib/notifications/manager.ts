@@ -4,16 +4,24 @@ import { NotificationPayload, OrderNotification, DepositNotification, AlertNotif
 import { logger } from '@/lib/core/logger'
 
 class NotificationManager {
-    private channels = {
-        telegram: new TelegramService(),
-        email: new EmailService()
+    private _telegram: TelegramService | null = null
+    private _email: EmailService | null = null
+
+    private get telegram(): TelegramService {
+        if (!this._telegram) this._telegram = new TelegramService()
+        return this._telegram
+    }
+
+    private get email(): EmailService {
+        if (!this._email) this._email = new EmailService()
+        return this._email
     }
 
     async notify(payload: NotificationPayload) {
         // Fire and forget - don't block main thread
         Promise.allSettled([
-            this.channels.telegram.send(payload),
-            this.channels.email.send(payload)
+            this.telegram.send(payload),
+            this.email.send(payload)
         ]).then((results) => {
             // Optional: log failures
             results.forEach((res, idx) => {

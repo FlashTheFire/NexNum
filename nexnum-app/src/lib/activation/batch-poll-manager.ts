@@ -146,11 +146,9 @@ export class BatchPollManager {
 
         // Check if provider supports batch status
         const adapter = getProviderAdapter(provider)
-        const supportsBatch = 'getStatusBatch' in adapter
-
-        if (supportsBatch && items.length >= CONFIG.BATCH_THRESHOLD) {
+        if (adapter.getStatusBatch && items.length >= CONFIG.BATCH_THRESHOLD) {
             // Use batch API
-            return this.pollProviderBatch(provider, items, adapter as any)
+            return this.pollProviderBatch(provider, items, adapter as Required<Pick<typeof adapter, 'getStatusBatch'>> & typeof adapter)
         } else {
             // Fallback to parallel individual calls
             return this.pollProviderIndividual(provider, items, adapter)
@@ -234,7 +232,9 @@ export class BatchPollManager {
         // Use Promise.allSettled for resilience
         const results = await Promise.allSettled(
             items.map(async (item) => {
-                const status = await adapter.getStatus(item.activationId)
+                const status = adapter.getStatus
+                    ? await adapter.getStatus(item.activationId)
+                    : null
                 return {
                     activationId: item.activationId,
                     numberId: item.numberId,
@@ -253,7 +253,7 @@ export class BatchPollManager {
                     numberId: items[index].numberId,
                     status: 'error',
                     messages: [],
-                    error: result.reason?.message || 'Unknown error'
+                    error: (result.reason as Error)?.message || 'Unknown error'
                 }
             }
         })
@@ -274,7 +274,9 @@ export class BatchPollManager {
                 }
 
                 const adapter = getProviderAdapter(provider)
-                const status = await adapter.getStatus(item.activationId)
+                const status = adapter.getStatus
+                    ? await adapter.getStatus(item.activationId)
+                    : null
 
                 return {
                     activationId: item.activationId,
@@ -294,7 +296,7 @@ export class BatchPollManager {
                     numberId: items[index].numberId,
                     status: 'error',
                     messages: [],
-                    error: result.reason?.message || 'Unknown error'
+                    error: (result.reason as Error)?.message || 'Unknown error'
                 }
             }
         })

@@ -207,7 +207,7 @@ export class MultiSmsHandler {
             const adapter = getProviderAdapter(provider)
 
             // 1. Prefer the standardized v2.0 'setResendCode' method
-            if ('setResendCode' in adapter && typeof adapter.setResendCode === 'function') {
+            if (adapter.setResendCode) {
                 await new Promise(resolve => setTimeout(resolve, CONFIG.NEXT_SMS_REQUEST_DELAY_MS))
                 await adapter.setResendCode(activationId)
                 logger.info('[MultiSMS] Requested resend code (via setResendCode)', { numberId, activationId })
@@ -231,11 +231,11 @@ export class MultiSmsHandler {
             }
 
             return false
-        } catch (error: any) {
+        } catch (error: unknown) {
             logger.warn('[MultiSMS] Failed to request next SMS', {
                 numberId,
                 activationId,
-                error: error.message
+                error: (error as Error).message
             })
             return false
         }
