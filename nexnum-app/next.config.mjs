@@ -150,7 +150,7 @@ const sentryWebpackPluginOptions = {
     dryRun: !process.env.SENTRY_AUTH_TOKEN,
 };
 
-const config = withNextIntl(nextConfig);
+let config = withNextIntl(nextConfig);
 config = withBundleAnalyzer(config);
 
 if (process.env.SENTRY_DSN) {
