@@ -76,9 +76,16 @@ interface GlobalState {
     // Actions - Mutations via API
     topUp: (amount: number) => Promise<{ success: boolean; error?: string }>
     purchaseNumber: (countryCode: string, serviceCode: string, provider?: string, options?: { useBestRoute?: boolean; maxPrice?: number }) => Promise<{ success: boolean; number?: PhoneNumber; error?: string; code?: string; details?: any }>
-    cancelNumber: (id: string) => Promise<{ success: boolean; error?: string }>
+    setCancel: (id: string) => Promise<{ success: boolean; error?: string }>
+    setResendCode: (id: string) => Promise<{ success: boolean; error?: string }>
     completeNumber: (id: string) => Promise<{ success: boolean; error?: string }>
+    getStatus: (numberId: string) => Promise<SmsMessage[]>
+
+    /** @deprecated Use setCancel instead */
+    cancelNumber: (id: string) => Promise<{ success: boolean; error?: string }>
+    /** @deprecated Use getStatus instead */
     pollSms: (numberId: string) => Promise<SmsMessage[]>
+
     updateNumber: (id: string, data: Partial<ActiveNumber>) => void
 
     // UI State
@@ -418,9 +425,9 @@ export const useGlobalStore = create<GlobalState>()(
                 }))
             },
 
-            // Poll SMS for a number
-            pollSms: async (numberId: string) => {
-                const result = await api.pollSms(numberId)
+            // Get SMS status/messages - Standardized v2.0
+            getStatus: async (numberId: string) => {
+                const result = await api.getStatus(numberId)
 
                 if (!result.success || !result.data) {
                     return []
@@ -449,6 +456,12 @@ export const useGlobalStore = create<GlobalState>()(
                 }))
 
                 return msgs
+            },
+
+            // Poll SMS for a number - DEPRECATED
+            pollSms: async (numberId: string) => {
+                console.warn('[Store] DEPRECATED: pollSms() is deprecated. Use getStatus() instead.');
+                return get().getStatus(numberId)
             },
             toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
             setHasHydrated: (state) => set({ _hasHydrated: state }),

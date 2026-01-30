@@ -51,7 +51,7 @@ const fadeInLeft = {
 export default function SMSPage() {
     const params = useParams()
     const router = useRouter()
-    const { activeNumbers, _hasHydrated, fetchNumbers, isLoadingNumbers, cancelNumber, purchaseNumber, completeNumber } = useGlobalStore()
+    const { activeNumbers, _hasHydrated, fetchNumbers, isLoadingNumbers, setCancel, purchaseNumber, completeNumber, setResendCode } = useGlobalStore()
     const [timeLeft, setTimeLeft] = useState(0)
     const [isMenuOpen, setIsMenuOpen] = useState(false)
 
@@ -238,7 +238,7 @@ export default function SMSPage() {
 
         setIsCancelLoading(true)
         try {
-            const result = await cancelNumber(displayNumber.id)
+            const result = await setCancel(displayNumber.id)
 
             if (result.success) {
                 toast.success('Number cancelled', {
