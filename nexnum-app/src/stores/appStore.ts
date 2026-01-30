@@ -370,8 +370,19 @@ export const useGlobalStore = create<GlobalState>()(
             },
 
             // Cancel number via API
+            setCancel: async (id: string) => {
+                const result = await api.setCancel(id)
+                return result
+            },
+
+            // Backward compatibility alias
             cancelNumber: async (id: string) => {
-                const result = await api.cancelNumber(id)
+                return get().setCancel(id)
+            },
+
+            // Request resend code
+            setResendCode: async (id: string) => {
+                const result = await api.setResendCode(id)
                 return result
             },
 

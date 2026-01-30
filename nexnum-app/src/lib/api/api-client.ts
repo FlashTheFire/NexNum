@@ -159,8 +159,8 @@ class NexNumClient {
     async getBalance() { return this.request<{ walletId: string, balance: number }>('/api/wallet/balance') }
     async topUp(amount: number) { return this.request<{ newBalance: number }>('/api/wallet/topup', 'POST', { amount, idempotencyKey: crypto.randomUUID() }) }
     async getTransactions(page = 1, limit = 20) { return this.request<any>(`/api/wallet/transactions?page=${page}&limit=${limit}`) }
-    async getCountries() { const res = await this.request<{ countries: Country[] }>('/api/numbers'); return res.data?.countries || [] }
-    async getServices(countryCode: string) { const res = await this.request<{ services: Service[] }>(`/api/numbers?country=${countryCode}`); return res.data?.services || [] }
+    async getCountriesList() { const res = await this.request<{ countries: Country[] }>('/api/numbers'); return res.data?.countries || [] }
+    async getServicesList(countryCode: string) { const res = await this.request<{ services: Service[] }>(`/api/numbers?country=${countryCode}`); return res.data?.services || [] }
     async purchase(input: { countryCode: string, serviceCode: string, provider?: string }) { return this.request<any>('/api/numbers/purchase', 'POST', { ...input, idempotencyKey: crypto.randomUUID() }) }
     async getMyNumbers(status?: string, page = 1, limit = 20) {
         const params = new URLSearchParams({ page: String(page), limit: String(limit) })
@@ -168,8 +168,19 @@ class NexNumClient {
         return this.request<any>(`/api/numbers/my?${params.toString()}`)
     }
     async getNumberDetails(id: string) { const res = await this.request<{ number: PhoneNumber }>(`/api/numbers/${id}`); return res.data?.number || null }
-    async cancelNumber(id: string) { return this.request<any>(`/api/numbers/${id}/cancel`, 'POST') }
-    async pollSms(numberId: string) { return this.request<{ status: string, messages: SmsMessage[] }>(`/api/sms/${numberId}`) }
+    async setCancel(id: string) { return this.request<any>(`/api/numbers/${id}/cancel`, 'POST') }
+    async cancelNumber(id: string) {
+        console.warn('[APIClient] DEPRECATED: cancelNumber() is deprecated. Use setCancel() instead.');
+        return this.setCancel(id);
+    }
+
+    async getStatus(numberId: string) { return this.request<{ status: string, messages: SmsMessage[] }>(`/api/sms/${numberId}`) }
+    async pollSms(numberId: string) {
+        console.warn('[APIClient] DEPRECATED: pollSms() is deprecated. Use getStatus() instead.');
+        return this.getStatus(numberId);
+    }
+
+    async setResendCode(id: string) { return this.request<any>(`/api/numbers/${id}/resend`, 'POST') }
     async login(data: any) { return this.request<any>('/api/auth/login', 'POST', data) }
     async register(data: any) { return this.request<any>('/api/auth/register', 'POST', data) }
 }
