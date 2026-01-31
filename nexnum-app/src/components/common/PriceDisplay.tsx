@@ -121,7 +121,7 @@ export const BalanceDisplay: React.FC<{
             {primary}
             {showSecondary && settings && (
                 <span className="ml-1 text-xs text-muted-foreground font-normal">
-                    ({balanceInPoints.toFixed(0)} {settings.pointsName})
+                    (${(balanceInPoints / settings.pointsRate).toFixed(2)})
                 </span>
             )}
         </span>
