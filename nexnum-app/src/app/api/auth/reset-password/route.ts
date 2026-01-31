@@ -5,7 +5,7 @@ import { z } from 'zod'
 
 const schema = z.object({
     token: z.string(),
-    password: z.string().min(8)
+    password: z.string().min(6)
 })
 
 export const POST = apiHandler(async (request, { body }) => {

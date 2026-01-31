@@ -16,7 +16,7 @@ interface Requirement {
 
 export function PasswordStrengthMeter({ password }: PasswordStrengthMeterProps) {
     const requirements: Requirement[] = useMemo(() => [
-        { label: 'At least 8 characters', met: password.length >= 8 },
+        { label: 'At least 6 characters', met: password.length >= 6 },
         { label: 'At least one uppercase letter', met: /[A-Z]/.test(password) },
         { label: 'At least one lowercase letter', met: /[a-z]/.test(password) },
         { label: 'At least one number', met: /\d/.test(password) },
