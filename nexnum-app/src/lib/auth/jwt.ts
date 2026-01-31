@@ -49,7 +49,14 @@ export async function verifyToken(token: string): Promise<TokenPayload | null> {
 export function getTokenFromHeaders(headers: Headers): string | null {
     const authHeader = headers.get('authorization')
     if (!authHeader?.startsWith('Bearer ')) return null
-    return authHeader.slice(7)
+
+    const token = authHeader.slice(7).trim()
+    // IGNORE legacy/buggy values from frontend (null/undefined)
+    if (!token || token === 'null' || token === 'undefined') {
+        return null
+    }
+
+    return token
 }
 
 /**

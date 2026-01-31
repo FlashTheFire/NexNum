@@ -222,27 +222,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     logout: async () => {
         try {
-            const token = get().token || getToken();
-
-            // Fetch CSRF token first
-            let csrfToken = null;
-            try {
-                const csrfRes = await fetch('/api/csrf', { cache: 'no-store' });
-                if (csrfRes.ok) {
-                    const csrfData = await csrfRes.json();
-                    csrfToken = csrfData.token;
-                }
-            } catch (e) {
-                // Ignore CSRF fetch error
-            }
-
-            await fetch('/api/auth/logout', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'X-CSRF-Token': csrfToken || ''
-                },
-            });
+            const { api } = await import('@/lib/api/api-client')
+            await api.logout()
         } catch (error) {
             // Ignore logout errors
         }
