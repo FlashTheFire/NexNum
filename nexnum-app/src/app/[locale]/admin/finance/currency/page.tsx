@@ -38,6 +38,19 @@ export default function CurrencyManagementPage() {
     const [isLoading, setIsLoading] = useState(true)
     const [isSyncing, setIsSyncing] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
+    const [csrfToken, setCsrfToken] = useState<string>('')
+
+    const fetchCsrf = async () => {
+        try {
+            const res = await fetch('/api/csrf')
+            const data = await res.json()
+            if (data.success) {
+                setCsrfToken(data.token)
+            }
+        } catch (e) {
+            console.error("Failed to init CSRF")
+        }
+    }
 
     const fetchData = async () => {
         try {
@@ -54,13 +67,8 @@ export default function CurrencyManagementPage() {
 
     useEffect(() => {
         fetchData()
+        fetchCsrf()
     }, [])
-
-    const getCsrfToken = () => {
-        if (typeof document === 'undefined') return ''
-        const match = document.cookie.match(new RegExp('(^| )(__Host-csrf-token|csrf-token)=([^;]+)'))
-        return match ? match[3] : ''
-    }
 
     const handleSync = async () => {
         setIsSyncing(true)
@@ -68,7 +76,7 @@ export default function CurrencyManagementPage() {
             const res = await fetch('/api/admin/finance/currency/sync', {
                 method: 'POST',
                 headers: {
-                    'x-csrf-token': getCsrfToken()
+                    'x-csrf-token': csrfToken
                 }
             })
             if (res.ok) {
@@ -92,7 +100,7 @@ export default function CurrencyManagementPage() {
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',
-                    'x-csrf-token': getCsrfToken()
+                    'x-csrf-token': csrfToken
                 },
                 body: JSON.stringify({ action: 'update_settings', ...settings, ...newData })
             })
@@ -116,7 +124,7 @@ export default function CurrencyManagementPage() {
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',
-                    'x-csrf-token': getCsrfToken()
+                    'x-csrf-token': csrfToken
                 },
                 body: JSON.stringify({ action: 'update_currency', code, ...data })
             })

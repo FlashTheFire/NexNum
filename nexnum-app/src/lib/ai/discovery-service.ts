@@ -83,7 +83,7 @@ const SPECIAL_ACCESSORS_REF = `
   "country": "$atDepth:0",
   "service": "$atDepth:1",
   "operator": "$atDepth:2|'any'",
-  "cost": "price",
+  "cost": "pointPrice",
   "count": "count"
 }
 \`\`\`
@@ -141,7 +141,7 @@ const CONFIGURATION_STRATEGIES = `
     "country": "$atDepth:0",
     "service": "$atDepth:1",
     "operator": "$atDepth:2|'any'",
-    "cost": "price",
+    "cost": "pointPrice",
     "count": "count"
   },
   "transform": { "cost": "number", "count": "number" }
@@ -198,7 +198,7 @@ const CONFIGURATION_STRATEGIES = `
   "fields": {
     "service": "$key",
     "operator": "$operatorKey",
-    "cost": "price"
+    "cost": "pointPrice"
   }
 }
 \`\`\`

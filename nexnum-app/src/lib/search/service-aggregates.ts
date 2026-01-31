@@ -42,7 +42,7 @@ export async function refreshAllServiceAggregates() {
             const result = await index.search('', {
                 offset,
                 limit,
-                attributesToRetrieve: ['providerServiceCode', 'serviceName', 'price', 'stock', 'countryName', 'provider']
+                attributesToRetrieve: ['providerServiceCode', 'serviceName', 'pointPrice', 'stock', 'countryName', 'provider']
             })
 
             if (result.hits.length === 0) {
@@ -58,7 +58,7 @@ export async function refreshAllServiceAggregates() {
                     agg = {
                         serviceCode,
                         serviceName: hit.serviceName || serviceCode,
-                        lowestPrice: hit.price,
+                        lowestPrice: hit.pointPrice,
                         totalStock: BigInt(0),
                         _countries: new Set(),
                         _providers: new Set()
@@ -66,7 +66,7 @@ export async function refreshAllServiceAggregates() {
                     aggregates.set(serviceCode, agg)
                 }
 
-                agg.lowestPrice = Math.min(agg.lowestPrice, hit.price)
+                agg.lowestPrice = Math.min(agg.lowestPrice, hit.pointPrice)
                 agg.totalStock += BigInt(hit.stock || 0)
                 if (hit.countryName) agg._countries.add(hit.countryName)
                 if (hit.provider) agg._providers.add(hit.provider)
@@ -146,7 +146,7 @@ export async function getServiceAggregates(options?: {
     query?: string
     page?: number
     limit?: number
-    sortBy?: 'name' | 'price' | 'stock'
+    sortBy?: 'name' | 'pointPrice' | 'stock'
 }) {
     const limit = options?.limit || 50
     const page = options?.page || 1
@@ -208,7 +208,7 @@ export async function getServiceAggregates(options?: {
         }
     }
 
-    const orderBy = options?.sortBy === 'price'
+    const orderBy = options?.sortBy === 'pointPrice'
         ? { lowestPrice: 'asc' as const }
         : options?.sortBy === 'stock'
             ? { totalStock: 'desc' as const }

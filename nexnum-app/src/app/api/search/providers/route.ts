@@ -23,7 +23,7 @@ export async function GET(req: Request) {
         const countryCode = searchParams.get("country");
         const page = parseInt(searchParams.get("page") || "1");
         const limit = parseInt(searchParams.get("limit") || "20");
-        const sort = (searchParams.get("sort") || "price") as 'price' | 'stock';
+        const sort = (searchParams.get("sort") || "pointPrice") as 'pointPrice' | 'stock';
 
         if (!serviceCode || !countryCode) {
             return NextResponse.json(
@@ -60,7 +60,8 @@ export async function GET(req: Request) {
                 countryName: p.countryName,
                 countryCode: p.providerCountryCode,
                 flagUrl: p.countryIcon,
-                price: p.price,
+                price: p.pointPrice,
+                currencyPrices: p.currencyPrices,
                 stock: p.stock,
                 successRate: successRate,
                 operatorId: p.operator,

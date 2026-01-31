@@ -81,7 +81,7 @@ type MappingConfig = {
     valueField?: string // e.g., "balance" - wraps value as { balance: 123.45 }
 
     // NEW: For json_array_positional - map array indices to field names
-    positionFields?: Record<string, string> // e.g., { "0": "id", "1": "phone", "2": "price" }
+    positionFields?: Record<string, string> // e.g., { "0": "id", "1": "phone", "2": "pointPrice" }
 
     // NEW: For json_keyed_value - specify key and value field names
     keyField?: string   // e.g., "activationId" - the dictionary key becomes this field
@@ -1149,7 +1149,7 @@ export class DynamicProvider implements SmsProvider {
 
     /**
      * Parse 2D array (table-like data)
-     * Example with headerRow=true: [["id","phone","price"], ["123","+1555","0.5"]]
+     * Example with headerRow=true: [["id","phone","pointPrice"], ["123","+1555","0.5"]]
      * → [{ id: "123", phone: "+1555", price: "0.5" }]
      */
     private parseJsonNestedArray(arr: any, mapConfig: MappingConfig): any[] {
@@ -1353,7 +1353,7 @@ export class DynamicProvider implements SmsProvider {
 
         // Common data field names that indicate this is a leaf node
         const dataFieldNames = [
-            'cost', 'price', 'amount', 'value', 'balance',
+            'cost', 'pointPrice', 'amount', 'value', 'balance',
             'count', 'qty', 'stock', 'quantity', 'available', 'physicalCount',
             'id', 'code', 'name', 'provider_id', 'activation', 'phone', 'status'
         ]

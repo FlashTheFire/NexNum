@@ -37,9 +37,9 @@ export default function CurrencySelector() {
                     <DropdownMenuItem
                         key={cur.code}
                         onClick={() => setCurrency(cur.code)}
-                        className={`flex items-center justify-between px-3 py-2 rounded-xl cursor-not-allowed transition-all ${currency.code === cur.code
-                                ? "bg-[hsl(var(--neon-lime))/0.1] text-[hsl(var(--neon-lime))]"
-                                : "text-gray-400 hover:text-white hover:bg-white/5"
+                        className={`flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer transition-all ${currency.code === cur.code
+                            ? "bg-[hsl(var(--neon-lime))/0.1] text-[hsl(var(--neon-lime))]"
+                            : "text-gray-400 hover:text-white hover:bg-white/5"
                             }`}
                     >
                         <div className="flex flex-col">

@@ -1,18 +1,25 @@
+"use client"
+
 import { motion } from "framer-motion";
-import { ArrowRight, Signal, Server } from "lucide-react";
-import { formatPrice } from "@/lib/utils/utils";
+import { ArrowRight, Server } from "lucide-react";
 import { SafeImage } from "@/components/ui/safe-image";
 import { getCountryFlagUrlSync } from "@/lib/normalizers/country-flags";
+import { PriceDisplay } from "@/components/common/PriceDisplay";
+
+// ============================================
+// TYPES
+// ============================================
 
 export interface SearchOffer {
     id: string;
-    provider: string; // "provider-a"
-    countryCode: string; // "22"
-    countryName: string; // "India"
-    serviceCode: string; // "wa"
-    serviceName: string; // "WhatsApp"
-    price: number;
-    count: number;
+    provider: string;         // "provider-a"
+    countryCode: string;      // "22"
+    countryName: string;      // "India"
+    serviceCode: string;      // "wa"
+    serviceName: string;      // "WhatsApp"
+    pointPrice: number;       // Price in Points (100 = $1)
+    currencyPrices?: Record<string, number>;  // Pre-computed: {"USD": 1.50, "INR": 125}
+    count: number;            // Stock count
 }
 
 interface OfferCardProps {
@@ -20,6 +27,10 @@ interface OfferCardProps {
     onBuy: (offer: SearchOffer) => void;
     disabled?: boolean;
 }
+
+// ============================================
+// COMPONENT
+// ============================================
 
 export const OfferCard = ({ offer, onBuy, disabled }: OfferCardProps) => {
     // Determine stock status
@@ -34,7 +45,7 @@ export const OfferCard = ({ offer, onBuy, disabled }: OfferCardProps) => {
             whileTap={{ scale: 0.98 }}
             onClick={() => onBuy(offer)}
             disabled={disabled}
-            className="group relative flex items-center justify-between p-4 rounded-2xl border border-white/5 bg-white/5 hover:bg-white/10 hover:border-[hsl(var(--neon-lime))] transition-all w-full text-left overflow-hidden"
+            className="group relative flex items-center justify-between p-4 rounded-2xl border border-white/5 bg-white/5 hover:bg-white/10 hover:border-[hsl(var(--neon-lime))] transition-all w-full text-left overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
         >
             {/* Background Gradient on Hover */}
             <div className="absolute inset-0 bg-gradient-to-r from-[hsl(var(--neon-lime)/0.05)] to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
@@ -68,7 +79,10 @@ export const OfferCard = ({ offer, onBuy, disabled }: OfferCardProps) => {
             {/* Price & Action */}
             <div className="z-10 text-right">
                 <div className="font-mono text-xl font-bold text-[hsl(var(--neon-lime))]">
-                    {formatPrice(offer.price)}
+                    <PriceDisplay
+                        amountInPoints={offer.pointPrice}
+                        currencyPrices={offer.currencyPrices}
+                    />
                 </div>
                 <div className="text-[10px] text-gray-500 group-hover:text-white transition-colors flex items-center justify-end gap-1 mt-1">
                     Buy <ArrowRight className="w-3 h-3 group-hover:-rotate-45 transition-transform" />

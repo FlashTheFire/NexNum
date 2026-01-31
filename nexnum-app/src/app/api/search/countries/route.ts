@@ -21,7 +21,7 @@ export async function GET(req: Request) {
         const q = searchParams.get("q") || "";
         const page = parseInt(searchParams.get("page") || "1");
         const limit = parseInt(searchParams.get("limit") || "50");
-        const sort = (searchParams.get("sort") || "name") as 'name' | 'price' | 'stock';
+        const sort = (searchParams.get("sort") || "name") as 'name' | 'pointPrice' | 'stock';
 
         if (!serviceCode) {
             return NextResponse.json(

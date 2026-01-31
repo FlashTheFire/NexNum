@@ -1,7 +1,11 @@
 
 "use client"
 
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import React, { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react'
+
+// ============================================
+// TYPES
+// ============================================
 
 interface Currency {
     code: string
@@ -18,16 +22,32 @@ interface SystemSettings {
     pointsRate: number
 }
 
+interface FormatOptions {
+    showCode?: boolean
+    precision?: number
+}
+
 interface CurrencyContextType {
     currencies: Record<string, Currency>
     settings: SystemSettings | null
     preferredCurrency: string
-    formatPrice: (amountInPoints: number, options?: { showCode?: boolean; precision?: number }) => string
-    convert: (amount: number, from: string, to: string) => number
     isLoading: boolean
+
+    // Core methods
+    formatPrice: (amountInPoints: number, options?: FormatOptions) => string
+    convert: (amount: number, from: string, to: string) => number
+
+    // Multi-currency support (NEW)
+    setCurrency: (code: string) => void
+    formatFromPrices: (currencyPrices?: Record<string, number>, fallbackPoints?: number) => string
+    formatBalance: (balanceInPoints: number) => string
 }
 
 const CurrencyContext = createContext<CurrencyContextType | undefined>(undefined)
+
+// ============================================
+// PROVIDER COMPONENT
+// ============================================
 
 export function CurrencyProvider({ children }: { children: ReactNode }) {
     const [currencies, setCurrencies] = useState<Record<string, Currency>>({})
@@ -35,6 +55,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     const [preferredCurrency, setPreferredCurrency] = useState('USD')
     const [isLoading, setIsLoading] = useState(true)
 
+    // Fetch currency data on mount
     useEffect(() => {
         const fetchData = async () => {
             try {
@@ -42,9 +63,9 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
                 const data = await res.json()
                 setCurrencies(data.currencies)
                 setSettings(data.settings)
-                setPreferredCurrency(data.preferredCurrency)
+                setPreferredCurrency(data.preferredCurrency || 'USD')
             } catch (e) {
-                console.error("Failed to fetch currency data", e)
+                console.error("[CurrencyProvider] Failed to fetch currency data", e)
             } finally {
                 setIsLoading(false)
             }
@@ -52,41 +73,49 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
         fetchData()
     }, [])
 
-    const convert = (amount: number, from: string, to: string): number => {
+    // ============================================
+    // CURRENCY CONVERSION
+    // ============================================
+
+    const convert = useCallback((amount: number, from: string, to: string): number => {
         if (!settings || !currencies) return amount
 
-        // Logic:
-        // 1. Convert "from" to Technical Base (USD)
-        // 2. Convert Technical Base to "to"
-
+        // Step 1: Convert "from" to USD (Technical Base)
         let amountInUsd = 0
-
         if (from === 'POINTS') {
             amountInUsd = amount / settings.pointsRate
-        } else if (from === settings.baseCurrency) {
+        } else if (from === settings.baseCurrency || from === 'USD') {
             amountInUsd = amount
         } else if (currencies[from]) {
             amountInUsd = amount / currencies[from].rate
         } else {
-            amountInUsd = amount // Fallback
+            amountInUsd = amount
         }
 
+        // Step 2: Convert USD to "to"
         if (to === 'POINTS') {
             return amountInUsd * settings.pointsRate
-        } else if (to === settings.baseCurrency) {
+        } else if (to === settings.baseCurrency || to === 'USD') {
             return amountInUsd
         } else if (currencies[to]) {
             return amountInUsd * currencies[to].rate
         }
 
         return amountInUsd
-    }
+    }, [settings, currencies])
 
-    const formatPrice = (amountInPoints: number, options?: { showCode?: boolean; precision?: number }): string => {
+    // ============================================
+    // FORMATTING METHODS
+    // ============================================
+
+    /**
+     * Format amount in Points to user's preferred currency (with real-time conversion)
+     */
+    const formatPrice = useCallback((amountInPoints: number, options?: FormatOptions): string => {
         if (!settings) return amountInPoints.toString()
 
         const targetCurrency = preferredCurrency
-        const precision = options?.precision ?? (targetCurrency === 'POINTS' ? 2 : 2)
+        const precision = options?.precision ?? 2
 
         if (targetCurrency === 'POINTS') {
             return `${amountInPoints.toFixed(precision)} ${settings.pointsName}`
@@ -97,24 +126,104 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
         const symbol = currencyData?.symbol || ''
         const code = options?.showCode ? ` ${targetCurrency}` : ''
 
-        // Format: Symbol + Amount + (optional Code)
-        // e.g. $1.50 or ₹120.00 INR
         return `${symbol}${converted.toFixed(precision)}${code}`
-    }
+    }, [settings, preferredCurrency, currencies, convert])
+
+    /**
+     * Format using pre-computed currency prices (preferred) or fallback to conversion
+     * This is the PRIMARY method for displaying prices from MeiliSearch offers
+     */
+    const formatFromPrices = useCallback((
+        currencyPrices?: Record<string, number>,
+        fallbackPoints?: number
+    ): string => {
+        // Priority 1: Use pre-computed price for user's currency
+        if (currencyPrices && preferredCurrency in currencyPrices) {
+            const price = currencyPrices[preferredCurrency]
+            const currencyData = currencies[preferredCurrency]
+            const symbol = currencyData?.symbol || ''
+            return `${symbol}${price.toFixed(2)}`
+        }
+
+        // Priority 2: Real-time conversion from Points
+        if (fallbackPoints !== undefined) {
+            return formatPrice(fallbackPoints)
+        }
+
+        return '--'
+    }, [preferredCurrency, currencies, formatPrice])
+
+    /**
+     * Format user balance (always stored in Points) to user's preferred currency
+     */
+    const formatBalance = useCallback((balanceInPoints: number): string => {
+        if (!settings) return `${balanceInPoints} pts`
+
+        if (preferredCurrency === 'POINTS') {
+            return `${balanceInPoints.toFixed(0)} ${settings.pointsName}`
+        }
+
+        const converted = convert(balanceInPoints, 'POINTS', preferredCurrency)
+        const currencyData = currencies[preferredCurrency]
+        const symbol = currencyData?.symbol || ''
+
+        // For balance, show 2 decimal places
+        return `${symbol}${converted.toFixed(2)}`
+    }, [settings, preferredCurrency, currencies, convert])
+
+    // ============================================
+    // CURRENCY SELECTION
+    // ============================================
+
+    /**
+     * Set user's preferred currency with persistence
+     */
+    const setCurrency = useCallback((code: string) => {
+        // Validate currency exists
+        if (code !== 'POINTS' && !currencies[code]) {
+            console.warn(`[CurrencyProvider] Unknown currency: ${code}`)
+            return
+        }
+
+        setPreferredCurrency(code)
+
+        // Persist to cookie (1 year expiry)
+        document.cookie = `nexnum-currency=${code}; path=/; max-age=31536000; SameSite=Lax`
+
+        // Sync to user profile in background (fire and forget)
+        fetch('/api/auth/me', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ preferredCurrency: code })
+        }).catch(() => {
+            // Silently fail - cookie is primary persistence
+        })
+    }, [currencies])
+
+    // ============================================
+    // RENDER
+    // ============================================
 
     return (
         <CurrencyContext.Provider value={{
             currencies,
             settings,
             preferredCurrency,
+            isLoading,
             formatPrice,
             convert,
-            isLoading
+            setCurrency,
+            formatFromPrices,
+            formatBalance
         }}>
             {children}
         </CurrencyContext.Provider>
     )
 }
+
+// ============================================
+// HOOK
+// ============================================
 
 export const useCurrency = () => {
     const context = useContext(CurrencyContext)

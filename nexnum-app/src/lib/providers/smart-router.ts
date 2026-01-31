@@ -224,9 +224,9 @@ export class SmartSmsRouter implements SmsProvider {
             // Group by provider and use the best (lowest price) offer for each
             for (const offer of searchResult.providers) {
                 const existing = providerData.get(offer.provider)
-                if (!existing || offer.price < existing.price) {
+                if (!existing || offer.pointPrice < existing.price) {
                     providerData.set(offer.provider, {
-                        price: offer.price,
+                        price: offer.pointPrice,
                         stock: offer.stock
                     })
                 }

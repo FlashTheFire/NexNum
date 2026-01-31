@@ -1473,26 +1473,28 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                             </div>
 
                             {/* Mode Selector - Compact */}
-                            <div className="grid grid-cols-4 gap-2">
+                            <div className="grid grid-cols-2 gap-2">
                                 {[
-                                    { id: 'AUTO', label: 'Auto', icon: Globe },
-                                    { id: 'MANUAL', label: 'Manual', icon: Edit },
-                                    { id: 'API', label: 'Market', icon: Link },
-                                    { id: 'SMART_AUTO', label: 'Smart', icon: Zap }
+                                    { id: 'MANUAL', label: 'Manual Rate', icon: Edit, description: 'Set fixed exchange rate' },
+                                    { id: 'SMART_AUTO', label: 'Smart Auto', icon: Zap, description: 'Calculate from deposits' }
                                 ].map(mode => (
                                     <button
                                         key={mode.id}
                                         onClick={() => setFormData({ ...formData, normalizationMode: mode.id })}
-                                        className={`py-2 px-1 rounded-lg border text-center transition-all ${formData.normalizationMode === mode.id
+                                        className={`py-3 px-3 rounded-lg border text-left transition-all ${formData.normalizationMode === mode.id
                                             ? 'bg-orange-500/20 border-orange-500/50 text-white shadow-lg shadow-orange-500/10'
                                             : 'bg-white/5 border-white/5 text-white/40 hover:bg-white/10'
                                             }`}
                                     >
-                                        <mode.icon className={`w-3.5 h-3.5 mx-auto mb-1 ${formData.normalizationMode === mode.id ? 'text-orange-400' : 'text-white/20'}`} />
-                                        <div className="text-[9px] font-bold truncate">{mode.label}</div>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <mode.icon className={`w-4 h-4 ${formData.normalizationMode === mode.id ? 'text-orange-400' : 'text-white/30'}`} />
+                                            <span className="text-xs font-bold">{mode.label}</span>
+                                        </div>
+                                        <p className="text-[10px] text-white/40">{mode.description}</p>
                                     </button>
                                 ))}
                             </div>
+
 
                             {/* Mode Specific Settings - Inline */}
                             <div className="mt-4">
@@ -1512,19 +1514,8 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                     </div>
                                 )}
 
-                                {formData.normalizationMode === 'API' && (
-                                    <div className="p-4 bg-purple-500/5 rounded-xl border border-purple-500/20 space-y-3">
-                                        <label className="text-xs font-medium text-white/60">Market API Corridor</label>
-                                        <Input
-                                            value={formData.apiPair}
-                                            onChange={e => setFormData({ ...formData, apiPair: e.target.value })}
-                                            className="bg-black/40 border-white/10 font-mono h-10 text-sm"
-                                            placeholder="e.g. USDT/RUB"
-                                        />
-                                    </div>
-                                )}
-
                                 {formData.normalizationMode === 'SMART_AUTO' && (
+
                                     <div className="p-4 bg-emerald-500/5 rounded-xl border border-emerald-500/20 space-y-4">
                                         <div className="grid grid-cols-2 gap-3">
                                             <div className="space-y-1.5">

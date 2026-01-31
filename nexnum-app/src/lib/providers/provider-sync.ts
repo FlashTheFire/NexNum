@@ -696,6 +696,13 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
         await currencyService['ensureRates']()
         const ratesCache = currencyService['ratesCache'] // Access internal cache directly or via helper if made public
 
+        // MULTI-CURRENCY: Fetch all active currencies for pre-computation
+        const activeCurrencies = await prisma.currency.findMany({
+            where: { isActive: true },
+            select: { code: true, rate: true }
+        })
+        const currencyRatesMap = new Map(activeCurrencies.map(c => [c.code, Number(c.rate)]))
+
         // Helper: Sync conversion (USD anchor)
         const getRateToUSD = (code: string) => {
             if (code === 'USD') return 1.0
@@ -704,7 +711,7 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
 
         // Calculate Provider Effective Rate (Provider Units per 1 USD)
         let effectiveProviderRate = 1.0
-        const normMode = String(provider.normalizationMode || 'AUTO')
+        const normMode = String(provider.normalizationMode || 'MANUAL')
 
         if (normMode === 'MANUAL') {
             effectiveProviderRate = Number(provider.normalizationRate || 1.0)
@@ -713,10 +720,12 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
             const spentInUSD = Number(provider.depositSpent) / spentRate
             effectiveProviderRate = Number(provider.depositReceived) / (spentInUSD || 1.0)
         } else {
+            // AUTO, API, or any other mode: fallback to standard exchange rates
             effectiveProviderRate = getRateToUSD(providerCurrency)
         }
 
         const pointsRate = Number(systemSettings.pointsRate)
+
 
         const allOffers: OfferDocument[] = []
         // Operator mapping: Track provider+externalOperator -> internal sequential ID
@@ -753,6 +762,16 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                 const markupPoints = markupUsd * pointsRate
 
                 const sellPrice = (baseCostPoints * multiplier) + markupPoints
+
+                // MULTI-CURRENCY: Pre-compute prices for all active currencies
+                const currencyPrices: Record<string, number> = {}
+                for (const [currencyCode, currencyRate] of currencyRatesMap) {
+                    // Convert USD base to target currency, then apply multiplier and markup
+                    const priceInCurrency = (baseCostUSD * multiplier + markupUsd) * currencyRate
+                    currencyPrices[currencyCode] = Number(priceInCurrency.toFixed(2))
+                }
+                // Always include USD
+                currencyPrices['USD'] = Number((baseCostUSD * multiplier + markupUsd).toFixed(2))
 
                 // OPERATOR MAPPING
                 const externalOp = p.operator != null ? String(p.operator) : 'default'
@@ -809,12 +828,15 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                         return `https://api.dicebear.com/7.x/initials/svg?seed=${nameForIcon}&backgroundColor=000000&chars=2`
                     })(),
                     operator: String(internalOpId),
-                    price: Number(sellPrice.toFixed(2)),
+                    pointPrice: Number(sellPrice.toFixed(2)),
                     rawPrice: Number(providerRawCost.toFixed(6)),
+                    currencyPrices,
                     stock: p.count,
                     lastSyncedAt: Date.now(),
                     isActive: isActive
                 })
+
+
                 pricesCount++
             }
         }

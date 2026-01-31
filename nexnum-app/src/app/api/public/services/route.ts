@@ -14,7 +14,7 @@ export async function GET(request: Request) {
         const query = searchParams.get('q') || undefined
         const page = parseInt(searchParams.get('page') || '1')
         const limit = parseInt(searchParams.get('limit') || '50')
-        const sortBy = searchParams.get('sort') as 'name' | 'price' | 'stock' | undefined
+        const sortBy = searchParams.get('sort') as 'name' | 'pointPrice' | 'stock' | undefined
 
         const result = await getServiceAggregates({ query, page, limit, sortBy })
 

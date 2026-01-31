@@ -76,8 +76,11 @@ export interface OfferDocument {
     providerCountryCode: string;  // e.g. "91", "india" - VERBATIM from provider API
 
     // === Pricing ===
-    price: number;         // Sell price in COINS (System Currency)
+    pointPrice: number;    // Sell price in POINTS (100 Points = 1 USD) - Sortable
     rawPrice: number;      // Provider's raw cost (Their Currency unit)
+    currencyPrices: Record<string, number>;  // Pre-computed: {"USD": 1.50, "INR": 125.00}
+
+
 
     // === Inventory ===
     stock: number;
@@ -91,6 +94,7 @@ export interface OfferDocument {
 }
 
 
+
 // ...
 
 export interface CountryStats {
@@ -98,7 +102,7 @@ export interface CountryStats {
     name: string;       // Display name
     identifier?: string; // Best Provider ID/ISO for flag lookup (e.g. "10" or "us")
     flagUrl: string;    // Fallback URL
-    lowestPrice: number;
+    lowestPrice: number;  // In points (use currencyPrices per offer for display)
     totalStock: number;
     serverCount: number;
 }
@@ -107,13 +111,14 @@ export interface ServiceStats {
     slug: string;
     name: string;
     iconUrl?: string;
-    lowestPrice: number;
+    lowestPrice: number;  // In points (use currencyPrices per offer for display)
     totalStock: number;
     serverCount: number;
     countryCount: number;
     topCountries: { code: string; name: string; flagUrl?: string }[];
     popular?: boolean;
 }
+
 
 // ============================================
 // SHARED COUNTRY AGGREGATION HELPERS
@@ -137,7 +142,7 @@ export interface CountryAggregate {
  */
 export function aggregateCountryFromHit(
     countryMap: Map<string, CountryAggregate>,
-    hit: { countryCode?: string; countryName: string; countryIcon?: string; price: number; stock?: number; provider: string }
+    hit: { countryCode?: string; countryName: string; countryIcon?: string; pointPrice: number; stock?: number; provider: string }
 ): void {
     const key = normalizeCountryName(hit.countryName)
 
@@ -145,7 +150,7 @@ export function aggregateCountryFromHit(
         countryMap.set(key, {
             name: hit.countryName,
             flagUrl: '', // Will be computed
-            minPrice: hit.price,
+            minPrice: hit.pointPrice,
             totalStock: hit.stock || 0,
             providers: new Set([hit.provider]),
             bestCode: hit.countryCode
@@ -153,7 +158,7 @@ export function aggregateCountryFromHit(
     } else {
         const stats = countryMap.get(key)!
         if (!stats.bestCode && hit.countryCode) stats.bestCode = hit.countryCode
-        stats.minPrice = Math.min(stats.minPrice, hit.price)
+        stats.minPrice = Math.min(stats.minPrice, hit.pointPrice)
         stats.totalStock += hit.stock || 0
         stats.providers.add(hit.provider)
 
@@ -218,7 +223,7 @@ export async function searchCountries(
         const result = await index.search(query, {
             filter: `serviceName = "${serviceNameToFilter}" AND isActive = true`,
             limit: 2000,
-            attributesToRetrieve: ['providerCountryCode', 'countryName', 'provider', 'price', 'stock'],
+            attributesToRetrieve: ['providerCountryCode', 'countryName', 'provider', 'pointPrice', 'stock'],
         })
 
         // Metrics
@@ -240,7 +245,7 @@ export async function searchCountries(
             if (!stats) {
                 stats = {
                     displayName: hit.countryName,
-                    minPrice: hit.price,
+                    minPrice: hit.pointPrice,
                     totalStock: 0,
                     providers: new Set(),
                     bestCode: hit.providerCountryCode
@@ -248,7 +253,7 @@ export async function searchCountries(
                 countryMap.set(normalizedName, stats)
             }
 
-            stats.minPrice = Math.min(stats.minPrice, hit.price)
+            stats.minPrice = Math.min(stats.minPrice, hit.pointPrice)
             stats.totalStock += hit.stock || 0
             stats.providers.add(hit.provider)
             if (!stats.bestCode && hit.providerCountryCode) stats.bestCode = hit.providerCountryCode
@@ -303,7 +308,7 @@ export async function searchAdminCountries(
         const result = await index.search(query, {
             filter: filters.length > 0 ? filters.join(' AND ') : undefined,
             limit: 5000,
-            attributesToRetrieve: ['providerCountryCode', 'countryName', 'provider', 'price', 'stock', 'lastSyncedAt', 'isActive'],
+            attributesToRetrieve: ['providerCountryCode', 'countryName', 'provider', 'pointPrice', 'stock', 'lastSyncedAt', 'isActive'],
         })
 
         const groups = new Map<string, any>()
@@ -320,28 +325,28 @@ export async function searchAdminCountries(
                     flagUrl: getCountryFlagUrlSync(hit.countryName) || '',
                     providers: new Map(),
                     totalStock: 0,
-                    priceRange: { min: hit.price, max: hit.price },
+                    priceRange: { min: hit.pointPrice, max: hit.pointPrice },
                     lastSyncedAt: hit.lastSyncedAt
                 }
                 groups.set(key, group)
             }
 
             group.totalStock += hit.stock || 0
-            group.priceRange.min = Math.min(group.priceRange.min, hit.price)
-            group.priceRange.max = Math.max(group.priceRange.max, hit.price)
+            group.priceRange.min = Math.min(group.priceRange.min, hit.pointPrice)
+            group.priceRange.max = Math.max(group.priceRange.max, hit.pointPrice)
             group.lastSyncedAt = Math.max(group.lastSyncedAt, hit.lastSyncedAt)
 
             if (!group.providers.has(hit.provider)) {
                 group.providers.set(hit.provider, {
                     provider: hit.provider,
                     stock: hit.stock || 0,
-                    minPrice: hit.price,
+                    minPrice: hit.pointPrice,
                     isActive: hit.isActive !== false
                 })
             } else {
                 const p = group.providers.get(hit.provider)
                 p.stock += hit.stock
-                p.minPrice = Math.min(p.minPrice, hit.price)
+                p.minPrice = Math.min(p.minPrice, hit.pointPrice)
             }
         }
 
@@ -383,7 +388,7 @@ export async function searchRawInventory(
         const result = await index.search(query, {
             filter: filterStr,
             limit: 10000,
-            attributesToRetrieve: ['providerCountryCode', 'countryName', 'countryIcon', 'provider', 'providerServiceCode', 'serviceName', 'price', 'stock', 'lastSyncedAt', 'id', 'isActive'],
+            attributesToRetrieve: ['providerCountryCode', 'countryName', 'countryIcon', 'provider', 'providerServiceCode', 'serviceName', 'pointPrice', 'stock', 'lastSyncedAt', 'id', 'isActive'],
         })
 
         const seen = new Map<string, any>()
@@ -453,8 +458,8 @@ export async function initSearchIndexes(indexName: string = INDEXES.OFFERS) {
 
         await offersIndex.updateSettings({
             searchableAttributes: ['serviceName', 'providerServiceCode', 'countryName', 'providerCountryCode', 'provider'],
-            filterableAttributes: ['providerServiceCode', 'serviceName', 'serviceId', 'providerCountryCode', 'countryName', 'countryId', 'provider', 'operator', 'price', 'stock', 'lastSyncedAt', 'isActive'],
-            sortableAttributes: ['price', 'stock', 'lastSyncedAt'],
+            filterableAttributes: ['providerServiceCode', 'serviceName', 'serviceId', 'providerCountryCode', 'countryName', 'countryId', 'provider', 'operator', 'pointPrice', 'stock', 'lastSyncedAt', 'isActive'],
+            sortableAttributes: ['pointPrice', 'stock', 'lastSyncedAt'],
             rankingRules: ['words', 'typo', 'proximity', 'attribute', 'sort', 'exactness', 'stock:desc', 'lastSyncedAt:desc'],
             distinctAttribute: null,
             typoTolerance: {
@@ -562,7 +567,8 @@ export async function searchServices(
                 'serviceName',
                 'serviceIcon',
                 'provider',
-                'price',
+                'pointPrice',
+                'currencyPrices',
                 'stock',
                 'countryName'
             ],
@@ -611,7 +617,7 @@ export async function searchServices(
                     slug: slug,
                     name: canonicalName,
                     icon: hit.serviceIcon,
-                    minPrice: hit.price,
+                    minPrice: hit.pointPrice,
                     totalStock: 0,
                     providerSet: new Set(),
                     countrySet: new Set(),
@@ -620,7 +626,7 @@ export async function searchServices(
                 serviceMap.set(normalizedKey, stats)
             }
 
-            stats.minPrice = Math.min(stats.minPrice, hit.price)
+            stats.minPrice = Math.min(stats.minPrice, hit.pointPrice)
             stats.totalStock += hit.stock || 0
             stats.providerSet.add(hit.provider)
             stats.countrySet.add(normalizeCountryName(hit.countryName))
@@ -648,6 +654,7 @@ export async function searchServices(
                 topCountries: []
             }
         })
+
 
         if (query) {
             const q = query.toLowerCase()
@@ -687,7 +694,7 @@ export async function searchServices(
             for (const hit of rawStats.hits) {
                 aggregateCountryFromHit(countryMap, {
                     countryName: hit.countryName,
-                    price: hit.price,
+                    pointPrice: hit.pointPrice,
                     provider: hit.provider,
                     stock: hit.stock
                 })
@@ -738,7 +745,7 @@ export async function searchAdminServices(
         const result = await index.search(query, {
             filter: filters.length > 0 ? filters.join(' AND ') : undefined,
             limit: 5000,
-            attributesToRetrieve: ['providerServiceCode', 'serviceName', 'provider', 'countryName', 'price', 'stock', 'lastSyncedAt', 'isActive'],
+            attributesToRetrieve: ['providerServiceCode', 'serviceName', 'provider', 'countryName', 'pointPrice', 'stock', 'lastSyncedAt', 'isActive'],
         })
 
         const groups = new Map<string, any>()
@@ -755,7 +762,7 @@ export async function searchAdminServices(
                     providers: new Map(),
                     countries: new Set(),
                     totalStock: 0,
-                    priceRange: { min: hit.price, max: hit.price },
+                    priceRange: { min: hit.pointPrice, max: hit.pointPrice },
                     lastSyncedAt: hit.lastSyncedAt
                 }
                 groups.set(key, group)
@@ -763,8 +770,8 @@ export async function searchAdminServices(
 
             group.countries.add(normalizeCountryName(hit.countryName))
             group.totalStock += hit.stock || 0
-            group.priceRange.min = Math.min(group.priceRange.min, hit.price)
-            group.priceRange.max = Math.max(group.priceRange.max, hit.price)
+            group.priceRange.min = Math.min(group.priceRange.min, hit.pointPrice)
+            group.priceRange.max = Math.max(group.priceRange.max, hit.pointPrice)
             group.lastSyncedAt = Math.max(group.lastSyncedAt, hit.lastSyncedAt)
 
             if (!group.providers.has(hit.provider)) {
@@ -772,13 +779,13 @@ export async function searchAdminServices(
                     providerName: hit.provider,
                     externalId: hit.providerServiceCode,
                     stock: hit.stock || 0,
-                    minPrice: hit.price,
+                    minPrice: hit.pointPrice,
                     isActive: hit.isActive !== false
                 })
             } else {
                 const p = group.providers.get(hit.provider)
                 p.stock += hit.stock
-                p.minPrice = Math.min(p.minPrice, hit.price)
+                p.minPrice = Math.min(p.minPrice, hit.pointPrice)
             }
         }
 
@@ -826,15 +833,15 @@ export async function searchProviders(
         const sort = options?.sort || 'price_asc'
 
         // Build MeiliSearch sort array
-        let meiliSort: string[] = ['price:asc', 'stock:desc']; // Default (Cheapest)
+        let meiliSort: string[] = ['pointPrice:asc', 'stock:desc']; // Default (Cheapest)
 
         if (sort === 'price_desc') {
-            meiliSort = ['price:desc', 'stock:desc'];
+            meiliSort = ['pointPrice:desc', 'stock:desc'];
         } else if (sort === 'stock_desc' || sort === 'stock') { // 'stock' for backward compatibility
-            meiliSort = ['stock:desc', 'price:asc'];
+            meiliSort = ['stock:desc', 'pointPrice:asc'];
         } else if (sort === 'relevance') {
             // Default MeiliSearch relevancy for text search, or price for empty query
-            meiliSort = ['price:asc'];
+            meiliSort = ['pointPrice:asc'];
         }
 
         // QUICK PATH: If numeric IDs are provided
@@ -1012,7 +1019,7 @@ export async function getOfferForPurchase(
             const numericSearch = await index.search('', {
                 filter: filters.join(' AND '),
                 limit: 1,
-                sort: ['price:asc']
+                sort: ['pointPrice:asc']
             })
 
             if (numericSearch.hits.length > 0) return numericSearch.hits[0] as OfferDocument
@@ -1115,7 +1122,7 @@ export async function getOfferForPurchase(
         const result = await index.search('', {
             filter,
             limit: 1,
-            sort: ['price:asc'], // Get cheapest
+            sort: ['pointPrice:asc'], // Get cheapest
         })
 
         if (result.hits.length === 0) {
@@ -1131,7 +1138,7 @@ export async function getOfferForPurchase(
         logger.debug('Found offer for purchase', {
             context: 'SEARCH',
             providerName: offer.provider,
-            price: offer.price,
+            pointPrice: offer.pointPrice,
             stock: offer.stock,
             operator: offer.operator
         })
@@ -1208,7 +1215,7 @@ export async function searchOffers(
             limit,
             offset: (page - 1) * limit,
             filter: filterParts.length > 0 ? filterParts.join(' AND ') : undefined,
-            sort: options?.sort || ['price:asc']
+            sort: options?.sort || ['pointPrice:asc']
         })
 
         return {
@@ -1310,7 +1317,7 @@ export async function deleteOffersByProvider(provider: string): Promise<void> {
     try {
         const index = meili.index(INDEXES.OFFERS)
         await index.deleteDocuments({ filter: `provider = "${provider}"` })
-        console.log(`ðŸ—‘ï¸ Deleted offers for provider: ${provider}`)
+        console.log(`🗑️ Deleted offers for provider: ${provider}`)
     } catch (error: any) {
         logger.error('Failed to delete offers', { context: 'SEARCH', provider, error: error.message })
     }

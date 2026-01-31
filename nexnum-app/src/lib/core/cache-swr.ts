@@ -137,7 +137,7 @@ export const CacheConfigs = {
     SEARCH: { ttl: 60, staleWindow: 30, prefix: 'search' },
 
     /** Provider prices - 2min fresh, 30s stale window */
-    PRICES: { ttl: 120, staleWindow: 30, prefix: 'price' },
+    PRICES: { ttl: 120, staleWindow: 30, prefix: 'pointPrice' },
 
     /** User sessions - 1 hour */
     SESSION: { ttl: 3600, staleWindow: 300, prefix: 'sess' },
