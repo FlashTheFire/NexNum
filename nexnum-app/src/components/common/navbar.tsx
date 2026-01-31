@@ -23,11 +23,12 @@ import {
 import { Button } from "@/components/ui/button"
 import { useGlobalStore } from "@/stores/appStore"
 import { useAuthStore } from "@/stores/authStore"
-import { formatPrice, cn } from "@/lib/utils/utils"
+import { cn } from "@/lib/utils/utils"
 import { useNotifications, formatNotificationTime } from "@/hooks/use-notifications"
 import { NotificationDropdown } from "@/components/common/notification-dropdown"
 import LanguageSwitcher from "@/components/common/LanguageSwitcher"
 import CurrencySelector from "@/components/common/CurrencySelector"
+import { useCurrency } from "@/providers/CurrencyProvider"
 
 export function Navbar() {
     const pathname = usePathname()
@@ -35,6 +36,7 @@ export function Navbar() {
     const { userProfile } = useGlobalStore()
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
     const [scrolled, setScrolled] = useState(false)
+    const { formatBalance } = useCurrency()
 
 
     useEffect(() => {
@@ -114,7 +116,7 @@ export function Navbar() {
                                     <Link href="/dashboard/wallet">
                                         <button className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 py-2 text-gray-300 hover:text-white hover:bg-white/[0.06] font-medium h-10 px-5 gap-2">
                                             <Wallet className="h-4 w-4 text-[hsl(var(--neon-lime))]" />
-                                            <span className="font-mono">{formatPrice(userProfile?.balance || 0)}</span>
+                                            <span className="font-mono">{formatBalance(userProfile?.balance || 0)}</span>
                                         </button>
                                     </Link>
 

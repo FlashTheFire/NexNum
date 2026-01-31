@@ -360,11 +360,7 @@ export default function ProviderSelector({
                                                 <ShieldCheck className="w-2.5 h-2.5" /> Verified
                                             </span>
                                         )}
-                                        {isReliable && (
-                                            <span className="inline-flex items-center gap-0.5 text-[9px] text-emerald-400 font-medium mt-0.5">
-                                                <Zap className="w-2.5 h-2.5" /> Fast
-                                            </span>
-                                        )}
+
                                     </div>
                                 </div>
 

@@ -29,7 +29,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { useGlobalStore, Transaction } from "@/stores/appStore"
 import { useAuthStore } from "@/stores/authStore"
-import { formatPrice, formatRelativeTime, cn } from "@/lib/utils/utils"
+import { formatRelativeTime, cn } from "@/lib/utils/utils"
 import { BalanceDisplay, PriceDisplay } from "@/components/common/PriceDisplay"
 import { useCurrency } from "@/providers/CurrencyProvider"
 
@@ -84,7 +84,7 @@ export default function WalletPage() {
                 const value = parseFloat(amount)
                 if (!isNaN(value)) {
                     topUp(value)
-                    toast.success(`Successfully added ${formatPrice(value)} to wallet`)
+                    toast.success(`Successfully added ${formatPriceContext(value)} to wallet`)
                     setIsLoading(false)
                     setAmount("")
                 }
@@ -370,7 +370,7 @@ export default function WalletPage() {
                                                         "bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 shadow-indigo-500/25"
                                                     )}
                                                 >
-                                                    {amount ? `Pay ${formatPrice(parseFloat(amount))}` : "Enter Amount"}
+                                                    {amount ? `Pay ${formatPriceContext(parseFloat(amount))}` : "Enter Amount"}
                                                 </Button>
                                             </motion.div>
                                         ) : (
