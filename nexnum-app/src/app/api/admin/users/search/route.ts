@@ -61,8 +61,17 @@ export async function GET(request: Request) {
                     select: {
                         id: true,
                         transactions: {
-                            select: { amount: true },
-                            where: { type: { in: ['topup', 'purchase'] } },
+                            select: { amount: true, type: true },
+                            // Show all movements that affect balance
+                            where: {
+                                type: {
+                                    in: [
+                                        'topup', 'manual_credit', 'manual_debit',
+                                        'purchase', 'number_purchase', 'subscription_purchase',
+                                        'item_purchase', 'refund', 'p2p_transfer_out', 'p2p_transfer_in'
+                                    ]
+                                }
+                            },
                         }
                     }
                 },
@@ -72,10 +81,14 @@ export async function GET(request: Request) {
             }
         })
 
-        // Calculate wallet balance for each user
+        // Calculate wallet balance and total spent
         const enrichedUsers = users.map(user => {
+            // Total spent = sum of all negative transactions (debits)
             const totalSpent = user.wallet?.transactions.reduce(
-                (sum, t) => sum + Math.abs(Number(t.amount)),
+                (sum, t) => {
+                    const amt = Number(t.amount)
+                    return amt < 0 ? sum + Math.abs(amt) : sum
+                },
                 0
             ) || 0
 

@@ -5,6 +5,7 @@ import { EventDispatcher } from '@/lib/core/event-dispatcher'
 import { FinancialSentinel } from './sentinel'
 import { PaymentError } from '@/lib/payment/payment-errors'
 import { logger } from '@/lib/core/logger'
+import { WalletTransactionType } from './types'
 
 export class WalletService {
     /**
@@ -196,71 +197,60 @@ export class WalletService {
     static async charge(
         userId: string,
         amount: number,
-        type: 'number_purchase' | 'subscription_purchase' | 'manual_debit',
-        refId: string, // External reference ID (e.g., numberId, subscriptionId)
+        type: WalletTransactionType,
+        refId: string,
         description: string,
         idempotencyKey?: string,
-        tx?: Prisma.TransactionClient // Optional external transaction
+        tx?: Prisma.TransactionClient
     ) {
-        const client = tx || prisma;
+        const performCharge = async (client: Prisma.TransactionClient) => {
+            const decAmount = new Prisma.Decimal(amount);
 
-        // 1. Idempotency Check
-        if (idempotencyKey) {
-            const existing = await client.walletTransaction.findUnique({
-                where: { idempotencyKey }
+            // 1. Idempotency Check
+            if (idempotencyKey) {
+                const existing = await client.walletTransaction.findUnique({
+                    where: { idempotencyKey }
+                })
+                if (existing) return existing;
+            }
+
+            // 2. LOCK and Get Wallet
+            await client.$executeRaw`SELECT 1 FROM "wallets" WHERE "user_id" = ${userId} FOR UPDATE`
+
+            const wallet = await client.wallet.findUnique({
+                where: { userId },
+                select: { id: true, balance: true }
             })
-            if (existing) {
-                logger.debug('Idempotent wallet request merged', { idempotencyKey })
-                return existing
+            if (!wallet) throw new PaymentError('Wallet not found', 'E_PROVIDER_ERROR', 404)
+
+            // 3. Integrity Check
+            const isIntegrityIntact = await FinancialSentinel.verifyIntegrity(userId, client);
+            if (!isIntegrityIntact) throw PaymentError.integrityBreach(userId);
+
+            // 4. Check Funds
+            if (wallet.balance.lessThan(decAmount)) {
+                throw PaymentError.insufficientFunds()
             }
+
+            // 5. Update Balance
+            await client.wallet.update({
+                where: { id: wallet.id },
+                data: { balance: { decrement: decAmount } }
+            })
+
+            // 6. Record Transaction
+            return await client.walletTransaction.create({
+                data: {
+                    walletId: wallet.id,
+                    amount: decAmount.negated(),
+                    type,
+                    description,
+                    idempotencyKey
+                }
+            })
         }
 
-        // 2. Get Wallet ID (and check existence)
-        const wallet = await client.wallet.findUnique({
-            where: { userId },
-            select: { id: true, balance: true }
-        })
-
-        if (!wallet) {
-            throw new PaymentError('Wallet not found for user', 'E_PROVIDER_ERROR', 404)
-        }
-
-        // 3. Perform Charge (Atomic Update)
-        const decAmount = new Prisma.Decimal(amount);
-
-        // ELITE INTEGRITY CHECK (Sentinel) - Charge is often single-step, but still needs audit
-        const isIntegrityIntact = await FinancialSentinel.verifyIntegrity(userId, client);
-        if (!isIntegrityIntact) {
-            throw PaymentError.integrityBreach(userId);
-        }
-
-        const result = await client.wallet.updateMany({
-            where: {
-                id: wallet.id,
-                balance: { gte: decAmount } // Ensure sufficient funds
-            },
-            data: {
-                balance: { decrement: decAmount }
-            }
-        })
-
-        if (result.count === 0) {
-            // Either wallet missing (unlikely since we found it) or insufficient funds
-            throw PaymentError.insufficientFunds()
-        }
-
-        // 4. Record Transaction
-        const transaction = await client.walletTransaction.create({
-            data: {
-                walletId: wallet.id,
-                amount: decAmount.negated(), // stored as negative
-                type,
-                description,
-                idempotencyKey
-            }
-        })
-
-        return transaction
+        return tx ? performCharge(tx) : prisma.$transaction(performCharge);
     }
 
     /**
@@ -269,48 +259,48 @@ export class WalletService {
     static async refund(
         userId: string,
         amount: number,
-        type: 'refund' | 'manual_credit',
+        type: WalletTransactionType,
         refId: string,
         description: string,
-        idempotencyKey: string, // REQUIRED for industrial stability
+        idempotencyKey: string,
         tx?: Prisma.TransactionClient
     ) {
-        const client = tx || prisma
+        const performRefund = async (client: Prisma.TransactionClient) => {
+            const decAmount = new Prisma.Decimal(amount);
 
-        if (idempotencyKey) {
-            const existing = await client.walletTransaction.findUnique({ where: { idempotencyKey } })
-            if (existing) return existing
+            if (idempotencyKey) {
+                const existing = await client.walletTransaction.findUnique({ where: { idempotencyKey } })
+                if (existing) return existing
+            }
+
+            // Lock and Get Wallet
+            await client.$executeRaw`SELECT 1 FROM "wallets" WHERE "user_id" = ${userId} FOR UPDATE`
+            const wallet = await client.wallet.findUnique({ where: { userId }, select: { id: true } })
+            if (!wallet) throw new PaymentError('Wallet not found', 'E_PROVIDER_ERROR', 404)
+
+            // Integrity Check
+            const isIntegrityIntact = await FinancialSentinel.verifyIntegrity(userId, client);
+            if (!isIntegrityIntact) throw PaymentError.integrityBreach(userId);
+
+            // 1. Increment Balance
+            await client.wallet.update({
+                where: { id: wallet.id },
+                data: { balance: { increment: decAmount } }
+            })
+
+            // 2. Create Refund Transaction
+            return await client.walletTransaction.create({
+                data: {
+                    walletId: wallet.id,
+                    amount: decAmount,
+                    type,
+                    description,
+                    idempotencyKey
+                }
+            })
         }
 
-        // Verify Wallet exists
-        const wallet = await client.wallet.findUnique({
-            where: { userId },
-            select: { id: true }
-        })
-        if (!wallet) throw new PaymentError('Wallet not found', 'E_PROVIDER_ERROR', 404)
-
-        const decAmount = new Prisma.Decimal(amount);
-
-        // 1. Create Credit Transaction
-        const transaction = await client.walletTransaction.create({
-            data: {
-                walletId: wallet.id,
-                amount: decAmount, // Positive
-                type,
-                description,
-                idempotencyKey
-            }
-        })
-
-        // 2. Increment Balance
-        await client.wallet.update({
-            where: { id: wallet.id },
-            data: {
-                balance: { increment: decAmount }
-            }
-        })
-
-        return transaction
+        return tx ? performRefund(tx) : prisma.$transaction(performRefund);
     }
     /**
      * Credit a user's wallet (Top-Up).
@@ -319,51 +309,50 @@ export class WalletService {
     static async credit(
         userId: string,
         amount: number,
-        type: 'topup' | 'manual_credit' | 'referral_bonus',
+        type: WalletTransactionType,
         description: string,
-        idempotencyKey: string, // REQUIRED
+        idempotencyKey: string,
         tx?: Prisma.TransactionClient
     ) {
-        const client = tx || prisma
-        const decAmount = new Prisma.Decimal(amount)
+        const performCredit = async (client: Prisma.TransactionClient) => {
+            const decAmount = new Prisma.Decimal(amount)
 
-        if (idempotencyKey) {
-            const existing = await client.walletTransaction.findUnique({ where: { idempotencyKey } })
-            if (existing) return existing
+            if (idempotencyKey) {
+                const existing = await client.walletTransaction.findUnique({ where: { idempotencyKey } })
+                if (existing) return existing
+            }
+
+            // Lock and Get Wallet
+            await client.$executeRaw`SELECT 1 FROM "wallets" WHERE "user_id" = ${userId} FOR UPDATE`
+            const wallet = await client.wallet.findUnique({ where: { userId }, select: { id: true } })
+            if (!wallet) throw new PaymentError('Wallet not found', 'E_PROVIDER_ERROR', 404)
+
+            // Integrity Check
+            const isIntegrityIntact = await FinancialSentinel.verifyIntegrity(userId, client);
+            if (!isIntegrityIntact) throw PaymentError.integrityBreach(userId);
+
+            // 1. Increment Balance
+            await client.wallet.update({
+                where: { id: wallet.id },
+                data: { balance: { increment: decAmount } }
+            })
+
+            // 2. Create Credit Transaction
+            const transaction = await client.walletTransaction.create({
+                data: {
+                    walletId: wallet.id,
+                    amount: decAmount,
+                    type,
+                    description,
+                    idempotencyKey
+                }
+            })
+
+            wallet_transactions_total.labels(type, 'success').inc()
+            return transaction
         }
 
-        // Verify Wallet exists
-        const wallet = await client.wallet.findUnique({
-            where: { userId },
-            select: { id: true }
-        })
-        if (!wallet) throw new PaymentError('Wallet not found', 'E_PROVIDER_ERROR', 404)
-
-        // ELITE INTEGRITY CHECK (Sentinel)
-        const isIntegrityIntact = await FinancialSentinel.verifyIntegrity(userId, client);
-        if (!isIntegrityIntact) throw PaymentError.integrityBreach(userId);
-
-        // 1. Increment Balance
-        await client.wallet.update({
-            where: { id: wallet.id },
-            data: {
-                balance: { increment: decAmount }
-            }
-        })
-
-        // 2. Create Credit Transaction
-        const transaction = await client.walletTransaction.create({
-            data: {
-                walletId: wallet.id,
-                amount: decAmount, // Positive
-                type,
-                description,
-                idempotencyKey
-            }
-        })
-
-        wallet_transactions_total.labels(type, 'success').inc()
-        return transaction
+        return tx ? performCredit(tx) : prisma.$transaction(performCredit);
     }
 
     /**
@@ -374,66 +363,69 @@ export class WalletService {
     static async debit(
         userId: string,
         amount: number,
-        type: 'manual_debit' | 'item_purchase',
+        type: WalletTransactionType,
         description: string,
-        idempotencyKey: string, // REQUIRED
+        idempotencyKey: string,
         tx?: Prisma.TransactionClient
     ) {
-        const client = tx || prisma
-        const decAmount = new Prisma.Decimal(amount)
+        const performDebit = async (client: Prisma.TransactionClient) => {
+            const decAmount = new Prisma.Decimal(amount)
 
-        if (idempotencyKey) {
-            const existing = await client.walletTransaction.findUnique({ where: { idempotencyKey } })
-            if (existing) return existing
-        }
-
-        // Verify Wallet exists
-        const wallet = await client.wallet.findUnique({
-            where: { userId },
-            select: { id: true, balance: true }
-        })
-        if (!wallet) throw new PaymentError('Wallet not found', 'E_PROVIDER_ERROR', 404)
-
-        // ELITE INTEGRITY CHECK (Sentinel)
-        const isIntegrityIntact = await FinancialSentinel.verifyIntegrity(userId, client);
-        if (!isIntegrityIntact) throw PaymentError.integrityBreach(userId);
-
-        if (wallet.balance.lessThan(decAmount)) {
-            throw PaymentError.insufficientFunds()
-        }
-
-        // 1. Decrement Balance
-        await client.wallet.update({
-            where: { id: wallet.id },
-            data: {
-                balance: { decrement: decAmount }
+            if (idempotencyKey) {
+                const existing = await client.walletTransaction.findUnique({ where: { idempotencyKey } })
+                if (existing) return existing
             }
-        })
 
-        // 2. Create Debit Transaction
-        const transaction = await client.walletTransaction.create({
-            data: {
-                walletId: wallet.id,
-                amount: decAmount.negated(),
-                type,
-                description,
-                idempotencyKey
-            }
-        })
-
-        wallet_transactions_total.labels(type, 'success').inc()
-
-        // LOW BALANCE ALERT (Enterprise Event)
-        const finalBalance = wallet.balance.sub(decAmount)
-        if (finalBalance.lessThan(10.0)) {
-            await EventDispatcher.dispatch(userId, 'balance.low', {
-                balance: finalBalance.toNumber(),
-                threshold: 10.0,
-                currency: 'POINTS'
+            // Lock and Get Wallet
+            await client.$executeRaw`SELECT 1 FROM "wallets" WHERE "user_id" = ${userId} FOR UPDATE`
+            const wallet = await client.wallet.findUnique({
+                where: { userId },
+                select: { id: true, balance: true }
             })
+            if (!wallet) throw new PaymentError('Wallet not found', 'E_PROVIDER_ERROR', 404)
+
+            // Integrity Check
+            const isIntegrityIntact = await FinancialSentinel.verifyIntegrity(userId, client);
+            if (!isIntegrityIntact) throw PaymentError.integrityBreach(userId);
+
+            // Check Funds
+            if (wallet.balance.lessThan(decAmount)) {
+                throw PaymentError.insufficientFunds()
+            }
+
+            // 1. Decrement Balance
+            await client.wallet.update({
+                where: { id: wallet.id },
+                data: { balance: { decrement: decAmount } }
+            })
+
+            // 2. Create Debit Transaction
+            const transaction = await client.walletTransaction.create({
+                data: {
+                    walletId: wallet.id,
+                    amount: decAmount.negated(),
+                    type,
+                    description,
+                    idempotencyKey
+                }
+            })
+
+            wallet_transactions_total.labels(type, 'success').inc()
+
+            // LOW BALANCE ALERT
+            const finalBalance = wallet.balance.sub(decAmount)
+            if (finalBalance.lessThan(10.0)) {
+                await EventDispatcher.dispatch(userId, 'balance.low', {
+                    balance: finalBalance.toNumber(),
+                    threshold: 10.0,
+                    currency: 'POINTS'
+                })
+            }
+
+            return transaction
         }
 
-        return transaction
+        return tx ? performDebit(tx) : prisma.$transaction(performDebit);
     }
 
     /**
@@ -522,5 +514,109 @@ export class WalletService {
                 return performTransfer(newTx)
             })
         }
+    }
+
+    /**
+     * Confirm a pending deposit.
+     * Atomically increments balance and updates transaction record.
+     */
+    static async confirmDeposit(
+        transactionId: string,
+        actualAmount?: number,
+        externalTxId?: string,
+        tx?: Prisma.TransactionClient
+    ) {
+        const performConfirm = async (client: Prisma.TransactionClient) => {
+            // 1. Get transaction and user
+            const transaction = await client.walletTransaction.findUnique({
+                where: { id: transactionId },
+                include: { wallet: true }
+            })
+
+            if (!transaction) throw new PaymentError('Transaction not found', 'E_PROVIDER_ERROR', 404)
+            // Note: In some systems 'deposit' might be the pending type
+            // If it's already 'topup', it might be a duplicate call
+            if (transaction.type === 'topup' && (transaction.metadata as any)?.completedAt) {
+                return { userId: transaction.wallet.userId, amount: Number(transaction.amount), alreadyProcessed: true }
+            }
+
+            const userId = transaction.wallet.userId
+            const amount = new Prisma.Decimal(actualAmount ?? transaction.amount)
+
+            // 2. LOCK Wallet
+            await client.$executeRaw`SELECT 1 FROM "wallets" WHERE "user_id" = ${userId} FOR UPDATE`
+
+            // 3. Integrity Check
+            const isIntegrityIntact = await FinancialSentinel.verifyIntegrity(userId, client);
+            if (!isIntegrityIntact) throw PaymentError.integrityBreach(userId);
+
+            // 4. Update Transaction metadata
+            await client.walletTransaction.update({
+                where: { id: transactionId },
+                data: {
+                    type: 'topup',
+                    amount: amount,
+                    metadata: {
+                        ...(transaction.metadata as any || {}),
+                        completedAt: new Date().toISOString(),
+                        externalTxId
+                    }
+                }
+            })
+
+            // 5. Increment Balance
+            await client.wallet.update({
+                where: { id: transaction.walletId },
+                data: { balance: { increment: amount } }
+            })
+
+            wallet_transactions_total.labels('topup', 'success').inc()
+
+            return { userId, amount: amount.toNumber(), alreadyProcessed: false }
+        }
+
+        return tx ? performConfirm(tx) : prisma.$transaction(performConfirm)
+    }
+
+    /**
+     * Mark a deposit as failed.
+     */
+    static async failDeposit(
+        transactionId: string,
+        reason: string,
+        tx?: Prisma.TransactionClient
+    ) {
+        const client = tx || prisma
+        return await client.walletTransaction.update({
+            where: { id: transactionId },
+            data: {
+                type: 'failed_deposit',
+                description: `Failed: ${reason}`,
+                metadata: {
+                    failedAt: new Date().toISOString(),
+                    reason
+                }
+            }
+        })
+    }
+
+    /**
+     * Mark a deposit as expired.
+     */
+    static async expireDeposit(
+        transactionId: string,
+        tx?: Prisma.TransactionClient
+    ) {
+        const client = tx || prisma
+        return await client.walletTransaction.update({
+            where: { id: transactionId },
+            data: {
+                type: 'expired_deposit',
+                description: 'Transaction expired',
+                metadata: {
+                    expiredAt: new Date().toISOString()
+                }
+            }
+        })
     }
 }

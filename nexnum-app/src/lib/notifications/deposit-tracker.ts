@@ -19,6 +19,7 @@ import { redis } from '@/lib/core/redis'
 import { prisma } from '@/lib/core/db'
 import { logger } from '@/lib/core/logger'
 import { notify } from './index'
+import { WalletService } from '@/lib/wallet/wallet'
 
 // ============================================================================
 // CONFIGURATION
@@ -579,7 +580,7 @@ class RedeemCodeService {
             redeemed: meta.redeemed,
             maxUses: meta.maxUses,
             active: meta.active,
-            lastRedemptions: logs.map(l => JSON.parse(l))
+            lastRedemptions: logs.map((l: string) => JSON.parse(l))
         }
     }
 

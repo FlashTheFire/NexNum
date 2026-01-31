@@ -274,7 +274,7 @@ export async function PATCH(request: Request) {
 
             const isCredit = walletAdjustment > 0
             const amount = Math.abs(walletAdjustment)
-            const idempotencyKey = `admin_adj_${Date.now()}_${userId}`
+            const idempotencyKey = `admin_adj_${auth.user.userId}_${userId}_${Date.now()}`
             const description = adjustmentReason || `Admin ${isCredit ? 'credit' : 'debit'} by ${auth.user.userId}`
 
             try {
@@ -302,12 +302,6 @@ export async function PATCH(request: Request) {
                     ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
                 }
             })
-
-            // Track metric (optional, WalletService handles its own metrics)
-            wallet_transactions_total.labels(
-                isCredit ? 'manual_credit' : 'manual_debit',
-                'success'
-            ).inc()
 
             // Send notification for credits
             if (isCredit) {
