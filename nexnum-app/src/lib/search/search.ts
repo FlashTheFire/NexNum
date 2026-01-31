@@ -554,8 +554,8 @@ export async function searchServices(
         const page = options?.page || 1
 
         // Optimized: Get only what we need for aggregation
-        const result = await index.search(query, {
-            filter: `isActive = true`,
+        const result = await index.search(query || undefined, {
+            filter: ['isActive = true'],
             limit: 2000,
             attributesToRetrieve: [
                 'providerServiceCode',
@@ -575,7 +575,8 @@ export async function searchServices(
             context: 'SEARCH',
             query,
             hitsCount: result.hits.length,
-            totalHits: result.estimatedTotalHits // For diagnostic
+            estimatedTotalHits: result.estimatedTotalHits,
+            firstHit: result.hits[0] ? { serviceName: (result.hits[0] as any).serviceName, isActive: (result.hits[0] as any).isActive } : null
         })
 
         if (result.hits.length === 0) {
