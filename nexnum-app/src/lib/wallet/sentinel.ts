@@ -46,23 +46,27 @@ export class FinancialSentinel {
                 _sum: { amount: true }
             });
 
-            const transactionSum = aggregate._sum.amount || new Prisma.Decimal(0);
-            const currentBalance = wallet.balance;
-            const reservedBalance = wallet.reserved;
+            // Handle potential nulls from aggregation
+            let transactionSum = aggregate._sum.amount;
+            if (!transactionSum) {
+                transactionSum = new Prisma.Decimal(0);
+            }
 
-            // Equation: Sum of all transactions MUST equal Balance + Reserved
-            // (Since balance in DB includes the current usable amount + what's locked)
-            // Wait, balance in DB is the liquid amount? 
-            // Looking at wallet.ts:reserve incrementing 'reserved', and commit decrementing both 'balance' and 'reserved'.
-            // So: TotalTxSum == balance + reserved? Let's check logic:
-            // Purchase flow: 
-            // 1. Reserve $1: balance stays $10, reserved becomes $1. (Liquid = balance - reserved = $9)
-            // 2. Commit $1: balance becomes $9, reserved becomes $0. (Liquid = $9)
-            // In both states, Sum(Transactions) should match 'balance'.
-            // If we have $10 starting balance (from a deposit), Sum(Tx) = $10. Wallet.balance = $10.
-            // If we reserve $1, balance is still $10. Sum(Tx) is still $10.
-            // If we commit $1, balance becomes $9. Sum(Tx) becomes $9 (after recording purchase tx).
+            // Ensure consistency in types (handle potential JS number vs Decimal mismatch)
+            let currentBalance = wallet.balance;
 
+            // If for some reason Prisma returns numbers (e.g. float/double type in DB), convert to Decimal
+            if (typeof currentBalance === 'number') {
+                currentBalance = new Prisma.Decimal(currentBalance);
+            }
+
+            // Defensive check: If transactionSum is a number (unlikely but possible with some drivers)
+            if (typeof transactionSum === 'number') {
+                transactionSum = new Prisma.Decimal(transactionSum);
+            }
+
+            // Calculate drift
+            // If either is still not a Decimal (e.g. string), this might throw, so we'll log it in catch block
             const drift = currentBalance.sub(transactionSum).abs();
             const driftNum = drift.toNumber();
             const status = drift.greaterThan(this.ALLOWED_DRIFT) ? 1 : 0;
@@ -96,7 +100,11 @@ export class FinancialSentinel {
             return true;
 
         } catch (error) {
-            logger.error('[Sentinel] Verification system error', { error: (error as any).message });
+            logger.error('[Sentinel] Verification system error', {
+                error: (error as any).message,
+                stack: (error as any).stack,
+                userId
+            });
             // FAIL-CLOSED: If we can't verify, we block the transaction
             throw new AppError(
                 'Financial security exception: Unable to verify wallet integrity',
