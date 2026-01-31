@@ -102,7 +102,7 @@ export default function ProviderSelector({
     const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
     const [selectedId, setSelectedId] = useState<number | null>(null);
-    const { formatPrice, currencies, preferredCurrency, settings } = useCurrency();
+    const { formatPrice, convert, currencies, preferredCurrency, settings } = useCurrency();
 
     // Smart Route data from API
     const [smartRoute, setSmartRoute] = useState<{
@@ -374,7 +374,7 @@ export default function ProviderSelector({
                                         <span className="text-[9px] text-gray-500 uppercase tracking-wider">Price</span>
                                         <div className="flex items-baseline gap-0.5">
                                             <span className="text-base font-bold text-white">
-                                                <PriceDisplay amountInPoints={provider.price * (settings?.pointsRate || 100)} />
+                                                <PriceDisplay amountInPoints={provider.price} />
                                             </span>
                                             <span className="text-[9px] text-gray-500">/num</span>
                                         </div>
@@ -474,7 +474,7 @@ export default function ProviderSelector({
                             <div className="text-[hsl(var(--neon-lime))] text-sm hidden sm:block">
                                 <span className="text-xs text-gray-500">from </span>
                                 <span className="font-bold">
-                                    <PriceDisplay amountInPoints={smartRoute.priceRange.min * (settings?.pointsRate || 100)} />
+                                    <PriceDisplay amountInPoints={smartRoute.priceRange.min} />
                                 </span>
                             </div>
 
@@ -486,9 +486,9 @@ export default function ProviderSelector({
                                     <input
                                         type="number"
                                         step="0.01"
-                                        min={smartRoute.priceRange.min}
-                                        max={smartRoute.priceRange.max}
-                                        defaultValue={smartRoute.priceRange.max}
+                                        min={convert(smartRoute.priceRange.min, 'POINTS', preferredCurrency)}
+                                        max={convert(smartRoute.priceRange.max, 'POINTS', preferredCurrency)}
+                                        defaultValue={convert(smartRoute.priceRange.max, 'POINTS', preferredCurrency)}
                                         className="w-16 bg-transparent text-white text-sm font-semibold focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-gray-600"
                                         id="best-route-max-price"
                                         placeholder="0.00"
@@ -499,7 +499,8 @@ export default function ProviderSelector({
                             <button
                                 onClick={() => {
                                     const maxPriceInput = document.getElementById('best-route-max-price') as HTMLInputElement;
-                                    const maxPrice = maxPriceInput ? parseFloat(maxPriceInput.value) : Infinity;
+                                    const displayMax = maxPriceInput ? parseFloat(maxPriceInput.value) : Infinity;
+                                    const maxPrice = convert(displayMax, preferredCurrency, 'POINTS');
                                     // Use smartRoute.providers for max price filtering
                                     const eligible = smartRoute.providers
                                         .filter(p => p.price <= maxPrice)
