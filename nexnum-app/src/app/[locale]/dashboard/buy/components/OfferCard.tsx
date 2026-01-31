@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { ArrowRight, Signal, Server } from "lucide-react";
 import { formatPrice } from "@/lib/utils/utils";
 import { SafeImage } from "@/components/ui/safe-image";
+import { getCountryFlagUrlSync } from "@/lib/normalizers/country-flags";
 
 export interface SearchOffer {
     id: string;
@@ -25,6 +26,8 @@ export const OfferCard = ({ offer, onBuy, disabled }: OfferCardProps) => {
     const stockStatus = offer.count > 1000 ? 'High' : offer.count > 100 ? 'Med' : 'Low';
     const stockColor = stockStatus === 'High' ? 'text-green-400' : stockStatus === 'Med' ? 'text-yellow-400' : 'text-red-400';
 
+    const countryFlag = getCountryFlagUrlSync(offer.countryName) || "/assets/flags/un.svg";
+
     return (
         <motion.button
             whileHover={{ scale: 1.02 }}
@@ -46,7 +49,7 @@ export const OfferCard = ({ offer, onBuy, disabled }: OfferCardProps) => {
                 <div>
                     <div className="flex items-center gap-2">
                         <SafeImage
-                            src={`https://flagcdn.com/w20/${offer.countryCode.toLowerCase()}.png`}
+                            src={countryFlag}
                             fallbackSrc="/assets/flags/un.svg"
                             alt={offer.countryName}
                             className="w-5 h-[15px] object-cover rounded-[2px] opacity-80"
