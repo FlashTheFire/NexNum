@@ -45,7 +45,7 @@ services:
       - NEXT_DISABLE_INTERNAL_WORKERS=true
       - RECONCILE_INTERVAL_MS=${RECONCILE_INTERVAL_MS:-60000}
     healthcheck:
-      test: [ "CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health" ]
+      test: [ "CMD", "curl", "-f", "http://localhost:3000/api/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -121,7 +121,7 @@ services:
       - REDIS_URL=redis://:${REDIS_PASSWORD:-dev_redis_pass}@nexnum-redis:6379
       - MEILISEARCH_HOST=http://meilisearch:7700
     healthcheck:
-      test: [ "CMD", "wget", "-q", "--spider", "http://localhost:3951/health" ]
+      test: [ "CMD", "curl", "-f", "http://localhost:3951/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -204,7 +204,7 @@ services:
     depends_on:
       - prometheus
     healthcheck:
-      test: [ "CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health" ]
+      test: [ "CMD", "curl", "-f", "http://localhost:3000/api/health" ]
       interval: 30s
       timeout: 10s
       retries: 3

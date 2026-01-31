@@ -24,7 +24,7 @@ scrape_configs:
   # NexNum Core Service
   - job_name: 'nexnum-core'
     static_configs:
-      - targets: ['host.docker.internal:3000']
+      - targets: ['app:3000']
     metrics_path: '/api/metrics'
     scheme: http
     scrape_timeout: 9s
@@ -51,7 +51,7 @@ scrape_configs:
       module: [http_2xx]
     static_configs:
       - targets:
-        - http://host.docker.internal:3000/api/health
+        - http://app:3000/api/health
 
     relabel_configs:
       - source_labels: [__address__]
