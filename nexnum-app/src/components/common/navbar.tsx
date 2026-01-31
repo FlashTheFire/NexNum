@@ -212,26 +212,6 @@ export function Navbar() {
                                             </button>
                                         </motion.div>
 
-                                        {/* Mobile Currency Selector */}
-                                        {!isLandingPage && (
-                                            <motion.div
-                                                initial={{ opacity: 0, x: -20 }}
-                                                animate={{ opacity: 1, x: 0 }}
-                                                transition={{ delay: 0.12 }}
-                                                className="flex items-center justify-between p-3 rounded-xl bg-white/[0.04] border border-white/[0.06]"
-                                            >
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-lg bg-white/[0.06] flex items-center justify-center text-gray-400">
-                                                        <Wallet className="w-5 h-5 opacity-70" />
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-sm font-semibold text-white">Currency</p>
-                                                        <p className="text-[10px] text-gray-500">Display pricing in preferred currency</p>
-                                                    </div>
-                                                </div>
-                                                <CurrencySelector />
-                                            </motion.div>
-                                        )}
                                     </>
                                 )}
                                 <div className="space-y-1">

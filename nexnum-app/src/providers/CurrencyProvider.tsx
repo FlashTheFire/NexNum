@@ -175,9 +175,9 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
      * Set user's preferred currency with persistence
      */
     const setCurrency = useCallback((code: string) => {
-        // Validate currency exists
-        if (code !== 'POINTS' && !currencies[code]) {
-            console.warn(`[CurrencyProvider] Unknown currency: ${code}`)
+        // Validate currency exists and is NOT points
+        if (code === 'POINTS' || !currencies[code]) {
+            console.warn(`[CurrencyProvider] Invalid or restricted currency: ${code}`)
             return
         }
 

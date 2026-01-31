@@ -28,7 +28,7 @@ export async function sendVerificationEmail(userId: string, email: string, name:
     })
 
     // Send email
-    const verificationLink = `${process.env.NEXT_PUBLIC_APP_URL}/auth/verify-email?token=${token}`
+    const verificationLink = `${process.env.NEXT_PUBLIC_APP_URL}/auth/verify?token=${token}`
 
     try {
         await EmailService.send({

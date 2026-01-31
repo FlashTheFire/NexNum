@@ -57,7 +57,7 @@ export default async function proxy(request: NextRequest) {
 
             // Block unverified users from dashboard
             if (!user.emailVerified) {
-                return NextResponse.redirect(new URL('/auth/pending-verification', request.url));
+                return NextResponse.redirect(new URL('/auth/verify', request.url));
             }
         } catch (error) {
             // Invalid token -> Redirect to login

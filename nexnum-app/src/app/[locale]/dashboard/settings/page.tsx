@@ -54,7 +54,7 @@ export default function SettingsPage() {
     // Form States
     const [name, setName] = useState(user?.name || "")
     const [email, setEmail] = useState(user?.email || "")
-    const [preferredCurrency, setPreferredCurrency] = useState(user?.preferredCurrency || "POINTS")
+    const [preferredCurrency, setPreferredCurrency] = useState(user?.preferredCurrency || "USD")
     const [twoFactor, setTwoFactor] = useState(false)
 
     const handleSave = async () => {
@@ -215,7 +215,6 @@ export default function SettingsPage() {
                                                     onChange={(e) => setPreferredCurrency(e.target.value)}
                                                     className="w-full h-10 pl-9 pr-3 rounded-md border border-white/10 bg-black/20 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500/50"
                                                 >
-                                                    <option value="POINTS">{currencySettings?.pointsName || 'Points'}</option>
                                                     {Object.values(currencies).map(curr => (
                                                         <option key={curr.code} value={curr.code}>
                                                             {curr.name} ({curr.symbol})

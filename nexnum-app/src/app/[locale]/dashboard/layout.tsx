@@ -105,7 +105,7 @@ export default function DashboardLayout({
     // Email verification enforcement - redirect unverified users
     useEffect(() => {
         if (!isLoading && isAuthenticated && user && !user.emailVerified) {
-            router.push("/auth/pending-verification")
+            router.push("/auth/verify")
         }
     }, [isLoading, isAuthenticated, user, router])
 

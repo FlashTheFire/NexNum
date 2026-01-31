@@ -3,12 +3,14 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { Zap, Menu, X, ChevronDown } from "lucide-react";
+import { Zap, Menu, X, ChevronDown, LogOut } from "lucide-react";
 import LanguageSwitcher from "@/components/common/LanguageSwitcher";
 import CurrencySelector from "@/components/common/CurrencySelector";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTranslations } from "next-intl";
+
+import { useAuthStore } from "@/stores/authStore";
 
 interface NavbarProps {
     hideLogin?: boolean;
@@ -18,8 +20,10 @@ interface NavbarProps {
 export default function Navbar({ hideLogin = false, hideRegister = false }: NavbarProps) {
     const [scrolled, setScrolled] = useState(false);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const { isAuthenticated, logout, user } = useAuthStore();
     const t = useTranslations('nav');
     const tc = useTranslations('common');
+    const td = useTranslations('dashboard.nav');
 
     useEffect(() => {
         const handleScroll = () => {
@@ -100,28 +104,50 @@ export default function Navbar({ hideLogin = false, hideRegister = false }: Navb
                             <div className="flex items-center gap-1.5 mr-1">
                                 <LanguageSwitcher />
                             </div>
-                            {!hideLogin && (
-                                <Link href="/login">
+                            {isAuthenticated ? (
+                                <>
+                                    <Link href="/dashboard">
+                                        <Button
+                                            variant="ghost"
+                                            className="text-gray-300 hover:text-white hover:bg-white/[0.06] font-medium h-10 px-5"
+                                        >
+                                            {td('overview')}
+                                        </Button>
+                                    </Link>
                                     <Button
-                                        variant={hideRegister ? undefined : "ghost"}
-                                        className={hideRegister
-                                            ? "bg-[hsl(var(--neon-lime))] text-black hover:bg-[hsl(72,100%,55%)] font-semibold h-10 px-6 shadow-lg shadow-[hsl(var(--neon-lime)/0.25)] hover:shadow-[hsl(var(--neon-lime)/0.4)] transition-all duration-300"
-                                            : "text-gray-300 hover:text-white hover:bg-white/[0.06] font-medium h-10 px-5"
-                                        }
-                                    >
-                                        {tc('login')}
-                                    </Button>
-                                </Link>
-                            )}
-                            {!hideRegister && (
-                                <Link href="/register">
-                                    <Button
+                                        onClick={() => logout()}
                                         className="bg-[hsl(var(--neon-lime))] text-black hover:bg-[hsl(72,100%,55%)] font-semibold h-10 px-6 shadow-lg shadow-[hsl(var(--neon-lime)/0.25)] hover:shadow-[hsl(var(--neon-lime)/0.4)] transition-all duration-300"
                                     >
-                                        {tc('getStarted')}
-                                        <Zap className="w-4 h-4 ml-1.5" />
+                                        {td('logout')}
+                                        <LogOut className="w-4 h-4 ml-2" />
                                     </Button>
-                                </Link>
+                                </>
+                            ) : (
+                                <>
+                                    {!hideLogin && (
+                                        <Link href="/login">
+                                            <Button
+                                                variant={hideRegister ? undefined : "ghost"}
+                                                className={hideRegister
+                                                    ? "bg-[hsl(var(--neon-lime))] text-black hover:bg-[hsl(72,100%,55%)] font-semibold h-10 px-6 shadow-lg shadow-[hsl(var(--neon-lime)/0.25)] hover:shadow-[hsl(var(--neon-lime)/0.4)] transition-all duration-300"
+                                                    : "text-gray-300 hover:text-white hover:bg-white/[0.06] font-medium h-10 px-5"
+                                                }
+                                            >
+                                                {tc('login')}
+                                            </Button>
+                                        </Link>
+                                    )}
+                                    {!hideRegister && (
+                                        <Link href="/register">
+                                            <Button
+                                                className="bg-[hsl(var(--neon-lime))] text-black hover:bg-[hsl(72,100%,55%)] font-semibold h-10 px-6 shadow-lg shadow-[hsl(var(--neon-lime)/0.25)] hover:shadow-[hsl(var(--neon-lime)/0.4)] transition-all duration-300"
+                                            >
+                                                {tc('getStarted')}
+                                                <Zap className="w-4 h-4 ml-1.5" />
+                                            </Button>
+                                        </Link>
+                                    )}
+                                </>
                             )}
                         </div>
 
@@ -188,22 +214,47 @@ export default function Navbar({ hideLogin = false, hideRegister = false }: Navb
                                 </div>
 
                                 <div className="flex flex-col gap-3 pt-6 mt-4 border-t border-white/[0.06]">
-                                    <Link href="/login" onClick={() => setMobileMenuOpen(false)}>
-                                        <Button
-                                            variant="outline"
-                                            className="w-full h-12 text-gray-300 border-white/10 hover:bg-white/[0.04] hover:text-white"
-                                        >
-                                            {tc('login')}
-                                        </Button>
-                                    </Link>
-                                    <Link href="/register" onClick={() => setMobileMenuOpen(false)}>
-                                        <Button
-                                            className="w-full h-12 bg-[hsl(var(--neon-lime))] text-black hover:bg-[hsl(72,100%,55%)] font-semibold"
-                                        >
-                                            {tc('getStarted')}
-                                            <Zap className="w-4 h-4 ml-1.5" />
-                                        </Button>
-                                    </Link>
+                                    {isAuthenticated ? (
+                                        <>
+                                            <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)}>
+                                                <Button
+                                                    variant="outline"
+                                                    className="w-full h-12 text-gray-300 border-white/10 hover:bg-white/[0.04] hover:text-white"
+                                                >
+                                                    {td('overview')}
+                                                </Button>
+                                            </Link>
+                                            <Button
+                                                onClick={() => {
+                                                    logout();
+                                                    setMobileMenuOpen(false);
+                                                }}
+                                                className="w-full h-12 bg-[hsl(var(--neon-lime))] text-black hover:bg-[hsl(72,100%,55%)] font-semibold"
+                                            >
+                                                {td('logout')}
+                                                <LogOut className="w-4 h-4 ml-2" />
+                                            </Button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Link href="/login" onClick={() => setMobileMenuOpen(false)}>
+                                                <Button
+                                                    variant="outline"
+                                                    className="w-full h-12 text-gray-300 border-white/10 hover:bg-white/[0.04] hover:text-white"
+                                                >
+                                                    {tc('login')}
+                                                </Button>
+                                            </Link>
+                                            <Link href="/register" onClick={() => setMobileMenuOpen(false)}>
+                                                <Button
+                                                    className="w-full h-12 bg-[hsl(var(--neon-lime))] text-black hover:bg-[hsl(72,100%,55%)] font-semibold"
+                                                >
+                                                    {tc('getStarted')}
+                                                    <Zap className="w-4 h-4 ml-1.5" />
+                                                </Button>
+                                            </Link>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         </motion.div>
