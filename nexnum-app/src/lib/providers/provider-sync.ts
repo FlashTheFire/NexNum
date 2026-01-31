@@ -17,7 +17,7 @@ import fs from 'fs'
 import path from 'path'
 import https from 'https'
 import pLimit from 'p-limit'
-import { indexOffers, OfferDocument, deleteOffersByProvider, INDEXES, SHADOW_PREFIX, swapShadowToPrimary, initSearchIndexes } from '@/lib/search/search'
+import { indexOffers, OfferDocument, deleteOffersByProvider, INDEXES, swapShadowToPrimary, initSearchIndexes } from '@/lib/search/search'
 import { logAdminAction } from '@/lib/core/auditLog'
 import * as dotenv from 'dotenv'
 // Senior-Level Optimization: worker_threads is only loaded dynamically to prevent Turbopack build panics

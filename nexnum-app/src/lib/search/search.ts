@@ -43,7 +43,6 @@ export const INDEXES = {
  * Enterprise Shadow Index Prefixes
  * Used for Blue-Green atomic swaps during long-running syncs.
  */
-export const SHADOW_PREFIX = 'shadow_';
 
 // Admin API View Modes
 export type InventoryViewMode = 'aggregated' | 'raw';
