@@ -92,6 +92,7 @@ const FlagImage = ({
 
     const src = (name ? getCountryFlagUrlSync(name) : undefined)
         || (providerId ? getCountryFlagUrlSync(providerId) : undefined)
+        || (flagUrl ? getCountryFlagUrlSync(flagUrl.split('/').pop()?.split('.')[0] || '') : undefined) // Try to extract code from bad URL
         || flagUrl;
 
     useEffect(() => {
