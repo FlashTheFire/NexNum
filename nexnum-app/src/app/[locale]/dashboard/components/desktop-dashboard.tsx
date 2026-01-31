@@ -22,6 +22,7 @@ import { useAuthStore } from "@/stores/authStore"
 import { formatPrice } from "@/lib/utils/utils"
 import { DashboardBackground } from "./dashboard-background"
 import { ModernNumberCard } from "./ModernNumberCard"
+import { BalanceDisplay, PriceDisplay } from "@/components/common/PriceDisplay"
 
 
 // Animation Variants
@@ -58,10 +59,10 @@ export function DesktopDashboard() {
         .reduce((sum, t) => sum + Math.abs(t.amount), 0)
 
     const stats = [
-        { label: t('stats.balance'), value: formatPrice(userProfile?.balance || 0), icon: Wallet, color: "text-[hsl(var(--neon-lime))]", bg: "bg-[hsl(var(--neon-lime)/0.1)]", border: "border-[hsl(var(--neon-lime)/0.2)]" },
+        { label: t('stats.balance'), value: <BalanceDisplay balanceInPoints={userProfile?.balance || 0} />, icon: Wallet, color: "text-[hsl(var(--neon-lime))]", bg: "bg-[hsl(var(--neon-lime)/0.1)]", border: "border-[hsl(var(--neon-lime)/0.2)]" },
         { label: t('stats.myNumbers'), value: activeNumbers.length, icon: Phone, color: "text-cyan-400", bg: "bg-cyan-400/10", border: "border-cyan-400/20" },
-        { label: t('stats.spent'), value: formatPrice(totalSpent), icon: ShoppingCart, color: "text-purple-400", bg: "bg-purple-400/10", border: "border-purple-400/20" },
-        { label: t('stats.deposited'), value: formatPrice(totalDeposit), icon: TrendingUp, color: "text-emerald-400", bg: "bg-emerald-400/10", border: "border-emerald-400/20" },
+        { label: t('stats.spent'), value: <PriceDisplay amountInPoints={totalSpent} />, icon: ShoppingCart, color: "text-purple-400", bg: "bg-purple-400/10", border: "border-purple-400/20" },
+        { label: t('stats.deposited'), value: <PriceDisplay amountInPoints={totalDeposit} />, icon: TrendingUp, color: "text-emerald-400", bg: "bg-emerald-400/10", border: "border-emerald-400/20" },
     ]
 
     return (
@@ -242,7 +243,7 @@ export function DesktopDashboard() {
                                     <div className="grid grid-cols-3 gap-3 mb-6">
                                         {[10, 25, 50].map(amt => (
                                             <button key={amt} className="group/btn relative h-14 rounded-2xl bg-white/[0.03] hover:bg-[hsl(var(--neon-lime)/0.1)] border border-white/[0.08] hover:border-[hsl(var(--neon-lime)/0.3)] transition-all duration-300 overflow-hidden">
-                                                <span className="relative z-10 text-lg font-mono font-bold text-gray-300 group-hover/btn:text-white transition-colors">${amt}</span>
+                                                <span className="relative z-10 text-lg font-mono font-bold text-gray-300 group-hover/btn:text-white transition-colors"><PriceDisplay amountInPoints={amt} precision={0} showCode={false} /></span>
                                             </button>
                                         ))}
                                     </div>
@@ -272,7 +273,8 @@ export function DesktopDashboard() {
                                         </div>
                                         <div className="text-right">
                                             <span className={`block text-sm font-mono font-bold ${['topup', 'manual_credit', 'referral_bonus', 'refund'].includes(tx.type) ? 'text-emerald-400' : 'text-white'}`}>
-                                                {['topup', 'manual_credit', 'referral_bonus', 'refund'].includes(tx.type) ? '+' : ''}{formatPrice(tx.amount)}
+                                                {['topup', 'manual_credit', 'referral_bonus', 'refund'].includes(tx.type) ? '+' : ''}
+                                                <PriceDisplay amountInPoints={tx.amount} />
                                             </span>
                                         </div>
                                     </div>

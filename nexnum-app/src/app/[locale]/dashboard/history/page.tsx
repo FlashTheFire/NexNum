@@ -32,6 +32,8 @@ import { Badge } from "@/components/ui/badge"
 import { useGlobalStore } from "@/stores/appStore"
 import { formatPrice, formatDate, cn } from "@/lib/utils/utils"
 import { DashboardBackground } from "../components/dashboard-background"
+import { PriceDisplay } from "@/components/common/PriceDisplay"
+import { useCurrency } from "@/providers/CurrencyProvider"
 
 // ============================================
 // SKELETON COMPONENTS
@@ -224,7 +226,7 @@ const TransactionCard = ({ tx, index }: TransactionCardProps) => {
                         </div>
                         <div className="col-span-3 text-right">
                             <span className={cn("font-bold font-mono text-lg block", amountColor)}>
-                                {isCredit ? "+" : "-"}{formatPrice(Math.abs(tx.amount))}
+                                {isCredit ? "+" : "-"}<PriceDisplay amountInPoints={Math.abs(tx.amount)} />
                             </span>
                             <span className={cn(
                                 "text-[10px] uppercase font-bold tracking-wider flex items-center justify-end gap-1 mt-0.5",
@@ -255,7 +257,7 @@ const TransactionCard = ({ tx, index }: TransactionCardProps) => {
                     </div>
                     <div className="text-right">
                         <p className={cn("font-bold font-mono text-sm", amountColor)}>
-                            {isCredit ? "+" : "-"}{formatPrice(Math.abs(tx.amount))}
+                            {isCredit ? "+" : "-"}<PriceDisplay amountInPoints={Math.abs(tx.amount)} />
                         </p>
                         <p className={cn(
                             "text-[10px] font-medium uppercase tracking-wide",
@@ -276,7 +278,7 @@ const TransactionCard = ({ tx, index }: TransactionCardProps) => {
 
 interface StatCardProps {
     title: string
-    value: string | number
+    value: React.ReactNode
     icon: React.ReactNode
     colorScheme: 'emerald' | 'rose' | 'neutral'
     index: number
@@ -383,6 +385,7 @@ export default function HistoryPage() {
     const [isStatsOpen, setIsStatsOpen] = useState(true)
     const [isMounted, setIsMounted] = useState(false)
     const itemsPerPage = 8
+    const { formatPrice: formatPriceContext } = useCurrency()
 
     const containerRef = useRef<HTMLDivElement>(null)
     const { scrollY } = useScroll()
@@ -429,7 +432,7 @@ export default function HistoryPage() {
                 formatDate(tx.createdAt),
                 tx.type,
                 tx.description,
-                formatPrice(tx.amount),
+                formatPriceContext(tx.amount),
                 tx.status,
             ])
         ].map(row => row.join(",")).join("\n")
@@ -546,7 +549,7 @@ export default function HistoryPage() {
                                 <>
                                     <StatCard
                                         title="Total Deposited"
-                                        value={formatPrice(stats.deposited)}
+                                        value={<PriceDisplay amountInPoints={stats.deposited} />}
                                         icon={<ArrowDownRight className="h-5 w-5 md:h-6 md:w-6" />}
                                         colorScheme="emerald"
                                         index={0}
@@ -554,7 +557,7 @@ export default function HistoryPage() {
                                     />
                                     <StatCard
                                         title="Total Spent"
-                                        value={formatPrice(stats.spent)}
+                                        value={<PriceDisplay amountInPoints={stats.spent} />}
                                         icon={<ArrowUpRight className="h-5 w-5 md:h-6 md:w-6" />}
                                         colorScheme="rose"
                                         index={1}

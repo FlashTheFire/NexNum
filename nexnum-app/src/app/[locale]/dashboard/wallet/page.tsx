@@ -30,6 +30,8 @@ import { Badge } from "@/components/ui/badge"
 import { useGlobalStore, Transaction } from "@/stores/appStore"
 import { useAuthStore } from "@/stores/authStore"
 import { formatPrice, formatRelativeTime, cn } from "@/lib/utils/utils"
+import { BalanceDisplay, PriceDisplay } from "@/components/common/PriceDisplay"
+import { useCurrency } from "@/providers/CurrencyProvider"
 
 // Animation Variants
 const fadeInUp: any = {
@@ -64,6 +66,7 @@ export default function WalletPage() {
     const [isLoading, setIsLoading] = useState(false)
     const [selectedMethod, setSelectedMethod] = useState("upi")
     const [customFocused, setCustomFocused] = useState(false)
+    const { formatPrice: formatPriceContext } = useCurrency()
 
     // Filters
     const [filterType, setFilterType] = useState<'all' | 'credit' | 'debit'>('all')
@@ -109,7 +112,7 @@ export default function WalletPage() {
     const handleTopUp = () => {
         const value = parseFloat(amount)
         if (isNaN(value) || value < 5) {
-            toast.error("Minimum top-up is $5.00")
+            toast.error(`Minimum top-up is ${formatPriceContext(5)}`)
             return
         }
         setIsLoading(true)
@@ -121,7 +124,7 @@ export default function WalletPage() {
             t.id,
             new Date(t.date).toLocaleString(),
             t.type,
-            formatPrice(t.amount),
+            formatPriceContext(t.amount),
             t.description,
             t.status
         ])
@@ -217,7 +220,7 @@ export default function WalletPage() {
                                         <div className="space-y-1">
                                             <p className="text-xs font-medium text-indigo-200 tracking-[0.2em] uppercase">Total Balance</p>
                                             <h2 className="text-3xl md:text-5xl font-bold text-white tracking-tight drop-shadow-lg tabular-nums">
-                                                {formatPrice(userProfile?.balance || 0)}
+                                                <BalanceDisplay balanceInPoints={userProfile?.balance || 0} />
                                             </h2>
                                         </div>
                                         <div className="h-10 w-10 md:h-12 md:w-12 rounded-xl bg-gradient-to-br from-white/20 to-white/5 backdrop-blur-md border border-white/20 flex items-center justify-center">
@@ -467,7 +470,8 @@ export default function WalletPage() {
                                                         "block text-lg font-bold font-mono",
                                                         ['topup', 'manual_credit', 'referral_bonus'].includes(tx.type) ? "text-emerald-400" : "text-white"
                                                     )}>
-                                                        {['topup', 'manual_credit', 'referral_bonus'].includes(tx.type) ? "+" : "-"}{formatPrice(tx.amount)}
+                                                        {['topup', 'manual_credit', 'referral_bonus'].includes(tx.type) ? "+" : "-"}
+                                                        <PriceDisplay amountInPoints={tx.amount} />
                                                     </span>
                                                     <span className="text-[10px] text-white/30 font-mono">{tx.id.slice(0, 8)}...</span>
                                                 </div>

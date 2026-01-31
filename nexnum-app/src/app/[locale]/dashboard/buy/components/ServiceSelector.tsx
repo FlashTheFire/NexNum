@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils/utils";
 import { Check, Sparkles, Loader2, Server, SearchX, HelpCircle, MessageSquare, Shield, Smartphone, Globe, Zap, Lock, Star } from "lucide-react";
 import { usePinnedItems } from "@/hooks/usePinnedItems";
+import { PriceDisplay } from "@/components/common/PriceDisplay";
 
 // Helper hook for IntersectionObserver
 function useInView(options = {}) {
@@ -183,6 +184,11 @@ const ServiceCard = React.memo(({
             )}>
                 {service.name}
             </span>
+            {service.lowestPrice && (
+                <div className={cn("mt-0.5 text-[10px] font-medium opacity-80", isSelected ? "text-[hsl(var(--neon-lime))]" : "text-gray-400 group-hover:text-gray-300")}>
+                    from <PriceDisplay amountInPoints={service.lowestPrice} compact />
+                </div>
+            )}
         </motion.div>
     );
 });

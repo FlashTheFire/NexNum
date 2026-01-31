@@ -27,6 +27,7 @@ import { formatPrice, cn } from "@/lib/utils/utils"
 import { useNotifications, formatNotificationTime } from "@/hooks/use-notifications"
 import { NotificationDropdown } from "@/components/common/notification-dropdown"
 import LanguageSwitcher from "@/components/common/LanguageSwitcher"
+import CurrencySelector from "@/components/common/CurrencySelector"
 
 export function Navbar() {
     const pathname = usePathname()
@@ -121,7 +122,8 @@ export function Navbar() {
                                     <NotificationDropdown />
 
                                     {/* Language Switcher */}
-                                    <div className="mr-1">
+                                    <div className="mr-1 flex items-center gap-2">
+                                        <CurrencySelector />
                                         <LanguageSwitcher />
                                     </div>
 

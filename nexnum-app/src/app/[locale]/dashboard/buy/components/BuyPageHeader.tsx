@@ -1,5 +1,6 @@
 import { ArrowLeft, Search, ShoppingCart, DollarSign, Package, TrendingUp, SlidersHorizontal } from "lucide-react";
 import { formatPrice, cn } from "@/lib/utils/utils";
+import { BalanceDisplay } from "@/components/common/PriceDisplay";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -74,7 +75,7 @@ export default function BuyPageHeader({
                     ) : (
                         <div className="flex items-center bg-zinc-900 rounded-full border border-white/5 px-2.5 py-1 gap-2">
                             <ShoppingCart className="h-3 w-3 text-[hsl(var(--neon-lime))]" />
-                            <span className="text-[10px] sm:text-xs font-mono text-zinc-300">{formatPrice(userBalance)}</span>
+                            <BalanceDisplay balanceInPoints={userBalance} className="text-[10px] sm:text-xs font-mono text-zinc-300" />
                         </div>
                     )}
                 </div>

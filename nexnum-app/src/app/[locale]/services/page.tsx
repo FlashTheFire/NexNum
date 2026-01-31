@@ -10,8 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import CTA from "@/components/home/CTA"
-
-import { formatPrice } from "@/lib/utils/utils"
+import { PriceDisplay } from "@/components/common/PriceDisplay"
 
 // Mock Data for Display (Updated to COINS: 0.15 -> 15)
 const popularServices = [
@@ -121,7 +120,7 @@ export default function ServicesPage() {
                                             {service.name}
                                         </h3>
                                         <p className="text-sm text-gray-500 mt-1">
-                                            from <span className="text-white font-mono">{formatPrice(service.price)}</span>
+                                            from <span className="text-white font-mono"><PriceDisplay amountInPoints={service.price} /></span>
                                         </p>
                                     </div>
                                     <Link href="/dashboard/buy" className="w-full">
@@ -156,7 +155,7 @@ export default function ServicesPage() {
                                         </div>
                                         <div>
                                             <div className="text-sm font-medium text-white">{country.name}</div>
-                                            <div className="text-xs text-gray-500">from {formatPrice(country.price)}</div>
+                                            <div className="text-xs text-gray-500">from <PriceDisplay amountInPoints={country.price} /></div>
                                         </div>
                                     </div>
                                 ))}

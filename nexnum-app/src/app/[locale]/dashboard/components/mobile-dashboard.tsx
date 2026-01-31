@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl"
 import { motion, AnimatePresence } from "framer-motion"
 import { useGlobalStore } from "@/stores/appStore"
 import { useAuthStore } from "@/stores/authStore"
-import { formatPrice } from "@/lib/utils/utils"
+import { useCurrency } from "@/providers/CurrencyProvider"
 import { getCountryFlagUrlSync } from "@/lib/normalizers/country-flags"
 import Link from "next/link"
 import {
@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { DashboardBackground } from "./dashboard-background"
 import { DashboardNumberCard } from "./DashboardNumberCard"
+import { PriceDisplay } from "@/components/common/PriceDisplay"
 
 // Quick Actions Configuration
 
@@ -34,6 +35,7 @@ export function MobileDashboard() {
     const [activeCardIndex, setActiveCardIndex] = useState(0)
     const scrollContainerRef = useRef<HTMLDivElement>(null)
     const [now, setNow] = useState(Date.now())
+    const { formatBalance, formatPrice: formatPriceContext } = useCurrency()
 
     useEffect(() => {
         const interval = setInterval(() => setNow(Date.now()), 1000)
@@ -55,7 +57,7 @@ export function MobileDashboard() {
     const metrics = [
         {
             label: t('stats.balance'),
-            value: formatPrice(userProfile?.balance || 0),
+            value: formatBalance(userProfile?.balance || 0),
             icon: Wallet,
             color: "text-[hsl(var(--neon-lime))]",
             hexColor: "hsl(var(--neon-lime))",
@@ -63,7 +65,7 @@ export function MobileDashboard() {
         },
         {
             label: t('stats.spent'),
-            value: formatPrice(totalSpent),
+            value: formatPriceContext(totalSpent),
             icon: ShoppingCart,
             color: "text-purple-400",
             hexColor: "#a78bfa", // purple-400
@@ -71,7 +73,7 @@ export function MobileDashboard() {
         },
         {
             label: t('stats.deposited'),
-            value: formatPrice(totalDeposit),
+            value: formatPriceContext(totalDeposit),
             icon: ArrowUpRight,
             color: "text-emerald-400",
             hexColor: "#34d399", // emerald-400
@@ -179,7 +181,9 @@ export function MobileDashboard() {
                                                 className="text-4xl font-mono font-bold text-white tracking-tighter drop-shadow-lg"
                                             >
                                                 {metrics[activeMetric].value.split('.')[0]}
-                                                <span className="text-xl text-gray-500 font-medium">.{metrics[activeMetric].value.split('.')[1]}</span>
+                                                {metrics[activeMetric].value.split('.')[1] && (
+                                                    <span className="text-xl text-gray-500 font-medium">.{metrics[activeMetric].value.split('.')[1]}</span>
+                                                )}
                                             </motion.h2>
                                         </AnimatePresence>
                                     </div>
@@ -523,7 +527,8 @@ export function MobileDashboard() {
                                     </div>
                                 </div>
                                 <span className={`text-sm font-mono font-medium ${['topup', 'manual_credit', 'referral_bonus', 'refund'].includes(tx.type) ? 'text-emerald-400' : 'text-red-400'}`}>
-                                    {['topup', 'manual_credit', 'referral_bonus', 'refund'].includes(tx.type) ? '+' : ''}{formatPrice(tx.amount)}
+                                    {['topup', 'manual_credit', 'referral_bonus', 'refund'].includes(tx.type) ? '+' : ''}
+                                    <PriceDisplay amountInPoints={tx.amount} />
                                 </span>
                             </div>
                         ))}

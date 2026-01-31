@@ -19,6 +19,7 @@ import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils/utils";
 import { useTranslations } from "next-intl";
 import { SafeImage } from "@/components/ui/safe-image";
+import { PriceDisplay } from "@/components/common/PriceDisplay";
 
 // Animated Cursor Component for Professional Demo
 const DemoCursor = ({
@@ -1008,7 +1009,7 @@ export default function DemoPage() {
                         {/* Wallet - Mobile only */}
                         <div className="flex md:hidden items-center bg-zinc-900 rounded-full border border-white/5 px-2.5 py-1 gap-2">
                             <ShoppingCart className="h-3 w-3 text-[hsl(var(--neon-lime))]" />
-                            <span className="text-[10px] sm:text-xs font-mono text-zinc-300">$10.58</span>
+                            <span className="text-[10px] sm:text-xs font-mono text-zinc-300"><PriceDisplay amountInPoints={10.58} /></span>
                         </div>
                     </div>
                 </div>

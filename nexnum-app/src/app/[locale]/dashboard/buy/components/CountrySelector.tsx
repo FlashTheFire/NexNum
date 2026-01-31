@@ -4,6 +4,8 @@ import { Globe, Search, Check, Package, AlertTriangle, Loader2, Star } from "luc
 import { cn } from "@/lib/utils/utils";
 import { getCountryFlagUrlSync } from "@/lib/normalizers/country-flags";
 import { usePinnedItems } from "@/hooks/usePinnedItems";
+import { PriceDisplay } from "@/components/common/PriceDisplay";
+import { useCurrency } from "@/providers/CurrencyProvider";
 
 // Helper hook for IntersectionObserver
 function useInView(options = {}) {
@@ -46,15 +48,7 @@ interface Country {
 }
 
 // Format price with localization
-const formatPrice = (price: number | undefined, locale = "en-US", currency = "USD") => {
-    if (price === undefined || price === null) return "$0.00";
-    return new Intl.NumberFormat(locale, {
-        style: "currency",
-        currency,
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-    }).format(price);
-};
+// Format price with localization (Now handled by useCurrency hook)
 
 // Format stock count for display
 const formatStock = (stock: number | undefined): string => {
@@ -187,6 +181,7 @@ const CountryCard = React.memo(({
         hidden: { opacity: 0, scale: 0.95 },
         show: { opacity: 1, scale: 1 }
     };
+    const { formatPrice: formatPriceContext } = useCurrency();
 
     return (
         <motion.div
@@ -197,11 +192,12 @@ const CountryCard = React.memo(({
             tabIndex={isOutOfStock ? -1 : 0}
             onKeyDown={(e) => {
                 if (!isOutOfStock && (e.key === 'Enter' || e.key === ' ')) {
+                    e.preventDefault();
                     onSelect(country);
                 }
             }}
             aria-disabled={isOutOfStock}
-            aria-label={`Select ${country.name}${selectedService ? `, price from ${formatPrice(country.minPrice)}` : ""}`}
+            aria-label={`Select ${country.name}${selectedService ? `, price from ${formatPriceContext(country.minPrice || 0)}` : ""}`}
             aria-pressed={isSelected}
             data-country-id={country.id}
             data-stock-status={stockStatus}
@@ -313,19 +309,7 @@ const CountryCard = React.memo(({
                             ? "text-[hsl(var(--neon-lime))]"
                             : "text-white group-hover:text-[hsl(var(--neon-lime))]"
                     )}>
-                        {(() => {
-                            const formatted = formatPrice(country.minPrice);
-                            const parts = formatted.split('.');
-                            if (parts.length === 2) {
-                                return (
-                                    <>
-                                        <span>{parts[0]}</span>
-                                        <span className="text-[0.7em] opacity-80">.{parts[1]}</span>
-                                    </>
-                                );
-                            }
-                            return formatted;
-                        })()}
+                        <PriceDisplay amountInPoints={country.minPrice || 0} compact />
                     </div>
                 </div>
             )}

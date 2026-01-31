@@ -6,6 +6,7 @@ import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 
 import { formatPrice, formatRelativeTime } from "@/lib/utils/utils"
+import { PriceDisplay } from "@/components/common/PriceDisplay"
 
 // Notifications Component (Shared)
 export function NotificationsBtn() {
@@ -78,7 +79,7 @@ export function NotificationsBtn() {
                                                     <span>{formatRelativeTime(tx.createdAt)}</span>
                                                     <span>•</span>
                                                     <span className={tx.amount >= 0 ? "text-emerald-400" : "text-foreground"}>
-                                                        {tx.amount > 0 ? '+' : ''}{formatPrice(tx.amount)}
+                                                        {tx.amount > 0 ? '+' : ''}<PriceDisplay amountInPoints={Math.abs(tx.amount)} />
                                                     </span>
                                                 </p>
                                             </div>
