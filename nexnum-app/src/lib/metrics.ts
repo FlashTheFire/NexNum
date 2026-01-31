@@ -243,6 +243,7 @@ export const active_orders_gauge = register('nexnum_active_orders_gauge', () => 
 export const search_latency = register('nexnum_search_latency', () => new Histogram({
     name: 'nexnum_search_latency',
     help: 'Latency of number searches',
+    labelNames: ['type'],
     buckets: [0.1, 0.5, 1, 2, 5],
     registers: [registry]
 }))
@@ -250,6 +251,7 @@ export const search_latency = register('nexnum_search_latency', () => new Histog
 export const search_empty_results_total = register('nexnum_search_empty_results_total', () => new Counter({
     name: 'nexnum_search_empty_results_total',
     help: 'Total empty search results',
+    labelNames: ['type', 'query'],
     registers: [registry]
 }))
 
