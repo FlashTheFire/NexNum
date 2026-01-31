@@ -303,6 +303,7 @@
             "currencies": "Currencies",
             "finance": "Finance",
             "monitoring": "Monitoring",
+            "authentication": "Authentication",
             "settings": "Settings",
             "exit": "Exit Admin"
         },

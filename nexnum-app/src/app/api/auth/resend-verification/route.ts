@@ -1,50 +1,45 @@
-import { NextResponse } from 'next/server'
 import { sendVerificationEmail } from '@/lib/auth/email-verification'
 import { prisma } from '@/lib/core/db'
-import { verifyToken } from '@/lib/auth/jwt'
+import { apiHandler } from '@/lib/api/api-handler'
+import { ResponseFactory } from '@/lib/api/response-factory'
+import { logger } from '@/lib/core/logger'
 
-// POST /api/auth/resend-verification
-export async function POST(request: Request) {
-    try {
-        // Get token from Authorization header
-        const authHeader = request.headers.get('Authorization')
-        const token = authHeader?.replace('Bearer ', '')
+export const POST = apiHandler(async (request, { user }) => {
+    const ip = request.headers.get('x-forwarded-for') || 'unknown'
 
-        if (!token) {
-            return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
-        }
+    // Get user details
+    const userData = await prisma.user.findUnique({
+        where: { id: user!.userId },
+        select: { id: true, email: true, name: true, emailVerified: true }
+    })
 
-        // Verify JWT and get user ID
-        const payload = await verifyToken(token)
-        if (!payload?.userId) {
-            return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
-        }
-
-        // Get user details
-        const user = await prisma.user.findUnique({
-            where: { id: payload.userId },
-            select: { id: true, email: true, name: true, emailVerified: true }
-        })
-
-        if (!user) {
-            return NextResponse.json({ error: 'User not found' }, { status: 404 })
-        }
-
-        if (user.emailVerified) {
-            return NextResponse.json({ error: 'Email already verified' }, { status: 400 })
-        }
-
-        // Send new verification email
-        const sent = await sendVerificationEmail(user.id, user.email, user.name || 'User')
-
-        if (!sent) {
-            return NextResponse.json({ error: 'Failed to send email' }, { status: 500 })
-        }
-
-        return NextResponse.json({ success: true, message: 'Verification email sent' })
-
-    } catch (error: any) {
-        console.error('Resend verification error:', error)
-        return NextResponse.json({ error: 'Server error' }, { status: 500 })
+    if (!userData) {
+        return ResponseFactory.error('User not found', 404)
     }
-}
+
+    if (userData.emailVerified) {
+        return ResponseFactory.error('Email already verified', 400)
+    }
+
+    // Send new verification email
+    const sent = await sendVerificationEmail(userData.id, userData.email, userData.name || 'User')
+
+    if (!sent) {
+        return ResponseFactory.error('Failed to send email', 500)
+    }
+
+    // Audit Log
+    await prisma.auditLog.create({
+        data: {
+            userId: userData.id,
+            action: 'email.resend_verification',
+            resourceType: 'user',
+            resourceId: userData.id,
+            ipAddress: ip
+        }
+    })
+
+    logger.info('[EmailResend] Success', { userId: userData.id })
+
+    return ResponseFactory.success({ message: 'Verification email sent' })
+})

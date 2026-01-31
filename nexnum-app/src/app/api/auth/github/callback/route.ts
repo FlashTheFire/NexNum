@@ -1,8 +1,8 @@
 /**
- * Google OAuth Callback Endpoint (Production Grade)
+ * GitHub OAuth Callback Endpoint
  * 
  * Handles OAuth callback with CSRF state verification.
- * Creates/links user account, sets emailVerified for OAuth users,
+ * Creates/links user account, sets emailVerified,
  * creates wallet, and issues session token.
  * 
  * Security:
@@ -21,18 +21,17 @@ import { logger } from '@/lib/core/logger'
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: Request) {
-    const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID
-    const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET
+    const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID
+    const GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET
 
-    if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
-        return NextResponse.json({ error: 'Google OAuth not configured' }, { status: 500 })
+    if (!GITHUB_CLIENT_ID || !GITHUB_CLIENT_SECRET) {
+        return NextResponse.json({ error: 'GitHub OAuth not configured' }, { status: 500 })
     }
 
     const { searchParams } = new URL(request.url)
     const code = searchParams.get('code')
     const state = searchParams.get('state')
     const origin = new URL(request.url).origin
-    const redirectUri = `${origin}/api/auth/google/callback`
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0] || 'unknown'
 
     // 1. CSRF: Verify state parameter
@@ -40,7 +39,7 @@ export async function GET(request: Request) {
     const storedState = cookieStore.get('oauth_state')?.value
 
     if (!state || !storedState || state !== storedState) {
-        logger.warn('[GoogleAuth] CSRF state mismatch', { provided: state, stored: storedState })
+        logger.warn('[GitHubAuth] CSRF state mismatch', { provided: state, stored: storedState })
         return NextResponse.redirect(new URL('/auth/login?error=InvalidState', request.url))
     }
 
@@ -52,39 +51,59 @@ export async function GET(request: Request) {
     }
 
     try {
-        // 2. Exchange code for tokens
-        const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+        // 2. Exchange code for access token
+        const tokenResponse = await fetch('https://github.com/login/oauth/access_token', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({
-                code,
-                client_id: GOOGLE_CLIENT_ID,
-                client_secret: GOOGLE_CLIENT_SECRET,
-                redirect_uri: redirectUri,
-                grant_type: 'authorization_code',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+                client_id: GITHUB_CLIENT_ID,
+                client_secret: GITHUB_CLIENT_SECRET,
+                code: code
             }),
         })
 
         const tokens = await tokenResponse.json()
         if (!tokens.access_token) {
-            logger.error('[GoogleAuth] Failed to get tokens', { error: tokens })
+            logger.error('[GitHubAuth] Failed to get tokens', { error: tokens })
             return NextResponse.redirect(new URL('/auth/login?error=TokenExchangeFailed', request.url))
         }
 
-        // 3. Get User Info from Google
-        const userResp = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-            headers: { Authorization: `Bearer ${tokens.access_token}` },
+        // 3. Get User Info from GitHub
+        const userResp = await fetch('https://api.github.com/user', {
+            headers: {
+                Authorization: `Bearer ${tokens.access_token}`,
+                'Accept': 'application/vnd.github.v3+json',
+                'User-Agent': 'NexNum-App'
+            },
         })
-        const googleUser = await userResp.json()
+        const githubUser = await userResp.json()
 
-        if (!googleUser.id || !googleUser.email) {
-            logger.error('[GoogleAuth] Invalid user data from Google', { googleUser })
+        // 4. Get user's primary email (might be private)
+        let email = githubUser.email
+        if (!email) {
+            const emailsResp = await fetch('https://api.github.com/user/emails', {
+                headers: {
+                    Authorization: `Bearer ${tokens.access_token}`,
+                    'Accept': 'application/vnd.github.v3+json',
+                    'User-Agent': 'NexNum-App'
+                },
+            })
+            const emails = await emailsResp.json()
+            const primaryEmail = emails.find((e: any) => e.primary && e.verified)
+            email = primaryEmail?.email
+        }
+
+        if (!githubUser.id || !email) {
+            logger.error('[GitHubAuth] Invalid user data from GitHub', { githubUser })
             return NextResponse.redirect(new URL('/auth/login?error=InvalidUserData', request.url))
         }
 
-        // 4. Find or Create User
+        // 5. Find or Create User
         let user = await prisma.user.findUnique({
-            where: { email: googleUser.email }
+            where: { email: email }
         })
 
         let isNewUser = false
@@ -92,18 +111,17 @@ export async function GET(request: Request) {
         if (user) {
             // Check if banned
             if (user.isBanned) {
-                logger.warn('[GoogleAuth] Banned user attempted OAuth login', { userId: user.id })
+                logger.warn('[GitHubAuth] Banned user attempted OAuth login', { userId: user.id })
                 return NextResponse.redirect(new URL('/auth/login?error=AccountSuspended', request.url))
             }
 
-            // Link Google ID if not already linked
-            if (!user.googleId) {
+            // Link GitHub ID if not already linked
+            if (!user.githubId) {
                 user = await prisma.user.update({
                     where: { id: user.id },
                     data: {
-                        googleId: googleUser.id,
-                        image: user.image || googleUser.picture,
-                        // If email wasn't verified before, verify it now (Google verified it)
+                        githubId: String(githubUser.id),
+                        image: user.image || githubUser.avatar_url,
                         emailVerified: user.emailVerified || new Date()
                     }
                 })
@@ -112,13 +130,13 @@ export async function GET(request: Request) {
             // Create new user
             user = await prisma.user.create({
                 data: {
-                    name: googleUser.name || googleUser.given_name || 'User',
-                    email: googleUser.email,
-                    googleId: googleUser.id,
-                    image: googleUser.picture,
-                    passwordHash: uuidv4(), // Placeholder (OAuth users don't have password)
+                    name: githubUser.name || githubUser.login || 'User',
+                    email: email,
+                    githubId: String(githubUser.id),
+                    image: githubUser.avatar_url,
+                    passwordHash: uuidv4(),
                     role: 'USER',
-                    emailVerified: new Date() // Google has already verified the email
+                    emailVerified: new Date()
                 }
             })
 
@@ -126,7 +144,7 @@ export async function GET(request: Request) {
             isNewUser = true
         }
 
-        // 5. Create Session Token
+        // 6. Create Session Token
         const token = await generateToken({
             userId: user.id,
             email: user.email,
@@ -138,7 +156,7 @@ export async function GET(request: Request) {
 
         await setAuthCookie(token)
 
-        // 6. Audit Log
+        // 7. Audit Log
         await prisma.auditLog.create({
             data: {
                 userId: user.id,
@@ -146,15 +164,15 @@ export async function GET(request: Request) {
                 resourceType: 'user',
                 resourceId: user.id,
                 ipAddress: ip,
-                metadata: { provider: 'google' }
+                metadata: { provider: 'github' }
             }
         })
 
-        logger.info('[GoogleAuth] Success', { userId: user.id, isNewUser })
+        logger.info('[GitHubAuth] Success', { userId: user.id, isNewUser })
         return NextResponse.redirect(new URL('/dashboard', request.url))
 
     } catch (error) {
-        logger.error('[GoogleAuth] Critical Error', { error })
+        logger.error('[GitHubAuth] Critical Error', { error })
         return NextResponse.redirect(new URL('/auth/login?error=ServerError', request.url))
     }
 }

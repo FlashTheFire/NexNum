@@ -1,36 +1,29 @@
-import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/core/db'
-import { rateLimit } from '@/lib/core/rate-limit'
 import { generateToken, setAuthCookie } from '@/lib/auth/jwt'
 import { registerSchema } from '@/lib/api/validation'
 import bcrypt from 'bcryptjs'
 import { apiHandler } from '@/lib/api/api-handler'
 import { sendVerificationEmail } from '@/lib/auth/email-verification'
-import { verifyCaptcha } from '@/lib/security/captcha'
 import { auth_events_total } from '@/lib/metrics'
 import { ResponseFactory } from '@/lib/api/response-factory'
+import { checkDisposableEmail, isDisposableCheckEnabled } from '@/lib/email/disposable-checker'
 
-export const POST = apiHandler(async (request, { body }) => {
+export const POST = apiHandler(async (request, { body, security }) => {
     // Body validation provided by registerSchema
-    if (!body) throw new Error('Body is required')
-    const { name, email, password, captchaToken } = body
+    const { name, email, password } = body!
+    const ip = security?.clientIp || 'unknown'
 
-    // 1. Rate Limit
-    const ip = request.headers.get('x-forwarded-for') || 'unknown'
-    const limit = await rateLimit(`auth:${ip}`, 5, 10) // 5 reqs / 10s
-
-    if (!limit.success) {
-        return NextResponse.json(
-            { error: 'Too Many Requests', message: 'Please try again in a few seconds' },
-            {
-                status: 429,
-                headers: {
-                    'X-RateLimit-Limit': String(limit.limit),
-                    'X-RateLimit-Remaining': String(limit.remaining),
-                    'X-RateLimit-Reset': String(limit.reset)
-                }
-            }
-        )
+    // Check for disposable/temp email
+    if (await isDisposableCheckEnabled()) {
+        const emailCheck = await checkDisposableEmail(email)
+        if (emailCheck.isDisposable) {
+            auth_events_total.labels('register', 'failed_disposable_email').inc()
+            return ResponseFactory.error(
+                'Disposable email addresses are not allowed',
+                400,
+                'DISPOSABLE_EMAIL_NOT_ALLOWED'
+            )
+        }
     }
 
     // Check if email already exists
@@ -40,15 +33,11 @@ export const POST = apiHandler(async (request, { body }) => {
 
     if (existingUser) {
         auth_events_total.labels('register', 'failed_email_exists').inc()
-        return NextResponse.json(
-            { error: 'Email already registered' },
-            { status: 409 }
-        )
+        return ResponseFactory.error('Email already registered', 409)
     }
 
     // Hash password
     const passwordHash = await bcrypt.hash(password, 12)
-
 
     // Create user and wallet in transaction
     const user = await prisma.$transaction(async (tx) => {
@@ -86,7 +75,6 @@ export const POST = apiHandler(async (request, { body }) => {
         await sendVerificationEmail(user.id, user.email, user.name)
     } catch (emailError) {
         console.error('Failed to send verification email:', emailError)
-        // Don't fail registration if email fails
     }
 
     // Generate JWT token
@@ -109,15 +97,14 @@ export const POST = apiHandler(async (request, { body }) => {
             id: user.id,
             name: user.name,
             email: user.email,
-        },
-        token,
+        }
     })
 }, {
     schema: registerSchema,
     rateLimit: 'auth',
     security: {
-        requireBrowserCheck: true, // Block bots
+        requireBrowserCheck: true,
         browserCheckLevel: 'basic',
-        requireCaptcha: true // Enterprise protection
+        requireCaptcha: true
     }
 })

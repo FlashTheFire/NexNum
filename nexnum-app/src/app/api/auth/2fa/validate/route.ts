@@ -1,90 +1,182 @@
+/**
+ * 2FA Login Validation Endpoint (Production Grade)
+ * 
+ * Validates OTP during login flow. Accepts tempToken + OTP code.
+ * On success, issues full session token and sets auth cookie.
+ * 
+ * Security:
+ * - Rate limited (auth tier)
+ * - Temp token role verification
+ * - Token version check (session invalidation)
+ * - Banned user check
+ * - Backup code one-time use
+ * - Full audit logging
+ */
+
 import { NextResponse } from 'next/server'
 import { apiHandler } from '@/lib/api/api-handler'
 import { prisma } from '@/lib/core/db'
-import { verifyTwoFactorToken } from '@/lib/auth/two-factor'
+import { verifyTwoFactorToken, verifyBackupCode } from '@/lib/auth/two-factor'
 import { verifyToken, generateToken, setAuthCookie } from '@/lib/auth/jwt'
 import { z } from 'zod'
+import { ResponseFactory } from '@/lib/api/response-factory'
+import { auth_events_total } from '@/lib/metrics'
 
 const validateSchema = z.object({
-    token: z.string().min(6).max(6),
-    tempToken: z.string().optional() // Provided during login flow
+    tempToken: z.string().min(1, 'Session token required'),
+    token: z.string().min(6).max(10, 'Code must be 6-10 characters') // 6 for OTP, 10 for backup
 })
 
 export const POST = apiHandler(async (req, { body }) => {
-    let userId: string | undefined
-    let isLoginFlow = false
+    const { tempToken, token: code } = body!
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0] || 'unknown'
 
-    const { token, tempToken } = body!
+    // 1. Verify temporary token
+    const payload = await verifyToken(tempToken)
 
-    // Case 1: Login flow (using tempToken)
-    if (tempToken) {
-        const payload = await verifyToken(tempToken)
-        if (!payload || payload.role !== '2FA_PENDING') {
-            return NextResponse.json({ error: 'Invalid or expired session' }, { status: 401 })
-        }
-        userId = payload.userId as string
-        isLoginFlow = true
-    } else {
-        // Case 2: Post-login sensitive action (using standard auth)
-        // NOT IMPLEMENTED FULLY YET - we rely on standard auth header usually.
-        // But for this specific endpoint, we might expect standard auth.
-        // Let's defer "Sensitive Action" logic and focus on Login flow.
-        return NextResponse.json({ error: 'Temp token required for login validation' }, { status: 400 })
+    if (!payload) {
+        auth_events_total.labels('2fa_validate', 'invalid_token').inc()
+        return ResponseFactory.error('Session expired. Please login again.', 401, 'INVALID_TOKEN')
     }
 
-    // Fetch user secret
-    const dbUser = await prisma.user.findUnique({
-        where: { id: userId },
+    // 2. Security: Ensure this is a 2FA pending token
+    if (payload.role !== '2FA_PENDING') {
+        auth_events_total.labels('2fa_validate', 'wrong_token_type').inc()
+        return ResponseFactory.error('Invalid session type', 401, 'INVALID_TOKEN_TYPE')
+    }
+
+    // 3. Fetch user with 2FA data
+    const user = await prisma.user.findUnique({
+        where: { id: payload.userId as string },
         select: {
             id: true,
             email: true,
             name: true,
             role: true,
+            emailVerified: true,
             tokenVersion: true,
+            twoFactorEnabled: true,
             twoFactorSecret: true,
-            twoFactorEnabled: true
+            twoFactorBackupCodes: true,
+            isBanned: true
         }
     })
 
-    if (!dbUser || !dbUser.twoFactorEnabled || !dbUser.twoFactorSecret) {
-        return NextResponse.json({ error: '2FA not enabled for this user' }, { status: 400 })
+    if (!user) {
+        auth_events_total.labels('2fa_validate', 'user_not_found').inc()
+        return ResponseFactory.error('User not found', 404, 'USER_NOT_FOUND')
     }
 
-    // Verify OTP
-    const isValid = verifyTwoFactorToken(token, dbUser.twoFactorSecret)
-
-    if (!isValid) {
-        return NextResponse.json({ error: 'Invalid OTP code' }, { status: 400 })
+    // 4. Security: Check if user is banned
+    if (user.isBanned) {
+        auth_events_total.labels('2fa_validate', 'user_banned').inc()
+        return ResponseFactory.error('Account suspended', 403, 'ACCOUNT_SUSPENDED')
     }
 
-    // Success! Upgrade to full session
-    if (isLoginFlow) {
-        const fullToken = await generateToken({
-            userId: dbUser.id,
-            email: dbUser.email,
-            name: dbUser.name,
-            role: dbUser.role,
-            version: dbUser.tokenVersion
-        })
+    // 5. Security: Token version check (session invalidation)
+    if (payload.version !== user.tokenVersion) {
+        auth_events_total.labels('2fa_validate', 'token_revoked').inc()
+        return ResponseFactory.error('Session expired. Please login again.', 401, 'TOKEN_REVOKED')
+    }
 
-        await setAuthCookie(fullToken)
+    // 6. Verify 2FA is enabled
+    if (!user.twoFactorEnabled || !user.twoFactorSecret) {
+        auth_events_total.labels('2fa_validate', '2fa_not_enabled').inc()
+        return ResponseFactory.error('2FA not configured', 400, '2FA_NOT_CONFIGURED')
+    }
 
-        return NextResponse.json({
-            success: true,
-            data: {
-                user: {
-                    id: dbUser.id,
-                    email: dbUser.email,
-                    name: dbUser.name,
-                    role: dbUser.role
+    // 7. Attempt OTP verification
+    let isValid = await verifyTwoFactorToken(code, user.twoFactorSecret)
+    let usedBackupCode = false
+
+    // 8. If OTP fails, try backup codes
+    if (!isValid && user.twoFactorBackupCodes && (user.twoFactorBackupCodes as string[]).length > 0) {
+        const codeIndex = await verifyBackupCode(
+            code,
+            user.twoFactorBackupCodes as string[]
+        )
+
+        if (codeIndex !== -1) {
+            // Valid backup code - remove it (one-time use)
+            const updatedCodes = [...(user.twoFactorBackupCodes as string[])]
+            updatedCodes.splice(codeIndex, 1)
+
+            await prisma.user.update({
+                where: { id: user.id },
+                data: { twoFactorBackupCodes: updatedCodes }
+            })
+
+            isValid = true
+            usedBackupCode = true
+
+            // Audit: Backup code used
+            await prisma.auditLog.create({
+                data: {
+                    userId: user.id,
+                    action: '2fa.backup_used',
+                    resourceType: 'user',
+                    resourceId: user.id,
+                    ipAddress: ip,
+                    metadata: { remainingCodes: updatedCodes.length }
                 }
-            },
-            token: fullToken
-        })
+            })
+        }
     }
 
-    return NextResponse.json({ success: true })
+    // 9. Handle invalid code
+    if (!isValid) {
+        auth_events_total.labels('2fa_validate', 'invalid_code').inc()
 
+        await prisma.auditLog.create({
+            data: {
+                userId: user.id,
+                action: '2fa.validate_failed',
+                resourceType: 'user',
+                resourceId: user.id,
+                ipAddress: ip
+            }
+        })
+
+        return ResponseFactory.error('Invalid verification code', 400, 'INVALID_CODE')
+    }
+
+    // 10. Success - Generate full session token
+    const sessionToken = await generateToken({
+        userId: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        emailVerified: user.emailVerified,
+        version: user.tokenVersion
+    })
+
+    // 11. Set auth cookie (httpOnly, secure)
+    await setAuthCookie(sessionToken)
+
+    // 12. Audit: Successful 2FA validation
+    await prisma.auditLog.create({
+        data: {
+            userId: user.id,
+            action: '2fa.validate_success',
+            resourceType: 'user',
+            resourceId: user.id,
+            ipAddress: ip,
+            metadata: usedBackupCode ? { method: 'backup_code' } : { method: 'totp' }
+        }
+    })
+
+    auth_events_total.labels('2fa_validate', 'success').inc()
+
+    return ResponseFactory.success({
+        user: {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            emailVerified: user.emailVerified
+        },
+        token: sessionToken
+    })
 }, {
     schema: validateSchema,
     rateLimit: 'auth'

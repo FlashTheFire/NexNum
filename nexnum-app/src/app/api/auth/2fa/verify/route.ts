@@ -1,18 +1,16 @@
-import { NextResponse } from 'next/server'
-import { apiHandler } from '@/lib/api/api-handler'
 import { prisma } from '@/lib/core/db'
-import { verifyTwoFactorToken, generateBackupCodes } from '@/lib/auth/two-factor'
-import { getCurrentUser } from '@/lib/auth/jwt'
+import { verifyTwoFactorToken, generateBackupCodes, hashBackupCodes } from '@/lib/auth/two-factor'
+import { apiHandler } from '@/lib/api/api-handler'
+import { ResponseFactory } from '@/lib/api/response-factory'
 import { z } from 'zod'
 
 const verifySchema = z.object({
     token: z.string().min(6).max(6)
 })
 
-export const POST = apiHandler(async (req, { body }) => {
-    const user = await getCurrentUser(req.headers)
+export const POST = apiHandler(async (req, { body, user }) => {
     if (!user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        return ResponseFactory.error('Unauthorized', 401)
     }
 
     const { token } = body!
@@ -24,37 +22,35 @@ export const POST = apiHandler(async (req, { body }) => {
     })
 
     if (!dbUser || !dbUser.twoFactorSecret) {
-        return NextResponse.json({ error: '2FA setup not initiated' }, { status: 400 })
+        return ResponseFactory.error('2FA setup not initiated', 400)
     }
 
     if (dbUser.twoFactorEnabled) {
-        return NextResponse.json({ error: '2FA is already enabled' }, { status: 400 })
+        return ResponseFactory.error('2FA is already enabled', 400)
     }
 
     // Verify
-    const isValid = verifyTwoFactorToken(token, dbUser.twoFactorSecret)
+    const isValid = await verifyTwoFactorToken(token, dbUser.twoFactorSecret)
 
     if (!isValid) {
-        return NextResponse.json({ error: 'Invalid OTP code' }, { status: 400 })
+        return ResponseFactory.error('Invalid OTP code', 400)
     }
 
     // Generate backup codes
     const backupCodes = generateBackupCodes()
+    const hashedBackupCodes = await hashBackupCodes(backupCodes)
 
-    // Enable 2FA and save backup codes
+    // Enable 2FA and save hashed backup codes
     await prisma.user.update({
         where: { id: user.userId },
         data: {
             twoFactorEnabled: true,
-            twoFactorBackupCodes: backupCodes
+            twoFactorBackupCodes: hashedBackupCodes
         }
     })
 
-    return NextResponse.json({
-        success: true,
-        data: {
-            backupCodes
-        }
+    return ResponseFactory.success({
+        backupCodes // Return plaintext to user once
     })
 }, {
     schema: verifySchema,

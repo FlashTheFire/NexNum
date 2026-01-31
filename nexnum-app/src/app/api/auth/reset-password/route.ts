@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server'
 import { resetPassword } from '@/lib/auth/password-reset'
 import { apiHandler } from '@/lib/api/api-handler'
+import { ResponseFactory } from '@/lib/api/response-factory'
 import { z } from 'zod'
 
 const schema = z.object({
@@ -9,17 +9,15 @@ const schema = z.object({
 })
 
 export const POST = apiHandler(async (request, { body }) => {
-    if (!body) return NextResponse.json({ error: 'Missing request body' }, { status: 400 })
-    const { token, password } = body
+    const { token, password } = body!
 
     const result = await resetPassword(token, password)
 
     if (!result.success) {
-        return NextResponse.json({ error: result.error }, { status: 400 })
+        return ResponseFactory.error(result.error || 'Reset failed', 400)
     }
 
-    return NextResponse.json({
-        success: true,
+    return ResponseFactory.success({
         message: 'Password updated successfully'
     })
 }, { schema, rateLimit: 'auth' })

@@ -1,97 +1,73 @@
-import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/core/db'
-import { getCurrentUser } from '@/lib/auth/jwt'
 import { WalletService } from '@/lib/wallet/wallet'
+import { apiHandler } from '@/lib/api/api-handler'
+import { ResponseFactory } from '@/lib/api/response-factory'
+import { z } from 'zod'
 
-export async function GET(request: Request) {
-    try {
-        // Get current user from token
-        const user = await getCurrentUser(request.headers)
+export const GET = apiHandler(async (request, { user }) => {
+    if (!user) return ResponseFactory.error('Unauthorized', 401)
 
-        if (!user) {
-            return NextResponse.json(
-                { error: 'Unauthorized' },
-                { status: 401 }
-            )
+    // Get user data with wallet
+    const dbUser = await prisma.user.findUnique({
+        where: { id: user.userId },
+        include: {
+            wallet: true,
         }
+    })
 
-        // Get user data with wallet
-        const dbUser = await prisma.user.findUnique({
-            where: { id: user.userId },
-            include: {
-                wallet: true,
-            }
-        })
+    if (!dbUser) {
+        return ResponseFactory.error('User not found', 404)
+    }
 
-        if (!dbUser) {
-            return NextResponse.json(
-                { error: 'User not found' },
-                { status: 404 }
-            )
+    // Get wallet balance (via Service)
+    const balance = await WalletService.getBalance(dbUser.id)
+
+    return ResponseFactory.success({
+        user: {
+            id: dbUser.id,
+            name: dbUser.name,
+            email: dbUser.email,
+            role: dbUser.role,
+            preferredCurrency: dbUser.preferredCurrency,
+            createdAt: dbUser.createdAt,
+            emailVerified: dbUser.emailVerified,
+        },
+        wallet: {
+            id: dbUser.wallet?.id,
+            balance,
         }
+    })
+})
 
-        // Get wallet balance (via Service)
-        const balance = await WalletService.getBalance(dbUser.id)
+const patchSchema = z.object({
+    name: z.string().min(2).optional(),
+    email: z.string().email().optional(),
+    preferredCurrency: z.string().optional()
+})
 
-        return NextResponse.json({
-            success: true,
-            user: {
-                id: dbUser.id,
-                name: dbUser.name,
-                email: dbUser.email,
-                role: dbUser.role,
-                // @ts-ignore - Prisma linter sync issue
-                preferredCurrency: dbUser.preferredCurrency,
-                createdAt: dbUser.createdAt,
-                emailVerified: dbUser.emailVerified,
-            },
-            wallet: {
-                id: dbUser.wallet?.id,
-                balance,
-            }
-        })
+export const PATCH = apiHandler(async (request, { user, body }) => {
+    if (!user) return ResponseFactory.error('Unauthorized', 401)
 
-    } catch (error) {
-        console.error('Get user error:', error)
-        return NextResponse.json(
-            { error: 'Internal server error' },
-            { status: 500 }
-        )
-    }
-}
+    const { name, email, preferredCurrency } = body!
 
-export async function PATCH(request: Request) {
-    try {
-        const user = await getCurrentUser(request.headers)
-        if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const updatedUser = await prisma.user.update({
+        where: { id: user.userId },
+        data: {
+            name: name !== undefined ? name : undefined,
+            email: email !== undefined ? email : undefined,
+            preferredCurrency: preferredCurrency !== undefined ? preferredCurrency : undefined,
+        }
+    })
 
-        const body = await request.json()
-        const { name, email, preferredCurrency } = body
-
-        const updatedUser = await prisma.user.update({
-            where: { id: user.userId },
-            data: {
-                name: name !== undefined ? name : undefined,
-                email: email !== undefined ? email : undefined,
-                // @ts-ignore - Prisma linter sync issue
-                preferredCurrency: preferredCurrency !== undefined ? preferredCurrency : undefined,
-            }
-        })
-
-        return NextResponse.json({
-            success: true,
-            user: {
-                id: updatedUser.id,
-                name: updatedUser.name,
-                email: updatedUser.email,
-                role: updatedUser.role,
-                // @ts-ignore - Prisma linter sync issue
-                preferredCurrency: updatedUser.preferredCurrency,
-                createdAt: updatedUser.createdAt,
-            }
-        })
-    } catch (error) {
-        console.error('Update user error:', error)
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-    }
-}
+    return ResponseFactory.success({
+        user: {
+            id: updatedUser.id,
+            name: updatedUser.name,
+            email: updatedUser.email,
+            role: updatedUser.role,
+            preferredCurrency: updatedUser.preferredCurrency,
+            createdAt: updatedUser.createdAt,
+            emailVerified: updatedUser.emailVerified
+        }
+    })
+}, { schema: patchSchema })

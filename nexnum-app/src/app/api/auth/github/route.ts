@@ -1,7 +1,7 @@
 /**
- * Google OAuth Initiation Endpoint (Production Grade)
+ * GitHub OAuth Initiation Endpoint
  * 
- * Initiates Google OAuth flow with CSRF protection via state parameter.
+ * Initiates GitHub OAuth flow with CSRF protection via state parameter.
  * State is stored in a secure httpOnly cookie and verified in callback.
  */
 
@@ -11,18 +11,18 @@ import { cookies } from 'next/headers'
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: Request) {
-    const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID
+    const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID
 
-    if (!GOOGLE_CLIENT_ID) {
+    if (!GITHUB_CLIENT_ID) {
         return NextResponse.json(
-            { error: 'Google OAuth not configured' },
+            { error: 'GitHub OAuth not configured' },
             { status: 500 }
         )
     }
 
     const origin = new URL(request.url).origin
-    const redirectUri = `${origin}/api/auth/google/callback`
-    const scope = 'https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email'
+    const redirectUri = `${origin}/api/auth/github/callback`
+    const scope = 'read:user user:email'
 
     // Generate CSRF state token
     const state = crypto.randomUUID()
@@ -37,16 +37,13 @@ export async function GET(request: Request) {
         path: '/'
     })
 
-    const rootUrl = 'https://accounts.google.com/o/oauth2/v2/auth'
     const params = new URLSearchParams({
+        client_id: GITHUB_CLIENT_ID,
         redirect_uri: redirectUri,
-        client_id: GOOGLE_CLIENT_ID,
-        access_type: 'offline',
-        response_type: 'code',
         scope: scope,
-        state: state, // CSRF protection
-        prompt: 'consent' // Always show consent screen for refresh token
+        state: state,
+        allow_signup: 'true'
     })
 
-    return NextResponse.redirect(`${rootUrl}?${params.toString()}`)
+    return NextResponse.redirect(`https://github.com/login/oauth/authorize?${params.toString()}`)
 }

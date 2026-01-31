@@ -15,6 +15,8 @@ import { Captcha } from "@/components/auth/Captcha"
 import { AuthLayout } from "@/components/layout/AuthLayout"
 import { register } from "@/lib/api/auth-api"
 import { Icons } from "@/components/ui/icons"
+import { SocialLoginButtons } from "@/components/auth/SocialLoginButtons"
+import { PasswordStrengthMeter } from "@/components/auth/PasswordStrengthMeter"
 
 const registerSchema = z.object({
     name: z.string().min(2, "Name must be at least 2 characters"),
@@ -92,6 +94,9 @@ export default function RegisterPage() {
                     {form.formState.errors.password && (
                         <p className="text-xs text-destructive">{form.formState.errors.password.message}</p>
                     )}
+
+                    {/* Password Strength Meter */}
+                    <PasswordStrengthMeter password={form.watch("password") || ""} />
                 </div>
 
                 <Captcha onVerify={(token) => form.setValue("captchaToken", token)} />
@@ -110,6 +115,8 @@ export default function RegisterPage() {
                         Sign In
                     </Link>
                 </div>
+
+                <SocialLoginButtons mode="register" />
             </form>
         </AuthLayout>
     )

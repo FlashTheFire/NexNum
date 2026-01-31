@@ -1,6 +1,7 @@
 import { TOTP } from '@otplib/totp'
 import QRCode from 'qrcode'
 import crypto from 'crypto'
+import bcrypt from 'bcryptjs'
 import { logger } from '@/lib/core/logger'
 
 
@@ -53,3 +54,30 @@ export function generateBackupCodes(count = 10): string[] {
     }
     return codes
 }
+
+/**
+ * Hashes backup codes for secure storage
+ * Returns array of hashed codes
+ */
+export async function hashBackupCodes(codes: string[]): Promise<string[]> {
+    const hashed: string[] = []
+    for (const code of codes) {
+        const hash = await bcrypt.hash(code.toUpperCase(), 10)
+        hashed.push(hash)
+    }
+    return hashed
+}
+
+/**
+ * Verifies a backup code against stored hashed codes
+ * Returns index of matching code (for removal) or -1 if not found
+ */
+export async function verifyBackupCode(code: string, hashedCodes: string[]): Promise<number> {
+    const normalized = code.toUpperCase().replace(/\s|-/g, '')
+    for (let i = 0; i < hashedCodes.length; i++) {
+        const match = await bcrypt.compare(normalized, hashedCodes[i])
+        if (match) return i
+    }
+    return -1
+}
+

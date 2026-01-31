@@ -14,7 +14,8 @@ import {
     Server,
     Activity,
     PanelLeftClose,
-    PanelLeft
+    PanelLeft,
+    Shield
 } from "lucide-react"
 import { useSidebar } from "./SidebarContext"
 
@@ -26,6 +27,7 @@ const menuItems = [
     { icon: CreditCard, label: "transactions", href: "/admin/transactions" },
     { icon: RefreshCw, label: "currencies", href: "/admin/finance/currency" },
     { icon: Activity, label: "monitoring", href: "/admin/monitoring" },
+    { icon: Shield, label: "authentication", href: "/admin/authentication" },
     { icon: Settings, label: "settings", href: "/admin/settings" },
 ]
 

@@ -1,36 +1,15 @@
-import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/core/db'
-import { rateLimit } from '@/lib/core/rate-limit'
 import { generateToken, setAuthCookie } from '@/lib/auth/jwt'
 import { loginSchema } from '@/lib/api/validation'
 import bcrypt from 'bcryptjs'
 import { apiHandler } from '@/lib/api/api-handler'
-import { verifyCaptcha } from '@/lib/security/captcha'
 import { auth_events_total } from '@/lib/metrics'
 import { ResponseFactory } from '@/lib/api/response-factory'
 
-export const POST = apiHandler(async (request, { body }) => {
+export const POST = apiHandler(async (request, { body, security }) => {
     // Body is already validated by apiHandler using loginSchema
-    if (!body) throw new Error('Body is required')
-    const { email, password, captchaToken } = body
-
-    // 1. Rate Limit
-    const ip = request.headers.get('x-forwarded-for') || 'unknown'
-    const limit = await rateLimit(`auth:${ip}`, 5, 10) // 5 reqs / 10s
-
-    if (!limit.success) {
-        return NextResponse.json(
-            { error: 'Too Many Requests', message: 'Please try again in a few seconds' },
-            {
-                status: 429,
-                headers: {
-                    'X-RateLimit-Limit': String(limit.limit),
-                    'X-RateLimit-Remaining': String(limit.remaining),
-                    'X-RateLimit-Reset': String(limit.reset)
-                }
-            }
-        )
-    }
+    const { email, password } = body!
+    const ip = security?.clientIp || 'unknown'
 
     // Find user
     const user = await prisma.user.findUnique({
@@ -39,10 +18,7 @@ export const POST = apiHandler(async (request, { body }) => {
 
     if (!user) {
         auth_events_total.labels('login', 'failed_user_not_found').inc()
-        return NextResponse.json(
-            { error: 'Invalid email or password' },
-            { status: 401 }
-        )
+        return ResponseFactory.error('Invalid email or password', 401)
     }
 
     // Verify password
@@ -50,10 +26,7 @@ export const POST = apiHandler(async (request, { body }) => {
 
     if (!isValidPassword) {
         auth_events_total.labels('login', 'failed_invalid_password').inc()
-        return NextResponse.json(
-            { error: 'Invalid email or password' },
-            { status: 401 }
-        )
+        return ResponseFactory.error('Invalid email or password', 401)
     }
 
     // Check for 2FA
@@ -79,8 +52,7 @@ export const POST = apiHandler(async (request, { body }) => {
             }
         })
 
-        return NextResponse.json({
-            success: true,
+        return ResponseFactory.success({
             requires2Fa: true,
             tempToken
         })
@@ -100,7 +72,6 @@ export const POST = apiHandler(async (request, { body }) => {
     await setAuthCookie(token)
 
     // Audit log
-    // ip is already defined above
     await prisma.auditLog.create({
         data: {
             userId: user.id,
@@ -119,8 +90,7 @@ export const POST = apiHandler(async (request, { body }) => {
             name: user.name,
             email: user.email,
             role: user.role,
-        },
-        token,
+        }
     })
 }, {
     schema: loginSchema,

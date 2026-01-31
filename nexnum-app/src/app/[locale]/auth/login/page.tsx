@@ -15,6 +15,8 @@ import { Captcha } from "@/components/auth/Captcha"
 import { AuthLayout } from "@/components/layout/AuthLayout"
 import { login } from "@/lib/api/auth-api"
 import { Icons } from "@/components/ui/icons"
+import { SocialLoginButtons } from "@/components/auth/SocialLoginButtons"
+import { OTPInput } from "@/components/auth/OTPInput"
 
 const loginSchema = z.object({
     email: z.string().email(),
@@ -68,7 +70,7 @@ export default function LoginPage() {
         e.preventDefault()
         setLoading(true)
         try {
-            const res = await fetch('/api/auth/2fa/verify', {
+            const res = await fetch('/api/auth/2fa/validate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ token: twoFaCode, tempToken })
@@ -137,16 +139,16 @@ export default function LoginPage() {
                             Sign Up
                         </Link>
                     </div>
+
+                    <SocialLoginButtons mode="login" />
                 </form>
             ) : (
                 <form onSubmit={onVerify2FA} className="space-y-4">
                     <div className="space-y-2">
-                        <Input
-                            placeholder="000000"
-                            className="text-center text-2xl tracking-widest bg-secondary/20 border-white/10 text-white"
-                            maxLength={6}
-                            value={twoFaCode}
-                            onChange={(e) => setTwoFaCode(e.target.value.replace(/[^0-9]/g, ''))}
+                        <OTPInput
+                            length={6}
+                            disabled={loading}
+                            onChange={(code) => setTwoFaCode(code)}
                         />
                     </div>
                     <Button type="submit" className="w-full" disabled={loading || twoFaCode.length < 6} variant="neon">

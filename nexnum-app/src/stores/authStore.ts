@@ -22,28 +22,31 @@ interface AuthState {
 }
 
 // Cache keys
-const TOKEN_KEY = 'nexnum_token';
+const TOKEN_KEY = 'nexnum_token'; // Legacy, no longer used for tokens
 const USER_KEY = 'nexnum_user';
 const AUTH_TIMESTAMP_KEY = 'nexnum_auth_timestamp';
 const CACHE_DURATION = 7 * 24 * 60 * 60 * 1000; // 7 days in ms
 
-// Helper to save token to localStorage
-const saveToken = (token: string) => {
+/**
+ * SECURITY: Token storage removed from localStorage
+ * Tokens are now managed via httpOnly cookies only (XSS protection)
+ * These functions are kept for backwards compatibility but are no-ops
+ */
+const saveToken = (_token: string) => {
+    // No-op: Tokens are now stored in httpOnly cookies
+    // Set only timestamp for cache invalidation checks
     if (typeof window !== 'undefined') {
-        localStorage.setItem(TOKEN_KEY, token);
         localStorage.setItem(AUTH_TIMESTAMP_KEY, String(Date.now()));
+        // Clear any legacy token storage
+        localStorage.removeItem(TOKEN_KEY);
     }
 };
 
-// Helper to get token from localStorage
 const getToken = (): string | null => {
-    if (typeof window !== 'undefined') {
-        return localStorage.getItem(TOKEN_KEY);
-    }
+    // Always return null - tokens are managed via httpOnly cookies
     return null;
 };
 
-// Helper to clear token from localStorage
 const clearToken = () => {
     if (typeof window !== 'undefined') {
         localStorage.removeItem(TOKEN_KEY);
@@ -52,7 +55,7 @@ const clearToken = () => {
     }
 };
 
-// Helper to save user to localStorage (for faster hydration)
+// Helper to save user to localStorage (for faster hydration - not security sensitive)
 const saveUser = (user: { id: string; name: string; email: string; role?: string; preferredCurrency?: string; emailVerified?: Date | null }) => {
     if (typeof window !== 'undefined') {
         localStorage.setItem(USER_KEY, JSON.stringify(user));
