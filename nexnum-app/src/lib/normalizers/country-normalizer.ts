@@ -12,7 +12,7 @@ export const COUNTRY_NAME_MAP: Record<string, string> = metadata.countryNameMap
 const VARIANT_PATTERN = /^(.+?)\s*\((?:virtual|v|[0-9]+)\)$/i
 
 // Circle-flags base URL
-const FLAG_BASE = "/flags"
+const FLAG_BASE = "/assets/flags"
 
 /**
  * Get ISO 3166-1 alpha-2 code from country name or provider code
