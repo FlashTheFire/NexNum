@@ -98,7 +98,6 @@ export default function Navbar({ hideLogin = false, hideRegister = false }: Navb
                         {/* Desktop Actions */}
                         <div className="hidden lg:flex items-center gap-3">
                             <div className="flex items-center gap-1.5 mr-1">
-                                <CurrencySelector />
                                 <LanguageSwitcher />
                             </div>
                             {!hideLogin && (
@@ -128,7 +127,6 @@ export default function Navbar({ hideLogin = false, hideRegister = false }: Navb
 
                         {/* Mobile Actions (Switcher + Menu) */}
                         <div className="lg:hidden flex items-center gap-2">
-                            <CurrencySelector />
                             <LanguageSwitcher />
                             <button
                                 className="p-2.5 text-gray-400 hover:text-white rounded-xl hover:bg-white/[0.06] transition-all"

@@ -38,6 +38,8 @@ export function Navbar() {
     const [scrolled, setScrolled] = useState(false)
     const { formatBalance } = useCurrency()
 
+    // Check if we are on the landing page (root or root with locale)
+    const isLandingPage = pathname === "/" || /^\/[a-z]{2}(\/)?$/.test(pathname)
 
     useEffect(() => {
         const handleScroll = () => {
@@ -123,9 +125,9 @@ export function Navbar() {
                                     {/* Desktop Notification Bell */}
                                     <NotificationDropdown />
 
-                                    {/* Language Switcher */}
+                                    {/* Language & Currency Switchers */}
                                     <div className="mr-1 flex items-center gap-2">
-                                        <CurrencySelector />
+                                        {!isLandingPage && <CurrencySelector />}
                                         <LanguageSwitcher />
                                     </div>
 
@@ -188,26 +190,49 @@ export function Navbar() {
 
                             <div className="p-4 space-y-4 container mx-auto relative z-10">
                                 {isAuthenticated && (
-                                    <motion.div
-                                        initial={{ opacity: 0, x: -20 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        transition={{ delay: 0.1 }}
-                                        className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.04] border border-white/[0.06]"
-                                    >
-                                        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-sm font-bold text-white shadow-lg shadow-indigo-500/20">
-                                            {user?.name?.charAt(0).toUpperCase()}
-                                        </div>
-                                        <div>
-                                            <p className="font-semibold text-white">{user?.name}</p>
-                                            <p className="text-xs text-gray-400">{user?.email}</p>
-                                        </div>
-                                        <button
-                                            onClick={() => logout()}
-                                            className="ml-auto p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                                    <>
+                                        <motion.div
+                                            initial={{ opacity: 0, x: -20 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            transition={{ delay: 0.1 }}
+                                            className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.04] border border-white/[0.06]"
                                         >
-                                            <LogOut className="w-4 h-4" />
-                                        </button>
-                                    </motion.div>
+                                            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-sm font-bold text-white shadow-lg shadow-indigo-500/20">
+                                                {user?.name?.charAt(0).toUpperCase()}
+                                            </div>
+                                            <div>
+                                                <p className="font-semibold text-white">{user?.name}</p>
+                                                <p className="text-xs text-gray-400">{user?.email}</p>
+                                            </div>
+                                            <button
+                                                onClick={() => logout()}
+                                                className="ml-auto p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                                            >
+                                                <LogOut className="w-4 h-4" />
+                                            </button>
+                                        </motion.div>
+
+                                        {/* Mobile Currency Selector */}
+                                        {!isLandingPage && (
+                                            <motion.div
+                                                initial={{ opacity: 0, x: -20 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                transition={{ delay: 0.12 }}
+                                                className="flex items-center justify-between p-3 rounded-xl bg-white/[0.04] border border-white/[0.06]"
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 rounded-lg bg-white/[0.06] flex items-center justify-center text-gray-400">
+                                                        <Wallet className="w-5 h-5 opacity-70" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm font-semibold text-white">Currency</p>
+                                                        <p className="text-[10px] text-gray-500">Display pricing in preferred currency</p>
+                                                    </div>
+                                                </div>
+                                                <CurrencySelector />
+                                            </motion.div>
+                                        )}
+                                    </>
                                 )}
                                 <div className="space-y-1">
                                     {[
