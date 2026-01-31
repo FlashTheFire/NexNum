@@ -5,6 +5,7 @@ import { logAdminAction, getClientIP } from '@/lib/core/auditLog'
 import { wallet_transactions_total, recordIncident } from '@/lib/metrics'
 import { notify } from '@/lib/notifications'
 import { emitControlEvent } from '@/lib/events/emitters/state-emitter'
+import { WalletService } from '@/lib/wallet/wallet'
 
 export async function GET(request: Request) {
     const auth = await AuthGuard.requireAdmin()
@@ -91,6 +92,8 @@ export async function GET(request: Request) {
             return NextResponse.json({
                 user: {
                     ...user,
+                    numbersCount: user._count.numbers,
+                    activityCount: user._count.auditLogs,
                     walletBalance,
                     walletId: user.wallet?.id,
                     transactions: user.wallet?.transactions || [],
@@ -269,25 +272,20 @@ export async function PATCH(request: Request) {
                 return NextResponse.json({ error: 'User not found' }, { status: 404 })
             }
 
-            let walletId = user.wallet?.id
+            const isCredit = walletAdjustment > 0
+            const amount = Math.abs(walletAdjustment)
+            const idempotencyKey = `admin_adj_${Date.now()}_${userId}`
+            const description = adjustmentReason || `Admin ${isCredit ? 'credit' : 'debit'} by ${auth.user.userId}`
 
-            // Create wallet if doesn't exist
-            if (!walletId) {
-                const wallet = await prisma.wallet.create({
-                    data: { userId }
-                })
-                walletId = wallet.id
-            }
-
-            // Create wallet transaction
-            await prisma.walletTransaction.create({
-                data: {
-                    walletId,
-                    amount: walletAdjustment,
-                    type: walletAdjustment > 0 ? 'admin_credit' : 'admin_debit',
-                    description: adjustmentReason || `Admin adjustment by ${auth.user.userId}`,
+            try {
+                if (isCredit) {
+                    await WalletService.credit(userId, amount, 'manual_credit', description, idempotencyKey)
+                } else {
+                    await WalletService.debit(userId, amount, 'manual_debit', description, idempotencyKey)
                 }
-            })
+            } catch (error: any) {
+                return NextResponse.json({ error: error.message || 'Credit/debit failed' }, { status: 400 })
+            }
 
             // Audit log for wallet adjustment
             await prisma.auditLog.create({
@@ -295,7 +293,7 @@ export async function PATCH(request: Request) {
                     userId: auth.user.userId,
                     action: 'admin.wallet_adjustment',
                     resourceType: 'wallet',
-                    resourceId: walletId,
+                    resourceId: user.wallet?.id || 'new',
                     metadata: {
                         targetUserId: userId,
                         amount: walletAdjustment,
@@ -305,14 +303,14 @@ export async function PATCH(request: Request) {
                 }
             })
 
-            // Track metric
+            // Track metric (optional, WalletService handles its own metrics)
             wallet_transactions_total.labels(
-                walletAdjustment > 0 ? 'admin_credit' : 'admin_debit',
+                isCredit ? 'manual_credit' : 'manual_debit',
                 'success'
             ).inc()
 
-            // Send notification for credits (async, non-blocking)
-            if (walletAdjustment > 0) {
+            // Send notification for credits
+            if (isCredit) {
                 notify.deposit({
                     userId,
                     userName: user.name || undefined,

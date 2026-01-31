@@ -15,6 +15,8 @@ import { PremiumSkeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 import { formatDistanceToNow, format } from "date-fns"
 import { useTranslations } from "next-intl"
+import { useCurrency } from "@/providers/CurrencyProvider"
+import { PriceDisplay } from "@/components/common/PriceDisplay"
 
 // Types
 interface AdminUser {
@@ -67,6 +69,7 @@ const PremiumStatCard = ({ label, value, decimal, icon: Icon, color, status }: {
 
 // Premium User Detail Sheet
 const UserDetailSheet = ({ userId, onClose, onAction }: { userId: string; onClose: () => void; onAction: () => void }) => {
+    const { formatBalance } = useCurrency()
     const [user, setUser] = useState<UserDetail | null>(null)
     const [loading, setLoading] = useState(true)
     const [activeTab, setActiveTab] = useState<'overview' | 'transactions' | 'activity' | 'numbers'>('overview')
@@ -99,7 +102,17 @@ const UserDetailSheet = ({ userId, onClose, onAction }: { userId: string; onClos
                 method: 'PATCH', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId, walletAdjustment: isCredit ? amount : -amount, adjustmentReason: adjustReason || `Admin ${isCredit ? 'credit' : 'debit'}` })
             })
-            if (res.ok) { toast.success(`${isCredit ? 'Credited' : 'Debited'} $${amount.toFixed(2)}`); setAdjustAmount(''); setAdjustReason(''); fetchUser(); onAction() }
+            if (res.ok) {
+                const data = await res.json()
+                toast.success(data.message || `${isCredit ? 'Credited' : 'Debited'} successfully`)
+                setAdjustAmount('')
+                setAdjustReason('')
+                fetchUser()
+                onAction()
+            } else {
+                const data = await res.json()
+                toast.error(data.error || "Action failed")
+            }
         } catch { toast.error("Failed") }
         finally { setAdjusting(false) }
     }
@@ -214,9 +227,9 @@ const UserDetailSheet = ({ userId, onClose, onAction }: { userId: string; onClos
                                     {/* Interactive Hero Card - Cycles through metrics on tap */}
                                     {(() => {
                                         const metrics = [
-                                            { label: "Balance", value: `$${balanceWhole}`, decimal: balanceDecimal, icon: Wallet, color: "#10b981", bgFrom: "from-emerald-500/10", status: "Active Wallet" },
-                                            { label: "Numbers", value: String(user.numbersCount), decimal: "", icon: Phone, color: "#3b82f6", bgFrom: "from-blue-500/10", status: "Total Purchased" },
-                                            { label: "Activity", value: String(user.activityCount), decimal: "", icon: Zap, color: "#a855f7", bgFrom: "from-purple-500/10", status: "Actions Logged" },
+                                            { label: "Balance", value: formatBalance(user.walletBalance), decimal: "", icon: Wallet, color: "#10b981", bgFrom: "from-emerald-500/10", status: "Active Wallet" },
+                                            { label: "Numbers", value: String(user.numbersCount || 0), decimal: "", icon: Phone, color: "#3b82f6", bgFrom: "from-blue-500/10", status: "Total Purchased" },
+                                            { label: "Activity", value: String(user.activityCount || 0), decimal: "", icon: Zap, color: "#a855f7", bgFrom: "from-purple-500/10", status: "Actions Logged" },
                                             { label: "Joined", value: format(new Date(user.createdAt), 'MMM d'), decimal: `, ${format(new Date(user.createdAt), 'yyyy')}`, icon: Calendar, color: "#f97316", bgFrom: "from-orange-500/10", status: "Member Since" },
                                         ]
                                         const ActiveIcon = metrics[activeMetric].icon
@@ -517,7 +530,7 @@ const UserDetailSheet = ({ userId, onClose, onAction }: { userId: string; onClos
                                                 <div className="text-[10px] text-gray-500">{format(new Date(tx.createdAt), 'MMM d, HH:mm')}</div>
                                             </div>
                                             <div className={`font-mono font-semibold ${Number(tx.amount) > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                                {Number(tx.amount) > 0 ? '+' : ''}${Math.abs(Number(tx.amount)).toFixed(2)}
+                                                {Number(tx.amount) > 0 ? '+' : ''}<PriceDisplay amountInPoints={Math.abs(Number(tx.amount))} />
                                             </div>
                                         </motion.div>
                                     )) : <div className="text-center py-12 text-gray-500 text-sm">No transactions</div>}
@@ -713,7 +726,7 @@ export default function UsersPage() {
 
             {/* Desktop Table */}
             <div className="hidden md:block bg-white/[0.02] border border-white/5 rounded-2xl overflow-hidden">
-                <table className="w-full text-sm"><thead className="bg-white/[0.02] text-gray-400"><tr><th className="px-3 py-2.5 w-10"><button onClick={toggleSelectAll} className={`w-4 h-4 rounded border flex items-center justify-center ${selectedUsers.size === users.length && users.length > 0 ? 'bg-[hsl(var(--neon-lime))] border-[hsl(var(--neon-lime))]' : 'border-white/20'}`}>{selectedUsers.size === users.length && users.length > 0 && <Check size={10} className="text-black" />}</button></th><th className="px-3 py-2.5 text-left cursor-pointer hover:text-white text-xs" onClick={() => handleSort('name')}><span className="flex items-center gap-1.5">{t('table.user')}<SortIcon field="name" /></span></th><th className="px-3 py-2.5 text-left text-xs">{t('table.role')}</th><th className="px-3 py-2.5 text-left cursor-pointer hover:text-white text-xs" onClick={() => handleSort('walletBalance')}><span className="flex items-center gap-1.5">{t('table.balance')}<SortIcon field="walletBalance" /></span></th><th className="px-3 py-2.5 text-left cursor-pointer hover:text-white text-xs" onClick={() => handleSort('createdAt')}><span className="flex items-center gap-1.5">{t('table.joined')}<SortIcon field="createdAt" /></span></th><th className="px-3 py-2.5 text-right text-xs">{t('table.actions')}</th></tr></thead><tbody className="divide-y divide-white/5">{isLoading ? [...Array(5)].map((_, i) => <tr key={i}><td colSpan={6} className="p-2"><PremiumSkeleton className="h-10 w-full" /></td></tr>) : users.length === 0 ? <tr><td colSpan={6} className="py-10 text-center text-gray-500 text-sm">No users</td></tr> : users.map((u, i) => (<motion.tr key={u.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.02 }} className="hover:bg-white/[0.02] group"><td className="px-3 py-2"><button onClick={() => toggleSelect(u.id)} className={`w-4 h-4 rounded border flex items-center justify-center ${selectedUsers.has(u.id) ? 'bg-[hsl(var(--neon-lime))] border-[hsl(var(--neon-lime))]' : 'border-white/20'}`}>{selectedUsers.has(u.id) && <Check size={10} className="text-black" />}</button></td><td className="px-3 py-2"><div className="flex items-center gap-2.5"><div className={`w-8 h-8 rounded-lg flex items-center justify-center ${u.isBanned ? 'bg-red-500/10' : u.role === 'ADMIN' ? 'bg-purple-500/10' : 'bg-white/5'}`}>{u.role === 'ADMIN' ? <Crown size={14} className="text-purple-400" /> : <User size={14} className={u.isBanned ? 'text-red-400' : 'text-gray-400'} />}</div><div><div className="text-white text-sm flex items-center gap-1.5">{u.name || 'Unnamed'}{u.isBanned && <span className="bg-red-500/10 text-red-400 text-[8px] px-1 rounded">BAN</span>}</div><div className="text-[10px] text-gray-500 truncate max-w-[150px]">{u.email}</div></div></div></td><td className="px-3 py-2"><span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${u.role === 'ADMIN' ? 'bg-purple-500/10 text-purple-400' : 'bg-white/5 text-gray-400'}`}>{u.role}</span></td><td className="px-3 py-2"><span className={`font-mono text-sm ${u.walletBalance > 0 ? 'text-emerald-400' : 'text-gray-500'}`}>${u.walletBalance.toFixed(2)}</span></td><td className="px-3 py-2 text-gray-500 text-xs">{formatDistanceToNow(new Date(u.createdAt))} ago</td><td className="px-3 py-2"><div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity"><Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setDetailUserId(u.id)}><Eye size={14} /></Button><Button size="sm" variant="ghost" className={`h-7 w-7 p-0 ${u.isBanned ? 'text-emerald-400' : 'text-red-400'}`} onClick={() => handleAction(u.id, u.isBanned ? 'unban' : 'ban')}>{u.isBanned ? <CheckCircle size={14} /> : <Ban size={14} />}</Button></div></td></motion.tr>))}</tbody></table>
+                <table className="w-full text-sm"><thead className="bg-white/[0.02] text-gray-400"><tr><th className="px-3 py-2.5 w-10"><button onClick={toggleSelectAll} className={`w-4 h-4 rounded border flex items-center justify-center ${selectedUsers.size === users.length && users.length > 0 ? 'bg-[hsl(var(--neon-lime))] border-[hsl(var(--neon-lime))]' : 'border-white/20'}`}>{selectedUsers.size === users.length && users.length > 0 && <Check size={10} className="text-black" />}</button></th><th className="px-3 py-2.5 text-left cursor-pointer hover:text-white text-xs" onClick={() => handleSort('name')}><span className="flex items-center gap-1.5">{t('table.user')}<SortIcon field="name" /></span></th><th className="px-3 py-2.5 text-left text-xs">{t('table.role')}</th><th className="px-3 py-2.5 text-left cursor-pointer hover:text-white text-xs" onClick={() => handleSort('walletBalance')}><span className="flex items-center gap-1.5">{t('table.balance')}<SortIcon field="walletBalance" /></span></th><th className="px-3 py-2.5 text-left cursor-pointer hover:text-white text-xs" onClick={() => handleSort('createdAt')}><span className="flex items-center gap-1.5">{t('table.joined')}<SortIcon field="createdAt" /></span></th><th className="px-3 py-2.5 text-right text-xs">{t('table.actions')}</th></tr></thead><tbody className="divide-y divide-white/5">{isLoading ? [...Array(5)].map((_, i) => <tr key={i}><td colSpan={6} className="p-2"><PremiumSkeleton className="h-10 w-full" /></td></tr>) : users.length === 0 ? <tr><td colSpan={6} className="py-10 text-center text-gray-500 text-sm">No users</td></tr> : users.map((u, i) => (<motion.tr key={u.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.02 }} className="hover:bg-white/[0.02] group"><td className="px-3 py-2"><button onClick={() => toggleSelect(u.id)} className={`w-4 h-4 rounded border flex items-center justify-center ${selectedUsers.has(u.id) ? 'bg-[hsl(var(--neon-lime))] border-[hsl(var(--neon-lime))]' : 'border-white/20'}`}>{selectedUsers.has(u.id) && <Check size={10} className="text-black" />}</button></td><td className="px-3 py-2"><div className="flex items-center gap-2.5"><div className={`w-8 h-8 rounded-lg flex items-center justify-center ${u.isBanned ? 'bg-red-500/10' : u.role === 'ADMIN' ? 'bg-purple-500/10' : 'bg-white/5'}`}>{u.role === 'ADMIN' ? <Crown size={14} className="text-purple-400" /> : <User size={14} className={u.isBanned ? 'text-red-400' : 'text-gray-400'} />}</div><div><div className="text-white text-sm flex items-center gap-1.5">{u.name || 'Unnamed'}{u.isBanned && <span className="bg-red-500/10 text-red-400 text-[8px] px-1 rounded">BAN</span>}</div><div className="text-[10px] text-gray-500 truncate max-w-[150px]">{u.email}</div></div></div></td><td className="px-3 py-2"><span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${u.role === 'ADMIN' ? 'bg-purple-500/10 text-purple-400' : 'bg-white/5 text-gray-400'}`}>{u.role}</span></td><td className="px-3 py-2"><span className={`font-mono text-sm ${u.walletBalance > 0 ? 'text-emerald-400' : 'text-gray-500'}`}><PriceDisplay amountInPoints={u.walletBalance} /></span></td><td className="px-3 py-2 text-gray-500 text-xs">{formatDistanceToNow(new Date(u.createdAt))} ago</td><td className="px-3 py-2"><div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity"><Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setDetailUserId(u.id)}><Eye size={14} /></Button><Button size="sm" variant="ghost" className={`h-7 w-7 p-0 ${u.isBanned ? 'text-emerald-400' : 'text-red-400'}`} onClick={() => handleAction(u.id, u.isBanned ? 'unban' : 'ban')}>{u.isBanned ? <CheckCircle size={14} /> : <Ban size={14} />}</Button></div></td></motion.tr>))}</tbody></table>
                 <div className="p-3 border-t border-white/5 flex justify-center gap-2"><Button variant="ghost" size="sm" disabled={page === 1} onClick={() => setPage(p => p - 1)} className="h-8 text-xs">Prev</Button><span className="px-3 py-1.5 text-xs text-gray-500">{page}/{totalPages}</span><Button variant="ghost" size="sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} className="h-8 text-xs">Next</Button></div>
             </div>
 
@@ -729,7 +742,7 @@ export default function UsersPage() {
                                 <div className="text-[10px] text-gray-500 truncate">{u.email}</div>
                             </div>
                             <div className="flex items-center gap-2 flex-shrink-0">
-                                <span className={`font-mono text-sm ${u.walletBalance > 0 ? 'text-emerald-400' : 'text-gray-500'}`}>${u.walletBalance.toFixed(2)}</span>
+                                <span className={`font-mono text-sm ${u.walletBalance > 0 ? 'text-emerald-400' : 'text-gray-500'}`}><PriceDisplay amountInPoints={u.walletBalance} /></span>
                                 <button onClick={() => toggleRow(u.id)}>{expandedRows.has(u.id) ? <ChevronDown size={16} className="text-gray-500" /> : <ChevronRight size={16} className="text-gray-500" />}</button>
                             </div>
                         </div>
