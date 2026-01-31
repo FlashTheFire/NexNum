@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils/utils";
 import { getCountryFlagUrlSync } from "@/lib/normalizers/country-flags";
+import { useCurrency } from "@/providers/CurrencyProvider";
+import { PriceDisplay } from "@/components/common/PriceDisplay";
 import {
     Server,
     Check,
@@ -100,6 +102,7 @@ export default function ProviderSelector({
     const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
     const [selectedId, setSelectedId] = useState<number | null>(null);
+    const { formatPrice, currencies, preferredCurrency, settings } = useCurrency();
 
     // Smart Route data from API
     const [smartRoute, setSmartRoute] = useState<{
@@ -370,7 +373,9 @@ export default function ProviderSelector({
                                     <div className="px-2.5 py-1.5 rounded-lg bg-black/30 border border-white/5">
                                         <span className="text-[9px] text-gray-500 uppercase tracking-wider">Price</span>
                                         <div className="flex items-baseline gap-0.5">
-                                            <span className="text-base font-bold text-white">${provider.price.toFixed(2)}</span>
+                                            <span className="text-base font-bold text-white">
+                                                <PriceDisplay amountInPoints={provider.price * (settings?.pointsRate || 100)} />
+                                            </span>
                                             <span className="text-[9px] text-gray-500">/num</span>
                                         </div>
                                     </div>
@@ -468,20 +473,22 @@ export default function ProviderSelector({
                         <div className="flex items-center gap-3">
                             <div className="text-[hsl(var(--neon-lime))] text-sm hidden sm:block">
                                 <span className="text-xs text-gray-500">from </span>
-                                <span className="font-bold">${smartRoute.priceRange.min.toFixed(2)}</span>
+                                <span className="font-bold">
+                                    <PriceDisplay amountInPoints={smartRoute.priceRange.min * (settings?.pointsRate || 100)} />
+                                </span>
                             </div>
 
                             {/* Max Price Input - Enhanced */}
                             <div className="flex items-center gap-1.5 bg-black/40 rounded-lg px-3 py-1.5 border border-white/10 hover:border-white/20 transition-colors focus-within:border-[hsl(var(--neon-lime)/0.5)] focus-within:ring-1 focus-within:ring-[hsl(var(--neon-lime)/0.2)]">
                                 <span className="text-[10px] text-gray-500 uppercase tracking-wide">max</span>
                                 <div className="flex items-center">
-                                    <span className="text-gray-400 text-sm">$</span>
+                                    <span className="text-gray-400 text-sm">{currencies[preferredCurrency]?.symbol || '$'}</span>
                                     <input
                                         type="number"
-                                        step="0.1"
+                                        step="0.01"
                                         min={smartRoute.priceRange.min}
                                         max={smartRoute.priceRange.max}
-                                        defaultValue={smartRoute.priceRange.max.toFixed(2)}
+                                        defaultValue={smartRoute.priceRange.max}
                                         className="w-16 bg-transparent text-white text-sm font-semibold focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-gray-600"
                                         id="best-route-max-price"
                                         placeholder="0.00"

@@ -388,7 +388,7 @@ export default function SettingsPage() {
                                 value={settings.pricing.fixedMarkup}
                                 onChange={(v) => updateSetting('pricing', 'fixedMarkup', parseFloat(v) || 0)}
                                 type="number"
-                                suffix="$"
+                                suffix={settings.pricing.currency}
                                 hint="Added after multiplier"
                             />
                             <SettingsInput
@@ -396,7 +396,7 @@ export default function SettingsPage() {
                                 value={settings.pricing.minPrice}
                                 onChange={(v) => updateSetting('pricing', 'minPrice', parseFloat(v) || 0)}
                                 type="number"
-                                suffix="$"
+                                suffix={settings.pricing.currency}
                                 hint="Lowest possible sale price"
                             />
                             <SettingsInput
@@ -451,7 +451,7 @@ export default function SettingsPage() {
                             value={settings.notifications.lowBalanceThreshold}
                             onChange={(v) => updateSetting('notifications', 'lowBalanceThreshold', parseFloat(v) || 10)}
                             type="number"
-                            suffix="$"
+                            suffix={settings.pricing.currency}
                             hint="Alert when provider balance drops below this"
                         />
                         <SettingsToggle

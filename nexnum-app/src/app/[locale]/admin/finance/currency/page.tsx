@@ -4,7 +4,7 @@
 import React, { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
-    RefreshCw, DollarSign, Coins, TrendingUp, Settings2,
+    RefreshCw, DollarSign, Banknote, TrendingUp, Settings2,
     CheckCircle2, AlertCircle, Save, Globe, Info, Clock,
     ChevronRight, ArrowUpRight, ArrowDownRight, Edit3
 } from "lucide-react"
@@ -213,7 +213,7 @@ export default function CurrencyManagementPage() {
 
                     <div className="flex justify-between items-start mb-4">
                         <div className="p-2 rounded-lg bg-amber-500/10 text-amber-500">
-                            <Coins className="w-5 h-5" />
+                            <Banknote className="w-5 h-5" />
                         </div>
                         <div className="text-[10px] font-bold uppercase tracking-widest text-amber-500/50">Internal Economy</div>
                     </div>
@@ -272,7 +272,7 @@ export default function CurrencyManagementPage() {
                                     value={settings?.pointsName || ''}
                                     onChange={(e) => setSettings(s => s ? { ...s, pointsName: e.target.value } : s)}
                                     className="bg-white/5 border-white/10 text-sm h-9"
-                                    placeholder="e.g. Coins, Credits"
+                                    placeholder="e.g. Credits, Balance"
                                 />
                             </div>
                             <div>

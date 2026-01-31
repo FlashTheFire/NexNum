@@ -66,7 +66,9 @@ export default function WalletPage() {
     const [isLoading, setIsLoading] = useState(false)
     const [selectedMethod, setSelectedMethod] = useState("upi")
     const [customFocused, setCustomFocused] = useState(false)
-    const { formatPrice: formatPriceContext } = useCurrency()
+    const { currencies, preferredCurrency, formatPrice: formatPriceContext, settings } = useCurrency()
+    const pointsRate = settings?.pointsRate || 100
+    const currencySym = currencies[preferredCurrency]?.symbol || '$'
 
     // Filters
     const [filterType, setFilterType] = useState<'all' | 'credit' | 'debit'>('all')
@@ -112,7 +114,7 @@ export default function WalletPage() {
     const handleTopUp = () => {
         const value = parseFloat(amount)
         if (isNaN(value) || value < 5) {
-            toast.error(`Minimum top-up is ${formatPriceContext(5)}`)
+            toast.error(`Minimum top-up is ${formatPriceContext(5 * pointsRate)}`)
             return
         }
         setIsLoading(true)
@@ -349,7 +351,7 @@ export default function WalletPage() {
                                                         customFocused ? "opacity-100" : "opacity-0"
                                                     )} />
                                                     <div className="relative flex items-center bg-card/50 border border-white/10 rounded-xl px-4 h-16 transition-colors group-hover:border-white/20">
-                                                        <span className="text-xl font-medium text-muted-foreground mr-2">$</span>
+                                                        <span className="text-xl font-medium text-muted-foreground mr-2">{currencySym}</span>
                                                         <Input
                                                             type="number"
                                                             placeholder="Enter custom amount..."
@@ -370,7 +372,7 @@ export default function WalletPage() {
                                                         "bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 shadow-indigo-500/25"
                                                     )}
                                                 >
-                                                    {amount ? `Pay ${formatPriceContext(parseFloat(amount))}` : "Enter Amount"}
+                                                    {amount ? `Pay ${formatPriceContext(parseFloat(amount) * pointsRate)}` : "Enter Amount"}
                                                 </Button>
                                             </motion.div>
                                         ) : (

@@ -25,7 +25,9 @@ export default function CurrencySelector() {
                     className="h-9 px-3 gap-2 text-gray-400 hover:text-white hover:bg-white/[0.06] rounded-full transition-all border border-white/5"
                 >
                     <Globe className="w-4 h-4" />
-                    <span className="text-xs font-mono font-bold">{currencies[preferredCurrency]?.symbol || preferredCurrency}</span>
+                    <span className="text-xs font-mono font-bold">
+                        {currencies[preferredCurrency]?.symbol || '$'} {preferredCurrency}
+                    </span>
                     <ChevronDown className="w-3 h-3 opacity-50" />
                 </Button>
             </DropdownMenuTrigger>
@@ -43,7 +45,10 @@ export default function CurrencySelector() {
                             }`}
                     >
                         <div className="flex flex-col">
-                            <span className="text-xs font-bold leading-none">{cur.code}</span>
+                            <span className="text-xs font-bold leading-none flex items-center gap-1.5">
+                                <span>{cur.code}</span>
+                                <span className="opacity-50 text-[10px] font-normal">({cur.symbol})</span>
+                            </span>
                             <span className="text-[10px] opacity-50 mt-1">{cur.name}</span>
                         </div>
                         {preferredCurrency === cur.code && (

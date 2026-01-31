@@ -113,17 +113,9 @@ export const BalanceDisplay: React.FC<{
         return <span className="animate-pulse bg-white/10 rounded-md h-6 w-20 inline-block" />
     }
 
-    const primary = formatBalance(balanceInPoints)
-    const showSecondary = showPointsSecondary && preferredCurrency !== 'POINTS'
-
     return (
         <span className={cn("font-bold tabular-nums", className)}>
-            {primary}
-            {showSecondary && settings && (
-                <span className="ml-1 text-xs text-muted-foreground font-normal">
-                    (${(balanceInPoints / settings.pointsRate).toFixed(2)})
-                </span>
-            )}
+            {formatBalance(balanceInPoints)}
         </span>
     )
 }

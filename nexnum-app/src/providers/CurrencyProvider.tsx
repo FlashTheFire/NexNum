@@ -63,10 +63,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
                 const data = await res.json()
                 setCurrencies(data.currencies)
                 setSettings(data.settings)
-
-                const serverPref = data.preferredCurrency || 'USD'
-                const effectivePref = serverPref === 'POINTS' ? 'USD' : serverPref
-                setPreferredCurrency(effectivePref)
+                setPreferredCurrency(data.preferredCurrency || 'USD')
             } catch (e) {
                 console.error("[CurrencyProvider] Failed to fetch currency data", e)
             } finally {
@@ -117,24 +114,13 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     const formatPrice = useCallback((amountInPoints: number, options?: FormatOptions): string => {
         if (!settings) return amountInPoints.toString()
 
-        const targetCurrency = preferredCurrency
+        const targetCurrency = preferredCurrency === 'POINTS' ? 'USD' : preferredCurrency
         const precision = options?.precision ?? 2
 
-        // STRICT: Never show POINTS. If target is POINTS, force USD/Base.
-        if (targetCurrency === 'POINTS') {
-            // Fallback to USD logic below by changing targetCurrency locally or just letting it proceed?
-            // Actually, if targetCurrency is POINTS, currencies['POINTS'] is undefined.
-            // We should override targetCurrency to settings.baseCurrency or 'USD'.
-            // But preferredCurrency is const.
-            // Let's handle it by blocking the 'if POINTS' return.
-        }
-
-        const effectiveCurrency = targetCurrency === 'POINTS' ? (settings.displayCurrency || 'USD') : targetCurrency
-
-        const converted = convert(amountInPoints, 'POINTS', effectiveCurrency)
-        const currencyData = currencies[effectiveCurrency]
-        const symbol = currencyData?.symbol || '$' // Default to $ if missing
-        const code = options?.showCode ? ` ${effectiveCurrency}` : ''
+        const converted = convert(amountInPoints, 'POINTS', targetCurrency)
+        const currencyData = currencies[targetCurrency]
+        const symbol = currencyData?.symbol || '$'
+        const code = options?.showCode ? ` ${targetCurrency}` : ''
 
         return `${symbol}${converted.toFixed(precision)}${code}`
     }, [settings, preferredCurrency, currencies, convert])
@@ -147,11 +133,13 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
         currencyPrices?: Record<string, number>,
         fallbackPoints?: number
     ): string => {
+        const targetCurrency = preferredCurrency === 'POINTS' ? 'USD' : preferredCurrency
+
         // Priority 1: Use pre-computed price for user's currency
-        if (currencyPrices && preferredCurrency in currencyPrices) {
-            const price = currencyPrices[preferredCurrency]
-            const currencyData = currencies[preferredCurrency]
-            const symbol = currencyData?.symbol || ''
+        if (currencyPrices && targetCurrency in currencyPrices) {
+            const price = currencyPrices[targetCurrency]
+            const currencyData = currencies[targetCurrency]
+            const symbol = currencyData?.symbol || '$'
             return `${symbol}${price.toFixed(2)}`
         }
 
@@ -167,15 +155,15 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
      * Format user balance (always stored in Points) to user's preferred currency
      */
     const formatBalance = useCallback((balanceInPoints: number): string => {
-        if (!settings) return `${balanceInPoints} pts`
+        if (!settings) return balanceInPoints.toString()
 
-        // STRICT: Never show POINTS
-        const effectiveCurrency = preferredCurrency === 'POINTS' ? (settings.displayCurrency || 'USD') : preferredCurrency
+        const targetCurrency = preferredCurrency === 'POINTS' ? 'USD' : preferredCurrency
 
-        const converted = convert(balanceInPoints, 'POINTS', effectiveCurrency)
-        const currencyData = currencies[effectiveCurrency]
+        const converted = convert(balanceInPoints, 'POINTS', targetCurrency)
+        const currencyData = currencies[targetCurrency]
         const symbol = currencyData?.symbol || '$'
 
+        // For balance, show 2 decimal places
         return `${symbol}${converted.toFixed(2)}`
     }, [settings, preferredCurrency, currencies, convert])
 

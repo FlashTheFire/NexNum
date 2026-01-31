@@ -23,6 +23,7 @@ import { formatPrice } from "@/lib/utils/utils"
 import { DashboardBackground } from "./dashboard-background"
 import { ModernNumberCard } from "./ModernNumberCard"
 import { BalanceDisplay, PriceDisplay } from "@/components/common/PriceDisplay"
+import { useCurrency } from "@/providers/CurrencyProvider"
 
 
 // Animation Variants
@@ -40,6 +41,8 @@ export function DesktopDashboard() {
     const { user } = useAuthStore()
     const { userProfile, activeNumbers, transactions } = useGlobalStore()
     const containerRef = useRef<HTMLDivElement>(null)
+    const { settings } = useCurrency()
+    const pointsRate = settings?.pointsRate || 100
 
     const t = useTranslations('dashboard')
 
@@ -243,7 +246,7 @@ export function DesktopDashboard() {
                                     <div className="grid grid-cols-3 gap-3 mb-6">
                                         {[10, 25, 50].map(amt => (
                                             <button key={amt} className="group/btn relative h-14 rounded-2xl bg-white/[0.03] hover:bg-[hsl(var(--neon-lime)/0.1)] border border-white/[0.08] hover:border-[hsl(var(--neon-lime)/0.3)] transition-all duration-300 overflow-hidden">
-                                                <span className="relative z-10 text-lg font-mono font-bold text-gray-300 group-hover/btn:text-white transition-colors"><PriceDisplay amountInPoints={amt} precision={0} showCode={false} /></span>
+                                                <span className="relative z-10 text-lg font-mono font-bold text-gray-300 group-hover/btn:text-white transition-colors"><PriceDisplay amountInPoints={amt * pointsRate} precision={0} showCode={false} /></span>
                                             </button>
                                         ))}
                                     </div>

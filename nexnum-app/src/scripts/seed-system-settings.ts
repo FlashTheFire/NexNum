@@ -203,9 +203,9 @@ export async function seedSystemSettings() {
         create: {
             id: 'default',
             baseCurrency: 'USD',
-            displayCurrency: 'POINTS',
+            displayCurrency: 'USD',
             pointsEnabled: true,
-            pointsName: 'Coins',
+            pointsName: 'Credits',
             pointsRate: 100.0,
         },
     })
