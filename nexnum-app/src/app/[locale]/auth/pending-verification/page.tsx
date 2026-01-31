@@ -11,48 +11,55 @@ import { Mail, RefreshCw } from "lucide-react"
 import { useAuthStore } from "@/stores/authStore"
 
 export default function PendingVerificationPage() {
-    const { user, logout } = useAuthStore()
+    const { user, logout, isLoading, checkAuth } = useAuthStore()
     const router = useRouter()
     const [resending, setResending] = useState(false)
     const [cooldown, setCooldown] = useState(0)
 
     useEffect(() => {
         // Redirect to landing if no user (requires login)
-        if (!user) {
+        if (!user && !isLoading) {
             router.replace('/')
             return
         }
 
         // Redirect to dashboard if already verified
-        if (user.emailVerified) {
+        if (user?.emailVerified) {
             router.replace('/dashboard')
             return
         }
 
+        // POLLING: Check verification status every 5 seconds
+        const pollInterval = setInterval(() => {
+            if (user && !user.emailVerified) {
+                checkAuth()
+            }
+        }, 5000)
+
         if (cooldown > 0) {
             const timer = setTimeout(() => setCooldown(cooldown - 1), 1000)
-            return () => clearTimeout(timer)
+            return () => {
+                clearTimeout(timer)
+                clearInterval(pollInterval)
+            }
         }
-    }, [user, cooldown, router])
+
+        return () => clearInterval(pollInterval)
+    }, [user, isLoading, cooldown, router, checkAuth])
 
     async function handleResend() {
         if (cooldown > 0) return
         setResending(true)
 
         try {
-            const res = await fetch('/api/auth/resend-verification', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('nexnum_token')}`
-                }
-            })
+            const { api } = await import('@/lib/api/api-client')
+            const res = await api.resendVerification()
 
-            if (res.ok) {
+            if (res.success) {
                 toast.success('Verification email sent!')
                 setCooldown(60) // 60 second cooldown
             } else {
-                const data = await res.json()
-                toast.error(data.error || 'Failed to send email')
+                toast.error(res.error || 'Failed to send email')
             }
         } catch (error) {
             toast.error('Network error')

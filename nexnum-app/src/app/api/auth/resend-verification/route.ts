@@ -4,8 +4,8 @@ import { apiHandler } from '@/lib/api/api-handler'
 import { ResponseFactory } from '@/lib/api/response-factory'
 import { logger } from '@/lib/core/logger'
 
-export const POST = apiHandler(async (request, { user }) => {
-    const ip = request.headers.get('x-forwarded-for') || 'unknown'
+export const POST = apiHandler(async (request, { user, security }) => {
+    const ip = security?.clientIp || 'unknown'
 
     // Get user details
     const userData = await prisma.user.findUnique({
@@ -42,4 +42,4 @@ export const POST = apiHandler(async (request, { user }) => {
     logger.info('[EmailResend] Success', { userId: userData.id })
 
     return ResponseFactory.success({ message: 'Verification email sent' })
-})
+}, { rateLimit: 'auth', requiresAuth: true })

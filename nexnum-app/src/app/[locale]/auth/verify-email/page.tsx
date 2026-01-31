@@ -40,10 +40,10 @@ export default function VerifyEmailPage() {
                     setStatus('success')
                     toast.success('Email verified successfully!')
 
-                    // Refresh session to update emailVerified status
+                    // Refresh session to update emailVerified status (FORCE CHECK)
                     try {
                         const { useAuthStore } = await import('@/stores/authStore')
-                        await useAuthStore.getState().checkAuth()
+                        await useAuthStore.getState().checkAuth(true)
                     } catch (e) {
                         console.error('Failed to refresh session:', e)
                     }

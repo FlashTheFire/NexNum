@@ -15,7 +15,7 @@ interface AuthState {
     verify2Fa: (token: string) => Promise<boolean>;
     register: (name: string, email: string, password: string) => Promise<boolean>;
     logout: () => Promise<void>;
-    checkAuth: () => Promise<void>;
+    checkAuth: (force?: boolean) => Promise<void>;
     updateUser: (data: { name?: string; email?: string; preferredCurrency?: string }) => void;
     clearError: () => void;
     hydrateFromCache: () => void;  // New: restore from cache immediately
@@ -258,14 +258,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         });
     },
 
-    checkAuth: async () => {
+    checkAuth: async (force = false) => {
         const token = getToken();
         const cachedUser = getCachedUser();
         const { lastAuthCheck, isAuthenticated } = get();
 
         // THROTTLE: If already authenticated and checked recently (< 45s), skip
+        // UNLESS forced (e.g., after email verification or on login)
         const now = Date.now();
-        if (isAuthenticated && (now - lastAuthCheck < 45000)) {
+        if (!force && isAuthenticated && (now - lastAuthCheck < 45000)) {
             // Just ensure loading is false
             set({ isLoading: false });
             return;
@@ -286,6 +287,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             const response = await fetch('/api/auth/me', {
                 headers: {
                     'Authorization': `Bearer ${token}`,
+                    'Cache-Control': 'no-cache'
                 },
             });
 

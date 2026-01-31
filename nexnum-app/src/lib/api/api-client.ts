@@ -104,8 +104,9 @@ class NexNumClient {
     ): Promise<ApiResponse<T>> {
         try {
             const headers = new Headers(options.headers)
-            const token = typeof window !== 'undefined' ? localStorage.getItem('nexnum_token') : null
-            if (token) headers.set('Authorization', `Bearer ${token}`)
+
+            // SECURITY: Tokens are now handled exclusively by httpOnly cookies.
+            // We no longer manually set the Authorization header from localStorage.
 
             headers.set('X-Request-ID', generateUUID())
             headers.set('X-Trace-ID', generateUUID())
@@ -183,6 +184,7 @@ class NexNumClient {
     async setResendCode(id: string) { return this.request<any>(`/api/numbers/${id}/resend`, 'POST') }
     async login(data: any) { return this.request<any>('/api/auth/login', 'POST', data) }
     async register(data: any) { return this.request<any>('/api/auth/register', 'POST', data) }
+    async resendVerification() { return this.request<any>('/api/auth/resend-verification', 'POST') }
 }
 
 export const api = NexNumClient.getInstance()
