@@ -10,9 +10,9 @@ const schema = z.object({
     token: z.string().min(1)
 })
 
-export const POST = apiHandler(async (request, { body }) => {
+export const POST = apiHandler(async (request, { body, security }) => {
     const { token } = body!
-    const ip = request.headers.get('x-forwarded-for') || 'unknown'
+    const ip = security?.clientIp || 'unknown'
 
     const result = await verifyEmail(token)
 
@@ -64,4 +64,8 @@ export const POST = apiHandler(async (request, { body }) => {
             emailVerified: user.emailVerified
         }
     })
-}, { schema, rateLimit: 'auth' })
+}, {
+    schema,
+    rateLimit: 'auth',
+    security: { requireCSRF: false }
+})

@@ -8,8 +8,9 @@ const schema = z.object({
     password: z.string().min(6)
 })
 
-export const POST = apiHandler(async (request, { body }) => {
+export const POST = apiHandler(async (request, { body, security }) => {
     const { token, password } = body!
+    const ip = security?.clientIp || 'unknown'
 
     const result = await resetPassword(token, password)
 
@@ -20,4 +21,8 @@ export const POST = apiHandler(async (request, { body }) => {
     return ResponseFactory.success({
         message: 'Password updated successfully'
     })
-}, { schema, rateLimit: 'auth' })
+}, {
+    schema,
+    rateLimit: 'auth',
+    security: { requireCSRF: false }
+})

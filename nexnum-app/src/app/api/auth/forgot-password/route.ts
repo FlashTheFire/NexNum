@@ -8,9 +8,9 @@ const schema = z.object({
     email: z.string().email()
 })
 
-export const POST = apiHandler(async (request, { body }) => {
+export const POST = apiHandler(async (request, { body, security }) => {
     const { email } = body!
-    const ip = request.headers.get('x-forwarded-for') || 'unknown'
+    const ip = security?.clientIp || 'unknown'
 
     const result = await requestPasswordReset(email, ip)
 
@@ -21,4 +21,8 @@ export const POST = apiHandler(async (request, { body }) => {
     return ResponseFactory.success({
         message: 'If an account exists, a reset link has been sent.'
     })
-}, { schema, rateLimit: 'auth' })
+}, {
+    schema,
+    rateLimit: 'auth',
+    security: { requireCSRF: false }
+})
