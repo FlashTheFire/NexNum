@@ -62,6 +62,18 @@ export class AuthGuard {
 
         return { user, error: null }
     }
+
+    /**
+     * Soft Resolution: Attempt to get user without failing
+     */
+    static async tryUser(): Promise<TokenPayload | null> {
+        try {
+            const headerStore = await headers()
+            return await getCurrentUser(headerStore)
+        } catch {
+            return null
+        }
+    }
 }
 
 /**

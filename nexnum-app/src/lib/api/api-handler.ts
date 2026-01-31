@@ -117,13 +117,16 @@ export function apiHandler<T = any>(
 
                 let user: any = undefined
 
-                // 3.5 Authentication (Optional)
-                if (options.requiresAuth) {
-                    const authResult = await AuthGuard.requireUser()
-                    if (authResult.error) {
-                        return ResponseFactory.error('Unauthorized', 401, 'E_UNAUTHORIZED')
-                    }
-                    user = { userId: authResult.user.userId }
+                // 3.5 Authentication
+                // Always try to resolve user if possible (provided to all handlers)
+                const resolvedUser = await AuthGuard.tryUser()
+                if (resolvedUser) {
+                    user = { userId: resolvedUser.userId, role: resolvedUser.role }
+                }
+
+                if (options.requiresAuth && !user) {
+                    // If explicitly required but not found, return unauthorized
+                    return ResponseFactory.error('Unauthorized', 401, 'E_UNAUTHORIZED')
                 }
 
                 // 4. Execute Handler with security context

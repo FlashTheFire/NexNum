@@ -185,6 +185,8 @@ class NexNumClient {
     async login(data: any) { return this.request<any>('/api/auth/login', 'POST', data) }
     async register(data: any) { return this.request<any>('/api/auth/register', 'POST', data) }
     async resendVerification() { return this.request<any>('/api/auth/resend-verification', 'POST') }
+    async me() { return this.request<any>('/api/auth/me') }
+    async logout() { return this.request<any>('/api/auth/logout', 'POST') }
 }
 
 export const api = NexNumClient.getInstance()

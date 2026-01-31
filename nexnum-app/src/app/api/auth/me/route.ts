@@ -37,7 +37,7 @@ export const GET = apiHandler(async (request, { user }) => {
             balance,
         }
     })
-})
+}, { requiresAuth: true })
 
 const patchSchema = z.object({
     name: z.string().min(2).optional(),
@@ -70,4 +70,4 @@ export const PATCH = apiHandler(async (request, { user, body }) => {
             emailVerified: updatedUser.emailVerified
         }
     })
-}, { schema: patchSchema })
+}, { schema: patchSchema, requiresAuth: true })

@@ -284,14 +284,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
         // Verify token with backend in background
         try {
-            const response = await fetch('/api/auth/me', {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Cache-Control': 'no-cache'
-                },
-            });
+            const { api } = await import('@/lib/api/api-client')
+            const response = await api.me()
 
-            if (!response.ok) {
+            if (!response.success) {
                 // Only clear if explicitly unauthorized
                 if (response.status === 401) {
                     clearToken();
@@ -311,7 +307,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 return;
             }
 
-            const data = await response.json();
+            const data = response.data;
 
             // Update with fresh data and refresh cache
             saveUser(data.user);
