@@ -9,6 +9,7 @@
     "dev": "cross-env HOST=0.0.0.0 next dev --turbo",
     "dev:full": "npx concurrently -n dev,socket -c blue,magenta \"npm run dev\" \"npm run services:socket\"",
     "build": "next build",
+    "build:skip-types": "next build",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
