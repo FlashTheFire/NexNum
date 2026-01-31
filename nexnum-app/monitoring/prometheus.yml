@@ -26,6 +26,8 @@ scrape_configs:
     static_configs:
       - targets: ['app:3000']
     metrics_path: '/api/metrics'
+    authorization:
+      credentials: "nexnum-metrics-token-prd-8821"
     scheme: http
     scrape_timeout: 9s
 
