@@ -570,11 +570,21 @@ export async function searchServices(
 
         // Performance Tracking
         search_latency.observe({ type: 'services' }, (Date.now() - startTime) / 1000)
+
+        logger.info('Search results', {
+            context: 'SEARCH',
+            query,
+            hitsCount: result.hits.length,
+            totalHits: result.estimatedTotalHits // For diagnostic
+        })
+
         if (result.hits.length === 0) {
             search_empty_results.inc({ type: 'services', query })
+            return { services: [], total: 0 }
         }
 
         const serviceMap = new Map<string, {
+            key: string; // Internal key for enrichment
             slug: string;
             name: string;
             icon?: string;
@@ -587,12 +597,17 @@ export async function searchServices(
 
         for (const hit of result.hits as OfferDocument[]) {
             const canonicalName = getCanonicalName(hit.serviceName)
+            if (!canonicalName) continue;
+
             const normalizedKey = normalizeServiceName(canonicalName)
+            if (!normalizedKey) continue;
 
             let stats = serviceMap.get(normalizedKey)
             if (!stats) {
+                const slug = hit.providerServiceCode || generateCanonicalCode(canonicalName)
                 stats = {
-                    slug: hit.providerServiceCode || generateCanonicalCode(canonicalName),
+                    key: normalizedKey,
+                    slug: slug,
                     name: canonicalName,
                     icon: hit.serviceIcon,
                     minPrice: hit.price,
@@ -617,9 +632,10 @@ export async function searchServices(
             }
         }
 
-        let services: ServiceStats[] = Array.from(serviceMap.values()).map(stats => {
+        let services: any[] = Array.from(serviceMap.values()).map(stats => {
             const isPopular = POPULAR_SERVICES.includes(stats.slug) || stats.providerSet.size > 2
             return {
+                key: stats.key,
                 slug: stats.slug,
                 name: stats.name,
                 iconUrl: stats.icon || '',
@@ -660,9 +676,11 @@ export async function searchServices(
         const start = (page - 1) * limit
         const paginatedServices = services.slice(start, start + limit)
 
-        const enrichedServices = await Promise.all(paginatedServices.map(async (service) => {
-            const normalizedKey = normalizeServiceName(getCanonicalName(service.name))
-            const rawStats = serviceMap.get(normalizedKey)!
+        const enrichedServices = await Promise.all(paginatedServices.map(async (service: any) => {
+            const rawStats = serviceMap.get(service.key)
+            if (!rawStats) {
+                return { ...service, topCountries: [] }
+            }
 
             const countryMap = new Map<string, CountryAggregate>()
             for (const hit of rawStats.hits) {
