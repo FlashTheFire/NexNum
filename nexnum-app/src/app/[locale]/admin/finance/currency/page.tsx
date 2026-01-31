@@ -56,10 +56,21 @@ export default function CurrencyManagementPage() {
         fetchData()
     }, [])
 
+    const getCsrfToken = () => {
+        if (typeof document === 'undefined') return ''
+        const match = document.cookie.match(new RegExp('(^| )(__Host-csrf-token|csrf-token)=([^;]+)'))
+        return match ? match[3] : ''
+    }
+
     const handleSync = async () => {
         setIsSyncing(true)
         try {
-            const res = await fetch('/api/admin/finance/currency/sync', { method: 'POST' })
+            const res = await fetch('/api/admin/finance/currency/sync', {
+                method: 'POST',
+                headers: {
+                    'x-csrf-token': getCsrfToken()
+                }
+            })
             if (res.ok) {
                 toast.success("Exchange rates synchronized")
                 fetchData()
@@ -79,7 +90,10 @@ export default function CurrencyManagementPage() {
         try {
             const res = await fetch('/api/admin/finance/currency', {
                 method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-csrf-token': getCsrfToken()
+                },
                 body: JSON.stringify({ action: 'update_settings', ...settings, ...newData })
             })
             if (res.ok) {
@@ -100,7 +114,10 @@ export default function CurrencyManagementPage() {
         try {
             const res = await fetch('/api/admin/finance/currency', {
                 method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-csrf-token': getCsrfToken()
+                },
                 body: JSON.stringify({ action: 'update_currency', code, ...data })
             })
             if (res.ok) {
