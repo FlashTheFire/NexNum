@@ -289,6 +289,7 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
     const startTime = Date.now()
     let countriesCount = 0, servicesCount = 0, pricesCount = 0, error: string | undefined
     const serviceMap = new Map<string, string>()          // code -> name
+    const countryNameMap = new Map<string, string>()      // code -> name
     const iconUrlMap = new Map<string, string>()      // code -> iconUrl
 
     try {
@@ -382,6 +383,7 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                 dbCountries.forEach(c => {
                     countryIdMap.set(c.externalId, c.id)
                     countryVisibilityMap.set(c.externalId, c.isActive)
+                    countryNameMap.set(c.externalId, c.name)
                     countries.push({ code: c.externalId, name: c.name, flagUrl: c.flagUrl })
                 })
                 countriesCount = dbCountries.length
@@ -424,6 +426,8 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
             for (const c of countries) {
                 const externalId = String(c.code)
                 const canonicalName = getCanonicalName(c.name || 'Unknown')
+                countryNameMap.set(externalId, canonicalName)
+
                 const canonicalCode = getCountryIsoCode(c.code) || generateCanonicalCode(canonicalName)
                 const metaFlagUrl = getCountryFlagUrlSync(c.code)
                 const validFlagUrl = c.flagUrl || metaFlagUrl || null
@@ -760,7 +764,10 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
 
                 // Prepare OfferDocument for MeiliSearch
                 const canonicalSvcName = getCanonicalName(svcName)
-                const canonicalCtyName = normalizeCountryName(p.country || country?.name || 'Unknown')
+
+                // Resolve Country Name from Map (Crucial for numeric provider IDs)
+                const resolvedCountryName = countryNameMap.get(countryCode) || p.country || country?.name || 'Unknown'
+                const canonicalCtyName = normalizeCountryName(resolvedCountryName)
                 const canonicalSvcCode = generateCanonicalCode(canonicalSvcName)
                 const canonicalCtyCode = generateCanonicalCode(canonicalCtyName)
 
