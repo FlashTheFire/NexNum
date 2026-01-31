@@ -123,7 +123,7 @@ const FlagImage = ({
             <img
                 src={src}
                 alt={name}
-                className="w-full h-full object-cover rounded-full ring-1 ring-white/10"
+                className="w-full h-full object-cover rounded-full"
                 onError={() => setError(true)}
                 loading="lazy"
             />
@@ -234,8 +234,10 @@ const CountryCard = React.memo(({
             <div className={cn(
                 "relative shrink-0 transition-all duration-300 rounded-full",
                 !prefersReducedMotion && "group-hover:scale-110 group-hover:rotate-3",
-                "ring-[hsl(var(--neon-lime))] ring-offset-2 ring-offset-[#0a0a0c] transition-[ring]",
-                isSelected ? "scale-100 ring-2" : "ring-0"
+                "transition-[ring]",
+                isSelected
+                    ? "scale-100 ring-2 ring-[hsl(var(--neon-lime))] ring-offset-2 ring-offset-[#0a0a0c]"
+                    : "ring-0"
             )}>
                 <FlagImage
                     name={country.name}
