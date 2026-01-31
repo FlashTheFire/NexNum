@@ -927,6 +927,11 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
 export async function syncProviderData(providerName: string, options?: SyncOptions): Promise<SyncResult> {
     const provider = await prisma.provider.findUnique({ where: { name: providerName } })
     if (provider) {
+        // ENSURE INDEX HEALTH: Always re-apply settings before sync to prevent search breakage 
+        // if indexes were recently wiped or settings were lost.
+        const { reconfigureIndexes } = await import('@/lib/search/search')
+        await reconfigureIndexes()
+
         // RESILIENCE: Fetch use_global_sync via raw SQL to bypass Prisma schema sync issues in production
         const raw = await prisma.$queryRawUnsafe<Array<{ use_global_sync: boolean }>>(`SELECT use_global_sync FROM providers WHERE id = $1`, provider.id)
         if (raw && raw[0]) {

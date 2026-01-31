@@ -28,10 +28,12 @@ export async function GET(request: Request) {
     ])
 
     return NextResponse.json({
-        currencies: currencies.reduce((acc, curr) => ({
-            ...acc,
-            [curr.code]: curr
-        }), {}),
+        currencies: currencies
+            .filter(curr => curr.code !== 'POINTS')
+            .reduce((acc, curr) => ({
+                ...acc,
+                [curr.code]: curr
+            }), {}),
         settings,
         preferredCurrency: userData?.preferredCurrency || settings?.displayCurrency || 'USD'
     })

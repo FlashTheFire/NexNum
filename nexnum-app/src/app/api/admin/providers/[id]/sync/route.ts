@@ -20,7 +20,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
             return NextResponse.json({ error: 'Provider not found' }, { status: 404 })
         }
 
-        logger.info(`Starting manual sync for ${provider.name}`, { context: 'SYNC_MANUAL', adminId: auth.user.userId })
+        logger.info(`Queueing manual sync for ${provider.name}`, { context: 'SYNC_MANUAL', adminId: auth.user.userId })
 
         // 1. Sync Exchange Rates (Ensure margins are accurate)
         try {
@@ -29,40 +29,27 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
             logger.warn('Rate sync warning during manual provider sync', { error: (e as any).message })
         }
 
-        // 2. Perform the Provider Sync
-        const result = await syncProviderData(provider.name)
+        // 2. Queue the Provider Sync Job
+        const { queue, QUEUES } = await import('@/lib/core/queue')
+        const jobId = await queue.publish(QUEUES.PROVIDER_SYNC, { provider: provider.name })
 
-        // 3. Post-Sync Cleanup: Refresh Aggregates (Critical for UI lists)
-        try {
-            await refreshAllServiceAggregates()
-        } catch (e) {
-            logger.error('Failed to refresh aggregates after manual sync', { error: (e as any).message })
-        }
-
-        // 4. Icon Sync (Best effort)
-        try {
-            const { ProviderIconManager } = await import('@/lib/providers/icon-manager')
-            const iconManager = new ProviderIconManager()
-            // We can't easily sync "just this provider's icons" without checking all services,
-            // so we'll run the standard sync which is fairly efficient.
-            await iconManager.syncAllProviders()
-        } catch (e) {
-            logger.warn('Icon sync warning', { error: (e as any).message })
-        }
-
-        // Audit log the sync
+        // Audit log the sync trigger
         await logAdminAction({
             userId: auth.user.userId,
             action: 'SYNC_TRIGGERED',
             resourceType: 'Provider',
             resourceId: id,
-            metadata: { providerName: provider.name, result },
+            metadata: { providerName: provider.name, jobId, status: 'queued' },
             ipAddress: getClientIP(req)
         })
 
-        return NextResponse.json(result)
+        return NextResponse.json({
+            success: true,
+            message: `Synchronization for ${provider.displayName} has been queued.`,
+            jobId
+        })
     } catch (error: any) {
         console.error('Sync trigger failed:', error)
-        return NextResponse.json({ error: error.message || 'Sync failed' }, { status: 500 })
+        return NextResponse.json({ error: error.message || 'Sync failed to queue' }, { status: 500 })
     }
 }

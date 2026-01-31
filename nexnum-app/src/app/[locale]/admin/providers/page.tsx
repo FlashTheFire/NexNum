@@ -275,7 +275,11 @@ function ProviderCard({ provider, onRefresh, onEdit, isGlobalSyncing }: { provid
             const res = await fetch(`/api/admin/providers/${provider.id}/sync`, { method: 'POST' })
             const data = await res.json()
             if (res.ok) {
-                toast.success(`Sync completed: ${data.countries} countries, ${data.services} services`)
+                if (data.jobId) {
+                    toast.success(data.message || "Synchronization queued successfully")
+                } else {
+                    toast.success(`Sync completed: ${data.countries} countries, ${data.services} services`)
+                }
                 onRefresh()
             } else {
                 toast.error(data.error || "Sync failed")

@@ -1309,7 +1309,7 @@ export default function DemoPage() {
                     <div className="flex items-start justify-between">
                         <div className="flex items-start gap-3">
                             <div className="relative w-10 h-10 ring-2 ring-[hsl(var(--neon-lime))] ring-offset-1 ring-offset-[#0a0a0c] rounded-lg overflow-hidden shadow-[0_0_12px_hsl(var(--neon-lime)/0.35)]">
-                                <img src={selectedService?.iconUrl} alt="" className="w-full h-full object-contain filter brightness-110" />
+                                <img src={selectedService?.iconUrl || "/placeholder-icon.png"} alt="" className="w-full h-full object-contain filter brightness-110" />
                                 <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border border-[#151518] overflow-hidden">
                                     <img src={selectedCountry?.flagUrl} alt="" className="w-full h-full object-cover" />
                                 </div>

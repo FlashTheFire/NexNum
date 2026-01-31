@@ -17,9 +17,6 @@ interface Currency {
 interface SystemSettings {
     baseCurrency: string
     displayCurrency: string
-    pointsEnabled: boolean
-    pointsName: string
-    pointsRate: number
 }
 
 interface FormatOptions {
@@ -34,13 +31,13 @@ interface CurrencyContextType {
     isLoading: boolean
 
     // Core methods
-    formatPrice: (amountInPoints: number, options?: FormatOptions) => string
+    formatPrice: (amountInUsd: number, options?: FormatOptions) => string
     convert: (amount: number, from: string, to: string) => number
 
     // Multi-currency support (NEW)
     setCurrency: (code: string) => void
-    formatFromPrices: (currencyPrices?: Record<string, number>, fallbackPoints?: number) => string
-    formatBalance: (balanceInPoints: number) => string
+    formatFromPrices: (currencyPrices?: Record<string, number>, fallbackUsd?: number) => string
+    formatBalance: (balanceInUsd: number) => string
 }
 
 const CurrencyContext = createContext<CurrencyContextType | undefined>(undefined)
@@ -82,9 +79,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
 
         // Step 1: Convert "from" to USD (Technical Base)
         let amountInUsd = 0
-        if (from === 'POINTS') {
-            amountInUsd = amount / settings.pointsRate
-        } else if (from === settings.baseCurrency || from === 'USD') {
+        if (from === settings.baseCurrency || from === 'USD') {
             amountInUsd = amount
         } else if (currencies[from]) {
             amountInUsd = amount / currencies[from].rate
@@ -93,9 +88,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
         }
 
         // Step 2: Convert USD to "to"
-        if (to === 'POINTS') {
-            return amountInUsd * settings.pointsRate
-        } else if (to === settings.baseCurrency || to === 'USD') {
+        if (to === settings.baseCurrency || to === 'USD') {
             return amountInUsd
         } else if (currencies[to]) {
             return amountInUsd * currencies[to].rate
@@ -109,15 +102,15 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     // ============================================
 
     /**
-     * Format amount in Points to user's preferred currency (with real-time conversion)
+     * Format amount in USD to user's preferred currency (with real-time conversion)
      */
-    const formatPrice = useCallback((amountInPoints: number, options?: FormatOptions): string => {
-        if (!settings) return amountInPoints.toString()
+    const formatPrice = useCallback((amountInUsd: number, options?: FormatOptions): string => {
+        if (!settings) return amountInUsd.toString()
 
         const targetCurrency = preferredCurrency === 'POINTS' ? 'USD' : preferredCurrency
         const precision = options?.precision ?? 2
 
-        const converted = convert(amountInPoints, 'POINTS', targetCurrency)
+        const converted = convert(amountInUsd, 'USD', targetCurrency)
         const currencyData = currencies[targetCurrency]
         const symbol = currencyData?.symbol || '$'
         const code = options?.showCode ? ` ${targetCurrency}` : ''
@@ -131,7 +124,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
      */
     const formatFromPrices = useCallback((
         currencyPrices?: Record<string, number>,
-        fallbackPoints?: number
+        fallbackUsd?: number
     ): string => {
         const targetCurrency = preferredCurrency === 'POINTS' ? 'USD' : preferredCurrency
 
@@ -143,23 +136,23 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
             return `${symbol}${price.toFixed(2)}`
         }
 
-        // Priority 2: Real-time conversion from Points
-        if (fallbackPoints !== undefined) {
-            return formatPrice(fallbackPoints)
+        // Priority 2: Real-time conversion from USD
+        if (fallbackUsd !== undefined) {
+            return formatPrice(fallbackUsd)
         }
 
         return '--'
     }, [preferredCurrency, currencies, formatPrice])
 
     /**
-     * Format user balance (always stored in Points) to user's preferred currency
+     * Format user balance (always stored in USD) to user's preferred currency
      */
-    const formatBalance = useCallback((balanceInPoints: number): string => {
-        if (!settings) return balanceInPoints.toString()
+    const formatBalance = useCallback((balanceInUsd: number): string => {
+        if (!settings) return balanceInUsd.toString()
 
         const targetCurrency = preferredCurrency === 'POINTS' ? 'USD' : preferredCurrency
 
-        const converted = convert(balanceInPoints, 'POINTS', targetCurrency)
+        const converted = convert(balanceInUsd, 'USD', targetCurrency)
         const currencyData = currencies[targetCurrency]
         const symbol = currencyData?.symbol || '$'
 

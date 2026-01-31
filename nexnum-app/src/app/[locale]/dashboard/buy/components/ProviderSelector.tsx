@@ -334,7 +334,7 @@ export default function ProviderSelector({
                                                 </div>
                                             ) : (
                                                 <img
-                                                    src={serviceIcon || provider.iconUrl}
+                                                    src={serviceIcon || "/placeholder-icon.png"}
                                                     alt={provider.serviceName}
                                                     className="w-full h-full object-contain filter brightness-110 contrast-110"
                                                 />
