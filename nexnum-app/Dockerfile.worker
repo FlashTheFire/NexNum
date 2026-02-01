@@ -15,8 +15,7 @@ RUN ls -laR prisma
 # Generate Prisma client
 # Use real .env for build-time validation (Single Source of Truth)
 COPY .env .env
-RUN ls -la .env && cat .env
-RUN npx dotenv -e .env -- npx prisma generate
+RUN npx prisma generate
 
 
 # Stage 2: Builder (Debian for reliability)
