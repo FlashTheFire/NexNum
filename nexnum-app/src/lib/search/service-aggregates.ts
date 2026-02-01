@@ -137,6 +137,86 @@ export async function refreshAllServiceAggregates() {
 }
 
 /**
+ * Fallback: Compute aggregates directly from MeiliSearch when DB table is empty.
+ * This is slower but ensures the search always works.
+ */
+async function getAggregatesFromMeiliSearch(
+    query: string,
+    page: number,
+    limit: number,
+    sortBy?: 'name' | 'pointPrice' | 'stock'
+) {
+    const index = meili.index(INDEXES.OFFERS)
+
+    // Search with query or get all
+    const searchResults = await index.search(query || '', {
+        limit: 5000, // Get enough to aggregate
+        attributesToRetrieve: ['providerServiceCode', 'serviceName', 'pointPrice', 'stock', 'countryName', 'provider']
+    })
+
+    // Aggregate by service code
+    const aggregates = new Map<string, {
+        serviceCode: string;
+        serviceName: string;
+        lowestPrice: number;
+        totalStock: number;
+        countryCount: number;
+        providerCount: number;
+        _countries: Set<string>;
+        _providers: Set<string>;
+    }>()
+
+    for (const hit of searchResults.hits as any[]) {
+        const serviceCode = hit.providerServiceCode || 'unknown';
+
+        let agg = aggregates.get(serviceCode)
+        if (!agg) {
+            agg = {
+                serviceCode,
+                serviceName: hit.serviceName || serviceCode,
+                lowestPrice: hit.pointPrice,
+                totalStock: 0,
+                countryCount: 0,
+                providerCount: 0,
+                _countries: new Set(),
+                _providers: new Set()
+            }
+            aggregates.set(serviceCode, agg)
+        }
+
+        agg.lowestPrice = Math.min(agg.lowestPrice, hit.pointPrice)
+        agg.totalStock += hit.stock || 0
+        if (hit.countryName) agg._countries.add(hit.countryName)
+        if (hit.provider) agg._providers.add(hit.provider)
+    }
+
+    // Convert to array and add counts
+    let items = Array.from(aggregates.values()).map(agg => ({
+        serviceCode: agg.serviceCode,
+        serviceName: agg.serviceName,
+        lowestPrice: agg.lowestPrice,
+        totalStock: agg.totalStock,
+        countryCount: agg._countries.size,
+        providerCount: agg._providers.size
+    }))
+
+    // Sort
+    if (sortBy === 'pointPrice') {
+        items.sort((a, b) => a.lowestPrice - b.lowestPrice)
+    } else if (sortBy === 'stock') {
+        items.sort((a, b) => b.totalStock - a.totalStock)
+    } else {
+        items.sort((a, b) => a.serviceName.localeCompare(b.serviceName))
+    }
+
+    const total = items.length
+    const offset = (page - 1) * limit
+    items = items.slice(offset, offset + limit)
+
+    return { items, total, page, limit }
+}
+
+/**
  * Get service aggregates for the main list view
  * Hybrid Approach: 
  * 1. If no query: Use Redis cache for sub-5ms responses.
@@ -152,6 +232,13 @@ export async function getServiceAggregates(options?: {
     const page = options?.page || 1
     const offset = (page - 1) * limit
     const isDefaultList = !options?.query && page === 1 && limit === 50 && (!options?.sortBy || options.sortBy === 'name');
+
+    // FALLBACK CHECK: If ServiceAggregate table is empty, use direct MeiliSearch
+    const dbCount = await prisma.serviceAggregate.count();
+    if (dbCount === 0) {
+        logger.warn('[SEARCH] ServiceAggregate table is empty. Using MeiliSearch fallback...');
+        return await getAggregatesFromMeiliSearch(options?.query || '', page, limit, options?.sortBy);
+    }
 
     // 1. FAST PATH: Redis Cache for Default Page
     if (isDefaultList) {
