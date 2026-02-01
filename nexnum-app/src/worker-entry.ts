@@ -82,14 +82,14 @@ export async function startQueueWorker() {
         // JOB: Search Aggregates Refresh (Every 5m)
         // Critical for "Search Services" API - keeps DB stats in sync with MeiliSearch
         const { refreshAllServiceAggregates } = await import('./lib/search/service-aggregates');
-        await queue.work('search.aggregates', async () => { await refreshAllServiceAggregates(); });
-        await queue.schedule('search.aggregates', '*/5 * * * *', {});
+        await queue.work(QUEUES.SEARCH_AGGREGATES, async () => { await refreshAllServiceAggregates(); });
+        await queue.schedule(QUEUES.SEARCH_AGGREGATES, '*/5 * * * *', {});
 
         // JOB: Provider Reliability Stats (Hourly)
         // Updates Success Rate based on recent order history
         const { calculateProviderReliability } = await import('./workers/reliability-worker');
-        await queue.work('provider.reliability', async () => { await calculateProviderReliability(); });
-        await queue.schedule('provider.reliability', '0 * * * *', {});
+        await queue.work(QUEUES.PROVIDER_RELIABILITY, async () => { await calculateProviderReliability(); });
+        await queue.schedule(QUEUES.PROVIDER_RELIABILITY, '0 * * * *', {});
 
         // ───────────────────────────────────────────────────────────────────────
         // DEAD LETTER MANAGEMENT

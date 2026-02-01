@@ -12,7 +12,9 @@ export const QUEUES = {
     SCHEDULED_SYNC: 'scheduled-sync',
     LIFECYCLE_CLEANUP: 'lifecycle-cleanup',
     PAYMENT_RECONCILE: 'payment-reconcile',
-    MASTER_WORKER: 'master-worker'
+    MASTER_WORKER: 'master-worker',
+    SEARCH_AGGREGATES: 'search.aggregates',
+    PROVIDER_RELIABILITY: 'provider.reliability'
 } as const
 
 class QueueService {
