@@ -320,10 +320,24 @@ export default function AuthenticationSettingsPage() {
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [hasChanges, setHasChanges] = useState(false)
+    const [csrfToken, setCsrfToken] = useState<string>('')
 
     useEffect(() => {
         fetchSettings()
+        fetchCsrf()
     }, [])
+
+    async function fetchCsrf() {
+        try {
+            const res = await fetch('/api/csrf')
+            const data = await res.json()
+            if (data.success) {
+                setCsrfToken(data.token)
+            }
+        } catch (e) {
+            console.error('Failed to fetch CSRF token')
+        }
+    }
 
     async function fetchSettings() {
         try {
@@ -346,7 +360,10 @@ export default function AuthenticationSettingsPage() {
         try {
             const res = await fetch('/api/admin/auth-settings', {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-csrf-token': csrfToken
+                },
                 body: JSON.stringify(settings)
             })
             if (res.ok) {
