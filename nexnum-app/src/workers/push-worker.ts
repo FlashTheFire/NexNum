@@ -13,13 +13,13 @@ if (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
     )
 }
 
-interface NotificationJob {
-    notificationId: string
-    userId: string
-    title: string
-    message: string
-    data?: any
-}
+// interface NotificationJob {
+//     notificationId: string
+//     userId: string
+//     title: string
+//     message: string
+//     data?: any
+// }
 
 interface ProcessResult {
     processed: number
@@ -96,8 +96,8 @@ export async function processPushBatch(batchSize = 20): Promise<ProcessResult> {
                             }
                         }, payload)
                         return { status: 'fulfilled', subId: sub.id }
-                    } catch (error: any) {
-                        return { status: 'rejected', subId: sub.id, error }
+                    } catch (error: unknown) {
+                        return { status: 'rejected', subId: sub.id, error: error instanceof Error ? error.message : String(error) }
                     }
                 })
             )
@@ -118,9 +118,10 @@ export async function processPushBatch(batchSize = 20): Promise<ProcessResult> {
             // Success (at least processed without crash)
             await queue.complete(QUEUES.NOTIFICATION_DELIVERY, job.id)
             result.succeeded++
-        } catch (error: any) {
-            logger.error(`[PushWorker] Job ${job.id} failed:`, error)
-            await queue.fail(QUEUES.NOTIFICATION_DELIVERY, job.id, error)
+        } catch (error: unknown) {
+            const msg = error instanceof Error ? error.message : String(error)
+            logger.error(`[PushWorker] Job ${job.id} failed:`, { error: msg })
+            await queue.fail(QUEUES.NOTIFICATION_DELIVERY, job.id, new Error(msg))
             result.failed++
         }
     }

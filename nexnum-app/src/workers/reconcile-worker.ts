@@ -14,7 +14,7 @@ import { logger } from '@/lib/core/logger'
 import { redis } from '@/lib/core/redis'
 import { smsProvider } from '@/lib/providers'
 import { smsAudit } from '@/lib/sms/audit'
-import { REFUNDABLE_STATES, canTransition } from '@/lib/activation/activation-state-machine'
+import { REFUNDABLE_STATES } from '@/lib/activation/activation-state-machine'
 import { TimeoutsConfig, WorkersConfig } from '@/config'
 
 // ============================================
@@ -104,11 +104,12 @@ async function checkRefundGuards(
             if (providerStatus.status === 'received') {
                 return { allowed: false, reason: 'Provider status is received - blocking refund' }
             }
-        } catch (e: any) {
+        } catch (e: unknown) {
+            const error = e as { isLifecycleTerminal?: boolean; message: string };
             // If provider check fails with terminal state, that's OK for refund
-            if (!e.isLifecycleTerminal) {
+            if (!error.isLifecycleTerminal) {
                 // Non-terminal error - be cautious
-                logger.warn(`[Reconcile] Provider check failed, proceeding with caution: ${e.message}`)
+                logger.warn(`[Reconcile] Provider check failed, proceeding with caution: ${error.message}`)
             }
         }
     }
@@ -232,8 +233,9 @@ async function fixOrphans(orphans: OrphanedRecord[]): Promise<number> {
                     // Log for manual review
                     logger.warn(`[Reconcile] Orphan requires manual review: ${orphan.type}`, { id: orphan.id, details: orphan.details })
             }
-        } catch (e: any) {
-            logger.error(`[Reconcile] Failed to fix orphan ${orphan.id}: ${e.message}`)
+        } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e)
+            logger.error(`[Reconcile] Failed to fix orphan ${orphan.id}: ${msg}`)
         }
     }
 
@@ -294,8 +296,8 @@ export async function processReconciliationBatch(): Promise<ReconcileResult> {
                     })
                 })
                 results.purchaseOrders.succeeded++
-            } catch (err: any) {
-                logger.error(`[Reconcile] PurchaseOrder ${order.id} failed`, err)
+            } catch (err: unknown) {
+                logger.error(`[Reconcile] PurchaseOrder ${order.id} failed`, err as Record<string, unknown>)
                 results.purchaseOrders.failed++
             }
         }
@@ -327,8 +329,9 @@ export async function processReconciliationBatch(): Promise<ReconcileResult> {
                 })
                 results.activations.succeeded++
                 logger.info(`[Reconcile] Activation ${activation.id} -> FAILED (stuck)`)
-            } catch (err: any) {
-                logger.error(`[Reconcile] Activation ${activation.id} failed`, err)
+                logger.info(`[Reconcile] Activation ${activation.id} -> FAILED (stuck)`)
+            } catch (err: unknown) {
+                logger.error(`[Reconcile] Activation ${activation.id} failed`, err as Record<string, unknown>)
                 results.activations.failed++
             }
         }
@@ -394,8 +397,9 @@ export async function processReconciliationBatch(): Promise<ReconcileResult> {
                 })
                 results.refunds.succeeded++
                 logger.info(`[Reconcile] Activation ${activation.id} -> REFUNDED`)
-            } catch (err: any) {
-                logger.error(`[Reconcile] Refund for ${activation.id} failed`, err)
+                logger.info(`[Reconcile] Activation ${activation.id} -> REFUNDED`)
+            } catch (err: unknown) {
+                logger.error(`[Reconcile] Refund for ${activation.id} failed`, err as Record<string, unknown>)
                 results.refunds.failed++
             }
         }

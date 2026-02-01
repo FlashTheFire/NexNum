@@ -4,11 +4,11 @@ import { api, type SmsMessage, type PhoneNumber } from '@/lib/api/api-client'
 import { getCountryFlagUrlSync } from "@/lib/normalizers/country-flags"
 
 // Request deduplication cache
-const pendingFetches = new Map<string, Promise<any>>()
+const pendingFetches = new Map<string, Promise<unknown>>()
 
 function dedupe<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
     if (pendingFetches.has(key)) {
-        return pendingFetches.get(key)!
+        return pendingFetches.get(key)! as Promise<T>
     }
     const promise = fetcher().finally(() => pendingFetches.delete(key))
     pendingFetches.set(key, promise)
@@ -75,7 +75,7 @@ interface GlobalState {
 
     // Actions - Mutations via API
     topUp: (amount: number) => Promise<{ success: boolean; error?: string }>
-    purchaseNumber: (countryCode: string, serviceCode: string, provider?: string, options?: { useBestRoute?: boolean; maxPrice?: number }) => Promise<{ success: boolean; number?: PhoneNumber; error?: string; code?: string; details?: any }>
+    purchaseNumber: (countryCode: string, serviceCode: string, provider?: string, options?: { useBestRoute?: boolean; maxPrice?: number }) => Promise<{ success: boolean; number?: PhoneNumber; error?: string; code?: string; details?: Record<string, unknown> }>
     setCancel: (id: string) => Promise<{ success: boolean; error?: string }>
     setResendCode: (id: string) => Promise<{ success: boolean; error?: string }>
     completeNumber: (id: string) => Promise<{ success: boolean; error?: string }>
@@ -149,31 +149,31 @@ export const useGlobalStore = create<GlobalState>()(
 
                     if (data.success) {
                         // Map API response to store format
-                        const numbers: ActiveNumber[] = data.numbers.map((n: any) => ({
-                            id: n.id,
-                            number: n.phoneNumber,
-                            countryCode: n.countryCode,
-                            countryName: n.countryName || '',
-                            countryIconUrl: n.countryIconUrl || getCountryFlagUrlSync(n.countryName || n.countryCode),
-                            serviceName: n.serviceName || '',
-                            serviceCode: n.serviceCode,
-                            serviceIconUrl: n.serviceIconUrl,
+                        const numbers: ActiveNumber[] = data.numbers.map((n: Record<string, unknown>) => ({
+                            id: n.id as string,
+                            number: n.phoneNumber as string,
+                            countryCode: n.countryCode as string,
+                            countryName: (n.countryName as string) || '',
+                            countryIconUrl: (n.countryIconUrl as string) || getCountryFlagUrlSync((n.countryName as string) || (n.countryCode as string)),
+                            serviceName: (n.serviceName as string) || '',
+                            serviceCode: n.serviceCode as string,
+                            serviceIconUrl: n.serviceIconUrl as string,
                             price: Number(n.price) || 0,
-                            expiresAt: n.expiresAt || '',
-                            purchasedAt: n.purchasedAt || undefined,
-                            smsCount: n.smsCount || 0,
+                            expiresAt: (n.expiresAt as string) || '',
+                            purchasedAt: (n.purchasedAt as string) || undefined,
+                            smsCount: (n.smsCount as number) || 0,
                             status: n.status as ActiveNumber['status'],
-                            latestSms: n.latestSms,
+                            latestSms: n.latestSms as ActiveNumber['latestSms'],
                         }))
 
-                        const transactions: Transaction[] = data.transactions.map((t: any) => ({
-                            id: t.id,
+                        const transactions: Transaction[] = data.transactions.map((t: Record<string, unknown>) => ({
+                            id: t.id as string,
                             type: t.type as Transaction['type'],
-                            amount: Math.abs(t.amount),
-                            date: t.createdAt,
-                            createdAt: t.createdAt,
+                            amount: Math.abs(t.amount as number),
+                            date: t.createdAt as string,
+                            createdAt: t.createdAt as string,
                             status: 'completed' as const,
-                            description: t.description || '',
+                            description: (t.description as string) || '',
                         }))
 
                         set({
@@ -189,8 +189,8 @@ export const useGlobalStore = create<GlobalState>()(
                     } else {
                         set({ isLoadingDashboard: false })
                     }
-                } catch (error) {
-                    console.error('[AppStore] fetchDashboardState error:', error)
+                } catch (_error) {
+                    console.error('[AppStore] fetchDashboardState error:', _error)
                     set({ isLoadingDashboard: false })
                 }
             },
@@ -222,21 +222,21 @@ export const useGlobalStore = create<GlobalState>()(
                         return
                     }
 
-                    const numbers: ActiveNumber[] = (result.data.numbers || []).map((n: any) => ({
-                        id: n.id,
-                        number: n.phoneNumber,
-                        countryCode: n.countryCode,
-                        countryName: n.countryName || '',
-                        countryIconUrl: n.countryIconUrl || getCountryFlagUrlSync(n.countryName || n.countryCode),
-                        serviceName: n.serviceName || '',
-                        serviceCode: n.serviceCode,
-                        serviceIconUrl: n.serviceIconUrl,
+                    const numbers: ActiveNumber[] = (result.data.numbers || []).map((n: Record<string, unknown>) => ({
+                        id: n.id as string,
+                        number: n.phoneNumber as string,
+                        countryCode: n.countryCode as string,
+                        countryName: (n.countryName as string) || '',
+                        countryIconUrl: (n.countryIconUrl as string) || getCountryFlagUrlSync((n.countryName as string) || (n.countryCode as string)),
+                        serviceName: (n.serviceName as string) || '',
+                        serviceCode: n.serviceCode as string,
+                        serviceIconUrl: n.serviceIconUrl as string,
                         price: Number(n.price) || 0,
-                        expiresAt: n.expiresAt || '',
-                        purchasedAt: n.purchasedAt || undefined,
-                        smsCount: n.smsCount || 0,
+                        expiresAt: (n.expiresAt as string) || '',
+                        purchasedAt: (n.purchasedAt as string) || undefined,
+                        smsCount: (n.smsCount as number) || 0,
                         status: n.status as ActiveNumber['status'],
-                        latestSms: n.latestSms,
+                        latestSms: n.latestSms as ActiveNumber['latestSms'],
                     }))
                     set({ activeNumbers: numbers, isLoadingNumbers: false })
                 })
@@ -251,14 +251,14 @@ export const useGlobalStore = create<GlobalState>()(
                         set({ isLoadingTransactions: false })
                         return
                     }
-                    const transactions: Transaction[] = (result.data.transactions || []).map((t: any) => ({
-                        id: t.id,
+                    const transactions: Transaction[] = (result.data.transactions || []).map((t: Record<string, unknown>) => ({
+                        id: t.id as string,
                         type: t.type as Transaction['type'],
-                        amount: Math.abs(t.amount),
-                        date: t.createdAt,
-                        createdAt: t.createdAt,
+                        amount: Math.abs(t.amount as number),
+                        date: t.createdAt as string,
+                        createdAt: t.createdAt as string,
                         status: 'completed' as const,
-                        description: t.description || '',
+                        description: (t.description as string) || '',
                     }))
                     set({ transactions, isLoadingTransactions: false })
                 })
@@ -295,14 +295,14 @@ export const useGlobalStore = create<GlobalState>()(
                         throw new Error(result.error || 'Top-up failed')
                     }
                     return result
-                } catch (error: any) {
+                } catch (error: unknown) {
                     // ROLLBACK
                     set({ userProfile: { balance: prevBalance } })
                     // Remove temp transaction
                     set(state => ({
                         transactions: state.transactions.filter(t => !t.id.startsWith('temp-'))
                     }))
-                    return { success: false, error: error.message }
+                    return { success: false, error: (error instanceof Error ? error.message : String(error)) }
                 }
             },
 
@@ -356,9 +356,8 @@ export const useGlobalStore = create<GlobalState>()(
 
                     } else {
                         // Pass specific error structure for UI handling
-                        const error: any = new Error(result.error || 'Purchase failed')
-                        error.code = result.code
-                        error.details = result.details
+                        const error = new Error(result.error || 'Purchase failed')
+                        Object.assign(error, { code: result.code, details: result.details })
                         throw error
                     }
                     return result
@@ -367,11 +366,12 @@ export const useGlobalStore = create<GlobalState>()(
                     set(state => ({
                         activeNumbers: state.activeNumbers.filter(n => n.id !== tempId)
                     }))
+                    const err = error as { message: string, code?: string, details?: any };
                     return {
                         success: false,
-                        error: error.message,
-                        code: error.code,
-                        details: error.details
+                        error: (error instanceof Error ? error.message : String(error)),
+                        code: err.code,
+                        details: err.details
                     }
                 }
             },
@@ -411,8 +411,8 @@ export const useGlobalStore = create<GlobalState>()(
                         get().fetchDashboardState()
                     }
                     return result
-                } catch (error: any) {
-                    return { success: false, error: error.message }
+                } catch (error: unknown) {
+                    return { success: false, error: (error instanceof Error ? error.message : String(error)) }
                 }
             },
 

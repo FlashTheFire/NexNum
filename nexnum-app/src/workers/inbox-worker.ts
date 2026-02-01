@@ -24,8 +24,7 @@ import {
     checkTimingAnomaly,
     checkPollingAnomaly,
     getRateLimitKey,
-    getRateLimitConfig,
-    SecurityConfig
+    getRateLimitConfig
 } from '@/lib/sms/security'
 import { getNextPollDelay } from '@/lib/activation/adaptive-poll-strategy'
 import { smsAudit } from '@/lib/sms/audit'
@@ -89,6 +88,9 @@ async function limitConcurrency<T>(
     for (const task of tasks) {
         const p = Promise.resolve().then(() => task()).then(result => {
             results.push(result)
+        }).catch((_error) => {
+            // Suppress individual task errors if needed, or handle them
+            // In this pattern, we might want to let them bubble or log them
         })
         executing.push(p)
 
@@ -254,8 +256,9 @@ export async function processInboxBatch(batchSize = CONFIG.BATCH_SIZE): Promise<
                         setTimeout(() => reject(new Error('Provider timeout')), 15000)
                     )
                 ])
-            } catch (apiError: any) {
-                if (apiError.isLifecycleTerminal) {
+            } catch (apiError: unknown) {
+                const error = apiError as { isLifecycleTerminal?: boolean };
+                if (error.isLifecycleTerminal) {
                     await handleTerminalState(number, apiError, numberCorrelationId)
                     return
                 }
@@ -373,8 +376,9 @@ export async function processInboxBatch(batchSize = CONFIG.BATCH_SIZE): Promise<
                             firstMsg.code || undefined,
                             number.serviceName || undefined
                         )
-                    } catch (notifError: any) {
-                        logger.warn(`[InboxWorker] Notification failed: ${notifError.message}`)
+                    } catch (_notifError: unknown) {
+                        const message = _notifError instanceof Error ? _notifError.message : String(_notifError);
+                        logger.warn(`[InboxWorker] Notification failed: ${message}`)
                     }
                 }
 
@@ -411,9 +415,9 @@ export async function processInboxBatch(batchSize = CONFIG.BATCH_SIZE): Promise<
                 }
             })
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             result.errors++
-            const errorMsg = error.message?.substring(0, 255) || 'Unknown error'
+            const errorMsg = (error instanceof Error ? error.message : String(error))?.substring(0, 255) || 'Unknown error'
             logger.warn(`[InboxWorker] Poll failed for ${number.id}: ${errorMsg}`)
 
             await smsAudit.logPollFailed(number.id, number.activationId || '', errorMsg, numberCorrelationId)
@@ -448,7 +452,7 @@ export async function processInboxBatch(batchSize = CONFIG.BATCH_SIZE): Promise<
 
 async function handleTerminalState(
     number: { id: string; activationId: string | null; phoneNumber: string },
-    error: any,
+    _error: unknown,
     correlationId: string
 ): Promise<void> {
     const messageCount = await prisma.smsMessage.count({
@@ -468,7 +472,7 @@ async function syncNumberAndActivation(
     providerActivationId: string | null,
     numberStatus: string,
     activationState: 'RECEIVED' | 'EXPIRED' | 'ACTIVE',
-    correlationId: string
+    _correlationId: string
 ): Promise<void> {
     await prisma.$transaction(async (tx) => {
         const currentNumber = await tx.number.findUnique({

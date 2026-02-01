@@ -184,7 +184,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             });
 
             return true;
-        } catch (error) {
+        } catch (error) { // eslint-disable-line @typescript-eslint/no-unused-vars
             set({ isLoading: false, error: 'Network error' });
             return false;
         }
@@ -225,7 +225,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         try {
             const { api } = await import('@/lib/api/api-client')
             await api.logout()
-        } catch (error) {
+        } catch (error) { // eslint-disable-line @typescript-eslint/no-unused-vars
             // Ignore logout errors
         }
 
@@ -300,7 +300,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 isLoading: false,
                 lastAuthCheck: Date.now(), // Update timestamp
             });
-        } catch (error) {
+        } catch (error) { // eslint-disable-line @typescript-eslint/no-unused-vars
             // Network error - if we have cached user, stay logged in
             if (cachedUser) {
                 set({

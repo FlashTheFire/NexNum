@@ -1,23 +1,16 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { motion, AnimatePresence } from "framer-motion"
+import { motion, AnimatePresence, Variants } from "framer-motion"
 import {
     Wallet,
-    CreditCard as CreditCardIcon,
     Plus,
-    Loader2,
     Shield,
     ArrowUpRight,
     ArrowDownRight,
     History,
-    CheckCircle2,
     Sparkles,
-    ChevronRight,
     Lock,
-    Smartphone,
-    Copy,
-    Filter,
     Download,
     Search,
     RefreshCw
@@ -27,19 +20,19 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { useGlobalStore, Transaction } from "@/stores/appStore"
+import { useGlobalStore } from "@/stores/appStore"
 import { useAuthStore } from "@/stores/authStore"
-import { formatRelativeTime, cn } from "@/lib/utils/utils"
+import { cn } from "@/lib/utils/utils"
 import { BalanceDisplay, PriceDisplay } from "@/components/common/PriceDisplay"
 import { useCurrency } from "@/providers/CurrencyProvider"
 
 // Animation Variants
-const fadeInUp: any = {
+const fadeInUp: Variants = {
     hidden: { opacity: 0, y: 20 },
     visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" } }
 }
 
-const containerVariants: any = {
+const containerVariants: Variants = {
     hidden: { opacity: 0 },
     visible: {
         opacity: 1,
@@ -47,7 +40,7 @@ const containerVariants: any = {
     }
 }
 
-const cardTilt: any = {
+const cardTilt: Variants = {
     rest: { rotateX: 0, rotateY: 0, scale: 1 },
     hover: {
         rotateX: 2,
@@ -64,15 +57,13 @@ export default function WalletPage() {
     const { userProfile, transactions, topUp, fetchTransactions, isLoadingTransactions } = useGlobalStore()
     const [amount, setAmount] = useState<string>("")
     const [isLoading, setIsLoading] = useState(false)
-    const [selectedMethod, setSelectedMethod] = useState("upi")
     const [customFocused, setCustomFocused] = useState(false)
     const { currencies, preferredCurrency, formatPrice: formatPriceContext, settings } = useCurrency()
-    const pointsRate = settings?.pointsRate || 100
+    const pointsRate = Number(settings?.pointsRate) || 100
     const currencySym = currencies[preferredCurrency]?.symbol || '$'
 
     // Filters
     const [filterType, setFilterType] = useState<'all' | 'credit' | 'debit'>('all')
-    const [searchQuery, setSearchQuery] = useState("")
 
     useEffect(() => {
         fetchTransactions()
@@ -93,18 +84,14 @@ export default function WalletPage() {
             }, 5000)
         }
         return () => clearTimeout(timeout)
-    }, [isLoading, amount, topUp])
+    }, [isLoading, amount, topUp, formatPriceContext])
 
     // Calculate simulated "Card Number" based on User ID for consistent personalization
     const userCardLast4 = user?.id ? user.id.slice(-4).toUpperCase() : "8888"
 
     // Filter Logic
+    // Filter Logic
     const filteredTransactions = transactions.filter(t => {
-        const matchesSearch = t.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            t.id.toLowerCase().includes(searchQuery.toLowerCase())
-
-        if (!matchesSearch) return false
-
         if (filterType === 'all') return true
         if (filterType === 'credit') return ['topup', 'manual_credit', 'referral_bonus'].includes(t.type)
         if (filterType === 'debit') return ['purchase', 'manual_debit'].includes(t.type)
@@ -486,7 +473,7 @@ export default function WalletPage() {
                                             </div>
                                             <h3 className="text-lg font-medium text-white">No transactions found</h3>
                                             <p className="text-sm text-muted-foreground mt-1 max-w-xs mx-auto">
-                                                We couldn't find any transactions matching your current filters.
+                                                We couldn&apos;t find any transactions matching your current filters.
                                             </p>
                                         </div>
                                     )}

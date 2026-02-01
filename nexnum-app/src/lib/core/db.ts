@@ -27,10 +27,12 @@ function createPrismaClient(url?: string): PrismaClient {
     const isProduction = process.env.NODE_ENV === 'production'
     const pool = new Pool({
         connectionString,
-        max: isProduction ? 5 : 3, // Reduced for PgBouncer session mode compatibility
-        idleTimeoutMillis: 30000,
+        // Supabase Transaction Limit: In session mode, max clients are limited.
+        // We must stick to very low concurrent connections per instance in Docker.
+        max: isProduction ? 3 : 5,
+        idleTimeoutMillis: 20000,
         connectionTimeoutMillis: 5000, // Faster failure
-        maxUses: 7500, // Recycle connections to prevent memory leaks
+        maxUses: 5000,
     })
 
     // Graceful shutdown to release connections back to PgBouncer pool

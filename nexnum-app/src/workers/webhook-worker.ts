@@ -15,7 +15,7 @@ import { logger } from '@/lib/core/logger'
 interface WebhookJob {
     deliveryId: string
     url: string
-    payload: any
+    payload: Record<string, unknown>
     signature: string
     attempts: number
 }
@@ -78,9 +78,10 @@ export async function registerWebhookWorker() {
                     throw new Error(`HTTP ${response.status}: ${responseBody.substring(0, 100)}`)
                 }
 
-            } catch (error: any) {
+            } catch (error: unknown) {
                 const durationMs = Date.now() - start
-                logger.warn(`[WebhookWorker] Delivery failed for ${deliveryId}`, { error: error.message })
+                const msg = error instanceof Error ? error.message : String(error)
+                logger.warn(`[WebhookWorker] Delivery failed for ${deliveryId}`, { error: msg })
 
                 // Update Delivery as failed
                 await prisma.webhookDelivery.update({

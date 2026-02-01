@@ -33,8 +33,9 @@ export async function startQueueWorker() {
                 try {
                     const { syncProviderData, syncAllProviders } = await import('./lib/providers/provider-sync');
                     if (provider) await syncProviderData(provider); else await syncAllProviders();
-                } catch (error: any) {
-                    logger.error(`[Worker] Sync failed`, { jobId: job.id, error: error.message });
+                } catch (error: unknown) {
+                    const errorMsg = error instanceof Error ? error.message : String(error);
+                    logger.error(`[Worker] Sync failed`, { jobId: job.id, error: errorMsg });
                     throw error;
                 }
             }
@@ -98,8 +99,9 @@ export async function startQueueWorker() {
                 const { syncAllProviders } = await import('./lib/providers/provider-sync');
                 await syncAllProviders();
                 logger.info('[Worker] Force sync completed successfully.');
-            } catch (err: any) {
-                logger.error('[Worker] Force sync failed:', { error: err.message });
+            } catch (err: unknown) {
+                const errorMsg = err instanceof Error ? err.message : String(err);
+                logger.error('[Worker] Force sync failed:', { error: errorMsg });
             }
         }
     } catch (e) {

@@ -3,8 +3,8 @@ import { processActivationOutbox } from '@/lib/activation/activation-outbox-work
 import { processOutboxEvents } from '@/lib/activation/outbox' // Search Index Sync
 import { processPushBatch } from '@/workers/push-worker'
 import { processInboxBatch } from '@/workers/inbox-worker'
-import { processReconciliationBatch } from '@/workers/reconcile-worker'
-import { cleanupNow } from '@/lib/activation/reservation-cleanup'
+// import { processReconciliationBatch } from '@/workers/reconcile-worker'
+// import { cleanupNow } from '@/lib/activation/reservation-cleanup'
 import { logger } from '@/lib/core/logger'
 
 interface MasterWorkerResult {
@@ -33,31 +33,35 @@ export async function runMasterWorker(): Promise<MasterWorkerResult> {
         // PRIORITY 1: CORE TELEPHONY OPERATIONS
         try {
             results.outbox = await processActivationOutbox(20)
-        } catch (e: any) {
-            logger.error('Outbox Critical Failure', { error: e.message })
-            errors.push(`Outbox: ${e.message}`)
+        } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e)
+            logger.error('Outbox Critical Failure', { error: msg })
+            errors.push(`Outbox: ${msg}`)
         }
 
         try {
             results.searchSync = await processOutboxEvents(20)
-        } catch (e: any) {
-            logger.error('Search Sync Failure', { error: e.message })
-            errors.push(`SearchSync: ${e.message}`)
+        } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e)
+            logger.error('Search Sync Failure', { error: msg })
+            errors.push(`SearchSync: ${msg}`)
         }
 
         try {
             results.inbox = await processInboxBatch(50)
-        } catch (e: any) {
-            logger.error('Inbox Polling Failure', { error: e.message })
-            errors.push(`Inbox: ${e.message}`)
+        } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e)
+            logger.error('Inbox Polling Failure', { error: msg })
+            errors.push(`Inbox: ${msg}`)
         }
 
         // PRIORITY 2: USER ENGAGEMENT
         try {
             results.notifications = await processPushBatch(50)
-        } catch (e: any) {
-            logger.error('Push Delivery Failure', { error: e.message })
-            errors.push(`Push: ${e.message}`)
+        } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e)
+            logger.error('Push Delivery Failure', { error: msg })
+            errors.push(`Push: ${msg}`)
         }
 
         // PRIORITY 3 operations (Cleanup, Reconcile) moved to Cron Workers
@@ -68,9 +72,10 @@ export async function runMasterWorker(): Promise<MasterWorkerResult> {
         // REMOVED from worker loop - now runs ONLY during provider sync (worker-entry.ts)
         // This eliminates the frequent "[ASSETS] Scanning..." logs
 
-    } catch (criticalError: any) {
-        logger.error('Worker Loop Critical Failure', { error: criticalError.message })
-        errors.push(`Critical: ${criticalError.message}`)
+    } catch (criticalError: unknown) {
+        const msg = criticalError instanceof Error ? criticalError.message : String(criticalError)
+        logger.error('Worker Loop Critical Failure', { error: msg })
+        errors.push(`Critical: ${msg}`)
     }
 
     const duration = Date.now() - start
