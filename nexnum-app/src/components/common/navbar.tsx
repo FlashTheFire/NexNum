@@ -61,7 +61,7 @@ export function Navbar() {
                         : "bg-transparent"
                 )}
             >
-                <div className="container mx-auto px-4 lg:px-6">
+                <div className="max-w-[1800px] w-full mx-auto px-6 lg:px-10">
                     {/* User Provided Structure: h-16 lg:h-[72px] flex items-center justify-between */}
                     <div className="h-16 lg:h-[72px] flex items-center justify-between">
 
