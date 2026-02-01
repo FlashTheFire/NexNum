@@ -73,6 +73,12 @@ export async function startQueueWorker() {
         await queue.work(QUEUES.PAYMENT_RECONCILE, async () => { await processReconciliationBatch(); });
         await queue.schedule(QUEUES.PAYMENT_RECONCILE, '*/15 * * * *', {});
 
+        // JOB: Search Aggregates Refresh (Every 5m)
+        // Critical for "Search Services" API - keeps DB stats in sync with MeiliSearch
+        const { refreshAllServiceAggregates } = await import('./lib/search/service-aggregates');
+        await queue.work('search.aggregates', async () => { await refreshAllServiceAggregates(); });
+        await queue.schedule('search.aggregates', '*/5 * * * *', {});
+
         // ───────────────────────────────────────────────────────────────────────
         // DEAD LETTER MANAGEMENT
         // ───────────────────────────────────────────────────────────────────────
