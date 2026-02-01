@@ -27,9 +27,10 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN DATABASE_URL=postgres://localhost:5432/placeholder \
     JWT_SECRET=placeholder_for_build_must_be_32_chars_long \
     ENCRYPTION_KEY=placeholder_for_build_must_be_32_chars_long \
+    HOME=/tmp \
     npm run build:skip-types
 # Prune for production
-RUN --mount=type=cache,target=/root/.npm npm prune --omit=dev
+RUN --mount=type=cache,target=/root/.npm HOME=/tmp npm prune --omit=dev
 
 
 
