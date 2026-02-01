@@ -37,6 +37,27 @@ const stagger = {
     visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
 }
 
+const MiniBarChart = ({ color }: { color: string }) => {
+    // Dummy data for the last 7 days (heights)
+    const data = [30, 15, 15, 30, 20, 15, 30]
+    return (
+        <svg width="60" height="24" viewBox="0 0 60 24" className="opacity-40 group-hover:opacity-100 transition-opacity duration-500">
+            {data.map((h, i) => (
+                <rect
+                    key={i}
+                    x={i * 8}
+                    y={24 - h}
+                    width="4"
+                    height={h}
+                    rx="2"
+                    fill={color}
+                    className="transition-all duration-500"
+                />
+            ))}
+        </svg>
+    )
+}
+
 export function DesktopDashboard() {
     const { user } = useAuthStore()
     const { userProfile, activeNumbers, transactions } = useGlobalStore()
@@ -62,10 +83,10 @@ export function DesktopDashboard() {
         .reduce((sum, t) => sum + Math.abs(t.amount), 0)
 
     const stats = [
-        { label: t('stats.balance'), value: <BalanceDisplay balanceInPoints={userProfile?.balance || 0} />, icon: Wallet, color: "text-[hsl(var(--neon-lime))]", bg: "bg-[hsl(var(--neon-lime)/0.1)]", border: "border-[hsl(var(--neon-lime)/0.2)]" },
-        { label: t('stats.myNumbers'), value: activeNumbers.length, icon: Phone, color: "text-cyan-400", bg: "bg-cyan-400/10", border: "border-cyan-400/20" },
-        { label: t('stats.spent'), value: <PriceDisplay amountInPoints={totalSpent} />, icon: ShoppingCart, color: "text-purple-400", bg: "bg-purple-400/10", border: "border-purple-400/20" },
-        { label: t('stats.deposited'), value: <PriceDisplay amountInPoints={totalDeposit} />, icon: TrendingUp, color: "text-emerald-400", bg: "bg-emerald-400/10", border: "border-emerald-400/20" },
+        { label: t('stats.balance'), value: <BalanceDisplay balanceInPoints={userProfile?.balance || 0} />, icon: Wallet, color: "text-[hsl(var(--neon-lime))]", fill: "hsl(var(--neon-lime))", bg: "bg-[hsl(var(--neon-lime)/0.1)]", border: "border-[hsl(var(--neon-lime)/0.2)]" },
+        { label: t('stats.myNumbers'), value: activeNumbers.length, icon: Phone, color: "text-cyan-400", fill: "#22d3ee", bg: "bg-cyan-400/10", border: "border-cyan-400/20" },
+        { label: t('stats.spent'), value: <PriceDisplay amountInPoints={totalSpent} />, icon: ShoppingCart, color: "text-purple-400", fill: "#c084fc", bg: "bg-purple-400/10", border: "border-purple-400/20" },
+        { label: t('stats.deposited'), value: <PriceDisplay amountInPoints={totalDeposit} />, icon: TrendingUp, color: "text-emerald-400", fill: "#34d399", bg: "bg-emerald-400/10", border: "border-emerald-400/20" },
     ]
 
     return (
@@ -74,7 +95,7 @@ export function DesktopDashboard() {
 
             <div className="relative z-10 px-6 py-6 max-w-[1800px] mx-auto space-y-6">
 
-                {/* 1. Header Section (Compact & Horizontal Content) */}
+                {/* 1. Header Section (Refined Content) */}
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-2">
                     <motion.div
                         initial="hidden"
@@ -83,18 +104,9 @@ export function DesktopDashboard() {
                         className="space-y-1"
                         style={{ y: yHero }}
                     >
-                        <div className="flex items-center gap-3">
-                            <motion.div variants={fadeIn} className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 backdrop-blur-md">
-                                <span className="relative flex h-1.5 w-1.5">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
-                                </span>
-                                <span className="text-[10px] font-bold text-emerald-100 tracking-wider uppercase opacity-80">{t('status.operational')}</span>
-                            </motion.div>
-                            <motion.h1 variants={fadeIn} className="text-xl lg:text-2xl font-bold tracking-tight text-white leading-tight">
-                                {greeting}, <span className="text-[hsl(var(--neon-lime))]">{user?.name?.split(' ')[0] || "Trader"}</span>
-                            </motion.h1>
-                        </div>
+                        <motion.h1 variants={fadeIn} className="text-xl lg:text-3xl font-bold tracking-tight text-white leading-tight">
+                            {greeting}, <span className="text-[hsl(var(--neon-lime))]">{user?.name?.split(' ')[0] || "Trader"}</span>
+                        </motion.h1>
                         <motion.p variants={fadeIn} className="text-sm text-gray-500 max-w-xl font-medium">
                             {t('hero.subtitle')}
                         </motion.p>
@@ -115,7 +127,7 @@ export function DesktopDashboard() {
                     </motion.div>
                 </div>
 
-                {/* 2. Stats Grid (Compact & Horizontal) */}
+                {/* 2. Stats Grid (With Mini Charts) */}
                 <motion.div
                     variants={stagger}
                     initial="hidden"
@@ -130,13 +142,16 @@ export function DesktopDashboard() {
                             className="relative group"
                         >
                             <div className="absolute -inset-[1px] rounded-[20px] bg-gradient-to-br from-white/10 via-transparent to-transparent opacity-40 group-hover:opacity-100 group-hover:via-[hsl(var(--neon-lime)/0.2)] transition-all duration-500" />
-                            <div className="relative rounded-[19px] bg-[#0d0d10]/60 backdrop-blur-xl p-4 flex items-center gap-4 overflow-hidden">
-                                <div className={`p-3 rounded-xl ${stat.bg} ${stat.color} ring-1 ring-white/5 transition-transform duration-300 group-hover:scale-110 shadow-lg`}>
-                                    <stat.icon className="h-5 w-5" />
+                            <div className="relative rounded-[19px] bg-[#0d0d10]/60 backdrop-blur-xl p-4 flex items-center gap-4 overflow-hidden border border-white/5">
+                                <div className={`p-2.5 rounded-xl ${stat.bg} ${stat.color} ring-1 ring-white/5 transition-transform duration-300 group-hover:scale-105 shadow-lg flex-shrink-0`}>
+                                    <stat.icon className="h-4.5 w-4.5" />
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-0.5">{stat.label}</p>
-                                    <h3 className="text-xl font-bold text-white tracking-tight leading-none">{stat.value}</h3>
+                                    <h3 className="text-lg font-bold text-white tracking-tight leading-none truncate whitespace-nowrap">{stat.value}</h3>
+                                </div>
+                                <div className="hidden xl:block">
+                                    <MiniBarChart color={stat.fill} />
                                 </div>
                                 {/* Progress background */}
                                 <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-white/[0.03] overflow-hidden">

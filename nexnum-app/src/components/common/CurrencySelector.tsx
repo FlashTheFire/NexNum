@@ -20,21 +20,24 @@ export default function CurrencySelector() {
             onMouseEnter={() => setIsOpen(true)}
             onMouseLeave={() => setIsOpen(false)}
         >
-            {/* Trigger Button - Circular like Language Selector */}
+            {/* Trigger Button - Rectangular with Symbol/Code */}
             <button
                 className={cn(
-                    "flex items-center justify-center w-10 h-10 rounded-full transition-all duration-300",
-                    "hover:bg-white/[0.08] active:scale-95",
-                    isOpen ? "bg-white/[0.08] shadow-[0_0_15px_rgba(255,255,255,0.1)]" : "bg-transparent"
+                    "flex items-center gap-2 h-10 px-3.5 rounded-xl border transition-all duration-300",
+                    "bg-white/[0.03] border-white/[0.08] hover:bg-white/[0.06] hover:border-white/20 active:scale-[0.98]",
+                    isOpen ? "bg-white/[0.06] border-[hsl(var(--neon-lime))/30] shadow-[0_0_20px_rgba(163,230,53,0.1)]" : "shadow-sm"
                 )}
                 aria-label="Select Currency"
                 onClick={() => setIsOpen(!isOpen)}
             >
-                <div className="flex items-center justify-center w-6 h-6 rounded-full bg-white/5 border border-white/10 filter drop-shadow-lg scale-110">
-                    <span className="text-[10px] font-bold text-white">
+                <div className="flex items-center justify-center w-5 h-5 rounded flex-shrink-0 bg-white/5 border border-white/10">
+                    <span className="text-[11px] font-bold text-white">
                         {currentCurrency.symbol}
                     </span>
                 </div>
+                <span className="text-sm font-bold text-gray-200">
+                    {currentCurrency.code}
+                </span>
             </button>
 
             {/* Dropdown menu */}

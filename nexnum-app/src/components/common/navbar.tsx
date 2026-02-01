@@ -90,9 +90,9 @@ export function Navbar() {
                             </div>
                         </Link>
 
-                        {/* 2. Center Navigation (Context Aware - Dashboard Links) */}
-                        <div className="hidden lg:flex items-center">
-                            <div className="flex items-center gap-1 px-2 py-1.5 rounded-full bg-white/[0.03] border border-white/[0.06]">
+                        {/* 2. Center Navigation (Perfectly Centered) */}
+                        <div className="hidden lg:flex items-center absolute left-1/2 -translate-x-1/2">
+                            <div className="flex items-center gap-1 px-2 py-1.5 rounded-full bg-white/[0.03] border border-white/[0.06] backdrop-blur-md shadow-sm">
                                 {[
                                     { href: "/dashboard", label: "Overview" },
                                     { href: "/dashboard/vault", label: "My Numbers" },
@@ -101,7 +101,7 @@ export function Navbar() {
                                 ].map((link) => (
                                     <Link key={link.href} href={link.href} className={cn(
                                         "px-4 py-2 text-sm font-medium rounded-full transition-all duration-200 flex items-center gap-1",
-                                        pathname === link.href ? "text-white bg-white/[0.06]" : "text-gray-400 hover:text-white hover:bg-white/[0.06]"
+                                        pathname === link.href ? "text-white bg-white/[0.06] shadow-inner" : "text-gray-400 hover:text-white hover:bg-white/[0.06]"
                                     )}>
                                         {link.label}
                                         {link.icon && <link.icon className="w-3 h-3" />}
