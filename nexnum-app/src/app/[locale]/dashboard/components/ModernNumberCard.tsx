@@ -61,7 +61,7 @@ export function ModernNumberCard({
 
             {/* Main card body */}
             <div
-                className="relative h-full p-3.5 bg-[#12141a]/90 backdrop-blur-md border border-white/[0.04] rounded-2xl overflow-hidden transition-all duration-200 group-hover:border-white/[0.08] group-hover:bg-[#15181e]/90"
+                className="relative h-full p-3 bg-[#12141a]/90 backdrop-blur-md border border-white/[0.04] rounded-2xl overflow-hidden transition-all duration-200 group-hover:border-white/[0.08] group-hover:bg-[#15181e]/90"
                 style={{
                     clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 20px), calc(100% - 20px) 100%, 0 100%)'
                 }}
@@ -83,10 +83,10 @@ export function ModernNumberCard({
                 <div className="absolute inset-0 bg-gradient-to-br from-white/[0.02] via-transparent to-[hsl(var(--neon-lime)/0.02)] pointer-events-none" />
 
                 {/* Content */}
-                <div className="relative z-10 flex flex-col justify-between h-full pb-1">
+                <div className="relative z-10 flex flex-col justify-between h-full pb-0.5">
                     <div className="flex items-start justify-between">
-                        <div className="relative w-8 h-8 flex-shrink-0">
-                            <div className="relative w-full h-full rounded-lg overflow-hidden transition-all duration-300 ring-1 ring-white/10 group-hover:scale-105">
+                        <div className="relative w-7 h-7 flex-shrink-0">
+                            <div className="relative w-full h-full rounded-md overflow-hidden transition-all duration-300 ring-1 ring-white/10 group-hover:scale-105">
                                 {serviceIconUrl ? (
                                     <img
                                         alt={serviceName}
@@ -94,12 +94,12 @@ export function ModernNumberCard({
                                         src={serviceIconUrl}
                                     />
                                 ) : (
-                                    <div className="w-full h-full bg-[#1A1D24] flex items-center justify-center text-gray-300 text-sm font-bold">
+                                    <div className="w-full h-full bg-[#1A1D24] flex items-center justify-center text-gray-300 text-xs font-bold">
                                         {serviceName?.charAt(0).toUpperCase()}
                                     </div>
                                 )}
                             </div>
-                            <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-[#151518] overflow-hidden shadow-md z-20">
+                            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#151518] overflow-hidden shadow-md z-20">
                                 <img
                                     alt={countryName}
                                     className="w-full h-full rounded-full object-cover shadow-sm ring-1 ring-white/10"
@@ -110,22 +110,22 @@ export function ModernNumberCard({
                         {/* Dynamic Status Badge */}
                         <div className="flex flex-col items-end gap-1">
                             {(!status || !['received', 'expired', 'cancelled', 'completed', 'timeout'].includes(status)) && (
-                                <div className="inline-flex items-center rounded-full border px-1.5 py-0.5 font-bold transition-colors border-emerald-500/30 text-emerald-400 text-[8px] uppercase tracking-wider bg-emerald-500/10 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
+                                <div className="inline-flex items-center rounded-full border px-1.5 py-px font-bold transition-colors border-emerald-500/30 text-emerald-400 text-[8px] uppercase tracking-wider bg-emerald-500/10 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
                                     {t('active')}
                                 </div>
                             )}
                             {(status === 'received' || status === 'completed') && (
-                                <div className="inline-flex items-center rounded-full border px-1.5 py-0.5 font-bold transition-colors border-emerald-500/30 text-emerald-400 text-[8px] uppercase tracking-wider bg-emerald-500/10 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
+                                <div className="inline-flex items-center rounded-full border px-1.5 py-px font-bold transition-colors border-emerald-500/30 text-emerald-400 text-[8px] uppercase tracking-wider bg-emerald-500/10 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
                                     {t('completed')}
                                 </div>
                             )}
                             {(status === 'expired' || status === 'timeout') && (
-                                <div className="inline-flex items-center rounded-full border px-1.5 py-0.5 font-bold transition-colors border-orange-500/30 text-orange-400 text-[8px] uppercase tracking-wider bg-orange-500/10">
+                                <div className="inline-flex items-center rounded-full border px-1.5 py-px font-bold transition-colors border-orange-500/30 text-orange-400 text-[8px] uppercase tracking-wider bg-orange-500/10">
                                     {t('expired')}
                                 </div>
                             )}
                             {status === 'cancelled' && (
-                                <div className="inline-flex items-center rounded-full border px-1.5 py-0.5 font-bold transition-colors border-red-500/30 text-red-400 text-[8px] uppercase tracking-wider bg-red-500/10">
+                                <div className="inline-flex items-center rounded-full border px-1.5 py-px font-bold transition-colors border-red-500/30 text-red-400 text-[8px] uppercase tracking-wider bg-red-500/10">
                                     {t('cancelled')}
                                 </div>
                             )}
@@ -133,11 +133,11 @@ export function ModernNumberCard({
                     </div>
 
                     <div className="space-y-0.5 pl-0.5">
-                        <p className="text-lg font-mono font-bold text-white tracking-wide truncate transition-all group-hover:text-[hsl(var(--neon-lime))]">{number}</p>
+                        <p className="text-base font-mono font-bold text-white tracking-wide truncate transition-all group-hover:text-[hsl(var(--neon-lime))]">{number}</p>
                         <div className="flex items-center gap-2">
-                            <span className="text-[10px] text-gray-500 font-bold uppercase truncate max-w-[80px] opacity-80">{serviceName}</span>
+                            <span className="text-[9px] text-gray-500 font-bold uppercase truncate max-w-[80px] opacity-80">{serviceName}</span>
                             <span className="w-0.5 h-0.5 rounded-full bg-gray-700"></span>
-                            <span className="text-[10px] text-[hsl(var(--neon-lime))] font-bold">{smsCount || 0} SMS</span>
+                            <span className="text-[9px] text-[hsl(var(--neon-lime))] font-bold">{smsCount || 0} SMS</span>
                         </div>
                     </div>
                 </div>
@@ -147,7 +147,7 @@ export function ModernNumberCard({
 
                 {/* Advanced Progress Bar */}
                 {expiresAt && status !== 'cancelled' && status !== 'expired' && (
-                    <div className="absolute bottom-0 left-0 w-full h-[3px] bg-white/[0.02] overflow-hidden">
+                    <div className="absolute bottom-0 left-0 w-full h-[2px] bg-white/[0.02] overflow-hidden">
                         {(() => {
                             const expiry = new Date(expiresAt).getTime()
                             const diff = expiry - now

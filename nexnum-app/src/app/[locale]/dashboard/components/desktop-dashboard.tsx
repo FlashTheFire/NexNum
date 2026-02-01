@@ -127,7 +127,7 @@ export function DesktopDashboard() {
                     </motion.div>
                 </div>
 
-                {/* 2. Stats Grid (With Mini Charts) */}
+                {/* 2. Stats Grid (High Density) */}
                 <motion.div
                     variants={stagger}
                     initial="hidden"
@@ -141,16 +141,16 @@ export function DesktopDashboard() {
                             variants={fadeIn}
                             className="relative group"
                         >
-                            <div className="absolute -inset-[1px] rounded-[20px] bg-gradient-to-br from-white/10 via-transparent to-transparent opacity-40 group-hover:opacity-100 group-hover:via-[hsl(var(--neon-lime)/0.2)] transition-all duration-500" />
-                            <div className="relative rounded-[19px] bg-[#0d0d10]/60 backdrop-blur-xl p-4 flex items-center gap-4 overflow-hidden border border-white/5">
-                                <div className={`p-2.5 rounded-xl ${stat.bg} ${stat.color} ring-1 ring-white/5 transition-transform duration-300 group-hover:scale-105 shadow-lg flex-shrink-0`}>
-                                    <stat.icon className="h-4.5 w-4.5" />
+                            <div className="absolute -inset-[1px] rounded-[18px] bg-gradient-to-br from-white/10 via-transparent to-transparent opacity-40 group-hover:opacity-100 group-hover:via-[hsl(var(--neon-lime)/0.2)] transition-all duration-500" />
+                            <div className="relative rounded-[17px] bg-[#0d0d10]/60 backdrop-blur-xl p-3.5 flex items-center gap-3 overflow-hidden border border-white/5 h-[80px]">
+                                <div className={`p-2 rounded-lg ${stat.bg} ${stat.color} ring-1 ring-white/5 transition-transform duration-300 group-hover:scale-105 shadow-lg flex-shrink-0`}>
+                                    <stat.icon className="h-4 w-4" />
                                 </div>
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-0.5">{stat.label}</p>
+                                <div className="flex-1 min-w-0 z-10">
+                                    <p className="text-[9px] font-bold text-gray-500 uppercase tracking-wider mb-0.5">{stat.label}</p>
                                     <h3 className="text-lg font-bold text-white tracking-tight leading-none truncate whitespace-nowrap">{stat.value}</h3>
                                 </div>
-                                <div className="hidden xl:block">
+                                <div className="hidden xl:block absolute right-2 bottom-2">
                                     <MiniBarChart color={stat.fill} />
                                 </div>
                                 {/* Progress background */}
@@ -159,7 +159,7 @@ export function DesktopDashboard() {
                                         initial={{ width: 0 }}
                                         whileInView={{ width: "65%" }}
                                         transition={{ duration: 1.2, delay: 0.1 + (i * 0.1) }}
-                                        className={`h-full ${stat.bg.replace('/0.1', '')} opacity-40`}
+                                        className={`h-full ${stat.bg.replace('/0.1', '')} opacity-60`}
                                     />
                                 </div>
                             </div>
@@ -167,7 +167,7 @@ export function DesktopDashboard() {
                     ))}
                 </motion.div>
 
-                {/* 3. Main Content: Active Numbers & History (Restored) */}
+                {/* 3. Main Content: Active Numbers & History (Ultra-Wide Support) */}
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                     {/* Active Numbers Card (Taking 3/4) */}
                     <motion.div
@@ -177,22 +177,22 @@ export function DesktopDashboard() {
                         className="lg:col-span-3 relative group"
                     >
                         <div className="absolute -inset-[1px] rounded-[24px] bg-gradient-to-b from-white/10 to-transparent opacity-40" />
-                        <div className="relative h-full rounded-[23px] bg-[#0c0e12]/80 backdrop-blur-3xl overflow-hidden flex flex-col">
-                            <div className="px-6 py-4 border-b border-white/[0.03] flex items-center justify-between">
+                        <div className="relative h-full rounded-[23px] bg-[#0c0e12]/80 backdrop-blur-3xl overflow-hidden flex flex-col border border-white/[0.02]">
+                            <div className="px-5 py-3 border-b border-white/[0.03] flex items-center justify-between bg-[#0f1115]/50">
                                 <div className="flex items-center gap-3">
-                                    <h3 className="text-lg font-bold text-white">{t('vault.title')}</h3>
-                                    <span className="px-2 py-0.5 rounded-md bg-[hsl(var(--neon-lime)/0.1)] text-[hsl(var(--neon-lime))] text-[9px] font-bold uppercase tracking-wider border border-[hsl(var(--neon-lime)/0.2)]">{t('vault.badge')}</span>
+                                    <h3 className="text-base font-bold text-white tracking-tight">{t('vault.title')}</h3>
+                                    <span className="px-2 py-0.5 rounded-md bg-[hsl(var(--neon-lime)/0.1)] text-[hsl(var(--neon-lime))] text-[9px] font-bold uppercase tracking-wider border border-[hsl(var(--neon-lime)/0.2)] shadow-[0_0_10px_hsla(var(--neon-lime),0.1)]">{t('vault.badge')}</span>
                                 </div>
                                 <Link href="/dashboard/vault">
-                                    <Button variant="ghost" size="sm" className="h-8 text-xs text-[hsl(var(--neon-lime))] hover:text-[hsl(var(--neon-lime))] hover:bg-[hsl(var(--neon-lime)/0.1)] gap-1.5 group/btn">
-                                        {t('vault.viewVault')} <ArrowRight className="h-3 w-3" />
+                                    <Button variant="ghost" size="sm" className="h-7 text-xs text-gray-400 hover:text-white hover:bg-white/[0.06] gap-1.5 group/btn rounded-full px-3">
+                                        {t('vault.viewVault')} <ArrowRight className="h-3 w-3 transition-transform group-hover/btn:translate-x-0.5" />
                                     </Button>
                                 </Link>
                             </div>
-                            <div className="p-6 flex-1">
+                            <div className="p-5 flex-1 bg-[url('/assets/grid.svg')] bg-opacity-5">
                                 {activeNumbers.length > 0 ? (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                                        {activeNumbers.slice(0, 6).map(num => (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+                                        {activeNumbers.slice(0, 8).map(num => (
                                             <ModernNumberCard
                                                 key={num.id}
                                                 id={num.id}
@@ -205,19 +205,19 @@ export function DesktopDashboard() {
                                                 smsCount={num.smsCount}
                                                 expiresAt={num.expiresAt}
                                                 status={num.status || 'active'}
-                                                className="h-[120px]"
+                                                className="h-[136px]"
                                             />
                                         ))}
                                     </div>
                                 ) : (
-                                    <div className="text-center py-8 flex flex-col items-center justify-center h-full">
-                                        <div className="w-14 h-14 rounded-full bg-white/[0.03] flex items-center justify-center mb-4 border border-white/10">
-                                            <Phone className="h-6 w-6 text-gray-400" />
+                                    <div className="text-center py-12 flex flex-col items-center justify-center h-full">
+                                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-white/[0.08] to-white/[0.02] flex items-center justify-center mb-4 border border-white/10 shadow-xl">
+                                            <Phone className="h-5 w-5 text-gray-400" />
                                         </div>
-                                        <h4 className="text-lg font-bold text-white mb-1">{t('vault.emptyTitle')}</h4>
-                                        <p className="text-xs text-gray-500 max-w-[200px] mb-6">{t('vault.emptyDescription')}</p>
+                                        <h4 className="text-base font-bold text-white mb-1.5">{t('vault.emptyTitle')}</h4>
+                                        <p className="text-xs text-gray-500 max-w-[240px] mb-6 leading-relaxed">{t('vault.emptyDescription')}</p>
                                         <Link href="/dashboard/buy">
-                                            <Button size="sm" className="h-10 px-6 rounded-lg bg-[hsl(var(--neon-lime))] text-black font-bold hover:bg-[hsl(72,100%,60%)]">
+                                            <Button size="sm" className="h-9 px-6 rounded-lg bg-[hsl(var(--neon-lime))] text-black font-bold hover:bg-[hsl(72,100%,60%)] shadow-[0_0_20px_hsla(var(--neon-lime),0.3)] transition-all hover:scale-105 active:scale-95">
                                                 {t('vault.purchaseBtn')}
                                             </Button>
                                         </Link>
@@ -229,57 +229,65 @@ export function DesktopDashboard() {
 
                     {/* Side Column (Quick Actions & Activity) */}
                     <div className="lg:col-span-1 space-y-4">
-                        {/* Quick Topup */}
+                        {/* Quick Topup (Compact) */}
                         <div className="relative group">
-                            <div className="relative rounded-[24px] bg-[#0c0e12]/90 backdrop-blur-3xl p-5 overflow-hidden border border-white/[0.05]">
-                                <div className="absolute top-0 right-0 w-32 h-32 bg-[hsl(var(--neon-lime)/0.1)] rounded-full blur-[50px] opacity-40 group-hover:opacity-80 transition-all duration-500" />
-                                <div className="relative z-10">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <h3 className="text-xs font-bold text-white uppercase tracking-widest flex items-center gap-2">
-                                            <Zap className="h-3.5 w-3.5 text-[hsl(var(--neon-lime))]" />
+                            <div className="relative rounded-[20px] bg-[#0c0e12]/90 backdrop-blur-3xl p-4 overflow-hidden border border-white/[0.05]">
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-[hsl(var(--neon-lime)/0.1)] rounded-full blur-[50px] opacity-20 group-hover:opacity-40 transition-all duration-500" />
+                                <div className="relative z-10 flex flex-col h-[180px]">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <h3 className="text-[10px] font-bold text-white uppercase tracking-widest flex items-center gap-1.5 opacity-80">
+                                            <Zap className="h-3 w-3 text-[hsl(var(--neon-lime))]" />
                                             {t('quickTopUp.title')}
                                         </h3>
                                     </div>
-                                    <div className="grid grid-cols-3 gap-2 mb-4">
-                                        {[10, 25, 50].map(amt => (
-                                            <button key={amt} className="group/btn relative h-10 rounded-xl bg-white/[0.03] hover:bg-[hsl(var(--neon-lime)/0.1)] border border-white/[0.08] hover:border-[hsl(var(--neon-lime)/0.3)] transition-all duration-300">
-                                                <span className="text-xs font-mono font-bold text-gray-400 group-hover:text-white"><PriceDisplay amountInPoints={amt * pointsRate} precision={0} showCode={false} /></span>
+                                    <div className="grid grid-cols-1 gap-2 mb-3 flex-1 overflow-y-auto pr-1 custom-scrollbar">
+                                        {[10, 25, 50, 100].map(amt => (
+                                            <button key={amt} className="group/btn relative h-8 rounded-lg bg-white/[0.03] hover:bg-[hsl(var(--neon-lime)/0.1)] border border-white/[0.06] hover:border-[hsl(var(--neon-lime)/0.3)] transition-all duration-200 flex items-center justify-between px-3">
+                                                <span className="text-[10px] text-gray-400 font-medium">Top Up</span>
+                                                <span className="text-xs font-mono font-bold text-white group-hover:text-[hsl(var(--neon-lime))]"><PriceDisplay amountInPoints={amt * pointsRate} precision={0} showCode={false} /></span>
                                             </button>
                                         ))}
                                     </div>
                                     <Link href="/dashboard/wallet">
-                                        <Button className="w-full h-10 bg-[hsl(var(--neon-lime))] text-black text-xs font-bold rounded-xl hover:bg-[hsl(72,100%,60%)] transition-all">
-                                            <Wallet className="mr-2 h-4 w-4" /> {t('quickTopUp.action')}
+                                        <Button className="w-full h-8 bg-[hsl(var(--neon-lime))] text-black text-[10px] font-bold rounded-lg hover:bg-[hsl(72,100%,60%)] transition-all shadow-lg shadow-[hsl(var(--neon-lime)/0.1)] uppercase tracking-wide">
+                                            {t('quickTopUp.action')}
                                         </Button>
                                     </Link>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Recent Activity */}
-                        <div className="relative rounded-[24px] bg-[#0d0d10] border border-white/[0.06] p-5 overflow-hidden flex-1 min-h-[200px]">
-                            <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 px-1">{t('activity.title')}</h3>
-                            <div className="space-y-1">
+                        {/* Recent Activity (High Density) */}
+                        <div className="relative rounded-[20px] bg-[#0d0d10] border border-white/[0.06] p-4 overflow-hidden flex-1 min-h-[220px]">
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-1">{t('activity.title')}</h3>
+                            </div>
+                            <div className="space-y-0.5">
                                 {transactions.slice(0, 5).map((tx, i) => (
-                                    <div key={i} className="group flex items-center justify-between p-2 rounded-xl hover:bg-white/[0.03] transition-colors cursor-default">
-                                        <div className="flex items-center gap-3">
-                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center border border-white/[0.05] ${['topup', 'manual_credit', 'referral_bonus', 'refund'].includes(tx.type) ? 'bg-emerald-500/5 text-emerald-400' : 'bg-red-500/5 text-red-500'}`}>
-                                                {['topup', 'manual_credit', 'referral_bonus', 'refund'].includes(tx.type) ? <TrendingUp className="h-4 w-4" /> : <ShoppingCart className="h-4 w-4" />}
+                                    <div key={i} className="group flex items-center justify-between p-2 rounded-lg hover:bg-white/[0.04] transition-colors cursor-default border border-transparent hover:border-white/[0.02]">
+                                        <div className="flex items-center gap-2.5">
+                                            <div className={`w-6 h-6 rounded-md flex items-center justify-center border border-white/[0.05] ${['topup', 'manual_credit', 'referral_bonus', 'refund'].includes(tx.type) ? 'bg-emerald-500/5 text-emerald-400' : 'bg-red-500/5 text-red-500'}`}>
+                                                {['topup', 'manual_credit', 'referral_bonus', 'refund'].includes(tx.type) ? <TrendingUp className="h-3 w-3" /> : <ShoppingCart className="h-3 w-3" />}
                                             </div>
                                             <div className="min-w-0">
-                                                <p className="text-[11px] font-bold text-white truncate max-w-[100px] leading-tight">{tx.description}</p>
-                                                <p className="text-[9px] text-gray-600 font-mono">{new Date(tx.date).toLocaleDateString()}</p>
+                                                <p className="text-[10px] font-bold text-gray-200 truncate max-w-[90px] leading-tight">{tx.description}</p>
+                                                <p className="text-[8px] text-gray-600 font-mono">{new Date(tx.date).toLocaleDateString()}</p>
                                             </div>
                                         </div>
                                         <div className="text-right shrink-0">
-                                            <span className={`block text-[11px] font-mono font-bold ${['topup', 'manual_credit', 'referral_bonus', 'refund'].includes(tx.type) ? 'text-emerald-400' : 'text-white'}`}>
+                                            <span className={`block text-[10px] font-mono font-bold ${['topup', 'manual_credit', 'referral_bonus', 'refund'].includes(tx.type) ? 'text-emerald-400' : 'text-gray-400'}`}>
                                                 {['topup', 'manual_credit', 'referral_bonus', 'refund'].includes(tx.type) ? '+' : ''}
                                                 <PriceDisplay amountInPoints={tx.amount} />
                                             </span>
                                         </div>
                                     </div>
                                 ))}
-                                {transactions.length === 0 && <p className="text-[10px] text-center py-4 text-gray-600">{t('activity.empty')}</p>}
+                                {transactions.length === 0 && (
+                                    <div className="flex flex-col items-center justify-center py-8 text-gray-700">
+                                        <ShieldCheck className="h-6 w-6 mb-2 opacity-20" />
+                                        <p className="text-[10px] font-medium">{t('activity.empty')}</p>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
