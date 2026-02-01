@@ -17,14 +17,11 @@ RUN --mount=type=cache,target=/root/.npm npm ci --legacy-peer-deps
 RUN ls -laR prisma
 
 # Generate Prisma client (Hardened decoupled generation)
-# Generate Prisma client (Hardened decoupled generation)
-# We use a temporary schema file to avoid modifying the original during build
-RUN cp prisma/schema.prisma prisma/schema.prisma.build && \
-    sed -i 's/env("DATABASE_URL")/env("DATABASE_URL_BUILD")/g' prisma/schema.prisma.build && \
-    sed -i 's/env("DATABASE_URL_DIRECT")/env("DATABASE_URL_BUILD")/g' prisma/schema.prisma.build && \
-    export DATABASE_URL_BUILD="postgresql://dummy:dummy@localhost:5432/dummy" && \
-    npx prisma generate --schema=prisma/schema.prisma.build && \
-    rm prisma/schema.prisma.build
+# Generate Prisma client
+# Use dummy connection string for build-time validation
+RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" \
+    DATABASE_URL_DIRECT="postgresql://dummy:dummy@localhost:5432/dummy" \
+    npx prisma generate
 
 
 # Stage 2: Builder (Debian for reliability)
