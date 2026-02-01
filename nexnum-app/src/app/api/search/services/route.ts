@@ -18,14 +18,27 @@ export async function GET(req: Request) {
         const q = searchParams.get("q") || "";
         const page = parseInt(searchParams.get("page") || "1");
         const limit = parseInt(searchParams.get("limit") || "50");
-        const sort = searchParams.get("sort") as "stock" | "pointPrice" | "name" | undefined;
+        const sort = searchParams.get("sort") || "relevance";
 
-        // Use the pre-computed engine
-        // "stock" corresponds to stock_desc, "pointPrice" to price_asc in the underlying lib
-        let mappedSort: 'stock' | 'pointPrice' | 'name' | undefined = undefined;
-        if (sort === 'stock') mappedSort = 'stock'; // implies desc
-        if (sort === 'pointPrice') mappedSort = 'pointPrice'; // implies asc
-        if (!sort) mappedSort = 'stock'; // Default to popularity (stock)
+        // Map frontend sort values to internal sort options
+        // Frontend: relevance, price_asc, price_desc, stock
+        // Internal: 'stock' | 'pointPrice' | 'pointPriceDesc' | 'name'
+        let mappedSort: 'stock' | 'pointPrice' | 'pointPriceDesc' | 'name';
+
+        switch (sort) {
+            case 'price_asc':
+            case 'pointPrice':
+                mappedSort = 'pointPrice';
+                break;
+            case 'price_desc':
+                mappedSort = 'pointPriceDesc';
+                break;
+            case 'stock':
+            case 'relevance': // Relevance = popularity = stock desc
+            default:
+                mappedSort = 'stock';
+                break;
+        }
 
         const result = await getServiceAggregates({
             query: q,

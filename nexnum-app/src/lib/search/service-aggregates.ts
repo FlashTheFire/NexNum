@@ -144,7 +144,7 @@ async function getAggregatesFromMeiliSearch(
     query: string,
     page: number,
     limit: number,
-    sortBy?: 'name' | 'pointPrice' | 'stock'
+    sortBy?: 'name' | 'pointPrice' | 'pointPriceDesc' | 'stock'
 ) {
     const index = meili.index(INDEXES.OFFERS)
 
@@ -200,13 +200,18 @@ async function getAggregatesFromMeiliSearch(
         providerCount: agg._providers.size
     }))
 
-    // Sort
-    if (sortBy === 'pointPrice') {
-        items.sort((a, b) => a.lowestPrice - b.lowestPrice)
-    } else if (sortBy === 'stock') {
-        items.sort((a, b) => b.totalStock - a.totalStock)
-    } else {
-        items.sort((a, b) => a.serviceName.localeCompare(b.serviceName))
+    // Sort based on sortBy option
+    switch (sortBy) {
+        case 'pointPrice':
+            items.sort((a, b) => a.lowestPrice - b.lowestPrice); // Price ascending
+            break;
+        case 'pointPriceDesc':
+            items.sort((a, b) => b.lowestPrice - a.lowestPrice); // Price descending
+            break;
+        case 'stock':
+        default:
+            items.sort((a, b) => b.totalStock - a.totalStock); // Stock/popularity descending
+            break;
     }
 
     const total = items.length
@@ -226,7 +231,7 @@ export async function getServiceAggregates(options?: {
     query?: string
     page?: number
     limit?: number
-    sortBy?: 'name' | 'pointPrice' | 'stock'
+    sortBy?: 'name' | 'pointPrice' | 'pointPriceDesc' | 'stock'
 }) {
     const limit = options?.limit || 50
     const page = options?.page || 1
@@ -295,11 +300,20 @@ export async function getServiceAggregates(options?: {
         }
     }
 
-    const orderBy = options?.sortBy === 'pointPrice'
-        ? { lowestPrice: 'asc' as const }
-        : options?.sortBy === 'stock'
-            ? { totalStock: 'desc' as const }
-            : { serviceName: 'asc' as const }
+    // Build orderBy based on sortBy option
+    let orderBy: { lowestPrice?: 'asc' | 'desc'; totalStock?: 'desc'; serviceName?: 'asc' };
+    switch (options?.sortBy) {
+        case 'pointPrice':
+            orderBy = { lowestPrice: 'asc' };
+            break;
+        case 'pointPriceDesc':
+            orderBy = { lowestPrice: 'desc' };
+            break;
+        case 'stock':
+        default:
+            orderBy = { totalStock: 'desc' };
+            break;
+    }
 
     let items, total;
 
