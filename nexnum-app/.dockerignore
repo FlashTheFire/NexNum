@@ -5,7 +5,8 @@ node_modules
 out
 build
 dist
-.env
+# .env - allowed for build validation
+
 .env*.local
 *.log
 npm-debug.log*
