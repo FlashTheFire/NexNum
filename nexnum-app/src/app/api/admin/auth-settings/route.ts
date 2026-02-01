@@ -5,6 +5,7 @@
  * PUT - Update auth settings (admin only)
  * 
  * Settings are stored in Redis and cached for performance.
+ * Supports 6 OAuth providers: Google, GitHub, Twitter, Discord, Facebook, Telegram
  */
 
 import { NextResponse } from 'next/server'
@@ -16,11 +17,52 @@ import { ResponseFactory } from '@/lib/api/response-factory'
 
 const AUTH_SETTINGS_KEY = 'system:auth_settings'
 
-// Default settings
+// OAuth Provider Schema (reusable)
+const oauthProviderSchema = z.object({
+    enabled: z.boolean(),
+    clientId: z.string(),
+    clientSecret: z.string().optional()
+})
+
+const telegramProviderSchema = z.object({
+    enabled: z.boolean(),
+    botUsername: z.string(),
+    botToken: z.string().optional()
+})
+
+// Default settings with all 6 providers
 const defaultSettings = {
     oauth: {
-        google: { enabled: true, clientId: process.env.GOOGLE_CLIENT_ID || '' },
-        github: { enabled: false, clientId: '' }
+        google: {
+            enabled: true,
+            clientId: process.env.GOOGLE_CLIENT_ID || '',
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET || ''
+        },
+        github: {
+            enabled: false,
+            clientId: process.env.GITHUB_CLIENT_ID || '',
+            clientSecret: process.env.GITHUB_CLIENT_SECRET || ''
+        },
+        twitter: {
+            enabled: false,
+            clientId: process.env.TWITTER_CLIENT_ID || '',
+            clientSecret: process.env.TWITTER_CLIENT_SECRET || ''
+        },
+        discord: {
+            enabled: false,
+            clientId: process.env.DISCORD_CLIENT_ID || '',
+            clientSecret: process.env.DISCORD_CLIENT_SECRET || ''
+        },
+        facebook: {
+            enabled: false,
+            clientId: process.env.FACEBOOK_CLIENT_ID || '',
+            clientSecret: process.env.FACEBOOK_CLIENT_SECRET || ''
+        },
+        telegram: {
+            enabled: false,
+            botUsername: process.env.TELEGRAM_BOT_USERNAME || '',
+            botToken: process.env.TELEGRAM_BOT_TOKEN || ''
+        }
     },
     twoFactor: {
         required: 'optional' as const,
@@ -38,7 +80,11 @@ const defaultSettings = {
     },
     captcha: {
         enabled: true,
-        provider: 'hcaptcha' as const
+        provider: 'hcaptcha' as const,
+        hcaptchaSiteKey: process.env.NEXT_PUBLIC_HCAPTCHA_SITEKEY || '',
+        hcaptchaSecret: process.env.HCAPTCHA_SECRET || '',
+        recaptchaSiteKey: process.env.NEXT_PUBLIC_RECAPTCHA_SITEKEY || '',
+        recaptchaSecret: process.env.RECAPTCHA_SECRET || ''
     },
     email: {
         verificationRequired: true,
@@ -57,14 +103,12 @@ const defaultSettings = {
 // Validation schema for updates
 const settingsSchema = z.object({
     oauth: z.object({
-        google: z.object({
-            enabled: z.boolean(),
-            clientId: z.string()
-        }),
-        github: z.object({
-            enabled: z.boolean(),
-            clientId: z.string()
-        })
+        google: oauthProviderSchema.optional(),
+        github: oauthProviderSchema.optional(),
+        twitter: oauthProviderSchema.optional(),
+        discord: oauthProviderSchema.optional(),
+        facebook: oauthProviderSchema.optional(),
+        telegram: telegramProviderSchema.optional()
     }).optional(),
     twoFactor: z.object({
         required: z.enum(['all', 'admin', 'optional']),
@@ -82,7 +126,11 @@ const settingsSchema = z.object({
     }).optional(),
     captcha: z.object({
         enabled: z.boolean(),
-        provider: z.enum(['hcaptcha', 'recaptcha'])
+        provider: z.enum(['hcaptcha', 'recaptcha']),
+        hcaptchaSiteKey: z.string().optional(),
+        hcaptchaSecret: z.string().optional(),
+        recaptchaSiteKey: z.string().optional(),
+        recaptchaSecret: z.string().optional()
     }).optional(),
     email: z.object({
         verificationRequired: z.boolean(),
@@ -98,6 +146,17 @@ const settingsSchema = z.object({
     }).optional()
 })
 
+// Deep merge helper for nested OAuth objects
+function deepMergeOAuth(current: any, updates: any): any {
+    const result = { ...current }
+    for (const provider of ['google', 'github', 'twitter', 'discord', 'facebook', 'telegram']) {
+        if (updates?.[provider]) {
+            result[provider] = { ...current?.[provider], ...updates[provider] }
+        }
+    }
+    return result
+}
+
 // GET - Retrieve settings
 export const GET = apiHandler(async (req) => {
     const user = await getCurrentUser(req.headers)
@@ -110,7 +169,19 @@ export const GET = apiHandler(async (req) => {
         const stored = await redis.get(AUTH_SETTINGS_KEY)
         const settings = stored ? JSON.parse(stored) : defaultSettings
 
-        return ResponseFactory.success(settings)
+        // Merge with defaults to ensure all new fields are present
+        const merged = {
+            oauth: deepMergeOAuth(defaultSettings.oauth, settings.oauth),
+            twoFactor: { ...defaultSettings.twoFactor, ...settings.twoFactor },
+            password: { ...defaultSettings.password, ...settings.password },
+            session: { ...defaultSettings.session, ...settings.session },
+            captcha: { ...defaultSettings.captcha, ...settings.captcha },
+            email: { ...defaultSettings.email, ...settings.email },
+            disposableEmail: { ...defaultSettings.disposableEmail, ...settings.disposableEmail },
+            rateLimit: { ...defaultSettings.rateLimit, ...settings.rateLimit }
+        }
+
+        return ResponseFactory.success(merged)
     } catch (error) {
         console.error('[AuthSettings] Error fetching:', error)
         return ResponseFactory.success(defaultSettings)
@@ -136,7 +207,7 @@ export const PUT = apiHandler(async (req, { body }) => {
 
         // Deep merge updates
         const merged = {
-            oauth: { ...current.oauth, ...updates.oauth },
+            oauth: deepMergeOAuth(current.oauth, updates.oauth),
             twoFactor: { ...current.twoFactor, ...updates.twoFactor },
             password: { ...current.password, ...updates.password },
             session: { ...current.session, ...updates.session },
@@ -144,14 +215,6 @@ export const PUT = apiHandler(async (req, { body }) => {
             email: { ...current.email, ...updates.email },
             disposableEmail: { ...current.disposableEmail, ...updates.disposableEmail },
             rateLimit: { ...current.rateLimit, ...updates.rateLimit }
-        }
-
-        // Preserve nested OAuth structures
-        if (updates.oauth?.google) {
-            merged.oauth.google = { ...current.oauth?.google, ...updates.oauth.google }
-        }
-        if (updates.oauth?.github) {
-            merged.oauth.github = { ...current.oauth?.github, ...updates.oauth.github }
         }
 
         // Save to Redis

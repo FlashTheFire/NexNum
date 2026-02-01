@@ -17,6 +17,10 @@ model User {
   name                    String
   googleId                String?                  @unique @map("google_id")
   githubId                String?                  @unique @map("github_id")
+  twitterId               String?                  @unique @map("twitter_id")
+  discordId               String?                  @unique @map("discord_id")
+  facebookId              String?                  @unique @map("facebook_id")
+  telegramId              String?                  @unique @map("telegram_id")
   image                   String?
   createdAt               DateTime                 @default(now()) @map("created_at")
   updatedAt               DateTime                 @updatedAt @map("updated_at")

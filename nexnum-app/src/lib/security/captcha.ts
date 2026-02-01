@@ -1,18 +1,20 @@
 /**
- * Multi-Provider CAPTCHA Adapter
+ * Multi-Provider CAPTCHA Adapter (Dynamic)
  * 
  * Supports:
  * 1. hCaptcha (Primary - 100k free tier + Privacy)
  * 2. Google reCAPTCHA v2/v3 (Backup - 10k free tier)
+ * 
+ * Now fetches configuration from admin settings in Redis.
  */
 
 import { logger } from '@/lib/core/logger'
+import { redis } from '@/lib/core/redis'
 
 const HCAPTCHA_VERIFY_URL = 'https://hcaptcha.com/siteverify'
 const RECAPTCHA_VERIFY_URL = 'https://www.google.com/recaptcha/api/siteverify'
 
-const HCAPTCHA_SECRET = process.env.HCAPTCHA_SECRET
-const RECAPTCHA_SECRET = process.env.RECAPTCHA_SECRET
+const AUTH_SETTINGS_KEY = 'system:auth_settings'
 
 export interface CaptchaVerifyResult {
     success: boolean
@@ -21,20 +23,72 @@ export interface CaptchaVerifyResult {
     provider: 'hcaptcha' | 'recaptcha' | 'none'
 }
 
-/**
- * Universal CAPTCHA Verification Engine
- */
-export async function verifyCaptcha(token: string, remoteIp?: string): Promise<CaptchaVerifyResult> {
-    // 1. Determine active provider base on configuration and token prefix
-    // Google tokens usually start with a specific pattern or we rely on SECRET configuration
+interface CaptchaSettings {
+    enabled: boolean
+    provider: 'hcaptcha' | 'recaptcha'
+    hcaptchaSiteKey?: string
+    hcaptchaSecret?: string
+    recaptchaSiteKey?: string
+    recaptchaSecret?: string
+}
 
-    // We prioritize hCaptcha if configured
-    if (HCAPTCHA_SECRET) {
-        return verifyHCaptcha(token, remoteIp)
+/**
+ * Get captcha settings from Redis or fallback to env vars
+ */
+async function getCaptchaSettings(): Promise<CaptchaSettings> {
+    try {
+        const stored = await redis.get(AUTH_SETTINGS_KEY)
+        const settings = stored ? JSON.parse(stored) : null
+
+        if (settings?.captcha) {
+            return {
+                enabled: settings.captcha.enabled ?? true,
+                provider: settings.captcha.provider ?? 'hcaptcha',
+                hcaptchaSiteKey: settings.captcha.hcaptchaSiteKey || process.env.NEXT_PUBLIC_HCAPTCHA_SITEKEY,
+                hcaptchaSecret: settings.captcha.hcaptchaSecret || process.env.HCAPTCHA_SECRET,
+                recaptchaSiteKey: settings.captcha.recaptchaSiteKey || process.env.NEXT_PUBLIC_RECAPTCHA_SITEKEY,
+                recaptchaSecret: settings.captcha.recaptchaSecret || process.env.RECAPTCHA_SECRET
+            }
+        }
+    } catch (error) {
+        logger.error('Failed to fetch captcha settings from Redis', { error })
     }
 
-    if (RECAPTCHA_SECRET) {
-        return verifyReCaptcha(token, remoteIp)
+    // Fallback to env vars
+    return {
+        enabled: true,
+        provider: process.env.HCAPTCHA_SECRET ? 'hcaptcha' : 'recaptcha',
+        hcaptchaSiteKey: process.env.NEXT_PUBLIC_HCAPTCHA_SITEKEY,
+        hcaptchaSecret: process.env.HCAPTCHA_SECRET,
+        recaptchaSiteKey: process.env.NEXT_PUBLIC_RECAPTCHA_SITEKEY,
+        recaptchaSecret: process.env.RECAPTCHA_SECRET
+    }
+}
+
+/**
+ * Universal CAPTCHA Verification Engine (Dynamic)
+ */
+export async function verifyCaptcha(token: string, remoteIp?: string): Promise<CaptchaVerifyResult> {
+    const settings = await getCaptchaSettings()
+
+    // If captcha is disabled, skip verification
+    if (!settings.enabled) {
+        logger.info('Captcha disabled in admin settings, skipping verification', { context: 'SECURITY' })
+        return { success: true, provider: 'none' }
+    }
+
+    // Empty token when captcha is required = fail
+    if (!token && settings.enabled) {
+        return { success: false, error: 'CAPTCHA token required', provider: settings.provider }
+    }
+
+    // Verify with configured provider
+    if (settings.provider === 'hcaptcha' && settings.hcaptchaSecret) {
+        return verifyHCaptcha(token, remoteIp, settings.hcaptchaSecret)
+    }
+
+    if (settings.provider === 'recaptcha' && settings.recaptchaSecret) {
+        return verifyReCaptcha(token, remoteIp, settings.recaptchaSecret)
     }
 
     // Skip in development if not configured
@@ -49,12 +103,12 @@ export async function verifyCaptcha(token: string, remoteIp?: string): Promise<C
 /**
  * hCaptcha Specific Verification
  */
-async function verifyHCaptcha(token: string, remoteIp?: string): Promise<CaptchaVerifyResult> {
+async function verifyHCaptcha(token: string, remoteIp: string | undefined, secret: string): Promise<CaptchaVerifyResult> {
     if (!token) return { success: false, error: 'CAPTCHA token required', provider: 'hcaptcha' }
 
     try {
         const params = new URLSearchParams({
-            secret: HCAPTCHA_SECRET!,
+            secret,
             response: token,
             ...(remoteIp && { remoteip: remoteIp })
         })
@@ -82,12 +136,12 @@ async function verifyHCaptcha(token: string, remoteIp?: string): Promise<Captcha
 /**
  * Google reCAPTCHA Specific Verification
  */
-async function verifyReCaptcha(token: string, remoteIp?: string): Promise<CaptchaVerifyResult> {
+async function verifyReCaptcha(token: string, remoteIp: string | undefined, secret: string): Promise<CaptchaVerifyResult> {
     if (!token) return { success: false, error: 'CAPTCHA token required', provider: 'recaptcha' }
 
     try {
         const params = new URLSearchParams({
-            secret: RECAPTCHA_SECRET!,
+            secret,
             response: token,
             ...(remoteIp && { remoteip: remoteIp })
         })
@@ -123,12 +177,23 @@ function mapErrorCodes(codes: string[], provider: string): string {
     return errorMap[codes[0]] || `CAPTCHA verification failed (${provider})`
 }
 
-export function isCaptchaRequired(): boolean {
-    return !!HCAPTCHA_SECRET || !!RECAPTCHA_SECRET || process.env.NODE_ENV === 'production'
+/**
+ * Check if captcha is required (async - fetches from settings)
+ */
+export async function isCaptchaRequired(): Promise<boolean> {
+    const settings = await getCaptchaSettings()
+    return settings.enabled
 }
 
-export function getCaptchaSiteKey(): string | null {
-    return process.env.NEXT_PUBLIC_HCAPTCHA_SITEKEY ||
-        process.env.NEXT_PUBLIC_RECAPTCHA_SITEKEY ||
-        null
+/**
+ * Get captcha site key (async - fetches from settings)
+ */
+export async function getCaptchaSiteKey(): Promise<string | null> {
+    const settings = await getCaptchaSettings()
+
+    if (settings.provider === 'recaptcha') {
+        return settings.recaptchaSiteKey || null
+    }
+
+    return settings.hcaptchaSiteKey || null
 }
