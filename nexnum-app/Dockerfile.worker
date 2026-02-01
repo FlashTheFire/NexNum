@@ -12,7 +12,9 @@ COPY prisma ./prisma
 RUN --mount=type=cache,target=/root/.npm npm ci --legacy-peer-deps
 # Generate Prisma Client here to ensure WASM engines are correctly resolved in context
 
-RUN DATABASE_URL=postgres://localhost:5432/placeholder npx prisma generate
+RUN DATABASE_URL=postgres://localhost:5432/placeholder \
+    DATABASE_URL_DIRECT=postgres://localhost:5432/placeholder \
+    npx prisma generate
 
 
 
