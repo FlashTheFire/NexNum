@@ -68,11 +68,30 @@ export async function GET(req: Request) {
             }));
         }
 
+        // Best Practice: Calculate "Ecological Average" (Dynamic Baseline)
+        // If a new provider appears, we assume they perform at the average level of the current ecosystem.
+        let totalRate = 0;
+        let ratedCount = 0;
+
+        providerInfoMap.forEach(info => {
+            // Only count providers with actual data (assuming totalOrders > 0 check or deviation from default)
+            // But for simplicity, we treat all current DB values as "Known State".
+            if (info.successRate > 0) {
+                totalRate += info.successRate;
+                ratedCount++;
+            }
+        });
+
+        // Default to 95 (High Standard) if no ecosystem data exists yet, otherwise use the Real Average.
+        const dynamicBaseline = ratedCount > 0 ? (totalRate / ratedCount) : 95.0;
+
         // Map to API response format with reliability info
         const items = result.providers.map((p, index) => {
             const providerInfo = providerInfoMap.get(p.provider);
-            // Use real DB rate if available, else fallback to 98% (Optimization for new providers)
-            const successRate = providerInfo?.successRate ?? 98;
+
+            // USE DYNAMIC BASELINE: 
+            // If provider has no custom stats/record in DB, use the calculated ecosystem average.
+            const successRate = providerInfo?.successRate ?? dynamicBaseline;
 
             return {
                 displayName: providerInfo?.displayName || p.provider,
