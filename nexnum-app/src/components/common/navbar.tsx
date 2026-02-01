@@ -61,7 +61,7 @@ export function Navbar() {
                         : "bg-transparent"
                 )}
             >
-                <div className="max-w-[1800px] w-full mx-auto px-6 lg:px-10">
+                <div className="w-full px-4 lg:px-10">
                     {/* User Provided Structure: h-16 lg:h-[72px] flex items-center justify-between */}
                     <div className="h-16 lg:h-[72px] flex items-center justify-between">
 
@@ -114,6 +114,15 @@ export function Navbar() {
                         <div className="hidden lg:flex items-center gap-3">
                             {isAuthenticated ? (
                                 <>
+                                    {/* Profile / Logout Button (Left Side of Actions) */}
+                                    <button
+                                        onClick={() => logout()}
+                                        className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 py-2 bg-[hsl(var(--neon-lime))] text-black hover:bg-[hsl(72,100%,55%)] font-semibold h-10 px-6 shadow-lg shadow-[hsl(var(--neon-lime)/0.25)] hover:shadow-[hsl(var(--neon-lime)/0.4)] transition-all duration-300 mr-2"
+                                    >
+                                        <span className="mr-1.5">{user?.name?.split(' ')[0]}</span>
+                                        <LogOut className="w-4 h-4" />
+                                    </button>
+
                                     {/* Quick Wallet Info */}
                                     <Link href="/dashboard/wallet">
                                         <button className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 py-2 text-gray-300 hover:text-white hover:bg-white/[0.06] font-medium h-10 px-5 gap-2">
@@ -130,15 +139,6 @@ export function Navbar() {
                                         {!isLandingPage && <CurrencySelector />}
                                         <LanguageSwitcher />
                                     </div>
-
-                                    {/* Profile / Logout Button */}
-                                    <button
-                                        onClick={() => logout()}
-                                        className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 py-2 bg-[hsl(var(--neon-lime))] text-black hover:bg-[hsl(72,100%,55%)] font-semibold h-10 px-6 shadow-lg shadow-[hsl(var(--neon-lime)/0.25)] hover:shadow-[hsl(var(--neon-lime)/0.4)] transition-all duration-300"
-                                    >
-                                        <span className="mr-1.5">{user?.name?.split(' ')[0]}</span>
-                                        <LogOut className="w-4 h-4" />
-                                    </button>
                                 </>
                             ) : (
                                 <>

@@ -3,7 +3,7 @@
 import { useCurrency } from "@/providers/CurrencyProvider";
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Check, Globe } from "lucide-react";
+import { Check, Globe, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils/utils";
 import {
     DropdownMenu,
@@ -33,24 +33,21 @@ export default function CurrencySelector() {
                         variant="ghost"
                         size="sm"
                         className={cn(
-                            "h-10 px-3.5 gap-2 text-gray-400 hover:text-white hover:bg-white/[0.06] rounded-xl transition-all border border-white/[0.08] bg-white/[0.03] shadow-sm",
-                            isOpen && "border-white/20 bg-white/[0.06]"
+                            "h-10 px-3.5 gap-2 text-gray-400 hover:text-white hover:bg-white/[0.08] rounded-full transition-all border border-white/[0.05] bg-white/[0.03]",
+                            isOpen && "bg-white/[0.08] border-white/20"
                         )}
                         onClick={() => setIsOpen(!isOpen)}
                     >
-                        <div className="flex items-center justify-center w-5 h-5 rounded flex-shrink-0 bg-white/5 border border-white/10">
-                            <span className="text-[11px] font-bold text-white">
-                                {currentCurrency.symbol}
-                            </span>
-                        </div>
-                        <span className="text-sm font-bold text-gray-200">
+                        <Globe className="w-4 h-4" />
+                        <span className="text-xs font-mono font-bold text-gray-200">
                             {currentCurrency.code}
                         </span>
+                        <ChevronDown className="w-3 h-3 opacity-50" />
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                     align="end"
-                    className="w-48 bg-[#0d0d12]/95 backdrop-blur-xl border-white/[0.08] p-1.5 rounded-2xl shadow-2xl animate-in fade-in zoom-in-95 duration-200"
+                    className="w-44 bg-[#0d0d12]/95 backdrop-blur-xl border-white/[0.08] p-1.5 rounded-2xl shadow-2xl animate-in fade-in zoom-in-95 duration-200"
                 >
                     {Object.values(currencies).map((cur) => (
                         <DropdownMenuItem
