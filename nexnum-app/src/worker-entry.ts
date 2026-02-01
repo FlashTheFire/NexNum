@@ -79,6 +79,12 @@ export async function startQueueWorker() {
         await queue.work('search.aggregates', async () => { await refreshAllServiceAggregates(); });
         await queue.schedule('search.aggregates', '*/5 * * * *', {});
 
+        // JOB: Provider Reliability Stats (Hourly)
+        // Updates Success Rate based on recent order history
+        const { calculateProviderReliability } = await import('./workers/reliability-worker');
+        await queue.work('provider.reliability', async () => { await calculateProviderReliability(); });
+        await queue.schedule('provider.reliability', '0 * * * *', {});
+
         // ───────────────────────────────────────────────────────────────────────
         // DEAD LETTER MANAGEMENT
         // ───────────────────────────────────────────────────────────────────────

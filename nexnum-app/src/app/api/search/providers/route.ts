@@ -37,21 +37,38 @@ export async function GET(req: Request) {
         // Get unique provider names from results
         const providerNames = [...new Set(result.providers.map(p => p.provider))].filter(Boolean) as string[];
 
-        // Fetch provider display info from database (displayName, logoUrl)
-        const providerInfoMap = new Map<string, { displayName: string; logoUrl: string | null }>();
+        // Fetch provider display info from database (displayName, logoUrl, Reliability Stats)
+        const providerInfoMap = new Map<string, {
+            displayName: string;
+            logoUrl: string | null;
+            successRate: number;
+            totalOrders: number;
+        }>();
+
         if (providerNames.length > 0) {
             const providers = await prisma.provider.findMany({
                 where: { name: { in: providerNames } },
-                select: { name: true, displayName: true, logoUrl: true }
+                select: {
+                    name: true,
+                    displayName: true,
+                    logoUrl: true,
+                    successRate: true,
+                    totalOrders: true
+                }
             });
-            providers.forEach(p => providerInfoMap.set(p.name, { displayName: p.displayName, logoUrl: p.logoUrl }));
+            providers.forEach(p => providerInfoMap.set(p.name, {
+                displayName: p.displayName,
+                logoUrl: p.logoUrl,
+                successRate: Number(p.successRate || 98), // Default to 98 if new
+                totalOrders: p.totalOrders || 0
+            }));
         }
 
         // Map to API response format with reliability info
-        // Map to API response format with reliability info
         const items = result.providers.map((p, index) => {
             const providerInfo = providerInfoMap.get(p.provider);
-            const successRate = 98; // Mock success rate pending Meilisearch index update
+            // Use real DB rate if available, else fallback to 98% (Optimization for new providers)
+            const successRate = providerInfo?.successRate ?? 98;
 
             return {
                 displayName: providerInfo?.displayName || p.provider,

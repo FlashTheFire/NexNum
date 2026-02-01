@@ -305,6 +305,11 @@ model Provider {
   lowBalanceAlert Decimal   @default(10.0) @map("low_balance_alert") @db.Decimal(10, 2)
   lastBalanceSync DateTime? @map("last_balance_sync")
 
+  // --- Reliability Stats (Computed) ---
+  successRate     Decimal   @default(100.0) @map("success_rate") @db.Decimal(5, 2) // 0-100%
+  totalOrders     Int       @default(0) @map("total_orders")
+
+
   isActive Boolean @default(false) @map("is_active")
   useGlobalSync Boolean @default(false) @map("use_global_sync")
   priority Int     @default(0) // Higher = tried first
