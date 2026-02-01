@@ -7,12 +7,19 @@
 FROM node:22-bookworm-slim AS deps
 RUN apt-get update && apt-get install -y openssl libssl-dev libc6-dev ca-certificates
 WORKDIR /app
+
+# Set build-time placeholders for Prisma validation
+ARG DATABASE_URL="postgresql://localhost:5432/placeholder"
+ARG DATABASE_URL_DIRECT="postgresql://localhost:5432/placeholder"
+ENV DATABASE_URL=$DATABASE_URL
+ENV DATABASE_URL_DIRECT=$DATABASE_URL_DIRECT
+
 COPY package.json package-lock.json ./
 COPY prisma ./prisma
 RUN --mount=type=cache,target=/root/.npm npm ci --legacy-peer-deps
 
-# Generate Prisma client with placeholder for build-time validation
-RUN DATABASE_URL=postgresql://localhost:5432/placeholder DATABASE_URL_DIRECT=postgresql://localhost:5432/placeholder npx prisma generate
+# Generate Prisma client
+RUN npx prisma generate
 
 
 
@@ -20,16 +27,20 @@ RUN DATABASE_URL=postgresql://localhost:5432/placeholder DATABASE_URL_DIRECT=pos
 FROM deps AS builder
 RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
+
+# Inherit placeholders from deps
+ENV DATABASE_URL=$DATABASE_URL
+ENV DATABASE_URL_DIRECT=$DATABASE_URL_DIRECT
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV JWT_SECRET=placeholder_for_build_must_be_32_chars_long
+ENV ENCRYPTION_KEY=placeholder_for_build_must_be_32_chars_long
+ENV HOME=/tmp
+
 COPY . .
 
 # Build the application
-ENV NEXT_TELEMETRY_DISABLED=1
-RUN DATABASE_URL=postgresql://localhost:5432/placeholder \
-    DATABASE_URL_DIRECT=postgresql://localhost:5432/placeholder \
-    JWT_SECRET=placeholder_for_build_must_be_32_chars_long \
-    ENCRYPTION_KEY=placeholder_for_build_must_be_32_chars_long \
-    HOME=/tmp \
-    npm run build:skip-types
+RUN npm run build:skip-types
+
 
 # Prune for production
 RUN --mount=type=cache,target=/root/.npm HOME=/tmp npm prune --omit=dev
