@@ -114,7 +114,7 @@ export function DesktopDashboard() {
 
                     <motion.div variants={fadeIn} className="flex items-center gap-3">
                         <Link href="/dashboard/buy">
-                            <Button size="sm" className="h-9 px-4 rounded-lg bg-[hsl(var(--neon-lime))] text-black text-xs font-bold hover:bg-[hsl(72,100%,60%)] active:scale-95 transition-all shadow-lg shadow-[hsl(var(--neon-lime)/0.2)]">
+                            <Button size="sm" className="h-9 px-4 rounded-lg bg-[hsl(var(--neon-lime))] text-black text-sm font-bold hover:bg-[hsl(72,100%,60%)] active:scale-95 transition-all shadow-lg shadow-[hsl(var(--neon-lime)/0.2)]">
                                 <Plus className="mr-1.5 h-4 w-4" />
                                 {t('hero.newNumber')}
                             </Button>
@@ -147,8 +147,8 @@ export function DesktopDashboard() {
                                     <stat.icon className="h-4 w-4" />
                                 </div>
                                 <div className="flex-1 min-w-0 z-10">
-                                    <p className="text-[9px] font-bold text-gray-500 uppercase tracking-wider mb-0.5">{stat.label}</p>
-                                    <h3 className="text-lg font-bold text-white tracking-tight leading-none truncate whitespace-nowrap">{stat.value}</h3>
+                                    <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-0.5">{stat.label}</p>
+                                    <h3 className="text-2xl font-bold text-white tracking-tight leading-none truncate whitespace-nowrap">{stat.value}</h3>
                                 </div>
                                 <div className="hidden xl:block absolute right-2 bottom-2">
                                     <MiniBarChart color={stat.fill} />
@@ -235,21 +235,21 @@ export function DesktopDashboard() {
                                 <div className="absolute top-0 right-0 w-32 h-32 bg-[hsl(var(--neon-lime)/0.1)] rounded-full blur-[50px] opacity-20 group-hover:opacity-40 transition-all duration-500" />
                                 <div className="relative z-10 flex flex-col h-[180px]">
                                     <div className="flex items-center justify-between mb-3">
-                                        <h3 className="text-[10px] font-bold text-white uppercase tracking-widest flex items-center gap-1.5 opacity-80">
-                                            <Zap className="h-3 w-3 text-[hsl(var(--neon-lime))]" />
+                                        <h3 className="text-xs font-bold text-white uppercase tracking-widest flex items-center gap-1.5 opacity-80">
+                                            <Zap className="h-3.5 w-3.5 text-[hsl(var(--neon-lime))]" />
                                             {t('quickTopUp.title')}
                                         </h3>
                                     </div>
                                     <div className="grid grid-cols-1 gap-2 mb-3 flex-1 overflow-y-auto pr-1 custom-scrollbar">
                                         {[10, 25, 50, 100].map(amt => (
                                             <button key={amt} className="group/btn relative h-8 rounded-lg bg-white/[0.03] hover:bg-[hsl(var(--neon-lime)/0.1)] border border-white/[0.06] hover:border-[hsl(var(--neon-lime)/0.3)] transition-all duration-200 flex items-center justify-between px-3">
-                                                <span className="text-[10px] text-gray-400 font-medium">Top Up</span>
-                                                <span className="text-xs font-mono font-bold text-white group-hover:text-[hsl(var(--neon-lime))]"><PriceDisplay amountInPoints={amt * pointsRate} precision={0} showCode={false} /></span>
+                                                <span className="text-[11px] text-gray-400 font-medium">Top Up</span>
+                                                <span className="text-sm font-mono font-bold text-white group-hover:text-[hsl(var(--neon-lime))]"><PriceDisplay amountInPoints={amt * pointsRate} precision={0} showCode={false} /></span>
                                             </button>
                                         ))}
                                     </div>
                                     <Link href="/dashboard/wallet">
-                                        <Button className="w-full h-8 bg-[hsl(var(--neon-lime))] text-black text-[10px] font-bold rounded-lg hover:bg-[hsl(72,100%,60%)] transition-all shadow-lg shadow-[hsl(var(--neon-lime)/0.1)] uppercase tracking-wide">
+                                        <Button className="w-full h-8 bg-[hsl(var(--neon-lime))] text-black text-xs font-bold rounded-lg hover:bg-[hsl(72,100%,60%)] transition-all shadow-lg shadow-[hsl(var(--neon-lime)/0.1)] uppercase tracking-wide">
                                             {t('quickTopUp.action')}
                                         </Button>
                                     </Link>
@@ -260,7 +260,7 @@ export function DesktopDashboard() {
                         {/* Recent Activity (High Density) */}
                         <div className="relative rounded-[20px] bg-[#0d0d10] border border-white/[0.06] p-4 overflow-hidden flex-1 min-h-[220px]">
                             <div className="flex items-center justify-between mb-3">
-                                <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-1">{t('activity.title')}</h3>
+                                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest px-1">{t('activity.title')}</h3>
                             </div>
                             <div className="space-y-0.5">
                                 {transactions.slice(0, 5).map((tx, i) => (
@@ -270,12 +270,12 @@ export function DesktopDashboard() {
                                                 {['topup', 'manual_credit', 'referral_bonus', 'refund'].includes(tx.type) ? <TrendingUp className="h-3 w-3" /> : <ShoppingCart className="h-3 w-3" />}
                                             </div>
                                             <div className="min-w-0">
-                                                <p className="text-[10px] font-bold text-gray-200 truncate max-w-[90px] leading-tight">{tx.description}</p>
-                                                <p className="text-[8px] text-gray-600 font-mono">{new Date(tx.date).toLocaleDateString()}</p>
+                                                <p className="text-[11px] font-bold text-gray-200 truncate max-w-[120px] leading-tight">{tx.description}</p>
+                                                <p className="text-[10px] text-gray-600 font-mono">{new Date(tx.date).toLocaleDateString()}</p>
                                             </div>
                                         </div>
                                         <div className="text-right shrink-0">
-                                            <span className={`block text-[10px] font-mono font-bold ${['topup', 'manual_credit', 'referral_bonus', 'refund'].includes(tx.type) ? 'text-emerald-400' : 'text-gray-400'}`}>
+                                            <span className={`block text-xs font-mono font-bold ${['topup', 'manual_credit', 'referral_bonus', 'refund'].includes(tx.type) ? 'text-emerald-400' : 'text-gray-400'}`}>
                                                 {['topup', 'manual_credit', 'referral_bonus', 'refund'].includes(tx.type) ? '+' : ''}
                                                 <PriceDisplay amountInPoints={tx.amount} />
                                             </span>

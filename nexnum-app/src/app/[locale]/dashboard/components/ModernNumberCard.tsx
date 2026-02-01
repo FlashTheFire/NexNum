@@ -133,11 +133,11 @@ export function ModernNumberCard({
                     </div>
 
                     <div className="space-y-0.5 pl-0.5">
-                        <p className="text-base font-mono font-bold text-white tracking-wide truncate transition-all group-hover:text-[hsl(var(--neon-lime))]">{number}</p>
+                        <p className="text-xl font-mono font-bold text-white tracking-wide truncate transition-all group-hover:text-[hsl(var(--neon-lime))]">{number}</p>
                         <div className="flex items-center gap-2">
-                            <span className="text-[9px] text-gray-500 font-bold uppercase truncate max-w-[80px] opacity-80">{serviceName}</span>
+                            <span className="text-[11px] text-gray-500 font-bold uppercase truncate max-w-[80px] opacity-80">{serviceName}</span>
                             <span className="w-0.5 h-0.5 rounded-full bg-gray-700"></span>
-                            <span className="text-[9px] text-[hsl(var(--neon-lime))] font-bold">{smsCount || 0} SMS</span>
+                            <span className="text-[11px] text-[hsl(var(--neon-lime))] font-bold">{smsCount || 0} SMS</span>
                         </div>
                     </div>
                 </div>
