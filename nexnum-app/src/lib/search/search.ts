@@ -27,6 +27,58 @@ import { cacheGet, CACHE_KEYS, CACHE_TTL } from '@/lib/core/redis'
 import crypto from 'crypto'
 import { search_latency, search_empty_results } from '@/lib/metrics'
 import { logger } from '@/lib/core/logger'
+import { prisma } from '@/lib/core/db'
+import { unstable_cache } from 'next/cache'
+
+/**
+ * HIGH PERFORMANCE PROVIDER METADATA
+ * Cached for 5 minutes to avoid DB hits on every search.
+ * Returns: Map<name, { displayName, logoUrl, successRate }>
+ */
+export async function getCachedProviderMetadata(providerNames: string[]) {
+    if (!providerNames.length) return new Map();
+
+    const cacheKey = `providers:metadata:${providerNames.sort().join(',')}`;
+
+    // 1. Try Next.js Data Cache (L1)
+    const fetchMetadata = async () => {
+        const providers = await prisma.provider.findMany({
+            where: { name: { in: providerNames } },
+            select: {
+                name: true,
+                displayName: true,
+                logoUrl: true,
+                // @ts-ignore: Schema updated
+                successRate: true
+            }
+        });
+
+        const map = new Map<string, any>();
+        providers.forEach(p => map.set(p.name, {
+            displayName: p.displayName,
+            logoUrl: p.logoUrl,
+            // @ts-ignore
+            successRate: Number(p.successRate || 0)
+        }));
+        return map;
+    };
+
+    // Use unstable_cache for efficient duplicate request deduping & memory caching
+    // We wrap the Map in a plain object for serialization if needed, but unstable_cache handles async return.
+    // However, unstable_cache serializes to JSON, so Maps break. We must return an Object/Array.
+
+    const getMetadataObject = unstable_cache(
+        async () => {
+            const map = await fetchMetadata();
+            return Object.fromEntries(map);
+        },
+        [cacheKey],
+        { revalidate: 300, tags: ['providers'] } // 5 Minutes Cache
+    );
+
+    const obj = await getMetadataObject();
+    return new Map(Object.entries(obj));
+}
 
 // Meilisearch client
 export const meili = new MeiliSearch({

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { searchProviders } from "@/lib/search/search";
+import { searchProviders, getCachedProviderMetadata } from "@/lib/search/search";
 import { prisma } from "@/lib/core/db";
 
 /**
@@ -37,36 +37,8 @@ export async function GET(req: Request) {
         // Get unique provider names from results
         const providerNames = [...new Set(result.providers.map(p => p.provider))].filter(Boolean) as string[];
 
-        // Fetch provider display info from database (displayName, logoUrl, Reliability Stats)
-        const providerInfoMap = new Map<string, {
-            displayName: string;
-            logoUrl: string | null;
-            successRate: number;
-            totalOrders: number;
-        }>();
-
-        if (providerNames.length > 0) {
-            const providers = await prisma.provider.findMany({
-                where: { name: { in: providerNames } },
-                select: {
-                    name: true,
-                    displayName: true,
-                    logoUrl: true,
-                    // @ts-ignore: Schema updated but client types might be stale in dev
-                    successRate: true,
-                    // @ts-ignore: Schema updated but client types might be stale in dev
-                    totalOrders: true
-                }
-            });
-            providers.forEach(p => providerInfoMap.set(p.name, {
-                displayName: p.displayName,
-                logoUrl: p.logoUrl,
-                // @ts-ignore: Schema updated
-                successRate: Number(p.successRate || 98), // Default to 98 if new
-                // @ts-ignore: Schema updated
-                totalOrders: p.totalOrders || 0
-            }));
-        }
+        // Fetch provider display info (Cached for High Performance)
+        const providerInfoMap = await getCachedProviderMetadata(providerNames);
 
         // Best Practice: Calculate "Ecological Average" (Dynamic Baseline)
         // If a new provider appears, we assume they perform at the average level of the current ecosystem.
