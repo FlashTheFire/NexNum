@@ -33,6 +33,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        - DATABASE_URL=${DATABASE_URL}
+        - DATABASE_URL_DIRECT=${DATABASE_URL_DIRECT}
     container_name: nexnum-app
     restart: unless-stopped
     # ports:
@@ -109,6 +112,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.socket
+      args:
+        - DATABASE_URL=${DATABASE_URL}
+        - DATABASE_URL_DIRECT=${DATABASE_URL_DIRECT}
     container_name: nexnum-socket
     restart: unless-stopped
     ports:
@@ -140,6 +146,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.worker
+      args:
+        - DATABASE_URL=${DATABASE_URL}
+        - DATABASE_URL_DIRECT=${DATABASE_URL_DIRECT}
     container_name: nexnum-worker
     restart: unless-stopped
     env_file:

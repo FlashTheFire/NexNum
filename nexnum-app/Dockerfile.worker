@@ -13,8 +13,11 @@ RUN ls -laR prisma
 
 # Generate Prisma client (Hardened decoupled generation)
 # Generate Prisma client
-# Use real .env for build-time validation (Single Source of Truth)
-COPY .env .env
+# Accept build-time args to validate against real environment
+ARG DATABASE_URL
+ARG DATABASE_URL_DIRECT
+ENV DATABASE_URL=${DATABASE_URL}
+ENV DATABASE_URL_DIRECT=${DATABASE_URL_DIRECT}
 RUN npx prisma generate
 
 
