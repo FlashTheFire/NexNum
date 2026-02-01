@@ -38,7 +38,10 @@ ENV NODE_ENV=production
 
 # Don't run as root
 RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 worker
+RUN adduser --system --uid 1001 --ingroup nodejs --home /home/worker worker
+
+# Create home directory and ensure ownership
+RUN mkdir -p /home/worker/.npm && chown -R worker:nodejs /home/worker
 
 # Copy production artifacts
 COPY --from=builder /app/node_modules ./node_modules
@@ -58,7 +61,8 @@ RUN mkdir -p /app/public/assets/icons/services && \
 USER worker
 
 ENV NODE_ENV=production
-ENV npm_config_cache=/app/.npm-cache
+ENV HOME=/home/worker
+ENV npm_config_cache=/home/worker/.npm
 
 # Use node with tsx import to avoid npx permission issues
 ENTRYPOINT ["node", "--import", "tsx", "-r", "dotenv/config", "src/worker-entry.ts"]
