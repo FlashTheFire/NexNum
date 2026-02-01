@@ -54,7 +54,7 @@ export default function SettingsPage() {
     // Form States
     const [name, setName] = useState(user?.name || "")
     const [email, setEmail] = useState(user?.email || "")
-    const [preferredCurrency, setPreferredCurrency] = useState(user?.preferredCurrency || "USD")
+    const [preferredCurrency, setPreferredCurrency] = useState(user?.preferredCurrency && user.preferredCurrency !== 'POINTS' ? user.preferredCurrency : "USD")
     const [twoFactor, setTwoFactor] = useState(false)
 
     const handleSave = async () => {
@@ -208,7 +208,7 @@ export default function SettingsPage() {
                                             <Label>Currency</Label>
                                             <div className="relative">
                                                 <span className="absolute left-3 top-2.5 text-sm font-bold text-muted-foreground">
-                                                    {currencies[preferredCurrency]?.symbol || (preferredCurrency === 'POINTS' ? 'P' : '$')}
+                                                    {currencies[preferredCurrency]?.symbol || '$'}
                                                 </span>
                                                 <select
                                                     value={preferredCurrency}

@@ -25,7 +25,7 @@ export default function CurrencySelector() {
                     className="h-9 px-3 gap-2 text-gray-400 hover:text-white hover:bg-white/[0.06] rounded-full transition-all border border-white/5"
                 >
                     <span className="text-xs font-mono font-bold">
-                        {currencies[preferredCurrency]?.symbol || '$'} {preferredCurrency}
+                        {currencies[preferredCurrency === 'POINTS' ? 'USD' : preferredCurrency]?.symbol || '$'} {preferredCurrency === 'POINTS' ? 'USD' : preferredCurrency}
                     </span>
                     <ChevronDown className="w-3 h-3 opacity-50" />
                 </Button>

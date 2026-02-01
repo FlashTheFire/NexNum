@@ -157,7 +157,7 @@ export class WalletService {
             await EventDispatcher.dispatch(userId, 'balance.low', {
                 balance: finalBalance.toNumber(),
                 threshold: 10.0,
-                currency: 'POINTS' // Default
+                currency: 'USD' // Standard default
             })
         }
 
@@ -418,7 +418,7 @@ export class WalletService {
                 await EventDispatcher.dispatch(userId, 'balance.low', {
                     balance: finalBalance.toNumber(),
                     threshold: 10.0,
-                    currency: 'POINTS'
+                    currency: 'USD'
                 })
             }
 

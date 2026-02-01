@@ -46,6 +46,7 @@ export const POST = apiHandler(async (request, { body, security }) => {
                 name,
                 email: email.toLowerCase(),
                 passwordHash,
+                preferredCurrency: 'USD',
             }
         })
 

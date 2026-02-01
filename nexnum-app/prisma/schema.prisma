@@ -28,7 +28,7 @@ model User {
   isBanned                Boolean                  @default(false) @map("is_banned")
   emailVerified           DateTime?                @map("email_verified")
   tokenVersion            Int                      @default(1) @map("token_version")
-  preferredCurrency       String?                  @map("preferred_currency") // e.g. "USD", "EUR", "POINTS"
+  preferredCurrency       String                   @default("USD") @map("preferred_currency") // User's selected display currency (Default: USD)
   
   // 2FA Fields
   twoFactorEnabled      Boolean  @default(false)
@@ -630,7 +630,7 @@ model SystemSettings {
 
   // Currency Logic
   baseCurrency    String  @default("USD") @map("base_currency") // The technical anchor (e.g., USD)
-  displayCurrency String  @default("USD") @map("display_currency") // Default for new users (e.g., POINTS)
+  displayCurrency String  @default("USD") @map("display_currency") // System-wide default display currency (e.g. USD)
 
   // Points System (if active)
   pointsEnabled   Boolean @default(false) @map("points_enabled")

@@ -17,6 +17,7 @@ interface Currency {
 interface SystemSettings {
     baseCurrency: string
     displayCurrency: string
+    pointsRate: number | string
 }
 
 interface FormatOptions {
@@ -60,7 +61,8 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
                 const data = await res.json()
                 setCurrencies(data.currencies)
                 setSettings(data.settings)
-                setPreferredCurrency(data.preferredCurrency || 'USD')
+                const initialCurrency = data.preferredCurrency === 'POINTS' ? 'USD' : (data.preferredCurrency || 'USD')
+                setPreferredCurrency(initialCurrency)
             } catch (e) {
                 console.error("[CurrencyProvider] Failed to fetch currency data", e)
             } finally {
@@ -79,8 +81,12 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
 
         // Step 1: Convert "from" to USD (Technical Base)
         let amountInUsd = 0
+        const pointsRate = Number(settings.pointsRate) || 100
+
         if (from === settings.baseCurrency || from === 'USD') {
             amountInUsd = amount
+        } else if (from === 'POINTS') {
+            amountInUsd = amount / pointsRate
         } else if (currencies[from]) {
             amountInUsd = amount / currencies[from].rate
         } else {
@@ -90,6 +96,8 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
         // Step 2: Convert USD to "to"
         if (to === settings.baseCurrency || to === 'USD') {
             return amountInUsd
+        } else if (to === 'POINTS') {
+            return amountInUsd * pointsRate
         } else if (currencies[to]) {
             return amountInUsd * currencies[to].rate
         }
@@ -107,7 +115,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     const formatPrice = useCallback((amountInUsd: number, options?: FormatOptions): string => {
         if (!settings) return amountInUsd.toString()
 
-        const targetCurrency = preferredCurrency === 'POINTS' ? 'USD' : preferredCurrency
+        const targetCurrency = (!preferredCurrency || preferredCurrency === 'POINTS') ? 'USD' : preferredCurrency
         const precision = options?.precision ?? 2
 
         const converted = convert(amountInUsd, 'USD', targetCurrency)
@@ -126,7 +134,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
         currencyPrices?: Record<string, number>,
         fallbackUsd?: number
     ): string => {
-        const targetCurrency = preferredCurrency === 'POINTS' ? 'USD' : preferredCurrency
+        const targetCurrency = (!preferredCurrency || preferredCurrency === 'POINTS') ? 'USD' : preferredCurrency
 
         // Priority 1: Use pre-computed price for user's currency
         if (currencyPrices && targetCurrency in currencyPrices) {
@@ -150,7 +158,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     const formatBalance = useCallback((balanceInUsd: number): string => {
         if (!settings) return balanceInUsd.toString()
 
-        const targetCurrency = preferredCurrency === 'POINTS' ? 'USD' : preferredCurrency
+        const targetCurrency = (!preferredCurrency || preferredCurrency === 'POINTS') ? 'USD' : preferredCurrency
 
         const converted = convert(balanceInUsd, 'USD', targetCurrency)
         const currencyData = currencies[targetCurrency]
@@ -169,7 +177,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
      */
     const setCurrency = useCallback((code: string) => {
         // Validate currency exists and is NOT points
-        if (code === 'POINTS' || !currencies[code]) {
+        if (code === 'POINTS' || code === 'points' || !currencies[code]) {
             console.warn(`[CurrencyProvider] Invalid or restricted currency: ${code}`)
             return
         }
