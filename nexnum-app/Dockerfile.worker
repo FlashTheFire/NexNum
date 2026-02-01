@@ -8,8 +8,9 @@ COPY prisma ./prisma
 RUN --mount=type=cache,target=/root/.npm npm ci --legacy-peer-deps
 
 # Generate Prisma client with temporary hardcoded placeholders to satisfy build-time validation
-RUN sed -i 's/env("DATABASE_URL")/"postgresql:\/\/localhost:5432\/placeholder"/g' prisma/schema.prisma && \
-    sed -i 's/env("DATABASE_URL_DIRECT")/"postgresql:\/\/localhost:5432\/placeholder"/g' prisma/schema.prisma && \
+RUN sed -i 's|env("DATABASE_URL")|"postgresql://localhost:5432/placeholder"|g' prisma/schema.prisma && \
+    sed -i 's|env("DATABASE_URL_DIRECT")|"postgresql://localhost:5432/placeholder"|g' prisma/schema.prisma && \
+    cat prisma/schema.prisma | head -n 15 && \
     npx prisma generate
 
 
