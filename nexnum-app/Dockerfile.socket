@@ -57,6 +57,7 @@ COPY --from=builder /app/tsconfig.json ./tsconfig.json
 USER socket
 EXPOSE 3951
 ENV NODE_ENV=production
+ENV PRISMA_CLIENT_ENGINE_TYPE=library
 ENV npm_config_cache=/app/.npm-cache
 
 # Use node with tsx import to avoid npx permission issues

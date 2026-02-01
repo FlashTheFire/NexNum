@@ -65,6 +65,7 @@ USER worker
 
 ENV NODE_ENV=production
 ENV HOME=/home/worker
+ENV PRISMA_CLIENT_ENGINE_TYPE=library
 ENV npm_config_cache=/home/worker/.npm
 
 # Use node with tsx import to avoid npx permission issues

@@ -24,13 +24,17 @@ class QueueService {
         const url = process.env.DIRECT_URL || process.env.DATABASE_URL
         if (url) {
             // PgBouncer-compatible: reduced pool size for session mode
+            // INDUSTRIAL HARDENING: Remove sslmode from connection string 
+            // to prevent internal pg drivers from defaulting to strict verification.
+            const cleanUrl = url.replace(/([?&])sslmode=[^&]*/g, '$1').replace(/(\?|&)$/, '')
+
             this.boss = new PgBoss({
-                connectionString: url,
+                connectionString: cleanUrl,
                 max: 3, // Reduced from 10 for PgBouncer session mode compatibility
                 application_name: 'NexNum-Queue',
                 queueCacheIntervalSeconds: 5, // Industrial speed: refresh cache every 5s instead of 60s
                 // SSL for Supabase (Production Hardening)
-                ssl: url.includes('supabase') ? { rejectUnauthorized: false } : undefined,
+                ssl: { rejectUnauthorized: false },
             })
 
             this.boss.on('error', (error) => {

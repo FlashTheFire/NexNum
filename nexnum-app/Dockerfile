@@ -51,6 +51,7 @@ RUN apt-get update && apt-get install -y openssl ca-certificates curl && rm -rf 
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV PRISMA_CLIENT_ENGINE_TYPE=library
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 --ingroup nodejs --home /home/nextjs nextjs

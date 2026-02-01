@@ -25,14 +25,18 @@ function createPrismaClient(url?: string): PrismaClient {
     // Optimization: Use standard TCP for read replicas if pooling is an issue, 
     // or same pool config. Here we assume direct connection or pgbouncer.
     const isProduction = process.env.NODE_ENV === 'production' || connectionString.includes('supabase.com')
+
+    // INDUSTRIAL HARDENING: Remove sslmode from connection string to prevent pg 
+    // from overriding our explicit SSL object with its own 'verify-full' logic.
+    const cleanUrl = connectionString.replace(/([?&])sslmode=[^&]*/g, '$1').replace(/(\?|&)$/, '')
+
     const pool = new Pool({
-        connectionString,
+        connectionString: cleanUrl,
         max: isProduction ? 3 : 5,
         idleTimeoutMillis: 20000,
         connectionTimeoutMillis: 5000,
         maxUses: 5000,
-        // PRODUCTION HARDENING: SSL configuration for Cloud Databases
-        // Force SSL for Supabase even if NODE_ENV is not 'production'
+        // Force SSL for remote databases
         ssl: isProduction ? {
             rejectUnauthorized: false,
         } : undefined,
