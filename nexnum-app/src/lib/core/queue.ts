@@ -28,7 +28,9 @@ class QueueService {
                 connectionString: url,
                 max: 3, // Reduced from 10 for PgBouncer session mode compatibility
                 application_name: 'NexNum-Queue',
-                queueCacheIntervalSeconds: 5 // Industrial speed: refresh cache every 5s instead of 60s
+                queueCacheIntervalSeconds: 5, // Industrial speed: refresh cache every 5s instead of 60s
+                // SSL for Supabase (Production Hardening)
+                ssl: url.includes('supabase') ? { rejectUnauthorized: false } : undefined,
             })
 
             this.boss.on('error', (error) => {

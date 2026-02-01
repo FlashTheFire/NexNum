@@ -9,16 +9,19 @@ RUN apt-get update && apt-get install -y openssl libssl-dev libc6-dev ca-certifi
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-COPY prisma ./prisma
+RUN mkdir -p prisma
+COPY prisma/schema.prisma prisma/schema.prisma
 RUN --mount=type=cache,target=/root/.npm npm ci --legacy-peer-deps
 
-# Generate Prisma client with temporary .env to satisfy build-time validation
-RUN printf "DATABASE_URL=\"postgresql://localhost:5432/placeholder\"\nDATABASE_URL_DIRECT=\"postgresql://localhost:5432/placeholder\"\n" > prisma/.env && \
-    npx prisma generate && \
-    rm prisma/.env
+# Debug: Verify filesystem before generation
+RUN ls -laR prisma
 
-
-
+# Generate Prisma client (Hardened decoupled generation)
+RUN cp prisma/schema.prisma prisma/schema.prisma.build && \
+    sed -i 's/env("DATABASE_URL")/"postgresql:\/\/localhost:5432\/placeholder"/g' prisma/schema.prisma.build && \
+    sed -i 's/env("DATABASE_URL_DIRECT")/"postgresql:\/\/localhost:5432\/placeholder"/g' prisma/schema.prisma.build && \
+    npx prisma generate --schema=prisma/schema.prisma.build && \
+    rm prisma/schema.prisma.build
 
 
 # Stage 2: Builder (Debian for reliability)
@@ -26,9 +29,6 @@ FROM deps AS builder
 RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
-# Inherit placeholders from deps
-ENV DATABASE_URL=$DATABASE_URL
-ENV DATABASE_URL_DIRECT=$DATABASE_URL_DIRECT
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV JWT_SECRET=placeholder_for_build_must_be_32_chars_long
 ENV ENCRYPTION_KEY=placeholder_for_build_must_be_32_chars_long

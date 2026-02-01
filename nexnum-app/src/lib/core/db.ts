@@ -24,15 +24,18 @@ function createPrismaClient(url?: string): PrismaClient {
 
     // Optimization: Use standard TCP for read replicas if pooling is an issue, 
     // or same pool config. Here we assume direct connection or pgbouncer.
-    const isProduction = process.env.NODE_ENV === 'production'
+    const isProduction = process.env.NODE_ENV === 'production' || connectionString.includes('supabase.com')
     const pool = new Pool({
         connectionString,
-        // Supabase Transaction Limit: In session mode, max clients are limited.
-        // We must stick to very low concurrent connections per instance in Docker.
         max: isProduction ? 3 : 5,
         idleTimeoutMillis: 20000,
-        connectionTimeoutMillis: 5000, // Faster failure
+        connectionTimeoutMillis: 5000,
         maxUses: 5000,
+        // PRODUCTION HARDENING: SSL configuration for Cloud Databases
+        // Force SSL for Supabase even if NODE_ENV is not 'production'
+        ssl: isProduction ? {
+            rejectUnauthorized: false,
+        } : undefined,
     })
 
     // Graceful shutdown to release connections back to PgBouncer pool
