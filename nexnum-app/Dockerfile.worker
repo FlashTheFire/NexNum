@@ -14,9 +14,9 @@ RUN ls -laR prisma
 # Generate Prisma client (Hardened decoupled generation)
 # Generate Prisma client
 # Use dummy connection string for build-time validation
-RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" \
-    DATABASE_URL_DIRECT="postgresql://dummy:dummy@localhost:5432/dummy" \
-    npx prisma generate
+ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
+ENV DATABASE_URL_DIRECT="postgresql://dummy:dummy@localhost:5432/dummy"
+RUN npx prisma generate
 
 
 # Stage 2: Builder (Debian for reliability)
