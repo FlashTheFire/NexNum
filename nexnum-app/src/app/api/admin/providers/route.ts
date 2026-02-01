@@ -12,7 +12,7 @@ export async function GET(req: Request) {
 
     try {
         // Try full query with all fields
-        let providers;
+        let providers: any[];
         try {
             providers = await prisma.provider.findMany({
                 orderBy: { priority: 'desc' },
@@ -25,11 +25,26 @@ export async function GET(req: Request) {
                 }
             })
         } catch (queryError) {
-            // Fallback: Query without testResults if schema is out of sync
-            console.warn('[ADMIN_PROVIDERS] Full query failed, using minimal query:', queryError);
-            providers = await prisma.provider.findMany({
-                orderBy: { name: 'asc' }
-            })
+            console.warn('[ADMIN_PROVIDERS] Full query failed, trying raw SQL:', queryError);
+
+            // Ultimate fallback: Raw SQL query with only essential columns
+            // These columns definitely exist in the original Provider table
+            try {
+                providers = await prisma.$queryRaw`
+                    SELECT 
+                        id, name, display_name as "displayName", description, 
+                        logo_url as "logoUrl", website_url as "websiteUrl",
+                        api_base_url as "apiBaseUrl", auth_type as "authType",
+                        provider_type as "providerType", is_active as "isActive",
+                        currency, created_at as "createdAt", updated_at as "updatedAt"
+                    FROM "Provider"
+                    ORDER BY name ASC
+                ` as any[];
+            } catch (rawError) {
+                console.error('[ADMIN_PROVIDERS] Raw SQL also failed:', rawError);
+                // Return empty array rather than error
+                providers = [];
+            }
         }
 
         // Enhance with last test status and REDACT SECRETS
@@ -52,6 +67,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+
     const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
 

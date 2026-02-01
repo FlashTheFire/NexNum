@@ -13,16 +13,27 @@ export async function POST(request: Request) {
     if (auth.error) return auth.error
 
     try {
-        let providers;
+        let providers: any[];
         try {
             providers = await prisma.provider.findMany({
                 where: { isActive: true }
             })
         } catch (queryError) {
-            // Fallback: Get all providers if isActive column check fails
-            console.warn('[BALANCE_CHECK] Query failed, using fallback:', queryError);
-            providers = await prisma.provider.findMany();
+            // Ultimate fallback: Raw SQL query with only essential columns
+            console.warn('[BALANCE_CHECK] Query failed, using raw SQL:', queryError);
+            try {
+                providers = await prisma.$queryRaw`
+                    SELECT id, name, display_name as "displayName", api_base_url as "apiBaseUrl",
+                           auth_type as "authType", is_active as "isActive"
+                    FROM "Provider"
+                    WHERE is_active = true
+                ` as any[];
+            } catch (rawError) {
+                console.error('[BALANCE_CHECK] Raw SQL also failed:', rawError);
+                providers = [];
+            }
         }
+
 
         const results = await Promise.all(providers.map(async (p) => {
             try {
@@ -66,16 +77,28 @@ export async function GET(request: Request) {
     if (auth.error) return auth.error
 
     try {
-        let providers;
+        let providers: any[];
         try {
             providers = await prisma.provider.findMany({
                 where: { isActive: true }
             })
         } catch (queryError) {
-            // Fallback: Get all providers if query fails
-            console.warn('[BALANCE_CHECK] GET query failed, using fallback:', queryError);
-            providers = await prisma.provider.findMany();
+            // Ultimate fallback: Raw SQL query with only essential columns
+            console.warn('[BALANCE_CHECK] GET query failed, using raw SQL:', queryError);
+            try {
+                providers = await prisma.$queryRaw`
+                    SELECT id, name, display_name as "displayName", 
+                           balance, low_balance_alert as "lowBalanceAlert",
+                           currency, is_active as "isActive"
+                    FROM "Provider"
+                    WHERE is_active = true
+                ` as any[];
+            } catch (rawError) {
+                console.error('[BALANCE_CHECK] Raw SQL also failed, returning empty alerts:', rawError);
+                providers = [];
+            }
         }
+
 
         // Filter in memory for balance < threshold with safe access
         const alerts = providers.filter(p => {
