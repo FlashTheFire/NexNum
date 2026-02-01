@@ -18,6 +18,7 @@ interface AuthState {
     checkAuth: (force?: boolean) => Promise<void>;
     updateUser: (data: { name?: string; email?: string; preferredCurrency?: string }) => void;
     clearError: () => void;
+    setError: (error: string) => void;
     hydrateFromCache: () => void;  // New: restore from cache immediately
 }
 
@@ -333,6 +334,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     clearError: () => {
         set({ error: null });
+    },
+
+    setError: (error: string) => {
+        set({ error });
     },
 
     // Instantly restore auth state from cache (no network request)

@@ -15,11 +15,12 @@ import Navbar from "@/components/layout/Navbar";
 import { useAuthStore } from "@/stores/authStore";
 import LoadingScreen from "@/components/ui/LoadingScreen";
 import { SocialLoginButtons } from "@/components/auth/SocialLoginButtons";
-import { Captcha } from "@/components/auth/Captcha";
+import { Captcha, useCaptchaRequired } from "@/components/auth/Captcha";
 
 export default function LoginPage() {
     const router = useRouter();
-    const { login, isLoading, error, clearError, isAuthenticated, checkAuth, requires2Fa, verify2Fa } = useAuthStore();
+    const { login, isLoading, error, clearError, isAuthenticated, checkAuth, requires2Fa, verify2Fa, setError } = useAuthStore();
+    const { required: isCaptchaRequired, loading: isCaptchaLoading } = useCaptchaRequired();
 
     const [showPassword, setShowPassword] = useState(false);
     const [email, setEmail] = useState("");
@@ -56,6 +57,12 @@ export default function LoginPage() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         clearError();
+
+        if (isCaptchaRequired && !captchaToken) {
+            setError("Please complete the security verification (CAPTCHA)");
+            return;
+        }
+
         await login(email, password, captchaToken);
     };
 

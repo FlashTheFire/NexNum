@@ -203,16 +203,17 @@ export async function runSecurityChecks(
         }
     }
 
-    // 5. CAPTCHA Verification (Strict)
-    // Only enforce if requireCaptcha is true AND a provider is actually configured
-    const isCaptchaConfigured = !!getCaptchaSiteKey() && (!!process.env.HCAPTCHA_SECRET || !!process.env.RECAPTCHA_SECRET)
-
-    if (opts.requireCaptcha && !hasApiKey && isCaptchaConfigured) {
+    // 5. CAPTCHA Verification (Strict Enforcement)
+    if (opts.requireCaptcha && !hasApiKey) {
+        // We always call verifyCaptcha if required. 
+        // It will handle its own configuration checks and environment fallback.
         const captchaToken = headers.get('x-captcha-token')
+
+        // Fail closed: If required but no token provided, block immediately
         if (!captchaToken) {
             return {
                 allowed: false,
-                error: 'CAPTCHA token required',
+                error: 'Security verification required (CAPTCHA)',
                 statusCode: 403,
                 clientInfo,
                 fingerprint
@@ -229,7 +230,7 @@ export async function runSecurityChecks(
             }
             return {
                 allowed: false,
-                error: captchaResult.error || 'CAPTCHA verification failed',
+                error: captchaResult.error || 'Security verification failed',
                 statusCode: 403,
                 clientInfo,
                 fingerprint

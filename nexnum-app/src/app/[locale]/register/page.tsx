@@ -15,7 +15,7 @@ import Navbar from "@/components/layout/Navbar";
 import { useAuthStore } from "@/stores/authStore";
 import LoadingScreen from "@/components/ui/LoadingScreen";
 import { SocialLoginButtons } from "@/components/auth/SocialLoginButtons";
-import { Captcha } from "@/components/auth/Captcha";
+import { Captcha, useCaptchaRequired } from "@/components/auth/Captcha";
 
 const features = [
     { icon: Shield, label: "Bank-grade encryption" },
@@ -25,7 +25,8 @@ const features = [
 
 export default function RegisterPage() {
     const router = useRouter();
-    const { register, isLoading, error, clearError, isAuthenticated, checkAuth } = useAuthStore();
+    const { register, isLoading, error, clearError, isAuthenticated, checkAuth, setError } = useAuthStore();
+    const { required: isCaptchaRequired, loading: isCaptchaLoading } = useCaptchaRequired();
 
     const [showPassword, setShowPassword] = useState(false);
     const [step, setStep] = useState(1);
@@ -77,6 +78,10 @@ export default function RegisterPage() {
         clearError();
 
         if (step === 1) {
+            if (isCaptchaRequired && !captchaToken) {
+                setError("Please complete the security verification (CAPTCHA)");
+                return;
+            }
             setStep(2);
         } else if (step === 2) {
             // Validate password requirements for backend
