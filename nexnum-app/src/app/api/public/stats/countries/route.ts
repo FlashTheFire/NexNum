@@ -131,12 +131,19 @@ export async function GET(req: Request) {
         const locale = (searchParams.get("locale") || "en") as keyof CountryMeta["name"];
 
         // Fetch all active offers from MeiliSearch for global aggregation
+        // OPTIMIZATION: High limit with specific attributes for max performance
         const index = meili.index(INDEXES.OFFERS);
 
         const result = await index.search('', {
             filter: 'isActive = true',
-            limit: 10000, // Get enough data for global aggregation
-            attributesToRetrieve: ['countryName', 'serviceName', 'provider', 'pointPrice', 'stock'],
+            limit: 100000, // Process up to 100k offers
+            attributesToRetrieve: [
+                'countryName',
+                'serviceName',
+                'provider',
+                'pointPrice',
+                'stock'
+            ],
         });
 
         // Aggregate country stats from MeiliSearch hits
@@ -281,7 +288,8 @@ export async function GET(req: Request) {
             summary,
         }, {
             headers: {
-                "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
+                // Cache for 6 hours (21600s), stale-while-revalidate for 1 hour
+                "Cache-Control": "public, s-maxage=21600, stale-while-revalidate=3600",
             }
         });
 
