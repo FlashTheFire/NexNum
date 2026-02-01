@@ -41,7 +41,7 @@ services:
       NODE_ENV: production
       PORT: 3000
     env_file:
-      - .env.production
+      - .env
     depends_on:
       redis:
         condition: service_healthy
@@ -74,7 +74,7 @@ services:
     environment:
       NODE_ENV: production
     env_file:
-      - .env.production
+      - .env
     depends_on:
       - nexnum-api
       - redis
@@ -97,7 +97,7 @@ services:
       - redis_data:/data
     restart: unless-stopped
     env_file:
-      - .env.production
+      - .env
     healthcheck:
       test: [ "CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-strongpassword}", "ping" ]
       interval: 10s
@@ -120,7 +120,7 @@ services:
       - meili_data:/meili_data
     restart: unless-stopped
     env_file:
-      - .env.production
+      - .env
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:7700/health" ]
       interval: 30s
