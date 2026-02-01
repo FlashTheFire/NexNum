@@ -5,10 +5,12 @@ set -e
 echo "[STARTUP] Running Prisma migrations..."
 
 # Ensure environment variables are exported for the migration process
-# Docker injects them, but this is a safety layer for certain shell environments
-if [ -z "$DATABASE_URL" ] && [ -f .env ]; then
+if [ -f .env ]; then
     echo "[STARTUP] Exporting local .env for migrations..."
-    export $(grep -v '^#' .env | xargs)
+    # Robust loading for shell environments
+    set -a
+    . ./.env
+    set +a
 fi
 
 if [ -n "$DATABASE_URL" ]; then
