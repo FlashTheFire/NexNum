@@ -241,10 +241,10 @@ function SettingsToggle({
                 {description && <p className="text-xs text-white/40 mt-1">{description}</p>}
             </div>
             <button
-                className={`relative w-12 h-6 rounded-full transition-all duration-300 ${enabled ? 'bg-emerald-500' : 'bg-white/20'}`}
+                className={`relative w-14 h-8 rounded-full transition-all duration-300 ${enabled ? 'bg-emerald-500' : 'bg-white/20'}`}
             >
                 <motion.div
-                    className="absolute top-1 w-4 h-4 rounded-full bg-white shadow-lg"
+                    className="absolute top-1 w-6 h-6 rounded-full bg-white shadow-lg"
                     animate={{ left: enabled ? '1.75rem' : '0.25rem' }}
                     transition={{ type: 'spring', stiffness: 500, damping: 30 }}
                 />
@@ -317,10 +317,10 @@ function OAuthProviderCard({
                     )}
                     <button
                         onClick={onToggle}
-                        className={`relative w-12 h-6 rounded-full transition-all duration-300 ${enabled ? 'bg-emerald-500' : 'bg-white/20'}`}
+                        className={`relative w-14 h-8 rounded-full transition-all duration-300 ${enabled ? 'bg-emerald-500' : 'bg-white/20'}`}
                     >
                         <motion.div
-                            className="absolute top-1 w-4 h-4 rounded-full bg-white shadow-lg"
+                            className="absolute top-1 w-6 h-6 rounded-full bg-white shadow-lg"
                             animate={{ left: enabled ? '1.75rem' : '0.25rem' }}
                             transition={{ type: 'spring', stiffness: 500, damping: 30 }}
                         />
@@ -529,7 +529,7 @@ export default function AuthenticationSettingsPage() {
 
             <div className="flex flex-col lg:flex-row gap-6">
                 {/* Sidebar - Tabs */}
-                <div className="lg:w-64 flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0 scrollbar-hide">
+                <div className="lg:w-64 flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0 scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
                     {tabs.map(tab => (
                         <button
                             key={tab.id}
