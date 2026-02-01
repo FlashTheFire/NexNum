@@ -216,6 +216,45 @@ export async function GET(req: Request) {
         // Sort by total stock descending (most popular first)
         countries.sort((a, b) => b.totalStock - a.totalStock);
 
+        // FORCE INCLUSION: Ensure key markets (India, China, Russia) are always in the results
+        const PRIORITY_TARGETS = [
+            { code: 'IN', names: ['INDIA'] },
+            { code: 'CN', names: ['CHINA'] },
+            { code: 'RU', names: ['RUSSIA'] }
+        ];
+
+        // Check which priority countries are missing
+        const existingCodes = new Set(countries.map(c => c.code.toUpperCase()));
+        const existingNames = new Set(countries.map(c => c.name.toUpperCase()));
+
+        for (const target of PRIORITY_TARGETS) {
+            const hasCode = existingCodes.has(target.code);
+            const hasName = target.names.some(n => existingNames.has(n));
+
+            if (!hasCode && !hasName) {
+                // Country is missing - add placeholder from metadata
+                const meta = CODE_TO_META.get(target.code);
+                if (meta) {
+                    const coords = meta.latitude && meta.longitude
+                        ? latLngToMapPosition(meta.latitude, meta.longitude)
+                        : { x: 50, y: 50 };
+
+                    countries.push({
+                        code: meta.code,
+                        name: meta.name[locale] || meta.name["en"],
+                        flagUrl: getFlagUrl(meta.code),
+                        totalServices: 0,
+                        totalStock: 0,
+                        totalProviders: 0,
+                        lowestPrice: 0,
+                        avgPrice: 0,
+                        x: coords.x,
+                        y: coords.y,
+                    });
+                }
+            }
+        }
+
         // DEDUPLICATE: Ensure all codes are unique to prevent React Key errors
         const uniqueCountries: CountryStats[] = [];
         const seenCodes = new Set<string>();
