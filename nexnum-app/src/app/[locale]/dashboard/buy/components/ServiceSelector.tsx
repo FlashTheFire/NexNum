@@ -425,8 +425,7 @@ export default function ServiceSelector({ selectedService, defaultSelected, onSe
                             </div>
 
                             {/* "Other" Button - Mobile */}
-                            <motion.button
-                                whileTap={{ scale: 0.98 }}
+                            <button
                                 onClick={() => onSelect('other', 'Other', '/assets/icons/other.png')}
                                 className="group w-full flex items-center gap-3 p-3 rounded-xl bg-gradient-to-br from-emerald-500/10 to-teal-500/5 border border-emerald-500/20 active:border-emerald-500/40"
                             >
@@ -444,7 +443,7 @@ export default function ServiceSelector({ selectedService, defaultSelected, onSe
                                 <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                 </svg>
-                            </motion.button>
+                            </button>
 
                             {/* Quick Help Link - Mobile */}
                             <a href="/support/new-service" className="flex items-center justify-center gap-1.5 mt-3 py-2 text-[11px] text-gray-400 hover:text-[hsl(var(--neon-lime))]">
@@ -523,9 +522,7 @@ export default function ServiceSelector({ selectedService, defaultSelected, onSe
                                         </div>
 
                                         {/* "Other" Service Card */}
-                                        <motion.button
-                                            whileHover={{ scale: 1.01, x: 3 }}
-                                            whileTap={{ scale: 0.99 }}
+                                        <button
                                             onClick={() => onSelect('other', 'Other', '/assets/icons/other.png')}
                                             className="group w-full flex items-center gap-4 p-4 rounded-xl bg-gradient-to-r from-emerald-500/15 via-emerald-500/5 to-transparent border border-emerald-500/25 hover:border-emerald-400/50 hover:shadow-[0_4px_30px_hsl(var(--neon-lime)/0.12)] transition-all duration-300"
                                         >
@@ -551,7 +548,7 @@ export default function ServiceSelector({ selectedService, defaultSelected, onSe
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                                                 </svg>
                                             </div>
-                                        </motion.button>
+                                        </button>
 
                                         {/* Help Link */}
                                         <div className="flex items-center gap-3 pt-3">
