@@ -10,11 +10,11 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY prisma ./prisma
 RUN --mount=type=cache,target=/root/.npm npm ci --legacy-peer-deps
-# Generate Prisma Client here to ensure WASM engines are correctly resolved in context
 
-RUN DATABASE_URL=postgres://localhost:5432/placeholder \
-    DATABASE_URL_DIRECT=postgres://localhost:5432/placeholder \
-    npx prisma generate
+# Generate Prisma client with placeholder for build-time validation
+ENV DATABASE_URL="postgresql://localhost:5432/placeholder"
+ENV DATABASE_URL_DIRECT="postgresql://localhost:5432/placeholder"
+RUN npx prisma generate
 
 
 # Stage 2: Builder (Debian for reliability)
@@ -23,14 +23,13 @@ RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/
 WORKDIR /app
 COPY . .
 
-
 # Build the application
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN DATABASE_URL=postgres://localhost:5432/placeholder \
-    JWT_SECRET=placeholder_for_build_must_be_32_chars_long \
-    ENCRYPTION_KEY=placeholder_for_build_must_be_32_chars_long \
-    HOME=/tmp \
-    npm run build:skip-types
+ENV JWT_SECRET=placeholder_for_build_must_be_32_chars_long
+ENV ENCRYPTION_KEY=placeholder_for_build_must_be_32_chars_long
+ENV HOME=/tmp
+RUN npm run build:skip-types
+
 # Prune for production
 RUN --mount=type=cache,target=/root/.npm HOME=/tmp npm prune --omit=dev
 

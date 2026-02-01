@@ -10,11 +10,10 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY prisma ./prisma
 RUN --mount=type=cache,target=/root/.npm npm ci --legacy-peer-deps
-# Generate Prisma Client here to ensure WASM engines are correctly resolved in context
-
-RUN DATABASE_URL=postgres://localhost:5432/placeholder \
-    DATABASE_URL_DIRECT=postgres://localhost:5432/placeholder \
-    npx prisma generate
+# Generate Prisma client with placeholder for build-time validation
+ENV DATABASE_URL="postgresql://localhost:5432/placeholder"
+ENV DATABASE_URL_DIRECT="postgresql://localhost:5432/placeholder"
+RUN npx prisma generate
 
 
 
