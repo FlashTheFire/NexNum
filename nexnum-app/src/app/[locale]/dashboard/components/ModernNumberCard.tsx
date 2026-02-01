@@ -44,16 +44,16 @@ export function ModernNumberCard({
     return (
         <Link
             href={`/sms/${id}`}
-            className={cn("relative group cursor-pointer w-full block h-[180px]", className)}
+            className={cn("relative group cursor-pointer w-full block h-[160px]", className)}
             style={{
-                clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 34px), calc(100% - 40px) 100%, 0 100%)'
+                clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 24px), calc(100% - 30px) 100%, 0 100%)'
             }}
         >
             {/* Neon-lime micro rim highlight */}
             <div
                 className="absolute inset-0 rounded-2xl transition-all duration-300 group-hover:opacity-100"
                 style={{
-                    clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 24px), calc(100% - 24px) 100%, 0 100%)',
+                    clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 20px), calc(100% - 20px) 100%, 0 100%)',
                     background: 'linear-gradient(135deg, rgba(179,255,0,0.15) 0%, transparent 50%, rgba(179,255,0,0.08) 100%)',
                     padding: '1px'
                 }}
@@ -61,20 +61,20 @@ export function ModernNumberCard({
 
             {/* Main card body */}
             <div
-                className="relative h-full p-4 bg-[#12141a]/90 backdrop-blur-md border border-white/[0.04] rounded-2xl overflow-hidden transition-all duration-200 group-hover:border-white/[0.08] group-hover:bg-[#15181e]/90"
+                className="relative h-full p-3.5 bg-[#12141a]/90 backdrop-blur-md border border-white/[0.04] rounded-2xl overflow-hidden transition-all duration-200 group-hover:border-white/[0.08] group-hover:bg-[#15181e]/90"
                 style={{
-                    clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 24px), calc(100% - 24px) 100%, 0 100%)'
+                    clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 20px), calc(100% - 20px) 100%, 0 100%)'
                 }}
             >
-                {/* SIM Chip Pattern (center-left, 8% opacity) */}
+                {/* SIM Chip Pattern (center-left, 8% opacity) - Hidden on very small heights */}
                 <div
-                    className="absolute left-6 top-1/2 -translate-y-1/2 w-12 h-10 opacity-[0.15] hidden sm:block"
+                    className="absolute left-6 top-1/2 -translate-y-1/2 w-10 h-8 opacity-[0.1] hidden xl:group-[.h-\[120px\]]:hidden sm:block"
                     style={{
                         background: `
                             linear-gradient(to right, #b3ff00 1px, transparent 1px) 0 0 / 4px 100%,
                             linear-gradient(to bottom, #b3ff00 1px, transparent 1px) 0 0 / 100% 4px
                         `,
-                        borderRadius: '3px',
+                        borderRadius: '2px',
                         border: '1px solid rgba(179,255,0,0.3)'
                     }}
                 />
@@ -83,9 +83,9 @@ export function ModernNumberCard({
                 <div className="absolute inset-0 bg-gradient-to-br from-white/[0.02] via-transparent to-[hsl(var(--neon-lime)/0.02)] pointer-events-none" />
 
                 {/* Content */}
-                <div className="relative z-10 flex flex-col justify-between h-full pb-3">
-                    <div className="flex items-start justify-between mb-1">
-                        <div className="relative w-9 h-9 flex-shrink-0">
+                <div className="relative z-10 flex flex-col justify-between h-full pb-1">
+                    <div className="flex items-start justify-between">
+                        <div className="relative w-8 h-8 flex-shrink-0">
                             <div className="relative w-full h-full rounded-lg overflow-hidden transition-all duration-300 ring-1 ring-white/10 group-hover:scale-105">
                                 {serviceIconUrl ? (
                                     <img
@@ -94,13 +94,12 @@ export function ModernNumberCard({
                                         src={serviceIconUrl}
                                     />
                                 ) : (
-                                    <div className="w-full h-full bg-[#1A1D24] flex items-center justify-center text-gray-300 text-lg font-bold">
+                                    <div className="w-full h-full bg-[#1A1D24] flex items-center justify-center text-gray-300 text-sm font-bold">
                                         {serviceName?.charAt(0).toUpperCase()}
                                     </div>
                                 )}
-                                <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none"></div>
                             </div>
-                            <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-[#151518] overflow-hidden shadow-md z-20">
+                            <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-[#151518] overflow-hidden shadow-md z-20">
                                 <img
                                     alt={countryName}
                                     className="w-full h-full rounded-full object-cover shadow-sm ring-1 ring-white/10"
@@ -111,35 +110,35 @@ export function ModernNumberCard({
                         {/* Dynamic Status Badge */}
                         <div className="flex flex-col items-end gap-1">
                             {(!status || !['received', 'expired', 'cancelled', 'completed', 'timeout'].includes(status)) && (
-                                <div className="inline-flex items-center rounded-full border px-2 py-0.5 font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-emerald-500/30 text-emerald-400 text-[9px] uppercase tracking-wider bg-emerald-500/10 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
+                                <div className="inline-flex items-center rounded-full border px-1.5 py-0.5 font-bold transition-colors border-emerald-500/30 text-emerald-400 text-[8px] uppercase tracking-wider bg-emerald-500/10 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
                                     {t('active')}
                                 </div>
                             )}
                             {(status === 'received' || status === 'completed') && (
-                                <div className="inline-flex items-center rounded-full border px-2 py-0.5 font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-emerald-500/30 text-emerald-400 text-[9px] uppercase tracking-wider bg-emerald-500/10 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
+                                <div className="inline-flex items-center rounded-full border px-1.5 py-0.5 font-bold transition-colors border-emerald-500/30 text-emerald-400 text-[8px] uppercase tracking-wider bg-emerald-500/10 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
                                     {t('completed')}
                                 </div>
                             )}
                             {(status === 'expired' || status === 'timeout') && (
-                                <div className="inline-flex items-center rounded-full border px-2 py-0.5 font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-orange-500/30 text-orange-400 text-[9px] uppercase tracking-wider bg-orange-500/10">
+                                <div className="inline-flex items-center rounded-full border px-1.5 py-0.5 font-bold transition-colors border-orange-500/30 text-orange-400 text-[8px] uppercase tracking-wider bg-orange-500/10">
                                     {t('expired')}
                                 </div>
                             )}
                             {status === 'cancelled' && (
-                                <div className="inline-flex items-center rounded-full border px-2 py-0.5 font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-red-500/30 text-red-400 text-[9px] uppercase tracking-wider bg-red-500/10">
+                                <div className="inline-flex items-center rounded-full border px-1.5 py-0.5 font-bold transition-colors border-red-500/30 text-red-400 text-[8px] uppercase tracking-wider bg-red-500/10">
                                     {t('cancelled')}
                                 </div>
                             )}
                         </div>
                     </div>
 
-                    <div className="space-y-1 pl-1">
-                        <p className="text-xl sm:text-2xl font-mono font-medium text-white tracking-wide truncate">{number}</p>
-                        <p className="text-xs text-gray-400 flex items-center gap-2">
-                            <span className="truncate max-w-[100px]">{serviceName}</span>
-                            <span className="w-1 h-1 rounded-full bg-gray-600"></span>
-                            <span className="text-[hsl(var(--neon-lime))]">{smsCount || 0} SMS</span>
-                        </p>
+                    <div className="space-y-0.5 pl-0.5">
+                        <p className="text-lg font-mono font-bold text-white tracking-wide truncate transition-all group-hover:text-[hsl(var(--neon-lime))]">{number}</p>
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-gray-500 font-bold uppercase truncate max-w-[80px] opacity-80">{serviceName}</span>
+                            <span className="w-0.5 h-0.5 rounded-full bg-gray-700"></span>
+                            <span className="text-[10px] text-[hsl(var(--neon-lime))] font-bold">{smsCount || 0} SMS</span>
+                        </div>
                     </div>
                 </div>
 
