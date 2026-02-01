@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/core/db";
+import { meili, INDEXES, OfferDocument } from "@/lib/search/search";
+import { normalizeCountryName, generateCanonicalCode } from "@/lib/normalizers/service-identity";
+import { getCountryFlagUrlSync } from "@/lib/normalizers/country-flags";
 import countriesMetadata from "@/data/countries-metadata.json";
 
 // Advanced Map Calibration Settings
@@ -120,7 +122,7 @@ interface CountryStats {
  * GET /api/public/stats/countries
  * 
  * Returns aggregated country statistics for the Global Coverage Map.
- * Top countries by total stock, with service counts, provider counts, and pricing.
+ * Aggregates data directly from MeiliSearch offers index.
  */
 export async function GET(req: Request) {
     try {
@@ -128,86 +130,66 @@ export async function GET(req: Request) {
         const limit = Math.min(parseInt(searchParams.get("limit") || "20"), 300);
         const locale = (searchParams.get("locale") || "en") as keyof CountryMeta["name"];
 
-        // Aggregate country stats from ProviderCountry
-        const countryStats: any[] = [];
+        // Fetch all active offers from MeiliSearch for global aggregation
+        const index = meili.index(INDEXES.OFFERS);
 
-
-        // FORCE INCLUSION: Ensure key markets (India, China, Russia) are always in the results
-        // Check by CODE and NAME to be robust against DB inconsistencies
-        const PRIORITY_TARGETS = [
-            { code: 'IN', names: ['INDIA'] },
-            { code: 'CN', names: ['CHINA'] },
-            { code: 'RU', names: ['RUSSIA', 'RUSSIAN FEDERATION'] }
-        ];
-
-        const existingCodes = new Set(countryStats.map((c: any) => c.country_code?.toUpperCase()));
-        const existingNames = new Set(countryStats.map((c: any) => c.country_name?.toUpperCase()));
-
-        const targetsToFetch: { codes: string[], names: string[] } = { codes: [], names: [] };
-
-        PRIORITY_TARGETS.forEach(target => {
-            const hasCode = existingCodes.has(target.code);
-            const hasName = target.names.some(n => existingNames.has(n));
-
-            if (!hasCode && !hasName) {
-                targetsToFetch.codes.push(target.code);
-                targetsToFetch.names.push(...target.names);
-            }
+        const result = await index.search('', {
+            filter: 'isActive = true',
+            limit: 10000, // Get enough data for global aggregation
+            attributesToRetrieve: ['countryName', 'serviceName', 'provider', 'pointPrice', 'stock'],
         });
 
-        if (targetsToFetch.codes.length > 0) {
-            // SECURITY: Use parameterized query instead of string concatenation
-            // Note: These values come from hardcoded PRIORITY_TARGETS, but using params is safer pattern
-            const priorityStats = await prisma.providerCountry.findMany({
-                where: {
-                    OR: [
-                        { code: { in: targetsToFetch.codes, mode: 'insensitive' } },
-                        { name: { in: targetsToFetch.names, mode: 'insensitive' } }
-                    ]
-                },
-                select: {
-                    code: true,
-                    name: true,
-                    flagUrl: true,
-                    id: true
-                }
-            });
+        // Aggregate country stats from MeiliSearch hits
+        const countryMap = new Map<string, {
+            displayName: string;
+            minPrice: number;
+            totalPrice: number;
+            priceCount: number;
+            totalStock: number;
+            services: Set<string>;
+            providers: Set<string>;
+        }>();
 
-            // For each priority country, get basic stats
-            // STUB: ProviderPricing is deleted. Returning 0s for now.
-            // TODO: Implement MeiliSearch aggregation
-            for (const pc of priorityStats) {
-                countryStats.push({
-                    country_code: pc.code,
-                    country_name: pc.name,
-                    flag_url: pc.flagUrl,
-                    total_services: 0,
-                    total_stock: 0,
-                    total_providers: 0,
-                    lowest_price: 0,
-                    avg_price: 0
-                });
+        for (const hit of result.hits as OfferDocument[]) {
+            const normalizedName = normalizeCountryName(hit.countryName);
+            if (!normalizedName) continue;
+
+            let stats = countryMap.get(normalizedName);
+            if (!stats) {
+                stats = {
+                    displayName: hit.countryName,
+                    minPrice: hit.pointPrice,
+                    totalPrice: hit.pointPrice,
+                    priceCount: 1,
+                    totalStock: 0,
+                    services: new Set(),
+                    providers: new Set(),
+                };
+                countryMap.set(normalizedName, stats);
+            }
+
+            stats.minPrice = Math.min(stats.minPrice, hit.pointPrice);
+            stats.totalPrice += hit.pointPrice;
+            stats.priceCount += 1;
+            stats.totalStock += hit.stock || 0;
+            stats.services.add(hit.serviceName);
+            stats.providers.add(hit.provider);
+
+            // Prefer longer/better display name
+            if (hit.countryName && hit.countryName.length > stats.displayName.length) {
+                stats.displayName = hit.countryName;
             }
         }
 
-        // STUB: Overall summary
-        const summaryData = { total_countries: 0, total_services: 0, grand_total_stock: 0 };
-
         // Map to response format with coordinates from unified metadata
-        const countries: CountryStats[] = countryStats.map(row => {
-            const countryName = row.country_name || "";
-            const dbCode = row.country_code || "";
+        let countries: CountryStats[] = Array.from(countryMap.values()).map(stats => {
+            const countryName = stats.displayName;
 
-            // PRIORITY: Always look up by NAME first since DB codes are often incorrect/corrupted
+            // PRIORITY: Always look up by NAME first
             let meta: CountryMeta | undefined = findMetadataByName(countryName);
 
-            // Fallback: If name lookup fails AND dbCode is 2-letter ISO, try by code
-            if (!meta && dbCode.length === 2) {
-                meta = CODE_TO_META.get(dbCode.toUpperCase());
-            }
-
-            // Final ISO code (use metadata code if found, else fallback)
-            const isoCode = meta?.code || (dbCode.length === 2 ? dbCode.toUpperCase() : "XX");
+            // Final ISO code (use metadata code if found, else generate)
+            const isoCode = meta?.code || generateCanonicalCode(countryName);
 
             // Calculate coordinates
             const coords = meta && meta.latitude && meta.longitude
@@ -220,19 +202,21 @@ export async function GET(req: Request) {
             return {
                 code: isoCode,
                 name: localizedName,
-                flagUrl: getFlagUrl(isoCode),
-                totalServices: Number(row.total_services) || 0,
-                totalStock: Number(row.total_stock) || 0,
-                totalProviders: Number(row.total_providers) || 0,
-                lowestPrice: parseFloat(row.lowest_price) || 0,
-                avgPrice: parseFloat(row.avg_price) || 0,
+                flagUrl: getCountryFlagUrlSync(countryName) || getFlagUrl(isoCode),
+                totalServices: stats.services.size,
+                totalStock: stats.totalStock,
+                totalProviders: stats.providers.size,
+                lowestPrice: stats.minPrice,
+                avgPrice: stats.priceCount > 0 ? Number((stats.totalPrice / stats.priceCount).toFixed(2)) : 0,
                 x: coords.x,
                 y: coords.y,
             };
         });
 
-        // DEDUPLICATE: Ensure all codes are unique to prevent React Key errors (e.g. duplicate 'NL', 'CA')
-        // Prioritize the first occurrence (which is highest stock due to sorting)
+        // Sort by total stock descending (most popular first)
+        countries.sort((a, b) => b.totalStock - a.totalStock);
+
+        // DEDUPLICATE: Ensure all codes are unique to prevent React Key errors
         const uniqueCountries: CountryStats[] = [];
         const seenCodes = new Set<string>();
 
@@ -243,15 +227,19 @@ export async function GET(req: Request) {
             }
         }
 
+        // Apply limit
+        const limitedCountries = uniqueCountries.slice(0, limit);
 
+        // Calculate summary from all countries (before limiting)
+        const summary = {
+            totalCountries: uniqueCountries.length,
+            totalServices: new Set(Array.from(countryMap.values()).flatMap(s => Array.from(s.services))).size,
+            grandTotalStock: Array.from(countryMap.values()).reduce((sum, s) => sum + s.totalStock, 0),
+        };
 
         return NextResponse.json({
-            countries: uniqueCountries,
-            summary: {
-                totalCountries: Number(summaryData.total_countries),
-                totalServices: Number(summaryData.total_services),
-                grandTotalStock: Number(summaryData.grand_total_stock),
-            }
+            countries: limitedCountries,
+            summary,
         }, {
             headers: {
                 "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
