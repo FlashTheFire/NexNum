@@ -1,18 +1,28 @@
 import { prisma } from '@/lib/core/db'
 import { logger } from '@/lib/core/logger'
+import { ActivationState } from '@prisma/client'
 
 /**
- * Calculates reliability scores for all providers based on real order history.
- * Formula: Success Rate = (Completed Orders / Total Orders) * 100
- * Only counts orders from the last 7 days to keep stats fresh.
+ * Calculates reliability scores for all providers based on ACTIVATION history.
+ * 
+ * THE FORMULA (Fair Reliability):
+ * Reliability = (Successful Orders / (Total Considered Orders)) * 100
+ * 
+ * Rules:
+ * 1. Scope: Last 7 Days.
+ * 2. Success: State === RECEIVED
+ * 3. Failure: State IN [EXPIRED, FAILED, REFUNDED]
+ * 4. IGNORED: State === CANCELLED **AND** Duration < 10 Minutes (User changed mind)
+ * 5. Counted Failure: State === CANCELLED **AND** Duration >= 10 Minutes (Provider probably failed to send SMS)
  */
 export async function calculateProviderReliability() {
     const startTime = Date.now()
-    logger.info('[RELIABILITY] Starting provider reliability calculation...')
+    logger.info('[RELIABILITY] Starting Deep Analysis...')
 
     try {
         const providers = await prisma.provider.findMany({
-            where: { isActive: true }
+            where: { isActive: true },
+            select: { id: true, name: true }
         })
 
         const sevenDaysAgo = new Date()
@@ -21,50 +31,90 @@ export async function calculateProviderReliability() {
         let updated = 0
 
         for (const provider of providers) {
-            // 1. Get stats from Number history (assuming 'purchasedAt' indicates an attempt)
-            // 'status' could be: available, sold, refunded, banned
-            // A "Success" is a Sold number that wasn't refunded/banned.
-
-            // Total Attempts: All numbers occupied/sold by this provider in last 7 days
-            const totalOrders = await prisma.number.count({
+            // Fetch all Activations for this provider in last 7 days
+            // We need timestamps to calculate duration
+            const history = await prisma.activation.findMany({
                 where: {
-                    provider: provider.name,
-                    purchasedAt: { gte: sevenDaysAgo }
+                    providerId: provider.id, // Links to Provider UUID
+                    createdAt: { gte: sevenDaysAgo }
+                },
+                select: {
+                    state: true,
+                    createdAt: true,
+                    updatedAt: true
                 }
             })
 
-            if (totalOrders === 0) {
-                // Keep default or previous if no recent data
+            if (history.length === 0) {
+                // No data? Keep static or reset if needed. Skipping for now to preserve manual defaults.
                 continue
             }
 
-            // Failures: Numbers that were refunded or marked as error
-            // (Assumes you have a status for failure, e.g. 'refunded' or 'failed')
-            // If explicit status missing, we look for errorCount > 0
-            const failedOrders = await prisma.number.count({
-                where: {
-                    provider: provider.name,
-                    purchasedAt: { gte: sevenDaysAgo },
-                    status: { in: ['refunded', 'failed', 'banned'] }
+            let successful = 0
+            let ignored = 0
+            let failures = 0
+
+            for (const order of history) {
+                if (order.state === ActivationState.RECEIVED || (order.state as any) === 'COMPLETED') {
+                    successful++
+                    continue
                 }
-            })
 
-            const successCount = totalOrders - failedOrders
-            const rawRate = (successCount / totalOrders) * 100
+                if (order.state === ActivationState.CANCELLED) {
+                    const durationMs = new Date(order.updatedAt).getTime() - new Date(order.createdAt).getTime()
+                    const durationMin = durationMs / 1000 / 60
 
-            // Dampening factor: small sample size shouldn't swing rate wildly
-            // If < 10 orders, bias towards 95%
-            const effectiveRate = totalOrders < 10
-                ? (rawRate * 0.5) + (95 * 0.5)
-                : rawRate
+                    if (durationMin < 10) {
+                        ignored++
+                        continue // User cancelled quickly - ignore
+                    } else {
+                        failures++ // User waited 10min+, then cancelled -> Provider fault
+                    }
+                } else if (
+                    order.state === ActivationState.EXPIRED ||
+                    order.state === ActivationState.FAILED ||
+                    order.state === ActivationState.REFUNDED
+                ) {
+                    failures++
+                } else {
+                    // Pending states (INIT, RESERVED, ACTIVE) are not final yet
+                    continue
+                }
+            }
 
+            const totalConsidered = successful + failures
+
+            // Calculate Score
+            let activeRate = 98.0
+
+            if (totalConsidered > 0) {
+                const rawRate = (successful / totalConsidered) * 100
+
+                // Bayesian Averaging for small sample sizes (< 20 orders)
+                // We weight towards baseline of 95%
+                if (totalConsidered < 20) {
+                    const confidence = totalConsidered / 20
+                    activeRate = (rawRate * confidence) + (95 * (1 - confidence))
+                } else {
+                    activeRate = rawRate
+                }
+            }
+
+            // Database Update
+            // Note: successRate field must exist in schema
             await prisma.provider.update({
                 where: { id: provider.id },
                 data: {
-                    successRate: effectiveRate,
-                    totalOrders: totalOrders
+                    successRate: activeRate,
+                    totalOrders: totalConsidered // Store considered orders (not raw total)
                 }
             })
+
+            // Log analysis for audit
+            if (totalConsidered > 5) {
+                logger.debug(`[RELIABILITY] Provider ${provider.name}: ${activeRate.toFixed(1)}% (S:${successful} F:${failures} Ignored:${ignored})`)
+            }
+
             updated++
         }
 
