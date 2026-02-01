@@ -205,7 +205,9 @@ export async function getTopCountriesWithFlags(
 // ...
 
 /**
- * Search Countries for a Service
+ * Search Countries for a Service (High-Performance Aggregation)
+ * Returns countries where a specific service is available.
+ * Optimized for scaling: 100k offers scan per service.
  */
 export async function searchCountries(
     serviceCode: string,
@@ -220,15 +222,25 @@ export async function searchCountries(
 
         const serviceNameToFilter = getCanonicalName(serviceCode) || serviceCode
 
+        // OPTIMIZATION: Lean Projection for 100k limit
+        // We fetch ALL offers for this service to ensure we find the absolute lowest price
+        // and correct total stock across the globe.
         const result = await index.search(query, {
             filter: `serviceName = "${serviceNameToFilter}" AND isActive = true`,
-            limit: 2000,
-            attributesToRetrieve: ['providerCountryCode', 'countryName', 'provider', 'pointPrice', 'stock'],
+            limit: 100000,
+            attributesToRetrieve: [
+                'providerCountryCode',
+                'countryName',
+                'provider',
+                'pointPrice',
+                'stock'
+            ],
         })
 
         // Metrics
         search_latency.observe({ type: 'countries' }, (Date.now() - startTime) / 1000)
 
+        // Aggregation Map
         const countryMap = new Map<string, {
             displayName: string;
             minPrice: number;
@@ -256,6 +268,7 @@ export async function searchCountries(
             stats.minPrice = Math.min(stats.minPrice, hit.pointPrice)
             stats.totalStock += hit.stock || 0
             stats.providers.add(hit.provider)
+            // Use local provider country code for flag lookup if available
             if (!stats.bestCode && hit.providerCountryCode) stats.bestCode = hit.providerCountryCode
         }
 
@@ -269,11 +282,14 @@ export async function searchCountries(
             serverCount: g.providers.size,
         }))
 
-        // Multi-level sort
+        // Algorithm: Relevance Sort
         countries.sort((a, b) => {
             if (options?.sort === 'price_asc') return a.lowestPrice - b.lowestPrice
             if (options?.sort === 'stock_desc') return b.totalStock - a.totalStock
-            return a.name.localeCompare(b.name)
+            // Default: "Smart Sort" = Cheapest first, but prioritize high stock if price diff is negligible
+            const priceDiff = a.lowestPrice - b.lowestPrice;
+            if (Math.abs(priceDiff) > 1) return priceDiff; // Price is king if diff > 1 point
+            return b.totalStock - a.totalStock; // Otherwise stock wins
         })
 
         const start = (page - 1) * limit
