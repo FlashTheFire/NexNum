@@ -11,9 +11,9 @@ interface AuthState {
     tempToken: string | null;
 
     // Actions
-    login: (email: string, password: string) => Promise<boolean>;
+    login: (email: string, password: string, captchaToken?: string) => Promise<boolean>;
     verify2Fa: (token: string) => Promise<boolean>;
-    register: (name: string, email: string, password: string) => Promise<boolean>;
+    register: (name: string, email: string, password: string, captchaToken?: string) => Promise<boolean>;
     logout: () => Promise<void>;
     checkAuth: (force?: boolean) => Promise<void>;
     updateUser: (data: { name?: string; email?: string; preferredCurrency?: string }) => void;
@@ -93,13 +93,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     tempToken: null,
     lastAuthCheck: 0, // Timestamp of last successful verification
 
-    login: async (email: string, password: string) => {
+    login: async (email: string, password: string, captchaToken?: string) => {
         set({ isLoading: true, error: null });
 
         try {
             // Use the API helper which handles CSRF
             const { login } = await import('@/lib/api/auth-api');
-            const data = await login({ email, password });
+            const data = await login({ email, password, captchaToken });
 
             // Check for 2FA Challenge
             if (data && data.requires2Fa) {
@@ -189,13 +189,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
     },
 
-    register: async (name: string, email: string, password: string) => {
+    register: async (name: string, email: string, password: string, captchaToken?: string) => {
         set({ isLoading: true, error: null });
 
         try {
             // Use the API helper which handles CSRF
             const { register } = await import('@/lib/api/auth-api');
-            const data = await register({ name, email, password });
+            const data = await register({ name, email, password, captchaToken });
 
             // Save token and user to cache
             saveToken(data.token);

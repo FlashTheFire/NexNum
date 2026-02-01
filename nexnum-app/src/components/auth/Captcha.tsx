@@ -8,6 +8,7 @@ interface CaptchaProps {
     onVerify: (token: string) => void
     onExpire?: () => void
     onError?: (error: string) => void
+    className?: string
 }
 
 interface CaptchaConfig {
@@ -40,7 +41,7 @@ declare global {
  * either hCaptcha or Google reCAPTCHA based on the configuration.
  * If captcha is disabled, renders nothing but calls onVerify with empty string.
  */
-export function Captcha({ onVerify, onExpire, onError }: CaptchaProps) {
+export function Captcha({ onVerify, onExpire, onError, className }: CaptchaProps) {
     const [mounted, setMounted] = useState(false)
     const [config, setConfig] = useState<CaptchaConfig | null>(null)
     const [loading, setLoading] = useState(true)
@@ -133,7 +134,7 @@ export function Captcha({ onVerify, onExpire, onError }: CaptchaProps) {
     // Render hCaptcha
     if (config.provider === 'hcaptcha') {
         return (
-            <div className="flex justify-center my-4">
+            <div className={`flex justify-center my-4 ${className || ''}`}>
                 <HCaptcha
                     ref={hcaptchaRef}
                     sitekey={config.siteKey}
@@ -155,7 +156,7 @@ export function Captcha({ onVerify, onExpire, onError }: CaptchaProps) {
                     onLoad={handleRecaptchaLoad}
                     strategy="lazyOnload"
                 />
-                <div className="flex justify-center my-4">
+                <div className={`flex justify-center my-4 ${className || ''}`}>
                     <div ref={recaptchaContainerRef} className="g-recaptcha" />
                 </div>
             </>

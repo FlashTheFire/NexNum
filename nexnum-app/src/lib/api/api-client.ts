@@ -114,6 +114,12 @@ class NexNumClient {
             if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
                 const csrf = await this.getCsrfToken()
                 if (csrf) headers.set('X-CSRF-Token', csrf)
+
+                // Inject Captcha token if present in body
+                if (body && typeof body === 'object' && body.captchaToken) {
+                    headers.set('X-Captcha-Token', body.captchaToken)
+                }
+
                 if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
             }
 
