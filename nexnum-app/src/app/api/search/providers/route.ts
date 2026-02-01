@@ -82,8 +82,9 @@ export async function GET(req: Request) {
             }
         });
 
-        // Default to 95 (High Standard) if no ecosystem data exists yet, otherwise use the Real Average.
-        const dynamicBaseline = ratedCount > 0 ? (totalRate / ratedCount) : 95.0;
+        // Default to 80 (Neutral/Good) if no ecosystem data exists yet.
+        // This avoids the "Cold Start" problem where everyone looks bad initially.
+        const dynamicBaseline = ratedCount > 0 ? (totalRate / ratedCount) : 80.0;
 
         // Map to API response format with reliability info
         const items = result.providers.map((p, index) => {
@@ -91,7 +92,17 @@ export async function GET(req: Request) {
 
             // USE DYNAMIC BASELINE: 
             // If provider has no custom stats/record in DB, use the calculated ecosystem average.
-            const successRate = providerInfo?.successRate ?? dynamicBaseline;
+            const successRate = providerInfo?.successRate && providerInfo.successRate > 0
+                ? providerInfo.successRate
+                : dynamicBaseline;
+
+            // Determine Label
+            let reliabilityLabel = 'Standard';
+            if (successRate >= 95) reliabilityLabel = 'Elite';
+            else if (successRate >= 85) reliabilityLabel = 'High';
+            else if (successRate >= 70) reliabilityLabel = 'Good';
+            else if (successRate >= 50) reliabilityLabel = 'Medium';
+            else reliabilityLabel = 'Low';
 
             return {
                 displayName: providerInfo?.displayName || p.provider,
@@ -108,7 +119,7 @@ export async function GET(req: Request) {
                 iconUrl: p.serviceIcon,
                 // NEW: Added reliability and ranking
                 rank: index + 1,
-                reliability: successRate > 80 ? 'High' : successRate > 60 ? 'Medium' : 'Standard',
+                reliability: reliabilityLabel,
             };
         });
 
