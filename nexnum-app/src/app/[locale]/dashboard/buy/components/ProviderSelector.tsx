@@ -18,7 +18,9 @@ import {
     ShoppingCart,
     Signal,
     Zap,
-    ShieldCheck
+    ShieldCheck,
+    ThumbsUp,
+    Sparkles
 } from "lucide-react";
 import {
     DropdownMenu,
@@ -58,7 +60,7 @@ export interface Provider {
     operatorId: number;
     // NEW: Ranking and reliability from API
     rank?: number;
-    reliability?: 'High' | 'Medium' | 'Standard';
+    reliability?: 'Elite' | 'High' | 'Good' | 'Medium' | 'Low' | 'Standard' | 'New';
     // Best Route flags
     isBestRoute?: boolean;
     maxPrice?: number;
@@ -297,9 +299,24 @@ export default function ProviderSelector({
                                             <Zap className="w-3 h-3 fill-black" /> BEST PRICE
                                         </div>
                                     )}
-                                    {isReliable && (
+                                    {reliability === 'Elite' && (
+                                        <div className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/20 text-[10px] font-bold flex items-center gap-1 shadow-[0_0_10px_rgba(168,85,247,0.2)]">
+                                            <ShieldCheck className="w-3 h-3" /> ELITE
+                                        </div>
+                                    )}
+                                    {reliability === 'High' && (
                                         <div className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold flex items-center gap-1">
                                             <ShieldCheck className="w-3 h-3" /> RELIABLE
+                                        </div>
+                                    )}
+                                    {reliability === 'Good' && (
+                                        <div className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/20 text-[10px] font-bold flex items-center gap-1">
+                                            <ThumbsUp className="w-3 h-3" /> GOOD
+                                        </div>
+                                    )}
+                                    {reliability === 'New' && (
+                                        <div className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/20 text-[10px] font-bold flex items-center gap-1">
+                                            <Sparkles className="w-3 h-3" /> NEW
                                         </div>
                                     )}
                                     {isHighStock && !isBestPrice && !isReliable && (
