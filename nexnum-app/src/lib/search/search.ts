@@ -40,27 +40,49 @@ export async function getCachedProviderMetadata(providerNames: string[]) {
 
     const cacheKey = `providers:metadata:${providerNames.sort().join(',')}`;
 
-    // 1. Try Next.js Data Cache (L1)
+    // Fetch metadata with fallback for missing columns
     const fetchMetadata = async () => {
-        const providers = await prisma.provider.findMany({
-            where: { name: { in: providerNames } },
-            select: {
-                name: true,
-                displayName: true,
-                logoUrl: true,
-                // @ts-ignore: Schema updated
-                successRate: true
-            }
-        });
+        try {
+            // Try full query with successRate
+            const providers = await prisma.provider.findMany({
+                where: { name: { in: providerNames } },
+                select: {
+                    name: true,
+                    displayName: true,
+                    logoUrl: true,
+                    // @ts-ignore - Field exists in schema but may need regeneration
+                    successRate: true
+                }
+            });
 
-        const map = new Map<string, any>();
-        providers.forEach(p => map.set(p.name, {
-            displayName: p.displayName,
-            logoUrl: p.logoUrl,
-            // @ts-ignore
-            successRate: Number(p.successRate || 0)
-        }));
-        return map;
+            const map = new Map<string, any>();
+            providers.forEach(p => map.set(p.name, {
+                displayName: p.displayName,
+                logoUrl: p.logoUrl,
+                // @ts-ignore - Field may not be recognized by TS
+                successRate: Number(p.successRate || 80)
+            }));
+            return map;
+        } catch (e) {
+            // Fallback: Query without successRate (column might not exist)
+            logger.warn('[PROVIDERS] successRate query failed, using fallback:', { error: e });
+            const providers = await prisma.provider.findMany({
+                where: { name: { in: providerNames } },
+                select: {
+                    name: true,
+                    displayName: true,
+                    logoUrl: true
+                }
+            });
+
+            const map = new Map<string, any>();
+            providers.forEach(p => map.set(p.name, {
+                displayName: p.displayName,
+                logoUrl: p.logoUrl,
+                successRate: 80 // Default to 80% (Good baseline)
+            }));
+            return map;
+        }
     };
 
     // Use unstable_cache for efficient duplicate request deduping & memory caching
