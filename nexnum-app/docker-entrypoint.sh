@@ -16,7 +16,7 @@ fi
 if [ -n "$DATABASE_URL" ]; then
     # Force use of library engine for more robust SSL handling in some environments
     export PRISMA_CLI_QUERY_ENGINE_TYPE=library
-    ./node_modules/.bin/prisma migrate deploy || echo "[STARTUP] Migrations failed or already applied, continuing..."
+    node node_modules/prisma/build/index.js migrate deploy || echo "[STARTUP] Migrations failed or already applied, continuing..."
 else
     echo "[STARTUP] ERROR: DATABASE_URL not found, migrations will likely fail."
 fi
