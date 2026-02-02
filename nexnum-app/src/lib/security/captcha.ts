@@ -35,10 +35,10 @@ interface CaptchaSettings {
 /**
  * Get captcha settings with strict Environment Variable Priority
  */
-async function getCaptchaSettings(): Promise<CaptchaSettings> {
+export async function getCaptchaSettings(): Promise<CaptchaSettings> {
     // 1. Base from Environment Variables (Single Source of Truth for secrets)
     const envConfig: CaptchaSettings = {
-        enabled: process.env.NEXT_PUBLIC_HCAPTCHA_SITEKEY ? true : (process.env.NEXT_PUBLIC_RECAPTCHA_SITEKEY ? true : false),
+        enabled: !!(process.env.NEXT_PUBLIC_HCAPTCHA_SITEKEY || process.env.NEXT_PUBLIC_RECAPTCHA_SITEKEY),
         provider: process.env.HCAPTCHA_SECRET ? 'hcaptcha' : 'recaptcha',
         hcaptchaSiteKey: process.env.NEXT_PUBLIC_HCAPTCHA_SITEKEY,
         hcaptchaSecret: process.env.HCAPTCHA_SECRET,
@@ -52,24 +52,24 @@ async function getCaptchaSettings(): Promise<CaptchaSettings> {
         const settings = stored ? JSON.parse(stored) : null
 
         if (settings?.captcha) {
-            return {
-                ...envConfig,
-                // Only allow overriding the 'enabled' and 'provider' flag from UI
-                // SECRETS MUST ALWAYS COME FROM ENV
-                enabled: settings.captcha.enabled ?? envConfig.enabled,
-                provider: settings.captcha.provider ?? envConfig.provider,
-            }
+            envConfig.enabled = settings.captcha.enabled ?? envConfig.enabled
+            envConfig.provider = settings.captcha.provider ?? envConfig.provider
         }
     } catch (error) {
         logger.error('Failed to fetch captcha overrides from Redis', { error })
     }
 
-    // 3. Reliability Check: If secrets are missing for chosen provider, force disabled
-    if (envConfig.provider === 'hcaptcha' && !envConfig.hcaptchaSecret) {
-        return { ...envConfig, enabled: false }
-    }
-    if (envConfig.provider === 'recaptcha' && !envConfig.recaptchaSecret) {
-        return { ...envConfig, enabled: false }
+    // 3. Absolute Safety Guard: Force disabled if secrets/keys are missing for the selected provider
+    if (envConfig.provider === 'hcaptcha') {
+        if (!envConfig.hcaptchaSecret || !envConfig.hcaptchaSiteKey) {
+            if (envConfig.enabled) logger.warn('hCaptcha enabled but keys missing. Forcing disabled.', { context: 'SECURITY' })
+            envConfig.enabled = false
+        }
+    } else if (envConfig.provider === 'recaptcha') {
+        if (!envConfig.recaptchaSecret || !envConfig.recaptchaSiteKey) {
+            if (envConfig.enabled) logger.warn('reCAPTCHA enabled but keys missing. Forcing disabled.', { context: 'SECURITY' })
+            envConfig.enabled = false
+        }
     }
 
     return envConfig

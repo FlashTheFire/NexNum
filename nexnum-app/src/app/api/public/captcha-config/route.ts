@@ -6,11 +6,9 @@
  */
 
 import { NextResponse } from 'next/server'
-import { redis } from '@/lib/core/redis'
+import { getCaptchaSettings } from '@/lib/security/captcha'
 
 export const dynamic = 'force-dynamic'
-
-const AUTH_SETTINGS_KEY = 'system:auth_settings'
 
 interface CaptchaConfig {
     enabled: boolean
@@ -20,31 +18,24 @@ interface CaptchaConfig {
 
 export async function GET() {
     try {
-        const stored = await redis.get(AUTH_SETTINGS_KEY)
-        const settings = stored ? JSON.parse(stored) : null
-
-        const captchaSettings = settings?.captcha || {
-            enabled: true,
-            provider: 'hcaptcha'
-        }
+        const settings = await getCaptchaSettings()
 
         // Return only public information (no secrets!)
         const config: CaptchaConfig = {
-            enabled: captchaSettings.enabled ?? true,
-            provider: captchaSettings.provider ?? 'hcaptcha',
-            siteKey: captchaSettings.provider === 'recaptcha'
-                ? (captchaSettings.recaptchaSiteKey || process.env.NEXT_PUBLIC_RECAPTCHA_SITEKEY || '')
-                : (captchaSettings.hcaptchaSiteKey || process.env.NEXT_PUBLIC_HCAPTCHA_SITEKEY || '')
+            enabled: settings.enabled,
+            provider: settings.provider,
+            siteKey: (settings.provider === 'recaptcha'
+                ? settings.recaptchaSiteKey
+                : settings.hcaptchaSiteKey) || ''
         }
 
         return NextResponse.json(config)
     } catch (error) {
         console.error('[Captcha Config] Error:', error)
-        // Default fallback
         return NextResponse.json({
-            enabled: true,
+            enabled: false, // Safer default on error
             provider: 'hcaptcha',
-            siteKey: process.env.NEXT_PUBLIC_HCAPTCHA_SITEKEY || '10000000-ffff-ffff-ffff-000000000001'
+            siteKey: ''
         })
     }
 }
