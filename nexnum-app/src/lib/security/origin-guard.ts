@@ -96,7 +96,10 @@ export function validateOrigin(headers: Headers): { valid: boolean; error?: stri
 function getGlobalAllowedOrigins(): string[] {
     const patterns = [
         process.env.NEXT_PUBLIC_APP_URL,
-        process.env.NEXTAUTH_URL
+        process.env.NEXTAUTH_URL,
+        // Production domains (hardcoded for reliability)
+        'https://nexnum.in',
+        'https://www.nexnum.in'
     ].filter(Boolean) as string[]
 
     if (process.env.NODE_ENV !== 'production') {
