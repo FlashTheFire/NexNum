@@ -23,9 +23,11 @@ if [ -n "$DATABASE_URL" ]; then
     # Force use of library engine for more robust SSL handling
     export PRISMA_CLI_QUERY_ENGINE_TYPE=library
     
-    # Try multiple ways to run migrations
-    npx prisma migrate deploy || \
+    # Run migrations using the direct build index to avoid path resolution issues
+    echo "[STARTUP] Running: node node_modules/prisma/build/index.js migrate deploy"
     node node_modules/prisma/build/index.js migrate deploy || \
+    ./node_modules/.bin/prisma migrate deploy || \
+    npx prisma migrate deploy || \
     echo "[STARTUP] Migrations failed or already applied, continuing..."
 else
     echo "[STARTUP] ERROR: DATABASE_URL not found, migrations will likely fail."
