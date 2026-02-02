@@ -642,6 +642,40 @@ model SystemSettings {
   pointsName      String  @default("Points") @map("points_name")
   pointsRate      Decimal @default(100.0) @map("points_rate") // 1 USD = 100 Points
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PAYMENT GATEWAY CONFIGURATION
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // General Payment Settings
+  paymentsEnabled     Boolean @default(false) @map("payments_enabled")
+  
+  // UPI Provider Mode: 'THIRD_PARTY' | 'DIRECT_PAYTM' | 'DISABLED'
+  upiProviderMode     String  @default("DISABLED") @map("upi_provider_mode")
+  
+  // 3rd Party UPI Gateway (Current: paytm.udayscripts.in)
+  upiApiToken         String? @map("upi_api_token")
+  upiCreateOrderUrl   String? @map("upi_create_order_url")
+  upiCheckStatusUrl   String? @map("upi_check_status_url")
+  upiQrBaseUrl        String? @map("upi_qr_base_url")
+  
+  // Direct Paytm Integration (Future-Ready)
+  paytmMerchantId     String? @map("paytm_merchant_id")
+  paytmMerchantKey    String? @map("paytm_merchant_key")
+  paytmWebsite        String? @map("paytm_website")
+  paytmIndustryType   String? @map("paytm_industry_type")
+  paytmChannelId      String? @map("paytm_channel_id")
+  paytmCallbackUrl    String? @map("paytm_callback_url")
+  paytmEnvironment    String  @default("STAGING") @map("paytm_environment") // 'STAGING' | 'PRODUCTION'
+  
+  // Transaction Limits (in INR)
+  depositMinAmount    Decimal @default(10) @map("deposit_min_amount") @db.Decimal(10, 2)
+  depositMaxAmount    Decimal @default(50000) @map("deposit_max_amount") @db.Decimal(10, 2)
+  depositTimeoutMins  Int     @default(30) @map("deposit_timeout_mins")
+  maxPendingDeposits  Int     @default(3) @map("max_pending_deposits")
+  
+  // Deposit Bonus (percentage added on successful deposits)
+  depositBonusPercent Decimal @default(0) @map("deposit_bonus_percent") @db.Decimal(5, 2)
+
   updatedAt       DateTime @updatedAt @map("updated_at")
   
   @@map("system_settings")
