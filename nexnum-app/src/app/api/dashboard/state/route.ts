@@ -25,6 +25,9 @@ interface DashboardState {
     numbers: any[]
     transactions: any[]
     unreadNotificationCount: number
+    usageSummary: number[]
+    totalSpent: number
+    totalDeposited: number
 }
 
 /**
@@ -41,6 +44,8 @@ function generateETag(data: DashboardState): string {
         // Include first transaction ID to detect new transactions
         firstTxId: data.transactions[0]?.id,
         unreadNotificationCount: data.unreadNotificationCount,
+        totalSpent: data.totalSpent,
+        totalDeposited: data.totalDeposited,
     })
     return createHash('md5').update(hashInput).digest('hex').slice(0, 16)
 }
@@ -188,12 +193,54 @@ async function fetchDashboardState(userId: string): Promise<DashboardState> {
         createdAt: t.createdAt,
     }))
 
+    // 5. Usage stats (Last 7 days spent)
+    const sevenDaysAgo = new Date()
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+
+    const usageDaily = await prisma.walletTransaction.findMany({
+        where: {
+            walletId,
+            createdAt: { gte: sevenDaysAgo },
+            type: { in: ['purchase', 'manual_debit'] }
+        },
+        select: {
+            amount: true,
+            createdAt: true
+        },
+        orderBy: { createdAt: 'asc' }
+    })
+
+    // Aggregate into 7-day array
+    const usageSummary = Array(7).fill(0)
+    const now = new Date()
+    usageDaily.forEach(tx => {
+        const diffDays = Math.floor((now.getTime() - tx.createdAt.getTime()) / (1000 * 60 * 60 * 24))
+        if (diffDays >= 0 && diffDays < 7) {
+            usageSummary[6 - diffDays] += Math.abs(Number(tx.amount))
+        }
+    })
+
+    // 6. Lifetime Aggregates
+    const [spentAgg, depositAgg] = await Promise.all([
+        prisma.walletTransaction.aggregate({
+            where: { walletId, type: { in: ['purchase', 'manual_debit'] } },
+            _sum: { amount: true }
+        }),
+        prisma.walletTransaction.aggregate({
+            where: { walletId, type: { in: ['topup', 'manual_credit', 'referral_bonus'] } },
+            _sum: { amount: true }
+        })
+    ])
+
     return {
         balance,
         walletId,
         numbers,
         transactions,
         unreadNotificationCount: unreadCount,
+        usageSummary,
+        totalSpent: Math.abs(Number(spentAgg._sum.amount || 0)),
+        totalDeposited: Math.abs(Number(depositAgg._sum.amount || 0))
     }
 }
 

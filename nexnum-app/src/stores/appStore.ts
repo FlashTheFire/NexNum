@@ -57,6 +57,9 @@ interface GlobalState {
     activeNumbers: ActiveNumber[]
     transactions: Transaction[]
     smsMessages: SmsMessage[]
+    usageSummary: number[]
+    totalSpent: number
+    totalDeposited: number
 
     // Loading states
     isLoadingBalance: boolean
@@ -107,6 +110,9 @@ export const useGlobalStore = create<GlobalState>()(
             activeNumbers: [],
             transactions: [],
             smsMessages: [],
+            usageSummary: [0, 0, 0, 0, 0, 0, 0],
+            totalSpent: 0,
+            totalDeposited: 0,
 
             isLoadingBalance: false,
             isLoadingNumbers: false,
@@ -180,6 +186,9 @@ export const useGlobalStore = create<GlobalState>()(
                             userProfile: { balance: data.balance },
                             activeNumbers: numbers,
                             transactions,
+                            usageSummary: data.usageSummary || [0, 0, 0, 0, 0, 0, 0],
+                            totalSpent: data.totalSpent || 0,
+                            totalDeposited: data.totalDeposited || 0,
                             dashboardEtag: newEtag,
                             isLoadingDashboard: false,
                             isLoadingBalance: false,

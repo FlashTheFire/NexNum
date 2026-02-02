@@ -37,12 +37,14 @@ const stagger = {
     visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
 }
 
-const MiniBarChart = ({ color }: { color: string }) => {
-    // Dummy data for the last 7 days (heights)
-    const data = [30, 15, 15, 30, 20, 15, 30]
+const MiniBarChart = ({ color, data = [30, 15, 15, 30, 20, 15, 30] }: { color: string, data?: number[] }) => {
+    // Normalize data for chart height (max 24px)
+    const maxVal = Math.max(...data, 1)
+    const normalizedData = data.map(v => Math.max((v / maxVal) * 24, 2)) // Min 2px height for visibility
+
     return (
         <svg width="60" height="24" viewBox="0 0 60 24" className="opacity-40 group-hover:opacity-100 transition-opacity duration-500">
-            {data.map((h, i) => (
+            {normalizedData.map((h, i) => (
                 <rect
                     key={i}
                     x={i * 8}
@@ -60,7 +62,7 @@ const MiniBarChart = ({ color }: { color: string }) => {
 
 export function DesktopDashboard() {
     const { user } = useAuthStore()
-    const { userProfile, activeNumbers, transactions } = useGlobalStore()
+    const { userProfile, activeNumbers, transactions, usageSummary, totalSpent, totalDeposited } = useGlobalStore()
     const containerRef = useRef<HTMLDivElement>(null)
     const { settings } = useCurrency()
     const pointsRate = Number(settings?.pointsRate) || 100
@@ -74,19 +76,11 @@ export function DesktopDashboard() {
     const hour = new Date().getHours()
     const greeting = hour < 12 ? t('greeting.morning') : hour < 18 ? t('greeting.afternoon') : t('greeting.evening')
 
-    const totalSpent = transactions
-        .filter(t => ['purchase', 'manual_debit'].includes(t.type))
-        .reduce((sum, t) => sum + Math.abs(t.amount), 0)
-
-    const totalDeposit = transactions
-        .filter(t => ['topup', 'manual_credit', 'referral_bonus'].includes(t.type))
-        .reduce((sum, t) => sum + Math.abs(t.amount), 0)
-
     const stats = [
-        { label: t('stats.balance'), value: <BalanceDisplay balanceInPoints={userProfile?.balance || 0} />, icon: Wallet, color: "text-[hsl(var(--neon-lime))]", fill: "hsl(var(--neon-lime))", bg: "bg-[hsl(var(--neon-lime)/0.1)]", border: "border-[hsl(var(--neon-lime)/0.2)]" },
-        { label: t('stats.myNumbers'), value: activeNumbers.length, icon: Phone, color: "text-cyan-400", fill: "#22d3ee", bg: "bg-cyan-400/10", border: "border-cyan-400/20" },
-        { label: t('stats.spent'), value: <PriceDisplay amountInPoints={totalSpent} />, icon: ShoppingCart, color: "text-purple-400", fill: "#c084fc", bg: "bg-purple-400/10", border: "border-purple-400/20" },
-        { label: t('stats.deposited'), value: <PriceDisplay amountInPoints={totalDeposit} />, icon: TrendingUp, color: "text-emerald-400", fill: "#34d399", bg: "bg-emerald-400/10", border: "border-emerald-400/20" },
+        { label: t('stats.balance'), value: <BalanceDisplay balanceInPoints={userProfile?.balance || 0} />, icon: Wallet, color: "text-[hsl(var(--neon-lime))]", fill: "hsl(var(--neon-lime))", bg: "bg-[hsl(var(--neon-lime)/0.1)]", border: "border-[hsl(var(--neon-lime)/0.2)]", data: [0, 0, 0, 0, 0, 0, (userProfile?.balance || 0) / 100] },
+        { label: t('stats.myNumbers'), value: activeNumbers.length, icon: Phone, color: "text-cyan-400", fill: "#22d3ee", bg: "bg-cyan-400/10", border: "border-cyan-400/20", data: [0, 0, 0, 0, 0, 0, activeNumbers.length] },
+        { label: t('stats.spent'), value: <PriceDisplay amountInPoints={totalSpent || 0} />, icon: ShoppingCart, color: "text-purple-400", fill: "#c084fc", bg: "bg-purple-400/10", border: "border-purple-400/20", data: usageSummary },
+        { label: t('stats.deposited'), value: <PriceDisplay amountInPoints={totalDeposited || 0} />, icon: TrendingUp, color: "text-emerald-400", fill: "#34d399", bg: "bg-emerald-400/10", border: "border-emerald-400/20", data: [0, 0, 0, 0, 0, 0, (totalDeposited || 0) / 1000] },
     ]
 
     return (
@@ -151,7 +145,7 @@ export function DesktopDashboard() {
                                     <h3 className="text-2xl font-bold text-white tracking-tight leading-none truncate whitespace-nowrap">{stat.value}</h3>
                                 </div>
                                 <div className="hidden xl:block absolute right-2 bottom-2">
-                                    <MiniBarChart color={stat.fill} />
+                                    <MiniBarChart color={stat.fill} data={stat.data} />
                                 </div>
                                 {/* Progress background */}
                                 <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-white/[0.03] overflow-hidden">
