@@ -268,7 +268,7 @@ export class DepositService {
     }
 
     /**
-     * Confirm successful deposit and credit wallet
+     * Confirm successful deposit and credit wallet (with optional bonus)
      */
     async confirmDeposit(depositId: string, amount: number, utr?: string): Promise<void> {
         const deposit = await this.getDeposit(depositId)
@@ -276,6 +276,12 @@ export class DepositService {
             logger.warn('[DepositService] Cannot confirm non-pending deposit', { depositId })
             return
         }
+
+        // Get config for bonus calculation
+        const config = await getPaymentSettingsService().getConfig()
+        const bonusPercent = Number(config.depositBonusPercent) || 0
+        const bonusAmount = bonusPercent > 0 ? Math.floor((amount * bonusPercent) / 100) : 0
+        const totalCredit = amount + bonusAmount
 
         try {
             await prisma.$transaction(async (tx) => {
@@ -291,19 +297,42 @@ export class DepositService {
                 await tx.walletTransaction.update({
                     where: { id: depositId },
                     data: {
+                        amount: totalCredit, // Update with bonus included
                         metadata: {
                             ...currentMetadata,
                             status: 'completed',
                             utr,
                             completedAt: new Date().toISOString(),
+                            originalAmount: amount.toString(),
+                            bonusAmount: bonusAmount.toString(),
+                            bonusPercent: bonusPercent.toString(),
                         },
                     },
                 })
 
-                // Credit wallet
+                // Credit wallet with total (base + bonus)
                 await tx.wallet.update({
                     where: { id: deposit.walletId },
-                    data: { balance: { increment: amount } },
+                    data: { balance: { increment: totalCredit } },
+                })
+
+                // Audit log for deposit confirmation
+                await tx.auditLog.create({
+                    data: {
+                        userId: deposit.userId,
+                        action: 'DEPOSIT_CONFIRMED',
+                        resourceType: 'WALLET',
+                        resourceId: depositId,
+                        metadata: {
+                            orderId: deposit.orderId,
+                            amount,
+                            bonusAmount,
+                            bonusPercent,
+                            totalCredit,
+                            utr: utr || null,
+                        },
+                        ipAddress: null,
+                    },
                 })
             })
 
@@ -314,7 +343,14 @@ export class DepositService {
             // Remove from pending list
             await redis.srem(USER_PENDING_DEPOSITS(deposit.userId), depositId)
 
-            logger.info('[DepositService] Deposit confirmed', { depositId, amount, utr, userId: deposit.userId })
+            logger.info('[DepositService] Deposit confirmed', {
+                depositId,
+                amount,
+                bonusAmount,
+                totalCredit,
+                utr,
+                userId: deposit.userId
+            })
         } catch (error: any) {
             logger.error('[DepositService] Confirm deposit failed', { error: error.message, depositId })
             throw error

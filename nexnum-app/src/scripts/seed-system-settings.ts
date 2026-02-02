@@ -48,11 +48,40 @@ export async function seedSystemSettings() {
         update: {},
         create: {
             id: 'default',
+            // Currency Settings
             baseCurrency: 'USD',
             displayCurrency: 'USD',
             pointsEnabled: true,
             pointsName: 'Credits',
             pointsRate: 100.0,
+
+            // Payment Gateway Settings (defaults)
+            paymentsEnabled: false,          // Disabled by default, admin must enable
+            upiProviderMode: 'DISABLED',     // No provider active initially
+
+            // 3rd Party UPI Gateway (empty - must configure via admin)
+            upiApiToken: null,
+            upiCreateOrderUrl: null,
+            upiCheckStatusUrl: null,
+            upiQrBaseUrl: null,
+
+            // Direct Paytm (empty - must configure via admin)
+            paytmMerchantId: null,
+            paytmMerchantKey: null,
+            paytmWebsite: null,
+            paytmIndustryType: null,
+            paytmChannelId: null,
+            paytmCallbackUrl: null,
+            paytmEnvironment: 'STAGING',
+
+            // Transaction Limits
+            depositMinAmount: 10,
+            depositMaxAmount: 50000,
+            depositTimeoutMins: 30,
+            maxPendingDeposits: 3,
+
+            // Deposit Bonus
+            depositBonusPercent: 0,          // No bonus by default
         },
     })
 
