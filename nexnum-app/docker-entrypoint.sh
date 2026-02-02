@@ -14,9 +14,19 @@ if [ -f .env ]; then
 fi
 
 if [ -n "$DATABASE_URL" ]; then
-    # Force use of library engine for more robust SSL handling in some environments
+    # INDUSTRIAL HARDENING: Fix for Prisma 7 WASM ENOENT error in pruned environments
+    # Ensure wasm sidecars are reachable from .bin if they exist in the build folder
+    mkdir -p ./node_modules/.bin
+    [ -f ./node_modules/prisma/build/prisma_schema_build_bg.wasm ] && \
+        cp ./node_modules/prisma/build/prisma_schema_build_bg.wasm ./node_modules/.bin/ 2>/dev/null || true
+
+    # Force use of library engine for more robust SSL handling
     export PRISMA_CLI_QUERY_ENGINE_TYPE=library
-    node node_modules/prisma/build/index.js migrate deploy || echo "[STARTUP] Migrations failed or already applied, continuing..."
+    
+    # Try multiple ways to run migrations
+    npx prisma migrate deploy || \
+    node node_modules/prisma/build/index.js migrate deploy || \
+    echo "[STARTUP] Migrations failed or already applied, continuing..."
 else
     echo "[STARTUP] ERROR: DATABASE_URL not found, migrations will likely fail."
 fi
