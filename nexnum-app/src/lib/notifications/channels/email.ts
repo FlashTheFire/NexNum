@@ -6,7 +6,7 @@ const SMTP_HOST = process.env.SMTP_HOST
 const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587')
 const SMTP_USER = process.env.SMTP_USER
 const SMTP_PASS = process.env.SMTP_PASS
-const FROM_EMAIL = process.env.FROM_EMAIL || '"NexNum" <noreply@nexnum.com>'
+const FROM_EMAIL = process.env.FROM_EMAIL || '"NexNum" <harshtakur001@gmail.com>'
 
 export class EmailService implements NotificationChannel {
     name = 'email'

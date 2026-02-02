@@ -38,7 +38,7 @@ export interface AppSettings {
 const DEFAULT_SETTINGS: AppSettings = {
     general: {
         siteName: 'NexNum',
-        emailSender: 'noreply@nexnum.com', // Default for testing
+        emailSender: process.env.FROM_EMAIL || 'harshtakur001@gmail.com', // Configurable via env
         timezone: 'UTC',
         maintenanceMode: false,
         maintenanceMessage: 'We are currently performing scheduled maintenance.',

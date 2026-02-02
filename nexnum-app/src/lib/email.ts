@@ -47,7 +47,7 @@ export class EmailService {
     static async send({ to, subject, component }: SendEmailParams) {
         try {
             // 1. Get settings for sender address or use env/default
-            let from = process.env.FROM_EMAIL || '"NexNum" <noreply@nexnum.com>'
+            let from = process.env.FROM_EMAIL || '"NexNum" <harshtakur001@gmail.com>'
             try {
                 const settings = await SettingsService.getSettings()
                 if (settings.general.emailSender) {

@@ -48,7 +48,7 @@ const CONFIG = {
         port: parseInt(process.env.SMTP_PORT || '587'),
         user: process.env.SMTP_USER || '',
         pass: process.env.SMTP_PASS || '', // Gmail App Password (16 chars)
-        from: process.env.EMAIL_FROM || '"NexNum" <noreply@nexnum.com>',
+        from: process.env.FROM_EMAIL || '"NexNum" <harshtakur001@gmail.com>',
         enabled: !!process.env.SMTP_USER && !!process.env.SMTP_PASS
     },
     redis: {

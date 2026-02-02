@@ -7,7 +7,7 @@ import { logger } from '@/lib/core/logger'
 // Initialize VAPID
 if (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
     webpush.setVapidDetails(
-        process.env.VAPID_SUBJECT || 'mailto:support@nexnum.com',
+        process.env.VAPID_SUBJECT || 'mailto:harshtakur001@gmail.com',
         process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
         process.env.VAPID_PRIVATE_KEY
     )
