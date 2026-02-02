@@ -32,7 +32,7 @@ COPY prisma.config.ts ./
 COPY next.config.mjs tsconfig.json ./
 # Prune for production
 
-RUN --mount=type=cache,target=/root/.npm npm prune --omit=dev
+# RUN --mount=type=cache,target=/root/.npm npm prune --omit=dev
 
 
 

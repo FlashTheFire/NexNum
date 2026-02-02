@@ -24,13 +24,15 @@ if [ -n "$DATABASE_URL" ]; then
     export PRISMA_CLI_QUERY_ENGINE_TYPE=library
     
     # Run migrations using the direct build index to avoid path resolution issues
-    echo "[STARTUP] Running: node node_modules/prisma/build/index.js migrate deploy"
-    node node_modules/prisma/build/index.js migrate deploy || \
-    ./node_modules/.bin/prisma migrate deploy || \
-    npx prisma migrate deploy || \
-    echo "[STARTUP] Migrations failed or already applied, continuing..."
+    # Run migrations using the direct build index to avoid path resolution issues
+    echo "[STARTUP] Debug: Checking for valibot..."
+    ls -la node_modules/valibot || echo "valibot not found in node_modules"
+    
+    echo "[STARTUP] Running: npx prisma migrate deploy"
+    npx prisma migrate deploy
 else
     echo "[STARTUP] ERROR: DATABASE_URL not found, migrations will likely fail."
+    exit 1
 fi
 
 # Start the application

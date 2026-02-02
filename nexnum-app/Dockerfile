@@ -43,7 +43,7 @@ RUN npm run build:skip-types
 
 
 # Prune for production
-RUN --mount=type=cache,target=/root/.npm HOME=/tmp npm prune --omit=dev
+# RUN --mount=type=cache,target=/root/.npm HOME=/tmp npm prune --omit=dev
 
 
 
