@@ -14,6 +14,8 @@ interface WelcomeEmailProps {
     name: string
 }
 
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+
 export const WelcomeEmail = ({ name }: WelcomeEmailProps) => {
     return (
         <EmailLayout preview="✨ Welcome to NexNum">
@@ -55,7 +57,7 @@ export const WelcomeEmail = ({ name }: WelcomeEmailProps) => {
                         textTransform: 'none',
                         borderRadius: '4px'
                     }}
-                    href="https://nexnum.io/dashboard"
+                    href={`${baseUrl}/dashboard`}
                 >
                     Get Started 🚀
                 </Button>
@@ -81,7 +83,7 @@ export const WelcomeEmail = ({ name }: WelcomeEmailProps) => {
                                 <td style={{ verticalAlign: 'middle' }}>
                                     <Text style={actionTitle}>Fund Wallet</Text>
                                     <Text style={actionDesc}>Add balance to wallet.</Text>
-                                    <Link href="https://nexnum.io/wallet" style={actionLink}>Top Up &rarr;</Link>
+                                    <Link href={`${baseUrl}/wallet`} style={actionLink}>Top Up &rarr;</Link>
                                 </td>
                             </tr>
                         </table>
@@ -97,7 +99,7 @@ export const WelcomeEmail = ({ name }: WelcomeEmailProps) => {
                                 <td style={{ verticalAlign: 'middle' }}>
                                     <Text style={actionTitle}>Rent Numbers</Text>
                                     <Text style={actionDesc}> Instant verification.</Text>
-                                    <Link href="https://nexnum.io/numbers" style={actionLink}>Browse &rarr;</Link>
+                                    <Link href={`${baseUrl}/numbers`} style={actionLink}>Browse &rarr;</Link>
                                 </td>
                             </tr>
                         </table>
@@ -113,7 +115,7 @@ export const WelcomeEmail = ({ name }: WelcomeEmailProps) => {
                                 <td style={{ verticalAlign: 'middle' }}>
                                     <Text style={actionTitle}>API Access</Text>
                                     <Text style={actionDesc}>Generate keys & docs.</Text>
-                                    <Link href="https://nexnum.io/docs" style={actionLink}>Connect &rarr;</Link>
+                                    <Link href={`${baseUrl}/docs`} style={actionLink}>Connect &rarr;</Link>
                                 </td>
                             </tr>
                         </table>
@@ -129,7 +131,7 @@ export const WelcomeEmail = ({ name }: WelcomeEmailProps) => {
                                 <td style={{ verticalAlign: 'middle' }}>
                                     <Text style={actionTitle}>24/7 Support</Text>
                                     <Text style={actionDesc}>Live agent assistance.</Text>
-                                    <Link href="https://nexnum.io/support" style={actionLink}>Chat Now &rarr;</Link>
+                                    <Link href={`${baseUrl}/support`} style={actionLink}>Chat Now &rarr;</Link>
                                 </td>
                             </tr>
                         </table>

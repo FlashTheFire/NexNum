@@ -44,7 +44,7 @@ receivers:
           bearer_token: "nexnum-internal-monitoring-secret-9912"
 
     email_configs:
-      - to: 'admin@nexnum.com'
+      - to: 'harshtakur001@gmail.com'
         send_resolved: true
         headers:
           Subject: '🚨 [NEXNUM-CRITICAL] {{ .GroupLabels.alertname }}'

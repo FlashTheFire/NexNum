@@ -39,7 +39,7 @@ export const metadata: Metadata = {
     openGraph: {
         type: "website",
         locale: "en_US",
-        url: 'https://nexnum.com',
+        url: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
         title: "NexNum - #1 Premium SMS Verification Service",
         description: "Get instant SMS codes for any service. 100% success rate guarantee or free. Join 50k+ users.",
         siteName: "NexNum",

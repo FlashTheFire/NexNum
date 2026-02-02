@@ -18,6 +18,8 @@ interface SecurityAlertEmailProps {
     time: string
 }
 
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+
 export const SecurityAlertEmail = ({
     name, type, ip, location, device, time
 }: SecurityAlertEmailProps) => {
@@ -87,7 +89,7 @@ export const SecurityAlertEmail = ({
                         padding: '12px 24px',
                         fontFamily: 'Quantico'
                     }}
-                    href="https://nexnum.io/dashboard/settings/security"
+                    href={`${baseUrl}/dashboard/settings/security`}
                 >
                     Secure Account &rarr;
                 </Button>

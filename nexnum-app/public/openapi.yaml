@@ -19,13 +19,13 @@ info:
   version: 2.1.0-industrial
   contact:
     name: NexNum Support
-    email: support@nexnum.io
+    email: harshtakur001@gmail.com  # Update to your support email
   license:
     name: Proprietary
-    url: https://nexnum.io/terms
+    url: http://localhost:3000/terms  # Update to your production URL
 
 servers:
-  - url: https://nexnum.io/api/v1
+  - url: http://localhost:3000/api/v1  # Update with NEXT_PUBLIC_APP_URL
     description: Production server
   - url: http://localhost:3000/api/v1
     description: Development server

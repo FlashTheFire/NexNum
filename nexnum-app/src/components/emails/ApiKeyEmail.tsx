@@ -15,6 +15,8 @@ interface ApiKeyEmailProps {
     keyPrefix?: string
 }
 
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+
 export const ApiKeyEmail = ({ name, action, keyName, keyPrefix }: ApiKeyEmailProps) => {
 
     let title = ''
@@ -75,7 +77,7 @@ export const ApiKeyEmail = ({ name, action, keyName, keyPrefix }: ApiKeyEmailPro
                                     borderRadius: '8px',
                                     fontFamily: 'Quantico'
                                 }}
-                                href="https://nexnum.io/dashboard/api"
+                                href={`${baseUrl}/dashboard/api`}
                             >
                                 Manage Protocol &rarr;
                             </Button>

@@ -8,6 +8,8 @@ import {
 import EmailLayout from './Layout'
 import { components, colors } from './theme'
 
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+
 export const DesignShowcase = () => {
     return (
         <EmailLayout preview="NexNum V4 Final - Tactical HUD">
@@ -66,7 +68,7 @@ export const DesignShowcase = () => {
                         padding: '16px 32px',
                         letterSpacing: '2px'
                     }}
-                    href="https://nexnum.io"
+                    href={baseUrl}
                 >
                     ENTER SYSTEM
                 </Button>

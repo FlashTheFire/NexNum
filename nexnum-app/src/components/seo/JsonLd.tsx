@@ -2,6 +2,8 @@ interface JsonLdProps {
     data?: Record<string, any>
 }
 
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+
 export default function JsonLd({ data }: JsonLdProps) {
     const defaultJsonLd = {
         '@context': 'https://schema.org',
@@ -10,7 +12,7 @@ export default function JsonLd({ data }: JsonLdProps) {
         applicationCategory: 'BusinessApplication',
         operatingSystem: 'Any',
         description: 'Secure, private virtual numbers for SMS verification. Instant activation and global coverage.',
-        url: 'https://nexnum.com',
+        url: baseUrl,
         offers: {
             '@type': 'Offer',
             price: '0.50',

@@ -19,6 +19,8 @@ interface TransactionEmailProps {
     description: string
 }
 
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+
 export const TransactionEmail = ({
     name,
     type,
@@ -101,7 +103,7 @@ export const TransactionEmail = ({
                         padding: '12px 24px',
                         fontFamily: 'Quantico'
                     }}
-                    href="https://nexnum.io/dashboard/history"
+                    href={`${baseUrl}/dashboard/history`}
                 >
                     View History &rarr;
                 </Button>
