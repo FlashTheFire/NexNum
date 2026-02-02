@@ -83,9 +83,7 @@ export async function calculateProviderReliability() {
             await prisma.provider.update({
                 where: { id: provider.id },
                 data: {
-                    // @ts-ignore: Schema updated
                     successRate: activeRate,
-                    // @ts-ignore: Schema updated
                     totalOrders: totalConsidered // We display "Valid Orders" not raw attempts
                 }
             })

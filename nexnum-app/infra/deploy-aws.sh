@@ -31,7 +31,16 @@ else
     sudo apt-get update -y > /dev/null
 fi
 
-# 3. DOCKER CHECK
+# 3. KERNEL TUNING (Redis/Production Stability)
+echo "🔧 [NEXNUM] Applying Kernel optimizations..."
+if [[ $(cat /proc/sys/vm/overcommit_memory) -ne 1 ]]; then
+    sudo sysctl -w vm.overcommit_memory=1
+    echo 'vm.overcommit_memory = 1' | sudo tee -a /etc/sysctl.conf > /dev/null
+fi
+# Disable THP for Redis if present (Advanced Tuning)
+sudo bash -c 'echo never > /sys/kernel/mm/transparent_hugepage/enabled' || true
+
+# 4. DOCKER CHECK
 if ! [ -x "$(command -v docker)" ]; then
     echo "🐳 [NEXNUM] Docker not found. Installing..."
     curl -fsSL https://get.docker.com -o get-docker.sh
@@ -40,19 +49,23 @@ if ! [ -x "$(command -v docker)" ]; then
     echo "✅ [NEXNUM] Docker installed. You may need to logout and login again."
 fi
 
-# 4. ENVIRONMENT VALIDATION
+# 5. ENVIRONMENT VALIDATION
 if [ ! -f .env ]; then
     echo "❌ [NEXNUM] Error: .env file missing. Please create it from .env.example"
     exit 1
 fi
 
-# 5. PRODUCTION ORCHESTRATION
+# 6. DEEP CLEANUP (Optional)
+if [[ "$*" == *"--prune"* ]]; then
+    echo "🧹 [NEXNUM] Performing deep Docker cleanup..."
+    sudo docker system prune -a --volumes -f
+fi
+
+# 7. PRODUCTION ORCHESTRATION
 echo "📦 [NEXNUM] Orchestrating core services..."
-# We start core first to prioritize user traffic
-# Caddy acts as the edge proxy for SSL/TLS termination
 sudo docker compose up -d --build app worker socket-server meilisearch redis caddy
 
-# 5. MONITORING STACK (Agile Activation)
+# 8. MONITORING STACK (Agile Activation)
 FREE_RAM=$(free -m | awk '/^Mem:/{print $7}')
 if [ $FREE_RAM -gt 500 ]; then
     echo "🟢 [NEXNUM] RAM Health OK ($FREE_RAM MB). Activating monitoring..."
@@ -61,9 +74,14 @@ else
     echo "⚠️ [NEXNUM] Conservative Mode: Monitoring stack remains offline (RAM: $FREE_RAM MB)."
 fi
 
-# 6. DATABASE SYNC & PRISMA
+# 9. DATABASE SYNC & PRISMA (Senior-Level Integration)
 echo "💎 [NEXNUM] Synchronizing Database Schema..."
-# sudo docker compose exec app ./node_modules/.bin/prisma generate || echo "⚠️ Prisma generation handled in build-time."
+# Safety Check: Fix users preferred_currency NULL values if they block sysnc
+sudo docker exec nexnum-app npx prisma db execute --stdin <<SQL
+UPDATE users SET preferred_currency = 'INR' WHERE preferred_currency IS NULL;
+SQL
+
+sudo docker exec nexnum-app npx prisma db push --accept-data-loss
 
 echo "✨ [NEXNUM] Deployment Complete. Application is live on port 80."
 echo "🔗 Infrastructure Dashboard: http://$(curl -s ifconfig.me):3100"

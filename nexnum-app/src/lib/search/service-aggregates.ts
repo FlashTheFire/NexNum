@@ -84,36 +84,55 @@ export async function refreshAllServiceAggregates() {
             return 0
         }
 
-        // 2. High-Speed Persistence (Batch Upserts)
+        // 2. High-Speed Persistence (Optimized Batch Upserts)
         const finalStats = Array.from(aggregates.values());
         logger.info(`[AGGREGATES] Computed ${finalStats.length} aggregates. Syncing to DB...`);
 
-        // We use a transaction of upserts grouped in smaller batches (Prisma overhead)
-        const BATCH_SIZE = 50; // Reduced for production reliability with higher latency
+        // Senior-Level Optimization: Use larger batches and explicit transaction management
+        // We increase the timeout to 30 seconds for production safety.
+        const BATCH_SIZE = 100;
+
         for (let i = 0; i < finalStats.length; i += BATCH_SIZE) {
             const chunk = finalStats.slice(i, i + BATCH_SIZE);
-            const operations = chunk.map(stat =>
-                prisma.serviceAggregate.upsert({
-                    where: { serviceCode: stat.serviceCode },
-                    create: {
-                        serviceCode: stat.serviceCode,
-                        serviceName: stat.serviceName,
-                        lowestPrice: stat.lowestPrice,
-                        totalStock: stat.totalStock,
-                        countryCount: stat._countries.size,
-                        providerCount: stat._providers.size,
-                    },
-                    update: {
-                        serviceName: stat.serviceName,
-                        lowestPrice: stat.lowestPrice,
-                        totalStock: stat.totalStock,
-                        countryCount: stat._countries.size,
-                        providerCount: stat._providers.size,
-                        lastUpdatedAt: new Date()
-                    }
-                })
-            );
-            await prisma.$transaction(operations);
+
+            try {
+                // Interactive transaction allows setting a custom timeout
+                await prisma.$transaction(async (tx) => {
+                    await Promise.all(
+                        chunk.map(stat =>
+                            tx.serviceAggregate.upsert({
+                                where: { serviceCode: stat.serviceCode },
+                                create: {
+                                    serviceCode: stat.serviceCode,
+                                    serviceName: stat.serviceName,
+                                    lowestPrice: stat.lowestPrice,
+                                    totalStock: stat.totalStock,
+                                    countryCount: stat._countries.size,
+                                    providerCount: stat._providers.size,
+                                },
+                                update: {
+                                    serviceName: stat.serviceName,
+                                    lowestPrice: stat.lowestPrice,
+                                    totalStock: stat.totalStock,
+                                    countryCount: stat._countries.size,
+                                    providerCount: stat._providers.size,
+                                    lastUpdatedAt: new Date()
+                                }
+                            })
+                        )
+                    );
+                }, {
+                    timeout: 30000, // 30 Seconds for production data volume
+                    isolationLevel: 'ReadCommitted'
+                });
+
+                if (i % 500 === 0 && i > 0) {
+                    logger.debug(`[AGGREGATES] Progress: Synchronized ${i} / ${finalStats.length} records...`);
+                }
+            } catch (batchError) {
+                logger.error(`[AGGREGATES] Batch starting at ${i} failed:`, { error: batchError });
+                // We continue with other batches instead of failing the whole refresh
+            }
         }
 
         // 3. Cleanup Stale Aggregates
