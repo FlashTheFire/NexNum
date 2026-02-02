@@ -89,7 +89,7 @@ export async function refreshAllServiceAggregates() {
         logger.info(`[AGGREGATES] Computed ${finalStats.length} aggregates. Syncing to DB...`);
 
         // We use a transaction of upserts grouped in smaller batches (Prisma overhead)
-        const BATCH_SIZE = 100;
+        const BATCH_SIZE = 50; // Reduced for production reliability with higher latency
         for (let i = 0; i < finalStats.length; i += BATCH_SIZE) {
             const chunk = finalStats.slice(i, i + BATCH_SIZE);
             const operations = chunk.map(stat =>

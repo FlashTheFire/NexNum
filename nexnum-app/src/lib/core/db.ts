@@ -65,6 +65,10 @@ function createPrismaClient(url?: string): PrismaClient {
     return new PrismaClient({
         adapter,
         log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+        transactionOptions: {
+            maxWait: 10000,  // 10 seconds max wait to acquire a transaction
+            timeout: 30000, // 30 seconds transaction timeout (was 5000ms default)
+        },
     })
 }
 
