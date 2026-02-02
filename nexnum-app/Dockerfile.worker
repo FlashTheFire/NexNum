@@ -28,6 +28,7 @@ WORKDIR /app
 COPY src ./src
 COPY messages ./messages
 COPY public ./public
+COPY prisma.config.ts ./
 COPY next.config.mjs tsconfig.json ./
 # Prune for production
 
