@@ -33,36 +33,46 @@ interface CaptchaSettings {
 }
 
 /**
- * Get captcha settings from Redis or fallback to env vars
+ * Get captcha settings with strict Environment Variable Priority
  */
 async function getCaptchaSettings(): Promise<CaptchaSettings> {
-    try {
-        const stored = await redis.get(AUTH_SETTINGS_KEY)
-        const settings = stored ? JSON.parse(stored) : null
-
-        if (settings?.captcha) {
-            return {
-                enabled: settings.captcha.enabled ?? true,
-                provider: settings.captcha.provider ?? 'hcaptcha',
-                hcaptchaSiteKey: settings.captcha.hcaptchaSiteKey || process.env.NEXT_PUBLIC_HCAPTCHA_SITEKEY,
-                hcaptchaSecret: settings.captcha.hcaptchaSecret || process.env.HCAPTCHA_SECRET,
-                recaptchaSiteKey: settings.captcha.recaptchaSiteKey || process.env.NEXT_PUBLIC_RECAPTCHA_SITEKEY,
-                recaptchaSecret: settings.captcha.recaptchaSecret || process.env.RECAPTCHA_SECRET
-            }
-        }
-    } catch (error) {
-        logger.error('Failed to fetch captcha settings from Redis', { error })
-    }
-
-    // Fallback to env vars
-    return {
-        enabled: true,
+    // 1. Base from Environment Variables (Single Source of Truth for secrets)
+    const envConfig: CaptchaSettings = {
+        enabled: process.env.NEXT_PUBLIC_HCAPTCHA_SITEKEY ? true : (process.env.NEXT_PUBLIC_RECAPTCHA_SITEKEY ? true : false),
         provider: process.env.HCAPTCHA_SECRET ? 'hcaptcha' : 'recaptcha',
         hcaptchaSiteKey: process.env.NEXT_PUBLIC_HCAPTCHA_SITEKEY,
         hcaptchaSecret: process.env.HCAPTCHA_SECRET,
         recaptchaSiteKey: process.env.NEXT_PUBLIC_RECAPTCHA_SITEKEY,
         recaptchaSecret: process.env.RECAPTCHA_SECRET
     }
+
+    try {
+        // 2. Fetch runtime overrides from Redis (e.g. temporary disable)
+        const stored = await redis.get(AUTH_SETTINGS_KEY)
+        const settings = stored ? JSON.parse(stored) : null
+
+        if (settings?.captcha) {
+            return {
+                ...envConfig,
+                // Only allow overriding the 'enabled' and 'provider' flag from UI
+                // SECRETS MUST ALWAYS COME FROM ENV
+                enabled: settings.captcha.enabled ?? envConfig.enabled,
+                provider: settings.captcha.provider ?? envConfig.provider,
+            }
+        }
+    } catch (error) {
+        logger.error('Failed to fetch captcha overrides from Redis', { error })
+    }
+
+    // 3. Reliability Check: If secrets are missing for chosen provider, force disabled
+    if (envConfig.provider === 'hcaptcha' && !envConfig.hcaptchaSecret) {
+        return { ...envConfig, enabled: false }
+    }
+    if (envConfig.provider === 'recaptcha' && !envConfig.recaptchaSecret) {
+        return { ...envConfig, enabled: false }
+    }
+
+    return envConfig
 }
 
 /**

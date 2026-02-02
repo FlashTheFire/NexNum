@@ -14,6 +14,7 @@ import { redis } from '@/lib/core/redis'
 import { getCurrentUser } from '@/lib/auth/jwt'
 import { z } from 'zod'
 import { ResponseFactory } from '@/lib/api/response-factory'
+import { logger } from '@/lib/core/logger'
 
 const AUTH_SETTINGS_KEY = 'system:auth_settings'
 
@@ -169,7 +170,7 @@ export const GET = apiHandler(async (req) => {
         const stored = await redis.get(AUTH_SETTINGS_KEY)
         const settings = stored ? JSON.parse(stored) : defaultSettings
 
-        // Merge with defaults to ensure all new fields are present
+        // Merge with defaults and ENFORCE ENV PRIORITY for secrets
         const merged = {
             oauth: deepMergeOAuth(defaultSettings.oauth, settings.oauth),
             twoFactor: { ...defaultSettings.twoFactor, ...settings.twoFactor },
@@ -181,9 +182,32 @@ export const GET = apiHandler(async (req) => {
             rateLimit: { ...defaultSettings.rateLimit, ...settings.rateLimit }
         }
 
-        return ResponseFactory.success(merged)
+        // REDACT/STANDARDIZE secrets to indicate they are managed by ENV
+        // This confirms to the admin that ENV is active
+        const redact = (val: string) => val ? '••••••••' : ''
+
+        const response = {
+            ...merged,
+            oauth: Object.fromEntries(
+                Object.entries(merged.oauth).map(([key, provider]: [string, any]) => [
+                    key,
+                    {
+                        ...provider,
+                        clientSecret: redact(provider.clientSecret),
+                        botToken: redact(provider.botToken)
+                    }
+                ])
+            ),
+            captcha: {
+                ...merged.captcha,
+                hcaptchaSecret: redact(merged.captcha.hcaptchaSecret),
+                recaptchaSecret: redact(merged.captcha.recaptchaSecret)
+            }
+        }
+
+        return ResponseFactory.success(response)
     } catch (error) {
-        console.error('[AuthSettings] Error fetching:', error)
+        logger.error('[AuthSettings] Error fetching settings', { error })
         return ResponseFactory.success(defaultSettings)
     }
 }, {
@@ -216,6 +240,16 @@ export const PUT = apiHandler(async (req, { body }) => {
             disposableEmail: { ...current.disposableEmail, ...updates.disposableEmail },
             rateLimit: { ...current.rateLimit, ...updates.rateLimit }
         }
+
+        // ⚠️ CRITICAL: STRIP SECRETS FROM MERGED DATA BEFORE SAVING
+        // We never want to store secrets in Redis if they are meant to be in .env
+        // This enforces .env as the source of truth and prevents accidental leaks
+        Object.keys(merged.oauth).forEach(key => {
+            delete merged.oauth[key].clientSecret
+            delete merged.oauth[key].botToken
+        })
+        delete merged.captcha.hcaptchaSecret
+        delete merged.captcha.recaptchaSecret
 
         // Save to Redis
         await redis.set(AUTH_SETTINGS_KEY, JSON.stringify(merged))

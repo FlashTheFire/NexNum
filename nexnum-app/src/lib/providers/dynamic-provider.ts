@@ -234,9 +234,18 @@ export class DynamicProvider implements SmsProvider {
         let maskedHeaders: Record<string, string> = {}
         const startTime = Date.now()
 
-        // Decrypt Auth Key on the fly
-        const { decrypt } = await import('@/lib/security/encryption')
-        const rawAuthKey = this.config.authKey ? decrypt(this.config.authKey) : ''
+        // 0. Resolve Auth Key with strict Environment Priority
+        // Check for PROVIDER_API_KEY_[NAME] in env first
+        const envKeyName = `PROVIDER_API_KEY_${this.name.toUpperCase().replace(/\s+/g, '_')}`
+        let rawAuthKey = process.env[envKeyName]
+
+        if (rawAuthKey) {
+            // logger.debug(`[DynamicProvider:${this.name}] Using API key from environment variable: ${envKeyName}`)
+        } else {
+            // Decrypt Auth Key from DB if not in env
+            const { decrypt } = await import('@/lib/security/encryption')
+            rawAuthKey = this.config.authKey ? decrypt(this.config.authKey) : ''
+        }
 
         try {
 

@@ -6,10 +6,35 @@ import { apiHandler } from '@/lib/api/api-handler'
 import { auth_events_total } from '@/lib/metrics'
 import { ResponseFactory } from '@/lib/api/response-factory'
 
+import { verifyCaptcha, isCaptchaRequired } from '@/lib/security/captcha'
+import { logger } from '@/lib/core/logger'
+
 export const POST = apiHandler(async (request, { body, security }) => {
     // Body is already validated by apiHandler using loginSchema
-    const { email, password } = body!
+    const { email, password, captchaToken } = body!
     const ip = security?.clientIp || 'unknown'
+
+    // 0. Manual CAPTCHA Verification with Admin Bypass
+    const isRequired = await isCaptchaRequired()
+    if (isRequired) {
+        const captchaResult = await verifyCaptcha(captchaToken || '', ip)
+
+        if (!captchaResult.success) {
+            // Check if user is an ADMIN (requires finding user first)
+            const potentialUser = await prisma.user.findUnique({
+                where: { email: email.toLowerCase() },
+                select: { role: true }
+            })
+
+            const isAdmin = potentialUser?.role === 'ADMIN'
+
+            if (isAdmin) {
+                logger.info('CAPTCHA bypass granted for administrative user', { email, ip })
+            } else {
+                return ResponseFactory.error(captchaResult.error || 'Security verification failed', 403)
+            }
+        }
+    }
 
     // Find user
     const user = await prisma.user.findUnique({
@@ -100,6 +125,6 @@ export const POST = apiHandler(async (request, { body, security }) => {
     security: {
         requireBrowserCheck: true,
         browserCheckLevel: 'basic',
-        requireCaptcha: true // Enterprise protection
+        requireCaptcha: false // Manual verification below for Admin Bypass logic
     }
 })
