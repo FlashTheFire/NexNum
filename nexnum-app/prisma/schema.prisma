@@ -264,7 +264,7 @@ model CountryLookup {
 
 model Provider {
   id          String  @id @default(uuid())
-  name        String  @unique // Provider ID/Slug (e.g., "5sim")
+  name        String  @unique // Provider ID/Slug 
   displayName String  @map("display_name")
   description String?
   logoUrl     String? @map("logo_url")
@@ -763,7 +763,7 @@ model EmailVerificationToken {
 model BannedIcon {
   id          String   @id @default(uuid())
   hash        String   @unique // SHA-256 Hash
-  description String?  // Reason or name (e.g., "5sim Bad Bear")
+  description String?  // Reason or name 
   createdAt   DateTime @default(now()) @map("created_at")
 
   @@map("banned_icons")

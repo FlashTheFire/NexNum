@@ -7,6 +7,12 @@
 
 import 'dotenv/config'
 import { prisma } from '../../src/lib/core/db'
+import * as fs from 'fs'
+import * as path from 'path'
+
+// Load providers from centralized config
+const PROVIDERS_PATH = path.join(__dirname, '../config/templates/providers.json')
+const PROVIDERS = JSON.parse(fs.readFileSync(PROVIDERS_PATH, 'utf-8')) as Record<string, any>
 
 // ==========================================
 // 1. DATA DEFINITIONS
@@ -28,167 +34,7 @@ const BANNED_HASHES = [
     }
 ]
 
-const PROVIDERS = {
-    '5sim': {
-        name: '5sim',
-        displayName: '5sim.net',
-        description: 'Official v1 guest/user endpoints',
-        baseUrl: 'https://5sim.net/v1',
-        authType: 'bearer',
-        providerType: 'rest',
-        endpoints: {
-            getCountriesList: { method: 'GET', path: 'https://5sim.net/v1/guest/countries' },
-            getServicesList: { method: 'GET', path: 'https://5sim.net/v1/guest/products/any/any' },
-            getNumber: {
-                method: 'GET',
-                path: 'https://5sim.net/v1/user/buy/activation/$country/$operator/$product',
-                queryParams: {
-                    forwarding: '$forwarding',
-                    number: '$forwardingNumber',
-                    reuse: '$reuse',
-                    voice: '$voice',
-                    ref: '$ref',
-                    maxPrice: '$maxPrice'
-                }
-            },
-            getStatus: { method: 'GET', path: 'https://5sim.net/v1/user/check/$id' },
-            setCancel: { method: 'GET', path: 'https://5sim.net/v1/user/cancel/$id' },
-            getBalance: { method: 'GET', path: 'https://5sim.net/v1/user/profile' },
-            getPrices: {
-                method: 'GET',
-                path: 'https://5sim.net/v1/guest/prices',
-                queryParams: { country: '$country', product: '$service' }
-            }
-        },
-        mappings: {
-            getCountriesList: {
-                type: 'json_dictionary',
-                fields: {
-                    name: 'text_en|$key',
-                    iso: 'iso.$firstKey',
-                    prefix: 'prefix.$firstKey',
-                    countryCode: '$key'
-                }
-            },
-            getServicesList: {
-                type: 'json_dictionary',
-                fields: {
-                    service: '$key',
-                    category: 'Category',
-                    count: 'Qty|count|stock',
-                    cost: 'Price|cost|amount'
-                }
-            },
-            getNumber: {
-                type: 'json_object',
-                fields: {
-                    id: 'id',
-                    phone: 'phone',
-                    operator: 'operator',
-                    service: 'product',
-                    cost: 'pointPrice',
-                    status: 'status',
-                    expiresAt: 'expires',
-                    country: 'country',
-                    sms: 'sms'
-                }
-            },
-            getStatus: {
-                type: 'json_object',
-                fields: {
-                    id: 'id',
-                    phone: 'phone',
-                    operator: 'operator',
-                    service: 'product',
-                    cost: 'pointPrice',
-                    status: 'status',
-                    expiresAt: 'expires',
-                    country: 'country',
-                    sms: 'sms',
-                    code: 'sms[0].code',
-                    message: 'sms[0].text'
-                },
-                statusMapping: {
-                    STATUS_WAIT_CODE: 'pending',
-                    STATUS_WAIT_RETRY: 'pending',
-                    STATUS_OK: 'received',
-                    STATUS_CANCEL: 'cancelled',
-                    ACCESS_CANCEL: 'cancelled',
-                    ACCESS_READY: 'pending',
-                    ACCESS_ACTIVATION: 'completed'
-                }
-            },
-            setCancel: {
-                type: 'json_object',
-                fields: {
-                    id: 'id',
-                    phone: 'phone',
-                    operator: 'operator',
-                    service: 'product',
-                    cost: 'pointPrice',
-                    status: 'status',
-                    expiresAt: 'expires',
-                    country: 'country'
-                }
-            },
-            getBalance: {
-                type: 'json_object',
-                fields: {
-                    balance: 'balance',
-                    id: 'id',
-                    email: 'email',
-                    rating: 'rating'
-                }
-            },
-            getPrices: {
-                type: 'json_dictionary',
-                nestingLevels: { extractOperators: true },
-                fields: {
-                    cost: 'cost|price|amount|rate|value',
-                    count: 'count|qty|stock|available|physicalCount',
-                    operator: '$key',
-                    service: '$parentKey',
-                    country: '$grandParentKey'
-                }
-            }
-        }
-    },
-    'herosms': {
-        name: 'herosms',
-        displayName: 'HeroSMS',
-        description: 'SMS-Activate Compatible API (Strict Dynamic)',
-        baseUrl: 'https://hero-sms.com/stubs/handler_api.php',
-        authType: 'query_param',
-        authQueryParam: 'api_key',
-        providerType: 'hybrid',
-        endpoints: {
-            getCountriesList: { method: 'GET', path: 'https://hero-sms.com/stubs/handler_api.php?action=getCountries&api_key={authKey}' },
-            getServicesList: { method: 'GET', path: 'https://hero-sms.com/stubs/handler_api.php?action=getServicesList&country={country}&lang=en&api_key={authKey}' },
-            getNumber: { method: 'GET', path: 'https://hero-sms.com/stubs/handler_api.php?action=getNumber&service={service}&country={country}&api_key={authKey}' },
-            getStatus: { method: 'GET', path: 'https://hero-sms.com/stubs/handler_api.php?action=getStatus&id={id}&api_key={authKey}' },
-            setCancel: { method: 'GET', path: 'https://hero-sms.com/stubs/handler_api.php?action=setStatus&id={id}&status=8&api_key={authKey}' },
-            getBalance: { method: 'GET', path: 'https://hero-sms.com/stubs/handler_api.php?action=getBalance&api_key={authKey}' }
-        },
-        mappings: {
-            getCountriesList: { type: 'json_array', rootPath: '$', fields: { id: 'id', name: 'eng', code: 'id' } },
-            getServicesList: { type: 'json_array', rootPath: 'services', fields: { id: 'code', name: 'name', code: 'code' } },
-            getNumber: { type: 'text_regex', regex: 'ACCESS_NUMBER:(\\d+):(\\d+)', fields: { id: '1', phone: '2', price: '0' } },
-            getStatus: {
-                type: 'text_regex',
-                regex: 'STATUS_([A-Z_]+)(:?.*)?',
-                fields: { status: '1', code: '2' },
-                statusMapping: {
-                    WAIT_CODE: 'pending',
-                    WAIT_RETRY: 'pending',
-                    OK: 'received',
-                    CANCEL: 'cancelled'
-                }
-            },
-            setCancel: { type: 'text_regex', regex: 'ACCESS_CANCEL', fields: { status: '0' } },
-            getBalance: { type: 'text_regex', regex: 'ACCESS_BALANCE:([\\d.]+)', fields: { balance: '1' } }
-        }
-    }
-}
+// Providers are loaded from src/config/templates/providers.json
 
 // ==========================================
 // 2. SEED FUNCTIONS
