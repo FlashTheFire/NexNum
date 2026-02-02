@@ -26,7 +26,7 @@ const menuItems = [
     { icon: ShoppingBag, label: "inventory", href: "/admin/inventory" },
     { icon: CreditCard, label: "transactions", href: "/admin/transactions" },
     { icon: RefreshCw, label: "currencies", href: "/admin/finance/currency" },
-    { icon: Activity, label: "monitoring", href: "/admin/monitoring" },
+    { icon: Activity, label: "monitoring", href: "/admin/system-health" },
     { icon: Shield, label: "authentication", href: "/admin/authentication" },
     { icon: Settings, label: "settings", href: "/admin/settings" },
 ]

@@ -240,7 +240,7 @@ export function QuickActionsPanel({
             icon: Zap,
             description: 'Real-time metrics',
             color: 'blue',
-            href: '/en/admin/monitoring'
+            href: '/en/admin/system-health'
         }
     ]
 

@@ -49,7 +49,7 @@ const navCards = [
         title: 'System Monitoring',
         description: 'Real-time metrics and infrastructure health',
         icon: Monitor,
-        href: '/en/admin/monitoring',
+        href: '/en/admin/system-health',
         color: 'emerald'
     },
     {
