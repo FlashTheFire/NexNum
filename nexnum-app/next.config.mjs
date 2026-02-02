@@ -148,7 +148,7 @@ const sentryWebpackPluginOptions = {
     authToken: process.env.SENTRY_AUTH_TOKEN,
     silent: !process.env.CI,
     hideSourceMaps: true,
-    tunnelRoute: "/monitoring",
+    tunnelRoute: "/monitoring-tunnel",
     dryRun: !process.env.SENTRY_AUTH_TOKEN,
 };
 
