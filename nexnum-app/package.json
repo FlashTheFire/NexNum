@@ -74,7 +74,7 @@
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "react-hook-form": "^7.71.1",
-    "recharts": "^3.7.0",
+    "recharts": "2.12.7",
     "socket.io": "^4.8.3",
     "socket.io-client": "^4.8.3",
     "sonner": "1.7.4",
