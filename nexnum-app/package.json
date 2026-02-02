@@ -83,6 +83,7 @@
     "tailwind-merge": "2.6.0",
     "tailwindcss-animate": "1.0.7",
     "telegraf": "^4.16.3",
+    "tree-sitter": "^0.22.4",
     "tsx": "4.19.2",
     "uuid": "^13.0.0",
     "valibot": "^1.2.0",
