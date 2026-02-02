@@ -32,7 +32,10 @@ export async function GET() {
 
     try {
         // 2. Check Queue (PgBoss Status)
-        // We use a light check - if the service is ready in memory
+        // Proactively start if not ready
+        if (!(queue as any).isReady) {
+            await queue.start().catch(() => { })
+        }
         status.services.queue = (queue as any).isReady ? 'UP' : 'DOWN'
     } catch (e) {
         status.services.queue = 'DOWN'
@@ -43,7 +46,7 @@ export async function GET() {
     status.services.memory = `${Math.round(used * 100) / 100} MB`
 
     // Determine final status code
-    const statusCode = status.status === 'UP' ? 200 : 503
+    const statusCode = (status.status === 'UP' && status.services.database === 'UP') ? 200 : 503
 
     return NextResponse.json(status, { status: statusCode })
 }
