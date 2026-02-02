@@ -10,10 +10,10 @@ import {
     ArrowUpRight, ArrowDownRight, Sparkles
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import {
-    AreaChart, Area, BarChart, Bar, XAxis, YAxis,
-    ResponsiveContainer, Tooltip, LineChart, Line, Cell
-} from "recharts"
+// import {
+//     AreaChart, Area, BarChart, Bar, XAxis, YAxis,
+//     ResponsiveContainer, Tooltip, LineChart, Line, Cell
+// } from "recharts"
 import { GrafanaEmbed } from "@/components/admin/monitoring/GrafanaEmbed"
 
 // ============================================
@@ -124,20 +124,11 @@ const PremiumCard = ({ children, className = "", glowColor = "emerald" }: { chil
 
 // Sparkline (Mini Chart) - Now uses real history data
 const Sparkline = ({ data, color = "#10b981", type = "area" }: { data: number[], color?: string, type?: "area" | "bar" }) => {
-    const chartData = data.map((v, i) => ({ i, v }))
+    // const chartData = data.map((v, i) => ({ i, v }))
     return (
         <div className="h-8 md:h-10 w-20 md:w-24">
-            <ResponsiveContainer width="100%" height="100%">
-                {type === "area" ? (
-                    <AreaChart data={chartData}>
-                        <Area type="monotone" dataKey="v" stroke={color} strokeWidth={2} fill={color} fillOpacity={0.1} isAnimationActive={false} />
-                    </AreaChart>
-                ) : (
-                    <BarChart data={chartData}>
-                        <Bar dataKey="v" fill={color} radius={[2, 2, 0, 0]} isAnimationActive={false} />
-                    </BarChart>
-                )}
-            </ResponsiveContainer>
+            {/* Recharts disabled for build debug */}
+            <div className="w-full h-full bg-white/5 rounded" />
         </div>
     )
 }
@@ -489,7 +480,10 @@ export default function MonitoringPage() {
 
                             <div className="flex-1 w-full min-h-0">
                                 {history.length > 0 ? (
-                                    <ResponsiveContainer width="100%" height="100%">
+                                    <div className="w-full h-full flex items-center justify-center text-white/20">
+                                        Chart Disabled (Build Debug)
+                                    </div>
+                                    /* <ResponsiveContainer width="100%" height="100%">
                                         <AreaChart data={history}>
                                             <defs>
                                                 <linearGradient id="chartConn" x1="0" y1="0" x2="0" y2="1">
@@ -511,7 +505,7 @@ export default function MonitoringPage() {
                                             <Area yAxisId="left" type="monotone" dataKey="connections" stroke="#10b981" strokeWidth={2} fill="url(#chartConn)" activeDot={{ r: 4, fill: '#fff' }} />
                                             <Area yAxisId="right" type="monotone" dataKey="ops" stroke="#06b6d4" strokeWidth={2} fill="url(#chartOps)" />
                                         </AreaChart>
-                                    </ResponsiveContainer>
+                                    </ResponsiveContainer> */
                                 ) : (
                                     <div className="flex items-center justify-center h-full text-white/20">
                                         <p>Collecting data...</p>
