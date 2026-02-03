@@ -24,16 +24,20 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      - nexnum-api
+      - nexnum-app
 
   # ============================================
   # Main API Application
   # ============================================
-  nexnum-api:
+  # ============================================
+  # Main API Application
+  # ============================================
+  nexnum-app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: nexnum-api
+    image: nexnum-app
+    container_name: nexnum-app
     restart: unless-stopped
     # ports:
     #   - "3000:3000" # Expose via Caddy only
@@ -69,6 +73,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.worker
+    image: nexnum-worker
     container_name: nexnum-worker
     restart: unless-stopped
     environment:
@@ -76,7 +81,7 @@ services:
     env_file:
       - .env
     depends_on:
-      - nexnum-api
+      - nexnum-app
       - redis
     deploy:
       resources:
@@ -91,6 +96,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.socket
+    image: nexnum-socket
     container_name: nexnum-socket
     restart: unless-stopped
     ports:
