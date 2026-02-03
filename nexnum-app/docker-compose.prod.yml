@@ -89,7 +89,7 @@ services:
   # ============================================
   redis:
     image: redis:7-alpine
-    container_name: nexnum-redis-prod
+    container_name: nexnum-redis
     command: redis-server --save 60 1 --loglevel warning --requirepass ${REDIS_PASSWORD:-strongpassword}
     ports:
       - "6379:6379"
@@ -109,7 +109,7 @@ services:
   # ============================================
   meilisearch:
     image: getmeili/meilisearch:v1.6
-    container_name: nexnum-meilisearch-prod
+    container_name: nexnum-meilisearch
     environment:
       MEILI_MASTER_KEY: ${MEILISEARCH_API_KEY:-masterkey}
       MEILI_ENV: production
