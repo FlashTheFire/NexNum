@@ -331,7 +331,7 @@ nexnum-app/
 │
 ├── 📄 .env                        # 🔒 Environment variables
 ├── 📄 Dockerfile                  # 🐳 Container build (optional)
-├── 📄 docker-compose.yml          # 🐳 Local development stack
+├── 📄 docker-compose.yml          # 🐳 Production Docker stack
 ├── 📄 package.json                # 📦 Dependencies
 └── 📄 tsconfig.json               # ⚙️ TypeScript config
 ```
