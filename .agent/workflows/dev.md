@@ -1,14 +1,18 @@
 ---
-description: How to start the full NexNum environment (Hybrid Mode)
+description: how to start the full NexNum environment (Hybrid Mode)
 ---
 
-# Unified Environment Startup
+This workflow starts the infrastructure (Redis, Meilisearch) and the background worker, while allowing the user to run the Next.js app on their local machine for the fastest HMR.
 
-To initiate the entire NexNum ecosystem (Docker Infrastructure + Terminal Application) with a single command, use:
+// turbo-all
+1.  Navigate to the `nexnum-app` directory.
+2.  Start local infrastructure: `./infra/local.sh up`
+3.  Start the Next.js frontend: `npm run dev`
+4.  Open [http://localhost:3000](http://localhost:3000)
 
-```powershell
-npm run dev:all
-```
+---
+*For production-like tests, use `./infra/server.sh deploy` (Linux/WSL only).*
+:all
 
 ### What this does:
 1. **Infra (Docker)**: Launches Redis, MeiliSearch, Grafana, Prometheus, Alertmanager, Workers, and Socket Server in the background.

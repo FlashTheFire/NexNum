@@ -350,13 +350,12 @@ cd NexNum/nexnum-app
 # 2️⃣ Install dependencies
 npm install
 
-# 3️⃣ Setup environment variables
-cp .env.example .env
-# Edit .env with your database URL, API keys, etc.
+# 3️⃣ Setup environment & Infrastructure
+# This starts Redis, Meilisearch, and the background worker
+./infra/local.sh up
 
-# 4️⃣ Generate Prisma client & push schema
+# 4️⃣ Generate Prisma client
 npx prisma generate
-npx prisma db push
 
 # 5️⃣ Start development server (Turbopack)
 npm run dev
@@ -599,49 +598,25 @@ GET /api/metrics         # 📈 Prometheus metrics endpoint
 
 ## ☁️ Production Deployment (VPS / EC2)
 
-The recommended **"Senior Level"** deployment method for cost efficiency and control. Uses the `infra/vps` GitOps workflow.
-
-### 🗺️ The "GitOps Lite" Workflow
-
-```mermaid
-sequenceDiagram
-    participant Dev as 👨‍💻 Developer
-    participant Git as 🐙 GitHub
-    participant VPS as ☁️ Raw VPS (EC2/DO)
-    participant Script as 📜 setup.sh
-    participant Caddy as 🔒 Caddy (SSL)
-    participant App as ⚡ NexNum API
-
-    Dev->>Git: Push Code (main)
-    Dev->>VPS: SSH Login
-    VPS->>Git: git clone / git pull
-    VPS->>Script: sudo ./infra/vps/setup.sh
-    Note right of Script: Installs Docker, Swap, Fail2ban
-    VPS->>VPS: docker compose up -d
-    Caddy->>App: Reverse Proxy (Internal :3000)
-    Caddy->>VPS: Auto-Issue HTTPS Cert
-    Note over Caddy, App: 🚀 Live on https://api.yourdomain.com
-```
+The recommended **"Senior Level"** deployment method for cost efficiency and control.
 
 ### 🚀 Easy Deploy Guide (3 Steps)
 
-We have automated the boring stuff.
+We have automated the boring stuff with `infra/server.sh`.
 
 #### 1. Provision Server
-Launch a **Ubuntu 22.04 LTS** instance (AWS `t3.micro` or DigitalOcean Droplet).
+Launch a **Ubuntu 22.04 LTS** instance on AWS.
 - Open Ports: `22` (SSH), `80` (HTTP), `443` (HTTPS).
-- **Do NOT** open port 3000.
 
 #### 2. Initialize (One-Time)
-SSH into your fresh server and run our magic script:
+SSH into your fresh server and run our management script:
 
 ```bash
-# Clone the repo
 git clone https://github.com/FlashTheFire/NexNum.git
 cd NexNum/nexnum-app
 
-# Run the setup wizard (Creates Swap, Installs Docker)
-sudo ./infra/vps/setup.sh
+# Run the setup wizard (Docker, Swap, Kernel tuning)
+sudo ./infra/server.sh setup
 ```
 
 #### 3. Go Live
@@ -649,11 +624,11 @@ Config your environment and launch:
 
 ```bash
 # Set secrets
-cp .env.example .env.production
-nano .env.production
+cp .env.example .env
+nano .env
 
-# Launch with Auto-SSL
-DOMAIN_NAME=api.your-domain.com ./infra/vps/deploy.sh localhost
+# Deploy the stack
+./infra/server.sh deploy
 ```
 
 ### 💾 Cost optimized Stack (Free Tier Compatible)

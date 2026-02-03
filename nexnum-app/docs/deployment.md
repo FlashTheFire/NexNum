@@ -20,7 +20,6 @@ This guide documents the "Professional Infrastructure" deployment strategy for N
 ### Provisioning
 1.  Launch Ubuntu 22.04 Instance.
 2.  Open Inbound Ports: `22` (SSH), `80` (HTTP), `443` (HTTPS).
-3.  **Security**: Do NOT open port 3000 or 6379 to the internet.
 
 ### Initialization Script
 We have automated the hardening process. Connect via SSH and run:
@@ -31,46 +30,29 @@ git clone https://github.com/FlashTheFire/NexNum.git
 cd NexNum/nexnum-app
 
 # Run Setup Wizard
-# - Creates 4GB Swap (Prevents OOM on 1GB RAM)
+# - Creates 4GB Swap
 # - Installs Docker & Compose
-# - Configures Fail2ban
-sudo ./infra/vps/setup.sh
+# - Optimized Kernel Settings
+sudo ./infra/server.sh setup
 ```
 
-## 2. Configuration (`.env.production`)
+## 2. Configuration (`.env`)
 
-Create the production environment file:
+Create the environment file:
 
 ```bash
-cp .env.example .env.production
-nano .env.production
+cp .env.example .env
+nano .env
 ```
 
-**Critical Variables**:
-```ini
-NODE_ENV=production
-DATABASE_URL="postgres://user:pass@host:5432/db"
-REDIS_URL="redis://redis:6379"
-MEILI_HOST="http://meilisearch:7700"
-DOMAIN_NAME="api.yourdomain.com"
-```
+## 3. Deployment Workflow
 
-## 3. Deployment Workflow ("GitOps Lite")
+We use `server.sh` for a streamlined, one-command deployment.
 
-We use a simple "Pull & Restart" strategy which is robust and requires zero external CI/CD complexity (though GitHub Actions is supported).
-
-### Option A: Manual Deploy (SSH)
+### Manual Deploy (SSH)
 ```bash
-./infra/vps/deploy.sh localhost
+./infra/server.sh deploy
 ```
-
-### Option B: GitHub Actions (Automated)
-Push to `main`. The `.github/workflows/deploy.yml` pipeline will:
-1.  SSH into your VPS.
-2.  Pull the latest code.
-3.  Execute `deploy.sh`.
-
-*Requires `VPS_HOST`, `VPS_USER`, `VPS_KEY`, `ENV_PRODUCTION` secrets in GitHub.*
 
 ## 4. Troubleshooting
 
