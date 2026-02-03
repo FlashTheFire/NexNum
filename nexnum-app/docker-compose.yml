@@ -177,3 +177,4 @@ volumes:
 networks:
   default:
     name: nexnum-prod
+    external: true
