@@ -20,7 +20,7 @@ export const viewport: Viewport = {
 }
 
 export const metadata: Metadata = {
-    metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://nexnum.com'),
+    metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://nexnum.in'),
     title: {
         default: "NexNum - Premium Virtual Numbers for SMS Verification",
         template: "%s | NexNum"

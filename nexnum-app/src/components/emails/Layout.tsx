@@ -18,7 +18,7 @@ interface EmailLayoutProps {
     children: React.ReactNode
 }
 
-const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://nexnum.io'
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://nexnum.in'
 
 export const EmailLayout = ({ preview, children }: EmailLayoutProps) => {
     return (

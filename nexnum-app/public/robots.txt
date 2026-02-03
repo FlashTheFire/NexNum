@@ -6,7 +6,7 @@ Disallow: /api/admin
 Disallow: /api/internal
 
 # Host (Production)
-Host: https://nexnum.io
+Host: https://nexnum.in
 
 # Sitemaps
-Sitemap: https://nexnum.io/sitemap.xml
+Sitemap: https://nexnum.in/sitemap.xml
