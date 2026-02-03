@@ -85,6 +85,37 @@ services:
           memory: 512M
 
   # ============================================
+  # WebSocket Server
+  # ============================================
+  nexnum-socket:
+    build:
+      context: .
+      dockerfile: Dockerfile.socket
+    container_name: nexnum-socket
+    restart: unless-stopped
+    ports:
+      - "3951:3951"
+    environment:
+      NODE_ENV: production
+      PORT: 3951
+    env_file:
+      - .env
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:3951/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  # ============================================
   # Redis (Production)
   # ============================================
   redis:
