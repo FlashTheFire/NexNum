@@ -52,10 +52,12 @@ export default function Footer() {
                     <div>
                         <h3 className="font-semibold mb-4">{t('connect.title')}</h3>
                         <ul className="space-y-2 text-sm text-muted-foreground">
-                            <li><a href="#" className="hover:text-primary">{t('connect.twitter')}</a></li>
-                            <li><a href="#" className="hover:text-primary">{t('connect.github')}</a></li>
-                            <li><a href="#" className="hover:text-primary">{t('connect.discord')}</a></li>
-                            <li><a href="/contact" className="hover:text-primary">{t('connect.contactUs')}</a></li>
+                            <li><a href={t('socialLinks.twitter')} target="_blank" rel="noopener noreferrer" className="hover:text-primary">{t('connect.twitter')}</a></li>
+                            <li><a href={t('socialLinks.github')} target="_blank" rel="noopener noreferrer" className="hover:text-primary">{t('connect.github')}</a></li>
+                            <li><a href={t('socialLinks.discord')} target="_blank" rel="noopener noreferrer" className="hover:text-primary">{t('connect.discord')}</a></li>
+                            <li><a href={t('socialLinks.instagram')} target="_blank" rel="noopener noreferrer" className="hover:text-primary">{t('connect.instagram')}</a></li>
+                            <li><a href={t('socialLinks.youtube')} target="_blank" rel="noopener noreferrer" className="hover:text-primary">{t('connect.youtube')}</a></li>
+                            <li><Link href="/contact" className="hover:text-primary">{t('connect.contactUs')}</Link></li>
                         </ul>
                     </div>
                 </div>
