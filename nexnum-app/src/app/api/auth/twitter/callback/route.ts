@@ -30,18 +30,20 @@ export async function GET(request: Request) {
     cookieStore.delete('twitter_oauth_state')
     cookieStore.delete('twitter_code_verifier')
 
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+
     // Error from Twitter
     if (error) {
-        return NextResponse.redirect(new URL(`/auth/login?error=${error}`, request.url))
+        return NextResponse.redirect(new URL(`/auth/login?error=${error}`, baseUrl))
     }
 
     // Validate state (CSRF protection)
     if (!state || state !== storedState) {
-        return NextResponse.redirect(new URL('/auth/login?error=invalid_state', request.url))
+        return NextResponse.redirect(new URL('/auth/login?error=invalid_state', baseUrl))
     }
 
     if (!code || !codeVerifier) {
-        return NextResponse.redirect(new URL('/auth/login?error=missing_code', request.url))
+        return NextResponse.redirect(new URL('/auth/login?error=missing_code', baseUrl))
     }
 
     try {
@@ -56,8 +58,7 @@ export async function GET(request: Request) {
             throw new Error('Twitter OAuth not configured')
         }
 
-        const origin = new URL(request.url).origin
-        const redirectUri = `${origin}/api/auth/twitter/callback`
+        const redirectUri = `${baseUrl}/api/auth/twitter/callback`
 
         // Exchange code for access token
         const tokenResponse = await fetch('https://api.twitter.com/2/oauth2/token', {
@@ -143,9 +144,9 @@ export async function GET(request: Request) {
 
         await setAuthCookie(token)
 
-        return NextResponse.redirect(new URL('/dashboard', request.url))
+        return NextResponse.redirect(new URL('/dashboard', baseUrl))
     } catch (error: any) {
         console.error('[Twitter OAuth] Error:', error)
-        return NextResponse.redirect(new URL(`/auth/login?error=oauth_failed`, request.url))
+        return NextResponse.redirect(new URL(`/auth/login?error=oauth_failed`, baseUrl))
     }
 }

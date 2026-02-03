@@ -31,8 +31,8 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const code = searchParams.get('code')
     const state = searchParams.get('state')
-    const origin = new URL(request.url).origin
-    const redirectUri = `${origin}/api/auth/google/callback`
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    const redirectUri = `${baseUrl}/api/auth/google/callback`
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0] || 'unknown'
 
     // 1. CSRF: Verify state parameter
@@ -41,14 +41,14 @@ export async function GET(request: Request) {
 
     if (!state || !storedState || state !== storedState) {
         logger.warn('[GoogleAuth] CSRF state mismatch', { provided: state, stored: storedState })
-        return NextResponse.redirect(new URL('/auth/login?error=InvalidState', request.url))
+        return NextResponse.redirect(new URL('/auth/login?error=InvalidState', baseUrl))
     }
 
     // Clear the state cookie
     cookieStore.delete('oauth_state')
 
     if (!code) {
-        return NextResponse.redirect(new URL('/auth/login?error=NoCode', request.url))
+        return NextResponse.redirect(new URL('/auth/login?error=NoCode', baseUrl))
     }
 
     try {
@@ -68,7 +68,7 @@ export async function GET(request: Request) {
         const tokens = await tokenResponse.json()
         if (!tokens.access_token) {
             logger.error('[GoogleAuth] Failed to get tokens', { error: tokens })
-            return NextResponse.redirect(new URL('/auth/login?error=TokenExchangeFailed', request.url))
+            return NextResponse.redirect(new URL('/auth/login?error=TokenExchangeFailed', baseUrl))
         }
 
         // 3. Get User Info from Google
@@ -79,7 +79,7 @@ export async function GET(request: Request) {
 
         if (!googleUser.id || !googleUser.email) {
             logger.error('[GoogleAuth] Invalid user data from Google', { googleUser })
-            return NextResponse.redirect(new URL('/auth/login?error=InvalidUserData', request.url))
+            return NextResponse.redirect(new URL('/auth/login?error=InvalidUserData', baseUrl))
         }
 
         // 4. Find or Create User
@@ -93,7 +93,7 @@ export async function GET(request: Request) {
             // Check if banned
             if (user.isBanned) {
                 logger.warn('[GoogleAuth] Banned user attempted OAuth login', { userId: user.id })
-                return NextResponse.redirect(new URL('/auth/login?error=AccountSuspended', request.url))
+                return NextResponse.redirect(new URL('/auth/login?error=AccountSuspended', baseUrl))
             }
 
             // Link Google ID if not already linked
@@ -151,10 +151,10 @@ export async function GET(request: Request) {
         })
 
         logger.info('[GoogleAuth] Success', { userId: user.id, isNewUser })
-        return NextResponse.redirect(new URL('/dashboard', request.url))
+        return NextResponse.redirect(new URL('/dashboard', baseUrl))
 
     } catch (error) {
         logger.error('[GoogleAuth] Critical Error', { error })
-        return NextResponse.redirect(new URL('/auth/login?error=ServerError', request.url))
+        return NextResponse.redirect(new URL('/auth/login?error=ServerError', baseUrl))
     }
 }

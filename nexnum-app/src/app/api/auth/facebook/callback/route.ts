@@ -27,16 +27,18 @@ export async function GET(request: Request) {
 
     cookieStore.delete('facebook_oauth_state')
 
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+
     if (error) {
-        return NextResponse.redirect(new URL(`/auth/login?error=${error}`, request.url))
+        return NextResponse.redirect(new URL(`/auth/login?error=${error}`, baseUrl))
     }
 
     if (!state || state !== storedState) {
-        return NextResponse.redirect(new URL('/auth/login?error=invalid_state', request.url))
+        return NextResponse.redirect(new URL('/auth/login?error=invalid_state', baseUrl))
     }
 
     if (!code) {
-        return NextResponse.redirect(new URL('/auth/login?error=missing_code', request.url))
+        return NextResponse.redirect(new URL('/auth/login?error=missing_code', baseUrl))
     }
 
     try {
@@ -50,8 +52,7 @@ export async function GET(request: Request) {
             throw new Error('Facebook OAuth not configured')
         }
 
-        const origin = new URL(request.url).origin
-        const redirectUri = `${origin}/api/auth/facebook/callback`
+        const redirectUri = `${baseUrl}/api/auth/facebook/callback`
 
         // Exchange code for access token
         const tokenUrl = new URL('https://graph.facebook.com/v18.0/oauth/access_token')
@@ -128,9 +129,9 @@ export async function GET(request: Request) {
 
         await setAuthCookie(token)
 
-        return NextResponse.redirect(new URL('/dashboard', request.url))
+        return NextResponse.redirect(new URL('/dashboard', baseUrl))
     } catch (error: any) {
         console.error('[Facebook OAuth] Error:', error)
-        return NextResponse.redirect(new URL(`/auth/login?error=oauth_failed`, request.url))
+        return NextResponse.redirect(new URL(`/auth/login?error=oauth_failed`, baseUrl))
     }
 }
