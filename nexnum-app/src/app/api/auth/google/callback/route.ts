@@ -15,16 +15,16 @@ import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { prisma, ensureWallet } from '@/lib/core/db'
 import { generateToken, setAuthCookie } from '@/lib/auth/jwt'
+import { getOAuthSettings } from '@/lib/auth/settings'
 import { v4 as uuidv4 } from 'uuid'
 import { logger } from '@/lib/core/logger'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: Request) {
-    const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID
-    const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET
+    const { clientId: GOOGLE_CLIENT_ID, clientSecret: GOOGLE_CLIENT_SECRET, enabled } = await getOAuthSettings('google')
 
-    if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
+    if (!enabled || !GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
         return NextResponse.json({ error: 'Google OAuth not configured' }, { status: 500 })
     }
 

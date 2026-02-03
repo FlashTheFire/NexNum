@@ -11,6 +11,7 @@ import { prisma } from '@/lib/core/db'
 import { redis } from '@/lib/core/redis'
 import { logger } from '@/lib/core/logger'
 import { Prisma } from '@prisma/client'
+import { encrypt, decrypt } from '@/lib/security/encryption'
 
 // ============================================================================
 // Types
@@ -132,12 +133,12 @@ export class PaymentSettingsService {
             const config: PaymentConfig = {
                 paymentsEnabled: settings.paymentsEnabled,
                 upiProviderMode: settings.upiProviderMode as UPIProviderMode,
-                upiApiToken: settings.upiApiToken,
+                upiApiToken: settings.upiApiToken ? decrypt(settings.upiApiToken) : null,
                 upiCreateOrderUrl: settings.upiCreateOrderUrl,
                 upiCheckStatusUrl: settings.upiCheckStatusUrl,
                 upiQrBaseUrl: settings.upiQrBaseUrl,
                 paytmMerchantId: settings.paytmMerchantId,
-                paytmMerchantKey: settings.paytmMerchantKey,
+                paytmMerchantKey: settings.paytmMerchantKey ? decrypt(settings.paytmMerchantKey) : null,
                 paytmWebsite: settings.paytmWebsite,
                 paytmIndustryType: settings.paytmIndustryType,
                 paytmChannelId: settings.paytmChannelId,
@@ -273,12 +274,16 @@ export class PaymentSettingsService {
 
         if (config.paymentsEnabled !== undefined) mapped.paymentsEnabled = config.paymentsEnabled
         if (config.upiProviderMode !== undefined) mapped.upiProviderMode = config.upiProviderMode
-        if (config.upiApiToken !== undefined) mapped.upiApiToken = config.upiApiToken
+        if (config.upiApiToken !== undefined) {
+            mapped.upiApiToken = config.upiApiToken ? encrypt(config.upiApiToken) : null
+        }
         if (config.upiCreateOrderUrl !== undefined) mapped.upiCreateOrderUrl = config.upiCreateOrderUrl
         if (config.upiCheckStatusUrl !== undefined) mapped.upiCheckStatusUrl = config.upiCheckStatusUrl
         if (config.upiQrBaseUrl !== undefined) mapped.upiQrBaseUrl = config.upiQrBaseUrl
         if (config.paytmMerchantId !== undefined) mapped.paytmMerchantId = config.paytmMerchantId
-        if (config.paytmMerchantKey !== undefined) mapped.paytmMerchantKey = config.paytmMerchantKey
+        if (config.paytmMerchantKey !== undefined) {
+            mapped.paytmMerchantKey = config.paytmMerchantKey ? encrypt(config.paytmMerchantKey) : null
+        }
         if (config.paytmWebsite !== undefined) mapped.paytmWebsite = config.paytmWebsite
         if (config.paytmIndustryType !== undefined) mapped.paytmIndustryType = config.paytmIndustryType
         if (config.paytmChannelId !== undefined) mapped.paytmChannelId = config.paytmChannelId

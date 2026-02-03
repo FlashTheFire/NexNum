@@ -47,13 +47,28 @@ export async function getCaptchaSettings(): Promise<CaptchaSettings> {
     }
 
     try {
-        // 2. Fetch runtime overrides from Redis (e.g. temporary disable)
+        // 2. Fetch runtime overrides from Redis 
+        // NOW PRIORITY: Redis Settings > Environment Variables
         const stored = await redis.get(AUTH_SETTINGS_KEY)
         const settings = stored ? JSON.parse(stored) : null
 
         if (settings?.captcha) {
             envConfig.enabled = settings.captcha.enabled ?? envConfig.enabled
             envConfig.provider = settings.captcha.provider ?? envConfig.provider
+
+            // Decrypt keys if present
+            const { decrypt } = await import('@/lib/security/encryption')
+
+            if (settings.captcha.hcaptchaSiteKey) envConfig.hcaptchaSiteKey = settings.captcha.hcaptchaSiteKey
+            if (settings.captcha.recaptchaSiteKey) envConfig.recaptchaSiteKey = settings.captcha.recaptchaSiteKey
+
+            // Decrypt Secrets
+            if (settings.captcha.hcaptchaSecret) {
+                envConfig.hcaptchaSecret = decrypt(settings.captcha.hcaptchaSecret)
+            }
+            if (settings.captcha.recaptchaSecret) {
+                envConfig.recaptchaSecret = decrypt(settings.captcha.recaptchaSecret)
+            }
         }
     } catch (error) {
         logger.error('Failed to fetch captcha overrides from Redis', { error })

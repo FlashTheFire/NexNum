@@ -7,13 +7,14 @@
 
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
+import { getOAuthSettings } from '@/lib/auth/settings'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: Request) {
-    const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID
+    const { clientId: GOOGLE_CLIENT_ID, enabled } = await getOAuthSettings('google')
 
-    if (!GOOGLE_CLIENT_ID) {
+    if (!enabled || !GOOGLE_CLIENT_ID) {
         return NextResponse.json(
             { error: 'Google OAuth not configured' },
             { status: 500 }

@@ -241,15 +241,29 @@ export const PUT = apiHandler(async (req, { body }) => {
             rateLimit: { ...current.rateLimit, ...updates.rateLimit }
         }
 
-        // ⚠️ CRITICAL: STRIP SECRETS FROM MERGED DATA BEFORE SAVING
-        // We never want to store secrets in Redis if they are meant to be in .env
-        // This enforces .env as the source of truth and prevents accidental leaks
+        // ⚠️ ENCRYPTION UPDATE: Encrypt secrets instead of deleting them
+        // This allows dynamic updates via Admin Panel while keeping Redis secure.
+
+        const { encrypt } = await import('@/lib/security/encryption')
+
+        // 1. Encrypt OAuth Secrets
         Object.keys(merged.oauth).forEach(key => {
-            delete merged.oauth[key].clientSecret
-            delete merged.oauth[key].botToken
+            const provider = merged.oauth[key]
+            if (provider.clientSecret && !provider.clientSecret.startsWith('v1:')) {
+                provider.clientSecret = encrypt(provider.clientSecret)
+            }
+            if (provider.botToken && !provider.botToken.startsWith('v1:')) {
+                provider.botToken = encrypt(provider.botToken)
+            }
         })
-        delete merged.captcha.hcaptchaSecret
-        delete merged.captcha.recaptchaSecret
+
+        // 2. Encrypt Captcha Secrets
+        if (merged.captcha.hcaptchaSecret && !merged.captcha.hcaptchaSecret.startsWith('v1:')) {
+            merged.captcha.hcaptchaSecret = encrypt(merged.captcha.hcaptchaSecret)
+        }
+        if (merged.captcha.recaptchaSecret && !merged.captcha.recaptchaSecret.startsWith('v1:')) {
+            merged.captcha.recaptchaSecret = encrypt(merged.captcha.recaptchaSecret)
+        }
 
         // Save to Redis
         await redis.set(AUTH_SETTINGS_KEY, JSON.stringify(merged))

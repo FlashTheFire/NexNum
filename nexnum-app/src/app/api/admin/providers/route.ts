@@ -1,10 +1,9 @@
-
-// Types synchronized with schema
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/core/db'
 import { AuthGuard, redactProvidersSecrets, redactProviderSecrets } from '@/lib/auth/guard'
 import { logAdminAction, getClientIP } from '@/lib/core/auditLog'
 import { SettingsService } from '@/lib/settings'
+import { encrypt } from '@/lib/security/encryption'
 
 export async function GET(req: Request) {
     const auth = await AuthGuard.requireAdmin()
@@ -114,7 +113,7 @@ export async function POST(req: Request) {
                 displayName,
                 apiBaseUrl,
                 authType: authType || 'bearer',
-                authKey: body.authKey,
+                authKey: body.authKey ? encrypt(body.authKey) : null,
                 authHeader: body.authHeader,
                 authQueryParam: body.authQueryParam,
                 endpoints: endpoints || {},
