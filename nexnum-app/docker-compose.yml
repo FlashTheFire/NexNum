@@ -30,6 +30,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        DATABASE_URL: ${DATABASE_URL}
+        DATABASE_URL_DIRECT: ${DATABASE_URL_DIRECT}
     image: nexnum-app
     container_name: nexnum-app
     restart: unless-stopped
