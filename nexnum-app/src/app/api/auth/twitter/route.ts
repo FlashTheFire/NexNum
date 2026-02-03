@@ -34,8 +34,8 @@ export async function GET(request: Request) {
         )
     }
 
-    const origin = new URL(request.url).origin
-    const redirectUri = `${origin}/api/auth/twitter/callback`
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    const redirectUri = `${baseUrl}/api/auth/twitter/callback`
 
     // Twitter OAuth 2.0 scopes
     const scope = 'tweet.read users.read'

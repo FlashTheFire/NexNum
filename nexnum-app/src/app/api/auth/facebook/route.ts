@@ -33,8 +33,8 @@ export async function GET(request: Request) {
         )
     }
 
-    const origin = new URL(request.url).origin
-    const redirectUri = `${origin}/api/auth/facebook/callback`
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    const redirectUri = `${baseUrl}/api/auth/facebook/callback`
 
     // Facebook OAuth 2.0 scopes
     const scope = 'email public_profile'

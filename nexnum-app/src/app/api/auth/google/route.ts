@@ -21,8 +21,8 @@ export async function GET(request: Request) {
         )
     }
 
-    const origin = new URL(request.url).origin
-    const redirectUri = `${origin}/api/auth/google/callback`
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    const redirectUri = `${baseUrl}/api/auth/google/callback`
     const scope = 'https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email'
 
     // Generate CSRF state token

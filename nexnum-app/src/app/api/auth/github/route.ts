@@ -20,8 +20,8 @@ export async function GET(request: Request) {
         )
     }
 
-    const origin = new URL(request.url).origin
-    const redirectUri = `${origin}/api/auth/github/callback`
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    const redirectUri = `${baseUrl}/api/auth/github/callback`
     const scope = 'read:user user:email'
 
     // Generate CSRF state token
