@@ -10,9 +10,9 @@ import { z } from 'zod'
 const envSchema = z.object({
     // Database
     DATABASE_URL: z.string().url().min(1, 'DATABASE_URL is required'),
-    DIRECT_URL: z.string().url().optional(),
+    DIRECT_URL: z.string().url().nullish().or(z.literal('')),
 
-    REDIS_URL: z.string().url().optional(),
+    REDIS_URL: z.string().url().nullish().or(z.literal('')),
 
     // MeiliSearch
     MEILISEARCH_HOST: z.string().url().default('http://localhost:7700'),
@@ -25,7 +25,7 @@ const envSchema = z.object({
     ENCRYPTION_KEY: z.string().min(32, 'ENCRYPTION_KEY is required for provider security (use 32+ chars)'),
 
     // Sentry
-    SENTRY_DSN: z.string().url().optional(),
+    SENTRY_DSN: z.string().url().nullish().or(z.literal('')),
     SENTRY_ORG: z.string().optional(),
     SENTRY_PROJECT: z.string().optional(),
     SENTRY_AUTH_TOKEN: z.string().optional(),
@@ -42,7 +42,7 @@ const envSchema = z.object({
 
     // App
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-    NEXT_PUBLIC_APP_URL: z.string().url().optional(),
+    NEXT_PUBLIC_APP_URL: z.string().url().nullish().or(z.literal('')),
 
     // Monitoring
     ALERT_WEBHOOK_SECRET: z.string().optional(),
