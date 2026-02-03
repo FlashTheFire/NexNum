@@ -1,6 +1,6 @@
 # Production HTTPS with automatic Let's Encrypt
 nexnum.in, www.nexnum.in {
-    reverse_proxy nexnum-app:3000
+    reverse_proxy nexnum-api:3000
     encode gzip
 }
 
