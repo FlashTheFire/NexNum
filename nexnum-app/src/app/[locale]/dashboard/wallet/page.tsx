@@ -25,6 +25,7 @@ import { useAuthStore } from "@/stores/authStore"
 import { cn } from "@/lib/utils/utils"
 import { BalanceDisplay, PriceDisplay } from "@/components/common/PriceDisplay"
 import { useCurrency } from "@/providers/CurrencyProvider"
+import { DepositDialog } from "@/components/wallet/deposit-dialog"
 
 // Animation Variants
 const fadeInUp: Variants = {
@@ -61,6 +62,9 @@ export default function WalletPage() {
     const { currencies, preferredCurrency, formatPrice: formatPriceContext, settings } = useCurrency()
     const pointsRate = Number(settings?.pointsRate) || 100
     const currencySym = currencies[preferredCurrency]?.symbol || '$'
+
+    // Deposit Dialog
+    const [depositDialogOpen, setDepositDialogOpen] = useState(false)
 
     // Filters
     const [filterType, setFilterType] = useState<'all' | 'credit' | 'debit'>('all')
@@ -253,11 +257,15 @@ export default function WalletPage() {
 
                         {/* Quick Actions Grid */}
                         <motion.div variants={fadeInUp} className="grid grid-cols-2 gap-3">
-                            <Button className="h-14 rounded-xl bg-card/40 border border-white/5 hover:bg-white/5 backdrop-blur-sm group" variant="outline">
+                            <Button
+                                className="h-14 rounded-xl bg-card/40 border border-white/5 hover:bg-white/5 backdrop-blur-sm group"
+                                variant="outline"
+                                onClick={() => setDepositDialogOpen(true)}
+                            >
                                 <ArrowDownRight className="mr-2 h-5 w-5 text-emerald-400 group-hover:scale-110 transition-transform" />
                                 <div className="text-left">
                                     <div className="font-semibold text-white">Deposit</div>
-                                    <div className="text-[10px] text-muted-foreground">Add funds instantly</div>
+                                    <div className="text-[10px] text-muted-foreground">Add funds via UPI</div>
                                 </div>
                             </Button>
                             <Button className="h-14 rounded-xl bg-card/40 border border-white/5 hover:bg-white/5 backdrop-blur-sm group" variant="outline">
@@ -483,6 +491,15 @@ export default function WalletPage() {
                     </div>
                 </div>
             </motion.div>
+
+            {/* Deposit Dialog */}
+            <DepositDialog
+                open={depositDialogOpen}
+                onClose={() => setDepositDialogOpen(false)}
+                onSuccess={() => {
+                    fetchTransactions()
+                }}
+            />
         </div>
     )
 }

@@ -47,6 +47,10 @@ model User {
   webhooks                Webhook[]
   passwordResets          PasswordReset[]
   emailVerificationTokens EmailVerificationToken[]
+  
+  // Coupon System
+  referrerCoupons         Coupon[]           @relation("ReferrerCoupons")
+  couponRedemptions       CouponRedemption[]
 
   @@map("users")
 }
@@ -801,4 +805,96 @@ model BannedIcon {
   createdAt   DateTime @default(now()) @map("created_at")
 
   @@map("banned_icons")
+}
+
+// ============================================
+// COUPON & PROMO CODE SYSTEM
+// ============================================
+
+enum CouponType {
+  PROMO     // Discount/bonus on deposits
+  GIFT      // Pre-paid instant credit
+  REFERRAL  // User-generated referral code
+}
+
+enum CouponStatus {
+  ACTIVE
+  EXPIRED
+  DEPLETED
+  DISABLED
+}
+
+model Coupon {
+  id              String       @id @default(uuid())
+  code            String       @unique  // NX-XXXX-XXXX format with checksum
+  type            CouponType
+  status          CouponStatus @default(ACTIVE)
+  
+  // Value Configuration
+  discountType    String?      // 'PERCENTAGE' | 'FIXED'
+  discountValue   Decimal?     @db.Decimal(10, 2)  // Amount or percentage
+  giftAmount      Decimal?     @db.Decimal(10, 2)  // For GIFT type (instant credit)
+  maxDiscount     Decimal?     @db.Decimal(10, 2)  // Cap for percentage discounts
+  
+  // Usage Limits
+  maxUses         Int          @default(1)         // Total uses allowed (0 = unlimited)
+  maxUsesPerUser  Int          @default(1)         // Per-user limit
+  currentUses     Int          @default(0)
+  
+  // Eligibility Requirements
+  minDepositAmount Decimal?    @db.Decimal(10, 2)  // Minimum deposit to apply
+  validServices   String[]     @default([])        // Empty = all services
+  newUsersOnly    Boolean      @default(false)     // First-time depositors only
+  
+  // Validity Period
+  startsAt        DateTime     @default(now())
+  expiresAt       DateTime?
+  
+  // Referral-Specific Fields
+  referrerId      String?      @map("referrer_id")
+  referrer        User?        @relation("ReferrerCoupons", fields: [referrerId], references: [id])
+  referralBonus   Decimal?     @db.Decimal(10, 2)  // Bonus to referrer when used
+  
+  // Metadata
+  name            String?      // Internal name for admin reference
+  description     String?      // Public description shown to users
+  createdBy       String?      @map("created_by")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  
+  redemptions     CouponRedemption[]
+  
+  @@index([code])
+  @@index([type, status])
+  @@index([referrerId])
+  @@index([expiresAt])
+  @@map("coupons")
+}
+
+model CouponRedemption {
+  id              String   @id @default(uuid())
+  couponId        String   @map("coupon_id")
+  userId          String   @map("user_id")
+  
+  // Transaction Details
+  depositId       String?  @map("deposit_id")  // If applied to deposit
+  appliedAmount   Decimal  @db.Decimal(10, 2)  // Discount/bonus given
+  originalAmount  Decimal? @db.Decimal(10, 2)  // Original deposit amount
+  finalAmount     Decimal? @db.Decimal(10, 2)  // After discount/bonus
+  
+  // Security Tracking
+  ipAddress       String?  @map("ip_address")
+  userAgent       String?  @map("user_agent")
+  deviceFingerprint String? @map("device_fingerprint")
+  
+  redeemedAt      DateTime @default(now()) @map("redeemed_at")
+  
+  coupon          Coupon   @relation(fields: [couponId], references: [id])
+  user            User     @relation(fields: [userId], references: [id])
+  
+  @@unique([couponId, userId, depositId])
+  @@index([userId])
+  @@index([couponId])
+  @@index([redeemedAt])
+  @@map("coupon_redemptions")
 }

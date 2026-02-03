@@ -80,6 +80,15 @@ export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) 
     const pollRef = useRef<NodeJS.Timeout | null>(null)
     const countdownRef = useRef<NodeJS.Timeout | null>(null)
 
+    // Coupon/Promo code state
+    const [promoCode, setPromoCode] = useState('')
+    const [promoValidating, setPromoValidating] = useState(false)
+    const [promoResult, setPromoResult] = useState<{
+        valid: boolean;
+        discount?: { type: string; value: number; appliedAmount: number };
+        error?: string;
+    } | null>(null)
+
     // Fetch config on mount
     useEffect(() => {
         if (open) {
@@ -110,6 +119,29 @@ export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) 
             console.error('Failed to fetch deposit config', error)
         }
     }
+
+    // Validate promo code
+    const validatePromoCode = async () => {
+        if (!promoCode.trim()) return
+        setPromoValidating(true)
+        setPromoResult(null)
+        try {
+            const res = await fetch('/api/wallet/coupon/validate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code: promoCode, depositAmount: numAmount || 0 }),
+            })
+            const data = await res.json()
+            setPromoResult(data)
+        } catch (error) {
+            setPromoResult({ valid: false, error: 'Failed to validate code' })
+        } finally {
+            setPromoValidating(false)
+        }
+    }
+
+    // Calculate total with promo discount
+    const promoDiscount = promoResult?.valid && promoResult?.discount ? promoResult.discount.appliedAmount : 0
 
     // Calculate bonus amount
     const numAmount = parseFloat(amount) || 0
