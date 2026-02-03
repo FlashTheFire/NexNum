@@ -63,17 +63,17 @@ fi
 
 # 6.5 REMOVE ORPHAN CONTAINERS
 echo "🗑️ [NEXNUM] Removing orphan containers..."
-sudo docker compose -f docker-compose.prod.yml down --remove-orphans 2>/dev/null || true
+sudo docker compose down --remove-orphans 2>/dev/null || true
 
 # 7. PRODUCTION ORCHESTRATION
 echo "📦 [NEXNUM] Orchestrating core services..."
-sudo docker compose -f docker-compose.prod.yml up -d --build nexnum-api nexnum-worker redis meilisearch caddy
+sudo docker compose up -d --build nexnum-app nexnum-worker redis meilisearch caddy
 
 # 8. MONITORING STACK (Agile Activation)
 FREE_RAM=$(free -m | awk '/^Mem:/{print $7}')
 if [ $FREE_RAM -gt 500 ]; then
     echo "🟢 [NEXNUM] RAM Health OK ($FREE_RAM MB). Activating monitoring..."
-    sudo docker compose -f docker-compose.prod.yml --profile monitoring up -d
+    sudo docker compose --profile monitoring up -d
 else
     echo "⚠️ [NEXNUM] Conservative Mode: Monitoring stack remains offline (RAM: $FREE_RAM MB)."
 fi

@@ -27,7 +27,7 @@ echo "🚀 Deploying NexNum to $TARGET..."
 
 # 1. Sync necessary files
 echo "📦 Syncing core configuration..."
-scp $SSH_OPTS docker-compose.prod.yml Caddyfile .env.production $TARGET:~/nexnum-app/
+scp $SSH_OPTS docker-compose.yml Caddyfile .env.production $TARGET:~/nexnum-app/
 
 if [ "$WITH_MONITORING" = true ]; then
     echo "📊 Syncing monitoring configuration..."
@@ -41,16 +41,16 @@ ssh $SSH_OPTS $TARGET << EOF
     cd ~/nexnum-app
     
     # Pull latest images
-    docker compose -f docker-compose.prod.yml pull
+    docker compose pull
     
     # Restart core stack
     echo "🔄 Restarting core application..."
-    docker compose -f docker-compose.prod.yml up -d --remove-orphans
+    docker compose up -d --remove-orphans
     
     # Optional Monitoring stack
     if [ "$WITH_MONITORING" = true ]; then
         echo "👁️  Restarting observability stack..."
-        docker compose -f docker-compose.prod.yml -f monitoring/docker-compose.monitoring.yml up -d --remove-orphans
+        docker compose -f docker-compose.yml -f monitoring/docker-compose.monitoring.yml up -d --remove-orphans
     fi
     
     # Cleanup

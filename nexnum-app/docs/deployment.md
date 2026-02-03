@@ -77,11 +77,11 @@ Push to `main`. The `.github/workflows/deploy.yml` pipeline will:
 ### Logs
 View logs for all services:
 ```bash
-docker compose -f docker-compose.prod.yml logs -f
+docker compose logs -f
 ```
 View specific service:
 ```bash
-docker compose -f docker-compose.prod.yml logs -f nexnum-api
+docker compose logs -f nexnum-app
 ```
 
 ### "JavaScript Heap Out of Memory"
@@ -92,6 +92,6 @@ If the build fails on t2.micro:
 ### SSL Issues
 Caddy handles SSL automatically. To debug:
 ```bash
-docker compose -f docker-compose.prod.yml logs -f caddy
+docker compose logs -f caddy
 ```
 *Note: Ensure your Domain DNS A-Record points to the VPS IP.*
