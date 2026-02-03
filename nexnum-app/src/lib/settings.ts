@@ -33,6 +33,13 @@ export interface AppSettings {
         lowBalanceThreshold: number
         syncFailureAlert: boolean
     }
+    smtp: {
+        host: string
+        port: number
+        user: string
+        pass: string
+        from: string
+    }
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -66,6 +73,13 @@ const DEFAULT_SETTINGS: AppSettings = {
         lowBalanceThreshold: 10,
         syncFailureAlert: true,
     },
+    smtp: {
+        host: process.env.SMTP_HOST || 'smtp.gmail.com',
+        port: parseInt(process.env.SMTP_PORT || '587'),
+        user: process.env.SMTP_USER || '',
+        pass: process.env.SMTP_PASS || '',
+        from: process.env.FROM_EMAIL || 'harshtakur001@gmail.com',
+    },
 }
 
 const SETTINGS_CACHE_KEY = 'app:settings'
@@ -83,10 +97,33 @@ export class SettingsService {
                 return { ...DEFAULT_SETTINGS, ...JSON.parse(cached as string) }
             }
 
-            // Fallback to database (simulated with Redis persistence for now, 
-            // since we don't have a Settings table yet. In a real app, you'd fetch from DB)
-            // For now, we'll just return defaults if cache is empty
-            return DEFAULT_SETTINGS
+            // Fetch from database
+            const dbSettings = await prisma.systemSettings.findUnique({
+                where: { id: 'default' }
+            })
+
+            if (!dbSettings) {
+                return DEFAULT_SETTINGS
+            }
+
+            // Map DB settings to AppSettings
+            // Note: We'll need a way to decrypt secrets if they are in AppSettings
+            // For now, let's just use what's in SystemSettings
+            const settings: AppSettings = {
+                ...DEFAULT_SETTINGS,
+                smtp: {
+                    host: dbSettings.smtpHost || DEFAULT_SETTINGS.smtp.host,
+                    port: dbSettings.smtpPort || DEFAULT_SETTINGS.smtp.port,
+                    user: dbSettings.smtpUser || DEFAULT_SETTINGS.smtp.user,
+                    pass: dbSettings.smtpPass ? require('@/lib/security/encryption').decrypt(dbSettings.smtpPass) : DEFAULT_SETTINGS.smtp.pass,
+                    from: dbSettings.emailFrom || DEFAULT_SETTINGS.smtp.from,
+                }
+            }
+
+            // Cache for next time
+            await redis.setex(SETTINGS_CACHE_KEY, CACHE_TTL, JSON.stringify(settings))
+
+            return settings
         } catch (error) {
             console.error('Failed to get settings:', error)
             return DEFAULT_SETTINGS
@@ -105,10 +142,33 @@ export class SettingsService {
                     ...current[section],
                     ...updates,
                 },
+            } as AppSettings
+
+            // Persist to Database if it's the SMTP section
+            if (section === 'smtp') {
+                const smtpUpdates = updates as Partial<AppSettings['smtp']>
+                await prisma.systemSettings.upsert({
+                    where: { id: 'default' },
+                    create: {
+                        id: 'default',
+                        smtpHost: smtpUpdates.host,
+                        smtpPort: smtpUpdates.port,
+                        smtpUser: smtpUpdates.user,
+                        smtpPass: smtpUpdates.pass ? require('@/lib/security/encryption').encrypt(smtpUpdates.pass) : undefined,
+                        emailFrom: smtpUpdates.from,
+                    },
+                    update: {
+                        smtpHost: smtpUpdates.host,
+                        smtpPort: smtpUpdates.port,
+                        smtpUser: smtpUpdates.user,
+                        smtpPass: smtpUpdates.pass ? require('@/lib/security/encryption').encrypt(smtpUpdates.pass) : undefined,
+                        emailFrom: smtpUpdates.from,
+                    }
+                })
             }
 
-            // Save to Redis (persistent)
-            await redis.set(SETTINGS_CACHE_KEY, JSON.stringify(updated))
+            // Save to Redis (cache)
+            await redis.setex(SETTINGS_CACHE_KEY, CACHE_TTL, JSON.stringify(updated))
 
             return updated
         } catch (error) {

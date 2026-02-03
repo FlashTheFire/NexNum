@@ -1,8 +1,6 @@
 
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '../src/lib/core/db'
 import { encrypt } from '../src/lib/security/encryption'
-
-const prisma = new PrismaClient()
 
 async function migrate() {
     console.log('🚀 Starting Secret Migration...')
@@ -11,9 +9,12 @@ async function migrate() {
     const providers = await prisma.provider.findMany({
         where: {
             authKey: {
-                not: { startsWith: 'v1:' },
-                not: null
-            }
+                not: null,
+                notIn: [], // Dummy to allow complex not logic if needed, but 'not' with startsWith is better
+            },
+            AND: [
+                { authKey: { not: { startsWith: 'v1:' } } }
+            ]
         }
     })
 

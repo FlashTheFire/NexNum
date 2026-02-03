@@ -16,13 +16,25 @@ interface SendEmailParams {
 export class EmailService {
     private static transporter: nodemailer.Transporter | null = null
 
-    private static getTransporter() {
+    private static async getTransporter() {
         if (this.transporter) return this.transporter
 
-        const host = process.env.SMTP_HOST
-        const port = parseInt(process.env.SMTP_PORT || '587')
-        const user = process.env.SMTP_USER
-        const pass = process.env.SMTP_PASS
+        let host = process.env.SMTP_HOST
+        let port = parseInt(process.env.SMTP_PORT || '587')
+        let user = process.env.SMTP_USER
+        let pass = process.env.SMTP_PASS
+
+        try {
+            const settings = await SettingsService.getSettings()
+            if (settings.smtp.host) {
+                host = settings.smtp.host
+                port = settings.smtp.port
+                user = settings.smtp.user
+                pass = settings.smtp.pass
+            }
+        } catch (e) {
+            console.warn('[EmailService] Failed to fetch settings, using environment fallbacks.')
+        }
 
         if (!host || !user || !pass) {
             throw new Error('[EmailService] SMTP credentials missing. Email sending requires a configured SMTP server.');
@@ -61,7 +73,7 @@ export class EmailService {
             const html = await render(component)
 
             // 3. Get Transporter
-            const transporter = this.getTransporter()
+            const transporter = await this.getTransporter()
 
 
             // 5. Send Email

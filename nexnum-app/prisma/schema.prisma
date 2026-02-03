@@ -680,6 +680,15 @@ model SystemSettings {
   // Deposit Bonus (percentage added on successful deposits)
   depositBonusPercent Decimal @default(0) @map("deposit_bonus_percent") @db.Decimal(5, 2)
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // EMAIL / SMTP CONFIGURATION
+  // ═══════════════════════════════════════════════════════════════════════════
+  smtpHost            String? @map("smtp_host")
+  smtpPort            Int?    @map("smtp_port")
+  smtpUser            String? @map("smtp_user")
+  smtpPass            String? @map("smtp_pass") // Encrypted
+  emailFrom           String? @map("email_from")
+
   updatedAt       DateTime @updatedAt @map("updated_at")
   
   @@map("system_settings")
