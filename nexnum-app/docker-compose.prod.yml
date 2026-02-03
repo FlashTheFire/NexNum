@@ -1,12 +1,9 @@
 # Production Docker Compose
 # For self-hosted or VPS deployments
 
-# Version tag removed (Obsolete in Docker Compose V2)
+name: nexnum
 
 services:
-  # ============================================
-  # Main API Application
-  # ============================================
   # ============================================
   # Reverse Proxy (SSL/HTTPS)
   # ============================================
@@ -27,10 +24,7 @@ services:
       - nexnum-app
 
   # ============================================
-  # Main API Application
-  # ============================================
-  # ============================================
-  # Main API Application
+  # Main Application
   # ============================================
   nexnum-app:
     build:
