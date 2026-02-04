@@ -273,7 +273,7 @@ export interface SyncOptions {
 // HELPERS
 // ============================================
 
-const limit = pLimit(10) // Limit DB upserts concurrency
+const limit = pLimit(50) // Limit DB upserts concurrency (Optimized)
 
 // ============================================
 // FETCHERS
@@ -293,13 +293,17 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
     const iconUrlMap = new Map<string, string>()      // code -> iconUrl
 
     try {
-        // Pre-load ALL service names from ServiceLookup table for fallback
+        // Pre-load ALL service names AND IDs from ServiceLookup table for fallback
+        // OPTIMIZATION: Include serviceId and build lookup map for batch resolution
         const allServiceLookups = await prisma.serviceLookup.findMany({
-            select: { serviceCode: true, serviceName: true }
+            select: { serviceCode: true, serviceName: true, serviceId: true }
         })
+        const serviceIdLookup = new Map<string, number>()
+
         allServiceLookups.forEach(s => {
             serviceMap.set(s.serviceCode, s.serviceName)
             serviceMap.set(s.serviceCode.toLowerCase(), s.serviceName)
+            serviceIdLookup.set(s.serviceCode, s.serviceId)
         })
         logger.info('Pre-loaded service names from lookup table', {
             context: 'SYNC',
@@ -595,6 +599,52 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                     upsertCount: servicesToUpsert.length,
                     skippedCount: services.length - servicesToUpsert.length
                 })
+
+                // OPTIMIZATION: Batch-register new services in Central Lookup
+                const pendingRegistration = new Map<string, string>() // code -> name
+
+                // 1. Identify all needed canonical codes
+                for (const s of servicesToUpsert) {
+                    const idx = String(s.code || '').toLowerCase()
+                    if (!idx) continue
+
+                    let cName = getCanonicalName(s.name || 'Unknown')
+                    if (CANONICAL_SERVICE_NAMES[idx]) {
+                        const key = CANONICAL_SERVICE_NAMES[idx]
+                        if (CANONICAL_DISPLAY_NAMES[key]) cName = CANONICAL_DISPLAY_NAMES[key]
+                    }
+                    const cCode = generateCanonicalCode(cName)
+
+                    if (!serviceIdLookup.has(cCode)) {
+                        pendingRegistration.set(cCode, cName)
+                    }
+                }
+
+                // 2. Create missing lookups in parallel (Batched)
+                if (pendingRegistration.size > 0) {
+                    logger.info(`[SYNC] Batch registering ${pendingRegistration.size} new services to Central Registry...`)
+                    const newServices = Array.from(pendingRegistration.entries())
+
+                    // Concurrency limit for registration
+                    const regLimit = pLimit(20)
+
+                    await Promise.all(newServices.map(([code, name]) => regLimit(async () => {
+                        try {
+                            const lookup = await prisma.serviceLookup.upsert({
+                                where: { serviceCode: code },
+                                update: {},
+                                create: { serviceCode: code, serviceName: name }
+                            })
+                            serviceIdLookup.set(code, lookup.serviceId)
+                            // Also update the map for name resolution
+                            serviceMap.set(code, name)
+                        } catch (e) {
+                            // Ignore race conditions
+                        }
+                    })))
+                }
+
+                // 3. Upsert Provider Services (Now purely local logic + DB write)
                 const servicePromises = servicesToUpsert.map(s => limit(async () => {
                     const serviceCode = String(s.code)
                     if (!serviceCode) return
@@ -607,32 +657,38 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                         }
                     }
                     const canonicalCode = generateCanonicalCode(canonicalName)
-
                     const finalIconUrl = s.iconUrl // Store original in DB for ref
 
-                    // RESOLVE CENTRAL REGISTRY ID
-                    const central = await CentralRegistry.resolveServiceId(provider.name, serviceCode, s.name || 'Unknown')
+                    // NOTE: We rely on serviceIdLookup ensuring the Central Registry is populated.
+                    // ProviderService doesn't store the ID currently, but we use the canonical code/name.
 
                     const record = await prisma.providerService.upsert({
                         where: { providerId_externalId: { providerId: provider.id, externalId: serviceCode } },
                         create: {
                             providerId: provider.id,
                             externalId: serviceCode,
-                            code: central.code,
-                            name: central.name,
+                            code: canonicalCode,
+                            name: canonicalName,
                             iconUrl: finalIconUrl,
                             isActive: true, // Default to active
                             lastSyncAt: new Date()
                         },
                         update: {
-                            name: central.name,
-                            code: central.code,
+                            name: canonicalName,
+                            code: canonicalCode,
                             iconUrl: finalIconUrl,
                             lastSyncAt: new Date()
                         }
                     })
                     serviceIdMap.set(serviceCode, record.id)
                 }))
+
+                // Log progress for large batches
+                const total = servicePromises.length
+                if (total > 500) {
+                    logger.info(`[SYNC] Processing ${total} service upserts in parallel...`)
+                }
+
                 await Promise.all(servicePromises)
             } else {
                 logger.info('Smart Sync: No service metadata changes detected', {

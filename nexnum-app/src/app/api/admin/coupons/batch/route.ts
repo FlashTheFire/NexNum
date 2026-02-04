@@ -32,13 +32,14 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const coupons = await CouponService.batchCreateGiftCards({
+        const coupons = await CouponService.createBatchGiftCards(
             count,
-            amount: giftAmount,
-            prefix: prefix || 'GC',
-            expiresAt: expiresAt ? new Date(expiresAt) : undefined,
-            createdBy: authResult.userId,
-        });
+            giftAmount,
+            {
+                expiresAt: expiresAt ? new Date(expiresAt) : undefined,
+                createdBy: authResult.userId,
+            }
+        );
 
         return NextResponse.json({
             success: true,

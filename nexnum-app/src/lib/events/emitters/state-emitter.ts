@@ -44,18 +44,6 @@ export async function emitStateUpdate(
     }
 }
 
-/**
- * Helper: Invalidate dashboard cache without emitting WebSocket event
- * Use when WebSocket is not needed (e.g., background jobs)
- */
-export async function invalidateDashboardCache(userId: string): Promise<void> {
-    try {
-        await cacheInvalidate(CACHE_KEYS.dashboardState(userId))
-        await cacheInvalidate(CACHE_KEYS.userBalance(userId))
-    } catch (error: any) {
-        logger.error('[StateEmitter] Cache invalidation failed', { userId, error: error.message })
-    }
-}
 
 /**
  * Emit an internal control event for the Socket Server cluster.

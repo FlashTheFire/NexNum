@@ -40,7 +40,7 @@ export function apiHandler<T = any>(
     handler: ApiHandler<T>,
     options: ApiOptions<T> = {}
 ) {
-    return async (req: Request, context?: { params?: Promise<any> | any }) => {
+    return async (req: Request, context: any) => {
         const requestId = req.headers.get('X-Request-ID') || generateRequestId()
         const traceId = req.headers.get('X-Trace-ID') || requestId
 

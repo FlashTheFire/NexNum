@@ -234,10 +234,4 @@ async function fetchDashboardState(userId: string): Promise<DashboardState> {
     }
 }
 
-/**
- * Helper to invalidate dashboard cache (call from mutation endpoints)
- */
-export async function invalidateDashboardCache(userId: string): Promise<void> {
-    await cacheInvalidate(CACHE_KEYS.dashboardState(userId))
-    await cacheInvalidate(CACHE_KEYS.userBalance(userId))
-}
+

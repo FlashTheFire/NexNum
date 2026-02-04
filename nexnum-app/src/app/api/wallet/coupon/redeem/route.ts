@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
             });
         }
 
-        const result = await CouponService.redeemGiftCard(code, userId);
+        const result = await CouponService.redeemGiftCard(code, { userId });
 
         return NextResponse.json(result);
     } catch (error: any) {

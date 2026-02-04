@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-        const referralInfo = await CouponService.getUserReferralInfo(userId);
+        const referralInfo = await CouponService.getReferralStats(userId);
 
         return NextResponse.json({
             success: true,
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
             });
         }
 
-        const result = await CouponService.applyReferralCode(code, userId, depositAmount || 0);
+        const result = await CouponService.applyCoupon(code, { userId, depositAmount: depositAmount || 0 });
 
         return NextResponse.json(result);
     } catch (error: any) {

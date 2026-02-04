@@ -27,6 +27,11 @@ export interface AppSettings {
         lowBalanceThreshold: number
         syncFailureAlert: boolean
     }
+    pricing: {
+        defaultMarkup: number
+        fixedMarkup: number
+        currency: string
+    }
     smtp: {
         host: string
         port: number
@@ -60,6 +65,11 @@ const DEFAULT_SETTINGS: AppSettings = {
         emailEnabled: false,
         lowBalanceThreshold: 10,
         syncFailureAlert: true,
+    },
+    pricing: {
+        defaultMarkup: 1.2,
+        fixedMarkup: 0.5,
+        currency: 'USD',
     },
     smtp: {
         host: process.env.SMTP_HOST || 'smtp.gmail.com',

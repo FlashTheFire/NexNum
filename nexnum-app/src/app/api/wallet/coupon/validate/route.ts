@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
             });
         }
 
-        const result = await CouponService.validateCoupon(code, userId, depositAmount);
+        const result = await CouponService.validateCoupon(code, { userId, depositAmount });
 
         return NextResponse.json(result);
     } catch (error: any) {
