@@ -1429,7 +1429,7 @@ export async function swapShadowToPrimary(shadowIndexName: string, primaryIndexN
 export async function deleteOffersByProvider(provider: string): Promise<number | undefined> {
     try {
         const index = meili.index(INDEXES.OFFERS)
-        const task = await index.deleteDocuments({ filter: `provider = "${provider}"` })
+        const task = await index.deleteDocuments({ filter: `provider = '${provider}'` })
         logger.info(`🗑️ Queued deletion for provider: ${provider}`, { context: 'SEARCH', taskUid: task.taskUid })
         return task.taskUid
     } catch (error: any) {
@@ -1457,7 +1457,7 @@ export async function getIndexStats(): Promise<{ offers: number; lastSync?: numb
  */
 export async function waitForTask(taskUid: number, timeoutMs = 60000): Promise<boolean> {
     try {
-        await meili.waitForTask(taskUid, { timeOutMs: timeoutMs, intervalMs: 1000 })
+        await meili.tasks.waitForTask(taskUid, { timeout: timeoutMs, interval: 1000 })
         return true
     } catch (error: any) {
         logger.error('MeiliSearch task failed or timed out', { context: 'SEARCH', taskUid, error: error.message })
@@ -1471,7 +1471,7 @@ export async function waitForTask(taskUid: number, timeoutMs = 60000): Promise<b
 export async function waitForTasks(taskUids: number[], timeoutMs = 60000): Promise<boolean> {
     if (taskUids.length === 0) return true
     try {
-        await Promise.all(taskUids.map(uid => meili.waitForTask(uid, { timeOutMs: timeoutMs, intervalMs: 1000 })))
+        await Promise.all(taskUids.map(uid => meili.tasks.waitForTask(uid, { timeout: timeoutMs, interval: 1000 })))
         return true
     } catch (error: any) {
         logger.error('One or more MeiliSearch tasks failed', { context: 'SEARCH', taskUids, error: error.message })

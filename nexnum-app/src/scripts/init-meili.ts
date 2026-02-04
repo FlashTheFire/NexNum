@@ -1,26 +1,16 @@
-/**
- * Initialize MeiliSearch Indexes
- * 
- * Creates the 'offers' index and applies necessary settings (filterableAttributes, etc.)
- * Run this after clearing MeiliSearch data.
- * 
- * Usage: npx tsx scripts/init-meili.ts
- */
-
-import { config } from "dotenv";
-config({ path: '.env' });
-import { prisma } from '../../src/lib/core/db';
-import { initSearchIndexes } from '../../src/lib/search/search';
+import { reconfigureIndexes } from '../lib/search/search'
+import { logger } from '../lib/core/logger'
 
 async function main() {
-    console.log("⚙️  Initializing MeiliSearch indexes...");
     try {
-        await initSearchIndexes();
-        console.log("✅ Initialization complete!");
-    } catch (error) {
-        console.error("❌ Initialization failed:", error);
-        process.exit(1);
+        logger.info('Starting MeiliSearch initialization script...')
+        await reconfigureIndexes()
+        logger.info('MeiliSearch initialization complete.')
+        process.exit(0)
+    } catch (error: any) {
+        logger.error('MeiliSearch initialization failed', { error: error.message })
+        process.exit(1)
     }
 }
 
-main();
+main()
