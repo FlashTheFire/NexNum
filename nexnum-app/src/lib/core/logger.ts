@@ -83,7 +83,7 @@ class Logger {
     // Splash Screen
     // ───────────────────────────────────────────────────────────────────────
     splash() {
-        if (!this.isDev || Logger.hasSplashed) return
+        if (Logger.hasSplashed) return
         Logger.hasSplashed = true
 
         const osMod = require('os')

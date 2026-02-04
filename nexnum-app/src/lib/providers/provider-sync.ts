@@ -739,13 +739,8 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
 
         const meiliTaskIds: number[] = []
 
-        // Clear existing pricing for this provider before re-indexing
-        if (!options?.skipWipe) {
-            // Note: ProviderPricing SQL table is deprecated/removed in favor of MeiliSearch
-            // We only need to clear the search index
-            const deleteTaskUid = await deleteOffersByProvider(provider.name)
-            if (deleteTaskUid) meiliTaskIds.push(deleteTaskUid)
-        }
+        // DEFERRED WIPE: We now wipe only if we successfully fetch new data to avoid clearing the index on transient API failures.
+
 
         // PERFORMANCE OPTIMIZATION: Pre-fetch currency rates & settings ONCE
         const systemSettings = await currencyService.getSettings()
@@ -931,6 +926,17 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
 
         // 4. Indexing (Chunked for Memory Efficiency)
         if (allOffers.length > 0) {
+            // SAFETY: Only wipe existing data if we actually have new data to replace it with
+            if (!options?.skipWipe) {
+                const deleteTaskUid = await deleteOffersByProvider(provider.name)
+                if (deleteTaskUid) meiliTaskIds.push(deleteTaskUid)
+
+                logger.debug('Wiped old provider offers (Safety Check Passed)', {
+                    context: 'SYNC',
+                    provider: provider.name
+                })
+            }
+
             logger.info('Indexing offers in chunks', {
                 context: 'SYNC',
                 provider: provider.name,

@@ -126,7 +126,16 @@
             "twitter": "Twitter",
             "github": "GitHub",
             "discord": "Discord",
+            "instagram": "Instagram",
+            "youtube": "YouTube",
             "contactUs": "联系我们"
+        },
+        "socialLinks": {
+            "twitter": "Twitter",
+            "github": "GitHub",
+            "discord": "Discord",
+            "instagram": "Instagram",
+            "youtube": "YouTube"
         }
     },
     "auth": {
