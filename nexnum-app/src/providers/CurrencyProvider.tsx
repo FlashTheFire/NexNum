@@ -60,11 +60,11 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
             try {
                 const res = await fetch('/api/public/currency')
                 const data = await res.json()
-                setCurrencies(data.currencies)
-                setSettings(data.settings)
+                setCurrencies(data.currencies || {})
+                setSettings(data.settings || null)
                 const initialCurrency = data.preferredCurrency === 'POINTS' ? 'USD' : (data.preferredCurrency || 'USD')
                 setPreferredCurrency(initialCurrency)
-                console.log('[CurrencyProvider] v0.1.1 loaded. settings:', data.settings)
+                console.log('[CurrencyProvider] v0.1.2 loaded. settings:', data.settings)
             } catch (e) {
                 console.error("[CurrencyProvider] Failed to fetch currency data", e)
             } finally {
@@ -143,7 +143,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
         const targetCurrency = (!preferredCurrency || preferredCurrency === 'POINTS') ? 'USD' : preferredCurrency
 
         // Priority 1: Use pre-computed price for user's currency
-        if (currencyPrices && targetCurrency in currencyPrices) {
+        if (currencyPrices && targetCurrency in currencyPrices && currencies) {
             const price = currencyPrices[targetCurrency]
             const currencyData = currencies[targetCurrency]
             const symbol = currencyData?.symbol || '$'
@@ -162,7 +162,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
      * Format user balance (always stored in Points) to user's preferred currency
      */
     const formatBalance = useCallback((pointsValue: number): string => {
-        if (!settings || isLoading) {
+        if (!settings || !currencies || isLoading) {
             // High-reliability fallback if settings are missing or loading
             return new Intl.NumberFormat('en-US', {
                 style: 'currency',
