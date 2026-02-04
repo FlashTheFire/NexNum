@@ -71,10 +71,6 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 COPY --from=builder --chown=nextjs:nodejs /app/prisma.config.ts ./prisma.config.ts
 
-# Copy scripts and lib for maintenance and initialization
-COPY --from=builder --chown=nextjs:nodejs /app/src/scripts ./src/scripts
-COPY --from=builder --chown=nextjs:nodejs /app/src/lib ./src/lib
-
 # Copy startup script that runs migrations then starts server
 COPY --chown=nextjs:nodejs docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x docker-entrypoint.sh
