@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { DashboardBackground } from "./dashboard-background"
 import { DashboardNumberCard } from "./DashboardNumberCard"
-import { PriceDisplay } from "@/components/common/PriceDisplay"
+import { PriceDisplay, BalanceDisplay } from "@/components/common/PriceDisplay"
 
 // Quick Actions Configuration
 
@@ -57,7 +57,11 @@ export function MobileDashboard() {
     const metrics = [
         {
             label: t('stats.balance'),
-            value: formatBalance(userProfile?.balance || 0),
+            value: <BalanceDisplay
+                balanceInPoints={userProfile?.balance || 0}
+                multiBalance={userProfile?.multiBalance}
+                className="font-bold"
+            />,
             icon: Wallet,
             color: "text-[hsl(var(--neon-lime))]",
             hexColor: "hsl(var(--neon-lime))",
@@ -178,11 +182,17 @@ export function MobileDashboard() {
                                                 animate={{ y: 0, opacity: 1 }}
                                                 exit={{ y: -20, opacity: 0 }}
                                                 transition={{ duration: 0.3 }}
-                                                className="text-4xl font-mono font-bold text-white tracking-tighter drop-shadow-lg"
+                                                className="text-4xl font-bold text-white tracking-tighter drop-shadow-lg"
                                             >
-                                                {metrics[activeMetric].value.split('.')[0]}
-                                                {metrics[activeMetric].value.split('.')[1] && (
-                                                    <span className="text-xl text-gray-500 font-medium">.{metrics[activeMetric].value.split('.')[1]}</span>
+                                                {typeof metrics[activeMetric].value === 'string' ? (
+                                                    <>
+                                                        {metrics[activeMetric].value.split('.')[0]}
+                                                        {metrics[activeMetric].value.split('.')[1] && (
+                                                            <span className="text-xl text-gray-500 font-medium">.{metrics[activeMetric].value.split('.')[1]}</span>
+                                                        )}
+                                                    </>
+                                                ) : (
+                                                    metrics[activeMetric].value
                                                 )}
                                             </motion.h2>
                                         </AnimatePresence>

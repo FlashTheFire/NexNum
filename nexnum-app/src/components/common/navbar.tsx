@@ -29,6 +29,7 @@ import { NotificationDropdown } from "@/components/common/notification-dropdown"
 import LanguageSwitcher from "@/components/common/LanguageSwitcher"
 import CurrencySelector from "@/components/common/CurrencySelector"
 import { useCurrency } from "@/providers/CurrencyProvider"
+import { BalanceDisplay } from "@/components/common/PriceDisplay"
 
 export function Navbar() {
     const pathname = usePathname()
@@ -116,9 +117,13 @@ export function Navbar() {
                                 <>
                                     {/* Quick Wallet Info */}
                                     <Link href="/dashboard/wallet">
-                                        <button className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 py-2 text-gray-300 hover:text-white hover:bg-white/[0.06] font-medium h-10 px-5 gap-2">
-                                            <Wallet className="h-4 w-4 text-[hsl(var(--neon-lime))]" />
-                                            <span className="font-mono">{formatBalance(userProfile?.balance || 0)}</span>
+                                        <button className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 py-2 text-gray-300 hover:text-white hover:bg-white/[0.06] font-medium h-10 px-5 gap-2 group/wallet">
+                                            <Wallet className="h-4 w-4 text-[hsl(var(--neon-lime))] group-hover/wallet:scale-110 transition-transform" />
+                                            <BalanceDisplay
+                                                balanceInPoints={userProfile?.balance || 0}
+                                                multiBalance={userProfile?.multiBalance}
+                                                className="font-mono"
+                                            />
                                         </button>
                                     </Link>
 
@@ -158,8 +163,9 @@ export function Navbar() {
                         </div>
 
                         {/* Mobile Actions (Notification + Menu) */}
-                        <div className="flex items-center gap-2 lg:hidden relative">
+                        <div className="flex items-center gap-1.5 lg:hidden relative">
                             <NotificationDropdown />
+                            {!isLandingPage && <CurrencySelector />}
                             <LanguageSwitcher />
 
                             <button
@@ -212,6 +218,20 @@ export function Navbar() {
                                             </button>
                                         </motion.div>
 
+                                        {/* Mobile Menu Currency/Language Quick Switch */}
+                                        <motion.div
+                                            initial={{ opacity: 0, y: 10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            transition={{ delay: 0.12 }}
+                                            className="flex items-center gap-2 px-1"
+                                        >
+                                            <div className="flex-1">
+                                                <CurrencySelector />
+                                            </div>
+                                            <div className="flex-1">
+                                                <LanguageSwitcher />
+                                            </div>
+                                        </motion.div>
                                     </>
                                 )}
                                 <div className="space-y-1">

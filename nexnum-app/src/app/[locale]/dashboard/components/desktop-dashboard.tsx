@@ -77,7 +77,7 @@ export function DesktopDashboard() {
     const greeting = hour < 12 ? t('greeting.morning') : hour < 18 ? t('greeting.afternoon') : t('greeting.evening')
 
     const stats = [
-        { label: t('stats.balance'), value: <BalanceDisplay balanceInPoints={userProfile?.balance || 0} />, icon: Wallet, color: "text-[hsl(var(--neon-lime))]", fill: "hsl(var(--neon-lime))", bg: "bg-[hsl(var(--neon-lime)/0.1)]", border: "border-[hsl(var(--neon-lime)/0.2)]", data: [0, 0, 0, 0, 0, 0, (userProfile?.balance || 0) / 100] },
+        { label: t('stats.balance'), value: <BalanceDisplay balanceInPoints={userProfile?.balance || 0} multiBalance={userProfile?.multiBalance} />, icon: Wallet, color: "text-[hsl(var(--neon-lime))]", fill: "hsl(var(--neon-lime))", bg: "bg-[hsl(var(--neon-lime)/0.1)]", border: "border-[hsl(var(--neon-lime)/0.2)]", data: [0, 0, 0, 0, 0, 0, (userProfile?.balance || 0) / 100] },
         { label: t('stats.myNumbers'), value: activeNumbers.length, icon: Phone, color: "text-cyan-400", fill: "#22d3ee", bg: "bg-cyan-400/10", border: "border-cyan-400/20", data: [0, 0, 0, 0, 0, 0, activeNumbers.length] },
         { label: t('stats.spent'), value: <PriceDisplay amountInPoints={totalSpent || 0} />, icon: ShoppingCart, color: "text-purple-400", fill: "#c084fc", bg: "bg-purple-400/10", border: "border-purple-400/20", data: usageSummary },
         { label: t('stats.deposited'), value: <PriceDisplay amountInPoints={totalDeposited || 0} />, icon: TrendingUp, color: "text-emerald-400", fill: "#34d399", bg: "bg-emerald-400/10", border: "border-emerald-400/20", data: [0, 0, 0, 0, 0, 0, (totalDeposited || 0) / 1000] },

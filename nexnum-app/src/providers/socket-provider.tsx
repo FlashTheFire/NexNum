@@ -32,7 +32,10 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
             return;
         }
 
-        const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3951';
+        const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL ||
+            (typeof window !== 'undefined' && window.location.hostname !== 'localhost'
+                ? `${window.location.protocol}//${window.location.hostname}:3951`
+                : 'http://localhost:3951');
 
         const socketInstance = io(socketUrl, {
             path: '/api/socket',

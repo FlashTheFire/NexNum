@@ -159,11 +159,18 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     /**
      * Format user balance (always stored in Points) to user's preferred currency
      */
-    const formatBalance = useCallback((balanceInPoints: number): string => {
-        if (!settings) return balanceInPoints.toString()
+    const formatBalance = useCallback((pointsValue: number): string => {
+        if (!settings || isLoading) {
+            // High-reliability fallback if settings are missing or loading
+            return new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD',
+                minimumFractionDigits: 2
+            }).format(pointsValue / 100)
+        }
 
         const pointsRate = Number(settings.pointsRate || 100)
-        const balanceInUsd = balanceInPoints / pointsRate
+        const balanceInUsd = pointsValue / pointsRate
 
         const targetCurrency = (!preferredCurrency || preferredCurrency === 'POINTS') ? 'USD' : preferredCurrency
 
@@ -173,29 +180,26 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
 
         // For balance, show 2 decimal places
         return `${symbol}${converted.toFixed(2)}`
-    }, [settings, preferredCurrency, currencies, convert])
+    }, [settings, preferredCurrency, currencies, convert, isLoading])
 
     /**
      * Format balance from pre-computed multi-currency balance object
      * ZERO CLIENT-SIDE CALCULATION - simply picks the pre-computed value
      */
-    const formatFromBalance = useCallback((balance: {
-        points: number
-        USD: number
-        INR: number
-        RUB: number
-        EUR: number
-        GBP: number
-        CNY: number
-    }): string => {
-        const targetCurrency = (!preferredCurrency || preferredCurrency === 'POINTS') ? 'USD' : preferredCurrency
+    const formatFromBalance = useCallback((balance: any): string => {
+        if (!balance) return '$0.00'
 
-        // Zero calculation - just pick the pre-computed value
-        const value = (balance as any)[targetCurrency] ?? balance.USD
-        const currencyData = currencies[targetCurrency]
-        const symbol = currencyData?.symbol || '$'
+        const targetCurrencyCode = preferredCurrency || 'USD'
+        const value = balance[targetCurrencyCode] ?? balance.USD ?? (balance.points ? balance.points / 100 : 0)
 
-        return `${symbol}${Number(value).toFixed(2)}`
+        // Ensure targetCurrencyCode is a valid ISO 4217 code for Intl.NumberFormat
+        const currencyToFormat = currencies[targetCurrencyCode] ? targetCurrencyCode : 'USD'
+
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: currencyToFormat,
+            minimumFractionDigits: 2
+        }).format(value)
     }, [preferredCurrency, currencies])
 
     // ============================================
