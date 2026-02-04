@@ -64,6 +64,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
                 setSettings(data.settings)
                 const initialCurrency = data.preferredCurrency === 'POINTS' ? 'USD' : (data.preferredCurrency || 'USD')
                 setPreferredCurrency(initialCurrency)
+                console.log('[CurrencyProvider] v0.1.1 loaded. settings:', data.settings)
             } catch (e) {
                 console.error("[CurrencyProvider] Failed to fetch currency data", e)
             } finally {
