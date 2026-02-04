@@ -213,7 +213,10 @@ export default function WalletPage() {
                                         <div className="space-y-1">
                                             <p className="text-xs font-medium text-indigo-200 tracking-[0.2em] uppercase">Total Balance</p>
                                             <h2 className="text-3xl md:text-5xl font-bold text-white tracking-tight drop-shadow-lg tabular-nums">
-                                                <BalanceDisplay balanceInPoints={userProfile?.balance || 0} />
+                                                <BalanceDisplay
+                                                    balanceInPoints={userProfile?.balance || 0}
+                                                    multiBalance={userProfile?.multiBalance}
+                                                />
                                             </h2>
                                         </div>
                                         <div className="h-10 w-10 md:h-12 md:w-12 rounded-xl bg-gradient-to-br from-white/20 to-white/5 backdrop-blur-md border border-white/20 flex items-center justify-center">

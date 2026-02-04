@@ -7,6 +7,7 @@ import { BellRing, Radio, Send, TerminalSquare, AlertTriangle, CheckCircle2, Shi
 import { useAuthStore } from "@/stores/authStore"
 import { motion, AnimatePresence } from "framer-motion"
 import { cn } from "@/lib/utils/utils"
+import { api } from "@/lib/api/api-client"
 
 export default function TestNotificationsPage() {
     const { user } = useAuthStore()
@@ -28,8 +29,8 @@ export default function TestNotificationsPage() {
     const sendTestPush = async () => {
         setLoading(true)
         try {
-            const res = await fetch('/api/debug/push', { method: 'POST' })
-            if (!res.ok) throw new Error('Failed to send')
+            const result = await api.request<any>('/api/debug/push', 'POST')
+            if (!result.success) throw new Error(result.error || 'Failed to send')
 
             toast.success("Test Sent", {
                 description: "Check your other devices or close this tab to test background delivery.",
@@ -48,29 +49,26 @@ export default function TestNotificationsPage() {
         setStats(null)
 
         try {
-            const res = await fetch('/api/debug/push/broadcast', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title, message })
-            })
+            const result = await api.request<any>('/api/debug/push/broadcast', 'POST', { title, message })
 
-            if (res.status === 403) {
-                toast.error("Unauthorized", { description: "Admin privileges required." })
-                setLogs(prev => [...prev, { type: 'error', text: "❌ Error: Unauthorized (Admin access required)" }])
-                return
+            if (!result.success) {
+                if (result.status === 403) {
+                    toast.error("Unauthorized", { description: "Admin privileges required." })
+                    setLogs(prev => [...prev, { type: 'error', text: "❌ Error: Unauthorized (Admin access required)" }])
+                    return
+                }
+                throw new Error(result.error || 'Broadcast failed')
             }
 
-            if (!res.ok) throw new Error('Broadcast failed')
-
-            const data = await res.json()
+            const data = result.data
             setStats({
-                total: data.data.total,
-                success: data.data.success,
-                failed: data.data.failed
+                total: data.total,
+                success: data.success,
+                failed: data.failed
             })
 
             // Add logs with delay for effect
-            data.data.logs.forEach((log: string, i: number) => {
+            data.logs.forEach((log: string, i: number) => {
                 setTimeout(() => {
                     const isErr = log.includes('Failed')
                     setLogs(prev => [...prev, { type: isErr ? 'error' : 'success', text: log }])
@@ -80,9 +78,9 @@ export default function TestNotificationsPage() {
             setTimeout(() => {
                 setLogs(prev => [...prev, { type: 'success', text: "✅ Broadcast Sequence Complete" }])
                 toast.success("Broadcast Complete", {
-                    description: `Sent to ${data.data.success} users.`
+                    description: `Sent to ${data.success} users.`
                 })
-            }, data.data.logs.length * 50 + 500)
+            }, data.logs.length * 50 + 500)
 
         } catch (error) {
             console.error(error)

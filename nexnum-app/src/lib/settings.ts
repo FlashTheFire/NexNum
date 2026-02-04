@@ -10,12 +10,6 @@ export interface AppSettings {
         maintenanceMode: boolean
         maintenanceMessage: string
     }
-    pricing: {
-        defaultMarkup: number
-        fixedMarkup: number
-        minPrice: number
-        currency: string
-    }
     priceOptimization: {
         enabled: boolean
         costWeight: number      // 0-1
@@ -49,12 +43,6 @@ const DEFAULT_SETTINGS: AppSettings = {
         timezone: 'UTC',
         maintenanceMode: false,
         maintenanceMessage: 'We are currently performing scheduled maintenance.',
-    },
-    pricing: {
-        defaultMarkup: 1.2,
-        fixedMarkup: 0.5,
-        minPrice: 0.10,
-        currency: 'USD',
     },
     priceOptimization: {
         enabled: true,

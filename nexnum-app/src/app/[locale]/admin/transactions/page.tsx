@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import { Search, Filter, ChevronLeft, ChevronRight, ArrowDownLeft, ArrowUpRight, ShoppingCart } from "lucide-react"
+import { api } from "@/lib/api/api-client"
 
 type Transaction = {
     id: string
@@ -35,14 +36,13 @@ export default function AdminTransactionsPage() {
                 search,
                 type
             })
-            const res = await fetch(`/api/admin/transactions?${params}`)
-            const data = await res.json()
-            if (data.transactions) {
-                setTransactions(data.transactions)
-                setTotalPages(data.pages)
+            const result = await api.request<{ transactions: Transaction[], pagination: { pages: number } }>(`/api/admin/transactions?${params}`, 'GET')
+            if (result.success && result.data) {
+                setTransactions(result.data.transactions)
+                setTotalPages(result.data.pagination.pages)
             }
         } catch (error) {
-            console.error("Failed to fetch transactions", error)
+            console.error("Failed to fetch transactions:", error)
         } finally {
             setLoading(false)
         }

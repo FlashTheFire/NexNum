@@ -12,6 +12,7 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { api } from "@/lib/api/api-client"
 import { Input } from "@/components/ui/input"
 import { motion, AnimatePresence } from "framer-motion"
 import { toast } from "sonner"
@@ -29,18 +30,26 @@ import {
     Smartphone,
     Shield,
     Gift,
-    Sparkles
+    Sparkles,
+    Bitcoin,
+    Wallet
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useCurrency } from "@/providers/CurrencyProvider"
 
-// Types
 interface DepositConfig {
     minAmount: number
     maxAmount: number
     timeoutMinutes: number
     bonusPercent?: number
+    // Crypto config
+    cryptoProviderMode?: 'MANUAL' | 'THIRD_PARTY' | 'DISABLED'
+    cryptoUsdtTrxAddress?: string
+    cryptoUsdtBep20Address?: string
 }
+
+type PaymentMethod = 'upi' | 'crypto'
+type CryptoNetwork = 'TRC20' | 'BEP20'
 
 interface Deposit {
     depositId: string
@@ -68,13 +77,22 @@ export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) 
     const pointsRate = Number(settings?.pointsRate) || 100
 
     // State
-    const [step, setStep] = useState<'amount' | 'payment' | 'success' | 'failed'>('amount')
+    const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null)
+    const [step, setStep] = useState<'method' | 'amount' | 'payment' | 'crypto' | 'success' | 'failed'>('method')
     const [amount, setAmount] = useState<string>('')
+    const [cryptoNetwork, setCryptoNetwork] = useState<CryptoNetwork>('TRC20')
     const [isCreating, setIsCreating] = useState(false)
-    const [config, setConfig] = useState<DepositConfig>({ minAmount: 10, maxAmount: 50000, timeoutMinutes: 30, bonusPercent: 0 })
+    const [config, setConfig] = useState<DepositConfig>({
+        minAmount: 10,
+        maxAmount: 50000,
+        timeoutMinutes: 30,
+        bonusPercent: 0,
+        cryptoProviderMode: 'DISABLED'
+    })
     const [deposit, setDeposit] = useState<Deposit | null>(null)
     const [timeLeft, setTimeLeft] = useState(0)
     const [utr, setUtr] = useState<string | null>(null)
+
 
     // Polling refs
     const pollRef = useRef<NodeJS.Timeout | null>(null)
@@ -108,12 +126,9 @@ export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) 
 
     const fetchConfig = async () => {
         try {
-            const res = await fetch('/api/wallet/deposit')
-            if (res.ok) {
-                const data = await res.json()
-                if (data.success && data.data.config) {
-                    setConfig(data.data.config)
-                }
+            const result = await api.getDepositConfig()
+            if (result.success && result.data.config) {
+                setConfig(result.data.config)
             }
         } catch (error) {
             console.error('Failed to fetch deposit config', error)
@@ -126,13 +141,12 @@ export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) 
         setPromoValidating(true)
         setPromoResult(null)
         try {
-            const res = await fetch('/api/wallet/coupon/validate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code: promoCode, depositAmount: numAmount || 0 }),
-            })
-            const data = await res.json()
-            setPromoResult(data)
+            const result = await api.validateCoupon(promoCode, numAmount || 0)
+            if (result.success && result.data) {
+                setPromoResult(result.data)
+            } else {
+                setPromoResult({ valid: false, error: result.error || 'Invalid code' })
+            }
         } catch (error) {
             setPromoResult({ valid: false, error: 'Failed to validate code' })
         } finally {
@@ -158,25 +172,19 @@ export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) 
 
         setIsCreating(true)
         try {
-            const res = await fetch('/api/wallet/deposit', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ amount: numAmount }),
-            })
+            const result = await api.createDeposit(numAmount)
 
-            const data = await res.json()
-
-            if (!data.success) {
-                toast.error(data.error || 'Failed to create deposit')
+            if (!result.success) {
+                toast.error(result.error || 'Failed to create deposit')
                 return
             }
 
-            setDeposit(data.data)
-            setTimeLeft(data.data.expiresIn)
+            setDeposit(result.data)
+            setTimeLeft(result.data.expiresIn)
             setStep('payment')
 
             // Start polling for status
-            startPolling(data.data.depositId)
+            startPolling(result.data.depositId)
 
             // Start countdown
             startCountdown()
@@ -194,11 +202,10 @@ export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) 
 
         const poll = async () => {
             try {
-                const res = await fetch(`/api/wallet/deposit/status?id=${depositId}`)
-                const data = await res.json()
+                const result = await api.getDepositStatus(depositId)
 
-                if (data.success) {
-                    const { status, utr: paymentUtr, deposit: updatedDeposit } = data.data
+                if (result.success) {
+                    const { status, utr: paymentUtr, deposit: updatedDeposit } = result.data
 
                     if (status === 'completed') {
                         cleanup()
@@ -253,14 +260,16 @@ export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) 
     }
 
     // Reset dialog
-    const handleReset = () => {
-        cleanup()
-        setStep('amount')
+    const handleReset = useCallback(() => {
+        setPaymentMethod(null)
+        setStep('method')
         setAmount('')
+        setCryptoNetwork('TRC20')
         setDeposit(null)
         setTimeLeft(0)
-        setUtr(null)
-    }
+        setPromoCode('')
+        setPromoResult(null)
+    }, [])
 
     // Close handler
     const handleClose = () => {
@@ -280,24 +289,100 @@ export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) 
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 text-white">
                         <div className="p-2 rounded-lg bg-emerald-500/10">
-                            <IndianRupee className="h-5 w-5 text-emerald-400" />
+                            {paymentMethod === 'crypto' ? (
+                                <Bitcoin className="h-5 w-5 text-orange-400" />
+                            ) : (
+                                <Wallet className="h-5 w-5 text-emerald-400" />
+                            )}
                         </div>
-                        Add Funds via UPI
+                        {step === 'method' && 'Add Funds'}
+                        {step === 'amount' && (paymentMethod === 'crypto' ? 'Crypto Deposit' : 'UPI Deposit')}
+                        {step === 'payment' && 'Complete Payment'}
+                        {step === 'crypto' && 'Crypto Payment'}
+                        {step === 'success' && 'Payment Complete'}
+                        {step === 'failed' && 'Payment Failed'}
                     </DialogTitle>
                     <DialogDescription className="text-slate-400">
-                        {step === 'amount' && 'Enter amount to deposit via UPI payment'}
+                        {step === 'method' && 'Choose your preferred payment method'}
+                        {step === 'amount' && 'Enter amount to deposit'}
                         {step === 'payment' && 'Scan QR code or click to pay'}
+                        {step === 'crypto' && 'Send USDT to the address below'}
                         {step === 'success' && 'Payment successful!'}
                         {step === 'failed' && 'Payment could not be completed'}
                     </DialogDescription>
                 </DialogHeader>
 
                 <AnimatePresence mode="wait">
+                    {/* Payment Method Selection Step */}
+                    {step === 'method' && (
+                        <motion.div
+                            key="method"
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -20 }}
+                            className="space-y-4 py-4"
+                        >
+                            <div className="grid grid-cols-2 gap-4">
+                                {/* UPI Option */}
+                                <button
+                                    onClick={() => {
+                                        setPaymentMethod('upi')
+                                        setStep('amount')
+                                    }}
+                                    className="flex flex-col items-center gap-3 p-6 rounded-xl border border-white/10 bg-gradient-to-b from-slate-800/50 to-slate-900/50 hover:from-emerald-500/10 hover:to-emerald-600/10 hover:border-emerald-500/30 transition-all group"
+                                >
+                                    <div className="p-4 rounded-full bg-emerald-500/10 group-hover:bg-emerald-500/20 transition-colors">
+                                        <IndianRupee className="h-8 w-8 text-emerald-400" />
+                                    </div>
+                                    <div className="text-center">
+                                        <p className="font-semibold text-white">UPI</p>
+                                        <p className="text-xs text-slate-400">India Only</p>
+                                    </div>
+                                </button>
+
+                                {/* Crypto Option */}
+                                <button
+                                    onClick={() => {
+                                        if (config.cryptoProviderMode === 'DISABLED') {
+                                            toast.error('Crypto deposits are currently disabled')
+                                            return
+                                        }
+                                        setPaymentMethod('crypto')
+                                        setStep('amount')
+                                    }}
+                                    disabled={config.cryptoProviderMode === 'DISABLED'}
+                                    className={cn(
+                                        "flex flex-col items-center gap-3 p-6 rounded-xl border border-white/10 bg-gradient-to-b from-slate-800/50 to-slate-900/50 transition-all group",
+                                        config.cryptoProviderMode === 'DISABLED'
+                                            ? "opacity-50 cursor-not-allowed"
+                                            : "hover:from-orange-500/10 hover:to-orange-600/10 hover:border-orange-500/30"
+                                    )}
+                                >
+                                    <div className="p-4 rounded-full bg-orange-500/10 group-hover:bg-orange-500/20 transition-colors">
+                                        <Bitcoin className="h-8 w-8 text-orange-400" />
+                                    </div>
+                                    <div className="text-center">
+                                        <p className="font-semibold text-white">Crypto</p>
+                                        <p className="text-xs text-slate-400">
+                                            {config.cryptoProviderMode === 'DISABLED' ? 'Coming Soon' : 'USDT (Global)'}
+                                        </p>
+                                    </div>
+                                </button>
+                            </div>
+
+                            <div className="flex items-center gap-2 text-xs text-slate-500 justify-center pt-2">
+                                <Shield className="h-3 w-3" />
+                                <span>All payments are secure and encrypted</span>
+                            </div>
+                        </motion.div>
+                    )}
+
                     {/* Amount Selection Step */}
                     {step === 'amount' && (
                         <motion.div
                             key="amount"
                             initial={{ opacity: 0, y: 20 }}
+
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -20 }}
                             className="space-y-5 py-4"
@@ -398,7 +483,13 @@ export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) 
                             {/* Continue Button - Bottom-sticky on mobile */}
                             <div className="sticky bottom-0 pt-2 bg-gradient-to-t from-slate-950 to-transparent -mb-4 pb-4">
                                 <Button
-                                    onClick={handleCreateDeposit}
+                                    onClick={() => {
+                                        if (paymentMethod === 'crypto') {
+                                            setStep('crypto')
+                                        } else {
+                                            handleCreateDeposit()
+                                        }
+                                    }}
                                     disabled={!amount || numAmount < config.minAmount || numAmount > config.maxAmount || isCreating}
                                     className="w-full h-14 text-lg font-semibold bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 rounded-xl touch-manipulation"
                                 >
@@ -407,6 +498,8 @@ export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) 
                                             <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                                             Creating Payment...
                                         </>
+                                    ) : paymentMethod === 'crypto' ? (
+                                        <>Continue to Crypto Payment</>
                                     ) : (
                                         <>Continue to Pay ₹{amount || '0'}</>
                                     )}
@@ -415,8 +508,127 @@ export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) 
                         </motion.div>
                     )}
 
+                    {/* Crypto Payment Step */}
+                    {step === 'crypto' && (
+                        <motion.div
+                            key="crypto"
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -20 }}
+                            className="space-y-5 py-4"
+                        >
+                            {/* Network Selection */}
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-slate-400">Select Network</label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <button
+                                        onClick={() => setCryptoNetwork('TRC20')}
+                                        className={cn(
+                                            "p-4 rounded-xl border transition-all",
+                                            cryptoNetwork === 'TRC20'
+                                                ? "border-orange-500 bg-orange-500/10 text-orange-400"
+                                                : "border-white/10 bg-slate-800/50 text-slate-300 hover:bg-slate-800"
+                                        )}
+                                    >
+                                        <div className="font-semibold">USDT (TRC20)</div>
+                                        <div className="text-xs text-slate-500">Tron Network</div>
+                                    </button>
+                                    <button
+                                        onClick={() => setCryptoNetwork('BEP20')}
+                                        className={cn(
+                                            "p-4 rounded-xl border transition-all",
+                                            cryptoNetwork === 'BEP20'
+                                                ? "border-yellow-500 bg-yellow-500/10 text-yellow-400"
+                                                : "border-white/10 bg-slate-800/50 text-slate-300 hover:bg-slate-800"
+                                        )}
+                                    >
+                                        <div className="font-semibold">USDT (BEP20)</div>
+                                        <div className="text-xs text-slate-500">BNB Smart Chain</div>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Amount to Send */}
+                            <div className="p-4 rounded-xl bg-slate-800/50 border border-white/10">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-slate-400">Amount to Send</span>
+                                    <span className="text-2xl font-bold text-white">
+                                        ${(Number(amount) / 83).toFixed(2)} USDT
+                                    </span>
+                                </div>
+                                <p className="text-xs text-slate-500 mt-1">≈ ₹{amount} (at current rate)</p>
+                            </div>
+
+                            {/* Wallet Address */}
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-slate-400">Send to Address</label>
+                                <div className="p-4 rounded-xl bg-slate-800/50 border border-white/10 break-all">
+                                    <code className="text-sm text-emerald-400">
+                                        {cryptoNetwork === 'TRC20'
+                                            ? (config.cryptoUsdtTrxAddress || 'TRX address not configured')
+                                            : (config.cryptoUsdtBep20Address || 'BEP20 address not configured')}
+                                    </code>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="mt-2 w-full"
+                                        onClick={() => {
+                                            const addr = cryptoNetwork === 'TRC20'
+                                                ? config.cryptoUsdtTrxAddress
+                                                : config.cryptoUsdtBep20Address
+                                            if (addr) {
+                                                navigator.clipboard.writeText(addr)
+                                                toast.success('Address copied to clipboard')
+                                            }
+                                        }}
+                                    >
+                                        <Copy className="h-4 w-4 mr-2" />
+                                        Copy Address
+                                    </Button>
+                                </div>
+                            </div>
+
+                            {/* Warning */}
+                            <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                                <div className="flex items-start gap-2">
+                                    <AlertCircle className="h-5 w-5 text-amber-400 flex-shrink-0 mt-0.5" />
+                                    <div className="text-sm text-amber-300">
+                                        <p className="font-medium">Important:</p>
+                                        <ul className="list-disc list-inside text-xs text-amber-400/80 mt-1 space-y-1">
+                                            <li>Only send USDT on the selected network</li>
+                                            <li>Send exactly the amount shown above</li>
+                                            <li>Include your User ID in the memo if possible</li>
+                                            <li>Confirmation may take 10-30 minutes</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Confirmation Buttons */}
+                            <div className="flex gap-3">
+                                <Button
+                                    variant="outline"
+                                    className="flex-1 h-12"
+                                    onClick={() => setStep('amount')}
+                                >
+                                    Back
+                                </Button>
+                                <Button
+                                    className="flex-1 h-12 bg-gradient-to-r from-orange-600 to-amber-600"
+                                    onClick={() => {
+                                        toast.success('After sending, your deposit will be confirmed within 30 minutes')
+                                        handleClose()
+                                    }}
+                                >
+                                    I've Sent Payment
+                                </Button>
+                            </div>
+                        </motion.div>
+                    )}
+
                     {/* Payment Step - QR Code Display */}
                     {step === 'payment' && deposit && (
+
                         <motion.div
                             key="payment"
                             initial={{ opacity: 0, scale: 0.95 }}

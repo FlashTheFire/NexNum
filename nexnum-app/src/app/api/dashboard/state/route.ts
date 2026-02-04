@@ -10,17 +10,19 @@
  * Uses Redis caching with 10s TTL for production performance.
  * Supports ETag for conditional fetching (304 Not Modified).
  */
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { prisma, ensureWallet } from '@/lib/core/db'
-import { getCurrentUser } from '@/lib/auth/jwt'
+import { apiHandler } from '@/lib/api/api-handler'
+import { ResponseFactory } from '@/lib/api/response-factory'
 import { WalletService } from '@/lib/wallet/wallet'
+import { getCurrencyService, MultiCurrencyPrice } from '@/lib/payment/currency-service'
 import { cacheGet, CACHE_KEYS, CACHE_TTL, cacheInvalidate } from '@/lib/core/redis'
 import { getServiceIconUrlByName } from '@/lib/search/search'
 import { getCountryFlagUrl } from '@/lib/normalizers/country-flags'
 import { createHash } from 'crypto'
 
 interface DashboardState {
-    balance: number
+    balance: MultiCurrencyPrice  // Multi-currency balance for zero client-side calc
     walletId: string
     numbers: any[]
     transactions: any[]
@@ -36,7 +38,7 @@ interface DashboardState {
 function generateETag(data: DashboardState): string {
     // Hash key fields that affect UI display
     const hashInput = JSON.stringify({
-        balance: data.balance,
+        balancePoints: data.balance.points,
         numbersCount: data.numbers.length,
         // Include first number's ID and SMS count to detect changes
         firstNumber: data.numbers[0] ? { id: data.numbers[0].id, smsCount: data.numbers[0].smsCount } : null,
@@ -50,57 +52,41 @@ function generateETag(data: DashboardState): string {
     return createHash('md5').update(hashInput).digest('hex').slice(0, 16)
 }
 
-export async function GET(request: NextRequest) {
-    try {
-        const user = await getCurrentUser(request.headers)
+export const GET = apiHandler(async (request, { user }) => {
+    if (!user) {
+        return ResponseFactory.error('Unauthorized', 401, 'E_UNAUTHORIZED')
+    }
 
-        if (!user) {
-            return NextResponse.json(
-                { success: false, error: 'Unauthorized' },
-                { status: 401 }
-            )
-        }
+    // Use Redis cache-aside pattern
+    const state = await cacheGet<DashboardState>(
+        CACHE_KEYS.dashboardState(user.userId),
+        async () => fetchDashboardState(user.userId),
+        CACHE_TTL.DASHBOARD_STATE
+    )
 
-        // Use Redis cache-aside pattern
-        const state = await cacheGet<DashboardState>(
-            CACHE_KEYS.dashboardState(user.userId),
-            async () => fetchDashboardState(user.userId),
-            CACHE_TTL.DASHBOARD_STATE
-        )
+    // Generate ETag from content
+    const etag = `"${generateETag(state)}"`
 
-        // Generate ETag from content
-        const etag = `"${generateETag(state)}"`
-
-        // Check If-None-Match header for conditional request
-        const clientEtag = request.headers.get('If-None-Match')
-        if (clientEtag === etag) {
-            // Data unchanged - return 304 Not Modified (no body)
-            return new NextResponse(null, {
-                status: 304,
-                headers: {
-                    'ETag': etag,
-                    'Cache-Control': 'private, max-age=5, stale-while-revalidate=30',
-                }
-            })
-        }
-
-        return NextResponse.json({
-            success: true,
-            ...state,
-        }, {
+    // Check If-None-Match header for conditional request
+    const clientEtag = request.headers.get('If-None-Match')
+    if (clientEtag === etag) {
+        // Data unchanged - return 304 Not Modified (no body)
+        return new NextResponse(null, {
+            status: 304,
             headers: {
                 'ETag': etag,
                 'Cache-Control': 'private, max-age=5, stale-while-revalidate=30',
             }
         })
-    } catch (error) {
-        console.error('[Dashboard State] Error:', error)
-        return NextResponse.json(
-            { success: false, error: 'Internal server error' },
-            { status: 500 }
-        )
     }
-}
+
+    return ResponseFactory.success(state, 200, {
+        'ETag': etag,
+        'Cache-Control': 'private, max-age=5, stale-while-revalidate=30',
+    })
+}, {
+    requiresAuth: true
+})
 
 /**
  * Fetch all dashboard data in optimized parallel queries
@@ -110,8 +96,8 @@ async function fetchDashboardState(userId: string): Promise<DashboardState> {
     const walletId = await ensureWallet(userId)
 
     // Parallel fetch all data
-    const [balance, numbersRaw, transactionsRaw, unreadCount] = await Promise.all([
-        // 1. Balance
+    const [balancePoints, numbersRaw, transactionsRaw, unreadCount] = await Promise.all([
+        // 1. Balance (in Points)
         WalletService.getBalance(userId),
 
         // 2. Numbers (active + recent, limit 20)
@@ -231,6 +217,10 @@ async function fetchDashboardState(userId: string): Promise<DashboardState> {
             _sum: { amount: true }
         })
     ])
+
+    // Convert balance to all currencies (ZERO CLIENT-SIDE CALCULATION)
+    const currencyService = getCurrencyService()
+    const balance = await currencyService.pointsToAllFiat(balancePoints)
 
     return {
         balance,

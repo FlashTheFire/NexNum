@@ -8,6 +8,7 @@ import {
     Settings, ArrowRight, TrendingUp, Clock
 } from "lucide-react"
 import Link from "next/link"
+import { api } from "@/lib/api/api-client"
 
 // Command Center Components
 import { CommandCenterHeader } from "@/components/admin/CommandCenterHeader"
@@ -150,18 +151,20 @@ export default function AdminCommandCenter() {
 
     const fetchData = useCallback(async () => {
         try {
-            const response = await fetch('/api/admin/command-center')
+            const result = await api.request<CommandCenterData>('/api/admin/command-center')
 
-            if (response.status === 401) {
-                window.location.href = '/en/login'
-                return
+            if (!result.success) {
+                if (result.error === 'UNAUTHORIZED') {
+                    window.location.href = '/en/login'
+                    return
+                }
+                throw new Error(result.error || 'Failed to fetch')
             }
 
-            if (!response.ok) throw new Error('Failed to fetch')
-
-            const result = await response.json()
-            setData(result)
-            setLastUpdate(result.timestamp)
+            if (result.data) {
+                setData(result.data)
+                setLastUpdate(result.data.timestamp)
+            }
         } catch (error) {
             console.error('Failed to fetch Command Center data:', error)
         } finally {
@@ -222,8 +225,8 @@ export default function AdminCommandCenter() {
 
     // Handler for retry jobs
     const handleRetryJobs = async () => {
-        const response = await fetch('/api/admin/jobs/retry', { method: 'POST' })
-        if (!response.ok) throw new Error('Failed to retry jobs')
+        const result = await api.request<any>('/api/admin/jobs/retry', 'POST')
+        if (!result.success) throw new Error(result.error || 'Failed to retry jobs')
         await fetchData() // Refresh data
     }
 

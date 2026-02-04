@@ -8,6 +8,7 @@ import {
     Settings, Activity, Zap, ChevronRight, ExternalLink
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { api } from '@/lib/api/api-client'
 
 // Types
 interface OAuthProvider {
@@ -383,33 +384,16 @@ export default function AuthenticationSettingsPage() {
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [hasChanges, setHasChanges] = useState(false)
-    const [csrfToken, setCsrfToken] = useState<string>('')
 
     useEffect(() => {
         fetchSettings()
-        fetchCsrf()
     }, [])
-
-    async function fetchCsrf() {
-        try {
-            const res = await fetch('/api/csrf')
-            const data = await res.json()
-            if (data.success) {
-                setCsrfToken(data.token)
-            }
-        } catch (e) {
-            console.error('Failed to fetch CSRF token')
-        }
-    }
 
     async function fetchSettings() {
         try {
-            const res = await fetch('/api/admin/auth-settings')
-            if (res.ok) {
-                const data = await res.json()
-                if (data.data) {
-                    setSettings(data.data)
-                }
+            const result = await api.request<AuthSettings>('/api/admin/auth-settings', 'GET')
+            if (result.success && result.data) {
+                setSettings(result.data)
             }
         } catch (error) {
             console.error('Failed to fetch settings:', error)
@@ -421,20 +405,12 @@ export default function AuthenticationSettingsPage() {
     async function saveSettings() {
         setSaving(true)
         try {
-            const res = await fetch('/api/admin/auth-settings', {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-csrf-token': csrfToken
-                },
-                body: JSON.stringify(settings)
-            })
-            if (res.ok) {
+            const result = await api.request<any>('/api/admin/auth-settings', 'PUT', settings)
+            if (result.success) {
                 toast.success('Settings saved successfully')
                 setHasChanges(false)
             } else {
-                const data = await res.json()
-                toast.error(data.error || 'Failed to save settings')
+                toast.error(result.error || 'Failed to save settings')
             }
         } catch (error) {
             toast.error('Network error')

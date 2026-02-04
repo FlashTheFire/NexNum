@@ -105,7 +105,19 @@ export async function setCSRFCookie(): Promise<string> {
 export async function getCSRFFromCookie(): Promise<string | null> {
     try {
         const cookieStore = await cookies()
-        return cookieStore.get(CSRF_COOKIE_NAME)?.value || null
+        // Try current name detection
+        const token = cookieStore.get(CSRF_COOKIE_NAME)?.value
+        if (token) return token
+
+        // Fallback to alternative names for robustness
+        const fallbackNames = ['csrf-token', '__Host-csrf-token']
+        for (const name of fallbackNames) {
+            if (name === CSRF_COOKIE_NAME) continue
+            const fallbackToken = cookieStore.get(name)?.value
+            if (fallbackToken) return fallbackToken
+        }
+
+        return null
     } catch {
         return null
     }

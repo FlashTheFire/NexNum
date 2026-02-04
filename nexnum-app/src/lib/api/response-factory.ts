@@ -14,10 +14,16 @@ export class ResponseFactory {
     /**
      * Standard Success Response
      */
-    static success<T>(data: T, status: number = 200): NextResponse {
+    static success<T>(data: T, status: number = 200, customHeaders?: HeadersInit): NextResponse {
         return NextResponse.json(
             { success: true, data },
-            { status, headers: this.getHeaders() }
+            {
+                status,
+                headers: {
+                    ...this.getHeaders(),
+                    ...customHeaders
+                }
+            }
         )
     }
 

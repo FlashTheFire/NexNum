@@ -2,6 +2,8 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/core/db'
 import { getCurrentUser } from '@/lib/auth/jwt'
+import { ResponseFactory } from '@/lib/api/response-factory'
+
 
 export const dynamic = 'force-dynamic'
 
@@ -27,14 +29,31 @@ export async function GET(request: Request) {
         }) : null
     ])
 
-    return NextResponse.json({
-        currencies: currencies
-            .filter(curr => curr.code !== 'POINTS')
-            .reduce((acc, curr) => ({
-                ...acc,
-                [curr.code]: curr
-            }), {}),
-        settings,
-        preferredCurrency: userData?.preferredCurrency || settings?.displayCurrency || 'USD'
+    // Filter out sensitive settings to prevent leakage
+    const publicSettings = settings ? {
+        id: settings.id,
+        pointsRate: Number(settings.pointsRate),
+        paymentsEnabled: settings.paymentsEnabled,
+        upiProviderMode: settings.upiProviderMode,
+        depositMinAmount: Number(settings.depositMinAmount),
+        depositMaxAmount: Number(settings.depositMaxAmount),
+        depositTimeoutMins: settings.depositTimeoutMins,
+        maxPendingDeposits: settings.maxPendingDeposits,
+        depositBonusPercent: Number(settings.depositBonusPercent),
+    } : null
+
+    const currenciesMap = currencies
+        .filter(curr => curr.code !== 'POINTS')
+        .reduce((acc, curr) => ({
+            ...acc,
+            [curr.code]: curr
+        }), {})
+
+    const preferredCurrencyCode = userData?.preferredCurrency || settings?.displayCurrency || 'USD'
+
+    return ResponseFactory.success({
+        currencies: currenciesMap,
+        settings: publicSettings,
+        preferredCurrency: preferredCurrencyCode,
     })
 }

@@ -17,6 +17,7 @@ import { formatDistanceToNow, format } from "date-fns"
 import { useTranslations } from "next-intl"
 import { useCurrency } from "@/providers/CurrencyProvider"
 import { PriceDisplay } from "@/components/common/PriceDisplay"
+import { api } from "@/lib/api/api-client"
 
 // Types
 interface AdminUser {
@@ -86,9 +87,8 @@ const UserDetailSheet = ({ userId, onClose, onAction }: { userId: string; onClos
     const fetchUser = async () => {
         setLoading(true)
         try {
-            const res = await fetch(`/api/admin/users?userId=${userId}`)
-            const data = await res.json()
-            if (data.user) setUser(data.user)
+            const result = await api.request<UserDetail>(`/api/admin/users?userId=${userId}`)
+            if (result.success && result.data) setUser(result.data)
         } catch { toast.error("Failed to load") }
         finally { setLoading(false) }
     }
@@ -98,20 +98,19 @@ const UserDetailSheet = ({ userId, onClose, onAction }: { userId: string; onClos
         if (isNaN(amount) || amount <= 0) return toast.error("Enter valid amount")
         setAdjusting(true)
         try {
-            const res = await fetch('/api/admin/users', {
-                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId, walletAdjustment: isCredit ? amount : -amount, adjustmentReason: adjustReason || `Admin ${isCredit ? 'credit' : 'debit'}` })
+            const result = await api.request<any>('/api/admin/users', 'PATCH', {
+                userId,
+                walletAdjustment: isCredit ? amount : -amount,
+                adjustmentReason: adjustReason || `Admin ${isCredit ? 'credit' : 'debit'}`
             })
-            if (res.ok) {
-                const data = await res.json()
-                toast.success(data.message || `${isCredit ? 'Credited' : 'Debited'} successfully`)
+            if (result.success && result.data) {
+                toast.success(result.data.message || `${isCredit ? 'Credited' : 'Debited'} successfully`)
                 setAdjustAmount('')
                 setAdjustReason('')
                 fetchUser()
                 onAction()
             } else {
-                const data = await res.json()
-                toast.error(data.error || "Action failed")
+                toast.error(result.error || "Action failed")
             }
         } catch { toast.error("Failed") }
         finally { setAdjusting(false) }
@@ -126,9 +125,15 @@ const UserDetailSheet = ({ userId, onClose, onAction }: { userId: string; onClos
             if (action === 'unban') body.isBanned = false
             if (action === 'promote') body.role = 'ADMIN'
             if (action === 'demote') body.role = 'USER'
-            const res = await fetch('/api/admin/users', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-            if (res.ok) { toast.success(`User ${action} successful`); fetchUser(); onAction() }
-            else toast.error((await res.json()).error)
+
+            const result = await api.request<any>('/api/admin/users', 'PATCH', body)
+            if (result.success) {
+                toast.success(`User ${action} successful`)
+                fetchUser()
+                onAction()
+            } else {
+                toast.error(result.error)
+            }
         } catch { toast.error("Failed") }
         finally { setActionLoading(null) }
     }
@@ -605,10 +610,13 @@ export default function UsersPage() {
         setIsLoading(true)
         try {
             const params = new URLSearchParams({ q: search, page: String(page), limit: '15', sortBy: sortField, sortOrder, ...(roleFilter && { role: roleFilter }), ...(statusFilter && { status: statusFilter }) })
-            const res = await fetch(`/api/admin/users?${params}`)
-            const data = await res.json()
-            if (data.users) { setUsers(data.users); setTotalPages(data.pages); setTotal(data.total) }
-            if (data.stats) setStats(data.stats)
+            const result = await api.request<any>(`/api/admin/users?${params}`)
+            if (result.success && result.data) {
+                setUsers(result.data.users)
+                setTotalPages(result.data.pages)
+                setTotal(result.data.total)
+                if (result.data.stats) setStats(result.data.stats)
+            }
         } catch { toast.error("Failed") }
         finally { setIsLoading(false) }
     }, [search, page, roleFilter, statusFilter, sortField, sortOrder])
@@ -621,25 +629,32 @@ export default function UsersPage() {
         if (action === 'unban') body.isBanned = false
         if (action === 'promote') body.role = 'ADMIN'
         if (action === 'demote') body.role = 'USER'
-        const res = await fetch('/api/admin/users', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-        if (res.ok) { toast.success(`User ${action} successful`); fetchUsers() }
+
+        const result = await api.request<any>('/api/admin/users', 'PATCH', body)
+        if (result.success) {
+            toast.success(`User ${action} successful`)
+            fetchUsers()
+        }
     }
 
     const handleBulkAction = async (action: string) => {
         if (selectedUsers.size === 0) return
-        const res = await fetch('/api/admin/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, userIds: Array.from(selectedUsers) }) })
-        if (res.ok) { toast.success((await res.json()).message); setSelectedUsers(new Set()); fetchUsers() }
+        const result = await api.request<any>('/api/admin/users', 'POST', { action, userIds: Array.from(selectedUsers) })
+        if (result.success && result.data) {
+            toast.success(result.data.message)
+            setSelectedUsers(new Set())
+            fetchUsers()
+        }
     }
 
     const handleExport = async () => {
         setExporting(true)
         try {
-            const res = await fetch(`/api/admin/users?export=csv&q=${search}`)
-            const data = await res.json()
-            if (data.csvData) {
-                const csv = ['ID,Email,Name,Role,Status,Balance,Numbers,Joined', ...data.csvData.map((u: any) => `${u.id},${u.email},${u.name},${u.role},${u.status},${u.balance},${u.numbers},${u.joinedAt}`)].join('\n')
+            const result = await api.request<any>(`/api/admin/users?export=csv&q=${search}`)
+            if (result.success && result.data.csvData) {
+                const csv = ['ID,Email,Name,Role,Status,Balance,Numbers,Joined', ...result.data.csvData.map((u: any) => `${u.id},${u.email},${u.name},${u.role},${u.status},${u.balance},${u.numbers},${u.joinedAt}`)].join('\n')
                 const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = `users-${format(new Date(), 'yyyy-MM-dd')}.csv`; a.click()
-                toast.success(`Exported ${data.csvData.length} users`)
+                toast.success(`Exported ${result.data.csvData.length} users`)
             }
         } catch { toast.error("Export failed") }
         finally { setExporting(false) }

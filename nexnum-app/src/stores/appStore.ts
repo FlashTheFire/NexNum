@@ -48,8 +48,22 @@ export interface ActiveNumber {
     isOptimistic?: boolean // New flag for UI spinners
 }
 
+/**
+ * Multi-currency balance for zero client-side calculations
+ */
+interface MultiCurrencyBalance {
+    points: number
+    USD: number
+    INR: number
+    RUB: number
+    EUR: number
+    GBP: number
+    CNY: number
+}
+
 interface UserProfile {
-    balance: number
+    balance: number // Legacy: points value for backward compatibility
+    multiBalance?: MultiCurrencyBalance // NEW: Pre-computed multi-currency values
 }
 
 interface GlobalState {
@@ -140,20 +154,19 @@ export const useGlobalStore = create<GlobalState>()(
                         headers['If-None-Match'] = etag
                     }
 
-                    const response = await fetch('/api/dashboard/state', { headers })
+                    const result = await api.request<any>('/api/dashboard/state', 'GET', undefined, { headers })
 
-                    // 304 Not Modified = data unchanged, skip update
-                    if (response.status === 304) {
+                    // Handle 304 Not Modified optimization
+                    if (result.status === 304) {
                         set({ isLoadingDashboard: false })
-                        return // Data unchanged, no need to update store
+                        return
                     }
 
-                    const data = await response.json()
+                    if (result.success && result.data) {
+                        const data = result.data
+                        // Store new ETag from response
+                        const newEtag = result.headers?.get('ETag')
 
-                    // Store new ETag from response
-                    const newEtag = response.headers.get('ETag')
-
-                    if (data.success) {
                         // Map API response to store format
                         const numbers: ActiveNumber[] = data.numbers.map((n: Record<string, unknown>) => ({
                             id: n.id as string,
@@ -182,8 +195,19 @@ export const useGlobalStore = create<GlobalState>()(
                             description: (t.description as string) || '',
                         }))
 
+                        // Handle both old (number) and new (object) balance formats
+                        const balanceData = data.balance
+                        const isMultiCurrencyBalance = typeof balanceData === 'object' && balanceData !== null && 'points' in balanceData
+
+                        const userProfileUpdate: UserProfile = isMultiCurrencyBalance
+                            ? {
+                                balance: balanceData.points, // Legacy compatibility
+                                multiBalance: balanceData as MultiCurrencyBalance
+                            }
+                            : { balance: Number(balanceData) || 0 }
+
                         set({
-                            userProfile: { balance: data.balance },
+                            userProfile: userProfileUpdate,
                             activeNumbers: numbers,
                             transactions,
                             usageSummary: data.usageSummary || [0, 0, 0, 0, 0, 0, 0],
@@ -402,14 +426,9 @@ export const useGlobalStore = create<GlobalState>()(
                 return result
             },
 
-            // Complete number via API
             completeNumber: async (id: string) => {
                 try {
-                    const result = await fetch('/api/numbers/complete', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ numberId: id })
-                    }).then(res => res.json())
+                    const result = await api.completeNumber(id)
 
                     if (result.success) {
                         set(state => ({

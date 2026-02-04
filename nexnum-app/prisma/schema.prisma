@@ -299,6 +299,7 @@ model Provider {
   // --- Advanced Normalization ---
   normalizationMode String  @default("AUTO") @map("normalization_mode") // enum: AUTO, MANUAL, API, SMART_AUTO
   normalizationRate Decimal? @map("normalization_rate") @db.Decimal(18, 8)
+  syncBufferPercent Decimal @default(0.0) @map("sync_buffer_percent") @db.Decimal(5, 2) // Extra buffer for currency swings
   apiPair           String? @map("api_pair") // e.g., "USDT/RUB"
   depositSpent     Decimal? @map("deposit_spent") @db.Decimal(18, 8)
   depositReceived  Decimal? @map("deposit_received") @db.Decimal(18, 8)
@@ -645,6 +646,7 @@ model SystemSettings {
   pointsEnabled   Boolean @default(false) @map("points_enabled")
   pointsName      String  @default("Points") @map("points_name")
   pointsRate      Decimal @default(100.0) @map("points_rate") // 1 USD = 100 Points
+  inrToUsdRate    Decimal @default(80.0) @map("inr_to_usd_rate") @db.Decimal(10, 4) // Live rate for UPI deposits
 
   // ═══════════════════════════════════════════════════════════════════════════
   // PAYMENT GATEWAY CONFIGURATION
@@ -679,6 +681,31 @@ model SystemSettings {
   
   // Deposit Bonus (percentage added on successful deposits)
   depositBonusPercent Decimal @default(0) @map("deposit_bonus_percent") @db.Decimal(5, 2)
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CRYPTO PAYMENT CONFIGURATION
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  // Crypto Provider Mode: 'MANUAL' | 'THIRD_PARTY' | 'DISABLED'
+  cryptoProviderMode     String  @default("DISABLED") @map("crypto_provider_mode")
+  
+  // Manual Mode - Static Wallet Addresses
+  cryptoUsdtTrxAddress   String? @map("crypto_usdt_trx_address")
+  cryptoUsdtBep20Address String? @map("crypto_usdt_bep20_address")
+  
+  // 3rd Party Crypto Gateway (Future-Ready)
+  cryptoApiToken         String? @map("crypto_api_token")
+  cryptoApiBaseUrl       String? @map("crypto_api_base_url")
+  cryptoWebhookSecret    String? @map("crypto_webhook_secret")
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PRICING HEARTBEAT CONFIGURATION
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  heartbeatEnabled       Boolean @default(true) @map("heartbeat_enabled")
+  heartbeatIntervalMins  Int     @default(60) @map("heartbeat_interval_mins")
+  heartbeatLastRunAt     DateTime? @map("heartbeat_last_run_at")
+  syncBufferPercent      Decimal @default(2.0) @map("sync_buffer_percent") @db.Decimal(5, 2) // Global currency volatility buffer
 
   // ═══════════════════════════════════════════════════════════════════════════
   // EMAIL / SMTP CONFIGURATION

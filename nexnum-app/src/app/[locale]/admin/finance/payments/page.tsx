@@ -9,6 +9,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { api } from "@/lib/api/api-client"
 import { toast } from "sonner"
 import { PremiumSkeleton } from "@/components/ui/skeleton"
 
@@ -68,27 +69,14 @@ export default function PaymentSettingsPage() {
     const [newThirdPartyToken, setNewThirdPartyToken] = useState('')
     const [newPaytmKey, setNewPaytmKey] = useState('')
 
-    const fetchCsrf = async () => {
-        try {
-            const res = await fetch('/api/csrf')
-            const data = await res.json()
-            if (data.success) {
-                setCsrfToken(data.token)
-            }
-        } catch (e) {
-            console.error("Failed to init CSRF")
-        }
-    }
-
     const fetchData = async () => {
         try {
-            const res = await fetch('/api/admin/finance/payments')
-            const data = await res.json()
-            if (data.success) {
-                setConfig(data.data.config)
-                setStatus(data.data.status)
+            const result = await api.request<any>('/api/admin/finance/payments', 'GET')
+            if (result.success && result.data) {
+                setConfig(result.data.config)
+                setStatus(result.data.status)
             } else {
-                toast.error(data.error || "Failed to load payment settings")
+                toast.error(result.error || "Failed to load payment settings")
             }
         } catch (e) {
             toast.error("Failed to load payment settings")
@@ -99,30 +87,21 @@ export default function PaymentSettingsPage() {
 
     useEffect(() => {
         fetchData()
-        fetchCsrf()
     }, [])
 
     const updateConfig = async (updates: Partial<PaymentConfig>) => {
         setIsSaving(true)
         try {
-            const res = await fetch('/api/admin/finance/payments', {
-                method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-csrf-token': csrfToken
-                },
-                body: JSON.stringify(updates)
-            })
-            const data = await res.json()
-            if (data.success) {
+            const result = await api.request<any>('/api/admin/finance/payments', 'PATCH', updates)
+            if (result.success && result.data) {
                 toast.success("Settings updated")
-                setConfig(data.data.config)
-                setStatus(data.data.status)
+                setConfig(result.data.config)
+                setStatus(result.data.status)
                 // Clear sensitive field inputs
                 setNewThirdPartyToken('')
                 setNewPaytmKey('')
             } else {
-                toast.error(data.error || "Update failed")
+                toast.error(result.error || "Update failed")
             }
         } catch (e) {
             toast.error("Network error")
@@ -134,19 +113,11 @@ export default function PaymentSettingsPage() {
     const testConnection = async (provider: 'THIRD_PARTY' | 'DIRECT_PAYTM') => {
         setIsTesting(true)
         try {
-            const res = await fetch('/api/admin/finance/payments', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-csrf-token': csrfToken
-                },
-                body: JSON.stringify({ provider })
-            })
-            const data = await res.json()
-            if (data.success && data.data.success) {
-                toast.success(data.data.message)
+            const result = await api.request<any>('/api/admin/finance/payments', 'POST', { provider })
+            if (result.success && result.data?.success) {
+                toast.success(result.data.message)
             } else {
-                toast.error(data.data?.message || data.error || "Connection test failed")
+                toast.error(result.data?.message || result.error || "Connection test failed")
             }
         } catch (e) {
             toast.error("Connection test failed")

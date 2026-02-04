@@ -28,6 +28,7 @@ export interface ApiResponse<T> {
     code?: string
     details?: any
     status: number
+    headers?: Headers
 }
 
 export interface PaginatedResponse<T> {
@@ -96,8 +97,12 @@ class NexNumClient {
         return NexNumClient.instance
     }
 
-    private async request<T>(
-        path: string,
+    /**
+     * Professional Request Wrapper
+     * Handles: Headers, CSRF, Captcha, Traceability, Standardized Responses
+     */
+    public async request<T>(
+        url: string,
         method: string = 'GET',
         body?: any,
         options: RequestInit = {}
@@ -111,22 +116,26 @@ class NexNumClient {
             headers.set('X-Request-ID', generateUUID())
             headers.set('X-Trace-ID', generateUUID())
 
+            const isFormData = body instanceof FormData
+
             if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
                 const csrf = await this.getCsrfToken()
                 if (csrf) headers.set('X-CSRF-Token', csrf)
 
-                // Inject Captcha token if present in body
-                if (body && typeof body === 'object' && body.captchaToken) {
+                // Inject Captcha token if present in body (only for plain objects)
+                if (body && !isFormData && typeof body === 'object' && body.captchaToken) {
                     headers.set('X-Captcha-Token', body.captchaToken)
                 }
 
-                if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
+                if (!isFormData && !headers.has('Content-Type')) {
+                    headers.set('Content-Type', 'application/json')
+                }
             }
 
-            const response = await fetch(path, {
+            const response = await fetch(url, {
                 method,
                 headers,
-                body: body ? JSON.stringify(body) : undefined,
+                body: body ? (isFormData ? body : JSON.stringify(body)) : undefined,
                 ...options
             })
 
@@ -140,19 +149,32 @@ class NexNumClient {
                 error: !response.ok ? (data.error || 'Request failed') : undefined,
                 code: data.code,
                 details: data.details,
-                status: response.status
+                status: response.status,
+                headers: response.headers
             }
         } catch (err: any) {
             return {
                 success: false,
                 error: err.message || 'Network error',
-                status: 500
+                status: 500,
+                headers: new Headers()
             }
         }
     }
 
     private async getCsrfToken(): Promise<string | null> {
         try {
+            // Optimization: Try to get from cookie first (browser only)
+            if (typeof document !== 'undefined') {
+                const cookie = document.cookie
+                    .split('; ')
+                    .find(row => row.startsWith('csrf-token=') || row.startsWith('__Host-csrf-token='))
+
+                if (cookie) {
+                    return cookie.split('=')[1]
+                }
+            }
+
             const res = await fetch('/api/csrf', { cache: 'no-store' })
             if (!res.ok) return null
             const data = await res.json()
@@ -166,6 +188,13 @@ class NexNumClient {
     async getBalance() { return this.request<{ walletId: string, balance: number }>('/api/wallet/balance') }
     async topUp(amount: number) { return this.request<{ newBalance: number }>('/api/wallet/topup', 'POST', { amount, idempotencyKey: crypto.randomUUID() }) }
     async getTransactions(page = 1, limit = 20) { return this.request<any>(`/api/wallet/transactions?page=${page}&limit=${limit}`) }
+
+    // Deposit & Payments
+    async getDepositConfig() { return this.request<any>('/api/wallet/deposit') }
+    async createDeposit(amount: number) { return this.request<any>('/api/wallet/deposit', 'POST', { amount }) }
+    async getDepositStatus(id: string) { return this.request<any>(`/api/wallet/deposit/status?id=${id}`) }
+    async validateCoupon(code: string, depositAmount: number) { return this.request<any>('/api/wallet/coupon/validate', 'POST', { code, depositAmount }) }
+
     async getCountriesList() { const res = await this.request<{ countries: Country[] }>('/api/numbers'); return res.data?.countries || [] }
     async getServicesList(countryCode: string) { const res = await this.request<{ services: Service[] }>(`/api/numbers?country=${countryCode}`); return res.data?.services || [] }
     async purchase(input: { countryCode: string, serviceCode: string, provider?: string }) { return this.request<any>('/api/numbers/purchase', 'POST', { ...input, idempotencyKey: crypto.randomUUID() }) }
@@ -193,6 +222,9 @@ class NexNumClient {
     async resendVerification() { return this.request<any>('/api/auth/resend-verification', 'POST') }
     async me() { return this.request<any>('/api/auth/me') }
     async logout() { return this.request<any>('/api/auth/logout', 'POST') }
+
+    // Misc
+    async completeNumber(numberId: string) { return this.request<any>('/api/numbers/complete', 'POST', { numberId }) }
 }
 
 export const api = NexNumClient.getInstance()

@@ -12,7 +12,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { PremiumSkeleton } from '@/components/ui/skeleton';
+import { PremiumSkeleton } from "@/components/ui/skeleton"
+import { api } from "@/lib/api/api-client"
 
 // ============================================================================
 // Types
@@ -172,10 +173,9 @@ export default function CouponsPage() {
         try {
             const typeFilter = activeTab !== 'all' ? `&type=${activeTab.toUpperCase()}` : '';
             const searchFilter = searchQuery ? `&search=${encodeURIComponent(searchQuery)}` : '';
-            const res = await fetch(`/api/admin/coupons?limit=100${typeFilter}${searchFilter}`);
-            const data = await res.json();
-            if (data.success) {
-                setCoupons(data.coupons);
+            const result = await api.request<any>(`/api/admin/coupons?limit=100${typeFilter}${searchFilter}`);
+            if (result.success && result.data) {
+                setCoupons(result.data.coupons);
             }
         } catch (error) {
             console.error('Failed to fetch coupons:', error);
@@ -185,10 +185,9 @@ export default function CouponsPage() {
 
     const fetchAnalytics = useCallback(async () => {
         try {
-            const res = await fetch('/api/admin/coupons/analytics?days=30');
-            const data = await res.json();
-            if (data.success) {
-                setAnalytics(data);
+            const result = await api.request<any>('/api/admin/coupons/analytics?days=30');
+            if (result.success && result.data) {
+                setAnalytics(result.data);
             }
         } catch (error) {
             console.error('Failed to fetch analytics:', error);
@@ -230,21 +229,16 @@ export default function CouponsPage() {
                 payload.giftAmount = parseFloat(createForm.giftAmount) || 0;
             }
 
-            const res = await fetch('/api/admin/coupons', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            });
+            const result = await api.request<any>('/api/admin/coupons', 'POST', payload);
 
-            const data = await res.json();
-            if (data.success) {
+            if (result.success) {
                 toast.success('Coupon created successfully!');
                 setShowCreateModal(false);
                 resetCreateForm();
                 fetchCoupons();
                 fetchAnalytics();
             } else {
-                toast.error(data.error || 'Failed to create coupon');
+                toast.error(result.error || 'Failed to create coupon');
             }
         } catch (error) {
             console.error('Create coupon error:', error);
@@ -258,27 +252,22 @@ export default function CouponsPage() {
         if (!editingCoupon) return;
         setSaving(true);
         try {
-            const res = await fetch(`/api/admin/coupons?id=${editingCoupon.id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    name: editForm.name || undefined,
-                    description: editForm.description || undefined,
-                    discountValue: editForm.discountValue ? parseFloat(editForm.discountValue) : undefined,
-                    maxUses: editForm.maxUses ? parseInt(editForm.maxUses) : undefined,
-                    maxUsesPerUser: editForm.maxUsesPerUser ? parseInt(editForm.maxUsesPerUser) : undefined,
-                    expiresAt: editForm.expiresAt || undefined,
-                }),
+            const result = await api.request<any>(`/api/admin/coupons?id=${editingCoupon.id}`, 'PATCH', {
+                name: editForm.name || undefined,
+                description: editForm.description || undefined,
+                discountValue: editForm.discountValue ? parseFloat(editForm.discountValue) : undefined,
+                maxUses: editForm.maxUses ? parseInt(editForm.maxUses) : undefined,
+                maxUsesPerUser: editForm.maxUsesPerUser ? parseInt(editForm.maxUsesPerUser) : undefined,
+                expiresAt: editForm.expiresAt || undefined,
             });
 
-            const data = await res.json();
-            if (data.success) {
+            if (result.success) {
                 toast.success('Coupon updated successfully!');
                 setShowEditModal(false);
                 setEditingCoupon(null);
                 fetchCoupons();
             } else {
-                toast.error(data.error || 'Failed to update coupon');
+                toast.error(result.error || 'Failed to update coupon');
             }
         } catch (error) {
             console.error('Update coupon error:', error);
@@ -291,21 +280,16 @@ export default function CouponsPage() {
     const handleBatchGenerate = async () => {
         setSaving(true);
         try {
-            const res = await fetch('/api/admin/coupons/batch', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    count: parseInt(batchForm.count),
-                    amount: parseFloat(batchForm.amount),
-                    expiresAt: batchForm.expiresAt || undefined,
-                    name: batchForm.name || undefined,
-                }),
+            const result = await api.request<any>('/api/admin/coupons/batch', 'POST', {
+                count: parseInt(batchForm.count),
+                amount: parseFloat(batchForm.amount),
+                expiresAt: batchForm.expiresAt || undefined,
+                name: batchForm.name || undefined,
             });
 
-            const data = await res.json();
-            if (data.success) {
+            if (result.success && result.data) {
                 // Download CSV
-                const blob = new Blob([data.csv], { type: 'text/csv' });
+                const blob = new Blob([result.data.csv], { type: 'text/csv' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
@@ -319,7 +303,7 @@ export default function CouponsPage() {
                 fetchCoupons();
                 fetchAnalytics();
             } else {
-                toast.error(data.error || 'Failed to generate gift cards');
+                toast.error(result.error || 'Failed to generate gift cards');
             }
         } catch (error) {
             console.error('Batch generate error:', error);
@@ -331,14 +315,13 @@ export default function CouponsPage() {
 
     const handleDisableCoupon = async (id: string, code: string) => {
         try {
-            const res = await fetch(`/api/admin/coupons?id=${id}`, { method: 'DELETE' });
-            const data = await res.json();
-            if (data.success) {
+            const result = await api.request<any>(`/api/admin/coupons?id=${id}`, 'DELETE');
+            if (result.success) {
                 toast.success(`Coupon ${code} disabled`);
                 fetchCoupons();
                 fetchAnalytics();
             } else {
-                toast.error(data.error || 'Failed to disable coupon');
+                toast.error(result.error || 'Failed to disable coupon');
             }
         } catch (error) {
             console.error('Disable coupon error:', error);

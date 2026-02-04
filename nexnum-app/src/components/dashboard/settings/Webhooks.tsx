@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
+import { api } from "@/lib/api/api-client"
 
 export function Webhooks() {
     const [url, setUrl] = useState("")
@@ -21,11 +22,10 @@ export function Webhooks() {
 
     const fetchWebhook = async () => {
         try {
-            const res = await fetch('/api/webhooks/config')
-            if (res.ok) {
-                const data = await res.json()
-                setUrl(data.url || "")
-                setSecret(data.secret || "")
+            const result = await api.request<any>('/api/webhooks/config')
+            if (result.success && result.data) {
+                setUrl(result.data.url || "")
+                setSecret(result.data.secret || "")
             }
         } catch (error) {
             console.error(error)
@@ -37,17 +37,12 @@ export function Webhooks() {
     const saveWebhook = async () => {
         setIsSaving(true)
         try {
-            const res = await fetch('/api/webhooks/config', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url })
-            })
-            const data = await res.json()
-            if (res.ok) {
-                setSecret(data.secret) // In case secret was generated for the first time
+            const result = await api.request<any>('/api/webhooks/config', 'POST', { url })
+            if (result.success && result.data) {
+                setSecret(result.data.secret) // In case secret was generated for the first time
                 toast.success("Webhook Configuration Saved")
             } else {
-                toast.error(data.error || "Failed to save")
+                toast.error(result.error || "Failed to save")
             }
         } catch (error) {
             toast.error("Network error")
@@ -60,11 +55,12 @@ export function Webhooks() {
         if (!confirm("Are you sure? This will invalidate the old secret immediately.")) return
 
         try {
-            const res = await fetch('/api/webhooks/rotate-secret', { method: 'POST' })
-            if (res.ok) {
-                const data = await res.json()
-                setSecret(data.secret)
+            const result = await api.request<any>('/api/webhooks/rotate-secret', 'POST')
+            if (result.success && result.data) {
+                setSecret(result.data.secret)
                 toast.success("Secret Rotated Successfully")
+            } else {
+                toast.error(result.error || "Failed to rotate secret")
             }
         } catch (error) {
             toast.error("Failed to rotate secret")

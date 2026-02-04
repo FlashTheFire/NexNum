@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils/utils"
+import { api } from "@/lib/api/api-client"
 
 interface ApiKey {
     id: string
@@ -28,10 +29,9 @@ export function ApiKeys() {
 
     const fetchKeys = async () => {
         try {
-            const res = await fetch('/api/keys')
-            if (res.ok) {
-                const data = await res.json()
-                setKeys(data.keys || [])
+            const result = await api.request<any>('/api/keys')
+            if (result.success && result.data) {
+                setKeys(result.data.keys || [])
             }
         } catch (error) {
             console.error(error)
@@ -44,20 +44,15 @@ export function ApiKeys() {
         if (!newKeyName.trim()) return
         setIsCreating(true)
         try {
-            const res = await fetch('/api/keys', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: newKeyName })
-            })
-            const data = await res.json()
-            if (res.ok) {
-                setKeys(prev => [data.key, ...prev])
+            const result = await api.request<any>('/api/keys', 'POST', { name: newKeyName })
+            if (result.success && result.data) {
+                setKeys(prev => [result.data.key, ...prev])
                 setNewKeyName("")
                 toast.success("API Key Created", {
                     description: "Make sure to copy it now. You won't see it again."
                 })
             } else {
-                toast.error(data.error || "Failed to create key")
+                toast.error(result.error || "Failed to create key")
             }
         } catch (error) {
             toast.error("Network error")
@@ -68,8 +63,8 @@ export function ApiKeys() {
 
     const deleteKey = async (id: string) => {
         try {
-            const res = await fetch(`/api/keys/${id}`, { method: 'DELETE' })
-            if (res.ok) {
+            const result = await api.request<any>(`/api/keys/${id}`, 'DELETE')
+            if (result.success) {
                 setKeys(prev => prev.filter(k => k.id !== id))
                 toast.success("API Key Revoked")
             }

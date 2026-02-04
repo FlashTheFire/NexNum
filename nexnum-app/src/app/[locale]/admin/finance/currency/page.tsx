@@ -10,6 +10,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { api } from "@/lib/api/api-client"
 import { toast } from "sonner"
 import { formatDistanceToNow } from "date-fns"
 import { PremiumSkeleton } from "@/components/ui/skeleton"
@@ -38,28 +39,18 @@ export default function CurrencyManagementPage() {
     const [isLoading, setIsLoading] = useState(true)
     const [isSyncing, setIsSyncing] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
-    const [csrfToken, setCsrfToken] = useState<string>('')
-
-    const fetchCsrf = async () => {
-        try {
-            const res = await fetch('/api/csrf')
-            const data = await res.json()
-            if (data.success) {
-                setCsrfToken(data.token)
-            }
-        } catch (e) {
-            console.error("Failed to init CSRF")
-        }
-    }
 
     const fetchData = async () => {
         try {
-            const res = await fetch('/api/admin/finance/currency')
-            const data = await res.json()
-            setCurrencies(data.currencies)
-            setSettings(data.settings)
+            const result = await api.request<any>('/api/admin/finance/currency', 'GET')
+            if (result.success && result.data) {
+                setCurrencies(result.data.currencies)
+                setSettings(result.data.settings)
+            } else {
+                toast.error(result.error || "Failed to load data")
+            }
         } catch (e) {
-            toast.error("Failed to load currency data")
+            toast.error("Failed to load data")
         } finally {
             setIsLoading(false)
         }
@@ -67,23 +58,17 @@ export default function CurrencyManagementPage() {
 
     useEffect(() => {
         fetchData()
-        fetchCsrf()
     }, [])
 
     const handleSync = async () => {
         setIsSyncing(true)
         try {
-            const res = await fetch('/api/admin/finance/currency/sync', {
-                method: 'POST',
-                headers: {
-                    'x-csrf-token': csrfToken
-                }
-            })
-            if (res.ok) {
-                toast.success("Exchange rates synchronized")
-                fetchData()
+            const result = await api.request<any>('/api/admin/finance/currency/sync', 'POST', {})
+            if (result.success) {
+                toast.success("Sync complete")
+                fetchData() // Refresh
             } else {
-                toast.error("Sync failed")
+                toast.error(result.error || "Sync failed")
             }
         } catch (e) {
             toast.error("Network error during sync")
@@ -93,22 +78,14 @@ export default function CurrencyManagementPage() {
     }
 
     const updateSettings = async (newData: Partial<SystemSettings>) => {
-        if (!settings) return
         setIsSaving(true)
         try {
-            const res = await fetch('/api/admin/finance/currency', {
-                method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-csrf-token': csrfToken
-                },
-                body: JSON.stringify({ action: 'update_settings', ...settings, ...newData })
-            })
-            if (res.ok) {
-                toast.success("Settings updated")
-                fetchData()
+            const result = await api.request<any>('/api/admin/finance/currency', 'PATCH', { action: 'update_settings', ...settings, ...newData })
+            if (result.success) {
+                toast.success("Settings saved")
+                setSettings(prev => prev ? { ...prev, ...newData } : null)
             } else {
-                toast.error("Update failed")
+                toast.error(result.error || "Failed to save settings")
             }
         } catch (e) {
             toast.error("Network error")
@@ -120,17 +97,12 @@ export default function CurrencyManagementPage() {
     const updateCurrency = async (code: string, data: Partial<Currency>) => {
         setIsSaving(true)
         try {
-            const res = await fetch('/api/admin/finance/currency', {
-                method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-csrf-token': csrfToken
-                },
-                body: JSON.stringify({ action: 'update_currency', code, ...data })
-            })
-            if (res.ok) {
+            const result = await api.request<any>('/api/admin/finance/currency', 'PATCH', { action: 'update_currency', code, ...data })
+            if (result.success) {
                 toast.success(`${code} updated`)
                 fetchData()
+            } else {
+                toast.error(result.error || "Update failed")
             }
         } catch (e) {
             toast.error("Failed to update currency")

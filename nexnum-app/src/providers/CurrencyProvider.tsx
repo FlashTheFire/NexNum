@@ -35,10 +35,11 @@ interface CurrencyContextType {
     formatPrice: (amountInUsd: number, options?: FormatOptions) => string
     convert: (amount: number, from: string, to: string) => number
 
-    // Multi-currency support (NEW)
+    // Multi-currency support (ZERO CLIENT-SIDE CALCULATION)
     setCurrency: (code: string) => void
     formatFromPrices: (currencyPrices?: Record<string, number>, fallbackUsd?: number) => string
-    formatBalance: (balanceInUsd: number) => string
+    formatBalance: (balanceInPoints: number) => string // DEPRECATED: use formatFromBalance
+    formatFromBalance: (balance: { points: number; USD: number; INR: number; RUB: number; EUR: number; GBP: number; CNY: number }) => string
 }
 
 const CurrencyContext = createContext<CurrencyContextType | undefined>(undefined)
@@ -110,10 +111,13 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     // ============================================
 
     /**
-     * Format amount in USD to user's preferred currency (with real-time conversion)
+     * Format amount in Points to user's preferred currency (with real-time conversion)
      */
-    const formatPrice = useCallback((amountInUsd: number, options?: FormatOptions): string => {
-        if (!settings) return amountInUsd.toString()
+    const formatPrice = useCallback((amountInPoints: number, options?: FormatOptions): string => {
+        if (!settings) return amountInPoints.toString()
+
+        const pointsRate = Number(settings.pointsRate || 100)
+        const amountInUsd = amountInPoints / pointsRate
 
         const targetCurrency = (!preferredCurrency || preferredCurrency === 'POINTS') ? 'USD' : preferredCurrency
         const precision = options?.precision ?? 2
@@ -153,10 +157,13 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     }, [preferredCurrency, currencies, formatPrice])
 
     /**
-     * Format user balance (always stored in USD) to user's preferred currency
+     * Format user balance (always stored in Points) to user's preferred currency
      */
-    const formatBalance = useCallback((balanceInUsd: number): string => {
-        if (!settings) return balanceInUsd.toString()
+    const formatBalance = useCallback((balanceInPoints: number): string => {
+        if (!settings) return balanceInPoints.toString()
+
+        const pointsRate = Number(settings.pointsRate || 100)
+        const balanceInUsd = balanceInPoints / pointsRate
 
         const targetCurrency = (!preferredCurrency || preferredCurrency === 'POINTS') ? 'USD' : preferredCurrency
 
@@ -167,6 +174,29 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
         // For balance, show 2 decimal places
         return `${symbol}${converted.toFixed(2)}`
     }, [settings, preferredCurrency, currencies, convert])
+
+    /**
+     * Format balance from pre-computed multi-currency balance object
+     * ZERO CLIENT-SIDE CALCULATION - simply picks the pre-computed value
+     */
+    const formatFromBalance = useCallback((balance: {
+        points: number
+        USD: number
+        INR: number
+        RUB: number
+        EUR: number
+        GBP: number
+        CNY: number
+    }): string => {
+        const targetCurrency = (!preferredCurrency || preferredCurrency === 'POINTS') ? 'USD' : preferredCurrency
+
+        // Zero calculation - just pick the pre-computed value
+        const value = (balance as any)[targetCurrency] ?? balance.USD
+        const currencyData = currencies[targetCurrency]
+        const symbol = currencyData?.symbol || '$'
+
+        return `${symbol}${Number(value).toFixed(2)}`
+    }, [preferredCurrency, currencies])
 
     // ============================================
     // CURRENCY SELECTION
@@ -211,7 +241,8 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
             convert,
             setCurrency,
             formatFromPrices,
-            formatBalance
+            formatBalance,
+            formatFromBalance
         }}>
             {children}
         </CurrencyContext.Provider>

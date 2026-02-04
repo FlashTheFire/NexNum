@@ -13,6 +13,7 @@
 import { prisma } from '@/lib/core/db'
 import { getUPIProvider, PaymentStatus } from './upi-provider'
 import { getPaymentSettingsService } from './payment-settings'
+import { getCurrencyService } from './currency-service'
 import { PaymentError } from './payment-errors'
 import { logger } from '@/lib/core/logger'
 import { redis } from '@/lib/core/redis'
@@ -269,6 +270,9 @@ export class DepositService {
 
     /**
      * Confirm successful deposit and credit wallet (with optional bonus)
+     * 
+     * FINANCIAL INTEGRITY: Converts INR → Points using CurrencyService
+     * Amount parameter is in INR (from UPI payment)
      */
     async confirmDeposit(depositId: string, amount: number, utr?: string): Promise<void> {
         const deposit = await this.getDeposit(depositId)
@@ -279,9 +283,18 @@ export class DepositService {
 
         // Get config for bonus calculation
         const config = await getPaymentSettingsService().getConfig()
+        const currencyService = getCurrencyService()
+
+        // CRITICAL FIX: Convert INR to Points (was directly crediting INR as Points = 100x inflation)
+        const basePointsFromInr = await currencyService.inrToPoints(amount)
+
+        // Calculate bonus on Points (not on INR)
         const bonusPercent = Number(config.depositBonusPercent) || 0
-        const bonusAmount = bonusPercent > 0 ? Math.floor((amount * bonusPercent) / 100) : 0
-        const totalCredit = amount + bonusAmount
+        const bonusPoints = bonusPercent > 0 ? Math.floor((basePointsFromInr * bonusPercent) / 100) : 0
+        const totalPointsCredit = basePointsFromInr + bonusPoints
+
+        // Pre-compute fiat equivalents for audit trail
+        const fiatEquivalents = await currencyService.pointsToAllFiat(totalPointsCredit)
 
         try {
             await prisma.$transaction(async (tx) => {
@@ -293,30 +306,36 @@ export class DepositService {
 
                 const currentMetadata = (currentTx?.metadata as unknown as DepositMetadata) || {} as DepositMetadata
 
-                // Update transaction record with status in metadata
+                // Update transaction record with forensic metadata
                 await tx.walletTransaction.update({
                     where: { id: depositId },
                     data: {
-                        amount: totalCredit, // Update with bonus included
+                        amount: totalPointsCredit, // Store as Points (internal currency)
                         metadata: {
                             ...currentMetadata,
                             status: 'completed',
                             utr,
                             completedAt: new Date().toISOString(),
-                            originalAmount: amount.toString(),
-                            bonusAmount: bonusAmount.toString(),
+                            // Forensic Audit Fields
+                            depositFiatAmount: amount.toString(),
+                            depositFiatCurrency: 'INR',
+                            basePointsConverted: basePointsFromInr.toString(),
                             bonusPercent: bonusPercent.toString(),
+                            bonusPoints: bonusPoints.toString(),
+                            totalPointsCredited: totalPointsCredit.toString(),
+                            fiatEquivalentUSD: fiatEquivalents.USD.toString(),
+                            fiatEquivalentINR: fiatEquivalents.INR.toString(),
                         },
                     },
                 })
 
-                // Credit wallet with total (base + bonus)
+                // Credit wallet with Points (not raw INR)
                 await tx.wallet.update({
                     where: { id: deposit.walletId },
-                    data: { balance: { increment: totalCredit } },
+                    data: { balance: { increment: totalPointsCredit } },
                 })
 
-                // Audit log for deposit confirmation
+                // Audit log for deposit confirmation with full financial trail
                 await tx.auditLog.create({
                     data: {
                         userId: deposit.userId,
@@ -325,10 +344,13 @@ export class DepositService {
                         resourceId: depositId,
                         metadata: {
                             orderId: deposit.orderId,
-                            amount,
-                            bonusAmount,
+                            depositFiatAmount: amount,
+                            depositFiatCurrency: 'INR',
+                            basePointsConverted: basePointsFromInr,
                             bonusPercent,
-                            totalCredit,
+                            bonusPoints,
+                            totalPointsCredited: totalPointsCredit,
+                            fiatEquivalents: { ...fiatEquivalents },
                             utr: utr || null,
                         },
                         ipAddress: null,
@@ -343,11 +365,14 @@ export class DepositService {
             // Remove from pending list
             await redis.srem(USER_PENDING_DEPOSITS(deposit.userId), depositId)
 
-            logger.info('[DepositService] Deposit confirmed', {
+            logger.info('[DepositService] Deposit confirmed with forensic integrity', {
                 depositId,
-                amount,
-                bonusAmount,
-                totalCredit,
+                depositFiatAmount: amount,
+                depositFiatCurrency: 'INR',
+                basePointsConverted: basePointsFromInr,
+                bonusPoints,
+                totalPointsCredited: totalPointsCredit,
+                fiatEquivalentUSD: fiatEquivalents.USD,
                 utr,
                 userId: deposit.userId
             })

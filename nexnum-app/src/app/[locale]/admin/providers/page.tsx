@@ -22,6 +22,7 @@ import { JsonEditor } from "@/components/ui/json-editor"
 import { InfoTooltip, TT, TTCode } from "@/components/ui/tooltip"
 import { SafeImage } from "@/components/ui/safe-image"
 import { useSyncStatus } from "@/hooks/useSyncStatus"
+import { api } from "@/lib/api/api-client"
 
 // Types
 interface Provider {
@@ -143,10 +144,12 @@ export default function ProvidersPage() {
     // Fetch Data
     const fetchProviders = async () => {
         try {
-            const res = await fetch('/api/admin/providers')
-            if (!res.ok) throw new Error('Failed to fetch')
-            const data = await res.json()
-            setProviders(data)
+            const result = await api.request<Provider[]>('/api/admin/providers')
+            if (result.success && result.data) {
+                setProviders(result.data)
+            } else {
+                throw new Error(result.error || 'Failed to fetch')
+            }
         } catch (error) {
             toast.error("Failed to load providers")
         } finally {
@@ -272,17 +275,16 @@ function ProviderCard({ provider, onRefresh, onEdit, isGlobalSyncing }: { provid
         e.stopPropagation()
         setIsSyncing(true)
         try {
-            const res = await fetch(`/api/admin/providers/${provider.id}/sync`, { method: 'POST' })
-            const data = await res.json()
-            if (res.ok) {
-                if (data.jobId) {
-                    toast.success(data.message || "Synchronization queued successfully")
+            const result = await api.request<any>(`/api/admin/providers/${provider.id}/sync`, 'POST')
+            if (result.success && result.data) {
+                if (result.data.jobId) {
+                    toast.success(result.data.message || "Synchronization queued successfully")
                 } else {
-                    toast.success(`Sync completed: ${data.countries} countries, ${data.services} services`)
+                    toast.success(`Sync completed: ${result.data.countries} countries, ${result.data.services} services`)
                 }
                 onRefresh()
             } else {
-                toast.error(data.error || "Sync failed")
+                toast.error(result.error || "Sync failed")
             }
         } catch (e) {
             toast.error("Sync request failed")
@@ -335,13 +337,12 @@ function ProviderCard({ provider, onRefresh, onEdit, isGlobalSyncing }: { provid
                             e.stopPropagation();
                             if (confirm('Are you sure you want to delete this provider? This action cannot be undone.')) {
                                 try {
-                                    const res = await fetch(`/api/admin/providers/${provider.id}`, { method: 'DELETE' });
-                                    if (res.ok) {
+                                    const result = await api.request<any>(`/api/admin/providers/${provider.id}`, 'DELETE');
+                                    if (result.success) {
                                         toast.success("Provider deleted");
                                         onRefresh();
                                     } else {
-                                        const data = await res.json();
-                                        toast.error(data.error || "Delete failed");
+                                        toast.error(result.error || "Delete failed");
                                     }
                                 } catch (e) {
                                     toast.error("Delete request failed");
@@ -502,10 +503,11 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
 
     useEffect(() => {
         // Fetch currencies for the dropdowns
-        fetch('/api/public/currency')
-            .then(res => res.json())
-            .then(data => {
-                if (data.currencies) setAvailableCurrencies(Object.values(data.currencies))
+        api.request<any>('/api/public/currency')
+            .then(result => {
+                if (result.success && result.data && result.data.currencies) {
+                    setAvailableCurrencies(Object.values(result.data.currencies))
+                }
             })
             .catch(e => console.error("Failed to fetch currencies", e))
     }, [])
@@ -574,16 +576,11 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
         if (!provider?.id) return
         setIsFetchingBalance(true)
         try {
-            const res = await fetch(`/api/admin/providers/${provider.id}/test`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'getBalance' })
-            })
-            const data = await res.json()
-            if (data.success && data.data) {
-                // data.data is stringified JSON: "{\"balance\": 123}"
+            const result = await api.request<any>(`/api/admin/providers/${provider.id}/test`, 'POST', { action: 'getBalance' })
+            if (result.success && result.data) {
+                // result.data is stringified JSON: "{\"balance\": 123}"
                 try {
-                    const inner = JSON.parse(data.data)
+                    const inner = typeof result.data === 'string' ? JSON.parse(result.data) : result.data
                     const bal = inner.balance !== undefined ? inner.balance : inner
                     if (bal !== undefined) {
                         setFormData(prev => ({ ...prev, depositReceived: String(bal) }))
@@ -592,16 +589,16 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                         toast.error('Balance not found in response')
                     }
                 } catch (e) {
-                    // Check if data.data is just a number string
-                    if (!isNaN(Number(data.data))) {
-                        setFormData(prev => ({ ...prev, depositReceived: String(data.data) }))
-                        toast.success(`Balance updated: ${data.data}`)
+                    // Check if data is just a number string
+                    if (!isNaN(Number(result.data))) {
+                        setFormData(prev => ({ ...prev, depositReceived: String(result.data) }))
+                        toast.success(`Balance updated: ${result.data}`)
                     } else {
                         toast.error('Failed to parse balance response')
                     }
                 }
             } else {
-                toast.error(data.error || 'Failed to fetch balance')
+                toast.error(result.error || 'Failed to fetch balance')
             }
         } catch (e) {
             console.error(e)
@@ -624,19 +621,14 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
             body.priceMultiplier = Number(body.priceMultiplier)
             body.fixedMarkup = Number(body.fixedMarkup)
 
-            const res = await fetch('/api/admin/providers', {
-                method: 'POST',
-                body: JSON.stringify(body),
-                headers: { 'Content-Type': 'application/json' }
-            })
+            const result = await api.request<any>('/api/admin/providers', 'POST', body)
 
-            if (res.ok) {
+            if (result.success) {
                 toast.success("Provider created successfully")
                 onRefresh()
                 onClose()
             } else {
-                const data = await res.json()
-                toast.error(data.error || "Creation failed")
+                toast.error(result.error || "Creation failed")
             }
         } catch (e) {
             toast.error("Format error")
@@ -671,19 +663,14 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
             const url = isCreating ? '/api/admin/providers' : `/api/admin/providers/${provider.id}`
             const method = isCreating ? 'POST' : 'PATCH'
 
-            const res = await fetch(url, {
-                method,
-                body: JSON.stringify(body),
-                headers: { 'Content-Type': 'application/json' }
-            })
+            const result = await api.request<any>(url, method, body)
 
-            if (res.ok) {
+            if (result.success) {
                 toast.success(isCreating ? "Provider created" : "Provider updated")
                 onRefresh()
                 // Don't close panel - stay on editing view
             } else {
-                const data = await res.json()
-                toast.error(data.error || "Operation failed")
+                toast.error(result.error || "Operation failed")
             }
         } catch (e) {
             toast.error("Invalid JSON format or network error")
@@ -710,17 +697,13 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                 // If we have countries from a previous test, maybe pick one?
             }
 
-            const res = await fetch(`/api/admin/providers/${provider.id}/test`, {
-                method: 'POST',
-                body: JSON.stringify({
-                    action: action,
-                    params: currentParams
-                }),
-                headers: { 'Content-Type': 'application/json' }
+            const result = await api.request<any>(`/api/admin/providers/${provider.id}/test`, 'POST', {
+                action: action,
+                params: currentParams
             })
-            const data = await res.json()
 
-            // Parse nested JSON string in data if present
+            const data = result.data || {}
+            // result.data is already parsed by api.request if it was JSON
             let parsedData = null
             if (data.data && typeof data.data === 'string') {
                 // Only try to parse if it looks like JSON (starts with { or [)
@@ -746,11 +729,11 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
             // Also store in multi-results for new table UI
             setTestResults(prev => ({ ...prev, [action]: resultObj }))
 
-            if (res.ok && data.success) {
+            if (result.success && data.success) {
                 toast.success(`${action} successful`)
                 if (action === 'test' || action === 'getCountries') onRefresh()
             } else {
-                toast.error(data.error || "Test failed")
+                toast.error(result.error || data.error || "Test failed")
             }
 
             return resultObj
@@ -770,26 +753,22 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
             const errorContext = typeof testResult.data === 'string' ? testResult.data : JSON.stringify(testResult.data)
             const prompt = `TEST FAILED with error: ${errorContext}\n\nCurrent Config: ${JSON.stringify(formData)}\n\nAction: ${testAction}\nParams: ${JSON.stringify(testParams)}\n\nDiagnose the issue and return a FIXED configuration JSON. Focus on Mappings (regex/json paths) and Auth.\n\nRequired Format:\n{\n  "mappings": { ... },\n  "endpoints": { ... },\n  "authType": "..."\n}\n\nOnly return the fields that need changing.`
 
-            const res = await fetch('/api/admin/ai-generate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt, step: 5 }) // Reusing step 5 context for config generation
-            })
+            const result = await api.request<any>('/api/admin/ai-generate', 'POST', { prompt, step: 5 })
 
-            const data = await res.json()
-            if (res.ok && data.result) {
+            if (result.success && result.data && result.data.result) {
                 // Merge fixes
+                const resultData = result.data.result
                 setFormData(prev => ({
                     ...prev,
-                    ...data.result,
+                    ...resultData,
                     // If deep objects, merge them? For now, top level replacement for endpoints/mappings is safer if AI returns full object
-                    endpoints: data.result.endpoints ? JSON.stringify(data.result.endpoints, null, 2) : prev.endpoints,
-                    mappings: data.result.mappings ? JSON.stringify(data.result.mappings, null, 2) : prev.mappings
+                    endpoints: resultData.endpoints ? JSON.stringify(resultData.endpoints, null, 2) : prev.endpoints,
+                    mappings: resultData.mappings ? JSON.stringify(resultData.mappings, null, 2) : prev.mappings
                 }))
                 toast.success("AI applied fixes! Please try testing again.", { icon: <Wand2 className="w-4 h-4 text-violet-400" /> })
                 setTestResult(null) // Clear error to encourage re-test
             } else {
-                toast.error("AI could not fix the issue.")
+                toast.error(result.error || "AI could not fix the issue.")
             }
         } catch (e) {
             toast.error("Smart Fix failed")
@@ -803,14 +782,13 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
         if (!confirm('Are you sure you want to delete this provider? This action cannot be undone.')) return
         setIsSaving(true)
         try {
-            const res = await fetch(`/api/admin/providers/${provider.id}`, { method: 'DELETE' })
-            const data = await res.json()
-            if (res.ok) {
+            const result = await api.request<any>(`/api/admin/providers/${provider.id}`, 'DELETE')
+            if (result.success) {
                 toast.success("Provider deleted")
                 onRefresh()
                 onClose()
             } else {
-                toast.error(data.error || "Delete failed")
+                toast.error(result.error || "Delete failed")
             }
         } catch (e: any) {
             toast.error(e.message || "Delete failed")
@@ -844,21 +822,19 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
         formData.append('logo', file)
 
         try {
-            const res = await fetch(`/api/admin/providers/${provider.id}/logo`, {
-                method: 'POST',
-                body: formData
-            })
-            const data = await res.json()
+            const result = await api.request<any>(`/api/admin/providers/${provider.id}/logo`, 'POST', formData)
 
-            if (res.ok) {
-                setLogoPreview(data.logoUrl)
+            if (result.success) {
                 toast.success("Logo uploaded successfully")
+                if (result.data && result.data.url) {
+                    setLogoPreview(result.data.url)
+                }
                 onRefresh()
             } else {
-                toast.error(data.error || "Upload failed")
+                toast.error(result.error || "Upload failed")
             }
         } catch (e) {
-            toast.error("Upload failed")
+            toast.error("Logo upload failed")
         } finally {
             setIsUploading(false)
         }

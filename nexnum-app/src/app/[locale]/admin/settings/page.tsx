@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import {
     Settings, Globe, DollarSign, Shield, Bell, Save,
-    RefreshCw, AlertTriangle, Check, Moon, Sun, Send, Mail
+    RefreshCw, AlertTriangle, Check, Moon, Sun, Send, Mail,
+    Bitcoin, Timer, Copy
 } from 'lucide-react'
 import { toast } from 'sonner'
 import LoadingScreen from '@/components/ui/LoadingScreen'
@@ -16,12 +17,6 @@ interface SettingsData {
         timezone: string
         maintenanceMode: boolean
         maintenanceMessage: string
-    }
-    pricing: {
-        defaultMarkup: number
-        fixedMarkup: number
-        minPrice: number
-        currency: string
     }
     rateLimit: {
         apiLimit: number
@@ -37,11 +32,12 @@ interface SettingsData {
 
 import { BannedIconsTable } from './BannedIconsTable'
 
-type TabType = 'general' | 'pricing' | 'rateLimit' | 'notifications' | 'emailTester' | 'assets'
+type TabType = 'general' | 'rateLimit' | 'notifications' | 'emailTester' | 'assets' | 'crypto' | 'heartbeat'
 
 const tabs = [
     { id: 'general' as TabType, label: 'General', icon: Globe },
-    { id: 'pricing' as TabType, label: 'Pricing', icon: DollarSign },
+    { id: 'crypto' as TabType, label: 'Crypto', icon: Bitcoin },
+    { id: 'heartbeat' as TabType, label: 'Heartbeat', icon: Timer },
     { id: 'rateLimit' as TabType, label: 'Rate Limits', icon: Shield },
     { id: 'notifications' as TabType, label: 'Notifications', icon: Bell },
     { id: 'assets' as TabType, label: 'Assets', icon: AlertTriangle },
@@ -198,7 +194,7 @@ export default function SettingsPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     section: activeTab,
-                    updates: (activeTab === 'general' || activeTab === 'pricing' || activeTab === 'rateLimit' || activeTab === 'notifications')
+                    updates: (activeTab === 'general' || activeTab === 'rateLimit' || activeTab === 'notifications')
                         ? settings[activeTab]
                         : {},
                 }),
@@ -372,43 +368,6 @@ export default function SettingsPage() {
                     </>
                 )}
 
-                {activeTab === 'pricing' && (
-                    <SettingsSection title="Pricing Configuration" description="Default pricing rules for all providers">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <SettingsInput
-                                label="Default Markup Multiplier"
-                                value={settings.pricing.defaultMarkup}
-                                onChange={(v) => updateSetting('pricing', 'defaultMarkup', parseFloat(v) || 1)}
-                                type="number"
-                                suffix="x"
-                                hint="Applied to provider prices (e.g., 1.2 = 20% markup)"
-                            />
-                            <SettingsInput
-                                label="Fixed Markup"
-                                value={settings.pricing.fixedMarkup}
-                                onChange={(v) => updateSetting('pricing', 'fixedMarkup', parseFloat(v) || 0)}
-                                type="number"
-                                suffix={settings.pricing.currency}
-                                hint="Added after multiplier"
-                            />
-                            <SettingsInput
-                                label="Minimum Price"
-                                value={settings.pricing.minPrice}
-                                onChange={(v) => updateSetting('pricing', 'minPrice', parseFloat(v) || 0)}
-                                type="number"
-                                suffix={settings.pricing.currency}
-                                hint="Lowest possible sale price"
-                            />
-                            <SettingsInput
-                                label="Currency"
-                                value={settings.pricing.currency}
-                                onChange={(v) => updateSetting('pricing', 'currency', v)}
-                                hint="Display currency code"
-                            />
-                        </div>
-                    </SettingsSection>
-                )}
-
                 {activeTab === 'rateLimit' && (
                     <SettingsSection title="Rate Limiting" description="Configure API request limits (per minute)">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -451,7 +410,7 @@ export default function SettingsPage() {
                             value={settings.notifications.lowBalanceThreshold}
                             onChange={(v) => updateSetting('notifications', 'lowBalanceThreshold', parseFloat(v) || 10)}
                             type="number"
-                            suffix={settings.pricing.currency}
+                            suffix="USD"
                             hint="Alert when provider balance drops below this"
                         />
                         <SettingsToggle
@@ -510,6 +469,108 @@ export default function SettingsPage() {
                 {activeTab === 'assets' && (
                     <SettingsSection title="Asset Management" description="Manage banned icons and other static assets">
                         <BannedIconsTable />
+                    </SettingsSection>
+                )}
+
+                {activeTab === 'crypto' && (
+                    <>
+                        <SettingsSection title="Crypto Deposit Configuration" description="Configure USDT deposit settings for cryptocurrency payments">
+                            <div className="space-y-4">
+                                <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+                                    <div className="flex items-start gap-3">
+                                        <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                                        <div>
+                                            <p className="font-medium text-amber-200">Important</p>
+                                            <p className="text-sm text-amber-200/70">
+                                                Ensure the wallet addresses are correct. Incorrect addresses may result in lost funds.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-4">
+                                        <h4 className="text-white font-medium flex items-center gap-2">
+                                            <span className="bg-violet-500/20 px-2 py-1 rounded text-xs text-violet-300">TRC20</span>
+                                            USDT (Tron Network)
+                                        </h4>
+                                        <SettingsInput
+                                            label="TRC20 Wallet Address"
+                                            value=""
+                                            onChange={() => { }}
+                                            placeholder="T..."
+                                            hint="USDT wallet address on Tron network"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        <h4 className="text-white font-medium flex items-center gap-2">
+                                            <span className="bg-amber-500/20 px-2 py-1 rounded text-xs text-amber-300">BEP20</span>
+                                            USDT (BNB Smart Chain)
+                                        </h4>
+                                        <SettingsInput
+                                            label="BEP20 Wallet Address"
+                                            value=""
+                                            onChange={() => { }}
+                                            placeholder="0x..."
+                                            hint="USDT wallet address on BSC network"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </SettingsSection>
+
+                        <SettingsSection title="Crypto Provider Mode" description="Choose how crypto deposits are processed">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                {[
+                                    { id: 'MANUAL', label: 'Manual', desc: 'Admin manually verifies each deposit' },
+                                    { id: 'THIRD_PARTY', label: 'Third Party', desc: 'Automatic via payment gateway (coming soon)' },
+                                    { id: 'DISABLED', label: 'Disabled', desc: 'Crypto deposits not available' },
+                                ].map((mode) => (
+                                    <button
+                                        key={mode.id}
+                                        className="p-4 bg-gray-800/50 hover:bg-violet-600/20 border border-gray-700 hover:border-violet-500/50 rounded-xl transition-all text-left"
+                                    >
+                                        <p className="font-medium text-white">{mode.label}</p>
+                                        <p className="text-sm text-gray-400">{mode.desc}</p>
+                                    </button>
+                                ))}
+                            </div>
+                        </SettingsSection>
+                    </>
+                )}
+
+                {activeTab === 'heartbeat' && (
+                    <SettingsSection title="Pricing Heartbeat" description="Automatically update exchange rates and prices in search results">
+                        <div className="space-y-6">
+                            <SettingsToggle
+                                label="Enable Pricing Heartbeat"
+                                enabled={false}
+                                onChange={() => { }}
+                                description="When enabled, exchange rates and prices are automatically updated at the configured interval"
+                            />
+
+                            <SettingsInput
+                                label="Update Interval"
+                                value="60"
+                                onChange={() => { }}
+                                type="number"
+                                suffix="minutes"
+                                hint="How often to refresh exchange rates and update prices in MeiliSearch"
+                            />
+
+                            <div className="flex items-center gap-4 pt-4 border-t border-gray-800">
+                                <button
+                                    className="flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg transition-all"
+                                >
+                                    <RefreshCw className="w-4 h-4" />
+                                    Run Now
+                                </button>
+                                <span className="text-sm text-gray-400">
+                                    Last run: Never
+                                </span>
+                            </div>
+                        </div>
                     </SettingsSection>
                 )}
             </motion.div>

@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { X, Wallet, ChevronRight, Clock, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useRouter } from 'next/navigation'
+import { api } from "@/lib/api/api-client"
 
 interface Alert {
     id: string
@@ -69,11 +70,10 @@ export function LowBalanceAlert() {
         localStorage.setItem(LAST_CHECK_KEY, Date.now().toString())
 
         try {
-            await fetch('/api/admin/providers/balance-check', { method: 'POST' })
-            const res = await fetch('/api/admin/providers/balance-check')
-            const data = await res.json()
-            if (data.alerts && Array.isArray(data.alerts)) {
-                setAlerts(data.alerts)
+            await api.request('/api/admin/providers/balance-check', 'POST')
+            const result = await api.request<any>('/api/admin/providers/balance-check')
+            if (result.success && result.data?.alerts && Array.isArray(result.data.alerts)) {
+                setAlerts(result.data.alerts)
             }
         } catch (e) {
             console.error("Failed to check balances", e)
