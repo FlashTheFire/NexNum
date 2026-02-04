@@ -190,6 +190,13 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
         if (!balance) return '$0.00'
 
         const targetCurrencyCode = preferredCurrency || 'USD'
+
+        // Final safety: check if balance is an object
+        if (typeof balance !== 'object') {
+            const num = Number(balance) || 0
+            return formatPrice(num, { precision: 2 })
+        }
+
         const value = balance[targetCurrencyCode] ?? balance.USD ?? (balance.points ? balance.points / 100 : 0)
 
         // Ensure targetCurrencyCode is a valid ISO 4217 code for Intl.NumberFormat

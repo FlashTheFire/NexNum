@@ -34,7 +34,7 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
 
         const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL ||
             (typeof window !== 'undefined' && window.location.hostname !== 'localhost'
-                ? `${window.location.protocol}//${window.location.hostname}:3951`
+                ? '' // Use current origin + /api/socket (handled by Caddy)
                 : 'http://localhost:3951');
 
         const socketInstance = io(socketUrl, {
