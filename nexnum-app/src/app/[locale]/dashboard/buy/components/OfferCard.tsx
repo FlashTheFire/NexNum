@@ -78,7 +78,7 @@ export const OfferCard = ({ offer, onBuy, disabled }: OfferCardProps) => {
 
             {/* Price & Action */}
             <div className="z-10 text-right">
-                <div className="font-mono text-xl font-bold text-[hsl(var(--neon-lime))]">
+                <div className="font-bold text-xl text-[hsl(var(--neon-lime))]">
                     <PriceDisplay
                         amountInPoints={offer.pointPrice}
                         currencyPrices={offer.currencyPrices}

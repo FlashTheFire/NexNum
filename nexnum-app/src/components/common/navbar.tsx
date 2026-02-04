@@ -122,7 +122,7 @@ export function Navbar() {
                                             <BalanceDisplay
                                                 balanceInPoints={userProfile?.balance || 0}
                                                 multiBalance={userProfile?.multiBalance}
-                                                className="font-mono"
+                                                className="font-bold"
                                             />
                                         </button>
                                     </Link>
@@ -132,7 +132,7 @@ export function Navbar() {
 
                                     {/* Language & Currency Switchers */}
                                     <div className="mr-1 flex items-center gap-2">
-                                        {!isLandingPage && <CurrencySelector />}
+                                        <CurrencySelector />
                                         <LanguageSwitcher />
                                     </div>
 
@@ -165,7 +165,7 @@ export function Navbar() {
                         {/* Mobile Actions (Notification + Menu) */}
                         <div className="flex items-center gap-1.5 lg:hidden relative">
                             <NotificationDropdown />
-                            {!isLandingPage && <CurrencySelector />}
+                            <CurrencySelector />
                             <LanguageSwitcher />
 
                             <button

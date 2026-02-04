@@ -522,26 +522,29 @@ export function MobileDashboard() {
                         </Link>
                     </div>
                     <div className="space-y-2">
-                        {transactions.slice(0, 3).map((tx, j) => (
-                            <div key={j} className="flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/[0.04]">
-                                <div className="flex items-center gap-3">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${['topup', 'manual_credit', 'referral_bonus', 'refund'].includes(tx.type) ? 'bg-emerald-500/10 text-emerald-500' :
-                                        ['purchase', 'manual_debit'].includes(tx.type) ? 'bg-purple-500/10 text-purple-500' :
-                                            'bg-indigo-500/10 text-indigo-500'
-                                        }`}>
-                                        {['topup', 'manual_credit', 'referral_bonus', 'refund'].includes(tx.type) ? <ArrowUpRight className="h-5 w-5" /> : <ShoppingCart className="h-5 w-5" />}
+                        {transactions.slice(0, 3).map((tx, j) => {
+                            const isCredit = ['topup', 'manual_credit', 'referral_bonus', 'refund'].includes(tx.type)
+                            return (
+                                <div key={j} className="flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/[0.04]">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isCredit ? 'bg-emerald-500/10 text-emerald-500' :
+                                            ['purchase', 'manual_debit'].includes(tx.type) ? 'bg-purple-500/10 text-purple-500' :
+                                                'bg-indigo-500/10 text-indigo-500'
+                                            }`}>
+                                            {isCredit ? <ArrowUpRight className="h-5 w-5" /> : <ShoppingCart className="h-5 w-5" />}
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-medium text-white">{tx.description}</p>
+                                            <p className="text-[10px] text-gray-500 capitalize">{tx.type.replace('_', ' ')}</p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <p className="text-sm font-medium text-white">{tx.description}</p>
-                                        <p className="text-[10px] text-gray-500 capitalize">{tx.type.replace('_', ' ')}</p>
-                                    </div>
+                                    <span className={`text-sm font-bold font-mono ${isCredit ? 'text-emerald-400' : 'text-red-400'}`}>
+                                        {isCredit ? '+' : ''}
+                                        <PriceDisplay amountInPoints={tx.amount} />
+                                    </span>
                                 </div>
-                                <span className={`text-sm font-mono font-medium ${['topup', 'manual_credit', 'referral_bonus', 'refund'].includes(tx.type) ? 'text-emerald-400' : 'text-red-400'}`}>
-                                    {['topup', 'manual_credit', 'referral_bonus', 'refund'].includes(tx.type) ? '+' : ''}
-                                    <PriceDisplay amountInPoints={tx.amount} />
-                                </span>
-                            </div>
-                        ))}
+                            )
+                        })}
                         {transactions.length === 0 && (
                             <p className="text-sm text-muted-foreground px-2">{t('activity.empty')}</p>
                         )}
