@@ -17,7 +17,7 @@ import fs from 'fs'
 import path from 'path'
 import https from 'https'
 import pLimit from 'p-limit'
-import { indexOffers, OfferDocument, deleteOffersByProvider, INDEXES, swapShadowToPrimary, initSearchIndexes } from '@/lib/search/search'
+import { indexOffers, OfferDocument, deleteOffersByProvider, INDEXES, swapShadowToPrimary, initSearchIndexes, waitForTasks } from '@/lib/search/search'
 import { logAdminAction } from '@/lib/core/auditLog'
 import * as dotenv from 'dotenv'
 // Senior-Level Optimization: worker_threads is only loaded dynamically to prevent Turbopack build panics
@@ -681,11 +681,14 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
             countryCount: countries.length
         })
 
+        const meiliTaskIds: number[] = []
+
         // Clear existing pricing for this provider before re-indexing
         if (!options?.skipWipe) {
             // Note: ProviderPricing SQL table is deprecated/removed in favor of MeiliSearch
             // We only need to clear the search index
-            await deleteOffersByProvider(provider.name)
+            const deleteTaskUid = await deleteOffersByProvider(provider.name)
+            if (deleteTaskUid) meiliTaskIds.push(deleteTaskUid)
         }
 
         // PERFORMANCE OPTIMIZATION: Pre-fetch currency rates & settings ONCE
@@ -883,7 +886,9 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
             const CHUNK_SIZE = 5000
             for (let i = 0; i < allOffers.length; i += CHUNK_SIZE) {
                 const chunk = allOffers.slice(i, i + CHUNK_SIZE)
-                await indexOffers(chunk)
+                const taskUid = await indexOffers(chunk)
+                if (taskUid) meiliTaskIds.push(taskUid)
+
                 logger.debug('Indexed chunk', {
                     context: 'SYNC',
                     provider: provider.name,
@@ -891,6 +896,16 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                     totalChunks: Math.ceil(allOffers.length / CHUNK_SIZE)
                 })
             }
+        }
+
+        // 5. WAIT FOR MEILISEARCH (Crucial for aggregate consistency)
+        if (meiliTaskIds.length > 0) {
+            logger.info('Waiting for MeiliSearch indexing tasks to complete', {
+                context: 'SYNC',
+                provider: provider.name,
+                taskCount: meiliTaskIds.length
+            })
+            await waitForTasks(meiliTaskIds)
         }
 
     } catch (e) {

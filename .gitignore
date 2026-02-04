@@ -71,3 +71,8 @@ coverage/
 *.pem
 *.key
 *.pub
+
+# Tests
+.testsprite
+.playwright
+.agent

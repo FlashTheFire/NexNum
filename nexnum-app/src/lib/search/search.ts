@@ -1426,13 +1426,15 @@ export async function swapShadowToPrimary(shadowIndexName: string, primaryIndexN
 /**
  * Delete offers by provider (for re-sync)
  */
-export async function deleteOffersByProvider(provider: string): Promise<void> {
+export async function deleteOffersByProvider(provider: string): Promise<number | undefined> {
     try {
         const index = meili.index(INDEXES.OFFERS)
-        await index.deleteDocuments({ filter: `provider = "${provider}"` })
-        console.log(`🗑️ Deleted offers for provider: ${provider}`)
+        const task = await index.deleteDocuments({ filter: `provider = "${provider}"` })
+        logger.info(`🗑️ Queued deletion for provider: ${provider}`, { context: 'SEARCH', taskUid: task.taskUid })
+        return task.taskUid
     } catch (error: any) {
         logger.error('Failed to delete offers', { context: 'SEARCH', provider, error: error.message })
+        return undefined
     }
 }
 
@@ -1454,27 +1456,25 @@ export async function getIndexStats(): Promise<{ offers: number; lastSync?: numb
  * Wait for a task to complete
  */
 export async function waitForTask(taskUid: number, timeoutMs = 60000): Promise<boolean> {
-    const startTime = Date.now()
-    while (Date.now() - startTime < timeoutMs) {
-        try {
-            const response = await fetch(`${process.env.MEILISEARCH_HOST || 'http://localhost:7700'}/tasks/${taskUid}`, {
-                headers: {
-                    'Authorization': `Bearer ${process.env.MEILISEARCH_API_KEY || 'dev_master_key'}`
-                }
-            })
-            const task = await response.json()
-
-            if (task.status === 'succeeded') return true
-            if (task.status === 'failed') {
-                logger.error('MeiliSearch task failed', { context: 'SEARCH', taskUid, error: task.error })
-                return false
-            }
-            await new Promise(r => setTimeout(r, 1000))
-        } catch (error: any) {
-            logger.error('Error checking MeiliSearch task', { context: 'SEARCH', taskUid, error: error.message })
-            return false
-        }
+    try {
+        await meili.waitForTask(taskUid, { timeOutMs: timeoutMs, intervalMs: 1000 })
+        return true
+    } catch (error: any) {
+        logger.error('MeiliSearch task failed or timed out', { context: 'SEARCH', taskUid, error: error.message })
+        return false
     }
-    logger.error('MeiliSearch task timed out', { context: 'SEARCH', taskUid })
-    return false
+}
+
+/**
+ * Wait for multiple tasks to complete
+ */
+export async function waitForTasks(taskUids: number[], timeoutMs = 60000): Promise<boolean> {
+    if (taskUids.length === 0) return true
+    try {
+        await Promise.all(taskUids.map(uid => meili.waitForTask(uid, { timeOutMs: timeoutMs, intervalMs: 1000 })))
+        return true
+    } catch (error: any) {
+        logger.error('One or more MeiliSearch tasks failed', { context: 'SEARCH', taskUids, error: error.message })
+        return false
+    }
 }
