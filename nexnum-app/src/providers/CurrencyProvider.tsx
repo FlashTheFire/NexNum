@@ -123,7 +123,8 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
         const precision = options?.precision ?? 2
 
         const converted = convert(amountInUsd, 'USD', targetCurrency)
-        const currencyData = currencies[targetCurrency]
+        // Defensive check: currencies might be undefined/empty during initial load
+        const currencyData = currencies?.[targetCurrency]
         const symbol = currencyData?.symbol || '$'
         const code = options?.showCode ? ` ${targetCurrency}` : ''
 
@@ -197,10 +198,12 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
             return formatPrice(num, { precision: 2 })
         }
 
-        const value = balance[targetCurrencyCode] ?? balance.USD ?? (balance.points ? balance.points / 100 : 0)
+        // Defensive: Use optional chaining (?.) for properties to avoid crashes
+        // It deals with cases where balance might be partial or Proxy-wrapped weirdly
+        const value = balance[targetCurrencyCode] ?? balance?.USD ?? (balance.points ? balance.points / 100 : 0)
 
-        // Ensure targetCurrencyCode is a valid ISO 4217 code for Intl.NumberFormat
-        const currencyToFormat = currencies[targetCurrencyCode] ? targetCurrencyCode : 'USD'
+        // Ensure currencies exists before accessing key
+        const currencyToFormat = (currencies && currencies[targetCurrencyCode]) ? targetCurrencyCode : 'USD'
 
         return new Intl.NumberFormat('en-US', {
             style: 'currency',

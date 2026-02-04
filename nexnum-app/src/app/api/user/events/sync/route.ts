@@ -19,11 +19,13 @@ export async function GET(req: NextRequest) {
         // 2. Read from Redis Stream
         const streamKey = `events:stream:user:${user.userId}`;
 
+        // Validate 'since' format. Redis IDs are "timestamp-sequence" (e.g., 1700000000000-0)
+        // UUIDs (containing letters) are invalid and will cause "ERR Invalid stream ID"
+        const isValidRedisId = /^\d+-\d+$/.test(since) || since === '-' || since === '+';
+        const effectiveSince = isValidRedisId ? since : '-';
+
         // XRANGE key start end (COUNT optional)
-        // If 'since' is a timestamp/id, we want (since + 1) to avoid duplicates, 
-        // but XRANGE uses '(' for exclusive start in newer redis. 
-        // For simplicity, we fetch all >= since and let client dedupe or handle it.
-        const streamData = await redis.xrange(streamKey, since, '+');
+        const streamData = await redis.xrange(streamKey, effectiveSince, '+');
 
         // 3. Transform to Envelopes
         const events: EventEnvelope[] = streamData.map(([id, fields]) => {
