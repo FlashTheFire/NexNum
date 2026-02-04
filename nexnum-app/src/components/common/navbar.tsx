@@ -72,7 +72,7 @@ export function Navbar() {
                                 <div className="w-10 h-10 bg-gradient-to-br from-[hsl(var(--neon-lime))] to-[hsl(72,70%,40%)] rounded-xl flex items-center justify-center shadow-lg shadow-[hsl(var(--neon-lime)/0.25)] group-hover:shadow-[hsl(var(--neon-lime)/0.4)] transition-all duration-300 group-hover:scale-105 p-1.5">
                                     <Image
                                         alt="NexNum Logo"
-                                        loading="lazy"
+                                        priority
                                         width="28"
                                         height="28"
                                         decoding="async"
@@ -98,14 +98,13 @@ export function Navbar() {
                                     { href: "/dashboard", label: "Overview" },
                                     { href: "/dashboard/vault", label: "My Numbers" },
                                     { href: "/dashboard/wallet", label: "Wallet" },
-                                    { href: "/api-docs", label: "Developers", icon: ChevronDown }
+                                    { href: "/api-docs", label: "Developers" }
                                 ].map((link) => (
                                     <Link key={link.href} href={link.href} className={cn(
                                         "px-4 py-2 text-sm font-medium rounded-full transition-all duration-200 flex items-center gap-1",
                                         pathname === link.href ? "text-white bg-white/[0.06] shadow-inner" : "text-gray-400 hover:text-white hover:bg-white/[0.06]"
                                     )}>
                                         {link.label}
-                                        {link.icon && <link.icon className="w-3 h-3" />}
                                     </Link>
                                 ))}
                             </div>
@@ -116,15 +115,16 @@ export function Navbar() {
                             {isAuthenticated ? (
                                 <>
                                     {/* Quick Wallet Info */}
-                                    <Link href="/dashboard/wallet">
-                                        <button className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 py-2 text-gray-300 hover:text-white hover:bg-white/[0.06] font-medium h-10 px-5 gap-2 group/wallet">
-                                            <Wallet className="h-4 w-4 text-[hsl(var(--neon-lime))] group-hover/wallet:scale-110 transition-transform" />
-                                            <BalanceDisplay
-                                                balanceInPoints={userProfile?.balance || 0}
-                                                multiBalance={userProfile?.multiBalance}
-                                                className="font-bold"
-                                            />
-                                        </button>
+                                    <Link
+                                        href="/dashboard/wallet"
+                                        className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 py-2 text-gray-300 hover:text-white hover:bg-white/[0.06] font-medium h-10 px-5 gap-2 group/wallet"
+                                    >
+                                        <Wallet className="h-4 w-4 text-[hsl(var(--neon-lime))] group-hover/wallet:scale-110 transition-transform" />
+                                        <BalanceDisplay
+                                            balanceInPoints={userProfile?.balance || 0}
+                                            multiBalance={userProfile?.multiBalance}
+                                            className="font-bold"
+                                        />
                                     </Link>
 
                                     {/* Desktop Notification Bell */}
@@ -136,27 +136,37 @@ export function Navbar() {
                                         <LanguageSwitcher />
                                     </div>
 
-                                    {/* Profile / Logout Button (Restored to Right Side) */}
-                                    <button
-                                        onClick={() => logout()}
+                                    {/* Profile Link */}
+                                    <Link
+                                        href="/dashboard/settings"
                                         className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 py-2 bg-[hsl(var(--neon-lime))] text-black hover:bg-[hsl(72,100%,55%)] font-semibold h-10 px-6 shadow-lg shadow-[hsl(var(--neon-lime)/0.25)] hover:shadow-[hsl(var(--neon-lime)/0.4)] transition-all duration-300 ml-2"
                                     >
                                         <span className="mr-1.5">{user?.name?.split(' ')[0]}</span>
+                                    </Link>
+
+                                    {/* Logout Button */}
+                                    <button
+                                        onClick={() => logout()}
+                                        aria-label="Logout"
+                                        className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 w-10 text-gray-400 hover:text-white hover:bg-white/10 ml-1"
+                                    >
                                         <LogOut className="w-4 h-4" />
                                     </button>
                                 </>
                             ) : (
                                 <>
-                                    <Link href="/login">
-                                        <button className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 py-2 text-gray-300 hover:text-white hover:bg-white/[0.06] font-medium h-10 px-5">
-                                            Log in
-                                        </button>
+                                    <Link
+                                        href="/login"
+                                        className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 py-2 text-gray-300 hover:text-white hover:bg-white/[0.06] font-medium h-10 px-5"
+                                    >
+                                        Log in
                                     </Link>
-                                    <Link href="/register">
-                                        <button className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 py-2 bg-[hsl(var(--neon-lime))] text-black hover:bg-[hsl(72,100%,55%)] font-semibold h-10 px-6 shadow-lg shadow-[hsl(var(--neon-lime)/0.25)] hover:shadow-[hsl(var(--neon-lime)/0.4)] transition-all duration-300">
-                                            Get Started
-                                            <Zap className="w-4 h-4 ml-1.5" />
-                                        </button>
+                                    <Link
+                                        href="/register"
+                                        className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 py-2 bg-[hsl(var(--neon-lime))] text-black hover:bg-[hsl(72,100%,55%)] font-semibold h-10 px-6 shadow-lg shadow-[hsl(var(--neon-lime)/0.25)] hover:shadow-[hsl(var(--neon-lime)/0.4)] transition-all duration-300"
+                                    >
+                                        Get Started
+                                        <Zap className="w-4 h-4 ml-1.5" />
                                     </Link>
                                 </>
                             )}
@@ -171,6 +181,8 @@ export function Navbar() {
                             <button
                                 className="p-2.5 text-gray-400 hover:text-white rounded-xl hover:bg-white/[0.06] transition-all"
                                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                                aria-label="Toggle mobile menu"
+                                aria-expanded={mobileMenuOpen}
                             >
                                 {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
                             </button>
