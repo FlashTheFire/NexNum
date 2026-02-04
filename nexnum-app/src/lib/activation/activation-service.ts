@@ -87,22 +87,19 @@ export class ActivationService {
         })
 
         // Create Outbox Event for async provider request
-        // Using the existing OutboxEvent model (outbox_events_v2)
-        await client.outboxEvent.create({
-            data: {
-                aggregateType: 'activation',
-                aggregateId: activation.id,
-                eventType: 'provider_request',
-                payload: {
-                    activationId: activation.id,
-                    providerId: input.providerId,
-                    serviceName: input.serviceName,
-                    countryCode: input.countryCode,
-                    operatorId: input.operatorId
-                },
-                status: 'PENDING'
-            }
-        })
+        // Unified Outbox V3 Dispatch (Kernel Orchestrated)
+        await ActivationKernel.dispatchEvent(
+            activation.id,
+            'provider_request',
+            {
+                activationId: activation.id,
+                providerId: input.providerId,
+                serviceName: input.serviceName,
+                countryCode: input.countryCode,
+                operatorId: input.operatorId
+            },
+            client as Prisma.TransactionClient
+        )
 
         logger.info(`[Activation] Created ${activation.id} in RESERVED state`)
 
@@ -132,9 +129,9 @@ export class ActivationService {
         })
 
         // CRITICAL RACE GUARD: If reconciliation already marked this as FAILED/CANCELLED, 
-        // we must NOT proceed with capture. The provider number is already technical debt.
-        if (activation.state !== 'RESERVED') {
-            logger.error(`[Activation] Conflict: Cannot confirm ${activationId}. Current state: ${activation.state}`)
+        // or if we already have a captured transaction, we must NOT proceed.
+        if (activation.state !== 'RESERVED' || activation.capturedTxId) {
+            logger.error(`[Activation] Conflict: Cannot confirm ${activationId}. Current state: ${activation.state} | TxId: ${activation.capturedTxId}`)
             throw new Error(`ACTIVATION_CONFLICT: State is ${activation.state}`)
         }
 

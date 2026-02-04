@@ -230,7 +230,13 @@ export class DynamicProvider implements SmsProvider {
 
         // Initialize trace variables in outer scope for catch block access
         let urlObj: URL | null = null
-        let headers: Record<string, string> = {}
+        // 2. Build Headers with skipCache support
+        const providerConfig = this.config as any
+        let headers: Record<string, string> = {
+            ...(providerConfig.headers as Record<string, string>),
+            ...(epConfig.headers as Record<string, string>),
+            ...(params.skip_cache ? { 'x-skip-cache': '1' } : {})
+        }
         let maskedHeaders: Record<string, string> = {}
         const startTime = Date.now()
 
@@ -460,22 +466,29 @@ export class DynamicProvider implements SmsProvider {
             return result
 
         } catch (error: any) {
-            logger.error(`[DynamicProvider:${this.name}] Request failed`, { error: error.message })
+            const duration = Date.now() - startTime
+            logger.error(`[DynamicProvider:${this.name}] Request failed`, {
+                error: error.message,
+                duration: `${duration}ms`
+            })
 
             // Record failure latency (if timeout)
-            if (error.message.includes('timeout')) this.recordLatency(30000)
+            if (error.message.toLowerCase().includes('timeout')) this.recordLatency(30000)
 
             // If we haven't saved trace yet (e.g. network error)
-            if (!this.lastRequestTrace) {
-                this.lastRequestTrace = {
-                    method: epConfig.method,
-                    url: urlObj?.toString() ?? 'unknown',
-                    headers: maskedHeaders,
-                    responseStatus: 0,
-                    responseBody: error.message,
-                    requestTime: Date.now() - startTime
-                }
+            // Hardened: Always capture trace on error for senior-level debugging
+            this.lastRequestTrace = {
+                method: epConfig.method,
+                url: urlObj?.toString() ?? 'network_error',
+                headers: maskedHeaders,
+                responseStatus: error.status || 0,
+                responseBody: error.responseBody || error.message || 'Unknown network error',
+                requestTime: duration
             }
+
+            // Also ensure raw response is updated for the test window
+            this.lastRawResponse = this.lastRequestTrace.responseBody
+
             throw error
         }
     }
@@ -1542,29 +1555,23 @@ export class DynamicProvider implements SmsProvider {
     /**
      * Get countries from provider (API Standardization v2.0)
      */
-    async getCountriesList(): Promise<Country[]> {
-        // Use cache-aside pattern
-        const cacheKey = CACHE_KEYS.countryList(this.name)
+    async getCountriesList(options?: { forceRefresh?: boolean }): Promise<Country[]> {
+        const response = await this.request('getCountriesList')
+        const items = this.parseResponse(response, 'getCountriesList')
 
-        return cacheGet(cacheKey, async () => {
+        return Promise.all(items.map(async (i) => {
+            // Determine Code/Name strictly from mapping, no fallbacks
+            const code = String(i.code ?? i.id ?? '')
+            const name = String(i.name ?? '')
+            const flagUrl = i.flagUrl ?? undefined
 
-            const response = await this.request('getCountriesList')
-            const items = this.parseResponse(response, 'getCountriesList')
-
-            return Promise.all(items.map(async (i) => {
-                // Determine Code/Name strictly from mapping, no fallbacks
-                const code = String(i.code ?? i.id ?? '')
-                const name = String(i.name ?? '')
-                const flagUrl = i.flagUrl ?? undefined
-
-                return {
-                    ...i, // Preserve all mapped fields
-                    code,
-                    name,
-                    flagUrl: (flagUrl && typeof flagUrl === 'string') ? flagUrl : undefined
-                }
-            }))
-        }, CACHE_TTL.COUNTRIES)
+            return {
+                ...i, // Preserve all mapped fields
+                code,
+                name,
+                flagUrl: (flagUrl && typeof flagUrl === 'string') ? flagUrl : undefined
+            }
+        }))
     }
 
     /** @deprecated Use getCountriesList instead */
@@ -1605,34 +1612,29 @@ export class DynamicProvider implements SmsProvider {
     /**
      * Get services from provider (API Standardization v2.0)
      */
-    async getServicesList(countryCode: string | number): Promise<Service[]> {
-        // Use cache-aside pattern
-        const cacheKey = CACHE_KEYS.serviceList(this.name) + `:${countryCode}`
+    async getServicesList(countryCode: string | number, options?: { forceRefresh?: boolean }): Promise<Service[]> {
+        // Resolve to external ID first
+        const externalCountry = await this.resolveExternalId('country', countryCode)
 
-        return cacheGet(cacheKey, async () => {
-            // Resolve to external ID first
-            const externalCountry = await this.resolveExternalId('country', countryCode)
+        // Logic simplified to strict dynamic
+        const response = await this.request('getServicesList', { country: externalCountry })
 
-            // Logic simplified to strict dynamic
-            const response = await this.request('getServicesList', { country: externalCountry })
+        const items = this.parseResponse(response, 'getServicesList')
 
-            const items = this.parseResponse(response, 'getServicesList')
+        return Promise.all(items.map(async (s) => {
+            // Determine Code/Name strictly from mapping, no fallbacks
+            const code = String(s.code ?? s.id ?? '')
+            const name = String(s.name ?? '')
 
-            return Promise.all(items.map(async (s) => {
-                // Determine Code/Name strictly from mapping, no fallbacks
-                const code = String(s.code ?? s.id ?? '')
-                const name = String(s.name ?? '')
+            const iconUrl = s.iconUrl ?? undefined
 
-                const iconUrl = s.iconUrl ?? undefined
-
-                return {
-                    ...s, // Preserve all mapped fields
-                    code,
-                    name,
-                    iconUrl: (iconUrl && typeof iconUrl === 'string') ? iconUrl : undefined
-                }
-            }))
-        }, CACHE_TTL.SERVICES)
+            return {
+                ...s, // Preserve all mapped fields
+                code,
+                name,
+                iconUrl: (iconUrl && typeof iconUrl === 'string') ? iconUrl : undefined
+            }
+        }))
     }
 
     /** @deprecated Use getServicesList instead */

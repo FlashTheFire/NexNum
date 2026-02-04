@@ -79,7 +79,16 @@ export async function refreshAllServiceAggregates() {
         }
 
         if (aggregates.size === 0) {
-            logger.warn('[AGGREGATES] No documents found in MeiliSearch. Clearing aggregates.');
+            // SAFETY: Before wiping aggregates, check if we actually have active providers.
+            // If MeiliSearch is empty but we have providers, it's likely a sync race condition.
+            const activeProviderCount = await prisma.provider.count({ where: { isActive: true } });
+
+            if (activeProviderCount > 0) {
+                logger.warn('[AGGREGATES] MeiliSearch returned 0 documents, but active providers were found. Skipping cleanup to prevent blank homepage (Sync Race Condition Protection).');
+                return 0;
+            }
+
+            logger.warn('[AGGREGATES] No documents found in MeiliSearch and no active providers. Clearing aggregates.');
             await prisma.serviceAggregate.deleteMany({})
             return 0
         }

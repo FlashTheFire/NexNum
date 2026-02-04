@@ -220,9 +220,9 @@ export const CACHE_KEYS = {
 
 // Cache TTLs (in seconds)
 export const CACHE_TTL = {
-    PRICES: 60,         // 1 minute - prices can change
-    COUNTRIES: 3600,    // 1 hour - stable
-    SERVICES: 3600,     // 1 hour - stable  
+    PRICES: 30,         // 30 seconds - prices can change rapidly
+    COUNTRIES: 300,     // 5 minutes - balanced accuracy vs load
+    SERVICES: 300,      // 5 minutes - balanced accuracy vs load  
     USER_BALANCE: 30,   // 30 seconds - needs to be fresh
     PROVIDER_BALANCE: 300, // 5 minutes - dashboard use
     DASHBOARD_STATE: 10, // 10 seconds - frequently accessed batch data

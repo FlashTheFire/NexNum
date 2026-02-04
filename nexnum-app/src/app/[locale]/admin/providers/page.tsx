@@ -2290,7 +2290,9 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                                                                         ? (typeof result.trace.responseBody === 'string'
                                                                                             ? result.trace.responseBody
                                                                                             : JSON.stringify(result.trace.responseBody, null, 2))
-                                                                                        : (result.data || 'No raw response captured')}
+                                                                                        : (result.data !== undefined && result.data !== null
+                                                                                            ? (typeof result.data === 'string' ? result.data : JSON.stringify(result.data, null, 2))
+                                                                                            : 'No raw response captured')}
                                                                                 </pre>
                                                                             </div>
                                                                         </div>
@@ -2303,13 +2305,13 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                                                                 <span className="text-[9px] text-white/30 ml-auto">after mappings</span>
                                                                             </div>
                                                                             <div className="p-3 max-h-60 overflow-auto custom-scrollbar">
-                                                                                {result.parsed ? (
+                                                                                {(result.parsed !== undefined && result.parsed !== null) ? (
                                                                                     <SyntaxHighlightedJson data={result.parsed} />
                                                                                 ) : (
                                                                                     <pre className={`text-[10px] font-mono leading-relaxed ${result.success ? 'text-emerald-300/80' : 'text-red-300/80'}`}>
                                                                                         {typeof result.data === 'string'
                                                                                             ? result.data
-                                                                                            : JSON.stringify(result.data || { message: 'No mapping applied' }, null, 2)}
+                                                                                            : JSON.stringify((result.data !== undefined && result.data !== null) ? result.data : { message: 'No mapping applied' }, null, 2)}
                                                                                     </pre>
                                                                                 )}
                                                                             </div>

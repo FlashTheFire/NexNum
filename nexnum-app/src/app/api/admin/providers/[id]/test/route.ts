@@ -79,11 +79,11 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
                 result = { balance }
                 break
             case 'getCountriesList':
-                const countries = await metadataEngine.getCountriesList()
+                const countries = await metadataEngine.getCountriesList({ forceRefresh: true })
                 result = { count: countries.length, first: countries.slice(0, 5) }
                 break
             case 'getServicesList':
-                const services = await metadataEngine.getServicesList(params.country || '')
+                const services = await metadataEngine.getServicesList(params.country || '', { forceRefresh: true })
                 result = { count: services.length, first: services.slice(0, 5) }
                 break
             case 'getNumber':
@@ -210,10 +210,12 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
 
     return NextResponse.json({
         success,
-        action,
-        data: responseData,
-        error: errorMsg,
-        duration,
-        trace: traceEngine?.lastRequestTrace ?? null
+        data: {
+            action,
+            data: responseData,
+            error: errorMsg,
+            duration,
+            trace: traceEngine?.lastRequestTrace ?? null
+        }
     })
 }

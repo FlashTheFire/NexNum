@@ -625,8 +625,8 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                     logger.info(`[SYNC] Batch registering ${pendingRegistration.size} new services to Central Registry...`)
                     const newServices = Array.from(pendingRegistration.entries())
 
-                    // Concurrency limit for registration
-                    const regLimit = pLimit(20)
+                    // Concurrency limit for registration (Increased for high-volume sync)
+                    const regLimit = pLimit(100)
 
                     await Promise.all(newServices.map(([code, name]) => regLimit(async () => {
                         try {
@@ -645,7 +645,9 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                 }
 
                 // 3. Upsert Provider Services (Now purely local logic + DB write)
-                const servicePromises = servicesToUpsert.map(s => limit(async () => {
+                // Optimized: Process metadata in larger batches to reduce sync duration
+                const serviceUpsertLimit = pLimit(100)
+                const servicePromises = servicesToUpsert.map(s => serviceUpsertLimit(async () => {
                     const serviceCode = String(s.code)
                     if (!serviceCode) return
 

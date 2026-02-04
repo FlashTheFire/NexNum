@@ -62,10 +62,10 @@ export interface SmsProvider {
     // ═══════════════════════════════════════════════════════════════════════
 
     /** Get available countries */
-    getCountriesList(): Promise<Country[]>
+    getCountriesList(options?: { forceRefresh?: boolean }): Promise<Country[]>
 
     /** Get services for a country */
-    getServicesList(countryCode: string | number): Promise<Service[]>
+    getServicesList(countryCode: string | number, options?: { forceRefresh?: boolean }): Promise<Service[]>
 
 
     // ═══════════════════════════════════════════════════════════════════════
