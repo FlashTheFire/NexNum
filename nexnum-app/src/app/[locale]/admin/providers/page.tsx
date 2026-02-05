@@ -723,13 +723,15 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                 parsedData = data.data
             }
 
-            const resultObj = { ...data, parsed: parsedData }
+            // Harden resultObj: ensure success is computed if missing
+            const testPassed = data.success ?? (!data.error && !!data.data)
+            const resultObj = { ...data, parsed: parsedData, success: testPassed }
 
             setTestResult(resultObj)
             // Also store in multi-results for new table UI
             setTestResults(prev => ({ ...prev, [action]: resultObj }))
 
-            if (result.success && data.success) {
+            if (result.success && testPassed) {
                 toast.success(`${action} successful`)
                 if (action === 'test' || action === 'getCountries') onRefresh()
             } else {
@@ -2319,8 +2321,8 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                                                     </div>
 
                                                                     {/* Mapping Status Indicator */}
-                                                                    <div className={`flex items-center gap-2 p-2 rounded-lg border ${result.success ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
-                                                                        {result.success ? (
+                                                                    <div className={`flex items-center gap-2 p-2 rounded-lg border ${(result.success || result.parsed) ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
+                                                                        {(result.success || result.parsed) ? (
                                                                             <>
                                                                                 <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
                                                                                 <span className="text-[10px] text-emerald-300">Mapping successful - data normalized correctly</span>

@@ -23,6 +23,18 @@ export async function refreshAllServiceAggregates() {
     logger.info('[AGGREGATES] Starting batch refresh from MeiliSearch...');
 
     try {
+        // 0. MeiliSearch Consistency Drain (Race Condition Prevention)
+        // Wait for ALL pending tasks in MeiliSearch to ensure we have a consistent view.
+        // This addresses the "Sync Race Condition Protection" by ensuring deletes/indexes are processed.
+        logger.info('[AGGREGATES] Draining MeiliSearch task queue for consistency...');
+        const tasks = await meili.tasks.getTasks({ statuses: ['enqueued', 'processing'] as any });
+        if (tasks.results.length > 0) {
+            const taskIds = tasks.results.map((t: any) => t.taskUid);
+            const { waitForTasks } = await import('./search');
+            await waitForTasks(taskIds);
+            logger.debug(`[AGGREGATES] Drained ${taskIds.length} pending MeiliSearch tasks.`);
+        }
+
         const index = meili.index(INDEXES.OFFERS)
         const aggregates = new Map<string, {
             serviceCode: string;

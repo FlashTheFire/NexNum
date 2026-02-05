@@ -213,6 +213,7 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
         data: {
             action,
             data: responseData,
+            success,
             error: errorMsg,
             duration,
             trace: traceEngine?.lastRequestTrace ?? null
