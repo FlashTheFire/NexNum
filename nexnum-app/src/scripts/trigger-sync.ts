@@ -2,12 +2,15 @@ import { queue, QUEUES } from '../lib/core/queue'
 import { orchestrator } from '../lib/core/orchestrator'
 import { logger } from '../lib/core/logger'
 
+// Auto-enable Industrial Logs for CLI
+process.env.LOG_PRETTY = 'true'
+
 /**
  * Industrial Sync Trigger CLI
  * Bypasses HTTP Auth to force a provider-sync job.
  */
 async function trigger() {
-    console.log('🚀 [CLI] Initializing Industrial Sync Trigger...')
+    logger.box('Industrial Sync Trigger')
 
     try {
         await orchestrator.bootstrap('CLI:Sync-Trigger')

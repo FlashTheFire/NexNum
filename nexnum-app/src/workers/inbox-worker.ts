@@ -209,7 +209,7 @@ export async function processInboxBatch(batchSize = CONFIG.BATCH_SIZE): Promise<
     }
 
     result.activeNumbers = activeNumbers.length
-    logger.debug(`[InboxWorker] Polling ${activeNumbers.length} active numbers`, { correlationId })
+    logger.debug(`Polling ${activeNumbers.length} active numbers`, { context: 'INBOX', correlationId })
 
     // 2. Create polling tasks
     const pollTasks = activeNumbers.map((number) => async () => {
@@ -378,11 +378,11 @@ export async function processInboxBatch(batchSize = CONFIG.BATCH_SIZE): Promise<
                         )
                     } catch (_notifError: unknown) {
                         const message = _notifError instanceof Error ? _notifError.message : String(_notifError);
-                        logger.warn(`[InboxWorker] Notification failed: ${message}`)
+                        logger.warn(`Notification failed: ${message}`, { context: 'INBOX' })
                     }
                 }
 
-                logger.info(`[InboxWorker] New SMS for ${number.phoneNumber} (${validatedMessages.length})`)
+                logger.success(`New SMS for ${number.phoneNumber} (${validatedMessages.length})`, { context: 'INBOX' })
             }
 
             // 2.7 Update polling metadata
@@ -418,7 +418,7 @@ export async function processInboxBatch(batchSize = CONFIG.BATCH_SIZE): Promise<
         } catch (error: unknown) {
             result.errors++
             const errorMsg = (error instanceof Error ? error.message : String(error))?.substring(0, 255) || 'Unknown error'
-            logger.warn(`[InboxWorker] Poll failed for ${number.id}: ${errorMsg}`)
+            logger.warn(`Poll failed for ${number.id}`, { context: 'INBOX', error: errorMsg })
 
             await smsAudit.logPollFailed(number.id, number.activationId || '', errorMsg, numberCorrelationId)
 
@@ -462,7 +462,7 @@ async function handleTerminalState(
     const terminalStatus = messageCount > 0 ? 'completed' : 'expired'
     const activationState = messageCount > 0 ? 'RECEIVED' : 'EXPIRED'
 
-    logger.info(`[InboxWorker] Terminal state: ${number.phoneNumber} -> ${terminalStatus.toUpperCase()}`)
+    logger.info(`Terminal state: ${number.phoneNumber} -> ${terminalStatus.toUpperCase()}`, { context: 'INBOX' })
 
     await syncNumberAndActivation(number.id, number.activationId, terminalStatus, activationState, correlationId)
 }

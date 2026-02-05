@@ -15,15 +15,14 @@ if (process.env.NODE_ENV === 'production') {
  * Handles registration and execution of all background jobs.
  */
 export async function startQueueWorker() {
-    logger.info('[Worker] Initializing background queue & sync services...');
+    logger.box('Initializing Worker Services');
 
     try {
         // 1. Connect to Queue
         await queue.start();
 
-        // Register Global Shutdown Hook
         orchestrator.onShutdown(async () => {
-            logger.info('[Worker] Stopping background queue...')
+            logger.info('Stopping background queue...', { context: 'WORKER' })
             await queue.stop()
         })
 
@@ -41,7 +40,7 @@ export async function startQueueWorker() {
                     if (provider) await syncProviderData(provider); else await syncAllProviders();
                 } catch (error: unknown) {
                     const errorMsg = error instanceof Error ? error.message : String(error);
-                    logger.error(`[Worker] Sync failed`, { jobId: job.id, error: errorMsg });
+                    logger.error('Sync failed', { context: 'WORKER', jobId: job.id, error: errorMsg });
                     throw error;
                 }
             }
@@ -52,10 +51,13 @@ export async function startQueueWorker() {
         await queue.work(QUEUES.MASTER_WORKER, async () => {
             const res = await runMasterWorker()
             if ((res.inbox?.processed || 0) > 0 || (res.outbox?.processed || 0) > 0 || (res.notifications?.processed || 0) > 0 || (res.reservations?.processed || 0) > 0 || res.errors.length > 0) {
-                const timestamp = new Date().toLocaleTimeString('en-GB')
                 logger.drawDashboard('NEXNUM MASTER WORKER', [
-                    `[${timestamp}] ${res.errors.length > 0 ? '\x1b[31m🚫 ERROR' : '\x1b[32m✅ SUCCESS'}\x1b[0m   Master Worker Cycle Completed in \x1b[34m${res.duration}ms\x1b[0m`,
-                    ``, `📦 INBOX: ${res.inbox?.processed || 0}`, `📤 OUTBOX: ${res.outbox?.processed || 0}`, `🔔 PUSH: ${res.notifications?.processed || 0}`, `🧹 CLEANUP: ${res.reservations?.processed || 0}`
+                    `${res.errors.length > 0 ? 'ERROR' : 'SUCCESS'} (${res.duration}ms)`,
+                    ``,
+                    `Inbox:${res.inbox?.processed || 0}`,
+                    `Outbox:${res.outbox?.processed || 0}`,
+                    `Push:${res.notifications?.processed || 0}`,
+                    `Cleanup:${res.reservations?.processed || 0}`
                 ])
             }
         });
@@ -112,24 +114,25 @@ export async function startQueueWorker() {
 
         if (process.env.FORCE_SYNC === 'true') {
             const syncTarget = process.env.SYNC_PROVIDER;
-            logger.info(`[Worker] FORCE_SYNC enabled${syncTarget ? ` for ${syncTarget}` : ''}: Triggering immediate sync...`);
+            logger.info(`FORCE_SYNC enabled${syncTarget ? ` for ${syncTarget}` : ''}: Triggering immediate sync...`, { context: 'WORKER' });
             try {
                 const { syncAllProviders } = await import('./lib/providers/provider-sync');
                 await syncAllProviders();
-                logger.info('[Worker] Force sync completed successfully.');
+                logger.success('Force sync completed', { context: 'WORKER' });
             } catch (err: unknown) {
                 const errorMsg = err instanceof Error ? err.message : String(err);
-                logger.error('[Worker] Force sync failed:', { error: errorMsg });
+                logger.error('Force sync failed', { context: 'WORKER', error: errorMsg });
             }
         }
     } catch (e) {
-        logger.error('[Worker] Fatal startup error:', { error: e });
+        logger.error('Fatal startup error', { context: 'WORKER', error: e });
     }
 }
 
 // STANDALONE EXECUTION
 if (process.argv[1] && process.argv[1].replace(/\\/g, '/').endsWith('src/worker-entry.ts')) {
     orchestrator.bootstrap('Standalone:Worker').then(() => {
+        logger.splash();
         return startQueueWorker();
     }).catch(err => {
         console.error('Worker failed to start:', err);

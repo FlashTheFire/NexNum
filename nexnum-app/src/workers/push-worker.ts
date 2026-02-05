@@ -41,7 +41,7 @@ export async function processPushBatch(batchSize = 20): Promise<ProcessResult> {
         return result
     }
 
-    logger.debug(`[PushWorker] Processing batch of ${jobs.length} jobs`)
+    logger.debug(`Processing batch of ${jobs.length} jobs`, { context: 'PUSH' })
 
     for (const job of jobs) {
         const { notificationId, userId, title, message, data } = job.data
@@ -57,7 +57,7 @@ export async function processPushBatch(batchSize = 20): Promise<ProcessResult> {
             const pushEnabled = prefs ? prefs.pushEnabled : true
 
             if (!pushEnabled) {
-                logger.debug('[PushWorker] Push suppressed by user preference', { userId, notificationId })
+                logger.debug('Push suppressed by user preference', { context: 'PUSH', userId, notificationId })
                 await queue.complete(QUEUES.NOTIFICATION_DELIVERY, job.id) // Done
                 continue
             }
@@ -110,7 +110,7 @@ export async function processPushBatch(batchSize = 20): Promise<ProcessResult> {
                         // Permanent failure - Cleanup
                         const subId = (res as any).subId
                         await prisma.pushSubscription.delete({ where: { id: subId } })
-                        logger.info('[PushWorker] Removed stale subscription', { subId })
+                        logger.info('Removed stale subscription', { context: 'PUSH', subId })
                     }
                 }
             }
@@ -120,7 +120,7 @@ export async function processPushBatch(batchSize = 20): Promise<ProcessResult> {
             result.succeeded++
         } catch (error: unknown) {
             const msg = error instanceof Error ? error.message : String(error)
-            logger.error(`[PushWorker] Job ${job.id} failed:`, { error: msg })
+            logger.error(`Job failed: ${job.id}`, { context: 'PUSH', error: msg })
             await queue.fail(QUEUES.NOTIFICATION_DELIVERY, job.id, new Error(msg))
             result.failed++
         }

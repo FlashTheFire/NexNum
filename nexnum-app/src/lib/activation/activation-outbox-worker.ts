@@ -61,7 +61,7 @@ export async function processActivationOutbox(batchSize = 10): Promise<ProcessRe
         return result
     }
 
-    logger.info(`[ActivationOutbox] Processing ${pendingEvents.length} events`)
+    logger.info(`Processing ${pendingEvents.length} events`, { context: 'OUTBOX' })
 
     for (const event of pendingEvents) {
         result.processed++
@@ -104,7 +104,7 @@ export async function processActivationOutbox(batchSize = 10): Promise<ProcessRe
             result.succeeded++
 
         } catch (err: any) {
-            logger.error(`[ActivationOutbox] Failed to process ${event.id}: ${err.message}`)
+            logger.error(`Failed to process ${event.id}`, { context: 'OUTBOX', error: err.message })
 
             // Calculate next retry with exponential backoff
             const currentRetries = event.retryCount + 1
@@ -119,7 +119,7 @@ export async function processActivationOutbox(batchSize = 10): Promise<ProcessRe
                         error: err.message
                     }
                 })
-                logger.error(`[ActivationOutbox] Event ${event.id} moved to FAILED (max retries)`)
+                logger.error(`Event ${event.id} moved to FAILED (max retries)`, { context: 'OUTBOX' })
             } else {
                 // Schedule retry
                 await prisma.outboxEvent.update({
@@ -135,7 +135,7 @@ export async function processActivationOutbox(batchSize = 10): Promise<ProcessRe
         }
     }
 
-    logger.info(`[ActivationOutbox] Complete: ${result.succeeded} ok, ${result.failed} failed, ${result.skipped} skipped`)
+    logger.info(`Complete: ${result.succeeded} ok, ${result.failed} failed`, { context: 'OUTBOX' })
     return result
 }
 
@@ -160,7 +160,7 @@ async function processEvent(event: any) {
             break
 
         default:
-            logger.warn(`[ActivationOutbox] Unknown event type: ${eventType}`)
+            logger.warn(`Unknown event type: ${eventType}`, { context: 'OUTBOX' })
     }
 }
 
@@ -168,12 +168,12 @@ async function processEvent(event: any) {
  * Handle saga.compensate.cancel_number
  */
 async function handleSagaCancel(providerActivationId: string, providerId: string) {
-    logger.info(`[ActivationOutbox:Saga] Compensating: Cancelling ${providerActivationId} at provider ${providerId}`)
+    logger.info(`Compensating: Cancelling ${providerActivationId} at provider ${providerId}`, { context: 'OUTBOX' })
     try {
         await smsProvider.setCancel(providerActivationId)
-        logger.success(`[ActivationOutbox:Saga] Successfully cancelled orphaned number: ${providerActivationId}`)
+        logger.success(`Successfully cancelled orphaned number: ${providerActivationId}`, { context: 'OUTBOX' })
     } catch (err: any) {
-        logger.error(`[ActivationOutbox:Saga] Failed to cancel orphaned number: ${err.message}`)
+        logger.error(`Failed to cancel orphaned number`, { context: 'OUTBOX', error: err.message })
         throw err // Retry
     }
 }
@@ -185,7 +185,7 @@ async function handleSagaCancel(providerActivationId: string, providerId: string
 async function handleProviderRequest(activationId: string, payload: any) {
     const { providerId, serviceName, countryCode, operatorId } = payload
 
-    logger.info(`[ActivationOutbox] Requesting number for activation ${activationId}`)
+    logger.info(`Requesting number for activation ${activationId}`, { context: 'OUTBOX' })
 
     // 0. Pre-check: Ensure it hasn't been cancelled/refunded while waiting in outbox
     const activationCheck = await prisma.activation.findUnique({
@@ -193,7 +193,7 @@ async function handleProviderRequest(activationId: string, payload: any) {
         select: { state: true }
     })
     if (!activationCheck || activationCheck.state !== 'RESERVED') {
-        logger.warn(`[ActivationOutbox] Skipping ${activationId}: State is ${activationCheck?.state || 'MISSING'}`)
+        logger.warn(`Skipping ${activationId}: State is ${activationCheck?.state || 'MISSING'}`, { context: 'OUTBOX' })
         return
     }
 
@@ -223,11 +223,11 @@ async function handleProviderRequest(activationId: string, payload: any) {
         if (err.message.includes('ACTIVATION_CONFLICT')) {
             // WE ALREADY BOUGHT THE NUMBER BUT DB REJECTED CAPTURE
             // MUST CANCEL AT PROVIDER TO AVOID LOSS
-            logger.error(`[ActivationOutbox] CRITICAL CONFLICT: Number bought but state changed. Canceling at provider: ${providerResult.activationId}`)
+            logger.error(`CRITICAL CONFLICT: Number bought but state changed. Canceling at provider: ${providerResult.activationId}`, { context: 'OUTBOX' })
             try {
                 await smsProvider.setCancel(providerResult.activationId)
             } catch (cancelErr: any) {
-                logger.error(`[ActivationOutbox] Failed to cancel orphaned number: ${cancelErr.message}`)
+                logger.error(`Failed to cancel orphaned number`, { context: 'OUTBOX', error: cancelErr.message })
             }
             return // Stop processing this event
         }
@@ -265,7 +265,7 @@ async function handleProviderRequest(activationId: string, payload: any) {
         })
     })
 
-    logger.info(`[ActivationOutbox] Activation ${activationId} -> ACTIVE`)
+    logger.info(`Activation ${activationId} -> ACTIVE`, { context: 'OUTBOX' })
 }
 
 /**

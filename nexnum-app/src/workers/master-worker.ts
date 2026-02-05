@@ -35,7 +35,7 @@ export async function runMasterWorker(): Promise<MasterWorkerResult> {
             results.outbox = await processActivationOutbox(20)
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : String(e)
-            logger.error('Outbox Critical Failure', { error: msg })
+            logger.error('Outbox Critical Failure', { context: 'MASTER', error: msg })
             errors.push(`Outbox: ${msg}`)
         }
 
@@ -43,7 +43,7 @@ export async function runMasterWorker(): Promise<MasterWorkerResult> {
             results.searchSync = await processOutboxEvents(20)
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : String(e)
-            logger.error('Search Sync Failure', { error: msg })
+            logger.error('Search Sync Failure', { context: 'MASTER', error: msg })
             errors.push(`SearchSync: ${msg}`)
         }
 
@@ -51,7 +51,7 @@ export async function runMasterWorker(): Promise<MasterWorkerResult> {
             results.inbox = await processInboxBatch(50)
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : String(e)
-            logger.error('Inbox Polling Failure', { error: msg })
+            logger.error('Inbox Polling Failure', { context: 'MASTER', error: msg })
             errors.push(`Inbox: ${msg}`)
         }
 
@@ -60,7 +60,7 @@ export async function runMasterWorker(): Promise<MasterWorkerResult> {
             results.notifications = await processPushBatch(50)
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : String(e)
-            logger.error('Push Delivery Failure', { error: msg })
+            logger.error('Push Delivery Failure', { context: 'MASTER', error: msg })
             errors.push(`Push: ${msg}`)
         }
 
@@ -74,7 +74,7 @@ export async function runMasterWorker(): Promise<MasterWorkerResult> {
 
     } catch (criticalError: unknown) {
         const msg = criticalError instanceof Error ? criticalError.message : String(criticalError)
-        logger.error('Worker Loop Critical Failure', { error: msg })
+        logger.error('Worker Loop Critical Failure', { context: 'MASTER', error: msg })
         errors.push(`Critical: ${msg}`)
     }
 

@@ -83,6 +83,9 @@ class Logger {
     // Splash Screen
     // ───────────────────────────────────────────────────────────────────────
     splash() {
+        const isPretty = this.isDev || process.env.LOG_PRETTY === 'true'
+        if (!isPretty) return
+
         if (Logger.hasSplashed) return
         Logger.hasSplashed = true
 
@@ -117,7 +120,9 @@ ${C.deepTeal}──────────────────────�
     // Core Log Method (Lift-and-Drop)
     // ───────────────────────────────────────────────────────────────────────
     private log(level: string, message: string, meta?: Record<string, any>) {
-        if (!this.isDev) {
+        const isPretty = this.isDev || process.env.LOG_PRETTY === 'true'
+
+        if (!isPretty) {
             const pinoLevel = level === 'success' ? 'info' : (level as LogLevel || 'info')
             pinoLogger[pinoLevel]({ requestId: getRequestId(), durationMs: getRequestDuration(), ...meta }, message)
             return
@@ -131,19 +136,39 @@ ${C.deepTeal}──────────────────────�
 
         if (level === 'error') { symbol = S.error; color = C.red }
         else if (level === 'warn') { symbol = S.warn; color = C.orange }
-        else if (level === 'success') { symbol = S.success; color = C.neonLime }
+        else if (level === 'success') { symbol = S.success; color = C.lightGreen }
 
-        const durationStr = meta?.durationMs !== undefined ? ` ${C.dim}${meta.durationMs}ms${C.reset}` : ""
-        const cleanMeta = meta ? (() => { const { durationMs, ...rest } = meta; return Object.keys(rest).length > 0 ? rest : undefined })() : undefined
-        const metaStr = cleanMeta ? ` ${C.dim}${JSON.stringify(cleanMeta)}${C.reset}` : ""
+        const timestamp = `${C.gray}[${this.ts()}]${C.reset}`
+        const levelTag = `${color}${C.bold}${level.toUpperCase().padEnd(7)}${C.reset}`
 
-        // Lift dashboard (erase line)
+        const durationStr = meta?.durationMs !== undefined ? ` ${C.cyan}• ${meta.durationMs}ms${C.reset}` : ""
+        const cleanMeta = meta ? (() => { const { durationMs, type, context, ...rest } = meta; return Object.keys(rest).length > 0 ? rest : undefined })() : undefined
+        const metaStr = cleanMeta ? ` ${C.gray}›${C.reset} ${C.dim}${JSON.stringify(cleanMeta)}${C.reset}` : ""
+        const contextStr = meta?.context ? `${C.deepTeal}[${meta.context}]${C.reset} ` : ""
+
+        // Industrial Format: [21:21:20] INFO    [SYNC] ◆ Finished processing...
+        const output = `${timestamp} ${levelTag} ${contextStr}${color}${symbol}${C.reset} ${C.frost}${message}${C.reset}${durationStr}${metaStr}`
+
         this.liftDashboard()
+        console.log(output)
+        this.dropDashboard()
+    }
 
-        // Print log
-        console.log(`${C.deepTeal}${this.ts()}${C.reset} ${color}${symbol}${C.reset} ${C.frost}${message}${C.reset}${durationStr}${metaStr}`)
+    /**
+     * Draw an industrial header box
+     */
+    box(title: string, color = C.neonLime) {
+        const isPretty = this.isDev || process.env.LOG_PRETTY === 'true'
+        if (!isPretty) {
+            this.info(`--- ${title.toUpperCase()} ---`)
+            return
+        }
 
-        // Drop dashboard (reprint line)
+        this.liftDashboard()
+        const line = '═'.repeat(process.stdout.columns || 60).substring(0, 60)
+        console.log(`\n${C.deepTeal}${line}${C.reset}`)
+        console.log(`${color}${C.bold}  ${S.box} ${title.toUpperCase()}${C.reset}`)
+        console.log(`${C.deepTeal}${line}${C.reset}\n`)
         this.dropDashboard()
     }
 
@@ -151,42 +176,33 @@ ${C.deepTeal}──────────────────────�
     // Dashboard Rendering Logic
     // ───────────────────────────────────────────────────────────────────────
     private generateDashboardLine(reports: string[]): string {
-        const timestampLine = reports[0] || ''
-        const timeMatch = timestampLine.match(/\[(.*?)\]/)
-        const successMatch = timestampLine.includes('SUCCESS')
-        const durationMatch = timestampLine.match(/in \x1b\[34m(\d+ms)\x1b\[0m/)
+        const top = reports[0] || ''
+        const B = C.deepTeal
+        const R = C.reset
 
-        const time = timeMatch ? timeMatch[1] : new Date().toLocaleTimeString()
-        const status = successMatch ? `${C.green}SUCCESS${C.reset}` : `${C.red}ERROR${C.reset}`
-        const duration = durationMatch ? `${C.bold}${C.blue}${durationMatch[1]}${C.reset}` : ''
+        // Extract basic data for the status line
+        const isError = top.includes('ERROR') || top.includes('🚫') || top.includes('✖')
+        const duration = top.match(/(\d+ms)/)?.[1] || '0ms'
 
-        const getCount = (line: string) => {
-            if (!line) return '0'
-            const match = line.match(/:.*?\x1b\[0m\s*(\d+)/)
-            if (!match) return '0'
-            return match[1]
+        // Symbols and Icons
+        const mainIcon = isError ? S.error : S.bolt
+        const statusText = isError ? 'FAILURE' : 'ACTIVE'
+        const statusColor = isError ? C.red : C.neonLime
+
+        // Statistics extraction (📦, 📤, 🔔, 🧹)
+        const getVal = (idx: number) => {
+            const line = reports[idx] || ''
+            return line.split(':').pop()?.trim() || '0'
         }
 
-        const inbox = getCount(reports[2])
-        const outbox = getCount(reports[3])
-        const push = getCount(reports[4])
-        const cleanup = getCount(reports[5])
+        const inbox = getVal(2)
+        const outbox = getVal(3)
+        const push = getVal(4)
+        const cleanup = getVal(5)
 
-        const B = C.darkGray
-        const R = C.reset // Restored missing alias
+        // Industrial Dashboard Layout
+        const line = `${C.gray}[${this.ts()}]${R} ${statusColor}${mainIcon}${R}  ${statusColor}${C.bold}${statusText.padEnd(8)}${R} ${C.gray}›${R} ${C.white}Master Engine${R} ${C.gray}•${R} ${C.cyan}${duration}${R} ${C.gray}›${R} 📦 ${C.frost}${inbox}${R} ${C.gray}›${R} 📤 ${C.frost}${outbox}${R} ${C.gray}›${R} 🔔 ${C.frost}${push}${R} ${C.gray}›${R} 🧹 ${C.frost}${cleanup}${R}`
 
-        // Format: [Time] ⚡  MASTER    Cycle Completed › 100ms › 📦 0 › 📤 0 ...
-        const icon = successMatch ? S.bolt : S.error // Use bolt like 'API REQ'
-        const statusColor = successMatch ? C.green : C.red
-        // Pad to ensure alignment with "API REQ " (8 chars)
-        const tag = `${statusColor}${successMatch ? "SUCCESS " : "ERROR   "}${R}`
-
-        // Match Mock API: [18:50:27] ⚡  API REQ   getStatus › GET › 0ms
-        // Dashboard:      [21:21:20] ⚡  SUCCESS   Master Worker › 707ms › 📦 0 › 📤 0 ...
-
-        const line = `${C.gray}[${time}]${R} ${C.blue}${icon}${R}  ${C.bold}${tag}${R}   ${C.white}Master Worker${R} ${C.gray}›${R} ${duration} ${C.gray}›${R} 📦 ${inbox} ${C.gray}›${R} 📤 ${outbox} ${C.gray}›${R} 🔔 ${push} ${C.gray}›${R} 🧹 ${cleanup}`
-
-        //const sep = `${C.darkGray}────────────────────────────────────────────────────────────${C.reset}`
         return `\n\n${line}`
     }
 
@@ -289,12 +305,13 @@ ${C.deepTeal}──────────────────────�
     }
 
     request(label: string, method: string, path: string, meta?: Record<string, any>) {
-        this.log('info', `📡 [${label}] ${method} ${path}`, { type: 'upstream_request', ...meta })
+        this.log('info', `${C.bold}${method}${C.reset} ${path}`, { context: label, type: 'upstream_request', ...meta })
     }
 
     response(label: string, method: string, path: string, status: number, meta?: Record<string, any>) {
-        const level = status >= 400 ? 'warn' : 'info'
-        this.log(level, `📥 [${label}] ${status} ${method} ${path}`, { type: 'upstream_response', status, ...meta })
+        const level = status >= 400 ? 'error' : (status >= 300 ? 'warn' : 'success')
+        const statusColor = status >= 400 ? C.red : (status >= 300 ? C.yellow : C.lightGreen)
+        this.log(level, `${statusColor}${C.bold}${status}${C.reset} ${C.bold}${method}${C.reset} ${path}`, { context: label, type: 'upstream_response', status, ...meta })
     }
 }
 

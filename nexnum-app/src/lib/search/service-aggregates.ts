@@ -20,7 +20,7 @@ interface ServiceAggregateData {
  */
 export async function refreshAllServiceAggregates() {
     const startTime = Date.now();
-    logger.info('[AGGREGATES] Starting batch refresh from MeiliSearch...');
+    logger.box('MeiliSearch Aggregate Refresh');
 
     try {
         // 0. MeiliSearch Consistency Drain (Race Condition Prevention)
@@ -32,7 +32,7 @@ export async function refreshAllServiceAggregates() {
             const taskIds = tasks.results.map((t: any) => t.taskUid);
             const { waitForTasks } = await import('./search');
             await waitForTasks(taskIds);
-            logger.debug(`[AGGREGATES] Drained ${taskIds.length} pending MeiliSearch tasks.`);
+            logger.debug(`Drained ${taskIds.length} pending MeiliSearch tasks.`, { context: 'AGGREGATES' });
         }
 
         const index = meili.index(INDEXES.OFFERS)
@@ -96,18 +96,18 @@ export async function refreshAllServiceAggregates() {
             const activeProviderCount = await prisma.provider.count({ where: { isActive: true } });
 
             if (activeProviderCount > 0) {
-                logger.warn('[AGGREGATES] MeiliSearch returned 0 documents, but active providers were found. Skipping cleanup to prevent blank homepage (Sync Race Condition Protection).');
+                logger.warn('MeiliSearch returned 0 documents, but active providers were found. Skipping cleanup (Sync Race Condition Protection).', { context: 'AGGREGATES' });
                 return 0;
             }
 
-            logger.warn('[AGGREGATES] No documents found in MeiliSearch and no active providers. Clearing aggregates.');
+            logger.warn('No documents found in MeiliSearch and no active providers. Clearing aggregates.', { context: 'AGGREGATES' });
             await prisma.serviceAggregate.deleteMany({})
             return 0
         }
 
         // 2. High-Speed Persistence (Optimized Batch Upserts)
         const finalStats = Array.from(aggregates.values());
-        logger.info(`[AGGREGATES] Computed ${finalStats.length} aggregates. Syncing to DB...`);
+        logger.info(`Computed ${finalStats.length} aggregates. Syncing to DB...`, { context: 'AGGREGATES' });
 
         // Senior-Level Optimization: Use larger batches and explicit transaction management
         // We increase the timeout to 30 seconds for production safety.
@@ -165,13 +165,12 @@ export async function refreshAllServiceAggregates() {
         // 4. Invalidate Redis Cache
         await cacheSet(CACHE_KEYS.SERVICE_LIST_DEFAULT, null);
 
-        const duration = (Date.now() - startTime) / 1000;
-        logger.info(`[AGGREGATES] Refresh complete in ${duration}s. Synchronized ${finalStats.length} records.`);
-
-        return finalStats.length
+        const duration = Date.now() - startTime;
+        logger.success(`Batch refresh complete. ${finalStats.length} services updated in ${duration}ms`, { context: 'AGGREGATES', durationMs: duration });
+        return finalStats.length;
 
     } catch (error) {
-        logger.error('[AGGREGATES] Refresh failed critical:', { error })
+        logger.error('Refresh failed critical', { context: 'AGGREGATES', error })
         return 0
     }
 }

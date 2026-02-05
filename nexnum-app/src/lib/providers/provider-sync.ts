@@ -1051,10 +1051,9 @@ export function startWorkerSync(providerName: string, options?: SyncOptions): Pr
 }
 
 export async function syncAllProviders(): Promise<SyncResult[]> {
-    logger.info('Starting full provider sync', {
-        context: 'SYNC',
-        timestamp: new Date().toISOString()
-    })
+    logger.box('System Data Sync');
+
+    const startTime = Date.now();
 
     // Refresh exchange rates first to ensure accurate margins
     try {
@@ -1133,7 +1132,8 @@ export async function syncAllProviders(): Promise<SyncResult[]> {
         })
     }
 
-    logger.info('Full provider sync completed', { context: 'SYNC' })
+    const totalDuration = Date.now() - startTime;
+    logger.success('Full provider sync completed', { context: 'SYNC', durationMs: totalDuration })
     return results
 }
 
