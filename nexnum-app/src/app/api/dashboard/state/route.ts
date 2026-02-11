@@ -28,8 +28,8 @@ interface DashboardState {
     transactions: any[]
     unreadNotificationCount: number
     usageSummary: number[]
-    totalSpent: number
-    totalDeposited: number
+    totalSpent: MultiCurrencyPrice
+    totalDeposited: MultiCurrencyPrice
 }
 
 /**
@@ -46,8 +46,8 @@ function generateETag(data: DashboardState): string {
         // Include first transaction ID to detect new transactions
         firstTxId: data.transactions[0]?.id,
         unreadNotificationCount: data.unreadNotificationCount,
-        totalSpent: data.totalSpent,
-        totalDeposited: data.totalDeposited,
+        totalSpent: data.totalSpent.points,
+        totalDeposited: data.totalDeposited.points,
     })
     return createHash('md5').update(hashInput).digest('hex').slice(0, 16)
 }
@@ -218,9 +218,11 @@ async function fetchDashboardState(userId: string): Promise<DashboardState> {
         })
     ])
 
-    // Convert balance to all currencies (ZERO CLIENT-SIDE CALCULATION)
+    // Convert balance, spent, and deposited to all currencies (ZERO CLIENT-SIDE CALCULATION)
     const currencyService = getCurrencyService()
     const balance = await currencyService.pointsToAllFiat(balancePoints)
+    const totalSpent = await currencyService.pointsToAllFiat(Math.abs(Number(spentAgg._sum.amount || 0)))
+    const totalDeposited = await currencyService.pointsToAllFiat(Math.abs(Number(depositAgg._sum.amount || 0)))
 
     return {
         balance,
@@ -229,8 +231,8 @@ async function fetchDashboardState(userId: string): Promise<DashboardState> {
         transactions,
         unreadNotificationCount: unreadCount,
         usageSummary,
-        totalSpent: Math.abs(Number(spentAgg._sum.amount || 0)),
-        totalDeposited: Math.abs(Number(depositAgg._sum.amount || 0))
+        totalSpent,
+        totalDeposited
     }
 }
 

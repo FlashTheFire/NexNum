@@ -30,7 +30,7 @@ import { PriceDisplay, BalanceDisplay } from "@/components/common/PriceDisplay"
 
 export function MobileDashboard() {
     const { user } = useAuthStore()
-    const { userProfile, activeNumbers, transactions } = useGlobalStore()
+    const { userProfile, activeNumbers, transactions, totalSpent, totalDeposited } = useGlobalStore()
     const [scrolled, setScrolled] = useState(false)
     const [activeCardIndex, setActiveCardIndex] = useState(0)
     const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -51,9 +51,6 @@ export function MobileDashboard() {
     // Carousel Logic
     const [activeMetric, setActiveMetric] = useState(0)
 
-    const totalSpent = transactions.filter(t => ['purchase', 'manual_debit'].includes(t.type)).reduce((sum, t) => sum + Math.abs(t.amount), 0)
-    const totalDeposit = transactions.filter(t => ['topup', 'manual_credit', 'referral_bonus'].includes(t.type)).reduce((sum, t) => sum + t.amount, 0)
-
     const metrics = [
         {
             label: t('stats.balance'),
@@ -69,7 +66,11 @@ export function MobileDashboard() {
         },
         {
             label: t('stats.spent'),
-            value: formatPriceContext(totalSpent),
+            value: <BalanceDisplay
+                balanceInPoints={typeof totalSpent === 'number' ? totalSpent : totalSpent.points}
+                multiBalance={typeof totalSpent === 'object' ? totalSpent : undefined}
+                className="font-bold"
+            />,
             icon: ShoppingCart,
             color: "text-purple-400",
             hexColor: "#a78bfa", // purple-400
@@ -77,7 +78,11 @@ export function MobileDashboard() {
         },
         {
             label: t('stats.deposited'),
-            value: formatPriceContext(totalDeposit),
+            value: <BalanceDisplay
+                balanceInPoints={typeof totalDeposited === 'number' ? totalDeposited : totalDeposited.points}
+                multiBalance={typeof totalDeposited === 'object' ? totalDeposited : undefined}
+                className="font-bold"
+            />,
             icon: ArrowUpRight,
             color: "text-emerald-400",
             hexColor: "#34d399", // emerald-400
@@ -120,6 +125,8 @@ export function MobileDashboard() {
                             {user?.name?.split(' ')[0] || "Trader"}
                         </motion.h1>
                     </div>
+
+
                 </header>
 
                 {/* 2. Hero Card (3.5D CSS Effect) */}
@@ -184,16 +191,7 @@ export function MobileDashboard() {
                                                 transition={{ duration: 0.3 }}
                                                 className="text-4xl font-bold text-white tracking-tighter drop-shadow-lg"
                                             >
-                                                {typeof metrics[activeMetric].value === 'string' ? (
-                                                    <>
-                                                        {metrics[activeMetric].value.split('.')[0]}
-                                                        {metrics[activeMetric].value.split('.')[1] && (
-                                                            <span className="text-xl text-gray-500 font-medium">.{metrics[activeMetric].value.split('.')[1]}</span>
-                                                        )}
-                                                    </>
-                                                ) : (
-                                                    metrics[activeMetric].value
-                                                )}
+                                                {metrics[activeMetric].value}
                                             </motion.h2>
                                         </AnimatePresence>
                                     </div>
@@ -550,7 +548,7 @@ export function MobileDashboard() {
                         )}
                     </div>
                 </motion.div>
-            </div>
-        </div>
+            </div >
+        </div >
     )
 }

@@ -11,6 +11,7 @@ export interface Service {
     code: string     // Primary Identifier (Universal)
     name: string
     iconUrl?: string | null
+    currencyPrices?: Record<string, number> // Pre-calculated prices for zero-math frontend
     [key: string]: any // Support the preservation of any mapped fields
 }
 

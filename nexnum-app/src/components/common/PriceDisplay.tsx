@@ -10,20 +10,14 @@ import { cn } from '@/lib/utils/utils'
 // ============================================
 
 interface PriceDisplayProps {
-    /** Price in Points (100 Points = 1 USD) */
-    amountInPoints: number
-
-    /** Pre-computed prices in all currencies from MeiliSearch (preferred) */
-    currencyPrices?: Record<string, number>
+    /** 
+     * Pre-computed prices in all currencies. 
+     * REQUIRED for Zero-Math Engine. 
+     */
+    currencyPrices: Record<string, number>
 
     /** CSS class for styling */
     className?: string
-
-    /** Show currency code (e.g. "USD") after the amount */
-    showCode?: boolean
-
-    /** Decimal precision (default: 2) */
-    precision?: number
 
     /** Skeleton placeholder class */
     skeletonClassName?: string
@@ -37,34 +31,19 @@ interface PriceDisplayProps {
 // ============================================
 
 /**
- * PriceDisplay - Universal price display component with multi-currency support
- * 
- * Priority order:
- * 1. Use pre-computed `currencyPrices[userCurrency]` (instant, no conversion)
- * 2. Fallback to real-time conversion from `amountInPoints`
+ * PriceDisplay - Strict Zero-Math price display.
  * 
  * @example
- * // From MeiliSearch offer (with pre-computed prices)
- * <PriceDisplay 
- *     amountInPoints={offer.pointPrice} 
- *     currencyPrices={offer.currencyPrices} 
- * />
- * 
- * // From Points-only value (balance, transaction)
- * <PriceDisplay amountInPoints={balance} />
+ * <PriceDisplay currencyPrices={offer.currencyPrices} />
  */
 export const PriceDisplay: React.FC<PriceDisplayProps> = ({
-    amountInPoints,
     currencyPrices,
     className,
-    showCode,
-    precision = 2,
     skeletonClassName,
     compact
 }) => {
-    const { formatFromPrices, formatPrice, isLoading } = useCurrency()
+    const { formatFromPrices, isLoading } = useCurrency()
 
-    // Loading state
     if (isLoading) {
         return (
             <span
@@ -77,20 +56,9 @@ export const PriceDisplay: React.FC<PriceDisplayProps> = ({
         )
     }
 
-    // Format price using pre-computed prices or fallback to conversion
-    let formatted: string
-
-    if (currencyPrices) {
-        // Use pre-computed price (preferred - no conversion overhead)
-        formatted = formatFromPrices(currencyPrices, amountInPoints)
-    } else {
-        // Fallback to real-time conversion
-        formatted = formatPrice(amountInPoints, { showCode, precision })
-    }
-
     return (
         <span className={cn("font-medium tabular-nums", className)}>
-            {formatted}
+            {formatFromPrices(currencyPrices)}
         </span>
     )
 }
@@ -101,12 +69,8 @@ export const PriceDisplay: React.FC<PriceDisplayProps> = ({
 
 /**
  * BalanceDisplay - Display user balance with zero client-side calculation
- * 
- * @param balanceInPoints - Balance in Points (legacy, for backward compatibility)
- * @param multiBalance - Pre-computed multi-currency balance (preferred, zero-calc)
  */
 export const BalanceDisplay: React.FC<{
-    balanceInPoints: number
     multiBalance?: {
         points: number
         USD: number
@@ -118,21 +82,16 @@ export const BalanceDisplay: React.FC<{
     }
     className?: string
     showPointsSecondary?: boolean
-}> = ({ balanceInPoints, multiBalance, className }) => {
-    const { formatBalance, formatFromBalance, isLoading } = useCurrency()
+}> = ({ multiBalance, className }) => {
+    const { formatFromBalance, isLoading } = useCurrency()
 
     if (isLoading) {
         return <span className="animate-pulse bg-white/10 rounded-md h-6 w-20 inline-block" />
     }
 
-    // Zero client-side calculation: use pre-computed values if available
-    const formattedBalance = multiBalance
-        ? formatFromBalance(multiBalance)
-        : formatBalance(balanceInPoints)
-
     return (
         <span className={cn("font-bold tabular-nums", className)}>
-            {formattedBalance}
+            {formatFromBalance(multiBalance || { points: 0, USD: 0 })}
         </span>
     )
 }

@@ -16,6 +16,43 @@ import { prisma } from "@/lib/core/db";
  * - limit: Items per page (default: 20)
  * - sort: Sort option (price | stock)
  */
+
+import { redis } from "@/lib/core/redis"
+
+async function getPricingData() {
+    const cacheKey = 'cache:pricing:data'
+    try {
+        const cached = await redis.get(cacheKey)
+        if (cached) return JSON.parse(cached)
+    } catch (e) { }
+
+    const [currencies, settings] = await Promise.all([
+        prisma.currency.findMany({ where: { isActive: true }, select: { code: true, rate: true } }),
+        prisma.systemSettings.findUnique({ where: { id: 'default' }, select: { pointsRate: true } })
+    ])
+
+    const rates: Record<string, number> = {}
+    currencies.forEach(c => {
+        rates[c.code] = Number(c.rate)
+    })
+
+    const data = {
+        rates,
+        pointsRate: Number(settings?.pointsRate || 0.1)
+    }
+
+    redis.set(cacheKey, JSON.stringify(data), 'EX', 300).catch(() => { })
+    return data
+}
+
+function calculatePrices(pointPrice: number, data: { rates: Record<string, number>, pointsRate: number }) {
+    const prices: Record<string, number> = {}
+    const baseValue = pointPrice * data.pointsRate
+    for (const [code, rate] of Object.entries(data.rates)) {
+        prices[code] = baseValue * rate
+    }
+    return prices
+}
 export async function GET(req: Request) {
     try {
         const { searchParams } = new URL(req.url);
@@ -56,7 +93,12 @@ export async function GET(req: Request) {
 
         // Default to 80 (Neutral/Good) if no ecosystem data exists yet.
         // This avoids the "Cold Start" problem where everyone looks bad initially.
+        // Default to 80 (Neutral/Good) if no ecosystem data exists yet.
+        // This avoids the "Cold Start" problem where everyone looks bad initially.
         const dynamicBaseline = ratedCount > 0 ? (totalRate / ratedCount) : 80.0;
+
+        // Fetch pricing data for currency calculation
+        const pricingData = await getPricingData();
 
         // Map to API response format with reliability info
         const items = result.providers.map((p, index) => {
@@ -84,7 +126,7 @@ export async function GET(req: Request) {
                 countryCode: p.providerCountryCode,
                 flagUrl: p.countryIcon,
                 price: p.pointPrice,
-                currencyPrices: p.currencyPrices,
+                currencyPrices: calculatePrices(p.pointPrice, pricingData),
                 stock: p.stock,
                 successRate: successRate,
                 operatorId: p.operator,
@@ -109,6 +151,7 @@ export async function GET(req: Request) {
             providers: items.map(i => ({
                 name: i.displayName,
                 price: i.price,
+                currencyPrices: i.currencyPrices,
                 stock: i.stock,
                 rank: i.rank,
                 reliability: i.reliability,
@@ -122,7 +165,8 @@ export async function GET(req: Request) {
                 provider: items[0].displayName,
                 price: items[0].price,
                 stock: items[0].stock,
-                reliability: items[0].reliability
+                reliability: items[0].reliability,
+                currencyPrices: items[0].currencyPrices
             } : null
         } : null;
 

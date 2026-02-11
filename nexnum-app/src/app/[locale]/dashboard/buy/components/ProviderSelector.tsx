@@ -55,6 +55,7 @@ export interface Provider {
     flagUrl?: string;
     iconUrl?: string;
     price: number;
+    currencyPrices?: Record<string, number>;
     stock: number;
     successRate?: number;
     operatorId: number;
@@ -116,6 +117,7 @@ export default function ProviderSelector({
         providers: Array<{
             name: string;
             price: number;
+            currencyPrices?: Record<string, number>;
             stock: number;
             rank: number;
             reliability: 'High' | 'Medium' | 'Standard';
@@ -126,6 +128,7 @@ export default function ProviderSelector({
         bestRoute: {
             provider: string;
             price: number;
+            currencyPrices?: Record<string, number>;
             stock: number;
             reliability: 'High' | 'Medium' | 'Standard';
         } | null;
@@ -391,7 +394,7 @@ export default function ProviderSelector({
                                         <span className="text-[9px] text-gray-500 uppercase tracking-wider">Price</span>
                                         <div className="flex items-baseline gap-0.5">
                                             <span className="text-base font-bold text-white">
-                                                <PriceDisplay amountInPoints={provider.price} />
+                                                <PriceDisplay currencyPrices={provider.currencyPrices || {}} />
                                             </span>
                                             <span className="text-[9px] text-gray-500">/num</span>
                                         </div>
@@ -491,7 +494,7 @@ export default function ProviderSelector({
                             <div className="text-[hsl(var(--neon-lime))] text-sm hidden sm:block">
                                 <span className="text-xs text-gray-500">from </span>
                                 <span className="font-bold">
-                                    <PriceDisplay amountInPoints={smartRoute.priceRange.min} />
+                                    <PriceDisplay currencyPrices={smartRoute.bestRoute?.currencyPrices || {}} />
                                 </span>
                             </div>
 
@@ -544,6 +547,7 @@ export default function ProviderSelector({
                                                 reliability: matched.reliability,
                                                 successRate: matched.successRate,
                                                 isBestRoute: true,
+                                                currencyPrices: matched.currencyPrices,
                                                 maxPrice: maxPrice
                                             };
                                             onBuy({ ...constructedProvider, displayName: 'Best Route' });

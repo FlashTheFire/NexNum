@@ -80,8 +80,7 @@ export const OfferCard = ({ offer, onBuy, disabled }: OfferCardProps) => {
             <div className="z-10 text-right">
                 <div className="font-bold text-xl text-[hsl(var(--neon-lime))]">
                     <PriceDisplay
-                        amountInPoints={offer.pointPrice}
-                        currencyPrices={offer.currencyPrices}
+                        currencyPrices={offer.currencyPrices || {}}
                     />
                 </div>
                 <div className="text-[10px] text-gray-500 group-hover:text-white transition-colors flex items-center justify-end gap-1 mt-1">

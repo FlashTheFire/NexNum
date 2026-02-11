@@ -72,8 +72,8 @@ interface GlobalState {
     transactions: Transaction[]
     smsMessages: SmsMessage[]
     usageSummary: number[]
-    totalSpent: number
-    totalDeposited: number
+    totalSpent: number | MultiCurrencyBalance
+    totalDeposited: number | MultiCurrencyBalance
 
     // Loading states
     isLoadingBalance: boolean

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { Zap, Menu, X, ChevronDown, LogOut } from "lucide-react";
+import { Zap, Menu, X, ChevronDown, LogOut, Bell } from "lucide-react";
 import LanguageSwitcher from "@/components/common/LanguageSwitcher";
 import CurrencySelector from "@/components/common/CurrencySelector";
 import { useState, useEffect } from "react";
@@ -101,8 +101,9 @@ export default function Navbar({ hideLogin = false, hideRegister = false }: Navb
 
                         {/* Desktop Actions */}
                         <div className="hidden lg:flex items-center gap-3">
-                            <div className="flex items-center gap-1.5 mr-1">
+                            <div className="flex items-center gap-2 mr-1">
                                 <LanguageSwitcher />
+                                <CurrencySelector />
                             </div>
                             {isAuthenticated ? (
                                 <>
@@ -151,9 +152,20 @@ export default function Navbar({ hideLogin = false, hideRegister = false }: Navb
                             )}
                         </div>
 
-                        {/* Mobile Actions (Switcher + Menu) */}
-                        <div className="lg:hidden flex items-center gap-2">
-                            <LanguageSwitcher />
+                        {/* Mobile Actions (Menu) */}
+                        <div className="flex items-center gap-1.5 lg:hidden relative">
+                            {/* Notification Bell */}
+                            <div className="relative z-50">
+                                <button className="relative inline-flex items-center justify-center h-10 w-10 rounded-full transition-all duration-300 bg-white/[0.05] hover:bg-white/[0.1] text-white">
+                                    <Bell className="h-5 w-5 transition-transform" />
+                                </button>
+                            </div>
+
+                            <div className="mr-1 flex items-center gap-2">
+                                <CurrencySelector compact />
+                                <LanguageSwitcher />
+                            </div>
+
                             <button
                                 className="p-2.5 text-gray-400 hover:text-white rounded-xl hover:bg-white/[0.06] transition-all"
                                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}

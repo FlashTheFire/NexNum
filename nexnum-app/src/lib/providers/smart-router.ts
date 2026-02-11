@@ -22,6 +22,7 @@ export interface ProviderQuote {
     estimatedTime: number
     stock: number
     realPrice: number
+    currencyPrices?: Record<string, number>
 }
 
 export class SmartSmsRouter implements SmsProvider {
@@ -212,6 +213,7 @@ export class SmartSmsRouter implements SmsProvider {
         }
 
         const providers = await this.getHealthyProviders()
+        const pricingData = await this.getPricingData()
 
         // Use local Meilisearch data instead of live API calls
         // This is FAST and uses our pre-indexed stock/price data
@@ -243,6 +245,8 @@ export class SmartSmsRouter implements SmsProvider {
             const health = await healthMonitor.getHealth(p.config.id, country)
             const data = providerData.get(p.name)
 
+            const realPrice = data?.price || 0
+
             return {
                 id: p.name,
                 displayName: p.config.displayName,
@@ -253,7 +257,8 @@ export class SmartSmsRouter implements SmsProvider {
                 estimatedTime: health.avgLatency || 500,
                 // Return the real fetched data if available
                 stock: data?.stock || 0,
-                realPrice: data?.price || 0
+                realPrice: realPrice,
+                currencyPrices: this.calculateCurrencyPrices(realPrice, pricingData)
             }
         }))
 
@@ -268,6 +273,52 @@ export class SmartSmsRouter implements SmsProvider {
         }
 
         return filteredResult
+    }
+
+    /**
+     * Helper: Fetch currency rates and settings for price calculation
+     */
+    private async getPricingData(): Promise<{ rates: Record<string, number>, pointsRate: number }> {
+        const cacheKey = 'cache:pricing:data'
+        try {
+            const cached = await redis.get(cacheKey)
+            if (cached) return JSON.parse(cached)
+        } catch (e) { }
+
+        const [currencies, settings] = await Promise.all([
+            prisma.currency.findMany({ where: { isActive: true }, select: { code: true, rate: true } }),
+            prisma.systemSettings.findUnique({ where: { id: 'default' }, select: { pointsRate: true } })
+        ])
+
+        const rates: Record<string, number> = {}
+        currencies.forEach(c => {
+            rates[c.code] = Number(c.rate)
+        })
+
+        const data = {
+            rates,
+            pointsRate: Number(settings?.pointsRate || 0.1) // Default to 0.1 if missing
+        }
+
+        // Cache for 5 mins
+        redis.set(cacheKey, JSON.stringify(data), 'EX', 300).catch(() => { })
+
+        return data
+    }
+
+    /**
+     * Helper: Calculate prices for all currencies
+     */
+    private calculateCurrencyPrices(pointPrice: number, data: { rates: Record<string, number>, pointsRate: number }): Record<string, number> {
+        const prices: Record<string, number> = {}
+        // Base value in system currency (usually USD)
+        const baseValue = pointPrice * data.pointsRate
+
+        for (const [code, rate] of Object.entries(data.rates)) {
+            // Price = BaseValue * ExchangeRate
+            prices[code] = baseValue * rate
+        }
+        return prices
     }
 
     // --- Core Methods (API Standardization v2.0) ---
@@ -336,7 +387,13 @@ export class SmartSmsRouter implements SmsProvider {
             throw new Error("All active providers failed to fetch services")
         }
 
-        return allServices
+        // Calc currency prices for all services
+        const pricingData = await this.getPricingData()
+
+        return allServices.map(service => ({
+            ...service,
+            currencyPrices: this.calculateCurrencyPrices(service.price, pricingData)
+        }))
     }
 
     async getNumber(countryCode: string | number, serviceCode: string | number, options?: {

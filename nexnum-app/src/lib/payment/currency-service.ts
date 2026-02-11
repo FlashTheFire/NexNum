@@ -109,11 +109,12 @@ export class CurrencyService {
         } catch (error) {
             logger.error('[CurrencyService] Failed to refresh config', { error })
             // Return safe defaults
-            return {
+            this.config = {
                 pointsRate: 100,
                 inrToUsdRate: 83,
                 syncBufferPercent: 2
             }
+            return this.config
         }
     }
 
@@ -162,7 +163,7 @@ export class CurrencyService {
         } catch (error) {
             logger.error('[CurrencyService] Failed to refresh rates', { error })
             // Return safe defaults
-            return {
+            this.rates = {
                 USD: 1,
                 INR: 83,
                 RUB: 92,
@@ -171,6 +172,7 @@ export class CurrencyService {
                 CNY: 7.25,
                 updatedAt: new Date()
             }
+            return this.rates
         }
     }
 
@@ -179,7 +181,7 @@ export class CurrencyService {
      */
     async getConfig(): Promise<ConversionConfig> {
         if (!this.config) {
-            await this.refreshConfig()
+            this.config = await this.refreshConfig()
         }
         return this.config!
     }
@@ -189,7 +191,7 @@ export class CurrencyService {
      */
     async getRates(): Promise<ExchangeRates> {
         if (!this.rates) {
-            await this.refreshRates()
+            this.rates = await this.refreshRates()
         }
         return this.rates!
     }
