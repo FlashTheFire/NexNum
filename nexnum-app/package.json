@@ -12,6 +12,7 @@
     "build:skip-types": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "analyze": "set ANALYZE=true && next build",
     "infra:up": "docker compose up -d redis meilisearch",

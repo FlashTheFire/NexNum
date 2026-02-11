@@ -18,13 +18,16 @@ import { prisma } from "@/lib/core/db";
  */
 
 import { redis } from "@/lib/core/redis"
+import { logger } from "@/lib/core/logger"
 
 async function getPricingData() {
     const cacheKey = 'cache:pricing:data'
     try {
         const cached = await redis.get(cacheKey)
         if (cached) return JSON.parse(cached)
-    } catch (e) { }
+    } catch (e) {
+        logger.warn('[Search/providers] Pricing cache read failed', { error: e })
+    }
 
     const [currencies, settings] = await Promise.all([
         prisma.currency.findMany({ where: { isActive: true }, select: { code: true, rate: true } }),
@@ -41,7 +44,7 @@ async function getPricingData() {
         pointsRate: Number(settings?.pointsRate || 0.1)
     }
 
-    redis.set(cacheKey, JSON.stringify(data), 'EX', 300).catch(() => { })
+    redis.set(cacheKey, JSON.stringify(data), 'EX', 300).catch(err => logger.warn('[Search/providers] Pricing cache write failed', { error: err }))
     return data
 }
 

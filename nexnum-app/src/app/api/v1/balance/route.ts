@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
 
     try {
         const start = Date.now()
-        const { balance, currency, fromCache } = await getCachedBalance(auth.context!.userId)
+        const { balance, currency, displayAmount, displayCurrency, fromCache } = await getCachedBalance(auth.context!.userId)
         const duration = Date.now() - start
 
         // Track metrics
@@ -19,6 +19,8 @@ export async function GET(request: NextRequest) {
         return apiSuccess({
             balance,
             currency,
+            displayAmount,
+            displayCurrency,
             _meta: {
                 cached: fromCache,
                 latencyMs: duration

@@ -136,7 +136,7 @@ export class ActivationKernel {
         const eventTag = `activation_${state.toLowerCase()}`
 
         // 1. Socket.io Real-time
-        emitStateUpdate(userId, category as any, eventTag as any).catch(() => { })
+        emitStateUpdate(userId, category as any, eventTag as any).catch(err => logger.warn('[ActivationKernel] emitStateUpdate failed', { userId, category, error: err }))
 
         // 2. Enterprise Event Dispatcher
         if (state === 'ACTIVE') {

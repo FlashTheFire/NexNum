@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/core/db'
 import { WalletService } from '@/lib/wallet/wallet'
+import { getCurrencyService, toSupportedCurrency } from '@/lib/payment/currency-service'
 import { apiHandler } from '@/lib/api/api-handler'
 import { ResponseFactory } from '@/lib/api/response-factory'
 import { z } from 'zod'
@@ -19,8 +20,10 @@ export const GET = apiHandler(async (request, { user }) => {
         return ResponseFactory.error('User not found', 404)
     }
 
-    // Get wallet balance (via Service)
-    const balance = await WalletService.getBalance(dbUser.id)
+    // Get wallet balance in Points (internal unit)
+    const balancePoints = await WalletService.getBalance(dbUser.id)
+    const preferredCurrency = toSupportedCurrency(dbUser.preferredCurrency)
+    const displayAmount = await getCurrencyService().pointsToFiat(balancePoints, preferredCurrency)
 
     return ResponseFactory.success({
         user: {
@@ -34,7 +37,10 @@ export const GET = apiHandler(async (request, { user }) => {
         },
         wallet: {
             id: dbUser.wallet?.id,
-            balance,
+            balance: balancePoints,
+            currency: 'POINTS' as const,
+            displayAmount: Math.round(displayAmount * 100) / 100,
+            displayCurrency: preferredCurrency,
         }
     })
 }, { requiresAuth: true })

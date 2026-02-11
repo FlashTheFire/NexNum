@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma, ensureWallet } from '@/lib/core/db'
 import { getCurrentUser } from '@/lib/auth/jwt'
 import { WalletService } from '@/lib/wallet/wallet'
+import { getCurrencyService, toSupportedCurrency } from '@/lib/payment/currency-service'
 
 export async function GET(request: Request) {
     try {
@@ -17,13 +18,25 @@ export async function GET(request: Request) {
         // Ensure wallet exists
         const walletId = await ensureWallet(user.userId)
 
-        // Get balance (via Service)
-        const balance = await WalletService.getBalance(user.userId)
+        // Get balance in Points (internal unit)
+        const balancePoints = await WalletService.getBalance(user.userId)
+
+        // User's preferred display currency for show
+        const dbUser = await prisma.user.findUnique({
+            where: { id: user.userId },
+            select: { preferredCurrency: true }
+        })
+        const preferredCurrency = toSupportedCurrency(dbUser?.preferredCurrency)
+        const currencyService = getCurrencyService()
+        const displayAmount = await currencyService.pointsToFiat(balancePoints, preferredCurrency)
 
         return NextResponse.json({
             success: true,
             walletId,
-            balance,
+            balance: balancePoints,
+            currency: 'POINTS' as const,
+            displayAmount: Math.round(displayAmount * 100) / 100,
+            displayCurrency: preferredCurrency,
         }, {
             headers: {
                 'Cache-Control': 'private, max-age=10, stale-while-revalidate=30'

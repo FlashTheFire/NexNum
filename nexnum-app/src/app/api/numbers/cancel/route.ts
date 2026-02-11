@@ -6,6 +6,7 @@ import { smsProvider } from '@/lib/providers'
 import { WalletService } from '@/lib/wallet/wallet'
 import { z } from 'zod'
 import { emitStateUpdate } from '@/lib/events/emitters/state-emitter'
+import { logger } from '@/lib/core/logger'
 
 const cancelSchema = z.object({
     numberId: z.string().uuid(),
@@ -132,7 +133,7 @@ export const POST = apiHandler(async (request, { body }) => {
         }
 
         // PRODUCTION: Invalidate cache & emit WebSocket event for real-time UI update
-        emitStateUpdate(user.userId, 'all', 'number_cancelled').catch(() => { })
+        emitStateUpdate(user.userId, 'all', 'number_cancelled').catch(err => logger.warn('[Numbers/cancel] emitStateUpdate failed', { error: err }))
 
         return NextResponse.json({ success: true, status: 'cancelled' })
 

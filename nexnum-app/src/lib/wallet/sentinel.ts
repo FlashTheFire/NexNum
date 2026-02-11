@@ -144,7 +144,7 @@ export class FinancialSentinel {
             actionTaken: 'BANNED',
             timestamp: new Date(),
             lastTransactions: forensics.lastTransactions
-        }).catch(() => { });
+        }).catch(err => logger.warn('[Sentinel] Forensic dispatch failed', { userId, error: err }));
 
         // 4. Record Audit Log
         await tx.auditLog.create({

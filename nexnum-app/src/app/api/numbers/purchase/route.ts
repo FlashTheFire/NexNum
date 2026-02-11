@@ -11,7 +11,7 @@ import { WalletService } from '@/lib/wallet/wallet'
 import { logger } from '@/lib/core/logger'
 import { emitStateUpdate } from '@/lib/events/emitters/state-emitter'
 import { withMetrics } from '@/lib/monitoring/http-metrics'
-import { currencyService } from '@/lib/currency/currency-service'
+import { getCurrencyService, toSupportedCurrency } from '@/lib/payment/currency-service'
 import { ResponseFactory } from '@/lib/api/response-factory'
 import { PaymentError } from '@/lib/payment/payment-errors'
 import { NumberResult } from '@/lib/providers/types'
@@ -73,9 +73,9 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
     const currency = body?.currency || 'USD'
     let maxPrice = typeof body?.maxPrice === 'number' ? body.maxPrice : undefined
 
-    // Convert User Currency maxPrice -> System POINTS (COINS)
+    // Convert User Currency maxPrice -> System POINTS (single source: payment currency-service)
     if (maxPrice !== undefined && currency !== 'POINTS') {
-        maxPrice = await currencyService.convert(maxPrice, currency, 'POINTS')
+        maxPrice = await getCurrencyService().fiatToPoints(maxPrice, toSupportedCurrency(currency))
     }
 
     let currentOffer: any = null
@@ -280,7 +280,7 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
 
         await recordDailySpend(user.userId, freshPrice)
         await releaseAtomicPurchaseLock(user.userId, lockToken)
-        emitStateUpdate(user.userId, 'all', 'number_purchased').catch(() => { })
+        emitStateUpdate(user.userId, 'all', 'number_purchased').catch(err => logger.warn('[PURCHASE] emitStateUpdate failed', { error: err }))
 
         return ResponseFactory.success({ number: resultNumber })
 
@@ -295,7 +295,9 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
                 await WalletService.rollback(user.userId, reservedAmount, purchaseOrderId, 'Crash Rollback')
                 await prisma.purchaseOrder.update({ where: { id: purchaseOrderId }, data: { status: 'FAILED' } })
                 if (activationId) await prisma.activation.update({ where: { id: activationId }, data: { state: 'FAILED' } })
-            } catch (e) { }
+            } catch (e) {
+                logger.warn('[PURCHASE] Cleanup rollback failed', { error: e, purchaseOrderId, correlationId })
+            }
         }
 
         if (err instanceof PaymentError) {

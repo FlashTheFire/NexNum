@@ -31,6 +31,13 @@ Decimal.set({ precision: 20, rounding: Decimal.ROUND_HALF_UP })
 
 export type SupportedCurrency = 'USD' | 'INR' | 'RUB' | 'EUR' | 'GBP' | 'CNY'
 
+const SUPPORTED_CURRENCY_LIST: SupportedCurrency[] = ['USD', 'INR', 'RUB', 'EUR', 'GBP', 'CNY']
+
+/** Coerce display currency to a supported code for conversion (fallback USD). */
+export function toSupportedCurrency(code: string | null | undefined): SupportedCurrency {
+    return (SUPPORTED_CURRENCY_LIST.includes(code as SupportedCurrency) ? code : 'USD') as SupportedCurrency
+}
+
 export interface ExchangeRates {
     USD: number
     INR: number
@@ -91,8 +98,8 @@ export class CurrencyService {
                 return this.config!
             }
 
-            // Fetch from database
-            const settings = await prisma.systemSettings.findFirst()
+            // Fetch from database (single source of truth: default row)
+            const settings = await prisma.systemSettings.findUnique({ where: { id: 'default' } })
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const settingsAny = settings as any
 
@@ -146,9 +153,13 @@ export class CurrencyService {
                 }
             }
 
+            // Single source of truth for INR: use SystemSettings.inrToUsdRate so deposit credit and display match
+            const config = await this.getConfig()
+            const inrRate = config.inrToUsdRate
+
             this.rates = {
                 USD: ratesMap['USD'] || 1,
-                INR: ratesMap['INR'] || 83,
+                INR: inrRate,
                 RUB: ratesMap['RUB'] || 92,
                 EUR: ratesMap['EUR'] || 0.92,
                 GBP: ratesMap['GBP'] || 0.79,

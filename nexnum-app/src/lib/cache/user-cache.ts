@@ -8,6 +8,7 @@
 import { redis, CACHE_KEYS, CACHE_TTL } from '@/lib/core/redis'
 import { prisma } from '@/lib/core/db'
 import { logger } from '@/lib/core/logger'
+import { getCurrencyService, toSupportedCurrency } from '@/lib/payment/currency-service'
 
 // ============================================================================
 // User Balance Cache
@@ -15,27 +16,45 @@ import { logger } from '@/lib/core/logger'
 
 interface CachedBalance {
     balance: string
-    currency: string
+    displayCurrency: string
     cachedAt: number
 }
 
+export interface CachedBalanceResult {
+    balance: number
+    currency: 'POINTS'
+    displayAmount: number
+    displayCurrency: string
+    fromCache: boolean
+}
+
 /**
- * Get user balance with caching
- * Cache-first strategy with 30s TTL
+ * Get user balance with caching (balance in Points; displayAmount in user's preferred currency).
+ * Cache-first strategy with 30s TTL. Aligns with wallet/balance and auth/me semantics.
  */
-export async function getCachedBalance(userId: string): Promise<{ balance: number; currency: string; fromCache: boolean }> {
+export async function getCachedBalance(userId: string): Promise<CachedBalanceResult> {
     const cacheKey = CACHE_KEYS.userBalance(userId)
     const start = Date.now()
+    const currencyService = getCurrencyService()
+
+    const computeDisplay = async (balancePoints: number, preferredCurrency: string) => {
+        const displayCurrency = toSupportedCurrency(preferredCurrency)
+        const displayAmount = await currencyService.pointsToFiat(balancePoints, displayCurrency)
+        return { displayAmount: Math.round(displayAmount * 100) / 100, displayCurrency }
+    }
 
     try {
-        // Try cache first
         const cached = await redis.get(cacheKey)
         if (cached) {
             const data: CachedBalance = JSON.parse(cached)
+            const balancePoints = parseFloat(data.balance)
+            const { displayAmount, displayCurrency } = await computeDisplay(balancePoints, data.displayCurrency)
             logger.debug(`[Cache] Balance HIT for ${userId.slice(0, 8)}`, { durationMs: Date.now() - start })
             return {
-                balance: parseFloat(data.balance),
-                currency: data.currency,
+                balance: balancePoints,
+                currency: 'POINTS',
+                displayAmount,
+                displayCurrency,
                 fromCache: true
             }
         }
@@ -43,7 +62,6 @@ export async function getCachedBalance(userId: string): Promise<{ balance: numbe
         logger.warn('[Cache] Redis error, falling back to DB', { error })
     }
 
-    // Cache miss - fetch from DB
     const wallet = await prisma.wallet.findUnique({
         where: { userId },
         select: { balance: true }
@@ -54,14 +72,14 @@ export async function getCachedBalance(userId: string): Promise<{ balance: numbe
         select: { preferredCurrency: true }
     })
 
-    const balance = wallet?.balance?.toString() || '0'
-    const currency = user?.preferredCurrency || 'USD'
+    const balancePoints = Number(wallet?.balance ?? 0)
+    const preferredCurrency = user?.preferredCurrency || 'USD'
+    const { displayAmount, displayCurrency } = await computeDisplay(balancePoints, preferredCurrency)
 
-    // Cache the result
     try {
         const cacheData: CachedBalance = {
-            balance,
-            currency,
+            balance: String(balancePoints),
+            displayCurrency: preferredCurrency,
             cachedAt: Date.now()
         }
         await redis.set(cacheKey, JSON.stringify(cacheData), 'EX', CACHE_TTL.USER_BALANCE)
@@ -71,8 +89,10 @@ export async function getCachedBalance(userId: string): Promise<{ balance: numbe
     }
 
     return {
-        balance: parseFloat(balance),
-        currency,
+        balance: balancePoints,
+        currency: 'POINTS',
+        displayAmount,
+        displayCurrency,
         fromCache: false
     }
 }

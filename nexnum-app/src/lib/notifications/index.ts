@@ -674,11 +674,11 @@ class NotificationManager {
         Promise.allSettled([
             this.telegram.sendDepositNotification(payload),
             this.email.sendDepositConfirmation(payload)
-        ]).catch(() => { })
+        ]).catch(err => logger.warn('[NotificationManager] deposit send failed', { error: err }))
 
         // Also update user metrics in Telegram
         if (payload.userId) {
-            this.userMetrics(payload.userId).catch(() => { })
+            this.userMetrics(payload.userId).catch(err => logger.warn('[NotificationManager] userMetrics failed', { userId: payload.userId, error: err }))
         }
     }
 
@@ -689,7 +689,7 @@ class NotificationManager {
         Promise.allSettled([
             this.telegram.sendOrderReport(payload),
             this.email.sendOrderUpdate(payload, userEmail)
-        ]).catch(() => { })
+        ]).catch(err => logger.warn('[NotificationManager] orderUpdate send failed', { error: err }))
     }
 
     /**
@@ -752,7 +752,7 @@ class NotificationManager {
         Promise.allSettled([
             this.telegram.sendAlert(payload),
             this.email.sendAlert(payload)
-        ]).catch(() => { })
+        ]).catch(err => logger.warn('[NotificationManager] alert send failed', { error: err }))
     }
 
     // Expose Telegram topic management for advanced use cases

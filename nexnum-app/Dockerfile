@@ -82,4 +82,8 @@ ENV HOSTNAME="0.0.0.0"
 ENV HOME=/home/nextjs
 ENV npm_config_cache=/home/nextjs/.npm
 
+# Orchestrator health check (curl already installed in runner stage)
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:3000/api/health || exit 1
+
 CMD ["./docker-entrypoint.sh"]

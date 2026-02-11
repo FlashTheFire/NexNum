@@ -2,11 +2,15 @@ import { SignJWT, jwtVerify, type JWTPayload } from 'jose'
 import { cookies } from 'next/headers'
 import { prisma } from '@/lib/core/db'
 import { redis } from '@/lib/core/redis'
+import { logger } from '@/lib/core/logger'
 
-// SECURITY: No fallback secret - must be configured via environment variable
+// SECURITY: JWT_SECRET required in production; in development allow explicit ALLOW_DEV_JWT=true for fallback
 const JWT_SECRET_RAW = process.env.JWT_SECRET
 if (!JWT_SECRET_RAW && process.env.NODE_ENV === 'production') {
     throw new Error('CRITICAL: JWT_SECRET environment variable is required in production')
+}
+if (!JWT_SECRET_RAW && process.env.NODE_ENV !== 'production' && process.env.ALLOW_DEV_JWT !== 'true') {
+    throw new Error('JWT_SECRET or ALLOW_DEV_JWT=true is required. Set ALLOW_DEV_JWT=true only for local dev.')
 }
 const JWT_SECRET = new TextEncoder().encode(JWT_SECRET_RAW || 'dev-only-not-for-production')
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d'
@@ -91,7 +95,9 @@ export async function getCurrentUser(headers: Headers): Promise<TokenPayload | n
             if (data.isBanned || data.tokenVersion !== payload.version) return null
             return payload
         }
-    } catch (err) { }
+    } catch (err) {
+        logger.warn('[Auth:JWT] Session cache read failed', { error: err })
+    }
 
     // 3. Database Verification (Fallback)
     try {
@@ -108,7 +114,7 @@ export async function getCurrentUser(headers: Headers): Promise<TokenPayload | n
         await redis.set(sessionKey, JSON.stringify({
             tokenVersion: user.tokenVersion,
             isBanned: user.isBanned
-        }), 'EX', 60).catch(() => { })
+        }), 'EX', 60).catch(err => logger.warn('[Auth:JWT] Session cache write failed', { error: err }))
 
         return payload
     } catch (dbError) {

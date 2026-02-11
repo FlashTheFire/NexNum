@@ -233,7 +233,7 @@ export class OrderOrchestrator {
                 // Still attempt to mark as failed in a new tx
                 await ActivationKernel.transition(activation.activationId, 'FAILED', {
                     reason: `Saga Failure: ${sagaError.message}`
-                }).catch(() => { })
+                }).catch(err => logger.warn('[OrderOrchestrator] Transition to FAILED failed', { activationId: activation.activationId, error: err }))
                 order_state_transitions_total.labels('RESERVED', 'FAILED', providerId).inc() // Metric for failed transition
 
                 return {

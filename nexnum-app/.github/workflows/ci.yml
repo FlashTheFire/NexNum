@@ -42,7 +42,7 @@ jobs:
         run: npm ci
       
       - name: Lint
-        run: npm run lint || true  # Don't fail on lint warnings initially
+        run: npm run lint
       
       - name: Type check
         run: npm run typecheck

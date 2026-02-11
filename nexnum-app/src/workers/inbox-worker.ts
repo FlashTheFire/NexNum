@@ -430,7 +430,7 @@ export async function processInboxBatch(batchSize = CONFIG.BATCH_SIZE): Promise<
                     nextPollAt: new Date(Date.now() + CONFIG.ERROR_BACKOFF_MS),
                     lastError: errorMsg
                 }
-            }).catch(() => { })
+            }).catch(err => logger.warn('[InboxWorker] Update number error state failed', { numberId: number.id, error: err }))
 
         } finally {
             await releaseLock(number.id)

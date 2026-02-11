@@ -11,12 +11,12 @@ const withBundleAnalyzer = bundleAnalyzer({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    // Stockholm Production Fast-Path: Resolve t3.small Resource Deadlock
+    // Enforce type and lint quality during build (audit fix)
     typescript: {
-        ignoreBuildErrors: true,
+        ignoreBuildErrors: false,
     },
     eslint: {
-        ignoreDuringBuilds: true,
+        ignoreDuringBuilds: false,
     },
 
     // CDN & Caching Optimization

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { searchOffers } from "@/lib/search/search";
 import { verifyToken } from "@/lib/auth/jwt";
 import { createOfferId } from "@/lib/auth/id-security";
-import { currencyService } from "@/lib/currency/currency-service";
+import { getCurrencyService, toSupportedCurrency } from "@/lib/payment/currency-service";
 
 // Protected Route: Only logged in users can search offers
 export async function GET(req: NextRequest) {
@@ -18,10 +18,9 @@ export async function GET(req: NextRequest) {
 
         let maxPrice = searchParams.get("maxPrice") ? parseFloat(searchParams.get("maxPrice")!) : undefined;
 
-        // Convert User Currency maxPrice -> System POINTS (COINS)
+        // Convert User Currency maxPrice -> System POINTS (single source: payment currency-service)
         if (maxPrice !== undefined && currency !== 'POINTS') {
-            // e.g. User says Max 100 INR -> Convert to X Points (Internal Base)
-            maxPrice = await currencyService.convert(maxPrice, currency, 'POINTS');
+            maxPrice = await getCurrencyService().fiatToPoints(maxPrice, toSupportedCurrency(currency));
         }
 
         const page = parseInt(searchParams.get("page") || "1");

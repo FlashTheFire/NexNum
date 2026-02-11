@@ -168,7 +168,9 @@ export async function verifyAssetIntegrity(): Promise<{ removed: number, scanned
                     context: 'ASSET_CLEAN',
                     file
                 });
-            } catch (e) { }
+            } catch (e) {
+                logger.warn('[ProviderSync] Asset clean unlink failed', { file, error: e })
+            }
         }
     }
 
@@ -243,7 +245,9 @@ export async function verifyAssetIntegrity(): Promise<{ removed: number, scanned
                 removed++;
             }
 
-        } catch (e) { }
+        } catch (e) {
+            logger.warn('[ProviderSync] File integrity check failed', { file: filePath, error: e })
+        }
     }
 
     return { removed, scanned };
@@ -877,7 +881,7 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
 
                         const providerIcon = iconUrlMap.get(p.service) || iconUrlMap.get(p.service.toLowerCase())
                         if (providerIcon && isValidImageUrl(providerIcon)) {
-                            downloadImageToLocal(providerIcon, path.join(process.cwd(), 'public', localPath)).catch(() => { })
+                            downloadImageToLocal(providerIcon, path.join(process.cwd(), 'public', localPath)).catch(err => logger.warn('[ProviderSync] downloadImageToLocal failed', { url: providerIcon, error: err }))
                         }
 
                         const nameForIcon = canonKey || p.service
@@ -1011,7 +1015,8 @@ export async function syncProviderData(providerName: string, options?: SyncOptio
         const { reconfigureIndexes } = await import('@/lib/search/search')
         await reconfigureIndexes()
 
-        // RESILIENCE: Fetch use_global_sync via raw SQL to bypass Prisma schema sync issues in production
+        // RESILIENCE: Fetch use_global_sync via raw SQL to bypass Prisma schema sync issues in production.
+        // SAFETY: $1 is parameterized; provider.id is server-controlled (from DB), not user input — no SQL injection.
         const raw = await prisma.$queryRawUnsafe<Array<{ use_global_sync: boolean }>>(`SELECT use_global_sync FROM providers WHERE id = $1`, provider.id)
         if (raw && raw[0]) {
             (provider as any).useGlobalSync = raw[0].use_global_sync || false

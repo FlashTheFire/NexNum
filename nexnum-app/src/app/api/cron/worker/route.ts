@@ -18,13 +18,13 @@ export async function GET(request: Request) {
     try {
         const result = await runMasterWorker()
 
-        // Return 500 if critical errors occurred, but still return result structure
-        const status = result.errors.length > 0 ? 207 : 200 // 207 Multi-Status if partial failure? Or just 200.
+        // 207 Multi-Status when partial failures for observability; 200 on full success
+        const statusCode = result.errors.length > 0 ? 207 : 200
 
         return NextResponse.json({
             success: result.errors.length === 0,
             data: result
-        }, { status: 200 }) // Always 200 to prevent Cron from retrying immediately if logic failed?
+        }, { status: statusCode })
     } catch (err: any) {
         return NextResponse.json({ error: err.message }, { status: 500 })
     }

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/core/db'
 import { queue } from '@/lib/core/queue'
+import { logger } from '@/lib/core/logger'
 
 /**
  * Professional Health Check API
@@ -34,7 +35,7 @@ export async function GET() {
         // 2. Check Queue (PgBoss Status)
         // Proactively start if not ready
         if (!(queue as any).isReady) {
-            await queue.start().catch(() => { })
+            await queue.start().catch(err => logger.warn('[Health] queue.start failed', { error: err }))
         }
         status.services.queue = (queue as any).isReady ? 'UP' : 'DOWN'
     } catch (e) {

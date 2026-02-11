@@ -213,7 +213,7 @@ async function fetchDashboardState(userId: string): Promise<DashboardState> {
             _sum: { amount: true }
         }),
         prisma.walletTransaction.aggregate({
-            where: { walletId, type: { in: ['topup', 'manual_credit', 'referral_bonus'] } },
+            where: { walletId, type: { in: ['topup', 'manual_credit', 'referral_bonus', 'deposit'] } },
             _sum: { amount: true }
         })
     ])

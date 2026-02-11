@@ -6,6 +6,7 @@ import { apiHandler } from '@/lib/api/api-handler'
 import { z } from 'zod'
 import { smsProvider } from '@/lib/providers'
 import { emitStateUpdate } from '@/lib/events/emitters/state-emitter'
+import { logger } from '@/lib/core/logger'
 
 const completeNumberSchema = z.object({
     numberId: z.string().uuid('Invalid number ID'),
@@ -84,7 +85,7 @@ export const POST = apiHandler(async (request, { body }) => {
     })
 
     // 5. Emit Update to Frontend
-    emitStateUpdate(user.userId, 'numbers', 'completed').catch(() => { })
+    emitStateUpdate(user.userId, 'numbers', 'completed').catch(err => logger.warn('[Numbers/complete] emitStateUpdate failed', { error: err }))
 
     return NextResponse.json({
         success: true,

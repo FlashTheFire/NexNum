@@ -169,7 +169,7 @@ class SmsAuditService {
      */
     private startPeriodicFlush(): void {
         this.flushInterval = setInterval(() => {
-            this.flush().catch(() => { })
+            this.flush().catch(err => logger.warn('[SmsAudit] Periodic flush failed', { error: err }))
         }, this.FLUSH_INTERVAL_MS)
     }
 

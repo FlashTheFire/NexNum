@@ -36,21 +36,27 @@ export const GET = apiHandler(async (request, { user }) => {
         return ResponseFactory.error('Deposit not found', 404, 'E_NOT_FOUND')
     }
 
+    const deposit = result.deposit
+    const amount = result.amount ?? deposit?.amount
+    const amountCurrency = deposit?.status === 'completed' ? 'POINTS' as const : 'INR' as const
+
     return ResponseFactory.success({
         status: result.status,
         message: result.message,
-        amount: result.amount || result.deposit?.amount,
+        amount: amount != null ? amount : undefined,
+        amountCurrency,
         utr: result.utr,
-        completedAt: result.deposit?.completedAt?.toISOString(),
-        expiresIn: result.deposit?.expiresIn,
-        deposit: result.deposit ? {
-            id: result.deposit.id,
-            orderId: result.deposit.orderId,
-            amount: result.deposit.amount,
-            status: result.deposit.status,
-            qrCodeUrl: result.deposit.qrCodeUrl,
-            expiresAt: result.deposit.expiresAt.toISOString(),
-            expiresIn: result.deposit.expiresIn,
+        completedAt: deposit?.completedAt?.toISOString(),
+        expiresIn: deposit?.expiresIn,
+        deposit: deposit ? {
+            id: deposit.id,
+            orderId: deposit.orderId,
+            amount: deposit.amount,
+            amountCurrency: deposit.status === 'completed' ? 'POINTS' as const : 'INR' as const,
+            status: deposit.status,
+            qrCodeUrl: deposit.qrCodeUrl,
+            expiresAt: deposit.expiresAt.toISOString(),
+            expiresIn: deposit.expiresIn,
         } : null,
     })
 }, {

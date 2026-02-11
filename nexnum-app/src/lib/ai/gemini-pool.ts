@@ -271,7 +271,9 @@ class GeminiKeyPoolService {
             if (match) {
                 return Math.ceil(parseFloat(match[1]) * 1000) + 1000
             }
-        } catch { }
+        } catch (e) {
+            logger.warn('[GeminiPool] Parse retry delay failed', { error: e })
+        }
         return DEFAULT_COOLDOWN_MS
     }
 

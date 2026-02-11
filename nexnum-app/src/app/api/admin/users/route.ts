@@ -6,6 +6,7 @@ import { wallet_transactions_total, recordIncident } from '@/lib/metrics'
 import { notify } from '@/lib/notifications'
 import { emitControlEvent } from '@/lib/events/emitters/state-emitter'
 import { WalletService } from '@/lib/wallet/wallet'
+import { logger } from '@/lib/core/logger'
 
 export async function GET(request: Request) {
     const auth = await AuthGuard.requireAdmin()
@@ -314,7 +315,7 @@ export async function PATCH(request: Request) {
                     paidFrom: 'Admin',
                     paymentType: 'Manual Credit',
                     timestamp: new Date()
-                }).catch(() => { })
+                }).catch(err => logger.warn('[Admin/users] NotificationManager.deposit failed', { error: err }))
             }
 
             return NextResponse.json({

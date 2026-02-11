@@ -283,7 +283,9 @@ export class SmartSmsRouter implements SmsProvider {
         try {
             const cached = await redis.get(cacheKey)
             if (cached) return JSON.parse(cached)
-        } catch (e) { }
+        } catch (e) {
+            logger.warn('[SmartRouter] Pricing cache read failed', { error: e })
+        }
 
         const [currencies, settings] = await Promise.all([
             prisma.currency.findMany({ where: { isActive: true }, select: { code: true, rate: true } }),
@@ -301,7 +303,7 @@ export class SmartSmsRouter implements SmsProvider {
         }
 
         // Cache for 5 mins
-        redis.set(cacheKey, JSON.stringify(data), 'EX', 300).catch(() => { })
+        redis.set(cacheKey, JSON.stringify(data), 'EX', 300).catch(err => logger.warn('[SmartRouter] Pricing cache write failed', { error: err }))
 
         return data
     }
@@ -628,7 +630,9 @@ export class SmartSmsRouter implements SmsProvider {
         for (const p of providers) {
             try {
                 total += await p.getBalance()
-            } catch (e) { }
+            } catch (e) {
+                logger.warn('[SmartRouter] Provider balance check failed', { provider: p.name, error: e })
+            }
         }
         return total
     }
