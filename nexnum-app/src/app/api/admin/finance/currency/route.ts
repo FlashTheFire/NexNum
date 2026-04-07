@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/core/db'
 import { apiHandler } from '@/lib/api/api-handler'
-import { currencyService } from '@/lib/currency/currency-service'
+import { getCurrencyService } from '@/lib/currency/currency-service'
 
 /**
  * GET /api/admin/finance/currency
@@ -60,6 +60,7 @@ export const PATCH = apiHandler(async (req, { body }) => {
  * Manually trigger exchange rate sync
  */
 export const POST = apiHandler(async () => {
-    await currencyService.syncRates()
-    return NextResponse.json({ success: true })
+    const currencyService = getCurrencyService()
+    const stats = await currencyService.syncRates()
+    return NextResponse.json({ success: true, stats })
 })

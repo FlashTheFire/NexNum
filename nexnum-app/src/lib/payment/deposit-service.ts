@@ -13,7 +13,7 @@
 import { prisma } from '@/lib/core/db'
 import { getUPIProvider, PaymentStatus } from './upi-provider'
 import { getPaymentSettingsService } from './payment-settings'
-import { getCurrencyService } from './currency-service'
+import { getCurrencyService } from '@/lib/currency/currency-service'
 import { PaymentError } from './payment-errors'
 import { logger } from '@/lib/core/logger'
 import { redis } from '@/lib/core/redis'

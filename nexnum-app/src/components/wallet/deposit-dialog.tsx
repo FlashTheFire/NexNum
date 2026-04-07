@@ -166,7 +166,7 @@ export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) 
     // Create deposit
     const handleCreateDeposit = async () => {
         if (isNaN(numAmount) || numAmount < config.minAmount || numAmount > config.maxAmount) {
-            toast.error(`Amount must be between ₹${config.minAmount} and ₹${config.maxAmount}`)
+            toast.error(`Amount must be between ${formatPrice(config.minAmount)} and ${formatPrice(config.maxAmount)}`)
             return
         }
 
@@ -212,7 +212,7 @@ export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) 
                         setUtr(paymentUtr)
                         setStep('success')
                         onSuccess?.(updatedDeposit?.amount || numAmount)
-                        toast.success(`₹${updatedDeposit?.amount || amount} added to wallet!`)
+                        toast.success(`${formatPrice(updatedDeposit?.amount || numAmount)} added to wallet!`)
                     } else if (status === 'failed' || status === 'expired') {
                         cleanup()
                         setStep('failed')
@@ -336,7 +336,7 @@ export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) 
                                     </div>
                                     <div className="text-center">
                                         <p className="font-semibold text-white">UPI</p>
-                                        <p className="text-xs text-slate-400">India Only</p>
+                                        <p className="text-xs text-slate-400">Local Currency</p>
                                     </div>
                                 </button>
 
@@ -418,7 +418,7 @@ export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) 
                                                 : "bg-slate-800/50 border-white/10 text-slate-300 hover:bg-slate-800 active:bg-slate-700"
                                         )}
                                     >
-                                        ₹{preset}
+                                        {formatPrice(preset)}
                                     </button>
                                 ))}
                             </div>
@@ -426,7 +426,7 @@ export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) 
                             {/* Custom Amount Input */}
                             <div className="relative">
                                 <div className="absolute left-4 top-1/2 -translate-y-1/2 text-xl font-semibold text-slate-400">
-                                    ₹
+                                    {settings?.displayCurrency === 'INR' ? '₹' : settings?.displayCurrency === 'USD' ? '$' : settings?.displayCurrency || '₹'}
                                 </div>
                                 <Input
                                     type="number"
@@ -459,15 +459,15 @@ export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) 
                                             <div className="space-y-1 text-sm">
                                                 <div className="flex justify-between text-slate-400">
                                                     <span>Deposit amount</span>
-                                                    <span>₹{numAmount.toLocaleString()}</span>
+                                                    <span>{formatPrice(numAmount)}</span>
                                                 </div>
                                                 <div className="flex justify-between text-amber-300">
                                                     <span>+ {bonusPercent}% Bonus</span>
-                                                    <span className="font-semibold">+₹{bonusAmount.toLocaleString()}</span>
+                                                    <span className="font-semibold">+{formatPrice(bonusAmount)}</span>
                                                 </div>
                                                 <div className="border-t border-white/10 pt-1 mt-1 flex justify-between font-semibold text-white">
                                                     <span>Total credit</span>
-                                                    <span className="text-emerald-400">₹{totalAmount.toLocaleString()}</span>
+                                                    <span className="text-emerald-400">{formatPrice(totalAmount)}</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -477,7 +477,7 @@ export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) 
 
                             {/* Min/Max Info */}
                             <p className="text-xs text-slate-500 text-center">
-                                Min: ₹{config.minAmount} • Max: ₹{config.maxAmount.toLocaleString()}
+                                Min: {formatPrice(config.minAmount)} • Max: {formatPrice(config.maxAmount)}
                             </p>
 
                             {/* Continue Button - Bottom-sticky on mobile */}
@@ -501,7 +501,7 @@ export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) 
                                     ) : paymentMethod === 'crypto' ? (
                                         <>Continue to Crypto Payment</>
                                     ) : (
-                                        <>Continue to Pay ₹{amount || '0'}</>
+                                        <>Continue to Pay {formatPrice(numAmount || 0)}</>
                                     )}
                                 </Button>
                             </div>
@@ -556,7 +556,7 @@ export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) 
                                         ${(Number(amount) / 83).toFixed(2)} USDT
                                     </span>
                                 </div>
-                                <p className="text-xs text-slate-500 mt-1">≈ ₹{amount} (at current rate)</p>
+                                <p className="text-xs text-slate-500 mt-1">≈ {formatPrice(numAmount)} (at current rate)</p>
                             </div>
 
                             {/* Wallet Address */}
@@ -658,7 +658,7 @@ export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) 
                                 />
                                 {/* Amount Badge */}
                                 <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-slate-900 text-white font-bold px-4 py-1 rounded-full border border-white/20 text-sm">
-                                    ₹{deposit.amount}
+                                    {formatPrice(deposit.amount)}
                                 </div>
                             </div>
 
@@ -696,9 +696,8 @@ export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) 
                                     Payment Instructions
                                 </h4>
                                 <ol className="text-xs text-slate-400 space-y-1 list-decimal list-inside">
-                                    <li>Open any UPI app (GPay, PhonePe, Paytm)</li>
                                     <li>Scan the QR code or click "Open in UPI App"</li>
-                                    <li>Complete the payment of ₹{deposit.amount}</li>
+                                    <li>Complete the payment of {formatPrice(deposit.amount)}</li>
                                     <li>Wait for confirmation (automatically detected)</li>
                                 </ol>
                             </div>
@@ -730,12 +729,12 @@ export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) 
                             <div className="text-center space-y-1">
                                 <h3 className="text-xl font-bold text-white">Payment Successful!</h3>
                                 <p className="text-emerald-400 font-semibold text-lg">
-                                    ₹{deposit?.amount || amount} added to wallet
+                                    {formatPrice(deposit?.amount || numAmount)} added to wallet
                                 </p>
                                 {bonusPercent > 0 && bonusAmount > 0 && (
                                     <p className="text-amber-300 text-sm flex items-center justify-center gap-1">
                                         <Gift className="h-4 w-4" />
-                                        Including ₹{bonusAmount} bonus!
+                                        Including {formatPrice(bonusAmount)} bonus!
                                     </p>
                                 )}
                                 {utr && (

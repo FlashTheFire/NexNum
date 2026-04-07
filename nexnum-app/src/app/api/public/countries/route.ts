@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { searchCountries } from "@/lib/search/search";
+import { calculatePrices } from "@/lib/pricing/pricing-utils";
 
 /**
  * GET /api/public/countries
@@ -15,6 +16,7 @@ export async function GET(req: Request) {
         const page = parseInt(searchParams.get("page") || "1");
         const limit = parseInt(searchParams.get("limit") || "24");
         const sort = (searchParams.get("sort") || "name") as 'name' | 'pointPrice' | 'stock';
+        
 
 
         if (!serviceName) {
@@ -33,15 +35,16 @@ export async function GET(req: Request) {
             ]);
 
             return NextResponse.json({
-                items: countries.map(c => ({
+                items: await Promise.all(countries.map(async c => ({
                     id: c.countryCode,
                     name: c.countryName,
                     code: c.countryCode,
                     flagUrl: c.countryIcon,
                     minPrice: 0, // No specific price without service
+                    currencyPrices: await calculatePrices(0),
                     totalStock: 0,
                     serverCount: 0
-                })),
+                }))),
                 pagination: { total, page, limit, hasMore: page * limit < total }
             });
         }
@@ -50,15 +53,16 @@ export async function GET(req: Request) {
         const result = await searchCountries(serviceName, q, { page, limit, sort });
 
         // Map to standard format for backwards compatibility
-        const items = result.countries.map(country => ({
+        const items = await Promise.all(result.countries.map(async country => ({
             id: country.code,
             name: country.name,
             code: country.code,
             flagUrl: country.flagUrl,
             minPrice: country.lowestPrice,
+            currencyPrices: await calculatePrices(Number(country.lowestPrice || 0)),
             totalStock: country.totalStock,
             serverCount: country.serverCount,
-        }));
+        })));
 
         return NextResponse.json({
             items,

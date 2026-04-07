@@ -4,7 +4,8 @@ import { prisma } from '@/lib/core/db'
 import { syncProviderData } from '@/lib/providers/provider-sync'
 import { AuthGuard } from '@/lib/auth/guard'
 import { logAdminAction, getClientIP } from '@/lib/core/auditLog'
-import { currencyService } from '@/lib/currency/currency-service'
+import { getCurrencyService } from '@/lib/currency/currency-service'
+const currencyService = getCurrencyService()
 import { refreshAllServiceAggregates } from '@/lib/search/service-aggregates'
 import { logger } from '@/lib/core/logger'
 

@@ -35,7 +35,7 @@ export function MobileDashboard() {
     const [activeCardIndex, setActiveCardIndex] = useState(0)
     const scrollContainerRef = useRef<HTMLDivElement>(null)
     const [now, setNow] = useState(Date.now())
-    const { formatBalance, formatPrice: formatPriceContext } = useCurrency()
+    const { formatFromBalance, formatFromPrices } = useCurrency()
 
     useEffect(() => {
         const interval = setInterval(() => setNow(Date.now()), 1000)
@@ -55,7 +55,6 @@ export function MobileDashboard() {
         {
             label: t('stats.balance'),
             value: <BalanceDisplay
-                balanceInPoints={userProfile?.balance || 0}
                 multiBalance={userProfile?.multiBalance}
                 className="font-bold"
             />,
@@ -67,7 +66,6 @@ export function MobileDashboard() {
         {
             label: t('stats.spent'),
             value: <BalanceDisplay
-                balanceInPoints={typeof totalSpent === 'number' ? totalSpent : totalSpent.points}
                 multiBalance={typeof totalSpent === 'object' ? totalSpent : undefined}
                 className="font-bold"
             />,
@@ -79,7 +77,6 @@ export function MobileDashboard() {
         {
             label: t('stats.deposited'),
             value: <BalanceDisplay
-                balanceInPoints={typeof totalDeposited === 'number' ? totalDeposited : totalDeposited.points}
                 multiBalance={typeof totalDeposited === 'object' ? totalDeposited : undefined}
                 className="font-bold"
             />,
@@ -538,7 +535,7 @@ export function MobileDashboard() {
                                     </div>
                                     <span className={`text-sm font-bold font-mono ${isCredit ? 'text-emerald-400' : 'text-red-400'}`}>
                                         {isCredit ? '+' : ''}
-                                        <PriceDisplay amountInPoints={tx.amount} />
+                                        <PriceDisplay currencyPrices={{ USD: tx.amount / 100 }} />
                                     </span>
                                 </div>
                             )

@@ -716,6 +716,9 @@ model SystemSettings {
   smtpPass            String? @map("smtp_pass") // Encrypted
   emailFrom           String? @map("email_from")
 
+  // Authentication & Security
+  captchaEnabled      Boolean @default(true) @map("captcha_enabled")
+
   updatedAt       DateTime @updatedAt @map("updated_at")
   
   @@map("system_settings")

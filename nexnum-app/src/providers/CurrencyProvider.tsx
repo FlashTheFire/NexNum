@@ -31,6 +31,12 @@ interface CurrencyContextType {
     setCurrency: (code: string) => void
 
     // ZERO CLIENT-SIDE CALCULATION METHODS
+    /**
+     * Format a value (number or multi-currency object) to the user's preferred currency.
+     * @param amount - A number (legacy/fallback) or a Record of currency codes to values.
+     */
+    formatPrice: (amount?: number | Record<string, number>) => string
+
     /** 
      * Format a multi-currency price object to the user's preferred currency.
      * @param prices - Map of currency codes to values (e.g. { USD: 1.50, INR: 120.00 })
@@ -134,6 +140,22 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     }, [preferredCurrency, currencies])
 
     /**
+     * Robust formatting that handles both legacy numbers and multi-currency objects.
+     */
+    const formatPrice = useCallback((amount?: number | Record<string, number>): string => {
+        if (amount === undefined || amount === null) return '--'
+
+        if (typeof amount === 'number') {
+            const targetCurrency = (!preferredCurrency || preferredCurrency === 'POINTS') ? 'USD' : preferredCurrency
+            const currencyData = currencies?.[targetCurrency]
+            const symbol = currencyData?.symbol || '$'
+            return `${symbol}${amount.toFixed(2)}`
+        }
+
+        return formatFromPrices(amount)
+    }, [preferredCurrency, currencies, formatFromPrices])
+
+    /**
      * Format user balance from pre-computed multi-currency balance object.
      */
     const formatFromBalance = useCallback((balance: any): string => {
@@ -189,6 +211,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
             preferredCurrency,
             isLoading,
             setCurrency,
+            formatPrice,
             formatFromPrices,
             formatFromBalance
         }}>

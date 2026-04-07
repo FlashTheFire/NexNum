@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { searchProviders, getCachedProviderMetadata } from "@/lib/search/search";
 import { prisma } from "@/lib/core/db";
+import { calculatePrices } from "@/lib/pricing/pricing-utils";
 
 /**
  * GET /api/search/providers
@@ -17,45 +18,7 @@ import { prisma } from "@/lib/core/db";
  * - sort: Sort option (price | stock)
  */
 
-import { redis } from "@/lib/core/redis"
-import { logger } from "@/lib/core/logger"
-
-async function getPricingData() {
-    const cacheKey = 'cache:pricing:data'
-    try {
-        const cached = await redis.get(cacheKey)
-        if (cached) return JSON.parse(cached)
-    } catch (e) {
-        logger.warn('[Search/providers] Pricing cache read failed', { error: e })
-    }
-
-    const [currencies, settings] = await Promise.all([
-        prisma.currency.findMany({ where: { isActive: true }, select: { code: true, rate: true } }),
-        prisma.systemSettings.findUnique({ where: { id: 'default' }, select: { pointsRate: true } })
-    ])
-
-    const rates: Record<string, number> = {}
-    currencies.forEach(c => {
-        rates[c.code] = Number(c.rate)
-    })
-
-    const data = {
-        rates,
-        pointsRate: Number(settings?.pointsRate || 0.1)
-    }
-
-    redis.set(cacheKey, JSON.stringify(data), 'EX', 300).catch(err => logger.warn('[Search/providers] Pricing cache write failed', { error: err }))
-    return data
-}
-
-function calculatePrices(pointPrice: number, data: { rates: Record<string, number>, pointsRate: number }) {
-    const prices: Record<string, number> = {}
-    const baseValue = pointPrice * data.pointsRate
-    for (const [code, rate] of Object.entries(data.rates)) {
-        prices[code] = baseValue * rate
-    }
-    return prices
-}
+// Pricing logic now handled by centralized pricing-utils.ts
 export async function GET(req: Request) {
     try {
         const { searchParams } = new URL(req.url);
@@ -100,11 +63,9 @@ export async function GET(req: Request) {
         // This avoids the "Cold Start" problem where everyone looks bad initially.
         const dynamicBaseline = ratedCount > 0 ? (totalRate / ratedCount) : 80.0;
 
-        // Fetch pricing data for currency calculation
-        const pricingData = await getPricingData();
 
         // Map to API response format with reliability info
-        const items = result.providers.map((p, index) => {
+        const items = await Promise.all(result.providers.map(async (p, index) => {
             const providerInfo = providerInfoMap.get(p.provider);
 
             // USE DYNAMIC BASELINE: 
@@ -129,7 +90,7 @@ export async function GET(req: Request) {
                 countryCode: p.providerCountryCode,
                 flagUrl: p.countryIcon,
                 price: p.pointPrice,
-                currencyPrices: calculatePrices(p.pointPrice, pricingData),
+                currencyPrices: await calculatePrices(p.pointPrice),
                 stock: p.stock,
                 successRate: successRate,
                 operatorId: p.operator,
@@ -138,7 +99,7 @@ export async function GET(req: Request) {
                 rank: index + 1,
                 reliability: reliabilityLabel,
             };
-        });
+        }));
 
         // Compute Smart Route info (only when >1 provider)
         const smartRoute = items.length > 1 ? {

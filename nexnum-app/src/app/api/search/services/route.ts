@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServiceAggregates } from "@/lib/search/service-aggregates";
 import { getServiceIconUrlByName } from "@/lib/search/search";
+import { calculatePrices } from "@/lib/pricing/pricing-utils";
 
 /**
  * GET /api/search/services
@@ -63,6 +64,7 @@ export async function GET(req: Request) {
                 serverCount: item.providerCount || 0,
                 countryCount: item.countryCount || 0,
                 iconUrl: iconUrl,
+                currencyPrices: await calculatePrices(Number(item.lowestPrice)),
                 flagUrls: [], // Optimization: List view doesn't need 3 tiny flags, cleaner UI
             };
         }));

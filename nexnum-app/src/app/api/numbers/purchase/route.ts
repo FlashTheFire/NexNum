@@ -124,7 +124,25 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
     // ============================================
 
     const eligibility = await checkUserEligibility(user.userId, freshPrice)
-    if (!eligibility.eligible) return ResponseFactory.error(eligibility.reason || 'User not eligible', 403, 'E_INELIGIBLE')
+    if (!eligibility.eligible) {
+        logger.warn(`[PURCHASE] Eligibility denied for user ${user.userId}: ${eligibility.reason}`, {
+            code: eligibility.code,
+            details: eligibility.details,
+            requiredAmount: freshPrice,
+            service: serviceName,
+            country: countryName
+        })
+        return ResponseFactory.error(
+            eligibility.reason || 'User not eligible',
+            403,
+            eligibility.code || 'E_INELIGIBLE',
+            {
+                currentBalance: eligibility.details.currentBalance,
+                requiredAmount: eligibility.details.requiredAmount,
+                dailySpendRemaining: eligibility.details.dailySpendRemaining
+            }
+        )
+    }
 
     // ============================================
     // PHASE 4: ATOMIC LOCK

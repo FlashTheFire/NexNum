@@ -19,6 +19,7 @@ export interface Transaction {
     id: string
     type: 'purchase' | 'topup' | 'refund' | 'manual_credit' | 'manual_debit' | 'referral_bonus'
     amount: number
+    currencyPrices?: Record<string, number> // NEW: Multi-currency prices for Zero-Math
     date: string
     createdAt: string
     status: 'completed' | 'pending' | 'failed' | 'success'
@@ -189,6 +190,7 @@ export const useGlobalStore = create<GlobalState>()(
                             id: t.id as string,
                             type: t.type as Transaction['type'],
                             amount: Math.abs(t.amount as number),
+                            currencyPrices: t.currencyPrices as Record<string, number> | undefined,
                             date: t.createdAt as string,
                             createdAt: t.createdAt as string,
                             status: 'completed' as const,
@@ -288,6 +290,7 @@ export const useGlobalStore = create<GlobalState>()(
                         id: t.id as string,
                         type: t.type as Transaction['type'],
                         amount: Math.abs(t.amount as number),
+                        currencyPrices: t.currencyPrices as Record<string, number> | undefined,
                         date: t.createdAt as string,
                         createdAt: t.createdAt as string,
                         status: 'completed' as const,
@@ -341,6 +344,14 @@ export const useGlobalStore = create<GlobalState>()(
 
             // Purchase number via API
             purchaseNumber: async (countryCode: string, serviceCode: string, provider?: string, options?: { useBestRoute?: boolean; maxPrice?: number }) => {
+                // OPTIMISTIC BALANCE CHECK (Zero-Math aware)
+                const state = get()
+                const preferredCurrency = localStorage.getItem('preferredCurrency') || 'USD'
+                
+                // If we have multi-currency price in options or can infer it
+                // For now, we rely on the caller to have checked the balance, 
+                // but we can add a safety check here if we have the data.
+
                 // OPTIMISTIC UPDATE
                 const tempId = 'temp-' + Date.now()
                 const optimisticNumber: ActiveNumber = {

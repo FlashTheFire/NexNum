@@ -39,7 +39,7 @@ export default function CurrencySelector({ compact }: Props) {
                 aria-label="Select Currency"
                 onClick={() => setIsOpen(!isOpen)}
             >
-                {!compact && <Globe className="w-4 h-4 text-gray-300" />}
+                {!compact}
                 <span className="text-xs font-mono font-bold text-gray-200">
                     {currentCurrency?.code}
                 </span>

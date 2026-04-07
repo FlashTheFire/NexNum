@@ -43,7 +43,7 @@ interface Country {
     code: string;
     identifier?: string;
     flagUrl?: string;
-    minPrice?: number;
+    currencyPrices?: Record<string, number>;
     totalStock?: number;
 }
 
@@ -181,7 +181,7 @@ const CountryCard = React.memo(({
         hidden: { opacity: 0, scale: 0.95 },
         show: { opacity: 1, scale: 1 }
     };
-    const { formatPrice: formatPriceContext } = useCurrency();
+    const { formatFromPrices, settings } = useCurrency();
 
     return (
         <motion.div
@@ -197,7 +197,7 @@ const CountryCard = React.memo(({
                 }
             }}
             aria-disabled={isOutOfStock}
-            aria-label={`Select ${country.name}${selectedService ? `, price from ${formatPriceContext(country.minPrice || 0)}` : ""}`}
+            aria-label={`Select ${country.name}${selectedService ? `, price from ${formatFromPrices(country.currencyPrices)}` : ""}`}
             aria-pressed={isSelected}
             data-country-id={country.id}
             data-stock-status={stockStatus}
@@ -309,7 +309,7 @@ const CountryCard = React.memo(({
                             ? "text-[hsl(var(--neon-lime))]"
                             : "text-white group-hover:text-[hsl(var(--neon-lime))]"
                     )}>
-                        <PriceDisplay amountInPoints={country.minPrice || 0} compact />
+                        <PriceDisplay currencyPrices={country.currencyPrices || {}} compact />
                     </div>
                 </div>
             )}
@@ -370,6 +370,7 @@ export default function CountrySelector({
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(true);
     const prefersReducedMotion = usePrefersReducedMotion();
+    const { formatFromPrices, settings } = useCurrency();
     const { pinnedItems, isPinned, togglePin } = usePinnedItems<Country>("pinned_countries");
 
     // Reset when search/service/sort changes
@@ -403,7 +404,10 @@ export default function CountrySelector({
                 throw new Error("Invalid API response format");
             }
 
-            const newItems = data.items || [];
+            const newItems = (data.items || []).map((item: any) => ({
+                ...item,
+                currencyPrices: item.currencyPrices || { "USD": (item.minPrice || 0) / (Number(settings?.pointsRate) || 100) }
+            }));
             const meta = data.pagination || {};
 
             if (isReset) {

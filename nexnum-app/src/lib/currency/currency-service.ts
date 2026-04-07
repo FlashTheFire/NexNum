@@ -1,23 +1,53 @@
-
-import { prisma } from '../core/db'
-import { Prisma } from '@prisma/client'
+import { prisma } from '@/lib/core/db'
 import { logger } from '@/lib/core/logger'
+import { redis } from '@/lib/core/redis'
+import { Decimal } from 'decimal.js'
 
-export interface CurrencyInfo {
+// ============================================================================
+// Types & Constants
+// ============================================================================
+
+export interface ExchangeRate {
     code: string
-    name: string
-    symbol: string
     rate: number
-    isBase: boolean
+    updatedAt: Date
 }
 
-export class CurrencyService {
-    private static instance: CurrencyService
-    private ratesCache: Map<string, number> = new Map()
-    private lastUpdate: number = 0
-    private CACHE_TTL = 10 * 60 * 1000 // 10 minutes
+export interface SyncStats {
+    totalFetched: number
+    updated: number
+    skipped: number
+    errors: number
+    updatedCurrencies: string[]
+}
 
-    private constructor() { }
+export interface MultiCurrencyPrice {
+    points: number
+    USD: number
+    INR: number
+    RUB?: number
+    EUR?: number
+    GBP?: number
+    CNY?: number
+    [key: string]: number | undefined
+}
+
+const FRANKFURTER_API = 'https://api.frankfurter.app/latest?from=USD'
+const RATES_CACHE_KEY = 'currency:rates:latest'
+const SETTINGS_CACHE_KEY = 'currency:settings'
+const CACHE_TTL = 3600 // 1 hour
+
+// ============================================================================
+// Currency Service
+// ============================================================================
+
+export class CurrencyService {
+    private static instance: CurrencyService | null = null
+
+    private constructor() {
+        // Set Decimal precision for financial calculations
+        Decimal.set({ precision: 20, rounding: Decimal.ROUND_HALF_UP })
+    }
 
     public static getInstance(): CurrencyService {
         if (!CurrencyService.instance) {
@@ -27,208 +57,223 @@ export class CurrencyService {
     }
 
     /**
-     * Convert an amount between two currencies
-     * @param amount The amount to convert
-     * @param from Source currency code (e.g., 'RUB')
-     * @param to Target currency code (e.g., 'USD' or 'POINTS')
+     * Get system settings with caching
      */
-    async convert(amount: number | Prisma.Decimal, from: string, to: string): Promise<number> {
-        const val = typeof amount === 'number' ? amount : amount.toNumber()
-        if (from === to) return val
+    public async getSettings() {
+        // Try cache first
+        const cached = await redis.get(SETTINGS_CACHE_KEY)
+        if (cached) return JSON.parse(cached)
 
-        await this.ensureRates()
-
-        const settings = await this.getSettings()
-
-        // Internal logic:
-        // All rates in DB are relative to 'Technical Base' (usually USD)
-        // Rate = Amount of [Currency] per 1 USD
-        // Seed script set USD rate: 1.0, INR rate: 83.0. 
-        // This means 1 USD = 83 INR.
-
-        let amountInUSD = 0
-
-        // 1. Convert source to USD
-        if (from === 'USD') {
-            amountInUSD = val
-        } else if (from === 'POINTS' || from === settings.pointsName.toUpperCase()) {
-            amountInUSD = val / Number(settings.pointsRate)
-        } else {
-            const fromRate = this.ratesCache.get(from.toUpperCase()) || 1
-            amountInUSD = val / fromRate
+        const settings = await prisma.systemSettings.findFirst()
+        const settingsAny = settings as any
+        const data = {
+            pointsRate: Number(settings?.pointsRate) || 100,
+            inrToUsdRate: Number(settings?.inrToUsdRate) || 83,
+            syncBufferPercent: Number(settings?.syncBufferPercent) || 2, 
+            volatilitySpread: Number(settingsAny?.volatilitySpread) || 2,
         }
 
-        // 2. Convert USD to target
-        if (to === 'USD') {
-            return amountInUSD
-        }
-
-        if (to === 'POINTS' || to === settings.pointsName.toUpperCase()) {
-            return amountInUSD * Number(settings.pointsRate)
-        }
-
-        const toRate = this.ratesCache.get(to.toUpperCase()) || 1
-        return amountInUSD * toRate
+        await redis.setex(SETTINGS_CACHE_KEY, CACHE_TTL, JSON.stringify(data))
+        return data
     }
 
     /**
-     * Convert a price from a specific provider's currency to the system's internal Points
-     * taking into account provider-specific normalization rules (Manual, Smart-Auto, etc.)
-     * @param amount The raw price from the provider
-     * @param providerName The internal slug of the provider
+     * Compatibility alias for getRates
      */
-    async normalizeProviderPrice(amount: number | Prisma.Decimal, providerName: string): Promise<number> {
-        const val = typeof amount === 'number' ? amount : amount.toNumber()
-
-        // 1. Fetch provider settings
-        const provider = await prisma.provider.findUnique({
-            where: { name: providerName },
-            select: {
-                currency: true,
-                normalizationMode: true,
-                normalizationRate: true,
-                depositSpent: true,
-                depositReceived: true,
-                depositCurrency: true
-            } as any
-        })
-
-        if (!provider) return this.convert(val, 'USD', 'POINTS') // Safety fallback
-
-        const settings = await this.getSettings()
-        const p = provider as any
-        const fromCurrency = String(p.currency || 'USD').toUpperCase()
-
-        // 2. Determine Effective Rate (Provider Units per 1 USD)
-        let effectiveRate = 1.0
-
-        switch (String(p.normalizationMode || 'AUTO')) {
-            case 'MANUAL':
-                effectiveRate = Number(p.normalizationRate || 1.0)
-                break
-
-            case 'SMART_AUTO':
-                if (p.depositSpent && p.depositReceived && Number(p.depositSpent) > 0) {
-                    // 1. Convert "Spent amount" (e.g. 100 EUR) to the system Anchor (USD)
-                    const spentCurrency = String(p.depositCurrency || 'USD').toUpperCase()
-                    const spentInUSD = await this.convert(p.depositSpent, spentCurrency, 'USD')
-
-                    // 2. Effective Rate = Total Provider Units Received / Total USD equivalent Spent
-                    effectiveRate = Number(p.depositReceived) / (spentInUSD || 1.0)
-                } else {
-                    // Fallback to auto if deposits not filled
-                    await this.ensureRates()
-                    effectiveRate = this.ratesCache.get(fromCurrency) || 1.0
-                }
-                break
-
-            case 'API':
-                // For now API mode uses standard FX; can be extended for Crypto pairs
-                await this.ensureRates()
-                effectiveRate = this.ratesCache.get(fromCurrency) || 1.0
-                break
-
-            case 'AUTO':
-            default:
-                await this.ensureRates()
-                effectiveRate = this.ratesCache.get(fromCurrency) || 1.0
-                break
-        }
-
-        // 3. Normalize to USD anchor
-        const amountInUSD = val / (effectiveRate || 1.0)
-
-        // 4. Convert USD to Points
-        return amountInUSD * Number(settings.pointsRate)
+    public async getRates(): Promise<Record<string, number>> {
+        return this.getAllRates()
     }
 
     /**
-     * Get all active currencies for the UI selector
+     * Compatibility alias for getSettings
      */
-    async getActiveCurrencies(): Promise<CurrencyInfo[]> {
-        await this.ensureRates();
-        // @ts-ignore
-        const currencies = await prisma.currency.findMany({
+    public async getConfig() {
+        return this.getSettings()
+    }
+
+    /**
+     * Get all rates with caching
+     */
+    public async getAllRates(): Promise<Record<string, number>> {
+        const cached = await redis.get(RATES_CACHE_KEY)
+        if (cached) return JSON.parse(cached)
+
+        const ratesList = await prisma.currency.findMany({
             where: { isActive: true },
-            orderBy: { code: 'asc' }
-        });
-
-        return currencies.map(c => ({
-            code: c.code,
-            name: c.name,
-            symbol: c.symbol,
-            rate: Number(c.rate),
-            isBase: c.code === 'USD'
-        }));
-    }
-
-    /**
-     * Get system settings (display currency, points rate etc)
-     */
-    async getSettings() {
-        // @ts-ignore - Prisma linter sync issue
-        const settings = await prisma.systemSettings.findUnique({
-            where: { id: 'default' }
-        })
-        return settings || {
-            baseCurrency: 'USD',
-            displayCurrency: 'USD',
-            pointsEnabled: false,
-            pointsName: 'Points',
-            pointsRate: new Prisma.Decimal(1.0)
-        }
-    }
-
-    /**
-     * Ensure rates are loaded and fresh
-     */
-    private async ensureRates() {
-        const now = Date.now()
-        if (this.ratesCache.size > 0 && (now - this.lastUpdate < this.CACHE_TTL)) {
-            return
-        }
-
-        // @ts-ignore - Prisma linter sync issue
-        const currencies = await prisma.currency.findMany({
-            where: { isActive: true }
+            select: { code: true, rate: true }
         })
 
-        this.ratesCache.clear()
-        for (const cur of currencies) {
-            this.ratesCache.set(cur.code.toUpperCase(), Number(cur.rate))
-        }
-        this.lastUpdate = now
+        const rates: Record<string, number> = {}
+        ratesList.forEach(r => {
+            rates[r.code] = Number(r.rate)
+        })
+
+        // Ensure USD is always present as base
+        if (!rates['USD']) rates['USD'] = 1
+
+        await redis.setex(RATES_CACHE_KEY, CACHE_TTL, JSON.stringify(rates))
+        return rates
     }
 
     /**
-     * Update exchange rates from external APIs
+     * Precise conversion between any two currencies
      */
-    async syncRates() {
+    public async convert(amount: number, from: string, to: string): Promise<number> {
+        if (from === to) return amount
+        if (amount === 0) return 0
+
+        const rates = await this.getAllRates()
+        const fromRate = rates[from]
+        const toRate = rates[to]
+
+        if (!fromRate || !toRate || fromRate === 0) {
+            logger.warn(`[CurrencyService] Missing or invalid rate for ${from} or ${to}`)
+            return amount // Fallback to 1:1 if rates missing
+        }
+
+        // Calculation: (amount / fromRate) * toRate
+        // Using Decimal for precision
+        const result = new Decimal(amount)
+            .div(fromRate)
+            .mul(toRate)
+
+        return result.toNumber()
+    }
+
+    /**
+     * Convert Points to a specific Fiat currency
+     */
+    public async pointsToFiat(points: number, currencyCode: string): Promise<number> {
+        const { pointsRate } = await this.getSettings()
+        // Points -> USD: points / pointsRate
+        const usdAmount = new Decimal(points).div(pointsRate).toNumber()
+        // USD -> Target Fiat
+        return this.convert(usdAmount, 'USD', currencyCode)
+    }
+
+    /**
+     * Zero-Math Helper: Get point price in all supported fiat currencies
+     */
+    public async pointsToAllFiat(points: number): Promise<MultiCurrencyPrice> {
+        const rates = await this.getAllRates()
+        const { pointsRate } = await this.getSettings()
+        
+        const usdBase = new Decimal(points).div(pointsRate)
+        const prices: MultiCurrencyPrice = {
+            points: Number(points)
+        } as MultiCurrencyPrice
+
+        for (const [code, rate] of Object.entries(rates)) {
+            prices[code] = usdBase.mul(rate).toDecimalPlaces(4).toNumber()
+        }
+
+        return prices
+    }
+
+    /**
+     * Convert INR Deposit to Points
+     */
+    public async inrToPoints(inrAmount: number): Promise<number> {
+        const { inrToUsdRate, pointsRate } = await this.getSettings()
+        // INR -> USD: inrAmount / inrToUsdRate
+        // USD -> Points: usdAmount * pointsRate
+        const points = new Decimal(inrAmount)
+            .div(inrToUsdRate)
+            .mul(pointsRate)
+            .floor() // Always floor for user credit to avoid fractional points
+
+        return points.toNumber()
+    }
+
+    /**
+     * Convert Provider Cost (USD) to Internal Points with markup/buffer
+     */
+    public async providerCostToPoints(usdCost: number, customMarkup?: number): Promise<number> {
+        const { pointsRate, syncBufferPercent } = await this.getSettings()
+        const buffer = customMarkup ?? syncBufferPercent
+        
+        // (usdCost * pointsRate) * (1 + buffer/100)
+        const basePoints = new Decimal(usdCost).mul(pointsRate)
+        const pointsWithBuffer = basePoints.mul(new Decimal(1).add(new Decimal(buffer).div(100)))
+        
+        return pointsWithBuffer.toDecimalPlaces(2).toNumber()
+    }
+
+    /**
+     * Normalize a provider price into internal points logic
+     */
+    public async normalizeProviderPrice(price: number, currency: string = 'USD'): Promise<number> {
+        if (currency === 'POINTS') return price
+        
+        // Convert any currency to USD first
+        const usdPrice = await this.convert(price, currency, 'USD')
+        return this.providerCostToPoints(usdPrice)
+    }
+
+    /**
+     * Synchronize exchange rates from Frankfurter API
+     */
+    public async syncRates(): Promise<SyncStats> {
+        const stats: SyncStats = {
+            totalFetched: 0,
+            updated: 0,
+            skipped: 0,
+            errors: 0,
+            updatedCurrencies: []
+        }
+
         try {
-            logger.info('Syncing exchange rates from external API...', { context: 'CURRENCY' })
-            // Frankfurter API for fiat (relative to EUR by default, but we can use USD)
-            const response = await fetch('https://api.frankfurter.app/latest?from=USD')
-            if (!response.ok) throw new Error('Failed to fetch fiat rates')
-
+            const response = await fetch(FRANKFURTER_API)
+            if (!response.ok) throw new Error(`Frankfurter API error: ${response.statusText}`)
+            
             const data = await response.json()
-            const rates = data.rates as Record<string, number>
+            const fetchedRates = data.rates || {}
+            
+            // Add USD base rate
+            fetchedRates['USD'] = 1.0
+            
+            const currencies = Object.entries(fetchedRates)
+            stats.totalFetched = currencies.length
 
-            for (const [code, rate] of Object.entries(rates)) {
-                // @ts-ignore - Prisma linter sync issue
-                await prisma.currency.updateMany({
-                    where: { code, autoUpdate: true },
-                    data: { rate: new Prisma.Decimal(rate) }
-                })
+            for (const [code, rate] of currencies) {
+                try {
+                    const result = await prisma.currency.upsert({
+                        where: { code },
+                        update: { 
+                            rate: Number(rate),
+                            isActive: true,
+                            updatedAt: new Date()
+                        },
+                        create: {
+                            code,
+                            name: code, // Default name to code
+                            symbol: code,
+                            rate: Number(rate),
+                            isActive: true
+                        }
+                    })
+                    
+                    if (result) {
+                        stats.updated++
+                        stats.updatedCurrencies.push(code)
+                    }
+                } catch (err) {
+                    logger.error(`[CurrencyService] Error updating rate for ${code}:`, { error: err instanceof Error ? err.message : String(err) })
+                    stats.errors++
+                }
             }
 
-            // Clear cache to force reload
-            this.ratesCache.clear()
-            this.lastUpdate = 0
-            logger.info('Exchange rates synced successfully', { context: 'CURRENCY' })
-        } catch (e: any) {
-            logger.error('Rate sync failed', { context: 'CURRENCY', error: e.message })
+            // Clear cache after sync
+            await redis.del(RATES_CACHE_KEY)
+            
+            logger.info('[CurrencyService] Sync completed', stats)
+            return stats
+        } catch (error) {
+            logger.error('[CurrencyService] Sync failed:', { error: error instanceof Error ? error.message : String(error) })
+            throw error
         }
     }
 }
 
-export const currencyService = CurrencyService.getInstance()
+// Export singleton factory
+export const getCurrencyService = () => CurrencyService.getInstance()

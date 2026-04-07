@@ -12,7 +12,7 @@ export async function POST(request: Request) {
 
     try {
         const body = await request.json()
-        const { path, action } = body
+        const { path } = body
 
         if (!path) return NextResponse.json({ error: 'Path required' }, { status: 400 })
 
@@ -27,9 +27,14 @@ export async function POST(request: Request) {
             ip: request.headers.get('x-forwarded-for') || 'internal'
         }
 
-        // Push to Redis list
-        await redis.lpush(LOGS_KEY, JSON.stringify(logEntry))
-        await redis.ltrim(LOGS_KEY, 0, MAX_LOGS - 1)
+        // Push to Redis list — non-critical telemetry, silently skip if Redis is unavailable
+        try {
+            await redis.lpush(LOGS_KEY, JSON.stringify(logEntry))
+            await redis.ltrim(LOGS_KEY, 0, MAX_LOGS - 1)
+        } catch (redisError) {
+            // Redis may be unavailable in local dev — this is non-fatal
+            console.warn('Activity log: Redis unavailable, skipping persistence.', (redisError as Error).message)
+        }
 
         return NextResponse.json({ success: true })
     } catch (error) {

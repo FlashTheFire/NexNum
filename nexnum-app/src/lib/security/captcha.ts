@@ -70,8 +70,20 @@ export async function getCaptchaSettings(): Promise<CaptchaSettings> {
                 envConfig.recaptchaSecret = decrypt(settings.captcha.recaptchaSecret)
             }
         }
+
+        // 2.5 DB OVERRIDE (High Priority)
+        // Use raw query to bypass any potential Prisma schema caching/type issues in the Next.js process
+        const { prisma } = await import('@/lib/core/db')
+        const result = await prisma.$queryRaw`SELECT captcha_enabled FROM system_settings WHERE id = 'default' LIMIT 1` as any[]
+        
+        const dbEnabled = result?.[0]?.captcha_enabled
+
+        if (dbEnabled === false) {
+            envConfig.enabled = false
+        }
     } catch (error) {
-        logger.error('Failed to fetch captcha overrides from Redis', { error })
+        // Fallback to env config if DB is unreachable
+        logger.error('[SECURITY] Failed to fetch captcha from DB, falling back to env/redis', { error })
     }
 
     // 3. Absolute Safety Guard: Force disabled if secrets/keys are missing for the selected provider

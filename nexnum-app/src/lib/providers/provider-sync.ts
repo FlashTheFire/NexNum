@@ -30,7 +30,7 @@ import { getCanonicalName, generateCanonicalCode, getCanonicalKey, CANONICAL_SER
 import { getCountryIsoCode, normalizeCountryName } from '@/lib/normalizers/country-normalizer'
 import { getCountryFlagUrlSync } from '@/lib/normalizers/country-flags'
 import { isValidImageUrl } from '@/lib/utils/utils'
-import { currencyService } from '@/lib/currency/currency-service'
+import { getCurrencyService } from '@/lib/currency/currency-service'
 import crypto from 'crypto';
 import { CentralRegistry } from '@/lib/normalizers/central-registry';
 import { logger } from '@/lib/core/logger';
@@ -749,12 +749,13 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
 
 
         // PERFORMANCE OPTIMIZATION: Pre-fetch currency rates & settings ONCE
+        const currencyService = getCurrencyService()
         const systemSettings = await currencyService.getSettings()
         const providerCurrency = (provider.currency || 'USD').toUpperCase()
         const depositCurrency = (provider.depositCurrency || 'USD').toUpperCase()
 
-        await currencyService['ensureRates']()
-        const ratesCache = currencyService['ratesCache'] // Access internal cache directly or via helper if made public
+        const rates = await currencyService.getAllRates()
+        const ratesCache = new Map(Object.entries(rates))
 
         // MULTI-CURRENCY: Fetch all active currencies for pre-computation
         const activeCurrencies = await prisma.currency.findMany({
@@ -787,7 +788,10 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
         const pointsRate = Number(systemSettings.pointsRate)
 
 
-        const allOffers: OfferDocument[] = []
+        // Collect offers in a Map to automatically deduplicate by ID
+        // This prevents MDB_KEYEXIST errors in MeiliSearch if a provider returns redundant data
+        const allOffersMap = new Map<string, OfferDocument>()
+
         // Operator mapping: Track provider+externalOperator -> internal sequential ID
         const operatorMap = new Map<string, number>()
         let operatorCounter = 1
@@ -850,8 +854,10 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                 const canonicalSvcCode = generateCanonicalCode(canonicalSvcName)
                 const canonicalCtyCode = generateCanonicalCode(canonicalCtyName)
 
-                allOffers.push({
-                    id: `${provider.name}_${countryCode}_${p.service}_${externalOp}`.toLowerCase().replace(/[^a-z0-9_]/g, ''),
+                const offerId = `${provider.name}_${countryCode}_${p.service}_${externalOp}`.toLowerCase().replace(/[^a-z0-9_]/g, '')
+                
+                allOffersMap.set(offerId, {
+                    id: offerId,
                     provider: provider.name,
                     providerCountryCode: countryCode,
                     countryName: canonicalCtyName,
@@ -897,6 +903,7 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                 })
 
 
+
                 pricesCount++
             }
         }
@@ -928,6 +935,18 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                 }
             }))
             await Promise.all(promises)
+        }
+
+        const allOffers = Array.from(allOffersMap.values())
+        const duplicateCount = (pricesCount - allOffers.length)
+
+        if (duplicateCount > 0) {
+            logger.warn(`Deduplicated ${duplicateCount} offers during sync`, {
+                context: 'SYNC',
+                provider: provider.name,
+                totalBefore: pricesCount,
+                totalAfter: allOffers.length
+            })
         }
 
         // 4. Indexing (Chunked for Memory Efficiency)
@@ -1062,7 +1081,7 @@ export async function syncAllProviders(): Promise<SyncResult[]> {
 
     // Refresh exchange rates first to ensure accurate margins
     try {
-        await currencyService.syncRates()
+        await getCurrencyService().syncRates()
     } catch (e) {
         logger.error('Failed to sync exchange rates during provider sync', {
             context: 'SYNC',

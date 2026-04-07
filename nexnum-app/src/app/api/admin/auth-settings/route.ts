@@ -170,6 +170,16 @@ export const GET = apiHandler(async (req) => {
         const stored = await redis.get(AUTH_SETTINGS_KEY)
         const settings = stored ? JSON.parse(stored) : defaultSettings
 
+        // Fetch DB-level captcha setting using raw SQL to bypass schema issues
+        const { prisma } = await import('@/lib/core/db')
+        const dbResult = await prisma.$queryRaw`SELECT captcha_enabled FROM system_settings WHERE id = 'default' LIMIT 1` as any[]
+        const dbCaptchaEnabled = dbResult?.[0]?.captcha_enabled
+
+        if (typeof dbCaptchaEnabled === 'boolean') {
+            settings.captcha = settings.captcha || { ...defaultSettings.captcha }
+            settings.captcha.enabled = dbCaptchaEnabled
+        }
+
         // Merge with defaults and ENFORCE ENV PRIORITY for secrets
         const merged = {
             oauth: deepMergeOAuth(defaultSettings.oauth, settings.oauth),
@@ -267,6 +277,12 @@ export const PUT = apiHandler(async (req, { body }) => {
 
         // Save to Redis
         await redis.set(AUTH_SETTINGS_KEY, JSON.stringify(merged))
+
+        // 3. Update DB-level captcha setting using raw SQL
+        const { prisma } = await import('@/lib/core/db')
+        if (updates.captcha && typeof updates.captcha.enabled === 'boolean') {
+            await prisma.$executeRaw`UPDATE system_settings SET captcha_enabled = ${updates.captcha.enabled} WHERE id = 'default'`
+        }
 
         return ResponseFactory.success(merged)
     } catch (error) {

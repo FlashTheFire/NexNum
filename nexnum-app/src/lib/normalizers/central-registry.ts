@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/core/db'
 import { getCanonicalName, generateCanonicalCode } from './service-identity'
+import { getCountryIsoCode } from './country-normalizer'
 import { logger } from '@/lib/core/logger'
 
 /**
@@ -58,7 +59,11 @@ export class CentralRegistry {
      */
     static async resolveCountryId(providerName: string, externalId: string, rawName: string): Promise<{ id: number; name: string; code: string }> {
         const canonicalName = getCanonicalName(rawName)
-        const canonicalCode = generateCanonicalCode(canonicalName)
+        
+        // DYNAMICALLY RESOLVE ISO CODE (Universal approach)
+        const isoCode = getCountryIsoCode(externalId) || getCountryIsoCode(rawName) || getCountryIsoCode(canonicalName)
+
+        const canonicalCode = isoCode || generateCanonicalCode(canonicalName)
 
         // 1. Look up in the Central Lookup Table
         let lookup = await (prisma.countryLookup as any).findUnique({

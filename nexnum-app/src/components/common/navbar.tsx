@@ -27,9 +27,9 @@ import { cn } from "@/lib/utils/utils"
 import { useNotifications, formatNotificationTime } from "@/hooks/use-notifications"
 import { NotificationDropdown } from "@/components/common/notification-dropdown"
 import LanguageSwitcher from "@/components/common/LanguageSwitcher"
-import CurrencySelector from "@/components/common/CurrencySelector"
 import { useCurrency } from "@/providers/CurrencyProvider"
 import { BalanceDisplay } from "@/components/common/PriceDisplay"
+import CurrencySelector from "@/components/common/CurrencySelector"
 
 export function Navbar() {
     const pathname = usePathname()
@@ -37,8 +37,6 @@ export function Navbar() {
     const { userProfile } = useGlobalStore()
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
     const [scrolled, setScrolled] = useState(false)
-    const { formatBalance } = useCurrency()
-
     // Check if we are on the landing page (root or root with locale)
     const isLandingPage = pathname === "/" || /^\/[a-z]{2}(\/)?$/.test(pathname)
 
@@ -73,8 +71,8 @@ export function Navbar() {
                                     <Image
                                         alt="NexNum Logo"
                                         priority
-                                        width="28"
-                                        height="28"
+                                        width={28}
+                                        height={28}
                                         decoding="async"
                                         className="text-black invert-0"
                                         style={{ color: "transparent", filter: "brightness(0)" }}
@@ -91,7 +89,7 @@ export function Navbar() {
                             </div>
                         </Link>
 
-                        {/* 2. Center Navigation (Perfectly Centered) */}
+                        {/* 2. Center Navigation */}
                         <div className="hidden lg:flex items-center absolute left-1/2 -translate-x-1/2">
                             <div className="flex items-center gap-1 px-2 py-1.5 rounded-full bg-white/[0.03] border border-white/[0.06] backdrop-blur-md shadow-sm">
                                 {[
@@ -101,7 +99,7 @@ export function Navbar() {
                                     { href: "/api-docs", label: "Developers" }
                                 ].map((link) => (
                                     <Link key={link.href} href={link.href} className={cn(
-                                        "px-4 py-2 text-sm font-medium rounded-full transition-all duration-200 flex items-center gap-1",
+                                        "px-4 py-2 text-sm font-medium rounded-full transition-all duration-200 flex items-center gap-1 whitespace-nowrap",
                                         pathname === link.href ? "text-white bg-white/[0.06] shadow-inner" : "text-gray-400 hover:text-white hover:bg-white/[0.06]"
                                     )}>
                                         {link.label}
@@ -111,26 +109,27 @@ export function Navbar() {
                         </div>
 
                         {/* 3. Right Actions (User Profile / Auth) */}
-                        <div className="hidden lg:flex items-center gap-3">
+                        <div className="hidden xl:flex items-center gap-3">
                             {isAuthenticated ? (
                                 <>
                                     {/* Quick Wallet Info */}
                                     <Link
                                         href="/dashboard/wallet"
-                                        className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 py-2 text-gray-300 hover:text-white hover:bg-white/[0.06] font-medium h-10 px-5 gap-2 group/wallet"
+                                        className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 py-2 text-gray-300 hover:text-white hover:bg-white/[0.06] font-medium h-10 px-3 xl:px-5 gap-2 group/wallet"
                                     >
                                         <Wallet className="h-4 w-4 text-[hsl(var(--neon-lime))] group-hover/wallet:scale-110 transition-transform" />
-                                        <BalanceDisplay
-                                            balanceInPoints={userProfile?.balance || 0}
-                                            multiBalance={userProfile?.multiBalance}
-                                            className="font-bold"
-                                        />
+                                        <div className="hidden xl:block">
+                                            <BalanceDisplay
+                                                multiBalance={userProfile?.multiBalance}
+                                                className="font-bold"
+                                            />
+                                        </div>
                                     </Link>
 
                                     {/* Desktop Notification Bell */}
                                     <NotificationDropdown />
 
-                                    {/* Language & Currency Switchers */}
+                                    {/* Language Switchers */}
                                     <div className="mr-1 flex items-center gap-2">
                                         <CurrencySelector />
                                         <LanguageSwitcher />
@@ -139,9 +138,10 @@ export function Navbar() {
                                     {/* Profile Link */}
                                     <Link
                                         href="/dashboard/settings"
-                                        className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 py-2 bg-[hsl(var(--neon-lime))] text-black hover:bg-[hsl(72,100%,55%)] font-semibold h-10 px-6 shadow-lg shadow-[hsl(var(--neon-lime)/0.25)] hover:shadow-[hsl(var(--neon-lime)/0.4)] transition-all duration-300 ml-2"
+                                        className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 py-2 bg-[hsl(var(--neon-lime))] text-black hover:bg-[hsl(72,100%,55%)] font-semibold h-10 w-10 xl:w-auto px-0 xl:px-6 shadow-lg shadow-[hsl(var(--neon-lime)/0.25)] hover:shadow-[hsl(var(--neon-lime)/0.4)] transition-all duration-300 ml-2"
                                     >
-                                        <span className="mr-1.5">{user?.name?.split(' ')[0]}</span>
+                                        <span className="hidden xl:inline-block mr-1.5">{user?.name?.split(' ')[0]}</span>
+                                        <User className="h-4 w-4 xl:hidden" />
                                     </Link>
 
                                     {/* Logout Button */}
@@ -173,9 +173,8 @@ export function Navbar() {
                         </div>
 
                         {/* Mobile Actions (Notification + Menu) */}
-                        <div className="flex items-center gap-1.5 lg:hidden relative">
+                        <div className="flex items-center gap-1.5 xl:hidden relative">
                             <NotificationDropdown />
-                            <CurrencySelector />
                             <LanguageSwitcher />
 
                             <button
@@ -198,7 +197,7 @@ export function Navbar() {
                             animate={{ opacity: 1, height: "auto" }}
                             exit={{ opacity: 0, height: 0 }}
                             transition={{ duration: 0.2 }}
-                            className="lg:hidden bg-[#0a0a0c]/98 backdrop-blur-2xl border-t border-white/[0.06] overflow-hidden relative"
+                            className="xl:hidden bg-[#0a0a0c]/98 backdrop-blur-2xl border-t border-white/[0.06] overflow-hidden relative"
                         >
                             {/* Mobile Menu Background Visuals */}
                             <div className="absolute inset-0 bg-gradient-to-b from-[hsl(var(--neon-lime)/0.05)] to-transparent pointer-events-none" />
@@ -230,17 +229,15 @@ export function Navbar() {
                                             </button>
                                         </motion.div>
 
-                                        {/* Mobile Menu Currency/Language Quick Switch */}
+                                        {/* Mobile Menu Language Quick Switch */}
                                         <motion.div
                                             initial={{ opacity: 0, y: 10 }}
                                             animate={{ opacity: 1, y: 0 }}
                                             transition={{ delay: 0.12 }}
                                             className="flex items-center gap-2 px-1"
                                         >
-                                            <div className="flex-1">
+                                            <div className="flex-1 flex flex-row items-center justify-start gap-2">
                                                 <CurrencySelector />
-                                            </div>
-                                            <div className="flex-1">
                                                 <LanguageSwitcher />
                                             </div>
                                         </motion.div>

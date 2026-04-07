@@ -59,9 +59,10 @@ export default function WalletPage() {
     const [amount, setAmount] = useState<string>("")
     const [isLoading, setIsLoading] = useState(false)
     const [customFocused, setCustomFocused] = useState(false)
-    const { currencies, preferredCurrency, formatPrice: formatPriceContext, settings } = useCurrency()
+    const { currencies, preferredCurrency, formatFromPrices, formatPrice, settings } = useCurrency()
     const pointsRate = Number(settings?.pointsRate) || 100
     const currencySym = currencies[preferredCurrency]?.symbol || '$'
+    const formatPriceContext = formatPrice // Use robust formatPrice helper
 
     // Deposit Dialog
     const [depositDialogOpen, setDepositDialogOpen] = useState(false)
@@ -214,7 +215,6 @@ export default function WalletPage() {
                                             <p className="text-xs font-medium text-indigo-200 tracking-[0.2em] uppercase">Total Balance</p>
                                             <h2 className="text-3xl md:text-5xl font-bold text-white tracking-tight drop-shadow-lg tabular-nums">
                                                 <BalanceDisplay
-                                                    balanceInPoints={userProfile?.balance || 0}
                                                     multiBalance={userProfile?.multiBalance}
                                                 />
                                             </h2>
@@ -471,7 +471,7 @@ export default function WalletPage() {
                                                         ['topup', 'manual_credit', 'referral_bonus'].includes(tx.type) ? "text-emerald-400" : "text-white"
                                                     )}>
                                                         {['topup', 'manual_credit', 'referral_bonus'].includes(tx.type) ? "+" : "-"}
-                                                        <PriceDisplay amountInPoints={tx.amount} />
+                                                        <PriceDisplay currencyPrices={tx.currencyPrices || {}} />
                                                     </span>
                                                     <span className="text-[10px] text-white/30 font-mono">{tx.id.slice(0, 8)}...</span>
                                                 </div>

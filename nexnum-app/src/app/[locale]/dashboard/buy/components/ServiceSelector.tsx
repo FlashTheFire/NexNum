@@ -34,6 +34,7 @@ export interface Service {
     color?: string;
     popular?: boolean;
     lowestPrice?: number;
+    currencyPrices?: Record<string, number>;
     countryCount?: number;
     iconUrl?: string;
     flagUrls?: string[];
@@ -184,9 +185,9 @@ const ServiceCard = React.memo(({
             )}>
                 {service.name}
             </span>
-            {service.lowestPrice && (
+            {service.currencyPrices && (
                 <div className={cn("mt-0.5 text-[10px] font-medium opacity-80", isSelected ? "text-[hsl(var(--neon-lime))]" : "text-gray-400 group-hover:text-gray-300")}>
-                    from <PriceDisplay amountInPoints={service.lowestPrice} compact />
+                    from <PriceDisplay currencyPrices={service.currencyPrices} compact />
                 </div>
             )}
         </motion.div>
@@ -249,6 +250,7 @@ export default function ServiceSelector({ selectedService, defaultSelected, onSe
                     color: MOCK_COLORS[lowerName.split(/[\s-]/)[0]] || "#888888",
                     popular: false,
                     lowestPrice: item.lowestPrice,
+                    currencyPrices: item.currencyPrices || { "USD": item.lowestPrice }, // Use API prices or fallback to legacy USD bridge
                     totalStock: item.totalStock,
                     serverCount: item.serverCount,
                     countryCount: item.countryCount,

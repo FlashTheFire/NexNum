@@ -19,7 +19,6 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useGlobalStore } from "@/stores/appStore"
 import { useAuthStore } from "@/stores/authStore"
-import { formatPrice } from "@/lib/utils/utils"
 import { DashboardBackground } from "./dashboard-background"
 import { ModernNumberCard } from "./ModernNumberCard"
 import { BalanceDisplay, PriceDisplay } from "@/components/common/PriceDisplay"
@@ -37,25 +36,33 @@ const stagger = {
     visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
 }
 
-const MiniBarChart = ({ color, data = [30, 15, 15, 30, 20, 15, 30] }: { color: string, data?: number[] }) => {
+const MiniBarChart = ({ color, data }: { color: string, data?: number[] }) => {
+    // Ensure data is a valid array and sanitize elements
+    const rawData = Array.isArray(data) && data.length > 0 ? data : [30, 15, 15, 30, 20, 15, 30]
+    const safeData = rawData.map(v => Number(v) || 0)
+    
     // Normalize data for chart height (max 24px)
-    const maxVal = Math.max(...data, 1)
-    const normalizedData = data.map(v => Math.max((v / maxVal) * 24, 2)) // Min 2px height for visibility
+    const maxVal = Math.max(...safeData, 1)
+    const normalizedData = safeData.map(v => Math.max((v / maxVal) * 24, 2)) // Min 2px height for visibility
 
     return (
         <svg width="60" height="24" viewBox="0 0 60 24" className="opacity-40 group-hover:opacity-100 transition-opacity duration-500">
-            {normalizedData.map((h, i) => (
-                <rect
-                    key={i}
-                    x={i * 8}
-                    y={24 - h}
-                    width="4"
-                    height={h}
-                    rx="2"
-                    fill={color}
-                    className="transition-all duration-500"
-                />
-            ))}
+            {normalizedData.slice(0, 7).map((h, i) => {
+                const heightVal = Number(h)
+                const safeHeight = isNaN(heightVal) || !isFinite(heightVal) ? 2 : Math.min(Math.max(heightVal, 2), 24);
+                return (
+                    <rect
+                        key={i}
+                        x={i * 8}
+                        y={Math.max(0, 24 - safeHeight)}
+                        width="4"
+                        height={safeHeight}
+                        rx="2"
+                        fill={color}
+                        className="transition-all duration-500"
+                    />
+                )
+            })}
         </svg>
     )
 }
@@ -77,10 +84,10 @@ export function DesktopDashboard() {
     const greeting = hour < 12 ? t('greeting.morning') : hour < 18 ? t('greeting.afternoon') : t('greeting.evening')
 
     const stats = [
-        { label: t('stats.balance'), value: <BalanceDisplay balanceInPoints={userProfile?.balance || 0} multiBalance={userProfile?.multiBalance} />, icon: Wallet, color: "text-[hsl(var(--neon-lime))]", fill: "hsl(var(--neon-lime))", bg: "bg-[hsl(var(--neon-lime)/0.1)]", border: "border-[hsl(var(--neon-lime)/0.2)]", data: [0, 0, 0, 0, 0, 0, (userProfile?.balance || 0) / 100] },
+        { label: t('stats.balance'), value: <BalanceDisplay multiBalance={userProfile?.multiBalance} />, icon: Wallet, color: "text-[hsl(var(--neon-lime))]", fill: "hsl(var(--neon-lime))", bg: "bg-[hsl(var(--neon-lime)/0.1)]", border: "border-[hsl(var(--neon-lime)/0.2)]", data: [0, 0, 0, 0, 0, 0, (userProfile?.balance || 0) / 100] },
         { label: t('stats.myNumbers'), value: activeNumbers.length, icon: Phone, color: "text-cyan-400", fill: "#22d3ee", bg: "bg-cyan-400/10", border: "border-cyan-400/20", data: [0, 0, 0, 0, 0, 0, activeNumbers.length] },
-        { label: t('stats.spent'), value: <PriceDisplay amountInPoints={totalSpent || 0} />, icon: ShoppingCart, color: "text-purple-400", fill: "#c084fc", bg: "bg-purple-400/10", border: "border-purple-400/20", data: usageSummary },
-        { label: t('stats.deposited'), value: <PriceDisplay amountInPoints={totalDeposited || 0} />, icon: TrendingUp, color: "text-emerald-400", fill: "#34d399", bg: "bg-emerald-400/10", border: "border-emerald-400/20", data: [0, 0, 0, 0, 0, 0, (totalDeposited || 0) / 1000] },
+        { label: t('stats.spent'), value: <PriceDisplay currencyPrices={typeof totalSpent === 'object' ? (totalSpent as unknown as Record<string, number>) : { USD: (Number(totalSpent) || 0) / pointsRate }} />, icon: ShoppingCart, color: "text-purple-400", fill: "#c084fc", bg: "bg-purple-400/10", border: "border-purple-400/20", data: usageSummary },
+        { label: t('stats.deposited'), value: <PriceDisplay currencyPrices={typeof totalDeposited === 'object' ? (totalDeposited as unknown as Record<string, number>) : { USD: (Number(totalDeposited) || 0) / pointsRate }} />, icon: TrendingUp, color: "text-emerald-400", fill: "#34d399", bg: "bg-emerald-400/10", border: "border-emerald-400/20", data: [0, 0, 0, 0, 0, 0, (totalDeposited as number || 0) / 1000] },
     ]
 
     return (
@@ -238,7 +245,7 @@ export function DesktopDashboard() {
                                         {[10, 25, 50, 100].map(amt => (
                                             <button key={amt} className="group/btn relative h-8 rounded-lg bg-white/[0.03] hover:bg-[hsl(var(--neon-lime)/0.1)] border border-white/[0.06] hover:border-[hsl(var(--neon-lime)/0.3)] transition-all duration-200 flex items-center justify-between px-3">
                                                 <span className="text-[11px] text-gray-400 font-medium">Top Up</span>
-                                                <span className="text-sm font-mono font-bold text-white group-hover:text-[hsl(var(--neon-lime))]"><PriceDisplay amountInPoints={amt * pointsRate} precision={0} showCode={false} /></span>
+                                                <span className="text-sm font-mono font-bold text-white group-hover:text-[hsl(var(--neon-lime))]"><PriceDisplay currencyPrices={{ USD: amt }} /></span>
                                             </button>
                                         ))}
                                     </div>
@@ -271,7 +278,7 @@ export function DesktopDashboard() {
                                         <div className="text-right shrink-0">
                                             <span className={`block text-xs font-mono font-bold ${['topup', 'manual_credit', 'referral_bonus', 'refund'].includes(tx.type) ? 'text-emerald-400' : 'text-gray-400'}`}>
                                                 {['topup', 'manual_credit', 'referral_bonus', 'refund'].includes(tx.type) ? '+' : ''}
-                                                <PriceDisplay amountInPoints={tx.amount} />
+                                                <PriceDisplay currencyPrices={{ USD: tx.amount / pointsRate }} />
                                             </span>
                                         </div>
                                     </div>

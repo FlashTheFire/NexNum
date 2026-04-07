@@ -29,8 +29,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { useGlobalStore } from "@/stores/appStore"
-import { formatPrice, formatDate, cn } from "@/lib/utils/utils"
+import { useGlobalStore, type Transaction } from "@/stores/appStore"
+import { formatDate, cn } from "@/lib/utils/utils"
 import { DashboardBackground } from "../components/dashboard-background"
 import { PriceDisplay } from "@/components/common/PriceDisplay"
 import { useCurrency } from "@/providers/CurrencyProvider"
@@ -150,14 +150,7 @@ const VectorAccents = () => (
 // ============================================
 
 interface TransactionCardProps {
-    tx: {
-        id: string
-        type: 'purchase' | 'topup' | 'refund'
-        amount: number
-        createdAt: string
-        status: string
-        description: string
-    }
+    tx: Transaction
     index: number
 }
 
@@ -226,7 +219,7 @@ const TransactionCard = ({ tx, index }: TransactionCardProps) => {
                         </div>
                         <div className="col-span-3 text-right">
                             <span className={cn("font-bold font-mono text-lg block", amountColor)}>
-                                {isCredit ? "+" : "-"}<PriceDisplay amountInPoints={Math.abs(tx.amount)} />
+                                {isCredit ? "+" : "-"}<PriceDisplay currencyPrices={tx.currencyPrices || { points: Math.abs(tx.amount) }} />
                             </span>
                             <span className={cn(
                                 "text-[10px] uppercase font-bold tracking-wider flex items-center justify-end gap-1 mt-0.5",
@@ -257,7 +250,7 @@ const TransactionCard = ({ tx, index }: TransactionCardProps) => {
                     </div>
                     <div className="text-right">
                         <p className={cn("font-bold font-mono text-sm", amountColor)}>
-                            {isCredit ? "+" : "-"}<PriceDisplay amountInPoints={Math.abs(tx.amount)} />
+                            {isCredit ? "+" : "-"}<PriceDisplay currencyPrices={tx.currencyPrices || { points: Math.abs(tx.amount) }} />
                         </p>
                         <p className={cn(
                             "text-[10px] font-medium uppercase tracking-wide",
@@ -385,7 +378,7 @@ export default function HistoryPage() {
     const [isStatsOpen, setIsStatsOpen] = useState(true)
     const [isMounted, setIsMounted] = useState(false)
     const itemsPerPage = 8
-    const { formatPrice: formatPriceContext } = useCurrency()
+    const { formatFromPrices, isLoading: isCurrencyLoading } = useCurrency()
 
     const containerRef = useRef<HTMLDivElement>(null)
     const { scrollY } = useScroll()
@@ -432,7 +425,7 @@ export default function HistoryPage() {
                 formatDate(tx.createdAt),
                 tx.type,
                 tx.description,
-                formatPriceContext(tx.amount),
+                formatFromPrices(tx.currencyPrices || { points: tx.amount }),
                 tx.status,
             ])
         ].map(row => row.join(",")).join("\n")
@@ -549,7 +542,7 @@ export default function HistoryPage() {
                                 <>
                                     <StatCard
                                         title="Total Deposited"
-                                        value={<PriceDisplay amountInPoints={stats.deposited} />}
+                                        value={<PriceDisplay currencyPrices={typeof stats.deposited === 'number' ? { points: stats.deposited } : (stats.deposited as any)} />}
                                         icon={<ArrowDownRight className="h-5 w-5 md:h-6 md:w-6" />}
                                         colorScheme="emerald"
                                         index={0}
@@ -557,7 +550,7 @@ export default function HistoryPage() {
                                     />
                                     <StatCard
                                         title="Total Spent"
-                                        value={<PriceDisplay amountInPoints={stats.spent} />}
+                                        value={<PriceDisplay currencyPrices={typeof stats.spent === 'number' ? { points: stats.spent } : (stats.spent as any)} />}
                                         icon={<ArrowUpRight className="h-5 w-5 md:h-6 md:w-6" />}
                                         colorScheme="rose"
                                         index={1}

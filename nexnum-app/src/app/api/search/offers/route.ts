@@ -74,4 +74,3 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ hits: [], total: 0, error: "Search failed" }, { status: 500 });
     }
 }
-

@@ -5,7 +5,6 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Zap, Menu, X, ChevronDown, LogOut, Bell } from "lucide-react";
 import LanguageSwitcher from "@/components/common/LanguageSwitcher";
-import CurrencySelector from "@/components/common/CurrencySelector";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTranslations } from "next-intl";
@@ -103,7 +102,6 @@ export default function Navbar({ hideLogin = false, hideRegister = false }: Navb
                         <div className="hidden lg:flex items-center gap-3">
                             <div className="flex items-center gap-2 mr-1">
                                 <LanguageSwitcher />
-                                <CurrencySelector />
                             </div>
                             {isAuthenticated ? (
                                 <>
@@ -162,7 +160,6 @@ export default function Navbar({ hideLogin = false, hideRegister = false }: Navb
                             </div>
 
                             <div className="mr-1 flex items-center gap-2">
-                                <CurrencySelector compact />
                                 <LanguageSwitcher />
                             </div>
 

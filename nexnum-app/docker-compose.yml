@@ -41,6 +41,8 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
+      REDIS_URL: redis://:nexnum_redis_secure_pass@redis:6379
+      MEILISEARCH_HOST: http://meilisearch:7700
     env_file:
       - .env
     depends_on:
@@ -75,6 +77,8 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: production
+      REDIS_URL: redis://:nexnum_redis_secure_pass@redis:6379
+      MEILISEARCH_HOST: http://meilisearch:7700
     env_file:
       - .env
     depends_on:
@@ -101,6 +105,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3951
+      REDIS_URL: redis://:nexnum_redis_secure_pass@redis:6379
     env_file:
       - .env
     depends_on:
@@ -142,11 +147,11 @@ services:
   # MeiliSearch (Production)
   # ============================================
   meilisearch:
-    image: getmeili/meilisearch:v1.6
+    image: getmeili/meilisearch:v1.12
     container_name: nexnum-meilisearch
     environment:
       MEILI_MASTER_KEY: ${MEILISEARCH_API_KEY:-masterkey}
-      MEILI_ENV: production
+      MEILI_ENV: development
       MEILI_NO_ANALYTICS: true
     ports:
       - "7700:7700"

@@ -8,7 +8,7 @@
  */
 
 import { prisma } from '@/lib/core/db'
-import { getCurrencyService } from '@/lib/payment/currency-service'
+import { getCurrencyService } from '@/lib/currency/currency-service'
 import { meili, INDEXES } from '@/lib/search/search'
 import { redis, CACHE_KEYS } from '@/lib/core/redis'
 
@@ -42,11 +42,8 @@ export async function runPricingHeartbeat(): Promise<HeartbeatResult> {
             }
         }
 
-        // 2. Get currency service and refresh rates
+        // 2. Get currency service
         const currencyService = getCurrencyService()
-        const rates = await currencyService.getRates()
-        const config = await currencyService.getConfig()
-        const pointsRate = Number(config.pointsRate)
 
         // 3. Get all offers from MeiliSearch
         const index = meili.index(INDEXES.OFFERS)
@@ -69,16 +66,7 @@ export async function runPricingHeartbeat(): Promise<HeartbeatResult> {
             // 4. Re-compute multi-currency prices for each offer
             for (const doc of results.results) {
                 const pointPrice = Number(doc.pointPrice) || 0
-                const usdPrice = pointPrice / pointsRate
-
-                const currencyPrices: Record<string, number> = {
-                    USD: Number(usdPrice.toFixed(2)),
-                    INR: Number((usdPrice * rates.INR).toFixed(2)),
-                    RUB: Number((usdPrice * rates.RUB).toFixed(2)),
-                    EUR: Number((usdPrice * rates.EUR).toFixed(2)),
-                    GBP: Number((usdPrice * rates.GBP).toFixed(2)),
-                    CNY: Number((usdPrice * rates.CNY).toFixed(2))
-                }
+                const currencyPrices = await currencyService.pointsToAllFiat(pointPrice)
 
                 updatedDocuments.push({
                     id: doc.id,

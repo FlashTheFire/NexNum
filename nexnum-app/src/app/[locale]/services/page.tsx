@@ -14,33 +14,33 @@ import { PriceDisplay } from "@/components/common/PriceDisplay"
 
 // Mock Data for Display (Updated to COINS: 0.15 -> 15)
 const popularServices = [
-    { id: 'whatsapp', name: 'WhatsApp', price: 15, icon: 'brands/whatsapp.svg' },
-    { id: 'telegram', name: 'Telegram', price: 20, icon: 'brands/telegram.svg' },
-    { id: 'google', name: 'Google / Gmail', price: 10, icon: 'brands/google.svg' },
-    { id: 'facebook', name: 'Facebook', price: 8, icon: 'brands/facebook.svg' },
-    { id: 'instagram', name: 'Instagram', price: 12, icon: 'brands/instagram.svg' },
-    { id: 'twitter', name: 'X (Twitter)', price: 10, icon: 'brands/twitter.svg' },
-    { id: 'tiktok', name: 'TikTok', price: 18, icon: 'brands/tiktok.svg' },
-    { id: 'discord', name: 'Discord', price: 15, icon: 'brands/discord.svg' },
-    { id: 'uber', name: 'Uber', price: 25, icon: 'brands/uber.svg' },
-    { id: 'openai', name: 'OpenAI / ChatGPT', price: 30, icon: 'brands/openai.svg' },
-    { id: 'amazon', name: 'Amazon', price: 15, icon: 'brands/amazon.svg' },
-    { id: 'netflix', name: 'Netflix', price: 20, icon: 'brands/netflix.svg' },
+    { id: 'whatsapp', name: 'WhatsApp', currencyPrices: { points: 15, USD: 0.15, INR: 12.5 }, icon: 'brands/whatsapp.svg' },
+    { id: 'telegram', name: 'Telegram', currencyPrices: { points: 20, USD: 0.20, INR: 16.6 }, icon: 'brands/telegram.svg' },
+    { id: 'google', name: 'Google / Gmail', currencyPrices: { points: 10, USD: 0.10, INR: 8.3 }, icon: 'brands/google.svg' },
+    { id: 'facebook', name: 'Facebook', currencyPrices: { points: 8, USD: 0.08, INR: 6.6 }, icon: 'brands/facebook.svg' },
+    { id: 'instagram', name: 'Instagram', currencyPrices: { points: 12, USD: 0.12, INR: 10.0 }, icon: 'brands/instagram.svg' },
+    { id: 'twitter', name: 'X (Twitter)', currencyPrices: { points: 10, USD: 0.10, INR: 8.3 }, icon: 'brands/twitter.svg' },
+    { id: 'tiktok', name: 'TikTok', currencyPrices: { points: 18, USD: 0.18, INR: 15.0 }, icon: 'brands/tiktok.svg' },
+    { id: 'discord', name: 'Discord', currencyPrices: { points: 15, USD: 0.15, INR: 12.5 }, icon: 'brands/discord.svg' },
+    { id: 'uber', name: 'Uber', currencyPrices: { points: 25, USD: 0.25, INR: 20.8 }, icon: 'brands/uber.svg' },
+    { id: 'openai', name: 'OpenAI / ChatGPT', currencyPrices: { points: 30, USD: 0.30, INR: 25.0 }, icon: 'brands/openai.svg' },
+    { id: 'amazon', name: 'Amazon', currencyPrices: { points: 15, USD: 0.15, INR: 12.5 }, icon: 'brands/amazon.svg' },
+    { id: 'netflix', name: 'Netflix', currencyPrices: { points: 20, USD: 0.20, INR: 16.6 }, icon: 'brands/netflix.svg' },
 ]
 
 const countries = [
-    { code: 'US', name: 'United States', price: 50 },
-    { code: 'GB', name: 'United Kingdom', price: 45 },
-    { code: 'DE', name: 'Germany', price: 60 },
-    { code: 'FR', name: 'France', price: 55 },
-    { code: 'CA', name: 'Canada', price: 50 },
-    { code: 'NL', name: 'Netherlands', price: 40 },
-    { code: 'ES', name: 'Spain', price: 45 },
-    { code: 'ID', name: 'Indonesia', price: 15 },
-    { code: 'VN', name: 'Vietnam', price: 10 },
-    { code: 'PH', name: 'Philippines', price: 15 },
-    { code: 'BR', name: 'Brazil', price: 20 },
-    { code: 'IN', name: 'India', price: 10 },
+    { code: 'US', name: 'United States', currencyPrices: { points: 50, USD: 0.50, INR: 41.5 } },
+    { code: 'GB', name: 'United Kingdom', currencyPrices: { points: 45, USD: 0.45, INR: 37.3 } },
+    { code: 'DE', name: 'Germany', currencyPrices: { points: 60, USD: 0.60, INR: 49.8 } },
+    { code: 'FR', name: 'France', currencyPrices: { points: 55, USD: 0.55, INR: 45.6 } },
+    { code: 'CA', name: 'Canada', currencyPrices: { points: 50, USD: 0.50, INR: 41.5 } },
+    { code: 'NL', name: 'Netherlands', currencyPrices: { points: 40, USD: 0.40, INR: 33.2 } },
+    { code: 'ES', name: 'Spain', currencyPrices: { points: 45, USD: 0.45, INR: 37.3 } },
+    { code: 'ID', name: 'Indonesia', currencyPrices: { points: 15, USD: 0.15, INR: 12.5 } },
+    { code: 'VN', name: 'Vietnam', currencyPrices: { points: 10, USD: 0.10, INR: 8.3 } },
+    { code: 'PH', name: 'Philippines', currencyPrices: { points: 15, USD: 0.15, INR: 12.5 } },
+    { code: 'BR', name: 'Brazil', currencyPrices: { points: 20, USD: 0.20, INR: 16.6 } },
+    { code: 'IN', name: 'India', currencyPrices: { points: 10, USD: 0.10, INR: 8.3 } },
 ]
 
 export default function ServicesPage() {
@@ -120,7 +120,7 @@ export default function ServicesPage() {
                                             {service.name}
                                         </h3>
                                         <p className="text-sm text-gray-500 mt-1">
-                                            from <span className="text-white font-mono"><PriceDisplay amountInPoints={service.price} /></span>
+                                            from <span className="text-white font-mono"><PriceDisplay currencyPrices={service.currencyPrices} /></span>
                                         </p>
                                     </div>
                                     <Link href="/dashboard/buy" className="w-full">
@@ -155,7 +155,7 @@ export default function ServicesPage() {
                                         </div>
                                         <div>
                                             <div className="text-sm font-medium text-white">{country.name}</div>
-                                            <div className="text-xs text-gray-500">from <PriceDisplay amountInPoints={country.price} /></div>
+                                            <div className="text-xs text-gray-500">from <PriceDisplay currencyPrices={country.currencyPrices} /></div>
                                         </div>
                                     </div>
                                 ))}

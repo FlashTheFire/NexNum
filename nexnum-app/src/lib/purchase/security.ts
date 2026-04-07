@@ -74,12 +74,17 @@ export function validatePurchaseInput(input: any): ValidationResult {
 // USER ELIGIBILITY
 // ============================================
 
+export type EligibilityErrorCode = 'E_INSUFFICIENT_FUNDS' | 'E_ACCOUNT_BANNED' | 'E_DAILY_LIMIT' | 'E_VELOCITY_LIMIT'
+
 export interface EligibilityResult {
     eligible: boolean
     reason?: string
+    code?: EligibilityErrorCode
     details: {
         isBanned: boolean
         hasSufficientBalance: boolean
+        currentBalance?: number
+        requiredAmount?: number
         dailySpendRemaining: number
         purchaseVelocityOk: boolean
     }
@@ -95,6 +100,8 @@ export async function checkUserEligibility(
     const details = {
         isBanned: false,
         hasSufficientBalance: false,
+        currentBalance: 0,
+        requiredAmount: requiredAmount,
         dailySpendRemaining: 0,
         purchaseVelocityOk: false
     }
@@ -106,20 +113,22 @@ export async function checkUserEligibility(
     })
 
     if (!user) {
-        return { eligible: false, reason: 'User not found', details }
+        return { eligible: false, reason: 'User not found', code: 'E_ACCOUNT_BANNED', details }
     }
 
     details.isBanned = user.isBanned
     if (user.isBanned) {
-        return { eligible: false, reason: 'Account is suspended', details }
+        return { eligible: false, reason: 'Account is suspended', code: 'E_ACCOUNT_BANNED', details }
     }
 
     // 2. Check wallet balance
     const balance = await WalletService.getBalance(userId)
     details.hasSufficientBalance = balance >= requiredAmount
+    details.currentBalance = balance
+    details.requiredAmount = requiredAmount
 
     if (!details.hasSufficientBalance) {
-        return { eligible: false, reason: 'Insufficient balance', details }
+        return { eligible: false, reason: 'Insufficient balance', code: 'E_INSUFFICIENT_FUNDS', details }
     }
 
     // 3. Check daily spend limit
@@ -130,6 +139,7 @@ export async function checkUserEligibility(
         return {
             eligible: false,
             reason: `Daily spend limit reached. Remaining: $${details.dailySpendRemaining.toFixed(2)}`,
+            code: 'E_DAILY_LIMIT',
             details
         }
     }
@@ -139,7 +149,7 @@ export async function checkUserEligibility(
     details.purchaseVelocityOk = velocity.allowed
 
     if (!velocity.allowed) {
-        return { eligible: false, reason: velocity.reason, details }
+        return { eligible: false, reason: velocity.reason, code: 'E_VELOCITY_LIMIT', details }
     }
 
     return { eligible: true, details }

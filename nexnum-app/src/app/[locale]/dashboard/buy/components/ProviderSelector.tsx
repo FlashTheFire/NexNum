@@ -105,7 +105,7 @@ export default function ProviderSelector({
     const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
     const [selectedId, setSelectedId] = useState<number | null>(null);
-    const { formatPrice, convert, currencies, preferredCurrency, settings } = useCurrency();
+    const { formatFromPrices, currencies, preferredCurrency, settings } = useCurrency();
 
     // Smart Route data from API
     const [smartRoute, setSmartRoute] = useState<{
@@ -506,9 +506,9 @@ export default function ProviderSelector({
                                     <input
                                         type="number"
                                         step="0.01"
-                                        min={convert(smartRoute.priceRange.min, 'POINTS', preferredCurrency)}
-                                        max={convert(smartRoute.priceRange.max, 'POINTS', preferredCurrency)}
-                                        defaultValue={convert(smartRoute.priceRange.max, 'POINTS', preferredCurrency)}
+                                        min={smartRoute.bestRoute?.currencyPrices?.[preferredCurrency] || 0}
+                                        max={smartRoute.bestRoute?.currencyPrices?.[preferredCurrency] || 10}
+                                        defaultValue={smartRoute.bestRoute?.currencyPrices?.[preferredCurrency] || 1}
                                         className="w-16 bg-transparent text-white text-sm font-semibold focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-gray-600"
                                         id="best-route-max-price"
                                         placeholder="0.00"
@@ -520,11 +520,11 @@ export default function ProviderSelector({
                                 onClick={() => {
                                     const maxPriceInput = document.getElementById('best-route-max-price') as HTMLInputElement;
                                     const displayMax = maxPriceInput ? parseFloat(maxPriceInput.value) : Infinity;
-                                    const maxPrice = convert(displayMax, preferredCurrency, 'POINTS');
+                                    const maxPrice = displayMax;
                                     // Use smartRoute.providers for max price filtering
                                     const eligible = smartRoute.providers
-                                        .filter(p => p.price <= maxPrice)
-                                        .sort((a, b) => a.price - b.price);
+                                        .filter(p => (p.currencyPrices?.[preferredCurrency] || Infinity) <= maxPrice)
+                                        .sort((a, b) => (a.currencyPrices?.[preferredCurrency] || Infinity) - (b.currencyPrices?.[preferredCurrency] || Infinity));
                                     if (eligible[0]) {
                                         // Find the full provider from providers list
                                         const fullProvider = providers.find(p => p.operatorId === eligible[0].operatorId);

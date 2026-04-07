@@ -5,7 +5,7 @@ import { WebhookVerifier } from '@/lib/webhooks/verify'
 import { Provider } from '@prisma/client'
 // Retrying import fix
 import { prisma } from '../core/db'
-import { currencyService } from '../currency/currency-service'
+import { getCurrencyService } from '../currency/currency-service'
 import CircuitBreaker from 'opossum'
 import { logger } from '@/lib/core/logger'
 import { getTraceId } from '@/lib/api/request-context'
@@ -1686,11 +1686,11 @@ export class DynamicProvider implements SmsProvider {
         const rawPriceValue = mapped.price ?? mapped.cost
         if (rawPriceValue !== undefined) {
             const rawPriceNum = Number(rawPriceValue || 0)
-            baseCost = await currencyService.normalizeProviderPrice(rawPriceNum, this.config.name)
+            baseCost = await getCurrencyService().normalizeProviderPrice(rawPriceNum, this.config.name)
 
             const multiplier = Number(this.config.priceMultiplier || 1.0)
             const markupUsd = Number(this.config.fixedMarkup || 0.0)
-            const markupPoints = await currencyService.convert(markupUsd, 'USD', 'POINTS')
+            const markupPoints = await getCurrencyService().convert(markupUsd, 'USD', 'POINTS')
 
             normalizedPrice = Math.ceil((baseCost * multiplier) + markupPoints)
         }
