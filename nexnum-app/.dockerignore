@@ -1,21 +1,59 @@
-node_modules
-.next
+# ==============================================================================
+# Docker Build Context Exclusions
+# Keep this tight — every extra file slows COPY and busts layer cache
+# ==============================================================================
+
+# Version control
 .git
+.gitignore
 .github
+
+# Dependencies (rebuilt inside container)
+node_modules
+
+# Build outputs (rebuilt inside container)
+.next
 out
 build
 dist
-# .env - allowed for build validation
+coverage
 
+# Environment files (secrets must NOT be baked into images)
 .env*.local
+
+# Logs
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+sync.log
+
+# IDE / Editor
 .vscode
 .idea
+
+# AI / Tooling
 .antigravity
+.gemini
+.agent
+.testsprite
 brain
+
+# Documentation (not needed in image)
 *.md
+docs
+
+# Docker files (don't COPY Dockerfiles into the image)
 Dockerfile*
 docker-compose*.yml
+Caddyfile
+
+# Non-essential project directories
+audit
+monitoring
+infra
+scripts
+
+# Config files not needed in build
+ecosystem.config.js
+*.tsbuildinfo

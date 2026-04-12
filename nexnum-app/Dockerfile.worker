@@ -1,19 +1,20 @@
-# Stage 1: Dependencies (Debian for reliability)
+# ==============================================================================
+# NexNum Worker Dockerfile (Optimized)
+# Strategy: Debian Build (Stability) -> Debian Runner (Consistency)
+# ==============================================================================
+
+# Stage 1: Dependencies
 FROM node:22-bookworm-slim AS deps
-RUN apt-get update && apt-get install -y openssl libssl-dev libc6-dev ca-certificates
+RUN apt-get update && apt-get install -y openssl libssl-dev libc6-dev ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
+# Install dependencies first (most stable layer)
 COPY package.json package-lock.json ./
-RUN mkdir -p prisma
-COPY prisma/schema.prisma prisma/schema.prisma
 RUN --mount=type=cache,target=/root/.npm npm ci --legacy-peer-deps
 
-# Debug: Verify filesystem before generation
-RUN ls -laR prisma
-
-# Generate Prisma client (Hardened decoupled generation)
-# Generate Prisma client
-# Accept build-time args to validate against real environment
+# Prisma generate AFTER npm ci (schema changes don't invalidate dep cache)
+COPY prisma/schema.prisma prisma/schema.prisma
 ARG DATABASE_URL
 ARG DATABASE_URL_DIRECT
 ENV DATABASE_URL=${DATABASE_URL}
@@ -21,42 +22,40 @@ ENV DATABASE_URL_DIRECT=${DATABASE_URL_DIRECT}
 RUN npx prisma generate
 
 
-# Stage 2: Builder (Debian for reliability)
+# Stage 2: Builder
 FROM deps AS builder
-RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
+
+# Copy only what the worker needs (no next.config.mjs — worker doesn't run Next.js)
 COPY src ./src
 COPY messages ./messages
 COPY public ./public
-COPY prisma.config.ts ./
-COPY next.config.mjs tsconfig.json ./
-# Prune for production
+COPY prisma.config.ts tsconfig.json ./
 
-# RUN --mount=type=cache,target=/root/.npm npm prune --omit=dev
-
+# Prune dev dependencies
+RUN --mount=type=cache,target=/root/.npm npm prune --omit=dev --legacy-peer-deps
 
 
-# Stage 3: Runner (Debian for reliability and binary consistency)
+# Stage 3: Runner (minimal production image)
 FROM node:22-bookworm-slim AS runner
-RUN apt-get update && apt-get install -y openssl ca-certificates curl && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y openssl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ENV NODE_ENV=production
+ENV PRISMA_CLIENT_ENGINE_TYPE=library
 
-# Don't run as root
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 --ingroup nodejs --home /home/worker worker
-
-# Create home directory and ensure ownership
 RUN mkdir -p /home/worker/.npm && chown -R worker:nodejs /home/worker
 
 # Copy production artifacts
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./
-COPY --from=builder /app/src ./src
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/tsconfig.json ./tsconfig.json
+COPY --from=builder --chown=worker:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=worker:nodejs /app/package.json ./
+COPY --from=builder --chown=worker:nodejs /app/src ./src
+COPY --from=builder --chown=worker:nodejs /app/prisma ./prisma
+COPY --from=builder --chown=worker:nodejs /app/prisma.config.ts ./prisma.config.ts
+COPY --from=builder --chown=worker:nodejs /app/public ./public
+COPY --from=builder --chown=worker:nodejs /app/tsconfig.json ./tsconfig.json
 
 # Hardened Permissions: Ensure worker owns assets for icon downloads
 USER root
@@ -66,11 +65,7 @@ RUN mkdir -p /app/public/assets/icons/services && \
     chmod -R 775 /app/public
 
 USER worker
-
-ENV NODE_ENV=production
 ENV HOME=/home/worker
-ENV PRISMA_CLIENT_ENGINE_TYPE=library
 ENV npm_config_cache=/home/worker/.npm
 
-# Use node with tsx import to avoid npx permission issues
 ENTRYPOINT ["node", "--import", "tsx", "-r", "dotenv/config", "src/worker-entry.ts"]

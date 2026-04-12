@@ -1,24 +1,20 @@
 # ==============================================================================
-# NexNum Main API Dockerfile (Senior Engineering Hardened)
-# Strategy: Debian Build (Stability) -> Alpine Runner (Efficiency)
+# NexNum Main API Dockerfile (Optimized)
+# Strategy: Debian Build (Stability) -> Debian Runner (Consistency)
 # ==============================================================================
 
-# Stage 1: Dependencies (Debian for reliability)
+# Stage 1: Dependencies
 FROM node:22-bookworm-slim AS deps
-RUN apt-get update && apt-get install -y openssl libssl-dev libc6-dev ca-certificates
+RUN apt-get update && apt-get install -y openssl libssl-dev libc6-dev ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
+# Install dependencies first (most stable layer — only busts on package.json change)
 COPY package.json package-lock.json ./
-RUN mkdir -p prisma
-COPY prisma/schema.prisma prisma/schema.prisma
 RUN --mount=type=cache,target=/root/.npm npm ci --legacy-peer-deps
 
-# Debug: Verify filesystem before generation
-RUN ls -laR prisma
-
-# Generate Prisma client (Hardened decoupled generation)
-# Generate Prisma client
-# Accept build-time args to validate against real environment
+# Prisma generate AFTER npm ci (schema changes don't invalidate dep cache)
+COPY prisma/schema.prisma prisma/schema.prisma
 ARG DATABASE_URL
 ARG DATABASE_URL_DIRECT
 ENV DATABASE_URL=${DATABASE_URL}
@@ -26,9 +22,8 @@ ENV DATABASE_URL_DIRECT=${DATABASE_URL_DIRECT}
 RUN npx prisma generate
 
 
-# Stage 2: Builder (Debian for reliability)
+# Stage 2: Builder
 FROM deps AS builder
-RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -38,18 +33,17 @@ ENV HOME=/tmp
 
 COPY . .
 
-# Build the application
-RUN npm run build:skip-types
+# Build with persistent Next.js cache across Docker builds
+RUN --mount=type=cache,target=/app/.next/cache npm run build:skip-types
+
+# Prune dev dependencies — removes ~100MB of eslint, typescript, vitest, playwright, etc.
+RUN --mount=type=cache,target=/root/.npm npm prune --omit=dev --legacy-peer-deps
 
 
-# Prune for production
-# RUN --mount=type=cache,target=/root/.npm HOME=/tmp npm prune --omit=dev
-
-
-
-# Stage 3: Runner (Debian for reliability and binary consistency)
+# Stage 3: Runner (minimal production image)
 FROM node:22-bookworm-slim AS runner
-RUN apt-get update && apt-get install -y openssl ca-certificates curl && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y openssl ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -57,8 +51,6 @@ ENV PRISMA_CLIENT_ENGINE_TYPE=library
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 --ingroup nodejs --home /home/nextjs nextjs
-
-# Create home directory and npm cache for nextjs user
 RUN mkdir -p /home/nextjs/.npm && chown -R nextjs:nodejs /home/nextjs
 
 # Copy built artifacts from standalone build
@@ -82,7 +74,6 @@ ENV HOSTNAME="0.0.0.0"
 ENV HOME=/home/nextjs
 ENV npm_config_cache=/home/nextjs/.npm
 
-# Orchestrator health check (curl already installed in runner stage)
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:3000/api/health || exit 1
 
