@@ -106,16 +106,15 @@ const nextConfig = {
         ],
     },
 
-    /*
     experimental: {
         optimizePackageImports: [
             'lucide-react',
             'framer-motion',
             '@radix-ui/react-icons',
             'date-fns',
+            'recharts',
         ],
     },
-    */
 
     /*
     webpack: (config, { isServer }) => {
