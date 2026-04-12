@@ -1,4 +1,4 @@
-﻿/**
+/**
  * MeiliSearch-First Search System
  * 
  * Single `offers` index is the source of truth for all Buy flow data.
@@ -110,7 +110,13 @@ export const meili = new MeiliSearch({
 
 // Single index for all pricing data
 export const INDEXES = {
-    OFFERS: 'offers',   // Main index - all pricing data
+    OFFERS: (process.env.MEILISEARCH_INDEX || 'offers') as string,   // Main index - all pricing data
+}
+
+// Validation Guard: Ensure we never hit MeiliSearch with an empty indexUid
+if (!INDEXES.OFFERS) {
+    logger.error('CRITICAL: INDEXES.OFFERS is not defined. Defaulting to "offers" to prevent 400 API errors.');
+    INDEXES.OFFERS = 'offers';
 }
 
 /**

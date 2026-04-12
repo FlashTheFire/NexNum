@@ -94,16 +94,18 @@ export function validateOrigin(headers: Headers): { valid: boolean; error?: stri
 }
 
 function getGlobalAllowedOrigins(): string[] {
+    const domain = process.env.DOMAIN_NAME || 'localhost'
     const patterns = [
         process.env.NEXT_PUBLIC_APP_URL,
         process.env.NEXTAUTH_URL,
-        // Production domains (hardcoded for reliability)
-        'https://nexnum.in',
-        'https://www.nexnum.in',
-        'http://localhost:3000'
+        // Dynamic Context: Respect the current domain
+        `https://${domain}`,
+        `http://${domain}`,
+        `https://www.${domain}`,
+        `http://www.${domain}`
     ].filter(Boolean) as string[]
 
-    if (process.env.NODE_ENV !== 'production') {
+    if (process.env.NODE_ENV !== 'production' || domain === 'localhost') {
         patterns.push('http://localhost:3000', 'http://localhost:3951', 'http://127.0.0.1:3000')
     }
 

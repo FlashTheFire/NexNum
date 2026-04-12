@@ -1,15 +1,43 @@
-# Production HTTPS with automatic Let's Encrypt
-nexnum.in, www.nexnum.in {
-    # WebSocket Proxy
-    reverse_proxy /api/socket* nexnum-socket:3951
+# ==============================================================================
+# NexNum Professional Caddyfile (Adaptive Mode)
+# ==============================================================================
 
-    # Next.js App
-    reverse_proxy nexnum-app:3000
+# Auto-Context: Uses environment variable with localhost fallback
+{$DOMAIN_NAME:localhost} {
+    # ── Security & Optimization ──
+    encode gzip zstd
 
-    encode gzip
+    # ── Service Logic ──
+
+    # Priority 1: WebSocket Backend
+    # Use path-prefix for Socket.io traffic
+    handle /socket.io/* {
+        reverse_proxy nexnum-socket:3951
+    }
+
+    # Priority 2: Healthcheck Passthrough
+    # Allows external monitors to bypass auth if needed (logic handled in app)
+    handle /api/health {
+        reverse_proxy nexnum-app:3000
+    }
+
+    # Priority 3: Main Application
+    handle {
+        reverse_proxy nexnum-app:3000
+    }
+
+    # ── Logging ──
+    log {
+        output file /var/log/caddy/access.log {
+            roll_size 100mb
+            roll_keep 10
+            roll_keep_for 720h
+        }
+    }
 }
 
-# HTTP to HTTPS redirect
-:80 {
-    redir https://nexnum.in{uri} permanent
-}
+# Optional: Global Redirect (Only when DOMAIN_NAME is set to a real domain)
+# We handle this inside the main block normally, but if we need a www redirect:
+# www.{$DOMAIN_NAME} {
+#     redir https://{$DOMAIN_NAME}{uri}
+# }
