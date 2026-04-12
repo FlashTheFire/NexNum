@@ -99,7 +99,8 @@ function getGlobalAllowedOrigins(): string[] {
         process.env.NEXTAUTH_URL,
         // Production domains (hardcoded for reliability)
         'https://nexnum.in',
-        'https://www.nexnum.in'
+        'https://www.nexnum.in',
+        'http://localhost:3000'
     ].filter(Boolean) as string[]
 
     if (process.env.NODE_ENV !== 'production') {

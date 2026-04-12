@@ -5,7 +5,7 @@ set -e
 echo "[STARTUP] Running Prisma migrations..."
 
 # Ensure environment variables are exported for the migration process
-if [ -f .env ]; then
+if [ -f .env ] && [ -z "$DATABASE_URL" ]; then
     echo "[STARTUP] Exporting local .env for migrations..."
     # Robust loading for shell environments
     set -a
