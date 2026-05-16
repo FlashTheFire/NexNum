@@ -106,7 +106,7 @@ function getGlobalAllowedOrigins(): string[] {
     ].filter(Boolean) as string[]
 
     if (process.env.NODE_ENV !== 'production' || domain === 'localhost') {
-        patterns.push('http://localhost:3000', 'http://localhost:3951', 'http://127.0.0.1:3000')
+        patterns.push('http://localhost:3000', 'http://localhost:3001', 'http://localhost:3951', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001')
     }
 
     if (process.env.ALLOWED_ORIGINS) {

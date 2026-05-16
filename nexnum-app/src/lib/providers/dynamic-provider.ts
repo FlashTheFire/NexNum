@@ -1686,13 +1686,41 @@ export class DynamicProvider implements SmsProvider {
         const rawPriceValue = mapped.price ?? mapped.cost
         if (rawPriceValue !== undefined) {
             const rawPriceNum = Number(rawPriceValue || 0)
-            baseCost = await getCurrencyService().normalizeProviderPrice(rawPriceNum, this.config.name)
+            const currencyService = getCurrencyService()
+            
+            // 1. Calculate effective rate based on config
+            const rates = await currencyService.getRates()
+            const getRateToUSD = (code: string) => {
+                if (code === 'USD') return 1.0
+                return (rates as unknown as Record<string, number>)[code.toUpperCase()] || 1.0
+            }
 
-            const multiplier = Number(this.config.priceMultiplier || 1.0)
-            const markupUsd = Number(this.config.fixedMarkup || 0.0)
-            const markupPoints = await getCurrencyService().convert(markupUsd, 'USD', 'POINTS')
+            const providerCurrency = (this.config.currency || 'USD').toUpperCase()
+            const depositCurrency = (this.config.depositCurrency || 'USD').toUpperCase()
+            let effectiveProviderRate = 1.0
+            const normMode = String(this.config.normalizationMode || 'MANUAL')
 
-            normalizedPrice = Math.ceil((baseCost * multiplier) + markupPoints)
+            if (normMode === 'MANUAL') {
+                effectiveProviderRate = Number(this.config.normalizationRate || 1.0)
+            } else if (normMode === 'SMART_AUTO' && this.config.depositSpent && this.config.depositReceived && Number(this.config.depositSpent) > 0) {
+                const spentRate = getRateToUSD(depositCurrency)
+                const spentInUSD = Number(this.config.depositSpent) / spentRate
+                effectiveProviderRate = Number(this.config.depositReceived) / (spentInUSD || 1.0)
+            } else {
+                effectiveProviderRate = getRateToUSD(providerCurrency)
+            }
+
+            // 2. Use unified calculateSellPrice
+            const sellData = await currencyService.calculateSellPrice(
+                rawPriceNum,
+                providerCurrency,
+                effectiveProviderRate,
+                Number(this.config.priceMultiplier) || 1.0,
+                Number(this.config.fixedMarkup) || 0.0
+            )
+
+            normalizedPrice = sellData.pointPrice
+            baseCost = sellData.pointPrice // Note: sellData.costUsd is available, but for rawPrice we store Points equivalent
         }
 
         return {

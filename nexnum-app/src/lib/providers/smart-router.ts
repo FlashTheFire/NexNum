@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/core/db'
 import { Prisma } from '@prisma/client'
+import { CurrencyService } from '@/lib/currency/currency-service'
 import { DynamicProvider } from '@/lib/providers/dynamic-provider'
 import { SmsProvider, Country, Service, NumberResult, StatusResult } from '@/lib/providers/types'
 import { healthMonitor } from '@/lib/providers/health-monitor'
@@ -21,7 +22,7 @@ export interface ProviderQuote {
     priceMultiplier: Prisma.Decimal | number
     estimatedTime: number
     stock: number
-    realPrice: number
+    pointPrice: number
     currencyPrices?: Record<string, number>
 }
 
@@ -213,7 +214,7 @@ export class SmartSmsRouter implements SmsProvider {
         }
 
         const providers = await this.getHealthyProviders()
-        const pricingData = await this.getPricingData()
+        const currencyService = CurrencyService.getInstance()
 
         // Use local Meilisearch data instead of live API calls
         // This is FAST and uses our pre-indexed stock/price data
@@ -245,7 +246,16 @@ export class SmartSmsRouter implements SmsProvider {
             const health = await healthMonitor.getHealth(p.config.id, country)
             const data = providerData.get(p.name)
 
-            const realPrice = data?.price || 0
+            const pointPrice = data?.price || 0
+            
+            let finalPointPrice = 0
+            let currencyPrices: Record<string, number> = {}
+
+            if (pointPrice > 0) {
+                 // pointPrice from search is already final point price calculated by provider-sync
+                 finalPointPrice = pointPrice
+                 currencyPrices = await currencyService.pointsToAllFiat(finalPointPrice)
+            }
 
             return {
                 id: p.name,
@@ -257,8 +267,8 @@ export class SmartSmsRouter implements SmsProvider {
                 estimatedTime: health.avgLatency || 500,
                 // Return the real fetched data if available
                 stock: data?.stock || 0,
-                realPrice: realPrice,
-                currencyPrices: this.calculateCurrencyPrices(realPrice, pricingData)
+                pointPrice: finalPointPrice,
+                currencyPrices: currencyPrices
             }
         }))
 
@@ -275,53 +285,7 @@ export class SmartSmsRouter implements SmsProvider {
         return filteredResult
     }
 
-    /**
-     * Helper: Fetch currency rates and settings for price calculation
-     */
-    private async getPricingData(): Promise<{ rates: Record<string, number>, pointsRate: number }> {
-        const cacheKey = 'cache:pricing:data'
-        try {
-            const cached = await redis.get(cacheKey)
-            if (cached) return JSON.parse(cached)
-        } catch (e) {
-            logger.warn('[SmartRouter] Pricing cache read failed', { error: e })
-        }
 
-        const [currencies, settings] = await Promise.all([
-            prisma.currency.findMany({ where: { isActive: true }, select: { code: true, rate: true } }),
-            prisma.systemSettings.findUnique({ where: { id: 'default' }, select: { pointsRate: true } })
-        ])
-
-        const rates: Record<string, number> = {}
-        currencies.forEach(c => {
-            rates[c.code] = Number(c.rate)
-        })
-
-        const data = {
-            rates,
-            pointsRate: Number(settings?.pointsRate || 0.1) // Default to 0.1 if missing
-        }
-
-        // Cache for 5 mins
-        redis.set(cacheKey, JSON.stringify(data), 'EX', 300).catch(err => logger.warn('[SmartRouter] Pricing cache write failed', { error: err }))
-
-        return data
-    }
-
-    /**
-     * Helper: Calculate prices for all currencies
-     */
-    private calculateCurrencyPrices(pointPrice: number, data: { rates: Record<string, number>, pointsRate: number }): Record<string, number> {
-        const prices: Record<string, number> = {}
-        // Base value in system currency (usually USD)
-        const baseValue = pointPrice * data.pointsRate
-
-        for (const [code, rate] of Object.entries(data.rates)) {
-            // Price = BaseValue * ExchangeRate
-            prices[code] = baseValue * rate
-        }
-        return prices
-    }
 
     // --- Core Methods (API Standardization v2.0) ---
 
@@ -357,13 +321,41 @@ export class SmartSmsRouter implements SmsProvider {
                 try {
                     const services = await provider.getServicesList(countryCode)
 
-                    // Apply Pricing Rules
-                    const mult = Number(provider.config.priceMultiplier) || 1.0
-                    const fixed = Number(provider.config.fixedMarkup) || 0.0
+                    const currencyService = CurrencyService.getInstance()
+                    const rates = await currencyService.getRates()
+                    
+                    const getRateToUSD = (code: string) => {
+                        if (code === 'USD') return 1.0
+                        return (rates as unknown as Record<string, number>)[code.toUpperCase()] || 1.0
+                    }
 
-                    return services.map(s => ({
-                        ...s,
-                        price: (s.price * mult) + fixed
+                    const providerCurrency = (provider.config.currency || 'USD').toUpperCase()
+                    const depositCurrency = (provider.config.depositCurrency || 'USD').toUpperCase()
+                    let effectiveProviderRate = 1.0
+                    const normMode = String(provider.config.normalizationMode || 'MANUAL')
+
+                    if (normMode === 'MANUAL') {
+                        effectiveProviderRate = Number(provider.config.normalizationRate || 1.0)
+                    } else if (normMode === 'SMART_AUTO' && provider.config.depositSpent && provider.config.depositReceived && Number(provider.config.depositSpent) > 0) {
+                        const spentRate = getRateToUSD(depositCurrency)
+                        const spentInUSD = Number(provider.config.depositSpent) / spentRate
+                        effectiveProviderRate = Number(provider.config.depositReceived) / (spentInUSD || 1.0)
+                    } else {
+                        effectiveProviderRate = getRateToUSD(providerCurrency)
+                    }
+
+                    return Promise.all(services.map(async s => {
+                        const sellData = await currencyService.calculateSellPrice(
+                            s.price,
+                            providerCurrency,
+                            effectiveProviderRate,
+                            Number(provider.config.priceMultiplier) || 1.0,
+                            Number(provider.config.fixedMarkup) || 0.0
+                        )
+                        return {
+                            ...s,
+                            price: sellData.pointPrice
+                        }
                     }))
                 } catch (e: any) {
                     logger.warn('Provider failed to get services during routing', {
@@ -390,12 +382,12 @@ export class SmartSmsRouter implements SmsProvider {
         }
 
         // Calc currency prices for all services
-        const pricingData = await this.getPricingData()
+        const currencyService = CurrencyService.getInstance()
 
-        return allServices.map(service => ({
+        return Promise.all(allServices.map(async service => ({
             ...service,
-            currencyPrices: this.calculateCurrencyPrices(service.price, pricingData)
-        }))
+            currencyPrices: await currencyService.pointsToAllFiat(service.price)
+        })))
     }
 
     async getNumber(countryCode: string | number, serviceCode: string | number, options?: {
@@ -453,15 +445,12 @@ export class SmartSmsRouter implements SmsProvider {
                 const latency = Date.now() - startTime
                 await healthMonitor.recordRequest(provider.config.id, true, latency, countryCode)
 
-                // Apply Pricing Rules to the result
-                const mult = Number(provider.config.priceMultiplier) || 1.0
-                const fixed = Number(provider.config.fixedMarkup) || 0.0
-
                 return {
                     ...result,
                     activationId: `${provider.name}:${result.activationId}`,
-                    price: ((result.price || 0) * mult) + fixed,
-                    rawPrice: result.rawPrice // Pass through the base cost (POINTS)
+                    // Note: result.price is already fully calculated with multiplier/markup by DynamicProvider
+                    price: result.price,
+                    rawPrice: result.rawPrice 
                 }
             } catch (e: any) {
                 // Check for structured ProviderError
@@ -665,7 +654,7 @@ export class SmartSmsRouter implements SmsProvider {
         // Only enable Best Route if >1 provider
         if (ranked.length <= 1) return null
 
-        const prices = ranked.map(r => r.realPrice).filter(p => p > 0)
+        const prices = ranked.map(r => r.pointPrice).filter(p => p > 0)
         const minPrice = prices.length > 0 ? Math.min(...prices) : 0
         const maxPrice = prices.length > 0 ? Math.max(...prices) : 0
 
@@ -681,7 +670,7 @@ export class SmartSmsRouter implements SmsProvider {
             estimatedReliability,
             providers: ranked.map(r => ({
                 name: r.displayName,
-                price: r.realPrice,
+                price: r.pointPrice,
                 stock: r.stock,
                 reliability: r.reliability
             }))
@@ -714,8 +703,8 @@ export class SmartSmsRouter implements SmsProvider {
 
         // Filter by maxPrice if specified
         const eligibleProviders = maxPrice
-            ? ranked.filter(r => r.realPrice > 0 && r.realPrice <= maxPrice)
-            : ranked.filter(r => r.realPrice > 0)
+            ? ranked.filter(r => r.pointPrice > 0 && r.pointPrice <= maxPrice)
+            : ranked.filter(r => r.pointPrice > 0)
 
         if (eligibleProviders.length === 0) {
             return {
@@ -728,14 +717,14 @@ export class SmartSmsRouter implements SmsProvider {
         for (const providerQuote of eligibleProviders) {
             try {
                 logger.info(`[BestRoute] Attempting purchase from ${providerQuote.id}`, {
-                    price: providerQuote.realPrice,
+                    price: providerQuote.pointPrice,
                     stock: providerQuote.stock
                 })
 
                 // Use smart router's getNumber with specific provider preference
                 const result = await this.getNumber(country, service, {
                     provider: providerQuote.id,
-                    expectedPrice: providerQuote.realPrice,
+                    expectedPrice: providerQuote.pointPrice,
                     maxPrice: maxPrice
                 })
 
@@ -745,7 +734,7 @@ export class SmartSmsRouter implements SmsProvider {
                     success: true,
                     number: result,
                     provider: providerQuote.displayName,
-                    price: providerQuote.realPrice,
+                    price: providerQuote.pointPrice,
                     attemptsLog
                 }
             } catch (error: any) {

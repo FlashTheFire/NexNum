@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/core/db'
 import { WalletService } from '@/lib/wallet/wallet'
-import { getCurrencyService, toSupportedCurrency } from '@/lib/payment/currency-service'
+import { getCurrencyService, toSupportedCurrency } from '@/lib/currency/currency-service'
 import { apiHandler } from '@/lib/api/api-handler'
 import { ResponseFactory } from '@/lib/api/response-factory'
 import { z } from 'zod'

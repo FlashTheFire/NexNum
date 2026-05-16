@@ -1,8 +1,17 @@
-import { getCurrencyService, MultiCurrencyPrice } from "@/lib/payment/currency-service";
+/**
+ * Pricing Utils
+ *
+ * Thin wrapper around CurrencyService for legacy callers.
+ * New code should call getCurrencyService() directly.
+ *
+ * ZERO-MATH STANDARD: all multi-currency maps are generated server-side
+ * using pointsToAllFiat(); no client-side arithmetic is performed.
+ */
+import { getCurrencyService, MultiCurrencyPrice, ExchangeRates } from "@/lib/currency/currency-service";
 
 /**
- * Interface for legacy compatibility if needed, 
- * but new code should favor CurrencyService directly.
+ * Legacy interface for raw pricing data.
+ * Prefer getCurrencyService().getConfig() and getAllRates() directly.
  */
 export interface PricingData {
     rates: Record<string, number>;
@@ -10,21 +19,19 @@ export interface PricingData {
 }
 
 /**
- * Calculate multi-currency prices based on point price.
- * 
- * This is now a wrapper around CurrencyService.pointsToAllFiat
- * to ensure absolute consistency across the entire application.
- * 
- * FOLLOWS ZERO-MATH STANDARD.
+ * Calculate multi-currency prices for a given point price.
+ * Wrapper around CurrencyService.pointsToAllFiat — single source of truth.
  */
 export async function calculatePrices(pointPrice: number): Promise<MultiCurrencyPrice> {
-    const currencyService = getCurrencyService();
-    return currencyService.pointsToAllFiat(pointPrice);
+    return getCurrencyService().pointsToAllFiat(pointPrice);
 }
 
 /**
- * Legacy support for fetching raw pricing data if absolutely necessary,
- * but getCurrencyService().getSettings() and getAllRates() are preferred.
+ * Legacy support: fetch raw pricing data if absolutely needed.
+ * Prefer getCurrencyService().getSettings() and getAllRates() directly.
+ *
+ * NOTE: getRates() returns ExchangeRates (with named fields USD, INR, etc.)
+ * which is destructured here into a flat Record for legacy callers.
  */
 export async function getPricingData(): Promise<PricingData> {
     const currencyService = getCurrencyService();
@@ -33,14 +40,9 @@ export async function getPricingData(): Promise<PricingData> {
         currencyService.getConfig()
     ]);
 
-    const ratesMap: Record<string, number> = {
-        USD: rates.USD,
-        INR: rates.INR,
-        RUB: rates.RUB,
-        EUR: rates.EUR,
-        GBP: rates.GBP,
-        CNY: rates.CNY
-    };
+    // ExchangeRates has named fields — spread into flat Record for callers expecting Record<string,number>
+    const { updatedAt, ...rateFields } = rates as ExchangeRates & { updatedAt: unknown };
+    const ratesMap: Record<string, number> = rateFields as Record<string, number>;
 
     return {
         rates: ratesMap,

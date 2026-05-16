@@ -71,27 +71,25 @@ export const PriceDisplay: React.FC<PriceDisplayProps> = ({
  * BalanceDisplay - Display user balance with zero client-side calculation
  */
 export const BalanceDisplay: React.FC<{
-    multiBalance?: {
-        points: number
-        USD: number
-        INR: number
-        RUB: number
-        EUR: number
-        GBP: number
-        CNY: number
-    }
+    multiBalance?: any
     className?: string
-    showPointsSecondary?: boolean
 }> = ({ multiBalance, className }) => {
-    const { formatFromBalance, isLoading } = useCurrency()
+    const { formatFromBalance, isLoading, pointsEnabled } = useCurrency()
 
     if (isLoading) {
         return <span className="animate-pulse bg-white/10 rounded-md h-6 w-20 inline-block" />
     }
 
     return (
-        <span className={cn("font-bold tabular-nums", className)}>
+        <span className={cn(
+            "font-bold tabular-nums transition-all duration-300",
+            pointsEnabled ? "text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.4)]" : "text-white",
+            className
+        )}>
             {formatFromBalance(multiBalance || { points: 0, USD: 0 })}
+            {pointsEnabled && (
+                <span className="ml-1 text-[10px] opacity-70 animate-pulse">✨</span>
+            )}
         </span>
     )
 }

@@ -816,26 +816,21 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                     svcName = serviceMap.get(p.service) || p.service
                 }
 
-                // CURRENCY & MARGIN LOGIC (Optimized Sync)
+                // CURRENCY & MARGIN LOGIC (Optimized Sync via v3 CurrencyService)
                 const providerRawCost = Number(p.cost)
-                const baseCostUSD = providerRawCost / (effectiveProviderRate || 1.0)
-                const baseCostPoints = baseCostUSD * pointsRate
-
                 const multiplier = Number(provider.priceMultiplier || 1.0)
                 const markupUsd = Number(provider.fixedMarkup || 0.0)
-                const markupPoints = markupUsd * pointsRate
 
-                const sellPrice = (baseCostPoints * multiplier) + markupPoints
+                const { pointPrice: sellPrice } = await currencyService.calculateSellPrice(
+                    providerRawCost,
+                    providerCurrency,
+                    effectiveProviderRate,
+                    multiplier,
+                    markupUsd
+                )
 
-                // MULTI-CURRENCY: Pre-compute prices for all active currencies
-                const currencyPrices: Record<string, number> = {}
-                for (const [currencyCode, currencyRate] of currencyRatesMap) {
-                    // Convert USD base to target currency, then apply multiplier and markup
-                    const priceInCurrency = (baseCostUSD * multiplier + markupUsd) * currencyRate
-                    currencyPrices[currencyCode] = Number(priceInCurrency.toFixed(2))
-                }
-                // Always include USD
-                currencyPrices['USD'] = Number((baseCostUSD * multiplier + markupUsd).toFixed(2))
+                // MULTI-CURRENCY: Pre-compute prices for all active currencies using unified map generator
+                const currencyPrices = await currencyService.pointsToAllFiat(sellPrice)
 
                 // OPERATOR MAPPING
                 const externalOp = p.operator != null ? String(p.operator) : 'default'

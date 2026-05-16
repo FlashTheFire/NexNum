@@ -32,6 +32,8 @@ export async function GET(request: Request) {
     // Filter out sensitive settings to prevent leakage
     const publicSettings = settings ? {
         id: settings.id,
+        pointsEnabled: settings.pointsEnabled,
+        pointsName: settings.pointsName,
         pointsRate: Number(settings.pointsRate),
         paymentsEnabled: settings.paymentsEnabled,
         upiProviderMode: settings.upiProviderMode,

@@ -8,7 +8,7 @@
 import { redis, CACHE_KEYS, CACHE_TTL } from '@/lib/core/redis'
 import { prisma } from '@/lib/core/db'
 import { logger } from '@/lib/core/logger'
-import { getCurrencyService, toSupportedCurrency } from '@/lib/payment/currency-service'
+import { getCurrencyService, toSupportedCurrency } from '@/lib/currency/currency-service'
 
 // ============================================================================
 // User Balance Cache

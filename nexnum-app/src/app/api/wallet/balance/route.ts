@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma, ensureWallet } from '@/lib/core/db'
 import { getCurrentUser } from '@/lib/auth/jwt'
 import { WalletService } from '@/lib/wallet/wallet'
-import { getCurrencyService, toSupportedCurrency } from '@/lib/payment/currency-service'
+import { getCurrencyService, toSupportedCurrency } from '@/lib/currency/currency-service'
 
 export async function GET(request: Request) {
     try {

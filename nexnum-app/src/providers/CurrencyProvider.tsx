@@ -19,6 +19,8 @@ interface SystemSettings {
     baseCurrency: string
     displayCurrency: string
     pointsRate: number | string
+    pointsEnabled: boolean
+    pointsName: string
 }
 
 interface CurrencyContextType {
@@ -26,6 +28,8 @@ interface CurrencyContextType {
     settings: SystemSettings | null
     preferredCurrency: string
     isLoading: boolean
+    pointsEnabled: boolean
+    pointsName: string
 
     // Core methods
     setCurrency: (code: string) => void
@@ -63,7 +67,9 @@ const DEFAULT_CURRENCIES: Record<string, Currency> = {
 const DEFAULT_SETTINGS: SystemSettings = {
     baseCurrency: 'USD',
     displayCurrency: 'USD',
-    pointsRate: 100
+    pointsRate: 100,
+    pointsEnabled: false,
+    pointsName: 'Points'
 }
 
 export function CurrencyProvider({ children }: { children: ReactNode }) {
@@ -123,6 +129,15 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     const formatFromPrices = useCallback((prices?: Record<string, number>): string => {
         if (!prices) return '--'
 
+        // If Points are enabled system-wide, we ignore preferred currency and show Points
+        if (settings?.pointsEnabled) {
+            const pointsValue = prices['points']
+            if (pointsValue !== undefined) {
+                // Return formatted points (e.g. 150 P)
+                return `${Math.ceil(pointsValue)} ${settings.pointsName}`
+            }
+        }
+
         const targetCurrency = (!preferredCurrency || preferredCurrency === 'POINTS') ? 'USD' : preferredCurrency
         const currencyData = currencies?.[targetCurrency]
         const symbol = currencyData?.symbol || '$'
@@ -137,7 +152,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
         }
 
         return '--'
-    }, [preferredCurrency, currencies])
+    }, [preferredCurrency, currencies, settings])
 
     /**
      * Robust formatting that handles both legacy numbers and multi-currency objects.
@@ -146,6 +161,11 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
         if (amount === undefined || amount === null) return '--'
 
         if (typeof amount === 'number') {
+            // Points handling for legacy number fallbacks
+            if (settings?.pointsEnabled) {
+                return `${Math.ceil(amount)} ${settings.pointsName}`
+            }
+
             const targetCurrency = (!preferredCurrency || preferredCurrency === 'POINTS') ? 'USD' : preferredCurrency
             const currencyData = currencies?.[targetCurrency]
             const symbol = currencyData?.symbol || '$'
@@ -160,6 +180,11 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
      */
     const formatFromBalance = useCallback((balance: any): string => {
         if (!balance) return '$0.00'
+
+        // PRIORITY: If points are enabled, show points balance FIRST
+        if (settings?.pointsEnabled && balance.points !== undefined) {
+            return `${Number(balance.points).toLocaleString()} ${settings.pointsName}`
+        }
 
         const targetCurrencyCode = preferredCurrency || 'USD'
         // Defensive check for "points" currency which shouldn't be selected but just in case
@@ -176,7 +201,6 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
         }
 
         // Ultimate fallback if multi-currency data is missing but we have points...
-        // We can't convert perfectly without rates, but if we have USD in the object we use that.
         if (balance.USD !== undefined) {
             return new Intl.NumberFormat('en-US', {
                 style: 'currency',
@@ -186,7 +210,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
         }
 
         return '$0.00'
-    }, [preferredCurrency])
+    }, [preferredCurrency, settings])
 
     // ============================================
     // CURRENCY SELECTION
@@ -210,6 +234,8 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
             settings,
             preferredCurrency,
             isLoading,
+            pointsEnabled: settings?.pointsEnabled || false,
+            pointsName: settings?.pointsName || 'Points',
             setCurrency,
             formatPrice,
             formatFromPrices,
