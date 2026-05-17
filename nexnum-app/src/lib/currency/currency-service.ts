@@ -409,10 +409,10 @@ export class CurrencyService {
         const [config, rates] = await Promise.all([this.getConfig(), this.getRates()])
 
         const usdAmount = new Decimal(points).dividedBy(config.pointsRate)
-        if (targetCurrency === 'USD') return usdAmount.toDecimalPlaces(2).toNumber()
+        if (targetCurrency === 'USD') return toActualDecimal(usdAmount)
 
         const rate = rates[targetCurrency] || 1
-        return usdAmount.times(rate).toDecimalPlaces(2).toNumber()
+        return toActualDecimal(usdAmount.times(rate))
     }
 
     /**
@@ -428,12 +428,12 @@ export class CurrencyService {
 
         return {
             points,
-            USD: usdAmount.toDecimalPlaces(2).toNumber(),
-            INR: usdAmount.times(rates.INR).toDecimalPlaces(2).toNumber(),
-            RUB: usdAmount.times(rates.RUB).toDecimalPlaces(2).toNumber(),
-            EUR: usdAmount.times(rates.EUR).toDecimalPlaces(2).toNumber(),
-            GBP: usdAmount.times(rates.GBP).toDecimalPlaces(2).toNumber(),
-            CNY: usdAmount.times(rates.CNY).toDecimalPlaces(2).toNumber(),
+            USD: toActualDecimal(usdAmount),
+            INR: toActualDecimal(usdAmount.times(rates.INR)),
+            RUB: toActualDecimal(usdAmount.times(rates.RUB)),
+            EUR: toActualDecimal(usdAmount.times(rates.EUR)),
+            GBP: toActualDecimal(usdAmount.times(rates.GBP)),
+            CNY: toActualDecimal(usdAmount.times(rates.CNY)),
         }
     }
 
@@ -454,7 +454,7 @@ export class CurrencyService {
         const safeCurrency = toSupportedCurrency(userCurrency)
         const usdAmount = new Decimal(points).dividedBy(config.pointsRate)
         const rate = rates[safeCurrency] || 1
-        const fiatEquivalent = usdAmount.times(rate).toDecimalPlaces(2).toNumber()
+        const fiatEquivalent = toActualDecimal(usdAmount.times(rate))
 
         const { updatedAt, ...flatRates } = rates
 
@@ -483,6 +483,16 @@ export class CurrencyService {
 
         return new Decimal(amount).dividedBy(fromRate).times(toRate).toNumber()
     }
+}
+
+/**
+ * Utility to format decimal values for storage/indexing.
+ * Rounds UP (ceil) to exactly 3 decimal places to ensure the platform
+ * makes a micro-profit (markup) rather than a loss on exchange discrepancies.
+ * e.g. 1.1850009 -> 1.186
+ */
+function toActualDecimal(value: Decimal): number {
+    return value.toDecimalPlaces(3, Decimal.ROUND_UP).toNumber()
 }
 
 // ============================================================================

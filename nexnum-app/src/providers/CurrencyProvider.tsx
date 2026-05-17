@@ -62,6 +62,11 @@ const CurrencyContext = createContext<CurrencyContextType | undefined>(undefined
 
 const DEFAULT_CURRENCIES: Record<string, Currency> = {
     'USD': { code: 'USD', name: 'US Dollar', symbol: '$', rate: 1 },
+    'INR': { code: 'INR', name: 'Indian Rupee', symbol: '₹', rate: 83 },
+    'RUB': { code: 'RUB', name: 'Russian Ruble', symbol: '₽', rate: 92 },
+    'EUR': { code: 'EUR', name: 'Euro', symbol: '€', rate: 0.92 },
+    'GBP': { code: 'GBP', name: 'British Pound', symbol: '£', rate: 0.79 },
+    'CNY': { code: 'CNY', name: 'Chinese Yuan', symbol: '¥', rate: 7.25 }
 }
 
 const DEFAULT_SETTINGS: SystemSettings = {
@@ -70,6 +75,21 @@ const DEFAULT_SETTINGS: SystemSettings = {
     pointsRate: 100,
     pointsEnabled: false,
     pointsName: 'Points'
+}
+
+/**
+ * Utility to format positive decimal values.
+ * Shows up to 3 decimal places as per the global platform markup rule,
+ * while maintaining a minimum of 2 decimal places for clean UI.
+ */
+function formatActualDecimal(value: number): string {
+    if (value <= 0) return "0.00";
+    
+    return new Intl.NumberFormat('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 3,
+        useGrouping: true
+    }).format(value);
 }
 
 export function CurrencyProvider({ children }: { children: ReactNode }) {
@@ -84,71 +104,50 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     });
     const [isLoading, setIsLoading] = useState(true)
 
-    // Fetch currency data on mount
+    // Offline-first predefined configuration: No API request needed, preventing errors and forcing currency mode
     useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const res = await api.request<any>('/api/public/currency')
-                if (!res.success || !res.data) throw new Error('API Error')
-                const data = res.data
-
-                if (data.currencies && Object.keys(data.currencies).length > 0) {
-                    setCurrencies(data.currencies)
-                }
-
-                if (data.settings) {
-                    setSettings(data.settings)
-                }
-
-                // SMART PREFERRED CURRENCY LOGIC
-                const serverPref = data.preferredCurrency === 'POINTS' ? 'USD' : (data.preferredCurrency || 'USD')
-                if (serverPref === 'USD' && preferredCurrency !== 'USD') {
-                    // Keep local preference
-                } else if (serverPref !== preferredCurrency) {
-                    setPreferredCurrency(serverPref)
-                }
-
-                console.log('[CurrencyProvider] Zero-Math Engine Loaded.', data.settings ? 'Settings loaded.' : 'Using defaults.')
-            } catch (e) {
-                console.error("[CurrencyProvider] Failed to load data", e)
-            } finally {
-                setIsLoading(false)
-            }
-        }
-        fetchData()
+        setCurrencies(DEFAULT_CURRENCIES)
+        setSettings(DEFAULT_SETTINGS)
+        setIsLoading(false)
+        console.log('[CurrencyProvider] Offline-first Predefined Engine Loaded. Using static defaults.')
     }, [])
 
     // ============================================
-    // FORMATTING METHODS (ZERO MATH)
+    // FORMATTING METHODS (ZERO MATH & PREDEFINED OFFLINE FALLBACKS)
     // ============================================
 
     /**
      * Format using pre-computed currency prices.
-     * Returns '--' if the specific currency is missing from the prices object.
+     * Computes conversion dynamically using predefined rates if specific currency is missing.
      */
     const formatFromPrices = useCallback((prices?: Record<string, number>): string => {
         if (!prices) return '--'
 
-        // If Points are enabled system-wide, we ignore preferred currency and show Points
-        if (settings?.pointsEnabled) {
-            const pointsValue = prices['points']
-            if (pointsValue !== undefined) {
-                // Return formatted points (e.g. 150 P)
-                return `${Math.ceil(pointsValue)} ${settings.pointsName}`
-            }
-        }
-
         const targetCurrency = (!preferredCurrency || preferredCurrency === 'POINTS') ? 'USD' : preferredCurrency
-        const currencyData = currencies?.[targetCurrency]
+        const currencyData = currencies?.[targetCurrency] || DEFAULT_CURRENCIES[targetCurrency]
         const symbol = currencyData?.symbol || '$'
+        const rate = currencyData?.rate || 1
 
         if (targetCurrency in prices) {
-            return `${symbol}${prices[targetCurrency].toFixed(2)}`
+            const val = prices[targetCurrency]
+            return `${symbol}${formatActualDecimal(val)}`
         }
 
-        // Fallback to USD if specific currency missing (but USD exists)
+        // Fallback: Dynamic offline calculation if the specific currency is missing from prices
         if ('USD' in prices) {
-            return `$${prices['USD'].toFixed(2)}`
+            const usdVal = prices['USD']
+            const converted = usdVal * rate
+            return `${symbol}${formatActualDecimal(converted)}`
+        }
+
+        // Search for any other currency to base calculation off of
+        for (const [code, val] of Object.entries(prices)) {
+            if (code !== 'points' && typeof val === 'number') {
+                const sourceCurrencyData = currencies?.[code] || DEFAULT_CURRENCIES[code]
+                const sourceRate = sourceCurrencyData?.rate || 1
+                const converted = (val / sourceRate) * rate
+                return `${symbol}${formatActualDecimal(converted)}`
+            }
         }
 
         return '--'
@@ -161,56 +160,72 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
         if (amount === undefined || amount === null) return '--'
 
         if (typeof amount === 'number') {
-            // Points handling for legacy number fallbacks
+            const targetCurrency = (!preferredCurrency || preferredCurrency === 'POINTS') ? 'USD' : preferredCurrency
+            const currencyData = currencies?.[targetCurrency] || DEFAULT_CURRENCIES[targetCurrency]
+            const symbol = currencyData?.symbol || '$'
+            const rate = currencyData?.rate || 1
+
+            // If points system is active, legacy numbers represent points, so we divide by pointsRate
+            let usdVal = amount
             if (settings?.pointsEnabled) {
-                return `${Math.ceil(amount)} ${settings.pointsName}`
+                const pointsRate = Number(settings?.pointsRate) || 100
+                usdVal = amount / pointsRate
             }
 
-            const targetCurrency = (!preferredCurrency || preferredCurrency === 'POINTS') ? 'USD' : preferredCurrency
-            const currencyData = currencies?.[targetCurrency]
-            const symbol = currencyData?.symbol || '$'
-            return `${symbol}${amount.toFixed(2)}`
+            const converted = usdVal * rate
+            return `${symbol}${formatActualDecimal(converted)}`
         }
 
         return formatFromPrices(amount)
-    }, [preferredCurrency, currencies, formatFromPrices])
+    }, [preferredCurrency, currencies, settings, formatFromPrices])
 
     /**
      * Format user balance from pre-computed multi-currency balance object.
+     * Computes conversion dynamically using predefined rates if specific currency is missing.
      */
     const formatFromBalance = useCallback((balance: any): string => {
         if (!balance) return '$0.00'
 
-        // PRIORITY: If points are enabled, show points balance FIRST
-        if (settings?.pointsEnabled && balance.points !== undefined) {
-            return `${Number(balance.points).toLocaleString()} ${settings.pointsName}`
-        }
-
         const targetCurrencyCode = preferredCurrency || 'USD'
-        // Defensive check for "points" currency which shouldn't be selected but just in case
         const safeCurrencyCode = targetCurrencyCode === 'POINTS' ? 'USD' : targetCurrencyCode
+        const currencyData = currencies?.[safeCurrencyCode] || DEFAULT_CURRENCIES[safeCurrencyCode]
+        const symbol = currencyData?.symbol || '$'
 
-        if (typeof balance === 'object' && safeCurrencyCode in balance) {
-            const value = balance[safeCurrencyCode]
+        if (typeof balance === 'object') {
+            let value = balance[safeCurrencyCode]
 
-            return new Intl.NumberFormat('en-US', {
-                style: 'currency',
-                currency: safeCurrencyCode,
-                minimumFractionDigits: 2
-            }).format(value)
+            // If the target currency value is missing in balance, dynamically compute it!
+            if (value === undefined) {
+                const rate = currencyData?.rate || 1
+
+                if (balance.USD !== undefined) {
+                    value = balance.USD * rate
+                }
+            }
+
+            if (value !== undefined) {
+                return `${symbol}${formatActualDecimal(value)}`
+            }
+        } else if (typeof balance === 'number') {
+            const rate = currencyData?.rate || 1
+            let usdVal = balance
+            if (settings?.pointsEnabled) {
+                const pointsRate = Number(settings?.pointsRate) || 100
+                usdVal = balance / pointsRate
+            }
+            const value = usdVal * rate
+            return `${symbol}${formatActualDecimal(value)}`
         }
 
-        // Ultimate fallback if multi-currency data is missing but we have points...
-        if (balance.USD !== undefined) {
-            return new Intl.NumberFormat('en-US', {
-                style: 'currency',
-                currency: 'USD',
-                minimumFractionDigits: 2
-            }).format(balance.USD)
+        // Ultimate fallback
+        if (balance && typeof balance === 'object' && balance.USD !== undefined) {
+            const usdCurrencyData = currencies?.['USD'] || DEFAULT_CURRENCIES['USD']
+            const usdSymbol = usdCurrencyData?.symbol || '$'
+            return `${usdSymbol}${formatActualDecimal(balance.USD)}`
         }
 
         return '$0.00'
-    }, [preferredCurrency, settings])
+    }, [preferredCurrency, currencies, settings])
 
     // ============================================
     // CURRENCY SELECTION
