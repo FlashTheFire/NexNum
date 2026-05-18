@@ -101,7 +101,7 @@ async function fetchDashboardState(userId: string): Promise<DashboardState> {
         // 1. Wallet: balance points + precomputed snapshot
         prisma.wallet.findUnique({
             where: { userId },
-            select: { balance: true, balanceSnapshot: true }
+            select: { balance: true }
         }),
 
         // 2. Numbers (active + recent, limit 20)
@@ -259,15 +259,10 @@ async function fetchDashboardState(userId: string): Promise<DashboardState> {
     // Convert balance, spent, and deposited to pure fiat maps (ZERO CLIENT-SIDE CALCULATION)
     // Points are NEVER included in the response — client guard uses 'USD' in balance, not 'points'
 
-    // BALANCE: use precomputed snapshot if available (skips live conversion)
-    // Fallback to live pointsToAllFiat() for wallets with no snapshot yet (new users).
     const balancePoints = walletData?.balance?.toNumber() ?? 0
-    const cachedBalance = walletData?.balanceSnapshot as Record<string, number> | null | undefined
 
     const [balance, totalSpent, totalDeposited] = await Promise.all([
-        cachedBalance && 'USD' in cachedBalance
-            ? Promise.resolve(cachedBalance as MultiCurrencyPrice)
-            : currencyService.pointsToAllFiat(balancePoints),
+        currencyService.pointsToAllFiat(balancePoints),
         currencyService.pointsToAllFiat(Math.abs(Number(spentAgg._sum.amount || 0))),
         currencyService.pointsToAllFiat(Math.abs(Number(depositAgg._sum.amount || 0))),
     ])
