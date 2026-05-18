@@ -61,7 +61,6 @@ export interface ExchangeRates {
 
 /** Pre-computed multi-currency price map for Zero-Math frontend rendering. */
 export interface MultiCurrencyPrice {
-    points: number
     USD: number
     INR: number
     RUB: number
@@ -427,7 +426,6 @@ export class CurrencyService {
         const usdAmount = new Decimal(points).dividedBy(config.pointsRate)
 
         return {
-            points,
             USD: toActualDecimal(usdAmount),
             INR: toActualDecimal(usdAmount.times(rates.INR)),
             RUB: toActualDecimal(usdAmount.times(rates.RUB)),
@@ -487,12 +485,11 @@ export class CurrencyService {
 
 /**
  * Utility to format decimal values for storage/indexing.
- * Rounds UP (ceil) to exactly 3 decimal places to ensure the platform
- * makes a micro-profit (markup) rather than a loss on exchange discrepancies.
- * e.g. 1.1850009 -> 1.186
+ * Rounds HALF UP to exactly 5 decimal places to ensure high internal precision
+ * while maintaining standard financial rounding behavior.
  */
 function toActualDecimal(value: Decimal): number {
-    return value.toDecimalPlaces(3, Decimal.ROUND_UP).toNumber()
+    return value.toDecimalPlaces(5, Decimal.ROUND_HALF_UP).toNumber()
 }
 
 // ============================================================================
