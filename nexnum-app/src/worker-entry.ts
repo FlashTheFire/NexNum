@@ -3,6 +3,7 @@ import { prisma } from './lib/core/db';
 import { logger } from './lib/core/logger';
 import { orchestrator } from './lib/core/orchestrator';
 import { registerWebhookWorker } from './workers/webhook-worker';
+import http from 'http';
 
 // INDUSTRIAL HARDENING: Definitively bypass SSL certificate chain validation 
 // for internal background workers to ensure zero downtime.
@@ -21,7 +22,24 @@ export async function startQueueWorker() {
         // 1. Connect to Queue
         await queue.start();
 
+        // Start a lightweight HTTP health server on port 3001 to satisfy docker healthcheck
+        const healthPort = process.env.HEALTH_PORT || 3001;
+        const healthServer = http.createServer((req, res) => {
+            if (req.url === '/health') {
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ status: 'OK', uptime: process.uptime() }));
+            } else {
+                res.writeHead(404);
+                res.end();
+            }
+        });
+        healthServer.listen(healthPort, () => {
+            logger.info(`Worker health server listening on port ${healthPort}`, { context: 'WORKER' });
+        });
+
         orchestrator.onShutdown(async () => {
+            logger.info('Stopping health server...', { context: 'WORKER' })
+            healthServer.close();
             logger.info('Stopping background queue...', { context: 'WORKER' })
             await queue.stop()
         })
