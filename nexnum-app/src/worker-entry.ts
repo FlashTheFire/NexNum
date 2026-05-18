@@ -22,26 +22,68 @@ export async function startQueueWorker() {
         // 1. Connect to Queue
         await queue.start();
 
-        // Start a lightweight HTTP health server on port 3001 to satisfy docker healthcheck
-        const healthPort = process.env.HEALTH_PORT || 3001;
-        const healthServer = http.createServer((req, res) => {
-            if (req.url === '/health') {
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ status: 'OK', uptime: process.uptime() }));
-            } else {
+        // Start a lightweight HTTP health server to satisfy Docker/orchestrator healthchecks.
+        // Parse and validate HEALTH_PORT; fall back to 3001 on NaN or non-positive values.
+        const rawHealthPort = parseInt(process.env.HEALTH_PORT ?? '', 10);
+        const healthPort: number = Number.isFinite(rawHealthPort) && rawHealthPort > 0 ? rawHealthPort : 3001;
+
+        const healthServer = http.createServer(async (req, res) => {
+            // Accept only GET requests; normalize pathname to ignore trailing slashes and query strings.
+            const pathname = (() => {
+                try {
+                    const p = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`).pathname;
+                    return p.replace(/\/+$/, '') || '/';
+                } catch {
+                    return req.url?.split('?')[0]?.replace(/\/+$/, '') || '/';
+                }
+            })();
+
+            if (req.method !== 'GET' || pathname !== '/health') {
                 res.writeHead(404);
                 res.end();
+                return;
+            }
+
+            // Perform an actual dependency check — queue must be connected for a healthy response.
+            try {
+                const isHealthy: boolean = typeof (queue as any).isConnected === 'function'
+                    ? await (queue as any).isConnected()
+                    : true; // No health API available; already connected above so assume healthy.
+
+                if (isHealthy) {
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ status: 'OK', uptime: process.uptime() }));
+                } else {
+                    res.writeHead(500, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ status: 'UNHEALTHY', details: { queue: 'disconnected', uptime: process.uptime() } }));
+                }
+            } catch (err: unknown) {
+                const errMsg = err instanceof Error ? err.message : String(err);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ status: 'UNHEALTHY', details: { queue: 'error', error: errMsg, uptime: process.uptime() } }));
             }
         });
+
+        // Catch listen/bind errors so the worker doesn't silently continue without a health endpoint.
+        healthServer.on('error', (err: NodeJS.ErrnoException) => {
+            logger.error('Health server failed to start', { context: 'WORKER', healthPort, error: err.message, code: err.code });
+            process.exit(1);
+        });
+
         healthServer.listen(healthPort, () => {
             logger.info(`Worker health server listening on port ${healthPort}`, { context: 'WORKER' });
         });
 
         orchestrator.onShutdown(async () => {
-            logger.info('Stopping health server...', { context: 'WORKER' })
-            healthServer.close();
-            logger.info('Stopping background queue...', { context: 'WORKER' })
-            await queue.stop()
+            logger.info('Stopping health server...', { context: 'WORKER' });
+            // Await server close before stopping the queue to avoid a race condition.
+            await new Promise<void>((resolve, reject) =>
+                healthServer.close(err => (err ? reject(err) : resolve()))
+            ).catch(err => {
+                logger.error('Health server close error', { context: 'WORKER', error: (err as Error).message });
+            });
+            logger.info('Stopping background queue...', { context: 'WORKER' });
+            await queue.stop();
         })
 
         // 2. Register Jobs

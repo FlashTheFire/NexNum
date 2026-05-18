@@ -113,28 +113,30 @@ model NotificationPreferences {
 }
 
 model Wallet {
-  id           String              @id @default(uuid())
-  userId       String              @unique @map("user_id")
-  balance      Decimal             @default(0.00) @db.Decimal(18, 8)
-  reserved     Decimal             @default(0.00) @db.Decimal(18, 8)
-  createdAt    DateTime            @default(now()) @map("created_at")
-  updatedAt    DateTime            @default(now()) @updatedAt @map("updated_at")
-  transactions WalletTransaction[]
-  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id              String              @id @default(uuid())
+  userId          String              @unique @map("user_id")
+  balance         Decimal             @default(0.00) @db.Decimal(18, 8)
+  reserved        Decimal             @default(0.00) @db.Decimal(18, 8)
+  balanceSnapshot Json?               @map("balance_snapshot")  // Precomputed {USD,INR,...} — refreshed on balance or rate change
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @default(now()) @updatedAt @map("updated_at")
+  transactions    WalletTransaction[]
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("wallets")
 }
 
 model WalletTransaction {
-  id             String   @id @default(uuid())
-  walletId       String   @map("wallet_id")
-  amount         Decimal  @db.Decimal(18, 8)
-  type           String
-  description    String?
-  idempotencyKey String?  @unique @map("idempotency_key")
-  metadata       Json?
-  createdAt      DateTime @default(now()) @map("created_at")
-  wallet         Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  id               String   @id @default(uuid())
+  walletId         String   @map("wallet_id")
+  amount           Decimal  @db.Decimal(18, 8)
+  type             String
+  description      String?
+  idempotencyKey   String?  @unique @map("idempotency_key")
+  metadata         Json?
+  currencySnapshot Json?    @map("currency_snapshot")   // Immutable fiat context captured at event time
+  createdAt        DateTime @default(now()) @map("created_at")
+  wallet           Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
 
   @@index([walletId, createdAt])
   @@map("wallet_transactions")
@@ -646,7 +648,7 @@ model SystemSettings {
   pointsEnabled   Boolean @default(false) @map("points_enabled")
   pointsName      String  @default("Points") @map("points_name")
   pointsRate      Decimal @default(100.0) @map("points_rate") // 1 USD = 100 Points
-  inrToUsdRate    Decimal @default(80.0) @map("inr_to_usd_rate") @db.Decimal(10, 4) // Live rate for UPI deposits
+  inrToUsdRate    Decimal @default(96.28) @map("inr_to_usd_rate") @db.Decimal(10, 4) // Live rate for UPI deposits
 
   // ═══════════════════════════════════════════════════════════════════════════
   // PAYMENT GATEWAY CONFIGURATION
@@ -718,6 +720,11 @@ model SystemSettings {
 
   // Authentication & Security
   captchaEnabled      Boolean @default(true) @map("captcha_enabled")
+
+  // Rate versioning — monotonically incremented on every currency rate or settings change.
+  // Meilisearch offer documents store `currencyPricesVersion`; only docs where
+  // currencyPricesVersion < ratesVersion need reindexing after a rate change.
+  ratesVersion        Int     @default(1) @map("rates_version")
 
   updatedAt       DateTime @updatedAt @map("updated_at")
   

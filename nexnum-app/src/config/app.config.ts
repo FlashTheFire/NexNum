@@ -100,6 +100,22 @@ export const PricingConfig = {
 
     /** Currency precision (decimal places) */
     precision: parseInt(process.env.PRICE_PRECISION || '2', 10),
+
+    /** Exchange rates */
+    exchangeRates: {
+        USD: parseFloat(process.env.EXCHANGE_RATE_USD || '1'),
+        INR: parseFloat(process.env.EXCHANGE_RATE_INR || '96.28'),
+        RUB: parseFloat(process.env.EXCHANGE_RATE_RUB || '72.77'),
+        EUR: parseFloat(process.env.EXCHANGE_RATE_EUR || '0.86'),
+        GBP: parseFloat(process.env.EXCHANGE_RATE_GBP || '0.74'),
+        CNY: parseFloat(process.env.EXCHANGE_RATE_CNY || '6.80'),
+    } as Record<string, number>,
+
+    /** Deposit tax percent */
+    depositTaxPercent: parseFloat(process.env.DEPOSIT_TAX_PERCENT || '0.0'),
+
+    /** Deposit markup percent */
+    depositMarkupPercent: parseFloat(process.env.DEPOSIT_MARKUP_PERCENT || '0.0'),
 } as const
 
 // ============================================

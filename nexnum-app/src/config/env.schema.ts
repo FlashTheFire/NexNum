@@ -79,6 +79,18 @@ export const envSchema = z.object({
     MAX_PRICE_USD: positiveNumber.default(50.00),
     PRICE_PRECISION: z.coerce.number().int().min(0).max(4).default(2),
 
+    // ── Deposit Exchange Rates ────────────────
+    EXCHANGE_RATE_USD: positiveNumber.default(1),
+    EXCHANGE_RATE_INR: positiveNumber.default(96.28),
+    EXCHANGE_RATE_RUB: positiveNumber.default(72.77),
+    EXCHANGE_RATE_EUR: positiveNumber.default(0.86),
+    EXCHANGE_RATE_GBP: positiveNumber.default(0.74),
+    EXCHANGE_RATE_CNY: positiveNumber.default(6.80),
+
+    // ── Deposit Taxes and Markup ──────────────
+    DEPOSIT_TAX_PERCENT: nonNegativeNumber.default(0.0),
+    DEPOSIT_MARKUP_PERCENT: nonNegativeNumber.default(0.0),
+
     // ── Security ──────────────────────────────
     RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60000),
     RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),

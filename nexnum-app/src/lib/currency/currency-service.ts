@@ -26,6 +26,7 @@
 import { prisma } from '@/lib/core/db'
 import { logger } from '@/lib/core/logger'
 import { redis } from '@/lib/core/redis'
+import { PricingConfig } from '@/config/app.config'
 import Decimal from 'decimal.js'
 
 // Configure Decimal.js globally for financial precision
@@ -107,9 +108,18 @@ const RATES_CACHE_TTL   = 3600  // 1 hour
 const CONFIG_CACHE_TTL  = 300   // 5 minutes
 
 // Safe defaults used only when DB is unreachable
-const DEFAULTS: ConversionConfig = { pointsRate: 100, inrToUsdRate: 83, syncBufferPercent: 2 }
+const DEFAULTS: ConversionConfig = {
+    pointsRate: 100,
+    inrToUsdRate: PricingConfig.exchangeRates.INR,
+    syncBufferPercent: 2
+}
 const DEFAULT_RATES: Omit<ExchangeRates, 'updatedAt'> = {
-    USD: 1, INR: 83, RUB: 92, EUR: 0.92, GBP: 0.79, CNY: 7.25
+    USD: PricingConfig.exchangeRates.USD,
+    INR: PricingConfig.exchangeRates.INR,
+    RUB: PricingConfig.exchangeRates.RUB,
+    EUR: PricingConfig.exchangeRates.EUR,
+    GBP: PricingConfig.exchangeRates.GBP,
+    CNY: PricingConfig.exchangeRates.CNY
 }
 
 // ============================================================================
@@ -137,7 +147,7 @@ export class CurrencyService {
     /**
      * Get system conversion config.
      * Reads from Redis v3 cache, then DB. Never from an external API.
-     * INR rate is always `SystemSettings.inrToUsdRate` — single source of truth.
+     * INR rate is always `PricingConfig.exchangeRates.INR` — single source of truth.
      */
     async getConfig(): Promise<ConversionConfig> {
         if (this.config) return this.config
@@ -154,7 +164,7 @@ export class CurrencyService {
 
             this.config = {
                 pointsRate:        s?.pointsRate        ? Number(s.pointsRate)        : DEFAULTS.pointsRate,
-                inrToUsdRate:      s?.inrToUsdRate      ? Number(s.inrToUsdRate)      : DEFAULTS.inrToUsdRate,
+                inrToUsdRate:      PricingConfig.exchangeRates.INR,
                 syncBufferPercent: s?.syncBufferPercent ? Number(s.syncBufferPercent) : DEFAULTS.syncBufferPercent,
             }
 
@@ -175,7 +185,7 @@ export class CurrencyService {
 
     /**
      * Get all active exchange rates.
-     * Source: `Currency` table (admin-managed). INR is always overridden by `SystemSettings.inrToUsdRate`.
+     * Source: `Currency` table (admin-managed). INR is always overridden by `PricingConfig.exchangeRates.INR`.
      * NO external API calls. Rates only change when admin updates them.
      */
     async getRates(): Promise<ExchangeRates> {
@@ -204,7 +214,7 @@ export class CurrencyService {
                 if (curr.updatedAt > latestUpdate) latestUpdate = curr.updatedAt
             }
 
-            // INR override: always use SystemSettings.inrToUsdRate so deposit and display match perfectly
+            // INR override: always use PricingConfig.exchangeRates.INR so deposit and display match perfectly
             this.rates = {
                 USD: ratesMap['USD'] || DEFAULT_RATES.USD,
                 INR: config.inrToUsdRate,                          // ← single source of truth
@@ -244,9 +254,8 @@ export class CurrencyService {
     }
 
     /**
-     * "Sync" rates — DB only. NO external API.
-     * This method now just refreshes the in-memory/Redis cache from the DB.
-     * Rates are managed exclusively through the Admin Panel.
+     * Sync rates from environment variables / config file to DB.
+     * Deactivates all unsupported currencies and updates approved ones.
      */
     async syncRates(): Promise<SyncStats> {
         const stats: SyncStats = {
@@ -258,24 +267,69 @@ export class CurrencyService {
         }
 
         try {
+            const approvedCodes = ['USD', 'INR', 'RUB', 'EUR', 'GBP', 'CNY']
+            const rates = PricingConfig.exchangeRates
+
+            // 1. Deactivate or delete all other currencies in the database
+            await prisma.currency.updateMany({
+                where: {
+                    code: { notIn: approvedCodes }
+                },
+                data: {
+                    isActive: false
+                }
+            })
+
+            // 2. Upsert the approved currencies with env values
+            for (const code of approvedCodes) {
+                const rateVal = rates[code as SupportedCurrency] || 1.0
+                await prisma.currency.upsert({
+                    where: { code },
+                    update: {
+                        rate: rateVal,
+                        isActive: true
+                    },
+                    create: {
+                        code,
+                        name: code === 'USD' ? 'US Dollar' :
+                              code === 'INR' ? 'Indian Rupee' :
+                              code === 'RUB' ? 'Russian Ruble' :
+                              code === 'EUR' ? 'Euro' :
+                              code === 'GBP' ? 'British Pound' : 'Chinese Yuan',
+                        symbol: code === 'USD' ? '$' :
+                                code === 'INR' ? '₹' :
+                                code === 'RUB' ? '₽' :
+                                code === 'EUR' ? '€' :
+                                code === 'GBP' ? '£' : '¥',
+                        rate: rateVal,
+                        isBase: code === 'USD',
+                        isActive: true,
+                        autoUpdate: false
+                    }
+                })
+                stats.updated++
+                stats.updatedCurrencies.push(code)
+            }
+
+            stats.totalFetched = approvedCodes.length
+
+            // Update inrToUsdRate in system settings too
+            await prisma.systemSettings.updateMany({
+                where: { id: 'default' },
+                data: {
+                    inrToUsdRate: rates.INR
+                }
+            })
+
             // Invalidate cache so next read pulls fresh from DB
             await this.invalidateCache()
 
-            // Load fresh rates from DB to populate stats
-            const currencies = await prisma.currency.findMany({
-                where: { isActive: true },
-                select: { code: true }
-            })
-
-            stats.totalFetched = currencies.length
-            stats.updated = currencies.length
-            stats.updatedCurrencies = currencies.map(c => c.code)
-
-            logger.info('[CurrencyService] Rates refreshed from DB (no external API)', stats)
+            logger.info('[CurrencyService] Rates synced to DB from .env config', stats)
             return stats
 
         } catch (error) {
             logger.error('[CurrencyService] syncRates failed', { error: error instanceof Error ? error.message : String(error) })
+            stats.errors++
             throw error
         }
     }
@@ -297,12 +351,19 @@ export class CurrencyService {
     /**
      * Convert INR deposit amount to Points.
      * Used by: DepositService.confirmDeposit
-     * Formula: floor(INR / inrToUsdRate × pointsRate)
+     * Formula: floor(INR * (1 - taxPercent/100) * (1 - markupPercent/100) / inrToUsdRate × pointsRate)
      * Always floors to avoid over-crediting.
      */
     async inrToPoints(inrAmount: number): Promise<number> {
         const { inrToUsdRate, pointsRate } = await this.getConfig()
-        return new Decimal(inrAmount)
+        const taxPercent = PricingConfig.depositTaxPercent || 0
+        const markupPercent = PricingConfig.depositMarkupPercent || 0
+
+        const netInr = new Decimal(inrAmount)
+            .times(new Decimal(1).minus(new Decimal(taxPercent).dividedBy(100)))
+            .times(new Decimal(1).minus(new Decimal(markupPercent).dividedBy(100)))
+
+        return netInr
             .dividedBy(inrToUsdRate)
             .times(pointsRate)
             .floor()

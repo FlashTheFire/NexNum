@@ -89,6 +89,9 @@ export const GET = apiHandler(async (request, { user }) => {
             maxAmount: config.maxAmount,
             timeoutMinutes: config.timeoutMinutes,
             bonusPercent: config.bonusPercent,
+            exchangeRates: config.exchangeRates,
+            depositTaxPercent: config.depositTaxPercent,
+            depositMarkupPercent: config.depositMarkupPercent,
         },
     })
 }, {

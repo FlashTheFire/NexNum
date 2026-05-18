@@ -62,11 +62,11 @@ const CurrencyContext = createContext<CurrencyContextType | undefined>(undefined
 
 const DEFAULT_CURRENCIES: Record<string, Currency> = {
     'USD': { code: 'USD', name: 'US Dollar', symbol: '$', rate: 1 },
-    'INR': { code: 'INR', name: 'Indian Rupee', symbol: '₹', rate: 83 },
-    'RUB': { code: 'RUB', name: 'Russian Ruble', symbol: '₽', rate: 92 },
-    'EUR': { code: 'EUR', name: 'Euro', symbol: '€', rate: 0.92 },
-    'GBP': { code: 'GBP', name: 'British Pound', symbol: '£', rate: 0.79 },
-    'CNY': { code: 'CNY', name: 'Chinese Yuan', symbol: '¥', rate: 7.25 }
+    'INR': { code: 'INR', name: 'Indian Rupee', symbol: '₹', rate: 96.28 },
+    'RUB': { code: 'RUB', name: 'Russian Ruble', symbol: '₽', rate: 72.77 },
+    'EUR': { code: 'EUR', name: 'Euro', symbol: '€', rate: 0.86 },
+    'GBP': { code: 'GBP', name: 'British Pound', symbol: '£', rate: 0.74 },
+    'CNY': { code: 'CNY', name: 'Chinese Yuan', symbol: '¥', rate: 6.80 }
 }
 
 const DEFAULT_SETTINGS: SystemSettings = {
@@ -83,8 +83,8 @@ const DEFAULT_SETTINGS: SystemSettings = {
  * while maintaining a minimum of 2 decimal places for clean UI.
  */
 function formatActualDecimal(value: number): string {
-    if (value <= 0) return "0.00";
-    
+    if (value === 0) return "0.00";
+
     return new Intl.NumberFormat('en-US', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 3,

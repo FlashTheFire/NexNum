@@ -535,7 +535,12 @@ export function MobileDashboard() {
                                     </div>
                                     <span className={`text-sm font-bold font-mono ${isCredit ? 'text-emerald-400' : 'text-red-400'}`}>
                                         {isCredit ? '+' : ''}
-                                        <PriceDisplay currencyPrices={tx.currencyPrices ?? { USD: tx.amount }} />
+                                        {/* tx.currencyPrices is the canonical pre-computed map from the backend (Zero-Math).
+                                            Old transactions before the snapshot migration will show '—'. */}
+                                        {tx.currencyPrices
+                                            ? <PriceDisplay currencyPrices={tx.currencyPrices} />
+                                            : <span className="text-muted-foreground text-xs">—</span>
+                                        }
                                     </span>
                                 </div>
                             )

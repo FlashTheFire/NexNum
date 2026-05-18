@@ -6,6 +6,34 @@ import { FinancialSentinel } from './sentinel'
 import { PaymentError } from '@/lib/payment/payment-errors'
 import { logger } from '@/lib/core/logger'
 import { WalletTransactionType } from './types'
+import { getCurrencyService } from '@/lib/currency/currency-service'
+
+/**
+ * Capture an immutable fiat snapshot for a financial event.
+ * Reads User.preferredCurrency for personalized display context.
+ * All six currency rates are stored regardless, so any currency can be shown.
+ * Returns null (never throws) so snapshot failure never blocks a transaction.
+ */
+async function captureTransactionSnapshot(
+    userId: string,
+    points: number
+): Promise<object | null> {
+    try {
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { preferredCurrency: true }
+        })
+        const currency = user?.preferredCurrency || 'USD'
+        const snapshot = await getCurrencyService().captureSnapshot(points, currency)
+        // SECURITY: strip internal points from the snapshot before storing
+        const { points: _p, ...safeSnapshot } = snapshot
+        return safeSnapshot
+    } catch (err) {
+        logger.warn('[WalletService] currencySnapshot capture failed — transaction proceeds', { userId, err })
+        return null
+    }
+}
+
 
 export class WalletService {
     /**
@@ -137,6 +165,9 @@ export class WalletService {
             }
         })
 
+        // Capture immutable fiat snapshot BEFORE creating the transaction record
+        const currencySnapshot = await captureTransactionSnapshot(userId, amount)
+
         // Log Transaction
         const transaction = await client.walletTransaction.create({
             data: {
@@ -145,14 +176,17 @@ export class WalletService {
                 type: 'purchase', // Final record
                 description,
                 idempotencyKey,
-                metadata: { refId } // Store Number ID
+                metadata: { refId }, // Store Number ID
+                currencySnapshot: currencySnapshot as any,
             }
         })
 
         wallet_transactions_total.labels('purchase', 'success').inc()
 
-        // LOW BALANCE ALERT (Enterprise Event)
         const finalBalance = wallet.balance.sub(decAmount)
+
+
+        // LOW BALANCE ALERT (Enterprise Event)
         if (finalBalance.lessThan(10.0)) { // Standard threshold
             await EventDispatcher.dispatch(userId, 'balance.low', {
                 balance: finalBalance.toNumber(),
@@ -238,16 +272,22 @@ export class WalletService {
                 data: { balance: { decrement: decAmount } }
             })
 
+            // Capture immutable fiat snapshot
+            const currencySnapshot = await captureTransactionSnapshot(userId, amount)
+
             // 6. Record Transaction
-            return await client.walletTransaction.create({
+            const transaction = await client.walletTransaction.create({
                 data: {
                     walletId: wallet.id,
                     amount: decAmount.negated(),
                     type,
                     description,
-                    idempotencyKey
+                    idempotencyKey,
+                    currencySnapshot: currencySnapshot as any,
                 }
             })
+
+            return transaction
         }
 
         return tx ? performCharge(tx) : prisma.$transaction(performCharge);
@@ -288,16 +328,23 @@ export class WalletService {
                 data: { balance: { increment: decAmount } }
             })
 
+            // Capture immutable fiat snapshot
+            const currencySnapshot = await captureTransactionSnapshot(userId, amount)
+
             // 2. Create Refund Transaction
-            return await client.walletTransaction.create({
+            const transaction = await client.walletTransaction.create({
                 data: {
                     walletId: wallet.id,
                     amount: decAmount,
                     type,
                     description,
-                    idempotencyKey
+                    idempotencyKey,
+                    currencySnapshot: currencySnapshot as any,
                 }
             })
+
+
+            return transaction
         }
 
         return tx ? performRefund(tx) : prisma.$transaction(performRefund);
@@ -337,6 +384,9 @@ export class WalletService {
                 data: { balance: { increment: decAmount } }
             })
 
+            // Capture immutable fiat snapshot
+            const currencySnapshot = await captureTransactionSnapshot(userId, amount)
+
             // 2. Create Credit Transaction
             const transaction = await client.walletTransaction.create({
                 data: {
@@ -344,11 +394,14 @@ export class WalletService {
                     amount: decAmount,
                     type,
                     description,
-                    idempotencyKey
+                    idempotencyKey,
+                    currencySnapshot: currencySnapshot as any,
                 }
             })
 
             wallet_transactions_total.labels(type, 'success').inc()
+
+
             return transaction
         }
 
@@ -399,6 +452,9 @@ export class WalletService {
                 data: { balance: { decrement: decAmount } }
             })
 
+            // Capture immutable fiat snapshot
+            const currencySnapshot = await captureTransactionSnapshot(userId, amount)
+
             // 2. Create Debit Transaction
             const transaction = await client.walletTransaction.create({
                 data: {
@@ -406,7 +462,8 @@ export class WalletService {
                     amount: decAmount.negated(),
                     type,
                     description,
-                    idempotencyKey
+                    idempotencyKey,
+                    currencySnapshot: currencySnapshot as any,
                 }
             })
 

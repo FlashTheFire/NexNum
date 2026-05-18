@@ -14,15 +14,15 @@ import { NextResponse } from 'next/server'
 import { prisma, ensureWallet } from '@/lib/core/db'
 import { apiHandler } from '@/lib/api/api-handler'
 import { ResponseFactory } from '@/lib/api/response-factory'
-import { WalletService } from '@/lib/wallet/wallet'
 import { getCurrencyService, MultiCurrencyPrice } from '@/lib/currency/currency-service'
 import { cacheGet, CACHE_KEYS, CACHE_TTL, cacheInvalidate } from '@/lib/core/redis'
 import { getServiceIconUrlByName } from '@/lib/search/search'
 import { getCountryFlagUrl } from '@/lib/normalizers/country-flags'
 import { createHash } from 'crypto'
+import { logger } from '@/lib/core/logger'
 
 interface DashboardState {
-    balance: MultiCurrencyPrice  // Multi-currency balance for zero client-side calc
+    balance: MultiCurrencyPrice       // Pure fiat map {USD, INR, RUB, EUR, GBP, CNY} — no points
     walletId: string
     numbers: any[]
     transactions: any[]
@@ -36,9 +36,9 @@ interface DashboardState {
  * Generate ETag from data content
  */
 function generateETag(data: DashboardState): string {
-    // Hash key fields that affect UI display
+    // Hash key fields that affect UI display — use fiat USD as change signal (no points exposed)
     const hashInput = JSON.stringify({
-        balancePoints: data.balance.points,
+        balanceUSD: data.balance.USD,
         numbersCount: data.numbers.length,
         // Include first number's ID and SMS count to detect changes
         firstNumber: data.numbers[0] ? { id: data.numbers[0].id, smsCount: data.numbers[0].smsCount } : null,
@@ -46,8 +46,8 @@ function generateETag(data: DashboardState): string {
         // Include first transaction ID to detect new transactions
         firstTxId: data.transactions[0]?.id,
         unreadNotificationCount: data.unreadNotificationCount,
-        totalSpent: data.totalSpent.points,
-        totalDeposited: data.totalDeposited.points,
+        totalSpentUSD: data.totalSpent.USD,
+        totalDepositedUSD: data.totalDeposited.USD,
     })
     return createHash('md5').update(hashInput).digest('hex').slice(0, 16)
 }
@@ -94,11 +94,15 @@ export const GET = apiHandler(async (request, { user }) => {
 async function fetchDashboardState(userId: string): Promise<DashboardState> {
     // Ensure wallet exists
     const walletId = await ensureWallet(userId)
+    const currencyService = getCurrencyService()
 
     // Parallel fetch all data
-    const [balancePoints, numbersRaw, transactionsRaw, unreadCount] = await Promise.all([
-        // 1. Balance (in Points)
-        WalletService.getBalance(userId),
+    const [walletData, numbersRaw, transactionsRaw, unreadCount] = await Promise.all([
+        // 1. Wallet: balance points + precomputed snapshot
+        prisma.wallet.findUnique({
+            where: { userId },
+            select: { balance: true, balanceSnapshot: true }
+        }),
 
         // 2. Numbers (active + recent, limit 20)
         prisma.number.findMany({
@@ -116,7 +120,7 @@ async function fetchDashboardState(userId: string): Promise<DashboardState> {
             take: 20,
         }),
 
-        // 3. Transactions (recent 10) - Uses walletId from ensureWallet
+        // 3. Transactions (recent 10)
         prisma.walletTransaction.findMany({
             where: { walletId },
             orderBy: { createdAt: 'desc' },
@@ -127,6 +131,7 @@ async function fetchDashboardState(userId: string): Promise<DashboardState> {
                 amount: true,
                 description: true,
                 createdAt: true,
+                currencySnapshot: true,  // Immutable fiat context — client receives derived prices only
             }
         }),
 
@@ -170,14 +175,42 @@ async function fetchDashboardState(userId: string): Promise<DashboardState> {
         }
     }))
 
-    // Map transactions
-    const transactions = transactionsRaw.map(t => ({
-        id: t.id,
-        type: t.type,
-        amount: Math.abs(Number(t.amount)),
-        description: t.description || '',
-        createdAt: t.createdAt,
-    }))
+    // Map transactions — derive currencyPrices from snapshot (Zero-Math: no points sent to client)
+    const transactions = transactionsRaw.map(t => {
+        const snap = t.currencySnapshot as any | null
+
+        // Build per-currency price map from snapshot rates + fiatEquivalent
+        // If no snapshot (old transaction), currencyPrices is null → UI shows '—'
+        let currencyPrices: Record<string, number> | null = null
+        if (snap?.rates && typeof snap.fiatEquivalent === 'number') {
+            // fiatEquivalent is in userCurrency. Derive all others from rates.
+            // Convert fiatEquivalent → USD first, then to each currency
+            const userCurrency: string = snap.userCurrency || 'USD'
+            if (snap.rates[userCurrency] === undefined) {
+                logger.warn('[api/dashboard/state] Preferred currency rate missing from snapshot rates', {
+                    userCurrency,
+                    ratesKeys: Object.keys(snap.rates)
+                })
+                currencyPrices = null
+            } else {
+                const userRate: number = snap.rates[userCurrency]
+                const usdAmount: number = snap.fiatEquivalent / userRate
+                currencyPrices = Object.fromEntries(
+                    Object.entries(snap.rates as Record<string, number>)
+                        .map(([code, rate]) => [code, parseFloat((usdAmount * rate).toFixed(5))])
+                )
+            }
+        }
+
+        return {
+            id: t.id,
+            type: t.type,
+            amount: Math.abs(Number(t.amount)), // Points amount — kept for admin reference only
+            description: t.description || '',
+            createdAt: t.createdAt,
+            currencyPrices,      // Fiat map derived from snapshot — client renders this
+        }
+    })
 
     // 5. Usage stats (Last 7 days spent)
     const sevenDaysAgo = new Date()
@@ -196,15 +229,20 @@ async function fetchDashboardState(userId: string): Promise<DashboardState> {
         orderBy: { createdAt: 'asc' }
     })
 
-    // Aggregate into 7-day array
-    const usageSummary = Array(7).fill(0)
+    // Aggregate into 7-day array of points
+    const usagePoints = Array(7).fill(0)
     const now = new Date()
     usageDaily.forEach(tx => {
         const diffDays = Math.floor((now.getTime() - tx.createdAt.getTime()) / (1000 * 60 * 60 * 24))
         if (diffDays >= 0 && diffDays < 7) {
-            usageSummary[6 - diffDays] += Math.abs(Number(tx.amount))
+            usagePoints[6 - diffDays] += Math.abs(Number(tx.amount))
         }
     })
+
+    // Convert aggregated point values to USD fiat (Zero-Math: never send raw points to the client)
+    const usageSummary = await Promise.all(
+        usagePoints.map(points => currencyService.pointsToFiat(points, 'USD'))
+    )
 
     // 6. Lifetime Aggregates
     const [spentAgg, depositAgg] = await Promise.all([
@@ -218,11 +256,21 @@ async function fetchDashboardState(userId: string): Promise<DashboardState> {
         })
     ])
 
-    // Convert balance, spent, and deposited to all currencies (ZERO CLIENT-SIDE CALCULATION)
-    const currencyService = getCurrencyService()
-    const balance = await currencyService.pointsToAllFiat(balancePoints)
-    const totalSpent = await currencyService.pointsToAllFiat(Math.abs(Number(spentAgg._sum.amount || 0)))
-    const totalDeposited = await currencyService.pointsToAllFiat(Math.abs(Number(depositAgg._sum.amount || 0)))
+    // Convert balance, spent, and deposited to pure fiat maps (ZERO CLIENT-SIDE CALCULATION)
+    // Points are NEVER included in the response — client guard uses 'USD' in balance, not 'points'
+
+    // BALANCE: use precomputed snapshot if available (skips live conversion)
+    // Fallback to live pointsToAllFiat() for wallets with no snapshot yet (new users).
+    const balancePoints = walletData?.balance?.toNumber() ?? 0
+    const cachedBalance = walletData?.balanceSnapshot as Record<string, number> | null | undefined
+
+    const [balance, totalSpent, totalDeposited] = await Promise.all([
+        cachedBalance && 'USD' in cachedBalance
+            ? Promise.resolve(cachedBalance as MultiCurrencyPrice)
+            : currencyService.pointsToAllFiat(balancePoints),
+        currencyService.pointsToAllFiat(Math.abs(Number(spentAgg._sum.amount || 0))),
+        currencyService.pointsToAllFiat(Math.abs(Number(depositAgg._sum.amount || 0))),
+    ])
 
     return {
         balance,

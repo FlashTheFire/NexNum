@@ -82,13 +82,19 @@ export default function BuyPage() {
     const { preferredCurrency } = useCurrency()
     const handlePurchase = async (provider: Provider) => {
         // --- MULTI-CURRENCY BALANCE CHECK (Zero-Math) ---
-        // 1. Determine current balance in preferred currency
-        const userMultiBalance = userProfile.multiBalance || { points: userProfile.balance, USD: userProfile.balance / 100 }
-        const currentBalance = (userMultiBalance as any)[preferredCurrency] ?? 0
-        
-        // 2. Determine price in preferred currency
-        // Fallback to provider.price (legacy points) if currencyPrices is missing
-        const itemPrice = provider.currencyPrices?.[preferredCurrency as string] ?? (provider.price / 100)
+        // multiBalance is always a server-truth fiat map \u2014 no points, no reconstruction
+        const userMultiBalance = userProfile.multiBalance
+        const currentBalance = userMultiBalance?.[preferredCurrency as keyof typeof userMultiBalance] ?? 0
+
+        // 2. Validate price presence before comparing balances
+        if (!provider.currencyPrices || provider.currencyPrices[preferredCurrency as string] === undefined) {
+            toast.error("Pricing error", {
+                description: `Price not available in ${preferredCurrency}. Please contact support or try another currency.`
+            })
+            return
+        }
+
+        const itemPrice = provider.currencyPrices[preferredCurrency as string]
 
         if (currentBalance < itemPrice) {
             toast.error("Insufficient balance", { 

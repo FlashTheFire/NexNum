@@ -15,29 +15,27 @@ export async function GET(request: Request) {
             )
         }
 
-        // Ensure wallet exists
-        const walletId = await ensureWallet(user.userId)
+        // Ensure wallet exists (internal side-effect only)
+        await ensureWallet(user.userId)
 
-        // Get balance in Points (internal unit)
+        // Fetch balance in Points (internal unit — never exposed to client)
         const balancePoints = await WalletService.getBalance(user.userId)
 
-        // User's preferred display currency for show
+        // User's preferred display currency
         const dbUser = await prisma.user.findUnique({
             where: { id: user.userId },
             select: { preferredCurrency: true }
         })
         const preferredCurrency = toSupportedCurrency(dbUser?.preferredCurrency)
         const currencyService = getCurrencyService()
-        const displayAmount = await currencyService.pointsToFiat(balancePoints, preferredCurrency)
+
+        // Convert to all fiat currencies — this is the ONLY value the client receives
         const multiBalance = await currencyService.pointsToAllFiat(balancePoints)
 
+        // Points are NEVER sent to the client. Only pre-computed fiat values.
         return NextResponse.json({
             success: true,
-            walletId,
-            balance: balancePoints,
-            multiBalance,
-            currency: 'POINTS' as const,
-            displayAmount: Math.round(displayAmount * 100) / 100,
+            multiBalance,          // {USD, INR, RUB, EUR, GBP, CNY} — sole balance representation
             displayCurrency: preferredCurrency,
         }, {
             headers: {
@@ -53,3 +51,4 @@ export async function GET(request: Request) {
         )
     }
 }
+

@@ -582,12 +582,16 @@ export class UPIProvider {
      */
     async getPublicConfig() {
         const config = await this.getConfig()
+        const { PricingConfig } = await import('@/config/app.config')
         return {
             mode: config.upiProviderMode,
             minAmount: config.depositMinAmount,
             maxAmount: config.depositMaxAmount,
             timeoutMinutes: config.depositTimeoutMins,
             bonusPercent: config.depositBonusPercent,
+            exchangeRates: PricingConfig.exchangeRates,
+            depositTaxPercent: PricingConfig.depositTaxPercent,
+            depositMarkupPercent: PricingConfig.depositMarkupPercent,
         }
     }
 

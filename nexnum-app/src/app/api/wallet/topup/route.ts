@@ -50,7 +50,7 @@ export const POST = apiHandler(async (request, { body, user }) => {
         const multiBalance = await currencyService.pointsToAllFiat(newBalance)
         emitStateUpdate(user.userId, 'wallet', 'deposit').catch(err => logger.warn('[Wallet/topup] emitStateUpdate failed', { error: err }))
 
-        // 5. Success Envelope
+        // 5. Success Envelope — points are NEVER sent to client
         return ResponseFactory.success({
             transaction: {
                 id: transaction.id,
@@ -58,7 +58,7 @@ export const POST = apiHandler(async (request, { body, user }) => {
                 type: transaction.type,
                 createdAt: transaction.createdAt,
             },
-            newBalance,
+            // newBalance (points) intentionally omitted — client uses multiBalance only
             multiBalance,
         })
 

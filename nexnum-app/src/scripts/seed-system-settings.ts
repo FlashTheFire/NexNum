@@ -9,6 +9,7 @@ import 'dotenv/config'
 import { prisma } from '../../src/lib/core/db'
 import * as fs from 'fs'
 import * as path from 'path'
+import { PricingConfig } from '../../src/config/app.config'
 
 // Load providers from centralized config
 const PROVIDERS_PATH = path.join(__dirname, '../config/templates/providers.json')
@@ -19,12 +20,12 @@ const PROVIDERS = JSON.parse(fs.readFileSync(PROVIDERS_PATH, 'utf-8')) as Record
 // ==========================================
 
 const CURRENCIES = [
-    { code: 'USD', name: 'US Dollar', symbol: '$', rate: 1.0, isBase: true },
-    { code: 'EUR', name: 'Euro', symbol: '€', rate: 0.92, isBase: false },
-    { code: 'GBP', name: 'British Pound', symbol: '£', rate: 0.79, isBase: false },
-    { code: 'INR', name: 'Indian Rupee', symbol: '₹', rate: 83.0, isBase: false },
-    { code: 'RUB', name: 'Russian Ruble', symbol: '₽', rate: 90.0, isBase: false },
-    { code: 'CNY', name: 'Chinese Yuan', symbol: '¥', rate: 7.2, isBase: false },
+    { code: 'USD', name: 'US Dollar', symbol: '$', rate: PricingConfig.exchangeRates.USD, isBase: true },
+    { code: 'EUR', name: 'Euro', symbol: '€', rate: PricingConfig.exchangeRates.EUR, isBase: false },
+    { code: 'GBP', name: 'British Pound', symbol: '£', rate: PricingConfig.exchangeRates.GBP, isBase: false },
+    { code: 'INR', name: 'Indian Rupee', symbol: '₹', rate: PricingConfig.exchangeRates.INR, isBase: false },
+    { code: 'RUB', name: 'Russian Ruble', symbol: '₽', rate: PricingConfig.exchangeRates.RUB, isBase: false },
+    { code: 'CNY', name: 'Chinese Yuan', symbol: '¥', rate: PricingConfig.exchangeRates.CNY, isBase: false },
 ]
 
 const BANNED_HASHES = [
@@ -45,7 +46,9 @@ export async function seedSystemSettings() {
 
     const settings = await prisma.systemSettings.upsert({
         where: { id: 'default' },
-        update: {},
+        update: {
+            inrToUsdRate: PricingConfig.exchangeRates.INR,
+        },
         create: {
             id: 'default',
             // Currency Settings
@@ -54,6 +57,7 @@ export async function seedSystemSettings() {
             pointsEnabled: true,
             pointsName: 'Credits',
             pointsRate: 100.0,
+            inrToUsdRate: PricingConfig.exchangeRates.INR,
 
             // Payment Gateway Settings (defaults)
             paymentsEnabled: false,          // Disabled by default, admin must enable

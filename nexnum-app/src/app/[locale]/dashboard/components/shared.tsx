@@ -78,8 +78,12 @@ export function NotificationsBtn() {
                                                 <p className="text-xs text-muted-foreground flex items-center gap-1">
                                                     <span>{formatRelativeTime(tx.createdAt)}</span>
                                                     <span>•</span>
-                                                    <span className={tx.amount >= 0 ? "text-emerald-400" : "text-foreground"}>
-                                                        {tx.amount > 0 ? '+' : ''}<PriceDisplay currencyPrices={{ USD: Math.abs(tx.amount) / 100 }} />
+                                                    <span className={(tx as any).type === 'topup' || (tx as any).type === 'manual_credit' || (tx as any).type === 'referral_bonus' || (tx as any).type === 'deposit' ? "text-emerald-400" : "text-foreground"}>
+                                                        {(tx as any).type === 'topup' || (tx as any).type === 'manual_credit' || (tx as any).type === 'referral_bonus' || (tx as any).type === 'deposit' ? '+' : '-'}
+                                                        {(tx as any).currencyPrices
+                                                            ? <PriceDisplay currencyPrices={(tx as any).currencyPrices} />
+                                                            : <span className="text-muted-foreground">—</span>
+                                                        }
                                                     </span>
                                                 </p>
                                             </div>

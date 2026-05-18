@@ -22,7 +22,7 @@ import { useAuthStore } from "@/stores/authStore"
 import { DashboardBackground } from "./dashboard-background"
 import { ModernNumberCard } from "./ModernNumberCard"
 import { BalanceDisplay, PriceDisplay } from "@/components/common/PriceDisplay"
-import { useCurrency } from "@/providers/CurrencyProvider"
+
 
 
 // Animation Variants
@@ -71,8 +71,6 @@ export function DesktopDashboard() {
     const { user } = useAuthStore()
     const { userProfile, activeNumbers, transactions, usageSummary, totalSpent, totalDeposited } = useGlobalStore()
     const containerRef = useRef<HTMLDivElement>(null)
-    const { settings } = useCurrency()
-    const pointsRate = Number(settings?.pointsRate) || 100
 
     const t = useTranslations('dashboard')
 
@@ -84,10 +82,10 @@ export function DesktopDashboard() {
     const greeting = hour < 12 ? t('greeting.morning') : hour < 18 ? t('greeting.afternoon') : t('greeting.evening')
 
     const stats = [
-        { label: t('stats.balance'), value: <BalanceDisplay multiBalance={userProfile?.multiBalance} />, icon: Wallet, color: "text-[hsl(var(--neon-lime))]", fill: "hsl(var(--neon-lime))", bg: "bg-[hsl(var(--neon-lime)/0.1)]", border: "border-[hsl(var(--neon-lime)/0.2)]", data: [0, 0, 0, 0, 0, 0, (userProfile?.balance || 0) / 100] },
+        { label: t('stats.balance'), value: <BalanceDisplay multiBalance={userProfile?.multiBalance} />, icon: Wallet, color: "text-[hsl(var(--neon-lime))]", fill: "hsl(var(--neon-lime))", bg: "bg-[hsl(var(--neon-lime)/0.1)]", border: "border-[hsl(var(--neon-lime)/0.2)]", data: [0, 0, 0, 0, 0, 0, userProfile?.multiBalance?.USD ?? 0] },
         { label: t('stats.myNumbers'), value: activeNumbers.length, icon: Phone, color: "text-cyan-400", fill: "#22d3ee", bg: "bg-cyan-400/10", border: "border-cyan-400/20", data: [0, 0, 0, 0, 0, 0, activeNumbers.length] },
-        { label: t('stats.spent'), value: <PriceDisplay currencyPrices={typeof totalSpent === 'object' ? (totalSpent as unknown as Record<string, number>) : { USD: (Number(totalSpent) || 0) / pointsRate }} />, icon: ShoppingCart, color: "text-purple-400", fill: "#c084fc", bg: "bg-purple-400/10", border: "border-purple-400/20", data: usageSummary },
-        { label: t('stats.deposited'), value: <PriceDisplay currencyPrices={typeof totalDeposited === 'object' ? (totalDeposited as unknown as Record<string, number>) : { USD: (Number(totalDeposited) || 0) / pointsRate }} />, icon: TrendingUp, color: "text-emerald-400", fill: "#34d399", bg: "bg-emerald-400/10", border: "border-emerald-400/20", data: [0, 0, 0, 0, 0, 0, (totalDeposited as number || 0) / 1000] },
+        { label: t('stats.spent'), value: <PriceDisplay currencyPrices={typeof totalSpent === 'object' ? (totalSpent as unknown as Record<string, number>) : { USD: 0 }} />, icon: ShoppingCart, color: "text-purple-400", fill: "#c084fc", bg: "bg-purple-400/10", border: "border-purple-400/20", data: usageSummary },
+        { label: t('stats.deposited'), value: <PriceDisplay currencyPrices={typeof totalDeposited === 'object' ? (totalDeposited as unknown as Record<string, number>) : { USD: 0 }} />, icon: TrendingUp, color: "text-emerald-400", fill: "#34d399", bg: "bg-emerald-400/10", border: "border-emerald-400/20", data: [0, 0, 0, 0, 0, 0, typeof totalDeposited === 'object' ? (totalDeposited as any).USD ?? 0 : 0] },
     ]
 
     return (
@@ -278,7 +276,8 @@ export function DesktopDashboard() {
                                         <div className="text-right shrink-0">
                                             <span className={`block text-xs font-mono font-bold ${['topup', 'manual_credit', 'referral_bonus', 'refund'].includes(tx.type) ? 'text-emerald-400' : 'text-gray-400'}`}>
                                                 {['topup', 'manual_credit', 'referral_bonus', 'refund'].includes(tx.type) ? '+' : ''}
-                                                <PriceDisplay currencyPrices={{ USD: tx.amount / pointsRate }} />
+                                                {/* Use server-computed currencyPrices — no client-side arithmetic */}
+                                                <PriceDisplay currencyPrices={(tx as any).currencyPrices || { USD: 0 }} />
                                             </span>
                                         </div>
                                     </div>

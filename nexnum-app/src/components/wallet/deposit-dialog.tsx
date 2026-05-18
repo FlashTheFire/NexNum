@@ -46,6 +46,9 @@ interface DepositConfig {
     cryptoProviderMode?: 'MANUAL' | 'THIRD_PARTY' | 'DISABLED'
     cryptoUsdtTrxAddress?: string
     cryptoUsdtBep20Address?: string
+    exchangeRates?: Record<string, number>
+    depositTaxPercent?: number
+    depositMarkupPercent?: number
 }
 
 type PaymentMethod = 'upi' | 'crypto'
@@ -73,7 +76,7 @@ const PRESETS = [100, 500, 1000, 2000]
 const POLL_INTERVAL = 3000 // 3 seconds
 
 export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) {
-    const { formatPrice, settings } = useCurrency()
+    const { formatPrice, settings, currencies } = useCurrency()
     const pointsRate = Number(settings?.pointsRate) || 100
 
     // State
@@ -87,7 +90,10 @@ export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) 
         maxAmount: 50000,
         timeoutMinutes: 30,
         bonusPercent: 0,
-        cryptoProviderMode: 'DISABLED'
+        cryptoProviderMode: 'DISABLED',
+        exchangeRates: {},
+        depositTaxPercent: 0,
+        depositMarkupPercent: 0
     })
     const [deposit, setDeposit] = useState<Deposit | null>(null)
     const [timeLeft, setTimeLeft] = useState(0)
@@ -162,6 +168,19 @@ export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) 
     const bonusPercent = config.bonusPercent || 0
     const bonusAmount = bonusPercent > 0 ? Math.floor((numAmount * bonusPercent) / 100) : 0
     const totalAmount = numAmount + bonusAmount
+
+    const inrRate = config.exchangeRates?.['INR'] || currencies['INR']?.rate || 96.28
+    const taxPercent = config.depositTaxPercent || 0
+    const markupPercent = config.depositMarkupPercent || 0
+
+    // Client-side points calculation matching the backend-driven pricing logic
+    const calculateReceivedPoints = () => {
+        if (!numAmount) return 0
+        const netInr = numAmount * (1 - taxPercent / 100) * (1 - markupPercent / 100)
+        const basePoints = Math.floor((netInr / inrRate) * pointsRate)
+        const bonusPoints = bonusPercent > 0 ? Math.floor((basePoints * bonusPercent) / 100) : 0
+        return basePoints + bonusPoints
+    }
 
     // Create deposit
     const handleCreateDeposit = async () => {
@@ -448,7 +467,7 @@ export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) 
                                         <div className="flex justify-between text-sm">
                                             <span className="text-slate-400">You'll receive</span>
                                             <span className="font-semibold text-indigo-300">
-                                                {(totalAmount * pointsRate).toLocaleString()} Points
+                                                {calculateReceivedPoints().toLocaleString()} Points
                                             </span>
                                         </div>
                                     </div>
@@ -553,7 +572,7 @@ export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) 
                                 <div className="flex justify-between items-center">
                                     <span className="text-slate-400">Amount to Send</span>
                                     <span className="text-2xl font-bold text-white">
-                                        ${(Number(amount) / 83).toFixed(2)} USDT
+                                        ${(Number(amount) / (inrRate || 96.28)).toFixed(2)} USDT
                                     </span>
                                 </div>
                                 <p className="text-xs text-slate-500 mt-1">≈ {formatPrice(numAmount)} (at current rate)</p>

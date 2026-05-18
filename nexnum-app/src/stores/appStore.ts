@@ -50,10 +50,10 @@ export interface ActiveNumber {
 }
 
 /**
- * Multi-currency balance for zero client-side calculations
+ * Pre-computed fiat balance map — the ONLY balance representation on the client.
+ * Points are server-internal and NEVER included here.
  */
-interface MultiCurrencyBalance {
-    points: number
+export interface MultiCurrencyBalance {
     USD: number
     INR: number
     RUB: number
@@ -63,8 +63,7 @@ interface MultiCurrencyBalance {
 }
 
 interface UserProfile {
-    balance: number // Legacy: points value for backward compatibility
-    multiBalance?: MultiCurrencyBalance // NEW: Pre-computed multi-currency values
+    multiBalance: MultiCurrencyBalance  // Sole source of truth — always present after hydration
 }
 
 interface GlobalState {
@@ -120,7 +119,7 @@ export const useGlobalStore = create<GlobalState>()(
     persist(
         (set, get) => ({
             userProfile: {
-                balance: 0
+                multiBalance: { USD: 0, INR: 0, RUB: 0, EUR: 0, GBP: 0, CNY: 0 }
             },
             activeNumbers: [],
             transactions: [],
@@ -197,16 +196,13 @@ export const useGlobalStore = create<GlobalState>()(
                             description: (t.description as string) || '',
                         }))
 
-                        // Handle both old (number) and new (object) balance formats
+                        // Balance is always a pure fiat map {USD, INR, ...} — guard on 'USD'
                         const balanceData = data.balance
-                        const isMultiCurrencyBalance = typeof balanceData === 'object' && balanceData !== null && 'points' in balanceData
+                        const isFiatMap = typeof balanceData === 'object' && balanceData !== null && 'USD' in balanceData
 
-                        const userProfileUpdate: UserProfile = isMultiCurrencyBalance
-                            ? {
-                                balance: balanceData.points, // Legacy compatibility
-                                multiBalance: balanceData as MultiCurrencyBalance
-                            }
-                            : { balance: Number(balanceData) || 0 }
+                        const userProfileUpdate: UserProfile = isFiatMap
+                            ? { multiBalance: balanceData as MultiCurrencyBalance }
+                            : { multiBalance: { USD: 0, INR: 0, RUB: 0, EUR: 0, GBP: 0, CNY: 0 } }
 
                         set({
                             userProfile: userProfileUpdate,
@@ -237,17 +233,16 @@ export const useGlobalStore = create<GlobalState>()(
                     const result = await api.getBalance()
                     if (result.success && result.data) {
                         const data = result.data as any
-                        const multiBalance = data.multiBalance
-                        const userProfileUpdate: UserProfile = multiBalance
-                            ? {
-                                balance: data.balance,
-                                multiBalance: { points: data.balance, ...multiBalance }
-                            }
-                            : { balance: data.balance }
-                        set({
-                            userProfile: userProfileUpdate,
-                            isLoadingBalance: false
-                        })
+                        // API returns only multiBalance (pure fiat) — no raw points
+                        const multiBalance = data.multiBalance as MultiCurrencyBalance | undefined
+                        if (multiBalance && 'USD' in multiBalance) {
+                            set({
+                                userProfile: { multiBalance },
+                                isLoadingBalance: false
+                            })
+                        } else {
+                            set({ isLoadingBalance: false })
+                        }
                     } else {
                         set({ isLoadingBalance: false })
                     }
@@ -310,12 +305,10 @@ export const useGlobalStore = create<GlobalState>()(
 
             // Top up wallet via API
             topUp: async (amount: number) => {
-                // Snapshot full profile for rollback (preserves multiBalance)
+                // Snapshot for rollback — no optimistic balance math (we have no fiat amount to add)
                 const prevProfile = get().userProfile
+                // Only add a pending transaction for visual feedback
                 set(state => ({
-                    // OPTIMISTIC: bump points balance only; multiBalance updated on server confirm
-                    userProfile: { ...prevProfile, balance: prevProfile.balance + amount },
-                    // Add temp transaction for feedback
                     transactions: [
                         {
                             id: 'temp-' + Date.now(),
@@ -332,15 +325,12 @@ export const useGlobalStore = create<GlobalState>()(
 
                 try {
                     const result = await api.topUp(amount)
-                    if (result.success && result.data?.newBalance !== undefined) {
-                        const data = result.data as any
-                        const multiBalance = data.multiBalance
-                        // Commit server-verified balance — Zero-Math: use server fiat values directly
-                        set({
-                            userProfile: multiBalance
-                                ? { balance: data.newBalance, multiBalance: { points: data.newBalance, ...multiBalance } }
-                                : { balance: data.newBalance }
-                        })
+                    if (result.success && result.data?.multiBalance) {
+                        const multiBalance = result.data.multiBalance as MultiCurrencyBalance
+                        // Commit server-verified fiat balance — pure Zero-Math
+                        if ('USD' in multiBalance) {
+                            set({ userProfile: { multiBalance } })
+                        }
                         // Sync full dashboard state for transaction list + totals
                         get().fetchDashboardState()
                     } else {
@@ -348,7 +338,7 @@ export const useGlobalStore = create<GlobalState>()(
                     }
                     return result
                 } catch (error: unknown) {
-                    // ROLLBACK: restore full prior profile (including multiBalance)
+                    // ROLLBACK: restore prior profile
                     set({ userProfile: prevProfile })
                     set(state => ({
                         transactions: state.transactions.filter(t => !t.id.startsWith('temp-'))
@@ -521,7 +511,7 @@ export const useGlobalStore = create<GlobalState>()(
             setHasHydrated: (state) => set({ _hasHydrated: state }),
 
             reset: () => set({
-                userProfile: { balance: 0 },
+                userProfile: { multiBalance: { USD: 0, INR: 0, RUB: 0, EUR: 0, GBP: 0, CNY: 0 } },
                 activeNumbers: [],
                 transactions: [],
                 smsMessages: [],
