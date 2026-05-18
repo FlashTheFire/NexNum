@@ -29,11 +29,13 @@ export async function GET(request: Request) {
         const preferredCurrency = toSupportedCurrency(dbUser?.preferredCurrency)
         const currencyService = getCurrencyService()
         const displayAmount = await currencyService.pointsToFiat(balancePoints, preferredCurrency)
+        const multiBalance = await currencyService.pointsToAllFiat(balancePoints)
 
         return NextResponse.json({
             success: true,
             walletId,
             balance: balancePoints,
+            multiBalance,
             currency: 'POINTS' as const,
             displayAmount: Math.round(displayAmount * 100) / 100,
             displayCurrency: preferredCurrency,

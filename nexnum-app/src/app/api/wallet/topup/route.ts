@@ -8,6 +8,7 @@ import { emitStateUpdate } from '@/lib/events/emitters/state-emitter'
 import { ResponseFactory } from '@/lib/api/response-factory'
 import { PaymentError } from '@/lib/payment/payment-errors'
 import { logger } from '@/lib/core/logger'
+import { getCurrencyService } from '@/lib/currency/currency-service'
 
 /**
  * Professional Top-Up Endpoint
@@ -45,6 +46,8 @@ export const POST = apiHandler(async (request, { body, user }) => {
 
         // 4. Update State (Real-time and Sync)
         const newBalance = await WalletService.getBalance(user.userId)
+        const currencyService = getCurrencyService()
+        const multiBalance = await currencyService.pointsToAllFiat(newBalance)
         emitStateUpdate(user.userId, 'wallet', 'deposit').catch(err => logger.warn('[Wallet/topup] emitStateUpdate failed', { error: err }))
 
         // 5. Success Envelope
@@ -56,6 +59,7 @@ export const POST = apiHandler(async (request, { body, user }) => {
                 createdAt: transaction.createdAt,
             },
             newBalance,
+            multiBalance,
         })
 
     } catch (error: unknown) {

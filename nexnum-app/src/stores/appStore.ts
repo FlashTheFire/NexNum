@@ -236,8 +236,16 @@ export const useGlobalStore = create<GlobalState>()(
                     set({ isLoadingBalance: true })
                     const result = await api.getBalance()
                     if (result.success && result.data) {
+                        const data = result.data as any
+                        const multiBalance = data.multiBalance
+                        const userProfileUpdate: UserProfile = multiBalance
+                            ? {
+                                balance: data.balance,
+                                multiBalance: { points: data.balance, ...multiBalance }
+                            }
+                            : { balance: data.balance }
                         set({
-                            userProfile: { balance: result.data.balance },
+                            userProfile: userProfileUpdate,
                             isLoadingBalance: false
                         })
                     } else {
@@ -302,10 +310,11 @@ export const useGlobalStore = create<GlobalState>()(
 
             // Top up wallet via API
             topUp: async (amount: number) => {
-                // OPTIMISTIC UPDATE
-                const prevBalance = get().userProfile.balance
+                // Snapshot full profile for rollback (preserves multiBalance)
+                const prevProfile = get().userProfile
                 set(state => ({
-                    userProfile: { balance: prevBalance + amount },
+                    // OPTIMISTIC: bump points balance only; multiBalance updated on server confirm
+                    userProfile: { ...prevProfile, balance: prevProfile.balance + amount },
                     // Add temp transaction for feedback
                     transactions: [
                         {
@@ -324,17 +333,23 @@ export const useGlobalStore = create<GlobalState>()(
                 try {
                     const result = await api.topUp(amount)
                     if (result.success && result.data?.newBalance !== undefined) {
-                        set({ userProfile: { balance: result.data.newBalance } })
-                        // Refresh via batch endpoint for consistent state
+                        const data = result.data as any
+                        const multiBalance = data.multiBalance
+                        // Commit server-verified balance — Zero-Math: use server fiat values directly
+                        set({
+                            userProfile: multiBalance
+                                ? { balance: data.newBalance, multiBalance: { points: data.newBalance, ...multiBalance } }
+                                : { balance: data.newBalance }
+                        })
+                        // Sync full dashboard state for transaction list + totals
                         get().fetchDashboardState()
                     } else {
                         throw new Error(result.error || 'Top-up failed')
                     }
                     return result
                 } catch (error: unknown) {
-                    // ROLLBACK
-                    set({ userProfile: { balance: prevBalance } })
-                    // Remove temp transaction
+                    // ROLLBACK: restore full prior profile (including multiBalance)
+                    set({ userProfile: prevProfile })
                     set(state => ({
                         transactions: state.transactions.filter(t => !t.id.startsWith('temp-'))
                     }))

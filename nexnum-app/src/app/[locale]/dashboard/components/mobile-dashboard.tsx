@@ -535,7 +535,7 @@ export function MobileDashboard() {
                                     </div>
                                     <span className={`text-sm font-bold font-mono ${isCredit ? 'text-emerald-400' : 'text-red-400'}`}>
                                         {isCredit ? '+' : ''}
-                                        <PriceDisplay currencyPrices={{ USD: tx.amount / 100 }} />
+                                        <PriceDisplay currencyPrices={tx.currencyPrices ?? { USD: tx.amount }} />
                                     </span>
                                 </div>
                             )
