@@ -81,7 +81,7 @@ export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) 
 
     // State
     const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null)
-    const [step, setStep] = useState<'method' | 'amount' | 'payment' | 'crypto' | 'success' | 'failed'>('method')
+    const [step, setStep] = useState<'method' | 'amount' | 'payment' | 'crypto' | 'success' | 'failed'>('amount')
     const [amount, setAmount] = useState<string>('')
     const [cryptoNetwork, setCryptoNetwork] = useState<CryptoNetwork>('TRC20')
     const [isCreating, setIsCreating] = useState(false)
@@ -281,7 +281,7 @@ export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) 
     // Reset dialog
     const handleReset = useCallback(() => {
         setPaymentMethod(null)
-        setStep('method')
+        setStep('amount')
         setAmount('')
         setCryptoNetwork('TRC20')
         setDeposit(null)
@@ -314,16 +314,16 @@ export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) 
                                 <Wallet className="h-5 w-5 text-emerald-400" />
                             )}
                         </div>
-                        {step === 'method' && 'Add Funds'}
-                        {step === 'amount' && (paymentMethod === 'crypto' ? 'Crypto Deposit' : 'UPI Deposit')}
+                        {step === 'amount' && 'Add Funds'}
+                        {step === 'method' && 'Select Payment Method'}
                         {step === 'payment' && 'Complete Payment'}
                         {step === 'crypto' && 'Crypto Payment'}
                         {step === 'success' && 'Payment Complete'}
                         {step === 'failed' && 'Payment Failed'}
                     </DialogTitle>
                     <DialogDescription className="text-slate-400">
-                        {step === 'method' && 'Choose your preferred payment method'}
                         {step === 'amount' && 'Enter amount to deposit'}
+                        {step === 'method' && 'Choose your preferred payment method'}
                         {step === 'payment' && 'Scan QR code or click to pay'}
                         {step === 'crypto' && 'Send USDT to the address below'}
                         {step === 'success' && 'Payment successful!'}
@@ -346,13 +346,20 @@ export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) 
                                 <button
                                     onClick={() => {
                                         setPaymentMethod('upi')
-                                        setStep('amount')
+                                        handleCreateDeposit()
                                     }}
+                                    disabled={isCreating}
                                     className="flex flex-col items-center gap-3 p-6 rounded-xl border border-white/10 bg-gradient-to-b from-slate-800/50 to-slate-900/50 hover:from-emerald-500/10 hover:to-emerald-600/10 hover:border-emerald-500/30 transition-all group"
                                 >
-                                    <div className="p-4 rounded-full bg-emerald-500/10 group-hover:bg-emerald-500/20 transition-colors">
-                                        <IndianRupee className="h-8 w-8 text-emerald-400" />
-                                    </div>
+                                    {isCreating && paymentMethod === 'upi' ? (
+                                        <div className="p-4 rounded-full bg-emerald-500/10">
+                                            <Loader2 className="h-8 w-8 text-emerald-400 animate-spin" />
+                                        </div>
+                                    ) : (
+                                        <div className="p-4 rounded-full bg-emerald-500/10 group-hover:bg-emerald-500/20 transition-colors">
+                                            <IndianRupee className="h-8 w-8 text-emerald-400" />
+                                        </div>
+                                    )}
                                     <div className="text-center">
                                         <p className="font-semibold text-white">UPI</p>
                                         <p className="text-xs text-slate-400">Local Currency</p>
@@ -367,12 +374,12 @@ export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) 
                                             return
                                         }
                                         setPaymentMethod('crypto')
-                                        setStep('amount')
+                                        setStep('crypto')
                                     }}
-                                    disabled={config.cryptoProviderMode === 'DISABLED'}
+                                    disabled={config.cryptoProviderMode === 'DISABLED' || isCreating}
                                     className={cn(
                                         "flex flex-col items-center gap-3 p-6 rounded-xl border border-white/10 bg-gradient-to-b from-slate-800/50 to-slate-900/50 transition-all group",
-                                        config.cryptoProviderMode === 'DISABLED'
+                                        config.cryptoProviderMode === 'DISABLED' || isCreating
                                             ? "opacity-50 cursor-not-allowed"
                                             : "hover:from-orange-500/10 hover:to-orange-600/10 hover:border-orange-500/30"
                                     )}
@@ -389,9 +396,23 @@ export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) 
                                 </button>
                             </div>
 
-                            <div className="flex items-center gap-2 text-xs text-slate-500 justify-center pt-2">
-                                <Shield className="h-3 w-3" />
-                                <span>All payments are secure and encrypted</span>
+                            <div className="flex flex-col gap-2 pt-2">
+                                <Button
+                                    variant="ghost"
+                                    onClick={() => {
+                                        setStep('amount')
+                                        setPaymentMethod(null)
+                                    }}
+                                    disabled={isCreating}
+                                    className="w-full h-12 text-slate-400 hover:text-white border border-white/5 hover:bg-white/5 rounded-xl touch-manipulation"
+                                >
+                                    Back to Amount
+                                </Button>
+
+                                <div className="flex items-center gap-2 text-xs text-slate-500 justify-center pt-2">
+                                    <Shield className="h-3 w-3" />
+                                    <span>All payments are secure and encrypted</span>
+                                </div>
                             </div>
                         </motion.div>
                     )}
@@ -503,25 +524,12 @@ export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) 
                             <div className="sticky bottom-0 pt-2 bg-gradient-to-t from-slate-950 to-transparent -mb-4 pb-4">
                                 <Button
                                     onClick={() => {
-                                        if (paymentMethod === 'crypto') {
-                                            setStep('crypto')
-                                        } else {
-                                            handleCreateDeposit()
-                                        }
+                                        setStep('method')
                                     }}
-                                    disabled={!amount || numAmount < config.minAmount || numAmount > config.maxAmount || isCreating}
+                                    disabled={!amount || numAmount < config.minAmount || numAmount > config.maxAmount}
                                     className="w-full h-14 text-lg font-semibold bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 rounded-xl touch-manipulation"
                                 >
-                                    {isCreating ? (
-                                        <>
-                                            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                                            Creating Payment...
-                                        </>
-                                    ) : paymentMethod === 'crypto' ? (
-                                        <>Continue to Crypto Payment</>
-                                    ) : (
-                                        <>Continue to Pay {formatPrice(numAmount || 0)}</>
-                                    )}
+                                    Continue to Select Payment Method
                                 </Button>
                             </div>
                         </motion.div>
@@ -628,7 +636,7 @@ export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) 
                                 <Button
                                     variant="outline"
                                     className="flex-1 h-12"
-                                    onClick={() => setStep('amount')}
+                                    onClick={() => setStep('method')}
                                 >
                                     Back
                                 </Button>

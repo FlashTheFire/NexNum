@@ -126,7 +126,10 @@ async function processCurrencyRatesChanged(eventId: string, payload: any): Promi
 
     const staleFilter = `isActive = true AND currencyPricesVersion < ${ratesVersion}`
 
+    logger.info(`[outbox] Starting currency.rates_changed (event=${eventId}): v=${ratesVersion}, offset=${offset}`)
+
     let hits: { id: string; pointPrice: number }[]
+    let isFallback = false
     try {
         const result = await index.search('', {
             filter: staleFilter,
@@ -146,6 +149,7 @@ async function processCurrencyRatesChanged(eventId: string, payload: any): Promi
 
         if (isFilterError) {
             // currencyPricesVersion not yet filterable — fall back to full scan at current offset
+            isFallback = true
             const result = await index.search('', {
                 filter: 'isActive = true',
                 limit: MEILI_REINDEX_BATCH,
@@ -155,6 +159,11 @@ async function processCurrencyRatesChanged(eventId: string, payload: any): Promi
             hits = result.hits as { id: string; pointPrice: number }[]
         } else {
             // Rethrow genuine network/auth/system failures
+            logger.error(`[outbox] currency.rates_changed (event=${eventId}) search failed`, {
+                ratesVersion,
+                offset,
+                error: err.message
+            })
             throw err
         }
     }
@@ -167,19 +176,24 @@ async function processCurrencyRatesChanged(eventId: string, payload: any): Promi
             })
         )
         await index.updateDocuments(documents)
-        logger.info(`[outbox] currency.rates_changed: updated ${documents.length} offers at offset=${offset}, v=${ratesVersion}`)
+        logger.info(`[outbox] currency.rates_changed (event=${eventId}): updated ${documents.length} offers at offset=${offset}, v=${ratesVersion}`)
     }
 
-    // If a full batch was returned, more docs may remain — re-queue with next offset
+    // If a full batch was returned, more docs may remain — re-queue
     if (hits.length === MEILI_REINDEX_BATCH) {
         await publishOutboxEvent({
             aggregateType: 'system',
             aggregateId: 'currency',
             eventType: 'currency.rates_changed',
-            payload: { ratesVersion, offset: offset + MEILI_REINDEX_BATCH }
+            payload: { 
+                ratesVersion, 
+                // Always re-query from offset 0 if filter worked (since updated docs fall out of the filter), 
+                // otherwise use shifted offset for the fallback full scan
+                offset: isFallback ? offset + MEILI_REINDEX_BATCH : 0 
+            }
         })
     } else {
-        logger.info(`[outbox] currency.rates_changed: reindex complete for v=${ratesVersion}`)
+        logger.info(`[outbox] currency.rates_changed (event=${eventId}): reindex complete for v=${ratesVersion}`)
     }
 }
 

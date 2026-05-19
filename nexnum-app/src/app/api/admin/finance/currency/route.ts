@@ -74,21 +74,39 @@ export const PATCH = apiHandler(async (req, { body }) => {
                 where: { id: 'default' },
                 data: { ratesVersion: { increment: 1 } }
             })
+            // Persist the outbox event inside the same Prisma transaction
+            await tx.outboxEvent.create({
+                data: {
+                    aggregateType: 'system',
+                    aggregateId: 'currency',
+                    eventType: 'currency.rates_changed',
+                    payload: { ratesVersion: settings.ratesVersion, offset: 0 },
+                    status: 'PENDING'
+                }
+            })
             return [cur, settings]
         })
 
-        // Invalidate Redis cache immediately — next API call gets fresh rates
-        await getCurrencyService().invalidateCache()
-
-        // Enqueue durable Meilisearch reindex via Outbox worker (handles 100k+ offers safely)
-        const newVersion = updatedSettings.ratesVersion
-        await publishOutboxEvent({
-            aggregateType: 'system',
-            aggregateId: 'currency',
-            eventType: 'currency.rates_changed',
-            payload: { ratesVersion: newVersion, offset: 0 }
-        })
-        logger.info('[admin/currency] Enqueued currency.rates_changed outbox event', { ratesVersion: newVersion })
+        // Best-effort Redis cache invalidation with try/catch and logged retry
+        try {
+            await getCurrencyService().invalidateCache()
+            logger.info('[admin/currency] Invalidate Redis cache succeeded')
+        } catch (err) {
+            logger.error('[admin/currency] Failed to invalidate Redis cache, scheduling best-effort retry', {
+                error: err instanceof Error ? err.message : String(err)
+            })
+            // Logged scheduled retry
+            setTimeout(async () => {
+                try {
+                    await getCurrencyService().invalidateCache()
+                    logger.info('[admin/currency] Retried Redis cache invalidation succeeded')
+                } catch (retryErr) {
+                    logger.error('[admin/currency] Retried Redis cache invalidation failed', {
+                        error: retryErr instanceof Error ? retryErr.message : String(retryErr)
+                    })
+                }
+            }, 5000).unref?.()
+        }
 
         return NextResponse.json({ currency })
     }
@@ -110,17 +128,45 @@ export const POST = apiHandler(async () => {
         data: { ratesVersion: { increment: 1 } }
     })
 
-    await currencyService.invalidateCache()
-
-    // Enqueue durable reindex
     const newVersion = updatedSettings.ratesVersion
-    await publishOutboxEvent({
-        aggregateType: 'system',
-        aggregateId: 'currency',
-        eventType: 'currency.rates_changed',
-        payload: { ratesVersion: newVersion, offset: 0 }
-    })
-    logger.info('[admin/currency] Enqueued currency.rates_changed outbox event (post-sync)', { ratesVersion: newVersion })
+
+    try {
+        try {
+            await currencyService.invalidateCache()
+            logger.info('[admin/currency] Manual sync: Redis cache invalidated successfully')
+        } catch (cacheErr) {
+            logger.error('[admin/currency] Manual sync: Failed to invalidate cache', {
+                function: 'currencyService.invalidateCache',
+                ratesVersion: newVersion,
+                stats,
+                error: cacheErr instanceof Error ? cacheErr.message : String(cacheErr)
+            })
+            throw cacheErr
+        }
+
+        try {
+            await publishOutboxEvent({
+                aggregateType: 'system',
+                aggregateId: 'currency',
+                eventType: 'currency.rates_changed',
+                payload: { ratesVersion: newVersion, offset: 0 }
+            })
+            logger.info('[admin/currency] Manual sync: Enqueued currency.rates_changed outbox event', { ratesVersion: newVersion })
+        } catch (outboxErr) {
+            logger.error('[admin/currency] Manual sync: Failed to publish outbox event', {
+                function: 'publishOutboxEvent',
+                ratesVersion: newVersion,
+                stats,
+                error: outboxErr instanceof Error ? outboxErr.message : String(outboxErr)
+            })
+            throw outboxErr
+        }
+    } catch (err) {
+        return NextResponse.json({
+            error: 'Failed to complete post-sync follow-up operations',
+            message: err instanceof Error ? err.message : String(err)
+        }, { status: 500 })
+    }
 
     return NextResponse.json({ success: true, stats })
 })

@@ -98,7 +98,7 @@ async function fetchDashboardState(userId: string): Promise<DashboardState> {
 
     // Parallel fetch all data
     const [walletData, numbersRaw, transactionsRaw, unreadCount] = await Promise.all([
-        // 1. Wallet: balance points + precomputed snapshot
+        // 1. Wallet: balance points
         prisma.wallet.findUnique({
             where: { userId },
             select: { balance: true }
@@ -194,11 +194,19 @@ async function fetchDashboardState(userId: string): Promise<DashboardState> {
                 currencyPrices = null
             } else {
                 const userRate: number = snap.rates[userCurrency]
-                const usdAmount: number = snap.fiatEquivalent / userRate
-                currencyPrices = Object.fromEntries(
-                    Object.entries(snap.rates as Record<string, number>)
-                        .map(([code, rate]) => [code, parseFloat((usdAmount * rate).toFixed(5))])
-                )
+                if (userRate === 0) {
+                    logger.error('[api/dashboard/state] Preferred currency rate is zero in snapshot rates', {
+                        userCurrency,
+                        ratesKeys: Object.keys(snap.rates)
+                    })
+                    currencyPrices = null
+                } else {
+                    const usdAmount: number = snap.fiatEquivalent / userRate
+                    currencyPrices = Object.fromEntries(
+                        Object.entries(snap.rates as Record<string, number>)
+                            .map(([code, rate]) => [code, parseFloat((usdAmount * rate).toFixed(5))])
+                    )
+                }
             }
         }
 
