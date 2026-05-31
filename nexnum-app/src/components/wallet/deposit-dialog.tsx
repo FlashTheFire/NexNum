@@ -640,8 +640,10 @@ export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) 
                                 >
                                     Back
                                 </Button>
+
                                 <Button
                                     className="flex-1 h-12 bg-gradient-to-r from-orange-600 to-amber-600"
+                                    disabled={cryptoNetwork === 'TRC20' ? !config.cryptoUsdtTrxAddress : !config.cryptoUsdtBep20Address}
                                     onClick={() => {
                                         toast.success('After sending, your deposit will be confirmed within 30 minutes')
                                         handleClose()
@@ -649,8 +651,7 @@ export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) 
                                 >
                                     I've Sent Payment
                                 </Button>
-                            </div>
-                        </motion.div>
+                            </div>                        </motion.div>
                     )}
 
                     {/* Payment Step - QR Code Display */}

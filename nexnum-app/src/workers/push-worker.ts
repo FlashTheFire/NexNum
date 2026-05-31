@@ -3,6 +3,7 @@ import { queue, QUEUES } from '@/lib/core/queue'
 import { prisma } from '@/lib/core/db'
 import webpush from 'web-push'
 import { logger } from '@/lib/core/logger'
+import { redis, REDIS_KEYS, TTL } from '@/lib/core/redis'
 
 // Initialize VAPID
 if (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
@@ -115,12 +116,21 @@ export async function processPushBatch(batchSize = 20): Promise<ProcessResult> {
                 }
             }
 
+            // 5. Mark deduplication key AFTER successful delivery so retries are not suppressed on failure
+            if (notificationId) {
+                await redis.set(REDIS_KEYS.pushDedupe(notificationId), 'true', 'EX', TTL.PUSH_DEDUPE, 'NX')
+            }
+
             // Success (at least processed without crash)
             await queue.complete(QUEUES.NOTIFICATION_DELIVERY, job.id)
             result.succeeded++
         } catch (error: unknown) {
             const msg = error instanceof Error ? error.message : String(error)
             logger.error(`Job failed: ${job.id}`, { context: 'PUSH', error: msg })
+            // Ensure dedupe key is cleared so BullMQ retry logic can re-attempt delivery
+            if (notificationId) {
+                await redis.del(REDIS_KEYS.pushDedupe(notificationId)).catch(() => {})
+            }
             await queue.fail(QUEUES.NOTIFICATION_DELIVERY, job.id, new Error(msg))
             result.failed++
         }

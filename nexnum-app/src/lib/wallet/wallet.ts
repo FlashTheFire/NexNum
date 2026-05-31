@@ -181,6 +181,9 @@ export class WalletService {
             }
         })
 
+        // Advance sentinel checkpoint (amount is negative for a purchase debit)
+        await FinancialSentinel.updateCheckpoint(wallet.id, decAmount.negated(), transaction.createdAt, client).catch(() => {})
+
         wallet_transactions_total.labels('purchase', 'success').inc()
 
         const finalBalance = wallet.balance.sub(decAmount)
@@ -287,6 +290,9 @@ export class WalletService {
                 }
             })
 
+            // Advance sentinel checkpoint (charge is a debit — negative)
+            await FinancialSentinel.updateCheckpoint(wallet.id, decAmount.negated(), transaction.createdAt, client).catch(() => {})
+
             return transaction
         }
 
@@ -343,6 +349,8 @@ export class WalletService {
                 }
             })
 
+            // Advance sentinel checkpoint (refund is a credit — positive)
+            await FinancialSentinel.updateCheckpoint(wallet.id, decAmount, transaction.createdAt, client).catch(() => {})
 
             return transaction
         }
@@ -399,8 +407,10 @@ export class WalletService {
                 }
             })
 
-            wallet_transactions_total.labels(type, 'success').inc()
+            // Advance sentinel checkpoint (credit is positive)
+            await FinancialSentinel.updateCheckpoint(wallet.id, decAmount, transaction.createdAt, client).catch(() => {})
 
+            wallet_transactions_total.labels(type, 'success').inc()
 
             return transaction
         }
@@ -466,6 +476,9 @@ export class WalletService {
                     currencySnapshot: currencySnapshot as any,
                 }
             })
+
+            // Advance sentinel checkpoint (debit is negative)
+            await FinancialSentinel.updateCheckpoint(wallet.id, decAmount.negated(), transaction.createdAt, client).catch(() => {})
 
             wallet_transactions_total.labels(type, 'success').inc()
 
@@ -535,9 +548,8 @@ export class WalletService {
                 data: { balance: { increment: decAmount } }
             })
 
-            // 5. Create Transactions
             // Debit from source
-            await client.walletTransaction.create({
+            const debitTx = await client.walletTransaction.create({
                 data: {
                     walletId: fromWallet.id,
                     amount: decAmount.negated(),
@@ -559,6 +571,12 @@ export class WalletService {
                     metadata: { senderId: fromUserId }
                 }
             })
+
+            // Advance sentinel checkpoints for both wallets
+            await Promise.all([
+                FinancialSentinel.updateCheckpoint(fromWallet.id, decAmount.negated(), debitTx.createdAt, client).catch(() => {}),
+                FinancialSentinel.updateCheckpoint(toWallet.id, decAmount, creditTx.createdAt, client).catch(() => {})
+            ])
 
             wallet_transactions_total.labels('p2p_transfer', 'success').inc()
             return creditTx
@@ -626,6 +644,9 @@ export class WalletService {
                 where: { id: transaction.walletId },
                 data: { balance: { increment: amount } }
             })
+
+            // Advance sentinel checkpoint (topup deposit is a credit — positive)
+            await FinancialSentinel.updateCheckpoint(transaction.walletId, amount, new Date(), client).catch(() => {})
 
             wallet_transactions_total.labels('topup', 'success').inc()
 

@@ -16,6 +16,8 @@
 import { prisma } from '@/lib/core/db';
 import { redis } from '@/lib/core/redis';
 import { CouponType, CouponStatus, Coupon, CouponRedemption } from '@prisma/client';
+import { WalletService } from '@/lib/wallet/wallet';
+import { logger } from '@/lib/core/logger';
 
 
 // ============================================
@@ -517,28 +519,15 @@ export const CouponService = {
 
         // If referral, credit the referrer
         if (coupon.type === 'REFERRAL' && coupon.referrerId && coupon.referralBonus) {
-            const referrerWallet = await prisma.wallet.findUnique({
-                where: { userId: coupon.referrerId }
-            });
-
-            if (referrerWallet) {
-                await prisma.wallet.update({
-                    where: { id: referrerWallet.id },
-                    data: {
-                        balance: { increment: Number(coupon.referralBonus) }
-                    }
-                });
-
-                // Create transaction record for referrer
-                await prisma.walletTransaction.create({
-                    data: {
-                        walletId: referrerWallet.id,
-                        amount: Number(coupon.referralBonus),
-                        type: 'referral_bonus',
-                        description: `Referral bonus from ${code}`,
-                    }
-                });
-            }
+            const bonusAmount = Number(coupon.referralBonus);
+            const idempotencyKey = `referral_bonus_${redemption.id}`;
+            await WalletService.credit(
+                coupon.referrerId,
+                bonusAmount,
+                'referral_bonus' as any,
+                `Referral bonus from ${code}`,
+                idempotencyKey
+            );
         }
 
         return redemption;
@@ -563,61 +552,57 @@ export const CouponService = {
 
         const amount = Number(validation.coupon.giftAmount || 0);
 
-        // Get user wallet
-        let wallet = await prisma.wallet.findUnique({
-            where: { userId: context.userId }
-        });
+        // Get user wallet and credit it atomically
+        try {
+            await prisma.$transaction(async (tx) => {
+                // Ensure wallet exists
+                await tx.wallet.upsert({
+                    where: { userId: context.userId },
+                    create: { userId: context.userId, balance: 0, reserved: 0 },
+                    update: {}
+                });
 
-        if (!wallet) {
-            wallet = await prisma.wallet.create({
-                data: { userId: context.userId, balance: 0 }
+                const idempotencyKey = `gift_card_${code}_${context.userId}`;
+                await WalletService.credit(
+                    context.userId,
+                    amount,
+                    'gift_card' as any,
+                    `Gift card redeemed: ${code}`,
+                    idempotencyKey,
+                    tx
+                );
+
+                // Create redemption record
+                await tx.couponRedemption.create({
+                    data: {
+                        couponId: validation.coupon!.id,
+                        userId: context.userId,
+                        appliedAmount: amount,
+                        ipAddress: context.ipAddress,
+                        userAgent: context.userAgent,
+                        deviceFingerprint: context.deviceFingerprint,
+                    }
+                });
+
+                // Increment usage and potentially mark as depleted
+                const updated = await tx.coupon.update({
+                    where: { id: validation.coupon!.id },
+                    data: { currentUses: { increment: 1 } }
+                });
+
+                if (updated.maxUses > 0 && updated.currentUses >= updated.maxUses) {
+                    await tx.coupon.update({
+                        where: { id: validation.coupon!.id },
+                        data: { status: 'DEPLETED' }
+                    });
+                }
             });
+
+            return { success: true, amount };
+        } catch (error: any) {
+            logger.error(`[CouponService] Gift card redemption failed`, { code, userId: context.userId, error: error.message });
+            return { success: false, amount: 0, error: error.message || 'Redemption failed' };
         }
-
-        // Credit wallet
-        await prisma.wallet.update({
-            where: { id: wallet.id },
-            data: {
-                balance: { increment: amount }
-            }
-        });
-
-        // Create transaction
-        await prisma.walletTransaction.create({
-            data: {
-                walletId: wallet.id,
-                amount,
-                type: 'gift_card',
-                description: `Gift card redeemed: ${code}`,
-            }
-        });
-
-        // Create redemption record
-        await prisma.couponRedemption.create({
-            data: {
-                couponId: validation.coupon.id,
-                userId: context.userId,
-                appliedAmount: amount,
-                ipAddress: context.ipAddress,
-                userAgent: context.userAgent,
-                deviceFingerprint: context.deviceFingerprint,
-            }
-        });
-
-        // Increment usage and potentially mark as depleted
-        const updated = await prisma.coupon.update({
-            where: { id: validation.coupon.id },
-            data: { currentUses: { increment: 1 } }
-        });
-
-        if (updated.maxUses > 0 && updated.currentUses >= updated.maxUses) {
-            await prisma.coupon.update({
-                where: { id: validation.coupon.id },
-                data: { status: 'DEPLETED' }
-            });
-        }
-
-        return { success: true, amount };
     },
 
     /**

@@ -11,12 +11,12 @@ const withBundleAnalyzer = bundleAnalyzer({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    // Enforce type and lint quality during build (audit fix)
+    // TypeScript errors still block production builds.
+    // NOTE: The `eslint` config key was removed in Next.js 16 — it is no longer
+    // a valid next.config option and causes a build warning. ESLint is enforced
+    // via lint-staged (pre-commit) and `npx eslint src` for manual runs.
     typescript: {
         ignoreBuildErrors: false,
-    },
-    eslint: {
-        ignoreDuringBuilds: false,
     },
 
     // CDN & Caching Optimization

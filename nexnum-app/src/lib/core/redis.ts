@@ -2,7 +2,7 @@ import Redis from 'ioredis'
 import { logger } from './logger'
 
 // Redis client initialization (Singleton)
-const getRedisConfig = () => {
+export const getRedisConfig = () => {
     // In Docker-compose, 'redis' is the host. Locally, 'localhost' is used.
     const isDocker = process.env.DOCKER_CONTAINER === 'true' || process.env.NODE_ENV === 'production'
     const defaultHost = isDocker ? 'redis' : 'localhost'
@@ -88,7 +88,13 @@ export const REDIS_KEYS = {
     smsPolling: (numberId: string) => `sms:polling:${numberId}`,
 
     // Polling Index (Sorted Set: activationId -> nextPollTimestamp)
-    pollingIndex: () => 'index:polling'
+    pollingIndex: () => 'index:polling',
+
+    // Push notification deduplication (suppresses duplicate deliveries during crash recovery)
+    pushDedupe: (notificationId: string) => `push:dedupe:${notificationId}`,
+
+    // Rebalancer distributed lock (prevents concurrent rebalancer runs across pods)
+    rebalancerLock: () => 'lock:rebalance:active-numbers',
 }
 
 // TTL values (in seconds)
@@ -98,6 +104,8 @@ export const TTL = {
     NUMBER_LOCK: 300,         // 5 minutes reservation
     SESSION: 900,             // 15 minutes
     SMS_POLLING: 60,          // 1 minute between polls
+    PUSH_DEDUPE: 600,         // 10 minutes — suppress duplicate push delivery after crash recovery
+    REBALANCER_LOCK: 300,     // 5 minutes — only one pod runs active-number rebalancing at a time
 }
 
 // Helper: Check and set idempotency key

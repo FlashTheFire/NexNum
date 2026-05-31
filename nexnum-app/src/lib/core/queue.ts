@@ -2,6 +2,9 @@ import { PgBoss, Job } from 'pg-boss'
 import { prisma } from '@/lib/core/db'
 import { logger } from '@/lib/core/logger'
 import { getTraceId, withRequestContext } from '@/lib/api/request-context'
+import { Queue, Worker } from 'bullmq'
+import Redis from 'ioredis'
+import { getRedisConfig } from '@/lib/core/redis'
 
 // Queue Names
 export const QUEUES = {
@@ -22,29 +25,28 @@ class QueueService {
     private isReady = false
     private startPromise: Promise<void> | null = null
 
+    // BullMQ Shadow Mode Queues and Workers
+    private shadowQueues: Map<string, Queue> = new Map()
+    private shadowWorkers: Map<string, Worker> = new Map()
+
     constructor() {
         const url = process.env.DIRECT_URL || process.env.DATABASE_URL
         if (url) {
-            // PgBouncer-compatible: reduced pool size for session mode
-            // INDUSTRIAL HARDENING: Remove sslmode from connection string 
-            // to prevent internal pg drivers from defaulting to strict verification.
             const cleanUrl = url.replace(/([?&])sslmode=[^&]*/g, '$1').replace(/(\?|&)$/, '')
 
             this.boss = new PgBoss({
                 connectionString: cleanUrl,
-                max: 3, // Reduced from 10 for PgBouncer session mode compatibility
+                max: 3,
                 application_name: 'NexNum-Queue',
-                queueCacheIntervalSeconds: 5, // Industrial speed: refresh cache every 5s instead of 60s
-                // SSL for Supabase (Production Hardening)
+                queueCacheIntervalSeconds: 5,
                 ssl: { rejectUnauthorized: false },
             })
 
             this.boss.on('error', (error) => {
-                logger.error('Queue Client Error', {
+                logger.error('Queue Client Error (pg-boss)', {
                     error: error.message,
                     stack: error.stack
                 })
-                // Critical: Reset ready state if we get a connection error
                 if (error.message.includes('connection') || error.message.includes('terminat')) {
                     this.isReady = false
                     this.startPromise = null
@@ -67,17 +69,17 @@ class QueueService {
 
         this.startPromise = (async () => {
             let attempts = 5
-            let delay = 3000 // 3s between attempts for real industrial breathing room
+            let delay = 3000
 
             while (attempts > 0) {
                 try {
                     const currentAttempt = 6 - attempts
                     logger.debug(`Queue Service starting (Attempt ${currentAttempt}/5)...`)
 
-                    // Step 1: Core Start
+                    // Start pg-boss (Primary)
                     await this.boss!.start()
 
-                    // Step 2: Ensure critical queues exist
+                    // Ensure critical queues exist in pg-boss
                     for (const queueName of Object.values(QUEUES)) {
                         try {
                             await this.boss!.createQueue(queueName)
@@ -88,17 +90,42 @@ class QueueService {
                         }
                     }
 
-                    // Step 3: Industrial Heartbeat - Prove the cache is initialized
-                    // PgBoss.start() swallows internal cache population errors. 
-                    // Calling getQueues() directly forces those errors to surface.
+                    // Setup BullMQ (Shadow Mode)
+                    try {
+                        const redisConfig = getRedisConfig()
+                        for (const queueName of Object.values(QUEUES)) {
+                            // Close and disconnect any existing instance before re-creating (prevents connection leaks on retry)
+                            const existing = this.shadowQueues.get(queueName)
+                            if (existing) {
+                                await existing.close().catch(() => {})
+                                this.shadowQueues.delete(queueName)
+                            }
+
+                            const q = new Queue(queueName, {
+                                connection: new Redis(redisConfig, { maxRetriesPerRequest: null }),
+                                defaultJobOptions: {
+                                    removeOnComplete: { count: 100 },
+                                    removeOnFail: { age: 3600 * 24 * 7, count: 500 }
+                                }
+                            })
+                            // Attach general error listener to Queue instance
+                            q.on('error', (err) => {
+                                logger.error(`Queue Service [SHADOW]: Queue global error on ${queueName}`, { error: err.message })
+                            })
+                            this.shadowQueues.set(queueName, q)
+                        }
+                        logger.info('Queue Service: Initialized BullMQ shadow queues')
+                    } catch (err: any) {
+                        logger.error('Queue Service: Failed to initialize BullMQ shadow queues', { error: err.message })
+                    }
+
+                    // Verify direct pg-boss connection
                     let cacheReady = false
                     for (let v = 0; v < 3; v++) {
                         try {
-                            // First, prove the DB connection by fetching all queues (no internal cache needed)
                             const allQueues = await this.boss!.getQueues()
                             logger.debug(`Queue DB Connection verified. Found ${allQueues?.length || 0} queues via direct query.`)
 
-                            // Second, prove the manager's cache is populated (the source of 500 errors)
                             const status = await (this.boss! as any).getQueueStats(QUEUES.PROVIDER_SYNC)
                             logger.debug(`Queue verified: ${status.name} ready & cached (Attempt ${v + 1}/3).`)
 
@@ -157,7 +184,27 @@ class QueueService {
                 ...data,
                 _traceId: getTraceId()
             }
+            
+            // Primary write: pg-boss
             const jobId = await this.boss.send(queue, enrichedData, options)
+
+            // Shadow write: BullMQ
+            const shadowQ = this.shadowQueues.get(queue)
+            if (shadowQ) {
+                const bullOpts: any = {}
+                if (options) {
+                    if (options.startAfter) {
+                        bullOpts.delay = options.startAfter * 1000
+                    }
+                    if (options.singletonKey) {
+                        bullOpts.jobId = options.singletonKey
+                    }
+                }
+                shadowQ.add('default', enrichedData, bullOpts).catch(err => {
+                    logger.warn(`Queue Service [SHADOW]: Failed dual-write to ${queue}`, { error: err.message })
+                })
+            }
+
             return jobId
         } catch (error: any) {
             logger.error(`Failed to publish to ${queue}`, { error: error.message })
@@ -208,8 +255,47 @@ class QueueService {
         }
 
         try {
+            // Register primary worker
             await this.boss!.work(queue, wrappedHandler)
-            logger.info(`Worker registered for ${queue}`)
+            logger.info(`Worker registered for ${queue} (pg-boss)`)
+
+            // Register shadow worker (BullMQ)
+            const shadowQ = this.shadowQueues.get(queue)
+            if (shadowQ) {
+                try {
+                    const shadowWorker = new Worker(queue, async (job) => {
+                        const traceId = job.data?._traceId || `shadow_${Date.now().toString(36)}`
+                        return withRequestContext({ traceId }, async () => {
+                            logger.info(`Queue Service [SHADOW - DUAL RUN]: Executing log-only job on ${queue}`, {
+                                jobId: job.id,
+                                traceId,
+                                data: job.data
+                            })
+                        })
+                    }, {
+                        connection: new Redis(getRedisConfig(), { maxRetriesPerRequest: null }),
+                        concurrency: 5
+                    })
+
+                    // Audit events
+                    shadowWorker.on('failed', (job, err) => {
+                        logger.warn(`Queue Service [SHADOW]: Job failed on ${queue}`, { jobId: job?.id, error: err.message })
+                    })
+
+                    shadowWorker.on('error', (err) => {
+                        logger.error(`Queue Service [SHADOW]: Worker global error on ${queue}`, { error: err.message })
+                    })
+
+                    shadowWorker.on('stalled', (jobId) => {
+                        logger.warn(`Queue Service [SHADOW]: Job stalled and reclaimed on ${queue}`, { jobId })
+                    })
+
+                    this.shadowWorkers.set(queue, shadowWorker)
+                    logger.info(`Shadow worker registered for ${queue} (BullMQ)`)
+                } catch (shadowErr: any) {
+                    logger.warn(`Queue Service [SHADOW]: Failed to register worker for ${queue}`, { error: shadowErr.message })
+                }
+            }
         } catch (error: any) {
             logger.error(`Failed to register worker for ${queue}`, { error: error.message })
             throw error
@@ -268,9 +354,22 @@ class QueueService {
     async stop() {
         if (!this.boss) return
         try {
+            // Stop pg-boss
             await this.boss.stop({ graceful: true, timeout: 30000 })
             this.isReady = false
             logger.info('Queue Service stopped gracefully')
+
+            // Stop BullMQ shadow workers & queues
+            for (const shadowWorker of this.shadowWorkers.values()) {
+                await shadowWorker.close()
+            }
+            this.shadowWorkers.clear()
+
+            for (const shadowQ of this.shadowQueues.values()) {
+                await shadowQ.close()
+            }
+            this.shadowQueues.clear()
+            logger.info('Queue Service [SHADOW]: Stopped all shadow queues and workers')
         } catch (error: any) {
             logger.error('Failed to stop queue', { error: error.message })
             throw error

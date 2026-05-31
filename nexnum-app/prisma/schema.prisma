@@ -113,15 +113,22 @@ model NotificationPreferences {
 }
 
 model Wallet {
-  id              String              @id @default(uuid())
-  userId          String              @unique @map("user_id")
-  balance         Decimal             @default(0.00) @db.Decimal(18, 8)
-  reserved        Decimal             @default(0.00) @db.Decimal(18, 8)
-  balanceSnapshot Json?               @map("balance_snapshot")  // Precomputed {USD,INR,...} — refreshed on balance or rate change
-  createdAt       DateTime            @default(now()) @map("created_at")
-  updatedAt       DateTime            @default(now()) @updatedAt @map("updated_at")
-  transactions    WalletTransaction[]
-  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id               String              @id @default(uuid())
+  userId           String              @unique @map("user_id")
+  balance          Decimal             @default(0.00) @db.Decimal(18, 8)
+  reserved         Decimal             @default(0.00) @db.Decimal(18, 8)
+  balanceSnapshot  Json?               @map("balance_snapshot")  // Precomputed {USD,INR,...} — refreshed on balance or rate change
+  /// Running algebraic sum of ALL committed wallet_transactions.amount values.
+  /// Maintained by WalletService after every committed ledger event.
+  /// The Sentinel compares balance against (ledgerChecksum + delta-since-checkpoint).
+  ledgerChecksum   Decimal             @default(0.00) @map("ledger_checksum") @db.Decimal(18, 8)
+  /// UTC timestamp of the last ledgerChecksum update.
+  /// Sentinel only aggregates transactions created AFTER this timestamp.
+  ledgerChecksumAt DateTime            @default(now()) @map("ledger_checksum_at")
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @default(now()) @updatedAt @map("updated_at")
+  transactions     WalletTransaction[]
+  user             User                @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("wallets")
 }
@@ -225,7 +232,7 @@ model SmsMessage {
 }
 
 model AuditLog {
-  id           String   @id @default(uuid())
+  id           String   @default(uuid())
   userId       String?  @map("user_id")
   action       String
   resourceType String?  @map("resource_type")
@@ -235,6 +242,7 @@ model AuditLog {
   createdAt    DateTime @default(now()) @map("created_at")
   user         User?    @relation(fields: [userId], references: [id])
 
+  @@id([id, createdAt])
   @@index([userId])
   @@index([action])
   @@map("audit_logs")
@@ -584,7 +592,7 @@ model Activation {
 }
 
 model ActivationStateHistory {
-  id            String          @id @default(uuid())
+  id            String          @default(uuid())
   activationId  String          @map("activation_id")
   state         ActivationState
   previousState ActivationState? @map("previous_state")
@@ -595,6 +603,7 @@ model ActivationStateHistory {
 
   activation Activation @relation(fields: [activationId], references: [id], onDelete: Cascade)
 
+  @@id([id, createdAt])
   @@index([activationId])
   @@index([createdAt])
   @@map("activation_state_history")

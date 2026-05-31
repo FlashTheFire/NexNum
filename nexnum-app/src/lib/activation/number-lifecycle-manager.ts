@@ -27,7 +27,7 @@ import {
     lifecycle_job_duration,
 } from '@/lib/metrics'
 
-import { redis, REDIS_KEYS } from '@/lib/core/redis'
+import { redis, REDIS_KEYS, TTL } from '@/lib/core/redis'
 import { v4 as uuidv4 } from 'uuid'
 
 // pg-boss types - use any due to CommonJS compatibility issues
@@ -708,14 +708,20 @@ class NumberLifecycleManager {
     // --------------------------------------------------------------------------
 
     private async recoverActiveNumbers(): Promise<void> {
+        let lockAcquired = false
         try {
-            // Find all active numbers that might need tracking
+            // Acquire distributed lock to prevent rebalancer stampede
+            const acquired = await redis.set(REDIS_KEYS.rebalancerLock(), 'true', 'EX', TTL.REBALANCER_LOCK, 'NX')
+            if (!acquired) {
+                logger.debug('[Lifecycle] Rebalance lock already held by another node. Skipping stampede recovery.')
+                return
+            }
+            lockAcquired = true
+
+            // Recover ALL active numbers regardless of age — long-lived activations must not be missed
             const activeNumbers = await prisma.number.findMany({
                 where: {
                     status: 'active',
-                    createdAt: {
-                        gte: new Date(Date.now() - 60 * 60 * 1000)
-                    }
                 },
                 select: {
                     id: true,
@@ -736,6 +742,12 @@ class NumberLifecycleManager {
             await Promise.all(activeNumbers.map(async (number) => {
                 const remaining = Math.max(0, (number.expiresAt?.getTime() || 0) - Date.now())
                 const remainingSeconds = Math.floor(remaining / 1000)
+
+                // Skip scheduling if the number has already expired — lifecycle-expire will clean it up
+                if (remainingSeconds <= 0) {
+                    logger.debug('[Lifecycle] Skipping already-expired number during recovery', { numberId: number.id })
+                    return
+                }
 
                 // Schedule expiry
                 await this.boss!.send(CONFIG.QUEUE_EXPIRE, {
@@ -764,6 +776,13 @@ class NumberLifecycleManager {
 
         } catch (error) {
             logger.error('[Lifecycle] Recovery failed', { error })
+        } finally {
+            // Always release the lock so other nodes are not blocked for the full TTL
+            if (lockAcquired) {
+                await redis.del(REDIS_KEYS.rebalancerLock()).catch((err) =>
+                    logger.warn('[Lifecycle] Failed to release rebalancer lock', { error: err.message })
+                )
+            }
         }
     }
 }

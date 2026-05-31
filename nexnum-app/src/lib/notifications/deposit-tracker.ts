@@ -20,6 +20,7 @@ import { prisma } from '@/lib/core/db'
 import { logger } from '@/lib/core/logger'
 import { notify } from './index'
 import { WalletService } from '@/lib/wallet/wallet'
+import { FinancialSentinel } from '@/lib/wallet/sentinel'
 
 // ============================================================================
 // CONFIGURATION
@@ -284,30 +285,50 @@ class DepositTrackerService {
      */
     private async completeDeposit(deposit: DepositRecord, apiStatus: { amount?: number; txId?: string }): Promise<void> {
         try {
-            // Update database
-            await prisma.walletTransaction.update({
-                where: { id: deposit.id },
-                data: {
-                    // status: 'COMPLETED', // Update your status field
-                    metadata: {
-                        completedAt: new Date().toISOString(),
-                        externalTxId: apiStatus.txId
+            const creditAmount = apiStatus.amount || deposit.amount
+
+            // Perform transaction, locking the wallet and verifying integrity
+            await prisma.$transaction(async (tx) => {
+                // 1. Lock the wallet row to prevent race conditions
+                await tx.$executeRaw`SELECT 1 FROM "wallets" WHERE "user_id" = ${deposit.userId} FOR UPDATE`
+                const wallet = await tx.wallet.findUniqueOrThrow({
+                    where: { userId: deposit.userId }
+                })
+
+                // 2. Verify sentinel integrity before processing the deposit
+                const integrity = await FinancialSentinel.verifyIntegrity(wallet.userId, tx)
+                if (!integrity) {
+                    logger.error('[DepositTracker] Financial integrity breach detected — aborting deposit', { userId: wallet.userId, depositId: deposit.id })
+                    throw new Error('Financial integrity verification failed — deposit aborted')
+                }
+
+                // 3. Update transaction record
+                await tx.walletTransaction.update({
+                    where: { id: deposit.id },
+                    data: {
+                        metadata: {
+                            completedAt: new Date().toISOString(),
+                            externalTxId: apiStatus.txId
+                        }
                     }
-                }
+                })
+
+                // 4. Credit wallet
+                await tx.wallet.update({
+                    where: { userId: deposit.userId },
+                    data: {
+                        balance: { increment: creditAmount }
+                    }
+                })
+
+                // 5. Advance sentinel checkpoint
+                await FinancialSentinel.updateCheckpoint(wallet.id, creditAmount, new Date(), tx)
             })
 
-            // Credit wallet
-            await prisma.wallet.update({
-                where: { userId: deposit.userId },
-                data: {
-                    balance: { increment: apiStatus.amount || deposit.amount }
-                }
-            })
-
-            // Send notification
+            // Send notification (outside database transaction)
             await notify.deposit({
                 userId: deposit.userId,
-                amount: apiStatus.amount || deposit.amount,
+                amount: creditAmount,
                 depositId: deposit.id,
                 paidFrom: deposit.paymentMethod,
                 paymentType: 'QR',
@@ -503,31 +524,38 @@ class RedeemCodeService {
             return { success: false, error: 'Max uses reached' }
         }
 
-        // Atomic redemption
+        // Credit user wallet and record transaction via WalletService
+        // IMPORTANT: perform DB transaction first; only mark Redis redeemed on success
+        try {
+            await prisma.$transaction(async (tx) => {
+                // Ensure wallet exists
+                await tx.wallet.upsert({
+                    where: { userId },
+                    create: { userId, balance: 0, reserved: 0 },
+                    update: {}
+                });
+
+                const idempotencyKey = `redeem_code_${code}_${userId}`;
+                await WalletService.credit(
+                    userId,
+                    meta.amount,
+                    'redeem_code',
+                    `Redeemed code ${code}`,
+                    idempotencyKey,
+                    tx
+                );
+            });
+        } catch (error: any) {
+            logger.error(`[RedeemCode] Failed to apply wallet credit for code ${code}`, { userId, error: error.message });
+            return { success: false, error: 'Failed to credit wallet' };
+        }
+
+        // Atomic redemption bookkeeping — only runs after DB credit succeeds
         const pipeline = redis.pipeline()
         pipeline.hincrby(key, 'redeemed', 1)
         pipeline.sadd(usageKey, userId)
         pipeline.lpush(`${this.LOG_PREFIX}${code}`, JSON.stringify({ userId, timestamp: Date.now() }))
         await pipeline.exec()
-
-        // Credit user wallet
-        await prisma.wallet.update({
-            where: { userId },
-            data: {
-                balance: { increment: meta.amount }
-            }
-        })
-
-        // Create transaction record
-        await prisma.walletTransaction.create({
-            data: {
-                wallet: { connect: { userId } },
-                amount: meta.amount,
-                type: 'redeem_code',
-                description: `Redeemed code ${code}`,
-                metadata: { code }
-            }
-        })
 
         // Send notification
         await notify.deposit({

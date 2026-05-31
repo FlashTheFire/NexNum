@@ -21,7 +21,11 @@ export async function GET(req: NextRequest) {
 
         // Validate 'since' format. Redis IDs are "timestamp-sequence" (e.g., 1700000000000-0)
         // UUIDs (containing letters) are invalid and will cause "ERR Invalid stream ID"
-        const isValidRedisId = /^\d+-\d+$/.test(since) || since === '-' || since === '+';
+        // Valid Redis XRANGE start positions:
+        //  - "timestamp-sequence" e.g. "1700000000000-0"
+        //  - bare integer e.g. "0"  (treated as "0-0", means start of stream)
+        //  - "-" (lowest possible ID) or "+" (highest, used for end only)
+        const isValidRedisId = /^\d+(-\d+)?$/.test(since) || since === '-' || since === '+';
         const effectiveSince = isValidRedisId ? since : '-';
 
         // XRANGE key start end (COUNT optional)

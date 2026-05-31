@@ -11,6 +11,7 @@
  */
 
 import { prisma } from '@/lib/core/db'
+import { FinancialSentinel } from '@/lib/wallet/sentinel'
 import { getUPIProvider, PaymentStatus } from './upi-provider'
 import { getPaymentSettingsService } from './payment-settings'
 import { getCurrencyService } from '@/lib/currency/currency-service'
@@ -298,6 +299,19 @@ export class DepositService {
 
         try {
             await prisma.$transaction(async (tx) => {
+                // Lock the wallet row to prevent concurrent mutations (row-level lock)
+                await tx.$executeRaw`SELECT 1 FROM "wallets" WHERE "id" = ${deposit.walletId} FOR UPDATE`
+                const wallet = await tx.wallet.findUniqueOrThrow({
+                    where: { id: deposit.walletId }
+                })
+
+                // Verify sentinel integrity before processing the deposit
+                const integrity = await FinancialSentinel.verifyIntegrity(wallet.userId, tx)
+                if (!integrity) {
+                    logger.error('[DepositService] Financial integrity breach detected — aborting deposit', { userId: wallet.userId, depositId })
+                    throw new Error('Financial integrity verification failed — deposit aborted')
+                }
+
                 // Get current transaction to access metadata
                 const currentTx = await tx.walletTransaction.findUnique({
                     where: { id: depositId },
@@ -334,6 +348,9 @@ export class DepositService {
                     where: { id: deposit.walletId },
                     data: { balance: { increment: totalPointsCredit } },
                 })
+
+                // Advance sentinel checkpoint
+                await FinancialSentinel.updateCheckpoint(deposit.walletId, totalPointsCredit, new Date(), tx)
 
                 // Audit log for deposit confirmation with full financial trail
                 await tx.auditLog.create({
