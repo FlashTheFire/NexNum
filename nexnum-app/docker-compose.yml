@@ -90,8 +90,6 @@ services:
     image: nexnum-socket
     container_name: nexnum-socket
     restart: unless-stopped
-    # ports:
-    #   - "3951:3951"
     environment:
       NODE_ENV: production
       PORT: 3951
