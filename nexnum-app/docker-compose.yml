@@ -5,25 +5,6 @@ name: nexnum
 
 services:
   # ============================================
-  # Reverse Proxy (SSL/HTTPS)
-  # ============================================
-  caddy:
-    image: caddy:2-alpine
-    container_name: nexnum-caddy
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    environment:
-      DOMAIN_NAME: ${DOMAIN_NAME:-localhost}
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      - nexnum-app
-
-  # ============================================
   # Main Application
   # ============================================
   nexnum-app:
@@ -43,6 +24,7 @@ services:
       PORT: 3000
       REDIS_URL: redis://:nexnum_redis_secure_pass@redis:6379
       MEILISEARCH_HOST: http://meilisearch:7700
+      SOCKET_HOST: nexnum-socket
     env_file:
       - .env
     depends_on:
@@ -108,8 +90,8 @@ services:
     image: nexnum-socket
     container_name: nexnum-socket
     restart: unless-stopped
-    ports:
-      - "3951:3951"
+    # ports:
+    #   - "3951:3951"
     environment:
       NODE_ENV: production
       PORT: 3951
@@ -182,10 +164,7 @@ volumes:
     driver: local
   meili_data:
     driver: local
-  caddy_data:
-    driver: local
-  caddy_config:
-    driver: local
+
 
 # ============================================
 # Networks (optional, for isolation)

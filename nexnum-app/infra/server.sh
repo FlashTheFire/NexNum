@@ -93,7 +93,7 @@ cmd_deploy() {
 
     # Build and restart with minimum downtime
     log "📦 Building and starting core services..."
-    sudo docker compose up -d --build --remove-orphans nexnum-app nexnum-worker redis meilisearch caddy
+    sudo docker compose up -d --build --remove-orphans nexnum-app nexnum-worker redis meilisearch nexnum-socket
 
     # Database Sync
     log "💎 Running Database Automigrations..."

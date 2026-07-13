@@ -71,15 +71,16 @@ const nextConfig = {
     // Proxy socket.io requests to socket server for same-origin communication
     async rewrites() {
         const socketPort = process.env.SOCKET_PORT || '3951';
+        const socketHost = process.env.SOCKET_HOST || 'localhost';
         return {
             beforeFiles: [
                 {
                     source: '/api/socket',
-                    destination: `http://localhost:${socketPort}/api/socket`,
+                    destination: `http://${socketHost}:${socketPort}/api/socket`,
                 },
                 {
                     source: '/api/socket/:path*',
-                    destination: `http://localhost:${socketPort}/api/socket/:path*`,
+                    destination: `http://${socketHost}:${socketPort}/api/socket/:path*`,
                 },
             ],
         };
