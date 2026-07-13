@@ -138,8 +138,8 @@ services:
     image: redis:7-alpine
     container_name: nexnum-redis
     command: redis-server --save 60 1 --loglevel warning --requirepass ${REDIS_PASSWORD:-strongpassword}
-    ports:
-      - "6379:6379"
+    # ports:
+    #   - "6379:6379"
     volumes:
       - redis_data:/data
     restart: unless-stopped
@@ -161,8 +161,8 @@ services:
       MEILI_MASTER_KEY: ${MEILISEARCH_API_KEY:-masterkey}
       MEILI_ENV: development
       MEILI_NO_ANALYTICS: true
-    ports:
-      - "7700:7700"
+    # ports:
+    #   - "7700:7700"
     volumes:
       - meili_data:/meili_data
     restart: unless-stopped

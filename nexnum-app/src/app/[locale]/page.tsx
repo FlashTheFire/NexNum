@@ -1,7 +1,7 @@
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import Hero from "@/components/home/Hero";
-import Features from "@/components/home/Features";
+// import Features from "@/components/home/Features"; // TODO: re-enable when ready
 import FAQ from "@/components/home/FAQ";
 import CTA from "@/components/home/CTA";
 import MobileActionBar from "@/components/common/MobileActionBar";
@@ -18,7 +18,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
             <main className="flex-1">
                 <Hero />
                 <ServiceTicker />
-                <Features />
+                {/* <Features /> */}
                 <GlobalCoverageMap />
                 <FAQ />
                 <CTA />
