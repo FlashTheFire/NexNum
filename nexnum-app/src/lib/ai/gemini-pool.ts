@@ -33,56 +33,36 @@ export interface ModelConfig {
 export const MODEL_REGISTRY: ModelConfig[] = [
     // High Tier - Complex analysis, full documentation generation
     {
-        id: 'gemini-2.5-pro',
-        name: 'Gemini 2.5 Pro',
+        id: 'gemini-3.5-flash',
+        name: 'Gemini 3.5 Flash',
         tier: 'high',
         rpm: 5,
         tpm: 250_000,
         rpd: 100,
         maxOutput: 8192,
-        endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent'
+        endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent'
     },
     // Medium Tier - Standard tasks, config generation
     {
-        id: 'gemini-2.5-flash',
-        name: 'Gemini 2.5 Flash',
+        id: 'gemini-flash-latest',
+        name: 'Gemini Flash Latest',
         tier: 'medium',
         rpm: 10,
         tpm: 250_000,
         rpd: 20,
         maxOutput: 8192,
-        endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent'
-    },
-    {
-        id: 'gemini-2.0-flash',
-        name: 'Gemini 2.0 Flash',
-        tier: 'medium',
-        rpm: 15,
-        tpm: 1_000_000,
-        rpd: 250,
-        maxOutput: 8192,
-        endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent'
+        endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent'
     },
     // Low Tier - Simple validations, quick checks
     {
-        id: 'gemini-2.0-flash-lite',
-        name: 'Gemini 2.0 Flash Lite',
+        id: 'gemini-3.1-flash-lite',
+        name: 'Gemini 3.1 Flash Lite',
         tier: 'low',
-        rpm: 20,
+        rpm: 30,
         tpm: 250_000,
-        rpd: 500,
+        rpd: 800,
         maxOutput: 4096,
-        endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent'
-    },
-    {
-        id: 'gemma-3n',
-        name: 'Gemma 3n',
-        tier: 'low',
-        rpm: 50,
-        tpm: 250_000,
-        rpd: 1000,
-        maxOutput: 4096,
-        endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemma-3n:generateContent'
+        endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent'
     }
 ]
 

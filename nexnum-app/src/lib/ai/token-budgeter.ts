@@ -12,10 +12,9 @@ import { logger } from '@/lib/core/logger'
 // These are rough estimates for budgeting purposes
 const MODEL_COSTS: Record<string, number> = {
     'gemini-2.5-pro': 0.0035,
-    'gemini-2.5-flash': 0.0001,
-    'gemini-2.0-flash': 0.0001,
-    'gemini-2.0-flash-lite': 0.000075,
-    'gemma-3n': 0.00005
+    'gemini-3.5-flash': 0.0001,
+    'gemini-flash-latest': 0.0001,
+    'gemini-3.1-flash-lite': 0.000075
 }
 
 export class TokenBudgeter {
