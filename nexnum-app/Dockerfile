@@ -9,9 +9,8 @@ RUN apt-get update && apt-get install -y openssl libssl-dev libc6-dev ca-certifi
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
-# Install dependencies first (most stable layer — only busts on package.json change)
 COPY package.json package-lock.json ./
-RUN --mount=type=cache,target=/root/.npm NODE_ENV=development npm ci --legacy-peer-deps
+RUN --mount=type=cache,target=/root/.npm NODE_ENV=development npm ci --legacy-peer-deps --timeout=600000 --fetch-retries=5 --fetch-retry-mintimeout=20000 --fetch-retry-maxtimeout=120000
 
 # Prisma generate AFTER npm ci (schema changes don't invalidate dep cache)
 COPY prisma/schema.prisma prisma/schema.prisma
