@@ -7,7 +7,7 @@ node_modules/
 .next/
 out/
 next-env.d.ts
-.tsbuildinfo
+*.tsbuildinfo
 
 # Build Output
 build/
@@ -42,6 +42,7 @@ node_modules_bak/
 # IDE & Editor
 .idea/
 .vscode/
+.serena/
 *.swp
 *.swo
 *.sublime-project
