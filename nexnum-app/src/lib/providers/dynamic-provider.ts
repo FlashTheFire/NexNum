@@ -248,6 +248,21 @@ export class DynamicProvider implements SmsProvider {
         if (rawAuthKey) {
             // logger.debug(`[DynamicProvider:${this.name}] Using API key from environment variable: ${envKeyName}`)
         } else {
+            // Check common traditional env variable names
+            const fallbacks: Record<string, string> = {
+                '5sim': 'FIVESIM_API_KEY',
+                'herosms': 'HERO_SMS_API_KEY',
+                'smsbower': 'SMSBOWER_API_KEY',
+                'grizzlysms': 'GRIZZLYSMS_API_KEY',
+                'onlinesim': 'ONLINESIM_API_KEY'
+            }
+            const fallbackKey = fallbacks[this.name.toLowerCase()]
+            if (fallbackKey && process.env[fallbackKey]) {
+                rawAuthKey = process.env[fallbackKey]
+            }
+        }
+
+        if (!rawAuthKey) {
             // Decrypt Auth Key from DB if not in env
             const { decrypt } = await import('@/lib/security/encryption')
             rawAuthKey = this.config.authKey ? decrypt(this.config.authKey) : ''

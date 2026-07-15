@@ -11,6 +11,7 @@ const envSchema = z.object({
     // Database
     DATABASE_URL: z.string().url().min(1, 'DATABASE_URL is required'),
     DIRECT_URL: z.string().url().nullish().or(z.literal('')),
+    DATABASE_URL_DIRECT: z.string().url().nullish().or(z.literal('')),
 
     REDIS_URL: z.string().url().nullish().or(z.literal('')),
 
@@ -34,7 +35,7 @@ const envSchema = z.object({
     SMTP_PASS: z.string().optional(),
 
     // AI (Gemini)
-    GEMINI_API_KEY: z.string().optional(),
+    GEMINI_API_KEYS: z.string().optional(),
 
     // Image Proxy APIs
     FREEIMAGE_API_KEY: z.string().optional(),

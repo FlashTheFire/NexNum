@@ -1,0 +1,8 @@
+{
+  "version": "1.0",
+  "name": "NexNum",
+  "build": {
+    "type": "dockercompose",
+    "docker_compose_location": "/nexnum-app/docker-compose.yml"
+  }
+}
