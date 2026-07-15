@@ -22,7 +22,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
-      REDIS_URL: redis://:nexnum_redis_secure_pass@redis:6379
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       MEILISEARCH_HOST: http://meilisearch:7700
       SOCKET_HOST: nexnum-socket
     env_file:
@@ -59,7 +59,7 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: production
-      REDIS_URL: redis://:nexnum_redis_secure_pass@redis:6379
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       MEILISEARCH_HOST: http://meilisearch:7700
     env_file:
       - .env
@@ -93,7 +93,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3951
-      REDIS_URL: redis://:nexnum_redis_secure_pass@redis:6379
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
     env_file:
       - .env
     depends_on:
@@ -170,4 +170,3 @@ volumes:
 networks:
   default:
     name: nexnum-prod
-    external: true
