@@ -77,3 +77,6 @@ coverage/
 .testsprite
 .playwright
 .agent
+
+# Local log files
+/logs
