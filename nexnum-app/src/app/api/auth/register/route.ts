@@ -7,6 +7,7 @@ import { sendVerificationEmail } from '@/lib/auth/email-verification'
 import { auth_events_total } from '@/lib/metrics'
 import { ResponseFactory } from '@/lib/api/response-factory'
 import { checkDisposableEmail, isDisposableCheckEnabled } from '@/lib/email/disposable-checker'
+import { checkPasswordBreach } from '@/lib/auth/password-breach'
 
 export const POST = apiHandler(async (request, { body, security }) => {
     // Body validation provided by registerSchema
@@ -34,6 +35,17 @@ export const POST = apiHandler(async (request, { body, security }) => {
     if (existingUser) {
         auth_events_total.labels('register', 'failed_email_exists').inc()
         return ResponseFactory.error('Email already registered', 409)
+    }
+
+    // Check if password has been exposed in a data breach
+    const isBreached = await checkPasswordBreach(password)
+    if (isBreached) {
+        auth_events_total.labels('register', 'failed_breached_password').inc()
+        return ResponseFactory.error(
+            'This password has been exposed in a data breach. Please choose a different password.',
+            400,
+            'BREACHED_PASSWORD'
+        )
     }
 
     // Hash password

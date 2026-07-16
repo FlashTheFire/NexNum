@@ -8,6 +8,7 @@ import { NextIntlClientProvider } from 'next-intl';
 import { getMessages, setRequestLocale } from 'next-intl/server';
 import { CurrencyProvider } from '@/providers/CurrencyProvider';
 import { ThemeProvider } from '@/providers/theme-provider';
+import '@/lib/core/init'; // Environment validation
 
 const inter = Inter({ subsets: ["latin"] });
 
