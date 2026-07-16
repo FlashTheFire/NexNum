@@ -12,7 +12,7 @@ import { checkBrowser, requireRealBrowser } from './browser-check'
 import { generateFingerprint, getFingerprintId } from './fingerprint'
 import { validateRequestSignature } from './request-signing'
 import { API_SECURITY_HEADERS } from './headers'
-import { verifyCaptcha, getCaptchaSiteKey } from './captcha'
+import { verifyCaptcha, getCaptchaSiteKey, isCaptchaRequired } from './captcha'
 import { logger } from '@/lib/core/logger'
 import { RiskSentinel, RiskSignal } from './risk-sentinel'
 
@@ -205,35 +205,36 @@ export async function runSecurityChecks(
 
     // 5. CAPTCHA Verification (Strict Enforcement)
     if (opts.requireCaptcha && !hasApiKey) {
-        // We always call verifyCaptcha if required. 
-        // It will handle its own configuration checks and environment fallback.
-        const captchaToken = headers.get('x-captcha-token')
+        const isRequired = await isCaptchaRequired()
+        if (isRequired) {
+            const captchaToken = headers.get('x-captcha-token')
 
-        // Fail closed: If required but no token provided, block immediately
-        if (!captchaToken) {
-            return {
-                allowed: false,
-                error: 'Security verification required (CAPTCHA)',
-                statusCode: 403,
-                clientInfo,
-                fingerprint
+            // Fail closed: If required but no token provided, block immediately
+            if (!captchaToken) {
+                return {
+                    allowed: false,
+                    error: 'Security verification required (CAPTCHA)',
+                    statusCode: 403,
+                    clientInfo,
+                    fingerprint
+                }
             }
-        }
 
-        const captchaResult = await verifyCaptcha(captchaToken, clientInfo.ip)
-        if (!captchaResult.success) {
-            if (opts.logEvents) {
-                logger.warn('CAPTCHA verification failed', {
-                    ip: clientInfo.ip,
-                    error: captchaResult.error
-                })
-            }
-            return {
-                allowed: false,
-                error: captchaResult.error || 'Security verification failed',
-                statusCode: 403,
-                clientInfo,
-                fingerprint
+            const captchaResult = await verifyCaptcha(captchaToken, clientInfo.ip)
+            if (!captchaResult.success) {
+                if (opts.logEvents) {
+                    logger.warn('CAPTCHA verification failed', {
+                        ip: clientInfo.ip,
+                        error: captchaResult.error
+                    })
+                }
+                return {
+                    allowed: false,
+                    error: captchaResult.error || 'Security verification failed',
+                    statusCode: 403,
+                    clientInfo,
+                    fingerprint
+                }
             }
         }
     }
@@ -271,25 +272,28 @@ export async function runSecurityChecks(
 
     if (assessment.action === 'challenge' && !opts.requireCaptcha && !hasApiKey) {
         // Dynamic Force CAPTCHA if risk is elevated
-        const captchaToken = headers.get('x-captcha-token')
-        if (!captchaToken) {
-            return {
-                allowed: false,
-                error: 'Additional security verification required (CAPTCHA)',
-                statusCode: 403,
-                clientInfo,
-                fingerprint
+        const isRequired = await isCaptchaRequired()
+        if (isRequired) {
+            const captchaToken = headers.get('x-captcha-token')
+            if (!captchaToken) {
+                return {
+                    allowed: false,
+                    error: 'Additional security verification required (CAPTCHA)',
+                    statusCode: 403,
+                    clientInfo,
+                    fingerprint
+                }
             }
-        }
 
-        const captchaResult = await verifyCaptcha(captchaToken, clientInfo.ip)
-        if (!captchaResult.success) {
-            return {
-                allowed: false,
-                error: 'Security challenge failed',
-                statusCode: 403,
-                clientInfo,
-                fingerprint
+            const captchaResult = await verifyCaptcha(captchaToken, clientInfo.ip)
+            if (!captchaResult.success) {
+                return {
+                    allowed: false,
+                    error: 'Security challenge failed',
+                    statusCode: 403,
+                    clientInfo,
+                    fingerprint
+                }
             }
         }
     }
