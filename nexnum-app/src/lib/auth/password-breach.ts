@@ -1,4 +1,3 @@
-import { Hasher } from 'bcrypt'
 import crypto from 'crypto'
 
 // Have I Been Pwned API endpoint
