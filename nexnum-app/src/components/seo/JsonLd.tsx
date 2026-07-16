@@ -2,7 +2,7 @@ interface JsonLdProps {
     data?: Record<string, any>
 }
 
-const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://nx1.in'
 
 export default function JsonLd({ data }: JsonLdProps) {
     const socialLinks = [

@@ -3,7 +3,7 @@ import { searchAdminCountries, searchAdminServices } from '@/lib/search/search'
 import { normalizeServiceName, normalizeCountryName } from '@/lib/normalizers/service-identity'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://nexnum.in'
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://nx1.in'
 
     // 1. Static Routes
     const staticRoutes = [

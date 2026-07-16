@@ -8,7 +8,7 @@ import { setRequestLocale } from 'next-intl/server'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-    title: 'Admin Panel | NexNum',
+    title: 'Admin Panel',
     description: 'System Administration',
 }
 

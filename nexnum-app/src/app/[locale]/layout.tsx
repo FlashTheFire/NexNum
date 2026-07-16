@@ -12,7 +12,7 @@ import { ThemeProvider } from '@/providers/theme-provider';
 const inter = Inter({ subsets: ["latin"] });
 
 export const viewport: Viewport = {
-    themeColor: '#0f172a',
+    themeColor: '#C6FF00',
     width: 'device-width',
     initialScale: 1,
     maximumScale: 1,
@@ -20,49 +20,75 @@ export const viewport: Viewport = {
 }
 
 export const metadata: Metadata = {
-    metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://nexnum.in'),
+    metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://nx1.in'),
     title: {
-        default: "NexNum - Premium Virtual Numbers for SMS Verification",
+        default: "NexNum | Premium Virtual Numbers for SMS Verification",
         template: "%s | NexNum"
     },
-    description: "Instant access to premium virtual phone numbers for OTP verification. Compatible with WhatsApp, Telegram, Google, and 500+ services. Global coverage, best prices.",
-    keywords: ["virtual number", "sms verification", "otp bypass", "temp number", "online sim", "receive sms", "fake number", "whatsapp verification"],
-    authors: { name: "NexNum Team" },
+    description: "Buy premium virtual phone numbers for SMS verification on WhatsApp, Telegram, Google, Discord, TikTok, Instagram, OpenAI and 500+ services with instant OTP delivery, competitive pricing, and global coverage.",
+    keywords: [
+        "virtual phone number",
+        "temporary phone number",
+        "receive sms online",
+        "sms verification",
+        "otp verification",
+        "buy virtual number",
+        "online sms",
+        "whatsapp verification",
+        "telegram verification",
+        "discord verification",
+        "google verification",
+        "tiktok verification",
+        "instagram verification",
+        "openai verification",
+        "virtual sim",
+        "phone verification"
+    ],
+    authors: { name: "NexNum" },
     creator: "NexNum",
-    publisher: "NexNum Inc.",
+    publisher: "NexNum",
+    applicationName: "NexNum",
+    generator: "Next.js",
     icons: {
-        icon: '/favicon.ico',
-        shortcut: '/favicon-16x16.png',
-        apple: '/apple-touch-icon.png',
+        icon: [
+            { url: '/favicon.ico' },
+            { url: '/icon.svg', type: 'image/svg+xml' }
+        ],
+        apple: '/apple-icon.png',
+        shortcut: '/favicon.ico',
     },
-    manifest: '/site.webmanifest',
     openGraph: {
         type: "website",
         locale: "en_US",
-        url: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
-        title: "NexNum - #1 Premium SMS Verification Service",
-        description: "Get instant SMS codes for any service. 100% success rate guarantee or free. Join 50k+ users.",
+        url: "https://nx1.in",
+        title: "NexNum",
+        description: "Premium Virtual Numbers for SMS Verification",
         siteName: "NexNum",
         images: [
             {
-                url: '/og-image.jpg',
+                url: 'https://nx1.in/opengraph-image.png',
                 width: 1200,
                 height: 630,
-                alt: 'NexNum Premium Dashboard',
+                alt: 'NexNum - Secure SMS Verification',
             }
         ],
     },
     twitter: {
         card: "summary_large_image",
-        title: "NexNum - Instant Virtual Numbers",
-        description: "Need an OTP? Get a premium virtual number in seconds. Works for WhatsApp, Telegram, OpenAI & more.",
-        images: ['/og-image.jpg'],
-        creator: "@NexNumApp",
+        title: "NexNum",
+        description: "Premium Virtual Numbers",
+        images: ['https://nx1.in/twitter-image.png'],
     },
     appleWebApp: {
         capable: true,
         title: 'NexNum',
-        statusBarStyle: 'black-translucent',
+        statusBarStyle: 'default',
+    },
+    verification: {
+        google: "HIEXn4sCB_CkRLxMDAs85-O7a6w8DZMFvNW60Cior9I",
+    },
+    other: {
+        'msapplication-TileColor': '#C6FF00',
     },
     robots: {
         index: true,
@@ -76,7 +102,7 @@ export const metadata: Metadata = {
         },
     },
     alternates: {
-        canonical: 'https://nexnum.in',
+        canonical: 'https://nx1.in',
     }
 };
 

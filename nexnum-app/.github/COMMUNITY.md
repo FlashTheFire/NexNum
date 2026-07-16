@@ -21,7 +21,7 @@ NexNum takes security seriously. If you discover a vulnerability, please report 
 
 Please report any security concerns directly to the maintainers:
 - **Maintainer**: @FlashTheFire
-- **Email**: security@nexnum.in
+- **Email**: security@nx1.in
 
 You can expect an initial response within **24-48 hours**. We follow a 90-day responsible disclosure timeline.
 
