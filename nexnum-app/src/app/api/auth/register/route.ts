@@ -10,8 +10,6 @@ import {
     checkDisposableEmail,
     isDisposableCheckEnabled,
 } from '@/lib/email/disposable-checker'
-import { checkPasswordBreach } from '@/lib/auth/password-breach'
-
 export const POST = apiHandler(
     async (request, { body, security }) => {
         // Body validation provided by registerSchema
@@ -57,25 +55,7 @@ export const POST = apiHandler(
             )
         }
 
-        // --------------------------------------------------
-        // Check password breach
-        // --------------------------------------------------
-        const breachResult = await checkPasswordBreach(password)
 
-        if (breachResult.pwned) {
-            auth_events_total
-                .labels('register', 'failed_breached_password')
-                .inc()
-
-            return ResponseFactory.error(
-                `This password has been exposed in a data breach${breachResult.count
-                    ? ` (${breachResult.count.toLocaleString()} times)`
-                    : ''
-                }. Please choose a different password.`,
-                400,
-                'BREACHED_PASSWORD'
-            )
-        }
 
         // --------------------------------------------------
         // Hash password
