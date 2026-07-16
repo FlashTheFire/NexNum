@@ -105,7 +105,7 @@ export async function GET(request: Request) {
                         priority: true,
                         balance: true,
                         createdAt: true,
-                        syncCount: true
+                        count: true
                     }
                 })
                 headers = ['ID', 'Name', 'Display Name', 'Active', 'Priority', 'Balance', 'Sync Jobs', 'Created']
@@ -116,7 +116,7 @@ export async function GET(request: Request) {
                     active: p.isActive ? 'Yes' : 'No',
                     priority: p.priority.toString(),
                     balance: p.balance.toString(),
-                    syncJobs: p.syncCount.toString(),
+                    syncJobs: p.count.toString(),
                     created: p.createdAt.toISOString()
                 }))
                 filename = `providers_${Date.now()}`

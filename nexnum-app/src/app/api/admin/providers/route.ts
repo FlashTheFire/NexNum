@@ -54,7 +54,7 @@ export async function GET(req: Request) {
                 // @ts-ignore - testResults may not exist in fallback
                 lastTest: p.testResults?.[0] || null,
                 // @ts-ignore - syncCount may not exist in fallback
-                syncCount: p.syncCount || 0
+                syncCount: p.count || 0
             }
         })
 

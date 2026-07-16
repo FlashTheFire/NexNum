@@ -77,7 +77,7 @@ export async function GET(request: Request) {
                     displayName: true,
                     balance: true,
                     priority: true,
-                    syncCount: true
+                    count: true
                 },
                 orderBy: { priority: 'desc' }
             }),
@@ -162,6 +162,7 @@ export async function GET(request: Request) {
             providers: providerStats.map(p => ({
                 ...p,
                 balance: Number(p.balance),
+                syncCount: p.count,
             })),
             recentActivity: recentActivity.map(log => ({
                 id: log.id,

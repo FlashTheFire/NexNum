@@ -1005,7 +1005,7 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
         data: {
             syncStatus: error ? 'failed' : 'success',
             lastSyncAt: new Date(),
-            syncCount: { increment: 1 }
+            count: { increment: 1 }
         }
     })
 
