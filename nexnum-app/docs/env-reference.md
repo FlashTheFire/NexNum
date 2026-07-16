@@ -122,7 +122,7 @@ Complete reference for all environment variables in NexNum.
 | `SMTP_PORT` | SMTP Port (587 or 465) |
 | `SMTP_USER` | SMTP Username/Email |
 | `SMTP_PASS` | SMTP Password (App Password) |
-| `FROM_EMAIL` | Default sender address |
+| `FROM_EMAIL` | Default sender address. With Resend, use an address on a Resend-verified domain (for example, `"NexNum" <noreply@nx1.in>`). |
 
 ## Push Notifications
 

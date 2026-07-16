@@ -54,7 +54,7 @@ export async function requestPasswordReset(email: string, ipAddress?: string): P
     const resetLink = `${process.env.NEXT_PUBLIC_APP_URL}/auth/reset-password?token=${token}`
 
     try {
-        await EmailService.send({
+        const result = await EmailService.send({
             to: user.email,
             subject: 'Reset your NexNum password',
             component: PasswordResetEmail({
@@ -62,6 +62,11 @@ export async function requestPasswordReset(email: string, ipAddress?: string): P
                 resetLink
             })
         })
+        if (!result.success) {
+            logger.error('Failed to send reset email', { error: result.error, userId: user.id })
+            return { success: false, error: 'Failed to send email' }
+        }
+
         return { success: true }
     } catch (error: any) {
         logger.error('Failed to send reset email', { error: error.message, userId: user.id })

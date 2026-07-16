@@ -34,7 +34,7 @@ export async function sendVerificationEmail(userId: string, email: string, name:
     const verificationLink = `${process.env.NEXT_PUBLIC_APP_URL}/auth/verify?token=${token}`
 
     try {
-        await EmailService.send({
+        const result = await EmailService.send({
             to: email,
             subject: 'Confirm your email address',
             component: ConfirmEmail({
@@ -42,6 +42,11 @@ export async function sendVerificationEmail(userId: string, email: string, name:
                 confirmLink: verificationLink
             })
         })
+        if (!result.success) {
+            console.error('Failed to send verification email:', result.error)
+            return false
+        }
+
         return true
     } catch (error) {
         console.error('Failed to send verification email:', error)
