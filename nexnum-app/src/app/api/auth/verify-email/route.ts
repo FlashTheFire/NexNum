@@ -14,7 +14,7 @@ export const POST = apiHandler(async (request, { body, security }) => {
     const { token } = body!
     const ip = security?.clientIp || 'unknown'
 
-    const result = await verifyEmail(token)
+    const result = await verifyEmail(token, ip)
 
     if (!result.success) {
         return ResponseFactory.error(result.error || 'Verification failed', 400)
