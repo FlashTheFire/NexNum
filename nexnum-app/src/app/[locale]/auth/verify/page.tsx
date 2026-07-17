@@ -2,15 +2,14 @@
 
 import { useEffect, useState, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
-import Link from "next/link"
 import { toast } from "sonner"
-import { Button } from "@/components/ui/button"
-import { AuthLayout } from "@/components/layout/AuthLayout"
-import { Icons } from "@/components/ui/icons"
-import { Mail, RefreshCw, CheckCircle2, XCircle, Loader2 } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { useAuthStore } from "@/stores/authStore"
+import VerifyEmailBackground from "@/components/auth/VerifyEmailBackground"
+import VerifyEmailCard from "@/components/auth/VerifyEmailCard"
+import VerifyEmailStatus from "@/components/auth/VerifyEmailStatus"
 
-type VerificationStatus = 'idle' | 'loading' | 'success' | 'error' | 'expired'
+type VerificationStatus = 'idle' | 'loading' | 'success' | 'error' | 'expired' | 'pending'
 
 function VerifyContent() {
     const { user, logout, checkAuth, isLoading: isAuthLoading } = useAuthStore()
@@ -22,6 +21,7 @@ function VerifyContent() {
     const [errorMessage, setErrorMessage] = useState('')
     const [resending, setResending] = useState(false)
     const [cooldown, setCooldown] = useState(0)
+    const [pollIntervalId, setPollIntervalId] = useState<NodeJS.Timeout | null>(null)
 
     // Handle verification if token is present
     useEffect(() => {
@@ -32,7 +32,8 @@ function VerifyContent() {
                 const res = await fetch('/api/auth/verify-email', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ token })
+                    body: JSON.stringify({ token }),
+                    signal: AbortSignal.timeout(10000) // 10 second timeout
                 })
 
                 const data = await res.json()
@@ -49,14 +50,22 @@ function VerifyContent() {
                 } else {
                     if (data.error?.includes('expired')) {
                         setStatus('expired')
+                    } else if (data.error?.includes('Invalid')) {
+                        setStatus('error')
+                        setErrorMessage('This verification link is invalid or has already been used.')
                     } else {
                         setStatus('error')
                     }
                     setErrorMessage(data.error || 'Verification failed')
                 }
-            } catch (error) {
-                setStatus('error')
-                setErrorMessage('Network error. Please try again.')
+            } catch (error: any) {
+                if (error.name === 'AbortError') {
+                    setStatus('error')
+                    setErrorMessage('Request timeout. Please check your connection and try again.')
+                } else {
+                    setStatus('error')
+                    setErrorMessage('Network error. Please check your connection and try again.')
+                }
             }
         }
 
@@ -73,15 +82,53 @@ function VerifyContent() {
             return
         }
 
-        // POLLING: Check verification status every 5 seconds
-        const pollInterval = setInterval(() => {
-            if (user && !user.emailVerified) {
-                checkAuth()
-            }
-        }, 5000)
+        setStatus('pending')
 
-        return () => clearInterval(pollInterval)
-    }, [user, isAuthLoading, token, router, checkAuth])
+        // POLLING: Check verification status with exponential backoff
+        let attemptCount = 0
+        const maxAttempts = 48 // Stop after ~5-10 minutes of polling
+        let currentInterval = 5000 // Start at 5 seconds
+        const maxInterval = 60000 // Cap at 60 seconds
+
+        const startPolling = () => {
+            const scheduleNextPoll = () => {
+                if (attemptCount >= maxAttempts) {
+                    // Stop polling after max attempts
+                    return
+                }
+
+                const timeoutId = setTimeout(() => {
+                    attemptCount++
+                    
+                    if (user && !user.emailVerified && attemptCount <= maxAttempts) {
+                        checkAuth()
+                        
+                        // Exponential backoff: increase interval on each attempt
+                        currentInterval = Math.min(currentInterval * 1.1, maxInterval)
+                        scheduleNextPoll()
+                    }
+                }, currentInterval)
+
+                setPollIntervalId(timeoutId as any)
+            }
+
+            scheduleNextPoll()
+            return () => {
+                if (pollIntervalId) clearTimeout(pollIntervalId as any)
+            }
+        }
+
+        return startPolling()
+    }, [user, isAuthLoading, token, router, checkAuth, pollIntervalId])
+
+    // Cleanup polling on unmount
+    useEffect(() => {
+        return () => {
+            if (pollIntervalId) {
+                clearInterval(pollIntervalId)
+            }
+        }
+    }, [pollIntervalId])
 
     // Cooldown timer for resend
     useEffect(() => {
@@ -100,13 +147,23 @@ function VerifyContent() {
             const res = await api.resendVerification()
 
             if (res.success) {
-                toast.success('Verification email sent!')
+                toast.success('Verification email sent! Check your inbox.')
                 setCooldown(60)
+            } else if (res.error?.includes('already verified')) {
+                toast.info('Your email is already verified!')
+                router.push('/dashboard')
+            } else if (res.error?.includes('not found')) {
+                toast.error('User account not found. Please sign in again.')
+                router.push('/login')
             } else {
-                toast.error(res.error || 'Failed to send email')
+                toast.error(res.error || 'Failed to send email. Please try again.')
             }
-        } catch (error) {
-            toast.error('Network error')
+        } catch (error: any) {
+            if (error.message?.includes('timeout')) {
+                toast.error('Request timeout. Please check your connection.')
+            } else {
+                toast.error('Network error. Please check your connection and try again.')
+            }
         } finally {
             setResending(false)
         }
@@ -119,122 +176,60 @@ function VerifyContent() {
 
     if (isAuthLoading && status === 'idle') {
         return (
-            <div className="text-center space-y-4">
-                <Loader2 className="h-16 w-16 animate-spin text-primary mx-auto" />
-                <p className="text-muted-foreground">Loading...</p>
+            <div className="relative z-20 flex items-center justify-center min-h-screen">
+                <VerifyEmailCard>
+                    <div className="text-center space-y-4">
+                        <Loader2 className="h-16 w-16 animate-spin text-[hsl(var(--neon-lime))] mx-auto" />
+                        <p className="text-gray-400">Loading...</p>
+                    </div>
+                </VerifyEmailCard>
             </div>
         )
     }
 
-    // Render "Verification Result" UI if token was used
-    if (token) {
-        switch (status) {
-            case 'loading':
-                return (
-                    <div className="text-center space-y-4">
-                        <Loader2 className="h-16 w-16 animate-spin text-primary mx-auto" />
-                        <p className="text-muted-foreground">Verifying your email address...</p>
-                    </div>
-                )
-            case 'success':
-                return (
-                    <div className="text-center space-y-6">
-                        <div className="relative">
-                            <div className="absolute inset-0 flex items-center justify-center">
-                                <div className="h-24 w-24 rounded-full bg-green-500/20 animate-pulse" />
-                            </div>
-                            <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto relative z-10" />
-                        </div>
-                        <div className="space-y-2">
-                            <h2 className="text-xl font-semibold text-white">Email Verified!</h2>
-                            <p className="text-muted-foreground">Your email has been successfully verified. Redirecting...</p>
-                        </div>
-                        <Button variant="neon" className="w-full" asChild>
-                            <Link href="/dashboard">Go to Dashboard</Link>
-                        </Button>
-                    </div>
-                )
-            case 'expired':
-                return (
-                    <div className="text-center space-y-6">
-                        <XCircle className="h-16 w-16 text-yellow-500 mx-auto" />
-                        <div className="space-y-2">
-                            <h2 className="text-xl font-semibold text-white">Link Expired</h2>
-                            <p className="text-muted-foreground">This verification link has expired. Please request a new one.</p>
-                        </div>
-                        <Button variant="neon" className="w-full" asChild>
-                            <Link href="/login">Back to Login</Link>
-                        </Button>
-                    </div>
-                )
-            case 'error':
-                return (
-                    <div className="text-center space-y-6">
-                        <XCircle className="h-16 w-16 text-red-500 mx-auto" />
-                        <div className="space-y-2">
-                            <h2 className="text-xl font-semibold text-white">Verification Failed</h2>
-                            <p className="text-muted-foreground">{errorMessage || 'Unable to verify your email.'}</p>
-                        </div>
-                        <Button variant="neon" className="w-full" asChild>
-                            <Link href="/login">Back to Login</Link>
-                        </Button>
-                    </div>
-                )
-        }
-    }
-
-    // Render "Pending Verification" UI if no token (and not verified)
-    if (!user) {
-        if (!isAuthLoading) router.replace('/login')
-        return null
-    }
+    // Render appropriate status
+    const displayStatus = token ? status : (status === 'idle' ? 'pending' : status)
 
     return (
-        <div className="text-center space-y-6">
-            <div className="relative mx-auto w-24 h-24">
-                <div className="absolute inset-0 bg-primary/20 rounded-full animate-ping" />
-                <div className="relative flex items-center justify-center w-24 h-24 bg-primary/10 rounded-full border border-primary/30">
-                    <Mail className="h-10 w-10 text-primary" />
-                </div>
-            </div>
-
-            <div className="space-y-3">
-                <h2 className="text-xl font-semibold text-white">Check Your Inbox</h2>
-                <p className="text-muted-foreground">We've sent a verification link to</p>
-                <p className="text-white font-medium text-lg bg-white/5 py-2 px-4 rounded-lg border border-white/10">
-                    {user.email}
-                </p>
-                <p className="text-sm text-muted-foreground">Click the link in the email to verify your account.</p>
-            </div>
-
-            <div className="space-y-3 pt-4">
-                <Button
-                    variant="neon"
-                    className="w-full"
-                    onClick={handleResend}
-                    disabled={resending || cooldown > 0}
-                >
-                    {resending ? <Icons.spinner className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-                    {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend Verification Email'}
-                </Button>
-
-                <div className="flex gap-2">
-                    <Button variant="outline" className="flex-1" onClick={handleSignOut}>Sign Out</Button>
-                    <Button variant="outline" className="flex-1" asChild>
-                        <a href="https://mail.google.com" target="_blank" rel="noopener noreferrer">Open Gmail</a>
-                    </Button>
-                </div>
-            </div>
+        <div className="relative z-20 flex items-center justify-center min-h-screen px-4">
+            <VerifyEmailCard className="w-full max-w-md">
+                <VerifyEmailStatus
+                    status={displayStatus as any}
+                    email={user?.email}
+                    errorMessage={errorMessage}
+                    onResend={handleResend}
+                    onSignOut={handleSignOut}
+                    isResending={resending}
+                    cooldown={cooldown}
+                />
+            </VerifyEmailCard>
         </div>
     )
 }
 
 export default function VerifyPage() {
     return (
-        <AuthLayout title="" description="">
-            <Suspense fallback={<div className="text-center"><Loader2 className="h-16 w-16 animate-spin text-primary mx-auto" /></div>}>
-                <VerifyContent />
-            </Suspense>
-        </AuthLayout>
+        <div className="relative min-h-screen overflow-hidden bg-[hsl(var(--background))]">
+            {/* Animated background */}
+            <VerifyEmailBackground />
+
+            {/* Content */}
+            <div className="relative z-10">
+                <Suspense
+                    fallback={
+                        <div className="relative z-20 flex items-center justify-center min-h-screen">
+                            <VerifyEmailCard>
+                                <div className="text-center space-y-4">
+                                    <Loader2 className="h-16 w-16 animate-spin text-[hsl(var(--neon-lime))] mx-auto" />
+                                    <p className="text-gray-400">Loading...</p>
+                                </div>
+                            </VerifyEmailCard>
+                        </div>
+                    }
+                >
+                    <VerifyContent />
+                </Suspense>
+            </div>
+        </div>
     )
 }
