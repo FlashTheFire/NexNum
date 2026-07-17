@@ -22,6 +22,19 @@ export async function startQueueWorker() {
         // 1. Connect to Queue
         await queue.start();
 
+        // Surface any dead pool sockets at boot instead of failing later inside
+        // a cron job. This forces the pg.Pool to acquire its first connection
+        // and run a round-trip, so misconfigured DATABASE_URL / pool settings
+        // fail fast with a clear error rather than 5s timeouts on the first job.
+        try {
+            await prisma.$queryRaw`SELECT 1`;
+            logger.info('Database connection OK', { context: 'WORKER' });
+        } catch (dbErr: unknown) {
+            const dbMsg = dbErr instanceof Error ? dbErr.message : String(dbErr);
+            logger.error('Database connection FAILED at boot', { context: 'WORKER', error: dbMsg });
+            throw dbErr;
+        }
+
         // Start a lightweight HTTP health server to satisfy Docker/orchestrator healthchecks.
         // Parse and validate HEALTH_PORT; fall back to 3001 on NaN or non-positive values.
         const rawHealthPort = parseInt(process.env.HEALTH_PORT ?? '', 10);

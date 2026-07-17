@@ -28,24 +28,56 @@ function createPrismaClient(url?: string): PrismaClient {
         throw new Error('DATABASE_URL environment variable is not set')
     }
 
-    // Optimization: Use standard TCP for read replicas if pooling is an issue, 
+    // Optimization: Use standard TCP for read replicas if pooling is an issue,
     // or same pool config. Here we assume direct connection or pgbouncer.
     const isProduction = process.env.NODE_ENV === 'production' || connectionString.includes('supabase.com')
 
-    // INDUSTRIAL HARDENING: Remove sslmode from connection string to prevent pg 
+    // INDUSTRIAL HARDENING: Remove sslmode from connection string to prevent pg
     // from overriding our explicit SSL object with its own 'verify-full' logic.
     const cleanUrl = connectionString.replace(/([?&])sslmode=[^&]*/g, '$1').replace(/(\?|&)$/, '')
 
+    // Normalize the URL so the pg.Pool plays nicely with Supabase's session-mode
+    // pooler (port 5432). Transaction-mode (port 6543) recycles idle sockets
+    // aggressively, which causes long-lived pools to hand out dead sockets —
+    // the cause of the "timeout exceeded when trying to connect" flood.
+    const normalized = (() => {
+        try {
+            const u = new URL(cleanUrl)
+            // pgbouncer=true tells pg to skip certain session-only features
+            if (!u.searchParams.has('pgbouncer')) u.searchParams.set('pgbouncer', 'true')
+            // Cap client-side connections to stay under Supabase per-client quotas
+            if (!u.searchParams.has('connection_limit')) {
+                u.searchParams.set('connection_limit', String(isProduction ? 10 : 5))
+            }
+            // application_name makes it easy to identify these sockets in pg_stat_activity
+            if (!u.searchParams.has('application_name')) {
+                u.searchParams.set('application_name', isProduction ? 'nexnum-app' : 'nexnum-dev')
+            }
+            return u.toString()
+        } catch {
+            return cleanUrl
+        }
+    })()
+
     const pool = new Pool({
-        connectionString: cleanUrl,
-        max: isProduction ? 3 : 5,
-        idleTimeoutMillis: 20000,
-        connectionTimeoutMillis: 5000,
-        maxUses: 5000,
+        connectionString: normalized,
+        max: isProduction ? 10 : 5,
+        min: isProduction ? 2 : 0,
+        idleTimeoutMillis: 10_000,
+        connectionTimeoutMillis: 3_000,
+        maxUses: 1_000,
+        allowExitOnIdle: true,
+        keepAlive: true,
+        keepAliveInitialDelayMillis: 5_000,
         // Force SSL for remote databases
         ssl: isProduction ? {
             rejectUnauthorized: false,
         } : undefined,
+    })
+
+    // Surface "pool exhausted" errors instead of silently hanging the request
+    pool.on('error', (err) => {
+        console.error('[pg.Pool] idle client error:', err.message)
     })
 
     // Graceful shutdown to release connections back to PgBouncer pool

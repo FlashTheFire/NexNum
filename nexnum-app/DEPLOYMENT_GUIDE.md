@@ -113,7 +113,7 @@ In the Coolify project → **Settings → Environment Variables**, add the follo
 
 | Variable | Value (example) | Notes |
 |----------|----------------|-------|
-| `DATABASE_URL` | `postgresql://postgres.[PROJECT-REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres?pgbouncer=true` | From Supabase → Settings → Database → Connection string |
+| `DATABASE_URL` | `postgresql://postgres.[PROJECT-REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:5432/postgres?pgbouncer=true&connection_limit=10` | From Supabase → Settings → Database → Connection string (use **Session pooler** on port 5432 — not the transaction pooler on 6543) |
 | `DIRECT_URL` | `postgresql://postgres.[PROJECT-REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:5432/postgres` | Same as above, port 5432 |
 | `DATABASE_URL_DIRECT` | Same as `DIRECT_URL` | (duplicate for compatibility) |
 | `REDIS_PASSWORD` | `<32‑byte‑hex>` | Use the same value in `REDIS_URL` |
@@ -137,7 +137,7 @@ In the Coolify project → **Settings → Environment Variables**, add the follo
 *Tip:* Copy the block below into Coolify’s “Environment Variables” textarea (one per line) and replace the placeholders:
 
 ```
-DATABASE_URL=postgresql://postgres.[PROJECT-REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres?pgbouncer=true
+DATABASE_URL=postgresql://postgres.[PROJECT-REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:5432/postgres?pgbouncer=true&connection_limit=10
 DIRECT_URL=postgresql://postgres.[PROJECT-REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:5432/postgres
 DATABASE_URL_DIRECT=postgresql://postgres.[PROJECT-REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:5432/postgres
 REDIS_PASSWORD=YOUR_32BYTE_HEX_REDIS_PASS
