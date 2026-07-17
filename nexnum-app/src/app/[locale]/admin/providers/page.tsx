@@ -23,6 +23,7 @@ import { InfoTooltip, TT, TTCode } from "@/components/ui/tooltip"
 import { SafeImage } from "@/components/ui/safe-image"
 import { useSyncStatus } from "@/hooks/useSyncStatus"
 import { api } from "@/lib/api/api-client"
+import { previewPricing } from "@/lib/pricing/preview"
 
 // Types
 interface Provider {
@@ -1680,51 +1681,36 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                             </div>
                         </div>
 
-                        {/* Live Pricing Calculator */}
+                        {/* Live Pricing Calculator — delegates to shared previewPricing() so
+                            the numbers shown here match production PricingService exactly. */}
                         {(() => {
                             const pCurrencyCode = formData.currency || 'USD';
                             const pCurrency = Object.values(availableCurrencies || {}).find((c: any) => c.code === pCurrencyCode);
                             const pSymbol = pCurrency?.symbol || pCurrencyCode;
 
-                            // 1. Determine Provider Amount (Base Example)
-                            // Use 100 for weak currencies, 1 for strong
-                            const providerAmount = ['RUB', 'INR', 'JPY', 'KZT'].includes(pCurrencyCode) ? 100.00 : 1.00;
-
-                            // 2. Calculate Normalized Cost (in USD)
-                            let costUSD = providerAmount;
-                            let rateUsed = 1.0;
-
-                            if (formData.normalizationMode === 'SMART_AUTO') {
-                                const spent = parseFloat(formData.depositSpent) || 0;
-                                const received = parseFloat(formData.depositReceived) || 0;
-                                const depCode = formData.depositCurrency || 'USD';
-                                // Note: Using Object.values again just to be safe if it's still an object or array mixture
-                                const depCurrencyObj = Object.values(availableCurrencies || {}).find((c: any) => c.code === depCode);
-                                const depRate = depCurrencyObj?.rate || 1.0;
-
-                                if (spent > 0 && received > 0) {
-                                    const spentUSD = spent / depRate;
-                                    // Effective Rate = Units / USD
-                                    rateUsed = received / (spentUSD || 1);
-                                    costUSD = providerAmount / rateUsed;
+                            // Build the standard-rates map from the available currencies list.
+                            const ratesMap: Record<string, number> = {};
+                            Object.values(availableCurrencies || {}).forEach((c: any) => {
+                                if (c?.code && typeof c.rate === 'number' && c.rate > 0) {
+                                    ratesMap[String(c.code).toUpperCase()] = c.rate;
                                 }
-                            }
-                            else if (formData.normalizationMode === 'MANUAL') {
-                                rateUsed = parseFloat(formData.normalizationRate) || 1.0;
-                                costUSD = providerAmount / rateUsed;
-                            }
-                            else {
-                                // AUTO: Use standard exchange rate
-                                rateUsed = pCurrency?.rate || 1.0;
-                                costUSD = providerAmount / rateUsed;
-                            }
+                            });
+                            // Always ensure USD=1 baseline so the resolver never falls back to "1" by accident.
+                            if (!ratesMap.USD) ratesMap.USD = 1;
 
-                            // 3. Pricing
-                            const mult = parseFloat(formData.priceMultiplier || '1');
-                            const fixed = parseFloat(formData.fixedMarkup || '0');
-                            const userPrice = (costUSD * mult) + fixed;
-                            const profit = userPrice - costUSD;
-                            const margin = userPrice > 0 ? (profit / userPrice) * 100 : 0;
+                            const preview = previewPricing(
+                                {
+                                    currency: pCurrencyCode,
+                                    normalizationMode: formData.normalizationMode,
+                                    normalizationRate: formData.normalizationRate,
+                                    depositSpent: formData.depositSpent,
+                                    depositReceived: formData.depositReceived,
+                                    depositCurrency: formData.depositCurrency,
+                                    priceMultiplier: formData.priceMultiplier,
+                                    fixedMarkup: formData.fixedMarkup,
+                                },
+                                ratesMap
+                            );
 
                             return (
                                 <div className="p-4 bg-gradient-to-r from-white/5 to-transparent rounded-xl border border-white/5">
@@ -1737,17 +1723,17 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                         <div className="p-2 bg-black/30 rounded-lg text-center flex flex-col justify-center">
                                             <div className="text-white/40 text-[10px] mb-1">Provider</div>
                                             <div className="text-white font-mono text-xs truncate">
-                                                {pSymbol}{providerAmount.toFixed(2)}
+                                                {pSymbol}{preview.sampleProviderAmount.toFixed(2)}
                                             </div>
                                             <div className="text-[9px] text-white/20">{pCurrencyCode}</div>
                                         </div>
 
-                                        {/* 2. Normalized Cost (The new part) */}
+                                        {/* 2. Normalized Cost */}
                                         <div className="p-2 bg-blue-500/10 rounded-lg text-center border border-blue-500/20 relative flex flex-col justify-center">
                                             <div className="absolute -left-2 top-1/2 -translate-y-1/2 text-white/10 text-[10px]">→</div>
                                             <div className="text-blue-400/60 text-[10px] mb-1">Net Cost</div>
                                             <div className="text-blue-400 font-mono text-xs font-bold truncate">
-                                                ${costUSD.toFixed(3)}
+                                                ${preview.costUsd.toFixed(3)}
                                             </div>
                                             <div className="text-[9px] text-blue-400/30">USD</div>
                                         </div>
@@ -1757,7 +1743,7 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                             <div className="absolute -left-2 top-1/2 -translate-y-1/2 text-white/10 text-[10px]">→</div>
                                             <div className="text-emerald-400/60 text-[10px] mb-1">User Pays</div>
                                             <div className="text-emerald-400 font-mono text-xs font-bold truncate">
-                                                ${userPrice.toFixed(2)}
+                                                ${preview.userPriceUsd.toFixed(2)}
                                             </div>
                                         </div>
 
@@ -1766,16 +1752,18 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                             <div className="absolute -left-2 top-1/2 -translate-y-1/2 text-white/10 text-[10px]">→</div>
                                             <div className="text-purple-400/60 text-[10px] mb-1">Profit</div>
                                             <div className="text-purple-400 font-mono text-xs font-bold truncate">
-                                                ${profit.toFixed(2)}
+                                                ${preview.profitUsd.toFixed(2)}
                                             </div>
                                         </div>
                                     </div>
 
                                     {/* Explanation Footer */}
                                     <div className="mt-3 text-[10px] text-white/30 text-center flex items-center justify-center gap-4">
-                                        <span>Cost: ${costUSD.toFixed(4)}</span>
+                                        <span>Cost: ${preview.costUsd.toFixed(4)}</span>
                                         <span>•</span>
-                                        <span>Margin: {margin.toFixed(1)}%</span>
+                                        <span>Margin: {preview.marginPct.toFixed(1)}%</span>
+                                        <span>•</span>
+                                        <span>Rate: {preview.rateUsed.toFixed(4)} ({preview.rateSource})</span>
                                     </div>
                                 </div>
                             );

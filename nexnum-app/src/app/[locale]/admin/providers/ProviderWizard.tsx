@@ -17,6 +17,17 @@ import { JsonEditor } from "@/components/ui/json-editor"
 import { InfoTooltip, TT, TTCode } from "@/components/ui/tooltip"
 import { AIConfigAssistant, AIAssistantButton } from "@/components/admin/AIConfigAssistant"
 import { SafeImage } from "@/components/ui/safe-image"
+import { previewPricing } from "@/lib/pricing/preview"
+
+// Static fallback rates for the wizard preview (USD is always 1).
+// The wizard is a quick setup flow and doesn't load the full currency list
+// (the user can fine-tune in the admin editor afterwards).
+const WIZARD_PREVIEW_RATES: Record<string, number> = {
+    USD: 1,
+    EUR: 0.86,
+    RUB: 72.77,
+    INR: 96.28,
+}
 
 // --- Types ---
 
@@ -745,27 +756,44 @@ export default function ProviderWizard({ onComplete, onCancel }: WizardProps) {
                                     </div>
                                 </div>
 
-                                {/* Live Preview Card */}
+                                {/* Live Preview Card — delegates to shared previewPricing() so the
+                                    numbers shown here match production PricingService exactly. */}
                                 <div className="p-4 bg-gradient-to-r from-emerald-500/10 to-transparent rounded-xl border border-emerald-500/20">
-                                    <div className="flex items-center justify-between">
-                                        <div>
-                                            <div className="text-[9px] font-bold text-emerald-400/60 uppercase tracking-widest mb-1">Live Simulation</div>
-                                            <div className="text-xs text-white/60">
-                                                Cost <span className="font-mono text-white">10.00</span> → Sell{' '}
-                                                <span className="text-emerald-400 font-mono font-bold">
-                                                    {(10 * parseFloat(formData.priceMultiplier || '1') + parseFloat(formData.fixedMarkup || '0')).toFixed(2)} {formData.currency}
-                                                </span>
+                                    {(() => {
+                                        const preview = previewPricing(
+                                            {
+                                                currency: formData.currency,
+                                                normalizationMode: formData.normalizationMode,
+                                                normalizationRate: formData.normalizationRate,
+                                                depositSpent: formData.depositSpent,
+                                                depositReceived: formData.depositReceived,
+                                                depositCurrency: formData.depositCurrency,
+                                                priceMultiplier: formData.priceMultiplier,
+                                                fixedMarkup: formData.fixedMarkup,
+                                            },
+                                            WIZARD_PREVIEW_RATES,
+                                            10 // base amount in provider currency
+                                        )
+                                        return (
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <div className="text-[9px] font-bold text-emerald-400/60 uppercase tracking-widest mb-1">Live Simulation</div>
+                                                    <div className="text-xs text-white/60">
+                                                        Cost <span className="font-mono text-white">{preview.sampleProviderAmount.toFixed(2)} {preview.sampleProviderCurrency}</span>
+                                                        {' → '}Sell <span className="text-emerald-400 font-mono font-bold">${preview.userPriceUsd.toFixed(2)}</span>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <div className="px-2 py-1 rounded-lg bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-bold font-mono">
+                                                        +${preview.profitUsd.toFixed(2)}
+                                                    </div>
+                                                    <div className="mt-0.5 text-[9px] font-bold text-emerald-500/50">
+                                                        ROI {preview.marginPct.toFixed(0)}%
+                                                    </div>
+                                                </div>
                                             </div>
-                                        </div>
-                                        <div className="text-right">
-                                            <div className="px-2 py-1 rounded-lg bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-bold font-mono">
-                                                +{((10 * parseFloat(formData.priceMultiplier || '1') + parseFloat(formData.fixedMarkup || '0')) - 10).toFixed(2)}
-                                            </div>
-                                            <div className="mt-0.5 text-[9px] font-bold text-emerald-500/50">
-                                                ROI {(((10 * parseFloat(formData.priceMultiplier || '1') + parseFloat(formData.fixedMarkup || '0') - 10) / 10) * 100).toFixed(0)}%
-                                            </div>
-                                        </div>
-                                    </div>
+                                        )
+                                    })()}
                                 </div>
                             </motion.div>
                         )}

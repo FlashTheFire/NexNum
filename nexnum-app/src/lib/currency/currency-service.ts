@@ -28,6 +28,7 @@ import { logger } from '@/lib/core/logger'
 import { redis } from '@/lib/core/redis'
 import { PricingConfig } from '@/config/app.config'
 import Decimal from 'decimal.js'
+import { PricingService, type PricingProviderConfig } from '@/lib/pricing/pricing-service'
 
 // Configure Decimal.js globally for financial precision
 Decimal.set({ precision: 20, rounding: Decimal.ROUND_HALF_UP })
@@ -404,6 +405,10 @@ export class CurrencyService {
      * Used by: provider-sync.ts (indexing), purchase route (profit calc)
      * Formula: ceil((rawCost / effectiveProviderRate × pointsRate) × multiplier + markupPoints)
      *
+     * @deprecated New code should call {@link PricingService.compute} directly.
+     *             This shim is kept for backwards compatibility with existing
+     *             callers and is now a thin wrapper around PricingService.
+     *
      * @param rawCost            Provider's cost in their native currency
      * @param providerCurrency   Provider's billing currency (e.g. 'RUB', 'USD')
      * @param effectiveRate      Admin-set effective rate (units of providerCurrency per 1 USD)
@@ -418,18 +423,41 @@ export class CurrencyService {
         fixedMarkupUsd: number = 0
     ): Promise<{ pointPrice: number; costUsd: number }> {
         const { pointsRate } = await this.getConfig()
+        const rates = await this.getAllRates()
 
-        // 1. Raw cost → USD using the admin-defined effective provider rate
-        //    effectiveRate = units of providerCurrency per 1 USD
-        const costUsd = new Decimal(rawCost).dividedBy(effectiveRate > 0 ? effectiveRate : 1)
+        // Synthesize a minimal provider config so the rate we were already
+        // given (effectiveRate) overrides the resolver. The resolver checks
+        // MANUAL first — we encode the explicit rate into normalizationMode/
+        // normalizationRate so all callers get the same answer.
+        const safeRate = effectiveRate > 0 ? effectiveRate : 1
+        const providerCfg: PricingProviderConfig = {
+            currency: providerCurrency,
+            // Bypass the resolver: caller already computed the rate.
+            normalizationMode: 'MANUAL',
+            normalizationRate: safeRate,
+            priceMultiplier: multiplier,
+            fixedMarkup: fixedMarkupUsd,
+        }
 
-        // 2. Apply multiplier + fixed markup (both in USD space)
-        const sellUsd = costUsd.times(multiplier).plus(fixedMarkupUsd)
+        const result = PricingService.compute({
+            rawCost,
+            providerCurrency,
+            provider: providerCfg,
+            standardRates: rates,
+            pointsRate,
+            spread: 0, // Caller already produced a rate — no spread double-application
+            isPointsMode: true,
+        })
 
-        // 3. USD → Points, always CEIL to protect margin
-        const pointPrice = sellUsd.times(pointsRate).ceil().toNumber()
+        if (!result) {
+            // Zero / negative / non-finite raw cost
+            return { pointPrice: 0, costUsd: 0 }
+        }
 
-        return { pointPrice, costUsd: costUsd.toDecimalPlaces(6).toNumber() }
+        return {
+            pointPrice: result.pointPrice,
+            costUsd: result.costUsd,
+        }
     }
 
     /**

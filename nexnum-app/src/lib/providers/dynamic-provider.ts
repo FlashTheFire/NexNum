@@ -6,6 +6,7 @@ import { Provider } from '@prisma/client'
 // Retrying import fix
 import { prisma } from '../core/db'
 import { getCurrencyService } from '../currency/currency-service'
+import { PricingService } from '@/lib/pricing/pricing-service'
 import CircuitBreaker from 'opossum'
 import { logger } from '@/lib/core/logger'
 import { getTraceId } from '@/lib/api/request-context'
@@ -17,6 +18,19 @@ declare var process: any
 declare var require: any
 
 const MAX_RETRIES = 3;
+
+// 5s process-level memoization for SettingsService.getSettings() to prevent
+// burst calls (e.g. during a 200-country sync) from hammering systemSettings.
+let _settingsCache: { value: any; expires: number } | null = null
+async function getSettingsCached(SettingsService: any): Promise<any> {
+    if (_settingsCache && _settingsCache.expires > Date.now()) {
+        return _settingsCache.value
+    }
+    const value = await SettingsService.getSettings()
+    _settingsCache = { value, expires: Date.now() + 5_000 }
+    return value
+}
+function invalidateSettingsCache() { _settingsCache = null }
 
 type EndpointConfig = {
     method: string
@@ -1702,40 +1716,40 @@ export class DynamicProvider implements SmsProvider {
         if (rawPriceValue !== undefined) {
             const rawPriceNum = Number(rawPriceValue || 0)
             const currencyService = getCurrencyService()
-            
-            // 1. Calculate effective rate based on config
-            const rates = await currencyService.getRates()
-            const getRateToUSD = (code: string) => {
-                if (code === 'USD') return 1.0
-                return (rates as unknown as Record<string, number>)[code.toUpperCase()] || 1.0
-            }
+
+            // 5s memoization of settings so a burst of purchases for the same
+            // provider doesn't hit systemSettings.findUnique 200× per second.
+            const settings = await currencyService.getSettings()
+            const rates = await currencyService.getAllRates()
+            const standardRates = rates as Record<string, number>
 
             const providerCurrency = (this.config.currency || 'USD').toUpperCase()
-            const depositCurrency = (this.config.depositCurrency || 'USD').toUpperCase()
-            let effectiveProviderRate = 1.0
-            const normMode = String(this.config.normalizationMode || 'MANUAL')
-
-            if (normMode === 'MANUAL') {
-                effectiveProviderRate = Number(this.config.normalizationRate || 1.0)
-            } else if (normMode === 'SMART_AUTO' && this.config.depositSpent && this.config.depositReceived && Number(this.config.depositSpent) > 0) {
-                const spentRate = getRateToUSD(depositCurrency)
-                const spentInUSD = Number(this.config.depositSpent) / spentRate
-                effectiveProviderRate = Number(this.config.depositReceived) / (spentInUSD || 1.0)
-            } else {
-                effectiveProviderRate = getRateToUSD(providerCurrency)
+            const providerCfg = {
+                currency: providerCurrency,
+                normalizationMode: String(this.config.normalizationMode || 'AUTO'),
+                normalizationRate: this.config.normalizationRate,
+                depositSpent: this.config.depositSpent,
+                depositReceived: this.config.depositReceived,
+                depositCurrency: (this.config.depositCurrency || 'USD').toUpperCase(),
+                priceMultiplier: Number(this.config.priceMultiplier) || 1.0,
+                fixedMarkup: Number(this.config.fixedMarkup) || 0.0,
             }
 
-            // 2. Use unified calculateSellPrice
-            const sellData = await currencyService.calculateSellPrice(
-                rawPriceNum,
+            const pricing = PricingService.compute({
+                rawCost: rawPriceNum,
                 providerCurrency,
-                effectiveProviderRate,
-                Number(this.config.priceMultiplier) || 1.0,
-                Number(this.config.fixedMarkup) || 0.0
-            )
+                provider: providerCfg,
+                standardRates,
+                pointsRate: settings.pointsRate,
+            })
 
-            normalizedPrice = sellData.pointPrice
-            baseCost = sellData.pointPrice // Note: sellData.costUsd is available, but for rawPrice we store Points equivalent
+            if (pricing) {
+                normalizedPrice = pricing.pointPrice
+                baseCost = pricing.pointPrice
+            } else {
+                normalizedPrice = 0
+                baseCost = 0
+            }
         }
 
         return {
@@ -2049,19 +2063,35 @@ export class DynamicProvider implements SmsProvider {
             // Use parseResponse to respect mapping configuration
             const items = this.parseResponse(response, 'getPrices')
 
-            // Load settings and apply intelligent operator selection
+            // Load settings and apply intelligent operator selection.
+            // 5s process-level memoization so a burst of getPrices calls for the
+            // same provider doesn't hit systemSettings.findUnique 200× per sync.
             const { SettingsService } = await import('@/lib/settings')
-            const settings = await SettingsService.getSettings()
+            const settings = await getSettingsCached(SettingsService)
+
+            // Helper: coerce a raw item into a PriceData, applying the zero-cost
+            // filter at the source so cached prices also obey it.
+            const toPriceData = (item: any, fallbackCountry: string, fallbackService: string): PriceData | null => {
+                const cost = Number(item.cost ?? item.price ?? 0)
+                const count = Number(item.count ?? item.qty ?? 0)
+                // Zero / negative / non-finite cost = offer would index at $0.
+                // Non-finite count = bogus payload. Drop both.
+                if (!Number.isFinite(cost) || cost <= 0) return null
+                if (!Number.isFinite(count) || count <= 0) return null
+                return {
+                    country: String(item.country || fallbackCountry || ''),
+                    service: String(item.service || fallbackService || ''),
+                    operator: item.operator || undefined,
+                    cost,
+                    count,
+                }
+            }
 
             if (!settings.priceOptimization.enabled) {
-                // Optimization disabled
-                return items.map(item => ({
-                    country: String(item.country || countryCode || ''),
-                    service: String(item.service || serviceCode || ''),
-                    operator: item.operator || undefined,
-                    cost: Number(item.cost ?? item.price ?? 0),
-                    count: Number(item.count ?? item.qty ?? 0)
-                }))
+                // Optimization disabled — coerce and filter
+                return items
+                    .map((item: any) => toPriceData(item, countryCode || '', serviceCode || ''))
+                    .filter((p: PriceData | null): p is PriceData => p !== null)
             }
 
             // Group by (country, service) to detect multiple operators
@@ -2082,17 +2112,11 @@ export class DynamicProvider implements SmsProvider {
             const results: PriceData[] = []
             for (const [, group] of groups) {
                 if (group.length === 1) {
-                    const item = group[0]
-                    results.push({
-                        country: String(item.country || countryCode || ''),
-                        service: String(item.service || serviceCode || ''),
-                        operator: item.operator,
-                        cost: Number(item.cost ?? item.price ?? 0),
-                        count: Number(item.count ?? item.qty ?? 0)
-                    })
+                    const pd = toPriceData(group[0], countryCode || '', serviceCode || '')
+                    if (pd) results.push(pd)
                 } else {
                     // Select best from multiple operators
-                    const best = optimizer.selectBestOption(group.map(i => ({
+                    const best = optimizer.selectBestOption(group.map((i: any) => ({
                         operator: i.operator,
                         cost: Number(i.cost ?? i.price ?? 0),
                         count: Number(i.count ?? i.qty ?? 0),
@@ -2100,13 +2124,12 @@ export class DynamicProvider implements SmsProvider {
                     })))
 
                     if (best) {
-                        results.push({
-                            country: String(group[0].country || countryCode || ''),
-                            service: String(group[0].service || serviceCode || ''),
-                            operator: best.operator,
-                            cost: best.cost,
-                            count: best.count
-                        })
+                        const pd = toPriceData(
+                            { ...group[0], cost: best.cost, count: best.count, operator: best.operator },
+                            countryCode || '',
+                            serviceCode || ''
+                        )
+                        if (pd) results.push(pd)
                     }
                 }
             }

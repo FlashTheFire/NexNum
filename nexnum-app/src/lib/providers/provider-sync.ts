@@ -31,9 +31,12 @@ import { getCountryIsoCode, normalizeCountryName } from '@/lib/normalizers/count
 import { getCountryFlagUrlSync } from '@/lib/normalizers/country-flags'
 import { isValidImageUrl } from '@/lib/utils/utils'
 import { getCurrencyService } from '@/lib/currency/currency-service'
+import { PricingService } from '@/lib/pricing/pricing-service'
+import { PricingConfig } from '@/config/app.config'
 import crypto from 'crypto';
 import { CentralRegistry } from '@/lib/normalizers/central-registry';
 import { logger } from '@/lib/core/logger';
+import { getTraceId } from '@/lib/api/request-context';
 
 // ============================================
 // CONSTANTS
@@ -770,28 +773,26 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
         })
         const currencyRatesMap = new Map(activeCurrencies.map(c => [c.code, Number(c.rate)]))
 
-        // Helper: Sync conversion (USD anchor)
-        const getRateToUSD = (code: string) => {
-            if (code === 'USD') return 1.0
-            return ratesCache.get(code.toUpperCase()) || 1.0
+        // PricingService input — built once per provider sync, used by every offer.
+        // The rate is resolved lazily inside PricingService for each offer so a
+        // missing deposit (SMART_AUTO → fallback to AUTO) doesn't poison the
+        // whole provider.
+        const providerCfg = {
+            currency: providerCurrency,
+            normalizationMode: String(provider.normalizationMode || 'AUTO'),
+            normalizationRate: provider.normalizationRate,
+            depositSpent: provider.depositSpent,
+            depositReceived: provider.depositReceived,
+            depositCurrency,
+            priceMultiplier: Number(provider.priceMultiplier) || 1.0,
+            fixedMarkup: Number(provider.fixedMarkup) || 0.0,
         }
-
-        // Calculate Provider Effective Rate (Provider Units per 1 USD)
-        let effectiveProviderRate = 1.0
-        const normMode = String(provider.normalizationMode || 'MANUAL')
-
-        if (normMode === 'MANUAL') {
-            effectiveProviderRate = Number(provider.normalizationRate || 1.0)
-        } else if (normMode === 'SMART_AUTO' && provider.depositSpent && provider.depositReceived && Number(provider.depositSpent) > 0) {
-            const spentRate = getRateToUSD(depositCurrency)
-            const spentInUSD = Number(provider.depositSpent) / spentRate
-            effectiveProviderRate = Number(provider.depositReceived) / (spentInUSD || 1.0)
-        } else {
-            // AUTO, API, or any other mode: fallback to standard exchange rates
-            effectiveProviderRate = getRateToUSD(providerCurrency)
-        }
-
         const pointsRate = Number(systemSettings.pointsRate)
+        const standardRates = Object.fromEntries(ratesCache) as Record<string, number>
+
+        // Filter thresholds
+        const minPriceUsd = PricingConfig.minPrice
+        const maxPriceUsd = PricingConfig.maxPrice
 
 
         // Collect offers in a Map to automatically deduplicate by ID
@@ -802,110 +803,149 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
         const operatorMap = new Map<string, number>()
         let operatorCounter = 1
 
+        // Filter counters — surfaced in the final summary log
+        let filteredZeroCount = 0
+        let filteredBelowMinCount = 0
+        let filteredAboveMaxCount = 0
+        let erroredRows = 0
+
         const processPrices = async (prices: PriceData[], country?: { code: string; name: string }) => {
             const currentCountryOffers: OfferDocument[] = []
             const currentCountryCode = country?.code || ''
 
             for (const p of prices) {
-                if (p.count <= 0) continue
+                try {
+                    if (p.count <= 0) continue
 
-                // Visibility Checks
-                const countryCode = p.country || currentCountryCode
-                const isCountryVisible = countryVisibilityMap.get(countryCode) !== false
-                const isServiceVisible = serviceVisibilityMap.get(p.service) !== false &&
-                    serviceVisibilityMap.get(p.service.toLowerCase()) !== false
-                const isActive = isCountryVisible && isServiceVisible
+                    // Zero-cost filter: drop offers where the provider returned
+                    // cost = 0 (some providers do this for "free" SMS). Without
+                    // this filter the offer would index as pointPrice = 0.
+                    if (!Number.isFinite(p.cost) || p.cost <= 0) {
+                        filteredZeroCount++
+                        continue
+                    }
 
-                let svcName = serviceMap.get(p.service)
-                if (!svcName) svcName = serviceMap.get(p.service.toLowerCase())
-                if (!svcName) {
-                    svcName = serviceMap.get(p.service) || p.service
-                }
+                    // Visibility Checks
+                    const countryCode = p.country || currentCountryCode
+                    const isCountryVisible = countryVisibilityMap.get(countryCode) !== false
+                    const isServiceVisible = serviceVisibilityMap.get(p.service) !== false &&
+                        serviceVisibilityMap.get(p.service.toLowerCase()) !== false
+                    const isActive = isCountryVisible && isServiceVisible
 
-                // CURRENCY & MARGIN LOGIC (Optimized Sync via v3 CurrencyService)
-                const providerRawCost = Number(p.cost)
-                const multiplier = Number(provider.priceMultiplier || 1.0)
-                const markupUsd = Number(provider.fixedMarkup || 0.0)
+                    let svcName = serviceMap.get(p.service)
+                    if (!svcName) svcName = serviceMap.get(p.service.toLowerCase())
+                    if (!svcName) {
+                        svcName = serviceMap.get(p.service) || p.service
+                    }
 
-                const { pointPrice: sellPrice } = await currencyService.calculateSellPrice(
-                    providerRawCost,
-                    providerCurrency,
-                    effectiveProviderRate,
-                    multiplier,
-                    markupUsd
-                )
+                    // CURRENCY & MARGIN LOGIC — single PricingService call.
+                    // Returns null if rawCost is invalid (zero, negative, NaN).
+                    const pricing = PricingService.compute({
+                        rawCost: Number(p.cost),
+                        providerCurrency,
+                        provider: providerCfg,
+                        standardRates,
+                        pointsRate,
+                        isPointsMode: true,
+                    })
+                    if (!pricing) {
+                        filteredZeroCount++
+                        continue
+                    }
 
-                // MULTI-CURRENCY: Pre-compute prices for all active currencies using unified map generator
-                const currencyPrices = await currencyService.pointsToAllFiat(sellPrice)
+                    // Cap to configured USD bounds so a misconfigured multiplier
+                    // can't produce a $0.001 or $9999 offer.
+                    if (pricing.costUsd < minPriceUsd) {
+                        filteredBelowMinCount++
+                        continue
+                    }
+                    if (pricing.sellUsd > maxPriceUsd) {
+                        filteredAboveMaxCount++
+                        continue
+                    }
 
-                // OPERATOR MAPPING
-                const externalOp = p.operator != null ? String(p.operator) : 'default'
-                const opKey = `${provider.name}_${externalOp}`
-                if (!operatorMap.has(opKey)) {
-                    operatorMap.set(opKey, operatorCounter++)
-                }
-                const internalOpId = operatorMap.get(opKey)!
+                    const sellPrice = pricing.pointPrice
 
-                // Prepare OfferDocument for MeiliSearch
-                const canonicalSvcName = getCanonicalName(svcName)
+                    // MULTI-CURRENCY: Pre-compute prices for all active currencies using unified map generator
+                    const currencyPrices = await currencyService.pointsToAllFiat(sellPrice)
 
-                // Resolve Country Name from Map (Crucial for numeric provider IDs)
-                const resolvedCountryName = countryNameMap.get(countryCode) || p.country || country?.name || 'Unknown'
-                const canonicalCtyName = normalizeCountryName(resolvedCountryName)
-                const canonicalSvcCode = generateCanonicalCode(canonicalSvcName)
-                const canonicalCtyCode = generateCanonicalCode(canonicalCtyName)
+                    // OPERATOR MAPPING
+                    const externalOp = p.operator != null ? String(p.operator) : 'default'
+                    const opKey = `${provider.name}_${externalOp}`
+                    if (!operatorMap.has(opKey)) {
+                        operatorMap.set(opKey, operatorCounter++)
+                    }
+                    const internalOpId = operatorMap.get(opKey)!
 
-                const offerId = `${provider.name}_${countryCode}_${p.service}_${externalOp}`.toLowerCase().replace(/[^a-z0-9_]/g, '')
-                
-                allOffersMap.set(offerId, {
-                    id: offerId,
-                    provider: provider.name,
-                    providerCountryCode: countryCode,
-                    countryName: canonicalCtyName,
-                    countryId: countryCodeToNumeric.get(canonicalCtyCode),
-                    countryIcon: getCountryFlagUrlSync(canonicalCtyName) || getCountryFlagUrlSync(p.country || country?.name || '') || '',
-                    providerServiceCode: p.service,
-                    serviceName: canonicalSvcName,
-                    serviceId: serviceCodeToNumeric.get(canonicalSvcCode),
-                    serviceIcon: (() => {
-                        const canonKey = getCanonicalKey(p.service) || getCanonicalKey(svcName) || generateCanonicalCode(canonicalSvcName) || p.service.toLowerCase()
-                        const iconsDir = path.join(process.cwd(), 'public/assets/icons/services')
-                        let finalExt = '.webp'
-                        let foundLocal = false
+                    // Prepare OfferDocument for MeiliSearch
+                    const canonicalSvcName = getCanonicalName(svcName)
 
-                        if (fs.existsSync(iconsDir)) {
-                            for (const ext of ['.svg', '.webp', '.png', '.jpg', '.jpeg']) {
-                                if (fs.existsSync(path.join(iconsDir, `${canonKey}${ext}`))) {
-                                    finalExt = ext
-                                    foundLocal = true
-                                    break
+                    // Resolve Country Name from Map (Crucial for numeric provider IDs)
+                    const resolvedCountryName = countryNameMap.get(countryCode) || p.country || country?.name || 'Unknown'
+                    const canonicalCtyName = normalizeCountryName(resolvedCountryName)
+                    const canonicalSvcCode = generateCanonicalCode(canonicalSvcName)
+                    const canonicalCtyCode = generateCanonicalCode(canonicalCtyName)
+
+                    const offerId = `${provider.name}_${countryCode}_${p.service}_${externalOp}`.toLowerCase().replace(/[^a-z0-9_]/g, '')
+
+                    allOffersMap.set(offerId, {
+                        id: offerId,
+                        provider: provider.name,
+                        providerCountryCode: countryCode,
+                        countryName: canonicalCtyName,
+                        countryId: countryCodeToNumeric.get(canonicalCtyCode),
+                        countryIcon: getCountryFlagUrlSync(canonicalCtyName) || getCountryFlagUrlSync(p.country || country?.name || '') || '',
+                        providerServiceCode: p.service,
+                        serviceName: canonicalSvcName,
+                        serviceId: serviceCodeToNumeric.get(canonicalSvcCode),
+                        serviceIcon: (() => {
+                            const canonKey = getCanonicalKey(p.service) || getCanonicalKey(svcName) || generateCanonicalCode(canonicalSvcName) || p.service.toLowerCase()
+                            const iconsDir = path.join(process.cwd(), 'public/assets/icons/services')
+                            let finalExt = '.webp'
+                            let foundLocal = false
+
+                            if (fs.existsSync(iconsDir)) {
+                                for (const ext of ['.svg', '.webp', '.png', '.jpg', '.jpeg']) {
+                                    if (fs.existsSync(path.join(iconsDir, `${canonKey}${ext}`))) {
+                                        finalExt = ext
+                                        foundLocal = true
+                                        break
+                                    }
                                 }
                             }
-                        }
 
-                        const localPath = `/assets/icons/services/${canonKey}${finalExt}`
-                        if (foundLocal) return localPath
+                            const localPath = `/assets/icons/services/${canonKey}${finalExt}`
+                            if (foundLocal) return localPath
 
-                        const providerIcon = iconUrlMap.get(p.service) || iconUrlMap.get(p.service.toLowerCase())
-                        if (providerIcon && isValidImageUrl(providerIcon)) {
-                            downloadImageToLocal(providerIcon, path.join(process.cwd(), 'public', localPath)).catch(err => logger.warn('[ProviderSync] downloadImageToLocal failed', { url: providerIcon, error: err }))
-                        }
+                            const providerIcon = iconUrlMap.get(p.service) || iconUrlMap.get(p.service.toLowerCase())
+                            if (providerIcon && isValidImageUrl(providerIcon)) {
+                                downloadImageToLocal(providerIcon, path.join(process.cwd(), 'public', localPath)).catch(err => logger.warn('[ProviderSync] downloadImageToLocal failed', { url: providerIcon, error: err }))
+                            }
 
-                        const nameForIcon = canonKey || p.service
-                        return `https://api.dicebear.com/7.x/initials/svg?seed=${nameForIcon}&backgroundColor=000000&chars=2`
-                    })(),
-                    operator: String(internalOpId),
-                    pointPrice: Number(sellPrice.toFixed(2)),
-                    rawPrice: Number(providerRawCost.toFixed(6)),
-                    currencyPrices,
-                    stock: p.count,
-                    lastSyncedAt: Date.now(),
-                    isActive: isActive
-                })
+                            const nameForIcon = canonKey || p.service
+                            return `https://api.dicebear.com/7.x/initials/svg?seed=${nameForIcon}&backgroundColor=000000&chars=2`
+                        })(),
+                        operator: String(internalOpId),
+                        pointPrice: Number(sellPrice),
+                        rawPrice: Number(pricing.rawCost.toFixed(6)),
+                        currencyPrices,
+                        stock: p.count,
+                        lastSyncedAt: Date.now(),
+                        isActive: isActive
+                    })
 
-
-
-                pricesCount++
+                    pricesCount++
+                } catch (rowErr: any) {
+                    // One bad row must not fail the whole batch. Log and continue.
+                    erroredRows++
+                    logger.warn('[SYNC] Row processing error, skipping offer', {
+                        context: 'SYNC',
+                        provider: provider.name,
+                        country: country?.code,
+                        service: p.service,
+                        error: rowErr?.message
+                    })
+                }
             }
         }
 
@@ -916,8 +956,34 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                 context: 'SYNC',
                 provider: provider.name
             })
-            const prices = await engine.getPrices()
-            await processPrices(prices)
+            try {
+                const prices = await engine.getPrices()
+                await processPrices(prices)
+            } catch (e: any) {
+                // Global-sync failure should fall through to per-country rather
+                // than abort the whole provider sync.
+                logger.warn('[SYNC] Global getPrices() failed, falling back to per-country', {
+                    context: 'SYNC',
+                    provider: provider.name,
+                    error: e?.message
+                })
+                const limiter = new RateLimitedQueue(50, 180)
+                const promises = countries.map(c => limiter.add(async () => {
+                    try {
+                        const prices = await engine.getPrices(c.code)
+                        if (prices.length > 0) await processPrices(prices, c)
+                    } catch (perCountryErr: any) {
+                        logger.warn('Failed to fetch prices for country', {
+                            context: 'SYNC',
+                            provider: provider.name,
+                            country: c.code,
+                            requestId: getTraceId(),
+                            error: perCountryErr?.message
+                        })
+                    }
+                }))
+                await Promise.all(promises)
+            }
         } else {
             const limiter = new RateLimitedQueue(50, 180)
             const promises = countries.map(country => limiter.add(async () => {
@@ -931,6 +997,7 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                         context: 'SYNC',
                         provider: provider.name,
                         country: country.code,
+                        requestId: getTraceId(),
                         error: (e as any).message
                     })
                 }
@@ -947,6 +1014,20 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                 provider: provider.name,
                 totalBefore: pricesCount,
                 totalAfter: allOffers.length
+            })
+        }
+
+        // Pricing summary log — single line for observability & admin dashboards
+        if (filteredZeroCount > 0 || filteredBelowMinCount > 0 || filteredAboveMaxCount > 0 || erroredRows > 0) {
+            logger.info(`[SYNC] Pricing complete (filtered ${filteredZeroCount} zero, ${filteredBelowMinCount} below $${minPriceUsd}, ${filteredAboveMaxCount} above $${maxPriceUsd}, ${erroredRows} errors)`, {
+                context: 'SYNC',
+                provider: provider.name,
+                totalOffers: pricesCount,
+                indexed: allOffers.length,
+                filteredZeroCost: filteredZeroCount,
+                filteredBelowMin: filteredBelowMinCount,
+                filteredAboveMax: filteredAboveMaxCount,
+                erroredRows,
             })
         }
 

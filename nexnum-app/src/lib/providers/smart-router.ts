@@ -6,6 +6,7 @@ import { SmsProvider, Country, Service, NumberResult, StatusResult } from '@/lib
 import { healthMonitor } from '@/lib/providers/health-monitor'
 import { logger } from '@/lib/core/logger'
 import { PredictiveThrottler } from '@/lib/core/rate-limit'
+import { PricingService } from '@/lib/pricing/pricing-service'
 
 import { redis } from '@/lib/core/redis'
 
@@ -322,39 +323,39 @@ export class SmartSmsRouter implements SmsProvider {
                     const services = await provider.getServicesList(countryCode)
 
                     const currencyService = CurrencyService.getInstance()
-                    const rates = await currencyService.getRates()
-                    
-                    const getRateToUSD = (code: string) => {
-                        if (code === 'USD') return 1.0
-                        return (rates as unknown as Record<string, number>)[code.toUpperCase()] || 1.0
-                    }
+                    const [rates, settings] = await Promise.all([
+                        currencyService.getRates(),
+                        currencyService.getConfig()
+                    ])
+                    const standardRates = (() => {
+                        const { updatedAt, ...flat } = rates as unknown as Record<string, unknown>
+                        return flat as Record<string, number>
+                    })()
 
                     const providerCurrency = (provider.config.currency || 'USD').toUpperCase()
-                    const depositCurrency = (provider.config.depositCurrency || 'USD').toUpperCase()
-                    let effectiveProviderRate = 1.0
-                    const normMode = String(provider.config.normalizationMode || 'MANUAL')
-
-                    if (normMode === 'MANUAL') {
-                        effectiveProviderRate = Number(provider.config.normalizationRate || 1.0)
-                    } else if (normMode === 'SMART_AUTO' && provider.config.depositSpent && provider.config.depositReceived && Number(provider.config.depositSpent) > 0) {
-                        const spentRate = getRateToUSD(depositCurrency)
-                        const spentInUSD = Number(provider.config.depositSpent) / spentRate
-                        effectiveProviderRate = Number(provider.config.depositReceived) / (spentInUSD || 1.0)
-                    } else {
-                        effectiveProviderRate = getRateToUSD(providerCurrency)
+                    const providerCfg = {
+                        currency: providerCurrency,
+                        normalizationMode: String(provider.config.normalizationMode || 'AUTO'),
+                        normalizationRate: provider.config.normalizationRate,
+                        depositSpent: provider.config.depositSpent,
+                        depositReceived: provider.config.depositReceived,
+                        depositCurrency: (provider.config.depositCurrency || 'USD').toUpperCase(),
+                        priceMultiplier: Number(provider.config.priceMultiplier) || 1.0,
+                        fixedMarkup: Number(provider.config.fixedMarkup) || 0.0,
                     }
+                    const pointsRate = settings.pointsRate
 
                     return Promise.all(services.map(async s => {
-                        const sellData = await currencyService.calculateSellPrice(
-                            s.price,
+                        const result = PricingService.compute({
+                            rawCost: Number(s.price) || 0,
                             providerCurrency,
-                            effectiveProviderRate,
-                            Number(provider.config.priceMultiplier) || 1.0,
-                            Number(provider.config.fixedMarkup) || 0.0
-                        )
+                            provider: providerCfg,
+                            standardRates,
+                            pointsRate,
+                        })
                         return {
                             ...s,
-                            price: sellData.pointPrice
+                            price: result ? result.pointPrice : 0
                         }
                     }))
                 } catch (e: any) {
