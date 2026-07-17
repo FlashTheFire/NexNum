@@ -1,4 +1,5 @@
-import { prisma } from '@/lib/core/db'
+import pLimit from 'p-limit'
+import { prisma, getSafeConcurrency } from '@/lib/core/db'
 import { meili, INDEXES } from './search'
 import { logger } from '@/lib/core/logger'
 import { cacheSet, cacheGet, CACHE_KEYS } from '@/lib/core/redis'
@@ -117,6 +118,10 @@ export async function refreshAllServiceAggregates() {
         // connectionTimeoutMillis on Supabase's free-tier session pooler.
         const BATCH_SIZE = 50;
 
+        // UPDATE pass concurrency is small (pool max − 1) so we keep the
+        // socket-lease time short and never trip the 3s connectionTimeout.
+        const updateLimit = pLimit(getSafeConcurrency());
+
         for (let i = 0; i < finalStats.length; i += BATCH_SIZE) {
             const chunk = finalStats.slice(i, i + BATCH_SIZE);
             const now = new Date();
@@ -136,13 +141,11 @@ export async function refreshAllServiceAggregates() {
                     skipDuplicates: true,
                 });
 
-                // UPDATE pass (single multi-row update for the same chunk).
-                // Prisma's createMany + skipDuplicates does not update existing
-                // rows, so a follow-up upsert/updateMany keeps aggregates fresh.
-                // We issue one update per row inside the same chunk but in
-                // *sequence* (not Promise.all) so we never hold more than one
-                // socket at a time.
-                for (const stat of chunk) {
+                // UPDATE pass: createMany + skipDuplicates does not update
+                // existing rows, so a follow-up update keeps aggregates fresh.
+                // Capped with pLimit(getSafeConcurrency()) so we never hold
+                // more sockets than the pool can give us.
+                await Promise.all(chunk.map(stat => updateLimit(async () => {
                     await prisma.serviceAggregate.update({
                         where: { serviceCode: stat.serviceCode },
                         data: {
@@ -157,7 +160,7 @@ export async function refreshAllServiceAggregates() {
                         // P2025 = record not found (insert failed too). Safe to ignore.
                         if (e?.code !== 'P2025') throw e;
                     });
-                }
+                })));
 
                 if (i % 500 === 0 && i > 0) {
                     logger.debug(`[AGGREGATES] Progress: Synchronized ${i} / ${finalStats.length} records...`);

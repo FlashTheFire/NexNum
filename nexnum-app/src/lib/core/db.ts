@@ -77,12 +77,22 @@ function createPrismaClient(url?: string): PrismaClient {
         }
     })()
 
+    // Connection-acquisition timeout.
+    // Default 3s was too tight for the free-tier session pooler during burst
+    // batches, but the right fix is concurrency caps (see provider-sync and
+    // service-aggregates). Override via PG_CONNECT_TIMEOUT_MS to tune.
+    const connectionTimeoutMs = (() => {
+        const raw = parseInt(process.env.PG_CONNECT_TIMEOUT_MS ?? '', 10)
+        if (Number.isFinite(raw) && raw > 0) return raw
+        return isProduction ? 8_000 : 10_000
+    })()
+
     const pool = new Pool({
         connectionString: normalized,
         max: poolMax,
         min: poolMin,
         idleTimeoutMillis: 10_000,
-        connectionTimeoutMillis: 3_000,
+        connectionTimeoutMillis: connectionTimeoutMs,
         maxUses: 1_000,
         allowExitOnIdle: true,
         keepAlive: true,
