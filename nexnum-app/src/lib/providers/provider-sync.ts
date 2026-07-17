@@ -347,6 +347,16 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
             })
         }
 
+        // Filter counters — surfaced in the final summary log.
+        // Declared here (outer scope) so both the sync loops (countries, services)
+        // AND the price-indexing loop can increment them.
+        let filteredZeroCount = 0
+        let filteredBelowMinCount = 0
+        let filteredAboveMaxCount = 0
+        let noServiceNameCount = 0
+        let noCountryNameCount = 0
+        let erroredRows = 0
+
         // 1. Countries (Dynamic)
         // 1. Countries (Dynamic)
 
@@ -438,7 +448,23 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
 
             for (const c of countries) {
                 const externalId = String(c.code)
-                const canonicalName = getCanonicalName(c.name || 'Unknown')
+                // GUARD: skip countries with no proper name. Using 'Unknown' or
+                // the raw code as a display name pollutes the user-facing UI and
+                // breaks the canonical-aggregate table. Real providers always
+                // return a country name; missing one is a data-quality bug worth
+                // surfacing in logs rather than silently indexing garbage.
+                const rawName = (c.name || '').trim()
+                if (!rawName || rawName.toLowerCase() === 'unknown') {
+                    noCountryNameCount++
+                    logger.warn(`[SYNC] Skipping country with no/garbage name`, {
+                        context: 'SYNC',
+                        provider: provider.name,
+                        code: externalId,
+                        rawName: c.name
+                    })
+                    continue
+                }
+                const canonicalName = getCanonicalName(rawName)
                 countryNameMap.set(externalId, canonicalName)
 
                 const canonicalCode = getCountryIsoCode(c.code) || generateCanonicalCode(canonicalName)
@@ -529,8 +555,25 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                 const serviceCode = String(s.code)
                 if (!serviceCode) continue
 
+                // GUARD: skip services with no proper name. Falling back to the
+                // service code as a display name (e.g. "tg", "wa", "ig") creates
+                // garbage in the UI and fragments search results. Only index
+                // services where we can resolve a human-readable name — either
+                // from the provider's payload OR the canonical code override.
+                const rawSvcName = (s.name || '').trim()
+                if (!rawSvcName || rawSvcName.toLowerCase() === 'unknown') {
+                    noServiceNameCount++
+                    logger.warn(`[SYNC] Skipping service with no/garbage name`, {
+                        context: 'SYNC',
+                        provider: provider.name,
+                        code: serviceCode,
+                        rawName: s.name
+                    })
+                    continue
+                }
+
                 // Pre-calculate canonical values for comparison
-                let canonicalName = getCanonicalName(s.name || 'Unknown')
+                let canonicalName = getCanonicalName(rawSvcName)
                 if (serviceCode && CANONICAL_SERVICE_NAMES[serviceCode.toLowerCase()]) {
                     const key = CANONICAL_SERVICE_NAMES[serviceCode.toLowerCase()]
                     if (canonicalName && CANONICAL_DISPLAY_NAMES[key]) {
@@ -803,11 +846,8 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
         const operatorMap = new Map<string, number>()
         let operatorCounter = 1
 
-        // Filter counters — surfaced in the final summary log
-        let filteredZeroCount = 0
-        let filteredBelowMinCount = 0
-        let filteredAboveMaxCount = 0
-        let erroredRows = 0
+        // Filter counters — declared in the outer scope so the countries
+        // sync, services sync, and price-indexing loop all share them.
 
         const processPrices = async (prices: PriceData[], country?: { code: string; name: string }) => {
             const currentCountryOffers: OfferDocument[] = []
@@ -834,8 +874,22 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
 
                     let svcName = serviceMap.get(p.service)
                     if (!svcName) svcName = serviceMap.get(p.service.toLowerCase())
-                    if (!svcName) {
-                        svcName = serviceMap.get(p.service) || p.service
+                    // GUARD: if the service name wasn't resolved to a human-readable
+                    // string, OR the only thing we have is the raw service code
+                    // (the `|| p.service` fallback that previously polluted the
+                    // catalog with "tg", "wa", "ig" as display names), skip this
+                    // offer. Real providers always return a service name; missing
+                    // one is a data-quality bug worth surfacing in logs.
+                    if (!svcName || svcName === p.service) {
+                        noServiceNameCount++
+                        logger.warn(`[SYNC] Skipping price: no resolvable service name`, {
+                            context: 'SYNC',
+                            provider: provider.name,
+                            country: countryCode,
+                            service: p.service,
+                            svcName
+                        })
+                        continue
                     }
 
                     // CURRENCY & MARGIN LOGIC — single PricingService call.
@@ -880,8 +934,24 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                     // Prepare OfferDocument for MeiliSearch
                     const canonicalSvcName = getCanonicalName(svcName)
 
-                    // Resolve Country Name from Map (Crucial for numeric provider IDs)
-                    const resolvedCountryName = countryNameMap.get(countryCode) || p.country || country?.name || 'Unknown'
+                    // Resolve Country Name from Map (Crucial for numeric provider IDs).
+                    // GUARD: if no human-readable country name resolves, skip the
+                    // offer. Falling back to the country code (e.g. "us") or
+                    // "Unknown" as a display name pollutes the catalog. Real
+                    // providers always return a country name; missing one is a
+                    // data-quality bug worth surfacing in logs.
+                    const resolvedCountryName = (countryNameMap.get(countryCode) || p.country || country?.name || '').trim()
+                    if (!resolvedCountryName || resolvedCountryName.toLowerCase() === 'unknown') {
+                        noCountryNameCount++
+                        logger.warn(`[SYNC] Skipping price: no resolvable country name`, {
+                            context: 'SYNC',
+                            provider: provider.name,
+                            country: countryCode,
+                            service: p.service,
+                            resolvedCountryName
+                        })
+                        continue
+                    }
                     const canonicalCtyName = normalizeCountryName(resolvedCountryName)
                     const canonicalSvcCode = generateCanonicalCode(canonicalSvcName)
                     const canonicalCtyCode = generateCanonicalCode(canonicalCtyName)
@@ -1018,8 +1088,8 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
         }
 
         // Pricing summary log — single line for observability & admin dashboards
-        if (filteredZeroCount > 0 || filteredBelowMinCount > 0 || filteredAboveMaxCount > 0 || erroredRows > 0) {
-            logger.info(`[SYNC] Pricing complete (filtered ${filteredZeroCount} zero, ${filteredBelowMinCount} below $${minPriceUsd}, ${filteredAboveMaxCount} above $${maxPriceUsd}, ${erroredRows} errors)`, {
+        if (filteredZeroCount > 0 || filteredBelowMinCount > 0 || filteredAboveMaxCount > 0 || noServiceNameCount > 0 || noCountryNameCount > 0 || erroredRows > 0) {
+            logger.info(`[SYNC] Pricing complete (filtered ${filteredZeroCount} zero, ${filteredBelowMinCount} below $${minPriceUsd}, ${filteredAboveMaxCount} above $${maxPriceUsd}, ${noServiceNameCount} no-service-name, ${noCountryNameCount} no-country-name, ${erroredRows} errors)`, {
                 context: 'SYNC',
                 provider: provider.name,
                 totalOffers: pricesCount,
@@ -1027,6 +1097,8 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                 filteredZeroCost: filteredZeroCount,
                 filteredBelowMin: filteredBelowMinCount,
                 filteredAboveMax: filteredAboveMaxCount,
+                noServiceName: noServiceNameCount,
+                noCountryName: noCountryNameCount,
                 erroredRows,
             })
         }
