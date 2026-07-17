@@ -37,7 +37,9 @@ COPY . .
 RUN --mount=type=cache,target=/app/.next/cache npm run build:skip-types
 
 # Prune dev dependencies — removes ~100MB of eslint, typescript, vitest, playwright, etc.
-RUN --mount=type=cache,target=/root/.npm npm prune --omit=dev --legacy-peer-deps
+# --prefer-offline + --no-audit cut ~60-90s off on a fresh cache (Coolify helper has a
+# per-command timeout; this step is the bottleneck on a 2-core build host).
+RUN --mount=type=cache,target=/root/.npm npm prune --omit=dev --legacy-peer-deps --prefer-offline --no-audit
 
 
 # Stage 3: Runner (minimal production image)
