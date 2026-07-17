@@ -47,7 +47,6 @@ function createPrismaClient(url?: string): PrismaClient {
         return isProduction ? 4 : 5
     })()
     const poolMin = isProduction ? 1 : 0
-
     // Identify this service in pg_stat_activity so we can see who's hot.
     const serviceName =
         process.env.npm_lifecycle_event?.includes('worker') ? 'nexnum-worker' :
@@ -145,6 +144,26 @@ const prismaReadProxy = new Proxy({} as PrismaClient, {
 
 export const prisma = prismaProxy
 export const prismaRead = prismaReadProxy
+
+/**
+ * Expose the configured pg.Pool max so other modules can size their own
+ * concurrency (e.g. pLimit) to match. Always returns at least 1, even if
+ * called before the pool is created. Reserve at least 1 socket for
+ * ad-hoc queries (healthchecks, out-of-band admin calls) by subtracting 1
+ * from the result; callers running heavy batches in a loop should
+ * use `getPoolMax() - 1` for their `pLimit` cap.
+ */
+export function getPoolMax(): number {
+    const isProduction = process.env.NODE_ENV === 'production' || (process.env.DATABASE_URL ?? '').includes('supabase.com')
+    const raw = parseInt(process.env.PG_POOL_MAX ?? '', 10)
+    if (Number.isFinite(raw) && raw > 0) return Math.min(raw, isProduction ? 5 : 10)
+    return isProduction ? 4 : 5
+}
+
+/** Safe concurrency cap: leaves one socket free for healthchecks / out-of-band work. */
+export function getSafeConcurrency(): number {
+    return Math.max(1, getPoolMax() - 1)
+}
 
 if (process.env.NODE_ENV !== 'production') {
     // We don't need to assign to globalForPrisma here since the Proxy handles it

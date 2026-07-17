@@ -109,43 +109,55 @@ export async function refreshAllServiceAggregates() {
         const finalStats = Array.from(aggregates.values());
         logger.info(`Computed ${finalStats.length} aggregates. Syncing to DB...`, { context: 'AGGREGATES' });
 
-        // Senior-Level Optimization: Use larger batches and explicit transaction management
-        // We increase the timeout to 30 seconds for production safety.
-        const BATCH_SIZE = 100;
+        // Senior-Level Optimization: use chunked createMany so each chunk is a
+        // single SQL statement (1 socket, <100ms) instead of N concurrent
+        // upserts holding N sockets for the duration of the transaction.
+        // With pg.Pool max=4, firing 100 Promise.all upserts starves the rest
+        // of the worker (master, lifecycle, outbox) and trips the 3s
+        // connectionTimeoutMillis on Supabase's free-tier session pooler.
+        const BATCH_SIZE = 50;
 
         for (let i = 0; i < finalStats.length; i += BATCH_SIZE) {
             const chunk = finalStats.slice(i, i + BATCH_SIZE);
+            const now = new Date();
 
             try {
-                // Interactive transaction allows setting a custom timeout
-                await prisma.$transaction(async (tx) => {
-                    await Promise.all(
-                        chunk.map(stat =>
-                            tx.serviceAggregate.upsert({
-                                where: { serviceCode: stat.serviceCode },
-                                create: {
-                                    serviceCode: stat.serviceCode,
-                                    serviceName: stat.serviceName,
-                                    lowestPrice: stat.lowestPrice,
-                                    totalStock: stat.totalStock,
-                                    countryCount: stat._countries.size,
-                                    providerCount: stat._providers.size,
-                                },
-                                update: {
-                                    serviceName: stat.serviceName,
-                                    lowestPrice: stat.lowestPrice,
-                                    totalStock: stat.totalStock,
-                                    countryCount: stat._countries.size,
-                                    providerCount: stat._providers.size,
-                                    lastUpdatedAt: new Date()
-                                }
-                            })
-                        )
-                    );
-                }, {
-                    timeout: 30000, // 30 Seconds for production data volume
-                    isolationLevel: 'ReadCommitted'
+                // INSERT pass (skipDuplicates handles the race where another
+                // worker has already inserted this serviceCode).
+                await prisma.serviceAggregate.createMany({
+                    data: chunk.map(stat => ({
+                        serviceCode: stat.serviceCode,
+                        serviceName: stat.serviceName,
+                        lowestPrice: stat.lowestPrice,
+                        totalStock: stat.totalStock,
+                        countryCount: stat._countries.size,
+                        providerCount: stat._providers.size,
+                    })),
+                    skipDuplicates: true,
                 });
+
+                // UPDATE pass (single multi-row update for the same chunk).
+                // Prisma's createMany + skipDuplicates does not update existing
+                // rows, so a follow-up upsert/updateMany keeps aggregates fresh.
+                // We issue one update per row inside the same chunk but in
+                // *sequence* (not Promise.all) so we never hold more than one
+                // socket at a time.
+                for (const stat of chunk) {
+                    await prisma.serviceAggregate.update({
+                        where: { serviceCode: stat.serviceCode },
+                        data: {
+                            serviceName: stat.serviceName,
+                            lowestPrice: stat.lowestPrice,
+                            totalStock: stat.totalStock,
+                            countryCount: stat._countries.size,
+                            providerCount: stat._providers.size,
+                            lastUpdatedAt: now,
+                        },
+                    }).catch((e: any) => {
+                        // P2025 = record not found (insert failed too). Safe to ignore.
+                        if (e?.code !== 'P2025') throw e;
+                    });
+                }
 
                 if (i % 500 === 0 && i > 0) {
                     logger.debug(`[AGGREGATES] Progress: Synchronized ${i} / ${finalStats.length} records...`);

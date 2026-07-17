@@ -9,7 +9,7 @@
  * - Hybrid Mode for Built-ins: Removed. Uses Dynamic engine for all operations.
  */
 
-import { prisma } from '@/lib/core/db'
+import { prisma, getSafeConcurrency } from '@/lib/core/db'
 import { Provider } from '@prisma/client'
 import { DynamicProvider } from './dynamic-provider'
 import { PriceData, Country, Service } from './types'
@@ -277,7 +277,9 @@ export interface SyncOptions {
 // HELPERS
 // ============================================
 
-const limit = pLimit(50) // Limit DB upserts concurrency (Optimized)
+// Senior-level pool-aware concurrency: match pg.Pool max so we never
+// queue more queries than the pool has sockets free.
+const limit = pLimit(getSafeConcurrency()) // Limit DB upserts concurrency (Optimized)
 
 // ============================================
 // FETCHERS
@@ -629,8 +631,10 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                     logger.info(`[SYNC] Batch registering ${pendingRegistration.size} new services to Central Registry...`)
                     const newServices = Array.from(pendingRegistration.entries())
 
-                    // Concurrency limit for registration (Increased for high-volume sync)
-                    const regLimit = pLimit(100)
+                    // Concurrency limit for registration.
+                    // MUST stay ≤ pg.Pool max (or 1–2 lower) — otherwise queries queue
+                    // behind each other and time out at connectionTimeoutMillis.
+                    const regLimit = pLimit(getSafeConcurrency())
 
                     await Promise.all(newServices.map(([code, name]) => regLimit(async () => {
                         try {
@@ -649,8 +653,10 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                 }
 
                 // 3. Upsert Provider Services (Now purely local logic + DB write)
-                // Optimized: Process metadata in larger batches to reduce sync duration
-                const serviceUpsertLimit = pLimit(100)
+                // Optimized: Process metadata in larger batches to reduce sync duration.
+                // Concurrency capped to pool size so we don't queue behind ourselves
+                // and trip the 3s connectionTimeoutMillis on Supabase free tier.
+                const serviceUpsertLimit = pLimit(getSafeConcurrency())
                 const servicePromises = servicesToUpsert.map(s => serviceUpsertLimit(async () => {
                     const serviceCode = String(s.code)
                     if (!serviceCode) return
