@@ -13,8 +13,11 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm NODE_ENV=development npm ci --legacy-peer-deps --timeout=600000 --fetch-retries=5 --fetch-retry-mintimeout=20000 --fetch-retry-maxtimeout=120000
 
-# Prisma generate AFTER npm ci (schema changes don't invalidate dep cache)
+# Prisma generate AFTER npm ci (schema changes don't invalidate dep cache).
+# Prisma 7 requires prisma.config.ts alongside the schema for `prisma generate`
+# to resolve the datasource URL.
 COPY prisma/schema.prisma prisma/schema.prisma
+COPY prisma.config.ts ./prisma.config.ts
 ARG DATABASE_URL
 ARG DATABASE_URL_DIRECT
 ENV DATABASE_URL=${DATABASE_URL}
