@@ -36,6 +36,25 @@ function createPrismaClient(url?: string): PrismaClient {
     // from overriding our explicit SSL object with its own 'verify-full' logic.
     const cleanUrl = connectionString.replace(/([?&])sslmode=[^&]*/g, '$1').replace(/(\?|&)$/, '')
 
+    // Pool size budget: Supabase's session-mode pooler caps each *project* at
+    // pool_size=15 (their default for the free/pro plan). NexNum runs THREE
+    // services — app, worker (8 cron jobs), socket — each instantiating its
+    // own pg.Pool. 4 + 4 + 4 = 12, leaving 3 headroom for psql / ad-hoc admin.
+    // Override with PG_POOL_MAX to tune per-service if you scale differently.
+    const poolMax = (() => {
+        const raw = parseInt(process.env.PG_POOL_MAX ?? '', 10)
+        if (Number.isFinite(raw) && raw > 0) return Math.min(raw, isProduction ? 5 : 10)
+        return isProduction ? 4 : 5
+    })()
+    const poolMin = isProduction ? 1 : 0
+
+    // Identify this service in pg_stat_activity so we can see who's hot.
+    const serviceName =
+        process.env.npm_lifecycle_event?.includes('worker') ? 'nexnum-worker' :
+        process.env.npm_lifecycle_event?.includes('socket') ? 'nexnum-socket' :
+        process.env.APP_SERVICE_NAME ||
+        (isProduction ? 'nexnum-app' : 'nexnum-dev')
+
     // Normalize the URL so the pg.Pool plays nicely with Supabase's session-mode
     // pooler (port 5432). Transaction-mode (port 6543) recycles idle sockets
     // aggressively, which causes long-lived pools to hand out dead sockets —
@@ -47,11 +66,11 @@ function createPrismaClient(url?: string): PrismaClient {
             if (!u.searchParams.has('pgbouncer')) u.searchParams.set('pgbouncer', 'true')
             // Cap client-side connections to stay under Supabase per-client quotas
             if (!u.searchParams.has('connection_limit')) {
-                u.searchParams.set('connection_limit', String(isProduction ? 10 : 5))
+                u.searchParams.set('connection_limit', String(poolMax))
             }
             // application_name makes it easy to identify these sockets in pg_stat_activity
             if (!u.searchParams.has('application_name')) {
-                u.searchParams.set('application_name', isProduction ? 'nexnum-app' : 'nexnum-dev')
+                u.searchParams.set('application_name', serviceName)
             }
             return u.toString()
         } catch {
@@ -61,8 +80,8 @@ function createPrismaClient(url?: string): PrismaClient {
 
     const pool = new Pool({
         connectionString: normalized,
-        max: isProduction ? 10 : 5,
-        min: isProduction ? 2 : 0,
+        max: poolMax,
+        min: poolMin,
         idleTimeoutMillis: 10_000,
         connectionTimeoutMillis: 3_000,
         maxUses: 1_000,
