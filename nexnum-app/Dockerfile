@@ -5,8 +5,7 @@
 
 # Stage 1: Dependencies
 FROM node:22-bookworm-slim AS deps
-RUN apt-get update && apt-get install -y openssl libssl-dev libc6-dev ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y openssl libssl-dev libc6-dev ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
 COPY package.json package-lock.json ./
@@ -43,8 +42,7 @@ RUN --mount=type=cache,target=/root/.npm npm prune --omit=dev --legacy-peer-deps
 
 # Stage 3: Runner (minimal production image)
 FROM node:22-bookworm-slim AS runner
-RUN apt-get update && apt-get install -y openssl ca-certificates curl \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y openssl ca-certificates curl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -75,78 +73,14 @@ ENV HOSTNAME="0.0.0.0"
 ENV HOME=/home/nextjs
 ENV npm_config_cache=/home/nextjs/.npm
 
-# Pin runtime env into the runner stage so the image is self-contained
-# even if Coolify does not pass env at runtime. Values come from build
-# args that Coolify supplies via --build-arg (see docker-compose / Coolify
-# build pipeline).
-ARG DATABASE_URL
-ARG DATABASE_URL_DIRECT
-ARG DIRECT_URL
-ARG REDIS_URL
-ARG MEILISEARCH_HOST
-ARG MEILISEARCH_API_KEY
-ARG JWT_SECRET
-ARG JWT_EXPIRES_IN
-ARG JWT_REFRESH_EXPIRES_IN
-ARG ENCRYPTION_KEY
-ARG NEXTAUTH_SECRET
-ARG NEXTAUTH_URL
-ARG NEXT_PUBLIC_APP_URL
-ARG SOCKET_URL
-ARG NEXT_PUBLIC_SOCKET_URL
-ARG NEXT_PUBLIC_SOCKET_ENABLED
-ARG ADMIN_API_KEY
-ARG ALERT_WEBHOOK_SECRET
-ARG METRICS_SCRAPE_TOKEN
-ARG CRON_SECRET
-ARG RESEND_API_KEY
-ARG FROM_EMAIL
-ARG SUPPORT_EMAIL
-ARG APP_NAME
-ARG APP_URL
-ARG NEXT_PUBLIC_VAPID_PUBLIC_KEY
-ARG VAPID_PRIVATE_KEY
-ARG VAPID_SUBJECT
-ARG SERVICE_URL_NEXNUM_APP
-ARG SERVICE_FQDN_NEXNUM_APP
-ARG SERVICE_URL_NEXNUM_SOCKET
-ARG SERVICE_FQDN_NEXNUM_SOCKET
-ENV DATABASE_URL=${DATABASE_URL} \
-    DATABASE_URL_DIRECT=${DATABASE_URL_DIRECT} \
-    DIRECT_URL=${DIRECT_URL} \
-    REDIS_URL=${REDIS_URL} \
-    MEILISEARCH_HOST=${MEILISEARCH_HOST} \
-    MEILISEARCH_API_KEY=${MEILISEARCH_API_KEY} \
-    JWT_SECRET=${JWT_SECRET} \
-    JWT_EXPIRES_IN=${JWT_EXPIRES_IN} \
-    JWT_REFRESH_EXPIRES_IN=${JWT_REFRESH_EXPIRES_IN} \
-    ENCRYPTION_KEY=${ENCRYPTION_KEY} \
-    NEXTAUTH_SECRET=${NEXTAUTH_SECRET} \
-    NEXTAUTH_URL=${NEXTAUTH_URL} \
-    NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL} \
-    SOCKET_URL=${SOCKET_URL} \
-    NEXT_PUBLIC_SOCKET_URL=${NEXT_PUBLIC_SOCKET_URL} \
-    NEXT_PUBLIC_SOCKET_ENABLED=${NEXT_PUBLIC_SOCKET_ENABLED} \
-    ADMIN_API_KEY=${ADMIN_API_KEY} \
-    ALERT_WEBHOOK_SECRET=${ALERT_WEBHOOK_SECRET} \
-    METRICS_SCRAPE_TOKEN=${METRICS_SCRAPE_TOKEN} \
-    CRON_SECRET=${CRON_SECRET} \
-    RESEND_API_KEY=${RESEND_API_KEY} \
-    FROM_EMAIL=${FROM_EMAIL} \
-    SUPPORT_EMAIL=${SUPPORT_EMAIL} \
-    APP_NAME=${APP_NAME} \
-    APP_URL=${APP_URL} \
-    NEXT_PUBLIC_VAPID_PUBLIC_KEY=${NEXT_PUBLIC_VAPID_PUBLIC_KEY} \
-    VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY} \
-    VAPID_SUBJECT=${VAPID_SUBJECT} \
-    SERVICE_URL_NEXNUM_APP=${SERVICE_URL_NEXNUM_APP} \
-    SERVICE_FQDN_NEXNUM_APP=${SERVICE_FQDN_NEXNUM_APP} \
-    SERVICE_URL_NEXNUM_SOCKET=${SERVICE_URL_NEXNUM_SOCKET} \
-    SERVICE_FQDN_NEXNUM_SOCKET=${SERVICE_FQDN_NEXNUM_SOCKET}
+# Runtime env is supplied by the orchestrator (Coolify/docker-compose
+# env_file) at container start, NOT pinned into the image. Pinned ARG/ENV
+# blocks here are redundant and were removed because Coolify's pre-build
+# ARG injection was corrupting multi-line `ENV ... \` continuations with
+# parser errors like `Syntax error - can't find = in "ARG"`.
 
 # Health check: grace period 60s to let Next.js + Prisma warm up,
 # timeout 10s so a slow DB read doesn't trip the check.
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:3000/api/health || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 CMD curl -f http://localhost:3000/api/health || exit 1
 
 CMD ["./docker-entrypoint.sh"]

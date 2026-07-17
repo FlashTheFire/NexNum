@@ -5,8 +5,7 @@
 
 # Stage 1: Dependencies
 FROM node:22-bookworm-slim AS deps
-RUN apt-get update && apt-get install -y openssl libssl-dev libc6-dev ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y openssl libssl-dev libc6-dev ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm NODE_ENV=development npm ci --legacy-peer-deps --timeout=600000 --fetch-retries=5 --fetch-retry-mintimeout=20000 --fetch-retry-maxtimeout=120000
@@ -38,8 +37,7 @@ RUN --mount=type=cache,target=/root/.npm npm prune --omit=dev --legacy-peer-deps
 
 # Stage 3: Runner (minimal production image)
 FROM node:22-bookworm-slim AS runner
-RUN apt-get update && apt-get install -y openssl ca-certificates curl procps \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y openssl ca-certificates curl procps && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PRISMA_CLIENT_ENGINE_TYPE=library
@@ -59,119 +57,16 @@ COPY --from=builder --chown=worker:nodejs /app/tsconfig.json ./tsconfig.json
 
 # Hardened Permissions: Ensure worker owns assets for icon downloads
 USER root
-RUN mkdir -p /app/public/assets/icons/services && \
-    mkdir -p /app/public/assets/icons/countries && \
-    chown -R worker:nodejs /app/public && \
-    chmod -R 775 /app/public
+RUN mkdir -p /app/public/assets/icons/services && mkdir -p /app/public/assets/icons/countries && chown -R worker:nodejs /app/public && chmod -R 775 /app/public
 
 USER worker
 ENV HOME=/home/worker
 ENV npm_config_cache=/home/worker/.npm
 
-# Pin runtime env into the runner stage so the image is self-contained
-# even if Coolify does not pass env at runtime. The worker needs DB,
-# Redis, Meili, JWT, encryption and UPI/provider config at minimum.
-ARG DATABASE_URL
-ARG DATABASE_URL_DIRECT
-ARG DIRECT_URL
-ARG REDIS_URL
-ARG REDIS_PASSWORD
-ARG MEILISEARCH_HOST
-ARG MEILISEARCH_API_KEY
-ARG JWT_SECRET
-ARG JWT_EXPIRES_IN
-ARG JWT_REFRESH_EXPIRES_IN
-ARG ENCRYPTION_KEY
-ARG NEXTAUTH_SECRET
-ARG NEXTAUTH_URL
-ARG NEXT_PUBLIC_APP_URL
-ARG NEXT_PUBLIC_SOCKET_URL
-ARG ADMIN_API_KEY
-ARG ALERT_WEBHOOK_SECRET
-ARG METRICS_SCRAPE_TOKEN
-ARG CRON_SECRET
-ARG UPI_PROVIDER_MODE
-ARG UPI_API_TOKEN
-ARG UPI_CREATE_ORDER_URL
-ARG UPI_CHECK_STATUS_URL
-ARG UPI_QR_BASE_URL
-ARG UPI_WEBHOOK_URL
-ARG UPI_ORDER_TIMEOUT_MINUTES
-ARG UPI_MIN_AMOUNT
-ARG UPI_MAX_AMOUNT
-ARG DAILY_SPEND_LIMIT
-ARG MAX_PURCHASE_AMOUNT
-ARG MIN_PURCHASE_AMOUNT
-ARG MAX_ACTIVE_NUMBERS
-ARG MAX_SMS_PER_ACTIVATION
-ARG RESERVATION_TTL_MS
-ARG MIN_REFUND_AGE_MS
-ARG STUCK_THRESHOLD_MS
-ARG PROVIDER_TIMEOUT_MS
-ARG NUMBER_LIFETIME_MS
-ARG GRACE_PERIOD_MS
-ARG WORKER_BATCH_SIZE
-ARG WORKER_CONCURRENCY
-ARG POLL_INTERVAL_MS
-ARG RECONCILE_INTERVAL_MS
-ARG CLEANUP_INTERVAL_MS
-ARG ENABLE_MOCK_PROVIDER
-ARG DEBUG
-ARG MAINTENANCE_MODE
-ARG ENABLE_SMS_FINGERPRINTING
-ARG ENABLE_HEALTH_MONITORING
-ARG OUTBOX_WORKER_ENABLED
-ARG DEFAULT_MARKUP_PERCENT
-ARG MIN_PRICE_USD
-ARG MAX_PRICE_USD
-ARG PRICE_PRECISION
-ARG EXCHANGE_RATE_USD
-ARG EXCHANGE_RATE_INR
-ARG EXCHANGE_RATE_RUB
-ARG EXCHANGE_RATE_EUR
-ARG EXCHANGE_RATE_GBP
-ARG EXCHANGE_RATE_CNY
-ARG DEPOSIT_TAX_PERCENT
-ARG DEPOSIT_MARKUP_PERCENT
-ARG RATE_LIMIT_WINDOW_MS
-ARG RATE_LIMIT_MAX
-ARG TRUST_PROXY
-ARG PG_POOL_MAX
-ARG PG_CONNECT_TIMEOUT_MS
-ARG FIVESIM_API_KEY
-ARG HERO_SMS_API_KEY
-ARG SMSBOWER_API_KEY
-ARG GRIZZLYSMS_API_KEY
-ARG ONLINESIM_API_KEY
-ARG GEMINI_API_KEYS
-ARG FREEIMAGE_API_KEY
-ARG IMGE_API_KEY
-ARG SMS_FINGERPRINT_SECRET
-ARG FINGERPRINT_SALT
-ARG CSRF_SECRET
-ENV DATABASE_URL=${DATABASE_URL} \
-    DATABASE_URL_DIRECT=${DATABASE_URL_DIRECT} \
-    DIRECT_URL=${DIRECT_URL} \
-    REDIS_URL=${REDIS_URL} \
-    REDIS_PASSWORD=${REDIS_PASSWORD} \
-    MEILISEARCH_HOST=${MEILISEARCH_HOST} \
-    MEILISEARCH_API_KEY=${MEILISEARCH_API_KEY} \
-    JWT_SECRET=${JWT_SECRET} \
-    JWT_EXPIRES_IN=${JWT_EXPIRES_IN} \
-    JWT_REFRESH_EXPIRES_IN=${JWT_REFRESH_EXPIRES_IN} \
-    ENCRYPTION_KEY=${ENCRYPTION_KEY} \
-    NEXTAUTH_SECRET=${NEXTAUTH_SECRET} \
-    NEXTAUTH_URL=${NEXTAUTH_URL} \
-    NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL} \
-    NEXT_PUBLIC_SOCKET_URL=${NEXT_PUBLIC_SOCKET_URL} \
-    ADMIN_API_KEY=${ADMIN_API_KEY} \
-    ALERT_WEBHOOK_SECRET=${ALERT_WEBHOOK_SECRET} \
-    METRICS_SCRAPE_TOKEN=${METRICS_SCRAPE_TOKEN} \
-    CRON_SECRET=${CRON_SECRET} \
-    PG_POOL_MAX=${PG_POOL_MAX} \
-    PG_CONNECT_TIMEOUT_MS=${PG_CONNECT_TIMEOUT_MS} \
-    SMS_FINGERPRINT_SECRET=${SMS_FINGERPRINT_SECRET} \
-    FINGERPRINT_SALT=${FINGERPRINT_SALT} \
-    CSRF_SECRET=${CSRF_SECRET}
+# Runtime env is supplied by the orchestrator (Coolify/docker-compose
+# env_file) at container start, NOT pinned into the image. Pinned ARG/ENV
+# blocks here are redundant and were removed because Coolify's pre-build
+# ARG injection was corrupting multi-line `ENV ... \` continuations with
+# parser errors like `Syntax error - can't find = in "ARG"`.
 
 ENTRYPOINT ["node", "--import", "tsx", "-r", "dotenv/config", "src/worker-entry.ts"]
