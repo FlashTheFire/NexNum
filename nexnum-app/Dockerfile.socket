@@ -65,7 +65,43 @@ EXPOSE 3951
 ENV HOME=/home/socket
 ENV npm_config_cache=/home/socket/.npm
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+# Pin runtime env into the runner stage so the image is self-contained
+# even if Coolify does not pass env at runtime.
+ARG DATABASE_URL
+ARG DATABASE_URL_DIRECT
+ARG DIRECT_URL
+ARG REDIS_URL
+ARG MEILISEARCH_HOST
+ARG JWT_SECRET
+ARG JWT_EXPIRES_IN
+ARG JWT_REFRESH_EXPIRES_IN
+ARG ENCRYPTION_KEY
+ARG NEXTAUTH_SECRET
+ARG NEXTAUTH_URL
+ARG NEXT_PUBLIC_APP_URL
+ARG NEXT_PUBLIC_SOCKET_URL
+ARG SOCKET_URL
+ARG ADMIN_API_KEY
+ARG NEXT_PUBLIC_SOCKET_ENABLED
+ENV DATABASE_URL=${DATABASE_URL} \
+    DATABASE_URL_DIRECT=${DATABASE_URL_DIRECT} \
+    DIRECT_URL=${DIRECT_URL} \
+    REDIS_URL=${REDIS_URL} \
+    MEILISEARCH_HOST=${MEILISEARCH_HOST} \
+    JWT_SECRET=${JWT_SECRET} \
+    JWT_EXPIRES_IN=${JWT_EXPIRES_IN} \
+    JWT_REFRESH_EXPIRES_IN=${JWT_REFRESH_EXPIRES_IN} \
+    ENCRYPTION_KEY=${ENCRYPTION_KEY} \
+    NEXTAUTH_SECRET=${NEXTAUTH_SECRET} \
+    NEXTAUTH_URL=${NEXTAUTH_URL} \
+    NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL} \
+    NEXT_PUBLIC_SOCKET_URL=${NEXT_PUBLIC_SOCKET_URL} \
+    SOCKET_URL=${SOCKET_URL} \
+    ADMIN_API_KEY=${ADMIN_API_KEY} \
+    NEXT_PUBLIC_SOCKET_ENABLED=${NEXT_PUBLIC_SOCKET_ENABLED}
+
+# Grace period 60s so the socket server + Prisma init have time.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:3951/health || exit 1
 
 ENTRYPOINT ["node", "--import", "tsx", "-r", "dotenv/config", "src/socket-entry.ts"]
