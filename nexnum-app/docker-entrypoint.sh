@@ -26,24 +26,23 @@ if [ -n "$DATABASE_URL" ]; then
     echo "[STARTUP] Debug: Checking for valibot..."
     ls -la node_modules/valibot || echo "valibot not found in node_modules"
 
-    # Prefer DATABASE_URL_DIRECT for migrations (real Postgres, supports
-    # prepared statements / advisory locks). Falls back to DATABASE_URL.
-    # Override DATABASE_URL for the migration subprocess ONLY, then
-    # restore the original (pooler) URL for the runtime server below.
-    ORIGINAL_DATABASE_URL="$DATABASE_URL"
-    MIGRATE_URL="${DATABASE_URL_DIRECT:-${DIRECT_URL:-${DATABASE_URL}}}"
-    echo "[STARTUP] Migration URL host: $(echo "$MIGRATE_URL" | sed -E 's#.*@([^/]+)/.*#\1#')"
-    export DATABASE_URL="$MIGRATE_URL"
-    export DIRECT_URL="${DATABASE_URL_DIRECT:-${DIRECT_URL:-${DATABASE_URL}}}"
-
     echo "[STARTUP] Running: npx prisma migrate deploy"
-    if ! npx prisma migrate deploy; then
-        echo "[STARTUP] MIGRATION FAILED — refusing to start with stale schema."
-        exit 1
-    fi
-
-    # Restore the runtime (pooler) URL so server.js connects through session mode.
-    export DATABASE_URL="$ORIGINAL_DATABASE_URL"
+    # Run migrations with a bounded retry+backoff so a transient blip
+    # doesn't crash-loop the container. After MAX_ATTEMPTS, we exit 1
+    # so the next deploy can take over.
+    MAX_ATTEMPTS=5
+    attempt=1
+    until npx prisma migrate deploy; do
+        rc=$?
+        if [ "$attempt" -ge "$MAX_ATTEMPTS" ]; then
+            echo "[STARTUP] MIGRATION FAILED after $MAX_ATTEMPTS attempts (exit $rc) — refusing to start with stale schema."
+            exit 1
+        fi
+        sleep_seconds=$((attempt * 5))
+        echo "[STARTUP] Migration attempt $attempt failed (exit $rc). Retrying in ${sleep_seconds}s..."
+        sleep "$sleep_seconds"
+        attempt=$((attempt + 1))
+    done
 else
     echo "[STARTUP] ERROR: DATABASE_URL not found, migrations will likely fail."
     exit 1
