@@ -63,19 +63,30 @@ export async function refreshAllServiceAggregates() {
             }
 
             for (const hit of result.hits as any[]) {
-                const serviceCode = hit.providerServiceCode || 'unknown';
+                const rawCode = hit.providerServiceCode || 'unknown';
+                // DEDUP: a single logical service (e.g. "Amazon") is often listed by
+                // providers under multiple raw codes ("am", "amazon", "AMAZON").
+                // Key the aggregate Map by the canonical lowercased serviceName so all
+                // variants collapse into ONE row. Falls back to raw code when name is missing.
+                const displayName = (hit.serviceName || rawCode).trim();
+                const dedupKey = displayName.toLowerCase();
 
-                let agg = aggregates.get(serviceCode)
+                let agg = aggregates.get(dedupKey)
                 if (!agg) {
                     agg = {
-                        serviceCode,
-                        serviceName: hit.serviceName || serviceCode,
+                        serviceCode: dedupKey,
+                        serviceName: displayName,
                         lowestPrice: hit.pointPrice,
                         totalStock: BigInt(0),
                         _countries: new Set(),
                         _providers: new Set()
                     }
-                    aggregates.set(serviceCode, agg)
+                    aggregates.set(dedupKey, agg)
+                }
+
+                // Keep the most human-readable serviceName seen (longest non-empty wins).
+                if (displayName.length > agg.serviceName.length) {
+                    agg.serviceName = displayName;
                 }
 
                 agg.lowestPrice = Math.min(agg.lowestPrice, hit.pointPrice)
@@ -243,13 +254,18 @@ async function getAggregatesFromMeiliSearch(
     }>()
 
     for (const hit of searchResults.hits as any[]) {
-        const serviceCode = hit.providerServiceCode || 'unknown';
+        const rawCode = hit.providerServiceCode || 'unknown';
+        // DEDUP: same canonical key logic as refreshAllServiceAggregates — collapse
+        // multiple raw codes (e.g. "am" + "amazon") that all represent the same
+        // logical service into ONE aggregate row.
+        const displayName = (hit.serviceName || rawCode).trim();
+        const dedupKey = displayName.toLowerCase();
 
-        let agg = aggregates.get(serviceCode)
+        let agg = aggregates.get(dedupKey)
         if (!agg) {
             agg = {
-                serviceCode,
-                serviceName: hit.serviceName || serviceCode,
+                serviceCode: dedupKey,
+                serviceName: displayName,
                 lowestPrice: hit.pointPrice,
                 totalStock: 0,
                 countryCount: 0,
@@ -257,7 +273,11 @@ async function getAggregatesFromMeiliSearch(
                 _countries: new Set(),
                 _providers: new Set()
             }
-            aggregates.set(serviceCode, agg)
+            aggregates.set(dedupKey, agg)
+        }
+
+        if (displayName.length > agg.serviceName.length) {
+            agg.serviceName = displayName;
         }
 
         agg.lowestPrice = Math.min(agg.lowestPrice, hit.pointPrice)
@@ -350,10 +370,27 @@ export async function getServiceAggregates(options?: {
             const index = meili.index(INDEXES.OFFERS)
             const searchResults = await index.search(options.query, {
                 limit: 100,
-                attributesToRetrieve: ['providerServiceCode'],
+                attributesToRetrieve: ['providerServiceCode', 'serviceName'],
             })
 
-            matchedSlugsOrder = [...new Set(searchResults.hits.map((h: any) => h.providerServiceCode).filter(Boolean))]
+            // DEDUP: collapse multiple raw codes that share a canonical serviceName.
+            // Defense-in-depth: even if a future code path lets two raw codes for the
+            // same logical service through, the user only ever sees ONE card per service.
+            const allSlugs = [...new Set(searchResults.hits.map((h: any) => h.providerServiceCode).filter(Boolean))]
+            const slugToName = new Map<string, string>()
+            for (const hit of searchResults.hits as any[]) {
+                if (hit.providerServiceCode && !slugToName.has(hit.providerServiceCode)) {
+                    slugToName.set(hit.providerServiceCode, (hit.serviceName || hit.providerServiceCode).toLowerCase().trim())
+                }
+            }
+            const seenNames = new Set<string>()
+            matchedSlugsOrder = allSlugs.filter(slug => {
+                const name = slugToName.get(slug)
+                if (!name) return true
+                if (seenNames.has(name)) return false
+                seenNames.add(name)
+                return true
+            })
 
             if (matchedSlugsOrder.length > 0) {
                 where = { serviceCode: { in: matchedSlugsOrder } }
