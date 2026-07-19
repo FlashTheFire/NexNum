@@ -44,8 +44,25 @@ model User {
   verificationAttempts    VerificationAttempt[]    @relation("VerificationAttemptUser")
   wallet                  Wallet?
   webhooks                Webhook[]
+  favorites               UserFavorite[]
 
   @@map("users")
+}
+
+model UserFavorite {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  type        String
+  value       String
+  displayName String   @map("display_name")
+  iconUrl     String?  @map("icon_url")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type, value])
+  @@index([userId, type])
+  @@map("user_favorites")
 }
 
 model Notification {

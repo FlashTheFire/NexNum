@@ -1,15 +1,16 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { searchProviders, getCachedProviderMetadata } from "@/lib/search/search";
 import { prisma } from "@/lib/core/db";
 import { calculatePrices } from "@/lib/pricing/pricing-utils";
+import { checkSearchRateLimit } from "@/lib/api/search-rate-limit";
 
 /**
  * GET /api/search/providers
- * 
+ *
  * Get providers for a selected service + country combination.
  * Returns individual offer entries with price and stock.
  * Also includes Smart Route info when multiple providers available.
- * 
+ *
  * Query Params:
  * - service: Service slug (required)
  * - country: Country code (required)
@@ -19,7 +20,10 @@ import { calculatePrices } from "@/lib/pricing/pricing-utils";
  */
 
 // Pricing logic now handled by centralized pricing-utils.ts
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
+    const rl = await checkSearchRateLimit(req);
+    if (!rl.success) return rl.response!;
+
     try {
         const { searchParams } = new URL(req.url);
         const serviceCode = searchParams.get("service");

@@ -3,11 +3,27 @@ import { searchOffers } from "@/lib/search/search";
 import { verifyToken } from "@/lib/auth/jwt";
 import { createOfferId } from "@/lib/auth/id-security";
 import { getCurrencyService, toSupportedCurrency } from "@/lib/currency/currency-service";
+import { checkSearchRateLimit } from "@/lib/api/search-rate-limit";
 
 // Protected Route: Only logged in users can search offers
 export async function GET(req: NextRequest) {
+    const rl = await checkSearchRateLimit(req);
+    if (!rl.success) return rl.response!;
+
     try {
-        // ... (Auth Check commented out as per original) ...
+        // Require authentication - this route generates per-user obfuscated IDs
+        // and would be a high-cost DoS vector if left open.
+        const cookieToken = req.cookies.get('token')?.value;
+        const authHeader = req.headers.get('authorization');
+        const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+        const token = cookieToken || bearerToken;
+        if (!token) {
+            return NextResponse.json({ hits: [], total: 0, error: "Authentication required" }, { status: 401 });
+        }
+        const user = verifyToken(token);
+        if (!user) {
+            return NextResponse.json({ hits: [], total: 0, error: "Invalid or expired token" }, { status: 401 });
+        }
 
         const { searchParams } = new URL(req.url);
         const q = searchParams.get("q") || "";
