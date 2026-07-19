@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import { useGlobalStore } from "@/stores/appStore"
+import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 import { DashboardBackground } from "../components/dashboard-background"
 
 import BuyPageHeader from "./components/BuyPageHeader"
@@ -27,6 +28,7 @@ export default function BuyPage() {
 
     // Filters within Wizard
     const [localSearch, setLocalSearch] = useState("")
+    const debouncedSearch = useDebouncedValue(localSearch, 200)
     const [sortOption, setSortOption] = useState<"relevance" | "price_asc" | "stock_desc">("relevance")
 
     // --- Effects ---
@@ -221,7 +223,7 @@ export default function BuyPage() {
                                     selectedService={selectedService?.id || null}
                                     defaultSelected={selectedService}
                                     onSelect={handleServiceSelect}
-                                    searchTerm={localSearch}
+                                    searchTerm={debouncedSearch}
                                     sortOption={sortOption}
                                 />
                             </motion.div>
@@ -240,7 +242,7 @@ export default function BuyPage() {
                                     onSelect={handleCountrySelect}
                                     selectedCountryId={selectedCountry?.id}
                                     defaultSelected={selectedCountry}
-                                    searchTerm={localSearch}
+                                    searchTerm={debouncedSearch}
                                     selectedService={selectedService}
                                     sortOption={sortOption}
                                 />

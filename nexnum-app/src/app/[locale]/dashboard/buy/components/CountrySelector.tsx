@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Globe, Search, Check, Package, AlertTriangle, Loader2, Star } from "lucide-react";
 import { cn } from "@/lib/utils/utils";
 import { getCountryFlagUrlSync } from "@/lib/normalizers/country-flags";
-import { usePinnedItems } from "@/hooks/usePinnedItems";
+import { useFavorites } from "@/hooks/useFavorites";
 import { PriceDisplay } from "@/components/common/PriceDisplay";
 import { useCurrency } from "@/providers/CurrencyProvider";
 
@@ -371,7 +371,7 @@ export default function CountrySelector({
     const [hasMore, setHasMore] = useState(true);
     const prefersReducedMotion = usePrefersReducedMotion();
     const { formatFromPrices, settings } = useCurrency();
-    const { pinnedItems, isPinned, togglePin } = usePinnedItems<Country>("pinned_countries");
+    const { isFavorite, toggle: toggleFav } = useFavorites();
 
     // Reset when search/service/sort changes
     useEffect(() => {
@@ -441,27 +441,15 @@ export default function CountrySelector({
         }
     };
 
-    // Derived state for countries: Merge pinned items and sort
+    // Derived state for countries: sort favorites to the top.
     const sortedCountries = useMemo(() => {
-        const merged = [...countries];
-        // Add pinned items that are not in the current fetched list
-        pinnedItems.forEach(pinned => {
-            if (!merged.some(c => c.id === pinned.id)) {
-                // Only add if it matches search term
-                if (!searchTerm || pinned.name.toLowerCase().includes(searchTerm.toLowerCase())) {
-                    merged.push(pinned);
-                }
-            }
+        return [...countries].sort((a, b) => {
+            const aP = isFavorite("COUNTRY", a.id);
+            const bP = isFavorite("COUNTRY", b.id);
+            if (aP === bP) return 0;
+            return aP ? -1 : 1;
         });
-
-        // Sort: Pinned items first
-        return merged.sort((a, b) => {
-            const aPinned = isPinned(a.id);
-            const bPinned = isPinned(b.id);
-            if (aPinned === bPinned) return 0;
-            return aPinned ? -1 : 1;
-        });
-    }, [countries, pinnedItems, isPinned, searchTerm]);
+    }, [countries, isFavorite]);
 
     // Load More Logic
     const { ref: loadMoreRef, isIntersecting } = useInView({ threshold: 0.5 });
@@ -532,9 +520,9 @@ export default function CountrySelector({
                                 key={`${country.id}-${index}`}
                                 country={country}
                                 isSelected={isSelected}
-                                pinned={isPinned(country.id)}
+                                pinned={isFavorite("COUNTRY", country.id)}
                                 onSelect={onSelect}
-                                togglePin={togglePin}
+                                togglePin={(c) => { toggleFav("COUNTRY", { value: c.id, displayName: c.name, iconUrl: c.flagUrl }); }}
                                 index={index}
                                 prefersReducedMotion={prefersReducedMotion}
                                 selectedService={selectedService}

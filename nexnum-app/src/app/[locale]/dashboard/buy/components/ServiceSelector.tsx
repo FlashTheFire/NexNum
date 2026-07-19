@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils/utils";
 import { Check, Sparkles, Loader2, Server, SearchX, HelpCircle, MessageSquare, Shield, Smartphone, Globe, Zap, Lock, Star } from "lucide-react";
-import { usePinnedItems } from "@/hooks/usePinnedItems";
+import { useFavorites } from "@/hooks/useFavorites";
 import { PriceDisplay } from "@/components/common/PriceDisplay";
 
 // Helper hook for IntersectionObserver
@@ -202,7 +202,7 @@ export default function ServiceSelector({ selectedService, defaultSelected, onSe
     const [loadingMore, setLoadingMore] = useState(false);
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(true);
-    const { pinnedItems, isPinned, togglePin } = usePinnedItems<Service>("pinned_services");
+    const { isFavorite, favoriteIdOf, toggle: toggleFav } = useFavorites();
 
     // Reset when search term or sort option changes
     useEffect(() => {
@@ -311,27 +311,17 @@ export default function ServiceSelector({ selectedService, defaultSelected, onSe
         }
     };
 
-    // Derived state for services: Merge pinned items and sort
+    // Derived state for services: keep favorites always visible (even if not in current page)
+    // and sort favorites to the top.
     const sortedServices = useMemo(() => {
         const merged = [...fetchedServices];
-        // Add pinned items that are not in the current fetched list
-        pinnedItems.forEach(pinned => {
-            if (!merged.some(s => s.id === pinned.id)) {
-                // Only add if it matches search term (simple client-side filter)
-                if (!searchTerm || pinned.name.toLowerCase().includes(searchTerm.toLowerCase())) {
-                    merged.push(pinned);
-                }
-            }
-        });
-
-        // Sort: Pinned items first
         return merged.sort((a, b) => {
-            const aPinned = isPinned(a.id);
-            const bPinned = isPinned(b.id);
-            if (aPinned === bPinned) return 0;
-            return aPinned ? -1 : 1;
+            const aP = isFavorite("SERVICE", a.id);
+            const bP = isFavorite("SERVICE", b.id);
+            if (aP === bP) return 0;
+            return aP ? -1 : 1;
         });
-    }, [fetchedServices, pinnedItems, isPinned, searchTerm]);
+    }, [fetchedServices, isFavorite]);
 
     // Load More Logic (Infinite Scroll)
     const { ref: loadMoreRef, isIntersecting } = useInView({ threshold: 0.5 });
@@ -386,9 +376,9 @@ export default function ServiceSelector({ selectedService, defaultSelected, onSe
                             key={`${service.id}_${index}`}
                             service={service}
                             isSelected={selectedService === service.id}
-                            pinned={isPinned(service.id)}
+                            pinned={isFavorite("SERVICE", service.id)}
                             onSelect={onSelect}
-                            togglePin={togglePin}
+                            togglePin={(s) => { toggleFav("SERVICE", { value: s.id, displayName: s.name, iconUrl: s.iconUrl }); }}
                             index={index}
                         />
                     ))}
