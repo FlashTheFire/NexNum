@@ -38,8 +38,16 @@ export default function BuyPageHeader({
             <div className="flex items-center justify-between w-full">
                 <div className="flex items-center gap-2.5">
                     {/* Back Button (Always Visible) */}
-                    <button onClick={onBack} className="p-1.5 hover:bg-white/10 rounded-full transition-colors -ml-1 group">
+                    <button
+                        onClick={onBack}
+                        title={step === 1 ? "Back to dashboard" : `Back to step ${step - 1}`}
+                        aria-label={step === 1 ? "Back to dashboard" : `Back to step ${step - 1}`}
+                        className="p-1.5 hover:bg-white/10 rounded-full transition-colors -ml-1 group flex items-center gap-1.5"
+                    >
                         <ArrowLeft className="w-4 h-4 text-white group-hover:text-[hsl(var(--neon-lime))] transition-colors" />
+                        <span className="hidden md:inline text-[11px] font-medium text-zinc-500 group-hover:text-zinc-300 transition-colors">
+                            {step === 1 ? "Dashboard" : `Step ${step - 1}`}
+                        </span>
                     </button>
 
                     <h2 className="text-lg font-bold text-white flex items-center gap-2.5">
@@ -53,13 +61,20 @@ export default function BuyPageHeader({
                 {/* Integrated Wallet/Breadcrumbs (Right Side) */}
                 <div className="flex items-center gap-3">
                     {/* Hidden on very small screens if tight, but generally visible */}
-                    <div className="hidden sm:flex items-center gap-1.5 md:gap-2 text-[10px] md:text-xs font-medium tracking-wide">
+                    <div className="hidden md:flex items-center gap-1.5 md:gap-2 text-[10px] md:text-xs font-medium tracking-wide">
                         <span className={step >= 1 ? "text-[hsl(var(--neon-lime))]" : "text-zinc-500"}>Service</span>
                         <span className="text-zinc-700">/</span>
                         <span className={step >= 2 ? "text-[hsl(var(--neon-lime))]" : "text-zinc-500"}>Country</span>
                         <span className="text-zinc-700">/</span>
                         <span className={step >= 3 ? "text-[hsl(var(--neon-lime))]" : "text-zinc-500"}>Details</span>
                     </div>
+
+                    {/* ESC hint — desktop only. Hidden when on step 1 (next press leaves the page). */}
+                    {step > 1 && (
+                        <kbd className="hidden md:inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-mono text-zinc-500 bg-white/5 border border-white/10 rounded">
+                            Esc
+                        </kbd>
+                    )}
 
                     {step === 2 ? (
                         <div className="relative flex items-center justify-center w-8 h-8 rounded-lg overflow-hidden ring-1 ring-[hsl(var(--neon-lime))] ring-offset-1 ring-offset-[#0a0a0c] shadow-[0_0_10px_hsl(var(--neon-lime)/0.25)] bg-zinc-900 animate-in zoom-in duration-300">

@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import { useGlobalStore } from "@/stores/appStore"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
+import { useWizardBack } from "@/hooks/useWizardBack"
 import { DashboardBackground } from "../components/dashboard-background"
 
 import BuyPageHeader from "./components/BuyPageHeader"
@@ -176,9 +177,15 @@ export default function BuyPage() {
             setStep(1)
             window.scrollTo({ top: 0, behavior: "instant" })
         } else {
+            // step === 1 → exit the wizard cleanly back to the dashboard
             router.push('/dashboard')
         }
     }
+
+    // Wire browser Back button + ESC key to the same handler.
+    // - On step 2/3: Back/ESC decrements the step in place.
+    // - On step 1:   Back/ESC is allowed to navigate to /dashboard.
+    useWizardBack(handleBack, step === 1)
 
     // --- UI Helpers ---
 
