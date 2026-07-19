@@ -80,6 +80,7 @@ export async function POST(req: NextRequest) {
         reservationCutoff.setDate(reservationCutoff.getDate() - RETENTION_DAYS.RESERVATIONS)
 
         // Find wallets with non-zero reserved that have no active numbers
+        // LIMIT prevents long-running locks on large tables
         const staleReservations = await prisma.$executeRaw`
             UPDATE wallets w
             SET reserved = 0, updated_at = NOW()
@@ -90,6 +91,7 @@ export async function POST(req: NextRequest) {
                 AND n.status IN ('PENDING', 'ACTIVE', 'WAITING')
                 AND n.created_at > ${reservationCutoff}
             )
+            LIMIT 1000
         `
         results.reservations = staleReservations as number
         logger.info(`[Cleanup] Released ${staleReservations} stale reservations`)
@@ -113,7 +115,7 @@ export async function POST(req: NextRequest) {
     })
 }
 
-// Also support GET for easy testing
-export async function GET(req: NextRequest) {
-    return POST(req)
+// GET is not supported for destructive cleanup operations
+export async function GET() {
+    return NextResponse.json({ error: 'Method not allowed. Use POST.' }, { status: 405 })
 }

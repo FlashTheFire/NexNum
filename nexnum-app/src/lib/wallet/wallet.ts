@@ -125,80 +125,92 @@ export class WalletService {
         idempotencyKey?: string,
         tx?: Prisma.TransactionClient
     ) {
-        const client = tx || prisma
-        const decAmount = new Prisma.Decimal(amount)
+        const performCommit = async (client: Prisma.TransactionClient) => {
+            const decAmount = new Prisma.Decimal(amount)
 
-        // Get wallet with full state for guards
-        const wallet = await client.wallet.findUnique({
-            where: { userId },
-            select: { id: true, balance: true, reserved: true }
-        })
-        if (!wallet) throw new PaymentError('Wallet not found', 'E_PROVIDER_ERROR', 404)
+            // 1. LOCK the wallet row to prevent race conditions (SELECT FOR UPDATE)
+            await client.$executeRaw`SELECT 1 FROM "wallets" WHERE "user_id" = ${userId} FOR UPDATE`
 
-        // GUARD: Check reserved amount (warn but don't block - handles race conditions)
-        if (wallet.reserved.lessThan(decAmount)) {
-            logger.warn('Reserved amount less than commit amount - proceeding', {
-                reserved: wallet.reserved.toString(),
-                commitAmount: decAmount.toString(),
-                userId
+            // 2. Get wallet with full state for guards
+            const wallet = await client.wallet.findUnique({
+                where: { userId },
+                select: { id: true, balance: true, reserved: true }
             })
-            // Don't throw - this can happen with concurrent transactions
-            // The balance check below is the critical guard
+            if (!wallet) throw new PaymentError('Wallet not found', 'E_PROVIDER_ERROR', 404)
+
+            // GUARD: Check reserved amount (warn but don't block - handles race conditions)
+            if (wallet.reserved.lessThan(decAmount)) {
+                logger.warn('Reserved amount less than commit amount - proceeding', {
+                    reserved: wallet.reserved.toString(),
+                    commitAmount: decAmount.toString(),
+                    userId
+                })
+            }
+
+            // GUARD: Balance must be >= amount being committed (CRITICAL)
+            if (wallet.balance.lessThan(decAmount)) {
+                throw PaymentError.insufficientFunds('Commit failed: Balance less than amount')
+            }
+
+            // Calculate decrement amounts (cap to actual reserved to prevent negative)
+            const reservedDecrement = wallet.reserved.lessThan(decAmount)
+                ? wallet.reserved
+                : decAmount
+
+            // Atomic Confirm
+            await client.wallet.update({
+                where: { id: wallet.id },
+                data: {
+                    reserved: { decrement: reservedDecrement },
+                    balance: { decrement: decAmount }
+                }
+            })
+
+            // Capture immutable fiat snapshot BEFORE creating the transaction record
+            const currencySnapshot = await captureTransactionSnapshot(userId, amount)
+
+            // Log Transaction
+            const transaction = await client.walletTransaction.create({
+                data: {
+                    walletId: wallet.id,
+                    amount: decAmount.negated(),
+                    type: 'purchase',
+                    description,
+                    idempotencyKey,
+                    metadata: { refId },
+                    currencySnapshot: currencySnapshot as any,
+                }
+            })
+
+            // Advance sentinel checkpoint (amount is negative for a purchase debit)
+            await FinancialSentinel.updateCheckpoint(wallet.id, decAmount.negated(), transaction.createdAt, client).catch((err) => {
+                logger.error('FinancialSentinel checkpoint update failed', { error: err, walletId: wallet.id })
+            })
+
+            wallet_transactions_total.labels('purchase', 'success').inc()
+
+            const finalBalance = wallet.balance.sub(decAmount)
+
+            // LOW BALANCE ALERT (Enterprise Event)
+            if (finalBalance.lessThan(10.0)) {
+                await EventDispatcher.dispatch(userId, 'balance.low', {
+                    balance: finalBalance.toNumber(),
+                    threshold: 10.0,
+                    currency: 'USD'
+                })
+            }
+
+            return transaction
         }
 
-        // GUARD: Balance must be >= amount being committed (CRITICAL)
-        if (wallet.balance.lessThan(decAmount)) {
-            throw PaymentError.insufficientFunds('Commit failed: Balance less than amount')
-        }
-
-        // Calculate decrement amounts (cap to actual reserved to prevent negative)
-        const reservedDecrement = wallet.reserved.lessThan(decAmount)
-            ? wallet.reserved
-            : decAmount
-
-        // Atomic Confirm
-        await client.wallet.update({
-            where: { id: wallet.id },
-            data: {
-                reserved: { decrement: reservedDecrement },
-                balance: { decrement: decAmount }
-            }
-        })
-
-        // Capture immutable fiat snapshot BEFORE creating the transaction record
-        const currencySnapshot = await captureTransactionSnapshot(userId, amount)
-
-        // Log Transaction
-        const transaction = await client.walletTransaction.create({
-            data: {
-                walletId: wallet.id,
-                amount: decAmount.negated(),
-                type: 'purchase', // Final record
-                description,
-                idempotencyKey,
-                metadata: { refId }, // Store Number ID
-                currencySnapshot: currencySnapshot as any,
-            }
-        })
-
-        // Advance sentinel checkpoint (amount is negative for a purchase debit)
-        await FinancialSentinel.updateCheckpoint(wallet.id, decAmount.negated(), transaction.createdAt, client).catch(() => {})
-
-        wallet_transactions_total.labels('purchase', 'success').inc()
-
-        const finalBalance = wallet.balance.sub(decAmount)
-
-
-        // LOW BALANCE ALERT (Enterprise Event)
-        if (finalBalance.lessThan(10.0)) { // Standard threshold
-            await EventDispatcher.dispatch(userId, 'balance.low', {
-                balance: finalBalance.toNumber(),
-                threshold: 10.0,
-                currency: 'USD' // Standard default
+        // Use provided transaction OR create a new one to guarantee locking
+        if (tx) {
+            return performCommit(tx)
+        } else {
+            return prisma.$transaction(async (newTx) => {
+                return performCommit(newTx)
             })
         }
-
-        return transaction
     }
 
     /**
@@ -212,20 +224,54 @@ export class WalletService {
         description: string,
         tx?: Prisma.TransactionClient
     ) {
-        const client = tx || prisma
-        const decAmount = new Prisma.Decimal(amount)
+        const performRollback = async (client: Prisma.TransactionClient) => {
+            const decAmount = new Prisma.Decimal(amount)
 
-        const wallet = await client.wallet.findUnique({ where: { userId }, select: { id: true } })
-        if (!wallet) throw new PaymentError('Wallet not found', 'E_PROVIDER_ERROR', 404)
+            // 1. LOCK the wallet row to prevent race conditions
+            await client.$executeRaw`SELECT 1 FROM "wallets" WHERE "user_id" = ${userId} FOR UPDATE`
 
-        await client.wallet.update({
-            where: { id: wallet.id },
-            data: {
-                reserved: { decrement: decAmount }
+            // 2. Read fresh state
+            const wallet = await client.wallet.findUnique({
+                where: { userId },
+                select: { id: true, reserved: true }
+            })
+            if (!wallet) throw new PaymentError('Wallet not found', 'E_PROVIDER_ERROR', 404)
+
+            // 3. Guard: don't decrement below zero (prevents double-rollback)
+            if (wallet.reserved.lessThan(decAmount)) {
+                logger.warn('Rollback amount exceeds reserved - clamping to zero', {
+                    reserved: wallet.reserved.toString(),
+                    rollbackAmount: decAmount.toString(),
+                    userId
+                })
+                // Clamp to actual reserved value to prevent negative
+                if (wallet.reserved.lessThanOrEqualTo(0)) {
+                    // Already fully rolled back, nothing to do
+                    return
+                }
+                // Partial rollback to zero
+                await client.wallet.update({
+                    where: { id: wallet.id },
+                    data: { reserved: { set: new Prisma.Decimal(0) } }
+                })
+            } else {
+                await client.wallet.update({
+                    where: { id: wallet.id },
+                    data: { reserved: { decrement: decAmount } }
+                })
             }
-        })
-        wallet_transactions_total.labels('purchase_rollback', 'success').inc()
-        // No transaction log for rollback usually, unless we track failed attempts.
+
+            wallet_transactions_total.labels('purchase_rollback', 'success').inc()
+        }
+
+        // Use provided transaction OR create a new one to guarantee locking
+        if (tx) {
+            return performRollback(tx)
+        } else {
+            return prisma.$transaction(async (newTx) => {
+                return performRollback(newTx)
+            })
+        }
     }
 
     /**

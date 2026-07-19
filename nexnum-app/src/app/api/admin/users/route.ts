@@ -7,6 +7,7 @@ import { notify } from '@/lib/notifications'
 import { emitControlEvent } from '@/lib/events/emitters/state-emitter'
 import { WalletService } from '@/lib/wallet/wallet'
 import { logger } from '@/lib/core/logger'
+import { redis } from '@/lib/core/redis'
 
 export async function GET(request: Request) {
     const auth = await AuthGuard.requireAdmin()
@@ -325,12 +326,14 @@ export async function PATCH(request: Request) {
             })
         }
 
-        // Handle role/ban updates
+        // Handle role/ban updates — increment tokenVersion to invalidate stale JWTs
+        const shouldInvalidate = role !== undefined || isBanned !== undefined
         const updatedUser = await prisma.user.update({
             where: { id: userId },
             data: {
                 ...(role && { role }),
                 ...(isBanned !== undefined && { isBanned }),
+                ...(shouldInvalidate && { tokenVersion: { increment: 1 } }),
             },
             select: {
                 id: true,
@@ -340,6 +343,11 @@ export async function PATCH(request: Request) {
                 isBanned: true,
             }
         })
+
+        // Invalidate Redis session cache so stale role/ban doesn't persist for 60s
+        if (shouldInvalidate) {
+            await redis.del(`auth:session:${userId}`).catch(() => {})
+        }
 
         // Audit log
         await prisma.auditLog.create({
@@ -387,16 +395,16 @@ export async function POST(request: Request) {
         let updateData: any = {}
         switch (action) {
             case 'ban':
-                updateData = { isBanned: true }
+                updateData = { isBanned: true, tokenVersion: { increment: 1 } }
                 break
             case 'unban':
-                updateData = { isBanned: false }
+                updateData = { isBanned: false, tokenVersion: { increment: 1 } }
                 break
             case 'promote':
-                updateData = { role: 'ADMIN' }
+                updateData = { role: 'ADMIN', tokenVersion: { increment: 1 } }
                 break
             case 'demote':
-                updateData = { role: 'USER' }
+                updateData = { role: 'USER', tokenVersion: { increment: 1 } }
                 break
             default:
                 return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
@@ -406,6 +414,11 @@ export async function POST(request: Request) {
             where: { id: { in: userIds } },
             data: updateData
         })
+
+        // Invalidate Redis session cache for all affected users
+        await Promise.all(userIds.map((id: string) =>
+            redis.del(`auth:session:${id}`).catch(() => {})
+        ))
 
         // Audit log for bulk action
         await prisma.auditLog.create({

@@ -96,10 +96,9 @@ const nextConfig = {
     images: {
         formats: ['image/avif', 'image/webp'],
         remotePatterns: [
-            {
-                protocol: 'https',
-                hostname: '**',
-            },
+            { protocol: 'https', hostname: 'avatars.githubusercontent.com' },
+            { protocol: 'https', hostname: '*.githubusercontent.com' },
+            { protocol: 'https', hostname: 'api.dicebear.com' },
         ],
     },
 

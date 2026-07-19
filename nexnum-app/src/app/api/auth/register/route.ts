@@ -49,10 +49,10 @@ export const POST = apiHandler(
                 .labels('register', 'failed_email_exists')
                 .inc()
 
-            return ResponseFactory.error(
-                'Email already registered',
-                409
-            )
+            // Security: return generic success to prevent email enumeration
+            return ResponseFactory.success({
+                message: 'If this email is not already registered, check your inbox for a verification link.'
+            })
         }
 
 

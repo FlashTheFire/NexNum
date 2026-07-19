@@ -57,9 +57,13 @@ export async function GET(request: Request) {
 function validateMetricsScraper(request: Request): boolean {
     const expectedToken = process.env.METRICS_SCRAPE_TOKEN
 
-    // If no token configured, allow access (but log warning)
+    // Fail closed: if no token configured in production, deny access
     if (!expectedToken) {
-        logger.warn('METRICS_SCRAPE_TOKEN not configured - metrics endpoint is unprotected', { context: 'API_METRICS' })
+        if (process.env.NODE_ENV === 'production') {
+            logger.error('METRICS_SCRAPE_TOKEN not configured - metrics endpoint is BLOCKED', { context: 'API_METRICS' })
+            return false
+        }
+        logger.warn('METRICS_SCRAPE_TOKEN not configured - metrics endpoint is unprotected (dev mode)', { context: 'API_METRICS' })
         return true
     }
 

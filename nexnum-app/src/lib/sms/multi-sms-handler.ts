@@ -94,7 +94,15 @@ export class MultiSmsHandler {
 
         const existingCount = number.smsMessages.length
 
-        // Process each new message
+        // Process and filter messages: extract codes, remove duplicates
+        const messagesToInsert: Array<{
+            code: string | null
+            content: string
+            sender: string
+            receivedAt: Date
+            codeResult: any
+        }> = []
+
         for (const msg of messages) {
             const codeResult = CodeExtractor.extract(msg.text || msg.content || '', undefined, number.serviceName || undefined)
             const code = codeResult?.code
@@ -103,65 +111,91 @@ export class MultiSmsHandler {
             // Check for duplicates (same code or content)
             const isDuplicate = number.smsMessages.some(
                 existing => existing.code === code || existing.content === content
-            )
+            ) || messagesToInsert.some(m => m.code === code || m.content === content)
 
             if (isDuplicate) {
                 logger.debug('[MultiSMS] Duplicate SMS skipped', { numberId, code })
                 continue
             }
 
-            // Store new SMS
-            const ordinal = existingCount + result.stored + 1
+            messagesToInsert.push({
+                code: code || null,
+                content,
+                sender: msg.sender || 'Provider',
+                receivedAt: msg.receivedAt || new Date(),
+                codeResult
+            })
+        }
 
-            const storedMsg = await prisma.smsMessage.create({
-                data: {
+        // Batch insert all non-duplicate messages in a single query
+        let lastStoredMsg: { storedMsg: any, ordinal: number } | null = null
+
+        if (messagesToInsert.length > 0) {
+            await prisma.smsMessage.createMany({
+                data: messagesToInsert.map(m => ({
                     numberId,
-                    code: code || null,
-                    content,
-                    sender: msg.sender || 'Provider',
-                    receivedAt: msg.receivedAt || new Date()
-                }
+                    code: m.code,
+                    content: m.content,
+                    sender: m.sender,
+                    receivedAt: m.receivedAt
+                }))
             })
 
-            result.stored++
+            // Fetch back the inserted records (sorted by creation order) for audit + event
+            const insertedMessages = await prisma.smsMessage.findMany({
+                where: { numberId },
+                orderBy: { receivedAt: 'desc' },
+                take: messagesToInsert.length
+            })
 
-            // RECORD UNIFORM LATENCY (Every SMS works as first SMS)
-            const lastEventTime = number.smsMessages.length > 0
-                ? number.smsMessages[number.smsMessages.length - 1].receivedAt.getTime()
-                : number.purchasedAt?.getTime() || Date.now()
+            for (let i = insertedMessages.length - 1; i >= 0; i--) {
+                const storedMsg = insertedMessages[i]
+                const ordinal = existingCount + result.stored + 1
 
-            const latencySeconds = (Date.now() - lastEventTime) / 1000
+                // RECORD UNIFORM LATENCY
+                const lastEventTime = number.smsMessages.length > 0
+                    ? number.smsMessages[number.smsMessages.length - 1].receivedAt.getTime()
+                    : number.purchasedAt?.getTime() || Date.now()
 
-            sms_delivery_latency_seconds
-                .labels(number.provider || 'unknown', number.serviceName || 'unknown')
-                .observe(latencySeconds)
+                const latencySeconds = (Date.now() - lastEventTime) / 1000
 
-            // PROFESSIONAL AUDIT TRAIL
-            await smsAudit.logSmsIngested(numberId, storedMsg.id, ordinal, latencySeconds)
+                sms_delivery_latency_seconds
+                    .labels(number.provider || 'unknown', number.serviceName || 'unknown')
+                    .observe(latencySeconds)
 
-            // ENTERPRISE EVENT DISPATCH (Phase 39)
-            if (number.ownerId) {
-                await EventDispatcher.dispatch(number.ownerId, 'sms.received', {
+                // PROFESSIONAL AUDIT TRAIL
+                await smsAudit.logSmsIngested(numberId, storedMsg.id, ordinal, latencySeconds)
+
+                // Track last stored message for throttled dispatch after loop
+                lastStoredMsg = { storedMsg, ordinal }
+
+                logger.info('[MultiSMS] SMS ingested (Uniform Equality)', {
                     numberId,
-                    activationId,
-                    phoneNumber: number.phoneNumber,
-                    sms: {
-                        id: storedMsg.id,
-                        sender: storedMsg.sender,
-                        content: storedMsg.content,
-                        code: storedMsg.code,
-                        ordinal,
-                        receivedAt: storedMsg.receivedAt
-                    }
+                    ordinal,
+                    latency: `${latencySeconds.toFixed(2)}s`,
+                    hasCode: !!storedMsg.code,
+                    isMismatched: messagesToInsert[result.stored]?.codeResult?.isMismatched
                 })
-            }
 
-            logger.info('[MultiSMS] SMS ingested (Uniform Equality)', {
+                result.stored++
+            }
+        }
+
+        // Throttled event dispatch: fire ONE event per burst (not per SMS)
+        if (number.ownerId && lastStoredMsg) {
+            await EventDispatcher.dispatch(number.ownerId, 'sms.received', {
                 numberId,
-                ordinal,
-                latency: `${latencySeconds.toFixed(2)}s`,
-                hasCode: !!code,
-                isMismatched: codeResult?.isMismatched
+                activationId,
+                phoneNumber: number.phoneNumber,
+                smsCount: result.stored,
+                lastSms: {
+                    id: lastStoredMsg.storedMsg.id,
+                    sender: lastStoredMsg.storedMsg.sender,
+                    content: lastStoredMsg.storedMsg.content,
+                    code: lastStoredMsg.storedMsg.code,
+                    ordinal: lastStoredMsg.ordinal,
+                    receivedAt: lastStoredMsg.storedMsg.receivedAt
+                }
             })
         }
 

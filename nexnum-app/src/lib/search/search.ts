@@ -50,7 +50,6 @@ export async function getCachedProviderMetadata(providerNames: string[]) {
                     name: true,
                     displayName: true,
                     logoUrl: true,
-                    // @ts-ignore - Field exists in schema but may need regeneration
                     successRate: true
                 }
             });
@@ -59,8 +58,7 @@ export async function getCachedProviderMetadata(providerNames: string[]) {
             providers.forEach(p => map.set(p.name, {
                 displayName: p.displayName,
                 logoUrl: p.logoUrl,
-                // @ts-ignore - Field may not be recognized by TS
-                successRate: Number(p.successRate || 80)
+                successRate: Number((p as any).successRate || 80)
             }));
             return map;
         } catch (e) {
@@ -250,11 +248,7 @@ export function aggregateCountryFromHit(
         if (hit.countryName && hit.countryName.length > stats.name.length) {
             stats.name = hit.countryName
         }
-
-        if (hit.countryName && hit.countryName.length > stats.name.length) {
-            stats.name = hit.countryName
-        }
-        // Flag URL is computed dynamicall via bestCode
+        // Flag URL is computed dynamically via bestCode
     }
 }
 
@@ -306,12 +300,11 @@ export async function searchCountries(
 
         const serviceNameToFilter = getCanonicalName(serviceCode) || serviceCode
 
-        // OPTIMIZATION: Lean Projection for 100k limit
-        // We fetch ALL offers for this service to ensure we find the absolute lowest price
-        // and correct total stock across the globe.
+        // OPTIMIZATION: Reduced from 100k to 10k to prevent OOM under load.
+        // We fetch offers for this service to find the lowest price and stock.
         const result = await index.search(query, {
             filter: `serviceName = "${serviceNameToFilter}" AND isActive = true`,
-            limit: 100000,
+            limit: 10000,
             attributesToRetrieve: [
                 'providerCountryCode',
                 'countryName',

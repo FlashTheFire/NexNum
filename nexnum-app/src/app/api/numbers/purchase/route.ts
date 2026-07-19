@@ -69,6 +69,21 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
     const { countryCode, serviceCode, countryId, serviceId, operatorId, provider, idempotencyKey } = validation.sanitized
     const useBestRoute = body?.useBestRoute === true
 
+    // IDEMPOTENCY: Early-exit if this purchase was already processed
+    if (idempotencyKey) {
+        const existing = await prisma.purchaseOrder.findUnique({
+            where: { idempotencyKey },
+            select: { id: true, status: true }
+        })
+        if (existing) {
+            return ResponseFactory.success({
+                idempotentReplay: true,
+                purchaseOrderId: existing.id,
+                status: existing.status
+            })
+        }
+    }
+
     // NEW: Currency Handling
     const currency = body?.currency || 'USD'
     let maxPrice = typeof body?.maxPrice === 'number' ? body.maxPrice : undefined

@@ -50,6 +50,10 @@ export async function POST(request: Request) {
                 // Full provider list for max price selection
                 providers: bestRouteQuote.providers
             } : null
+        }, {
+            headers: {
+                'Cache-Control': 'private, max-age=10',
+            }
         })
 
     } catch (error) {

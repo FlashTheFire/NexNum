@@ -1,14 +1,26 @@
 import { NextResponse } from "next/server";
 import { searchCountries } from "@/lib/search/search";
 import { calculatePrices } from "@/lib/pricing/pricing-utils";
+import { rateLimiters } from "@/lib/auth/ratelimit";
+
+function getClientIp(req: Request): string {
+    return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+        || req.headers.get('x-real-ip')
+        || 'unknown';
+}
 
 /**
  * GET /api/public/countries
- * 
+ *
  * Redirect endpoint - redirects to /api/search/countries
  * Kept for backwards compatibility.
  */
 export async function GET(req: Request) {
+    // Rate limit: 60 req/min per IP for public endpoints
+    const ip = getClientIp(req);
+    const rl = await rateLimiters.api.limit(`pub:countries:${ip}`, 60);
+    if (!rl.success) return rl.toResponse();
+
     try {
         const { searchParams } = new URL(req.url);
         const serviceName = searchParams.get("service") || "";
@@ -16,8 +28,6 @@ export async function GET(req: Request) {
         const page = parseInt(searchParams.get("page") || "1");
         const limit = parseInt(searchParams.get("limit") || "24");
         const sort = (searchParams.get("sort") || "name") as 'name' | 'pointPrice' | 'stock';
-        
-
 
         if (!serviceName) {
             // New Behavior: If no service selected, return generic country list from Lookup
@@ -71,6 +81,10 @@ export async function GET(req: Request) {
                 page,
                 limit,
                 hasMore: page * limit < result.total
+            }
+        }, {
+            headers: {
+                'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=30',
             }
         });
     } catch (error) {

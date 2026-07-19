@@ -2,7 +2,14 @@ import { NextResponse } from "next/server";
 import { meili, INDEXES, OfferDocument } from "@/lib/search/search";
 import { normalizeCountryName, generateCanonicalCode } from "@/lib/normalizers/service-identity";
 import { getCountryFlagUrlSync } from "@/lib/normalizers/country-flags";
+import { rateLimiters } from "@/lib/auth/ratelimit";
 import countriesMetadata from "@/data/countries-metadata.json";
+
+function getClientIp(req: Request): string {
+    return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+        || req.headers.get('x-real-ip')
+        || 'unknown'
+}
 
 // Advanced Map Calibration Settings
 // Tuned for Aspect Ratio Mismatch (Image AR 2.51 vs Map AR 1.88)
@@ -125,6 +132,11 @@ interface CountryStats {
  * Aggregates data directly from MeiliSearch offers index.
  */
 export async function GET(req: Request) {
+    // Rate limit: 30 req/min per IP for stats (heavy aggregation)
+    const ip = getClientIp(req);
+    const rl = await rateLimiters.api.limit(`pub:stats:${ip}`, 30);
+    if (!rl.success) return rl.toResponse();
+
     try {
         const { searchParams } = new URL(req.url);
         const limit = Math.min(parseInt(searchParams.get("limit") || "20"), 300);
@@ -136,7 +148,7 @@ export async function GET(req: Request) {
 
         const result = await index.search('', {
             filter: 'isActive = true',
-            limit: 100000, // Process up to 100k offers
+            limit: 10000, // Reduced from 100000 to prevent OOM under load
             attributesToRetrieve: [
                 'countryName',
                 'serviceName',

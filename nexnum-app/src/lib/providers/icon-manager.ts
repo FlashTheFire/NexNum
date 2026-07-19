@@ -63,12 +63,12 @@ export class ProviderIconManager {
                         });
                     } else {
                         file.close();
-                        if (fs.existsSync(dest)) fs.unlinkSync(dest);
+                        try { if (fs.existsSync(dest)) fs.unlinkSync(dest) } catch {}
                         resolve(false);
                     }
                 }).on('error', () => {
                     file.close();
-                    if (fs.existsSync(dest)) fs.unlinkSync(dest);
+                    try { if (fs.existsSync(dest)) fs.unlinkSync(dest) } catch {}
                     resolve(false);
                 });
             } catch (e) {

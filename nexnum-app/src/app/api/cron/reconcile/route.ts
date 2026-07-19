@@ -42,6 +42,10 @@ export async function GET(request: Request) {
         for (const order of expiredOrders) {
             results.purchaseOrders.processed++
             try {
+                // Skip if already refunded (prevents double-refund race)
+                if (order.status === 'REFUNDED' || order.status === 'FAILED') {
+                    continue
+                }
                 await prisma.$transaction(async (tx) => {
                     await WalletService.rollback(
                         order.userId,

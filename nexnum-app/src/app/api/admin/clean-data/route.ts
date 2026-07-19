@@ -1,8 +1,15 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/core/db'
 import { meili } from '@/lib/search/search'
+import { requireAdmin } from '@/lib/auth/requireAdmin'
 
-export async function POST() {
+export async function POST(request: Request) {
+    // Require admin authentication
+    const auth = await requireAdmin(request)
+    if ('error' in auth) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     try {
         console.log('🗑️  Cleaning provider data...')
 

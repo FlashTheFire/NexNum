@@ -170,15 +170,37 @@ export async function cacheGet<T>(
 }
 
 /**
- * Cache invalidation
+ * Delete a single cache key by exact name.
+ * NOTE: This does NOT support glob patterns — use cacheInvalidatePattern for that.
  */
-export async function cacheInvalidate(pattern: string): Promise<void> {
+export async function cacheInvalidate(key: string): Promise<void> {
     try {
-        // For single key deletion
-        await redis.del(pattern)
+        await redis.del(key)
     } catch (error) {
-        logger.warn('Redis cache invalidation error', { context: 'CORE', pattern, error: (error as any).message })
+        logger.warn('Redis cache deletion error', { context: 'CORE', key, error: (error as any).message })
     }
+}
+
+/**
+ * Delete all cache keys matching a glob pattern (e.g., "search:v4:*").
+ * Uses SCAN to avoid blocking Redis on large keyspaces.
+ */
+export async function cacheInvalidatePattern(pattern: string): Promise<number> {
+    let deleted = 0
+    try {
+        let cursor = '0'
+        do {
+            const [next, keys] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', 100)
+            cursor = next
+            if (keys.length > 0) {
+                await redis.del(...keys)
+                deleted += keys.length
+            }
+        } while (cursor !== '0')
+    } catch (error) {
+        logger.warn('Redis pattern invalidation error', { context: 'CORE', pattern, error: (error as any).message })
+    }
+    return deleted
 }
 
 /**

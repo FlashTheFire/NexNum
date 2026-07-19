@@ -43,15 +43,24 @@ import { getTraceId } from '@/lib/api/request-context';
 // ============================================
 
 // Banned hashes are now fully managed via DB (seed-banned-icons.ts)
+// Cached in module scope for the duration of a master sync to avoid repeated DB queries
+let _bannedHashesCache: Set<string> | null = null
+
 async function getBannedHashes(): Promise<Set<string>> {
+    if (_bannedHashesCache) return _bannedHashesCache
     try {
         const dbHashes = await prisma.bannedIcon.findMany({ select: { hash: true } })
-        return new Set<string>(dbHashes.map((b) => b.hash))
+        _bannedHashesCache = new Set<string>(dbHashes.map((b) => b.hash))
+        return _bannedHashesCache
     } catch (e) {
-        // Fallback to empty if DB fails, or log error
         console.error('[SYNC] Failed to fetch banned hashes:', e)
         return new Set<string>()
     }
+}
+
+/** Clear the banned hashes cache. Call after master sync completes. */
+export function clearBannedHashesCache(): void {
+    _bannedHashesCache = null
 }
 
 // Helper: Download image to local path with strict single-file enforcement
@@ -112,7 +121,7 @@ async function downloadImageToLocal(url: string, destPath: string, bannedSet?: S
                                 // Match specific basename exactly (avoid accidental prefix matching)
                                 if (fileBase === baseName && ['.svg', '.webp', '.png', '.jpg', '.jpeg'].includes(fileExt)) {
                                     if (file !== `${baseName}${ext}`) {
-                                        fs.unlinkSync(path.join(dir, file));
+                                        try { fs.unlinkSync(path.join(dir, file)) } catch { }
                                         logger.info('Removed inferior/duplicate format', {
                                             context: 'ICON_CLEAN',
                                             file
@@ -214,7 +223,7 @@ export async function verifyAssetIntegrity(): Promise<{ removed: number, scanned
                     file,
                     keeping: keep
                 });
-                fs.unlinkSync(path.join(ICONS_DIR, file));
+                try { fs.unlinkSync(path.join(ICONS_DIR, file)) } catch { }
                 removed++;
             }
         }
@@ -227,7 +236,7 @@ export async function verifyAssetIntegrity(): Promise<{ removed: number, scanned
         try {
             const stats = fs.statSync(filePath);
             if (stats.size === 0) {
-                fs.unlinkSync(filePath);
+                try { fs.unlinkSync(filePath) } catch { }
                 removed++;
                 continue;
             }
@@ -237,14 +246,14 @@ export async function verifyAssetIntegrity(): Promise<{ removed: number, scanned
             // HTML masquerading as Image check
             const head = buffer.slice(0, 10).toString('utf-8').trim();
             if (head.startsWith('<html') || head.startsWith('<!DOCT')) {
-                fs.unlinkSync(filePath);
+                try { fs.unlinkSync(filePath) } catch { }
                 removed++;
                 continue;
             }
 
             const hash = crypto.createHash('sha256').update(buffer).digest('hex');
             if (bannedSet.has(hash)) {
-                fs.unlinkSync(filePath);
+                try { fs.unlinkSync(filePath) } catch { }
                 removed++;
             }
 
@@ -293,6 +302,21 @@ const limit = pLimit(getSafeConcurrency()) // Limit DB upserts concurrency (Opti
 // ============================================
 // DYNAMIC SYNC (UNIFIED)
 // ============================================
+
+/** Extract rate limit config from provider's endpoints JSON, with defaults */
+function getProviderRateLimits(provider: Provider): { concurrency: number; interval: number } {
+    const defaults = { concurrency: 50, interval: 180 }
+    try {
+        const endpoints = provider.endpoints as any
+        if (endpoints?.rateLimit) {
+            return {
+                concurrency: Math.max(1, Math.min(200, Number(endpoints.rateLimit.concurrency) || defaults.concurrency)),
+                interval: Math.max(50, Math.min(5000, Number(endpoints.rateLimit.interval) || defaults.interval))
+            }
+        }
+    } catch { /* fall through to defaults */ }
+    return defaults
+}
 
 async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<SyncResult> {
     const startTime = Date.now()
@@ -1037,7 +1061,8 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                     provider: provider.name,
                     error: e?.message
                 })
-                const limiter = new RateLimitedQueue(50, 180)
+                const rateLimits = getProviderRateLimits(provider)
+                const limiter = new RateLimitedQueue(rateLimits.concurrency, rateLimits.interval)
                 const promises = countries.map(c => limiter.add(async () => {
                     try {
                         const prices = await engine.getPrices(c.code)
@@ -1055,7 +1080,8 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                 await Promise.all(promises)
             }
         } else {
-            const limiter = new RateLimitedQueue(50, 180)
+            const rateLimits = getProviderRateLimits(provider)
+            const limiter = new RateLimitedQueue(rateLimits.concurrency, rateLimits.interval)
             const promises = countries.map(country => limiter.add(async () => {
                 try {
                     const prices = await engine.getPrices(country.code)
@@ -1312,6 +1338,10 @@ export async function syncAllProviders(): Promise<SyncResult[]> {
 
     const totalDuration = Date.now() - startTime;
     logger.success('Full provider sync completed', { context: 'SYNC', durationMs: totalDuration })
+
+    // Clear the banned hashes cache so the next sync fetches fresh data
+    clearBannedHashesCache()
+
     return results
 }
 

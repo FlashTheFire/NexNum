@@ -403,32 +403,36 @@ export class DepositService {
      * Mark deposit as failed
      */
     async failDeposit(depositId: string, reason?: string): Promise<void> {
-        const deposit = await this.getDeposit(depositId)
-        if (!deposit || deposit.status !== 'pending') return
+        await prisma.$transaction(async (tx) => {
+            // Lock the deposit row to prevent race with confirmDeposit/expireDeposit
+            await tx.$executeRaw`SELECT 1 FROM "wallet_transactions" WHERE "id" = ${depositId} FOR UPDATE`
 
-        // Get current metadata
-        const currentTx = await prisma.walletTransaction.findUnique({
-            where: { id: depositId },
-            select: { metadata: true },
-        })
+            const currentTx = await tx.walletTransaction.findUnique({
+                where: { id: depositId },
+                select: { metadata: true },
+            })
 
-        const currentMetadata = (currentTx?.metadata as unknown as DepositMetadata) || {} as DepositMetadata
+            const currentMetadata = (currentTx?.metadata as unknown as DepositMetadata) || {} as DepositMetadata
 
-        await prisma.walletTransaction.update({
-            where: { id: depositId },
-            data: {
-                metadata: {
-                    ...currentMetadata,
-                    status: 'failed',
-                    failureReason: reason,
-                    failedAt: new Date().toISOString(),
+            // Guard: only transition from 'pending' state
+            if (currentMetadata.status && currentMetadata.status !== 'pending') return
+
+            await tx.walletTransaction.update({
+                where: { id: depositId },
+                data: {
+                    metadata: {
+                        ...currentMetadata,
+                        status: 'failed',
+                        failureReason: reason,
+                        failedAt: new Date().toISOString(),
+                    },
                 },
-            },
-        })
+            })
 
-        // Update Redis
-        await redis.setex(DEPOSIT_KEY(depositId), 3600, JSON.stringify({ ...deposit, status: 'failed' }))
-        await redis.srem(USER_PENDING_DEPOSITS(deposit.userId), depositId)
+            // Update Redis
+            await redis.setex(DEPOSIT_KEY(depositId), 3600, JSON.stringify({ ...currentMetadata, status: 'failed' }))
+            await redis.srem(USER_PENDING_DEPOSITS((currentMetadata as any).userId || ''), depositId)
+        })
 
         logger.info('[DepositService] Deposit failed', { depositId, reason })
     }
@@ -437,31 +441,35 @@ export class DepositService {
      * Expire a deposit
      */
     async expireDeposit(depositId: string): Promise<void> {
-        const deposit = await this.getDeposit(depositId)
-        if (!deposit || deposit.status !== 'pending') return
+        await prisma.$transaction(async (tx) => {
+            // Lock the deposit row to prevent race with confirmDeposit/failDeposit
+            await tx.$executeRaw`SELECT 1 FROM "wallet_transactions" WHERE "id" = ${depositId} FOR UPDATE`
 
-        // Get current metadata
-        const currentTx = await prisma.walletTransaction.findUnique({
-            where: { id: depositId },
-            select: { metadata: true },
-        })
+            const currentTx = await tx.walletTransaction.findUnique({
+                where: { id: depositId },
+                select: { metadata: true },
+            })
 
-        const currentMetadata = (currentTx?.metadata as unknown as DepositMetadata) || {} as DepositMetadata
+            const currentMetadata = (currentTx?.metadata as unknown as DepositMetadata) || {} as DepositMetadata
 
-        await prisma.walletTransaction.update({
-            where: { id: depositId },
-            data: {
-                metadata: {
-                    ...currentMetadata,
-                    status: 'expired',
-                    expiredAt: new Date().toISOString(),
+            // Guard: only transition from 'pending' state
+            if (currentMetadata.status && currentMetadata.status !== 'pending') return
+
+            await tx.walletTransaction.update({
+                where: { id: depositId },
+                data: {
+                    metadata: {
+                        ...currentMetadata,
+                        status: 'expired',
+                        expiredAt: new Date().toISOString(),
+                    },
                 },
-            },
-        })
+            })
 
-        // Update Redis
-        await redis.setex(DEPOSIT_KEY(depositId), 3600, JSON.stringify({ ...deposit, status: 'expired' }))
-        await redis.srem(USER_PENDING_DEPOSITS(deposit.userId), depositId)
+            // Update Redis
+            await redis.setex(DEPOSIT_KEY(depositId), 3600, JSON.stringify({ ...currentMetadata, status: 'expired' }))
+            await redis.srem(USER_PENDING_DEPOSITS((currentMetadata as any).userId || ''), depositId)
+        })
 
         logger.info('[DepositService] Deposit expired', { depositId })
     }

@@ -41,21 +41,9 @@ for (const [key, config] of Object.entries(SERVICE_OVERRIDES)) {
 
 /**
  * Standardize a country name for consistent lookup/aggregation.
+ * Delegates to country-normalizer for variant stripping and canonical lookup.
  */
-export function normalizeCountryName(name: string): string {
-    if (!name) return 'unknown'
-    const key = name.toLowerCase().trim()
-    const canonicalName = COUNTRY_NAME_MAP[key as keyof typeof COUNTRY_NAME_MAP] || name
-
-    return canonicalName
-        .toLowerCase()
-        .trim()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-z\s]/g, '')
-        .trim()
-        .replace(/\s+/g, '')
-}
+export { normalizeCountryName } from './country-normalizer'
 
 /**
  * Standardize a service name.

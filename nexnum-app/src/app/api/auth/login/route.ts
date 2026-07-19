@@ -20,19 +20,7 @@ export const POST = apiHandler(async (request, { body, security }) => {
         const captchaResult = await verifyCaptcha(captchaToken || '', ip)
 
         if (!captchaResult.success) {
-            // Check if user is an ADMIN (requires finding user first)
-            const potentialUser = await prisma.user.findUnique({
-                where: { email: email.toLowerCase() },
-                select: { role: true }
-            })
-
-            const isAdmin = potentialUser?.role === 'ADMIN'
-
-            if (isAdmin) {
-                logger.info('CAPTCHA bypass granted for administrative user', { email, ip })
-            } else {
-                return ResponseFactory.error(captchaResult.error || 'Security verification failed', 403)
-            }
+            return ResponseFactory.error(captchaResult.error || 'Security verification failed', 403)
         }
     }
 
