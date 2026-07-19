@@ -224,7 +224,11 @@ export function aggregateCountryFromHit(
     countryMap: Map<string, CountryAggregate>,
     hit: { countryCode?: string; countryName: string; countryIcon?: string; pointPrice: number; stock?: number; provider: string }
 ): void {
-    const key = normalizeCountryName(hit.countryName)
+    // FIX: lowercase the canonical key. Meili currently contains BOTH 'India'
+    // and 'india' (and similar duplicates for ~86 countries) from mixed sync
+    // runs. Without lowercasing, 'India' and 'india' land in different buckets
+    // and produce two identical cards on the buy page.
+    const key = normalizeCountryName(hit.countryName).toLowerCase()
 
     if (!countryMap.has(key)) {
         countryMap.set(key, {
@@ -330,7 +334,13 @@ export async function searchCountries(
         }>()
 
         for (const hit of result.hits as OfferDocument[]) {
-            const normalizedName = normalizeCountryName(hit.countryName)
+            // FIX: case-insensitive + canonical-name key.
+            // Background: Meili currently contains BOTH 'India' and 'india' (and
+            // similar duplicates for ~86 countries) from mixed sync runs. The
+            // previous key used the raw countryName verbatim, so each casing
+            // landed in its own Map bucket and produced two identical cards
+            // (both marked as favorites) on the buy page.
+            const normalizedName = normalizeCountryName(hit.countryName).toLowerCase()
             if (!normalizedName) continue
 
             let stats = countryMap.get(normalizedName)
@@ -410,7 +420,8 @@ export async function searchAdminCountries(
         const groups = new Map<string, any>()
 
         for (const hit of result.hits as OfferDocument[]) {
-            const key = normalizeCountryName(hit.countryName)
+            // FIX: lowercase canonical key (see searchCountries for context).
+            const key = normalizeCountryName(hit.countryName).toLowerCase()
             let group = groups.get(key)
 
             if (!group) {
@@ -495,7 +506,7 @@ export async function searchRawInventory(
                 : getCanonicalName(hit.serviceName)
 
             const normalizedKey = type === 'countries'
-                ? normalizeCountryName(hit.countryName)
+                ? normalizeCountryName(hit.countryName).toLowerCase()
                 : normalizeServiceName(canonicalName)
 
             const key = `${hit.provider}_${normalizedKey}`
@@ -732,7 +743,7 @@ export async function searchServices(
             stats.minPrice = Math.min(stats.minPrice, hit.pointPrice)
             stats.totalStock += hit.stock || 0
             stats.providerSet.add(hit.provider)
-            stats.countrySet.add(normalizeCountryName(hit.countryName))
+            stats.countrySet.add(normalizeCountryName(hit.countryName).toLowerCase())
 
             // Icon Collection (only if meaningful)
             if (hit.serviceIcon && !hit.serviceIcon.includes('dicebear')) {
@@ -887,7 +898,7 @@ export async function searchAdminServices(
                 groups.set(key, group)
             }
 
-            group.countries.add(normalizeCountryName(hit.countryName))
+            group.countries.add(normalizeCountryName(hit.countryName).toLowerCase())
             group.totalStock += hit.stock || 0
             group.priceRange.min = Math.min(group.priceRange.min, hit.pointPrice)
             group.priceRange.max = Math.max(group.priceRange.max, hit.pointPrice)

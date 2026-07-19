@@ -122,12 +122,9 @@ export async function GET(req: NextRequest) {
                 break;
         }
 
-        // 60s Redis cache; key is per-user so the per-user favorite merge is correct.
-        // Anonymous users are partitioned by IP.
-        // v3 prefix: the v2 cache was populated with currencyPrices as a Promise (JSON
-        // serialized to {}), which is why "from --" was showing on cards. Bumping
-        // the prefix flushes all stale v2 entries without manual Redis surgery.
-        const cacheKey = `cache:search:services:v3:${rl.userId || rl.ip}:${q}:${page}:${limit}:${mappedSort}`;
+        // v4 prefix: country dedup key is now lowercased; v3 keys may have
+        // already been cached as un-deduped (e.g. India + india both present)
+        const cacheKey = `cache:search:services:v4:${rl.userId || rl.ip}:${q}:${page}:${limit}:${mappedSort}`;
 
         const result = await cacheGet<{ items: any[]; total: number; page: number; limit: number; hasMore: boolean }>(
             cacheKey,

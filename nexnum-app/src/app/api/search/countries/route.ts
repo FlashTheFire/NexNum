@@ -39,8 +39,9 @@ export async function GET(req: NextRequest) {
             );
         }
 
-        // v3 prefix: v2 keys could have been populated before some fixes
-        const cacheKey = `cache:search:countries:v3:${rl.userId || rl.ip}:${serviceCode}:${q}:${page}:${limit}:${sort}`;
+        // v4 prefix: country dedup key is now lowercased; v3 keys may have
+        // already been cached as un-deduped
+        const cacheKey = `cache:search:countries:v4:${rl.userId || rl.ip}:${serviceCode}:${q}:${page}:${limit}:${sort}`;
 
         const result = await cacheGet<{ countries: any[]; total: number }>(
             cacheKey,
