@@ -39,7 +39,8 @@ export async function GET(req: NextRequest) {
             );
         }
 
-        const cacheKey = `cache:search:countries:v2:${rl.userId || rl.ip}:${serviceCode}:${q}:${page}:${limit}:${sort}`;
+        // v3 prefix: v2 keys could have been populated before some fixes
+        const cacheKey = `cache:search:countries:v3:${rl.userId || rl.ip}:${serviceCode}:${q}:${page}:${limit}:${sort}`;
 
         const result = await cacheGet<{ countries: any[]; total: number }>(
             cacheKey,

@@ -124,7 +124,10 @@ export async function GET(req: NextRequest) {
 
         // 60s Redis cache; key is per-user so the per-user favorite merge is correct.
         // Anonymous users are partitioned by IP.
-        const cacheKey = `cache:search:services:v2:${rl.userId || rl.ip}:${q}:${page}:${limit}:${mappedSort}`;
+        // v3 prefix: the v2 cache was populated with currencyPrices as a Promise (JSON
+        // serialized to {}), which is why "from --" was showing on cards. Bumping
+        // the prefix flushes all stale v2 entries without manual Redis surgery.
+        const cacheKey = `cache:search:services:v3:${rl.userId || rl.ip}:${q}:${page}:${limit}:${mappedSort}`;
 
         const result = await cacheGet<{ items: any[]; total: number; page: number; limit: number; hasMore: boolean }>(
             cacheKey,
@@ -135,8 +138,15 @@ export async function GET(req: NextRequest) {
                     limit,
                     sortBy: mappedSort
                 });
+                // Pre-compute prices inside the cache so cached entries are complete.
+                // This means we never return a Promise (which JSON.stringify turns into {})
+                // and the hot read path never re-runs currency conversion.
+                const items = await Promise.all((r.items || []).map(async (item: any) => ({
+                    ...item,
+                    currencyPrices: await calculatePrices(Number(item.lowestPrice)),
+                })));
                 return {
-                    items: r.items,
+                    items,
                     total: r.total,
                     page: r.page,
                     limit: r.limit,
@@ -178,7 +188,9 @@ export async function GET(req: NextRequest) {
                 serverCount: item.providerCount || 0,
                 countryCount: item.countryCount || 0,
                 iconUrl,
-                currencyPrices: calculatePrices(Number(item.lowestPrice)),
+                // currencyPrices was pre-computed inside the cache callback (line above)
+                // to avoid storing a Promise (which JSON.stringify turns into {}).
+                currencyPrices: item.currencyPrices || {},
                 flagUrls: [],
                 isFavorite: favoriteMap.has(value),
                 favoriteId: favoriteMap.get(value) || null,
