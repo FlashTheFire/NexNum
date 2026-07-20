@@ -30,11 +30,13 @@ class SlidingWindowLimiter {
     private prefix: string
     private windowSizeMs: number
     private getLimit: () => Promise<number>
+    private failClosed: boolean
 
-    constructor(prefix: string, windowSeconds: number, getLimit: () => Promise<number>) {
+    constructor(prefix: string, windowSeconds: number, getLimit: () => Promise<number>, failClosed = false) {
         this.prefix = prefix
         this.windowSizeMs = windowSeconds * 1000
         this.getLimit = getLimit
+        this.failClosed = failClosed
     }
 
     async limit(identifier: string, customLimit?: number) {
@@ -69,19 +71,30 @@ class SlidingWindowLimiter {
                 }
             }
         } catch (error) {
-            console.error('[RateLimit] Execution failed, failing open:', error)
+            console.error('[RateLimit] Execution failed:', error)
+            // C6: Auth-sensitive limiters fail CLOSED (deny request) to protect endpoints
+            if (this.failClosed) {
+                return {
+                    success: false,
+                    limit: 0,
+                    remaining: 0,
+                    reset: now + this.windowSizeMs,
+                    toResponse: () => ResponseFactory.error('Service temporarily unavailable', 503, 'E_RATE_LIMIT_ERROR')
+                }
+            }
+            // Non-auth limiters fail OPEN to preserve availability
             return {
                 success: true, limit, remaining: limit, reset: 0,
-                toResponse: () => ResponseFactory.success({ ok: true }) // Should not be called if success is true
+                toResponse: () => ResponseFactory.success({ ok: true })
             }
         }
     }
 }
 
-// Hardcoded defaults (matching previous logic)
+// Hardcoded defaults (M2: Reduced authLimit from 600 to 20 — auth endpoints need tighter limits)
 const getLimitConfig = async () => ({
     apiLimit: 1000,
-    authLimit: 600,
+    authLimit: 20,
     adminLimit: 100,
     windowSize: 60
 })
@@ -93,20 +106,20 @@ export const rateLimiters = {
         return config.apiLimit
     }),
 
-    // Auth limiter
+    // Auth limiter — C6: fail closed on Redis errors to protect auth endpoints
     auth: new SlidingWindowLimiter('@ratelimit:auth', 60, async () => {
         const config = await getLimitConfig()
         return config.authLimit
-    }),
+    }, true),
 
-    // Transaction limiter (sensitive)
-    transaction: new SlidingWindowLimiter('@ratelimit:tx', 60, async () => 60),
+    // Transaction limiter (sensitive) — fail closed
+    transaction: new SlidingWindowLimiter('@ratelimit:tx', 60, async () => 60, true),
 
-    // Admin API limiter
+    // Admin API limiter — fail closed
     admin: new SlidingWindowLimiter('@ratelimit:admin', 60, async () => {
         const config = await getLimitConfig()
         return config.adminLimit
-    }),
+    }, true),
 }
 
 export type RatelimitType = keyof typeof rateLimiters

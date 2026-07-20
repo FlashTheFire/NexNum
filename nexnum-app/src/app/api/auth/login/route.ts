@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/core/db'
-import { generateToken, setAuthCookie } from '@/lib/auth/jwt'
+import { generateToken, setAuthCookie, TEMP_TOKEN_EXPIRES_IN } from '@/lib/auth/jwt'
 import { loginSchema } from '@/lib/api/validation'
 import bcrypt from 'bcryptjs'
 import { apiHandler } from '@/lib/api/api-handler'
@@ -34,6 +34,12 @@ export const POST = apiHandler(async (request, { body, security }) => {
         return ResponseFactory.error('Invalid email or password', 401)
     }
 
+    // C2: Check if user is banned before proceeding
+    if (user.isBanned) {
+        auth_events_total.labels('login', 'failed_banned').inc()
+        return ResponseFactory.error('Account suspended. Contact support.', 403)
+    }
+
     // Verify password
     const isValidPassword = await bcrypt.compare(password, user.passwordHash)
 
@@ -44,7 +50,7 @@ export const POST = apiHandler(async (request, { body, security }) => {
 
     // Check for 2FA
     if (user.twoFactorEnabled) {
-        // Generate temporary token for 2FA validation
+        // C1: Generate temporary token for 2FA validation with SHORT expiry (5 min)
         const tempToken = await generateToken({
             userId: user.id,
             email: user.email,
@@ -52,7 +58,7 @@ export const POST = apiHandler(async (request, { body, security }) => {
             role: '2FA_PENDING',
             emailVerified: user.emailVerified,
             version: user.tokenVersion
-        })
+        }, TEMP_TOKEN_EXPIRES_IN)
 
         // Audit Log (2FA Challenge)
         await prisma.auditLog.create({

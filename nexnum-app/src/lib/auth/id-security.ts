@@ -73,18 +73,8 @@ export function decodeNumericId(encoded: string, salt: string = ID_SECRET): numb
         const shuffled = shuffleAlphabet(salt)
         const base = shuffled.length
 
-        // Find where padding ends (first non-padding char from left)
-        let startIdx = 0
-        for (let i = 0; i < unshuffled.length - 1; i++) {
-            const charIdx = shuffled.indexOf(unshuffled[i])
-            if (charIdx === -1) return -1
-            // Check if this is a padding char
-            const expectedPadIdx = (0 + i) % base // Can't know original ID here, so decode full
-            startIdx = i
-            break
-        }
-
-        // Decode from custom base
+        // M1: Removed dead code — startIdx was computed but never used.
+        // Decode the full unshuffled string from custom base.
         let result = 0
         for (const char of unshuffled) {
             const idx = shuffled.indexOf(char)

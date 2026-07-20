@@ -7,6 +7,8 @@ import { SecurityLogger } from './security-logger'
  * 
  * Protects admin routes with industrial-grade session verification
  * and forensic auditing via SecurityLogger.
+ * 
+ * C8: Returns 401 JSON for API routes (not a redirect).
  */
 export async function adminMiddleware(request: Request) {
     // 1. Session Verification
@@ -15,7 +17,10 @@ export async function adminMiddleware(request: Request) {
     if (!user || user.role !== 'ADMIN') {
         // Log Unauthorized Access Attempt
         await SecurityLogger.log(request, 401, user?.userId, 'Illegal admin access attempt')
-        return NextResponse.redirect(new URL('/login', request.url))
+        return NextResponse.json(
+            { error: 'Unauthorized', message: 'Admin access required' },
+            { status: 401 }
+        )
     }
 
     // 2. Log Successful Admin Action (Fire and Forget)

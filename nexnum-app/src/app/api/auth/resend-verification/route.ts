@@ -3,9 +3,17 @@ import { prisma } from '@/lib/core/db'
 import { apiHandler } from '@/lib/api/api-handler'
 import { ResponseFactory } from '@/lib/api/response-factory'
 import { logger } from '@/lib/core/logger'
+import { redis } from '@/lib/core/redis'
 
 export const POST = apiHandler(async (request, { user, security }) => {
     const ip = security?.clientIp || 'unknown'
+
+    // M7: Per-user rate limiting — max 1 resend per 60 seconds
+    const resendKey = `email:resend:${user!.userId}`
+    const blocked = await redis.set(resendKey, '1', 'EX', 60, 'NX')
+    if (blocked === null) {
+        return ResponseFactory.error('Please wait at least 60 seconds before requesting another verification email.', 429, 'E_RATE_LIMIT')
+    }
 
     // Get user details
     const userData = await prisma.user.findUnique({

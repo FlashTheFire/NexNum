@@ -3,6 +3,7 @@ import { randomBytes } from 'crypto'
 import { EmailService } from '@/lib/email'
 import { ConfirmEmail } from '@/components/emails/ConfirmEmail'
 import { SecurityLog } from '@/lib/security-logger'
+import { logger } from '@/lib/core/logger'
 
 const VERIFICATION_TOKEN_EXPIRY = 48 * 60 * 60 * 1000 // 48 hours
 const VERIFICATION_TOKEN_ATTEMPTS_WINDOW_MS = 15 * 60 * 1000 // 15 minutes
@@ -43,13 +44,13 @@ export async function sendVerificationEmail(userId: string, email: string, name:
             })
         })
         if (!result.success) {
-            console.error('Failed to send verification email:', result.error)
+            logger.error('Failed to send verification email', { error: result.error })
             return false
         }
 
         return true
-    } catch (error) {
-        console.error('Failed to send verification email:', error)
+    } catch (error: any) {
+        logger.error('Failed to send verification email', { error: error.message })
         return false
     }
 }

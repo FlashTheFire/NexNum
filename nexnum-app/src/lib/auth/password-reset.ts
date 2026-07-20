@@ -1,11 +1,19 @@
 import { prisma } from '@/lib/core/db'
-import { randomBytes } from 'crypto'
+import { randomBytes, createHash } from 'crypto'
 import bcrypt from 'bcryptjs'
 import { EmailService } from '@/lib/email'
 import { PasswordResetEmail } from '@/components/emails/PasswordResetEmail'
 import { logger } from '@/lib/core/logger'
 
 const RESET_TOKEN_EXPIRY = 30 * 60 * 1000 // 30 minutes
+
+/**
+ * C4: Hash a reset token with SHA-256 for secure storage.
+ * The plaintext token is only sent to the user via email — never stored.
+ */
+function hashToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex')
+}
 
 export interface RequestPasswordResetResult {
     success: boolean
@@ -40,11 +48,12 @@ export async function requestPasswordReset(email: string, ipAddress?: string): P
         where: { userId: user.id }
     })
 
-    // Create new token
+    // Create new token (C4: store hashed token in DB, not plaintext)
+    const tokenHash = hashToken(token)
     await prisma.passwordReset.create({
         data: {
             userId: user.id,
-            token,
+            token: tokenHash,
             expiresAt,
             ipAddress
         }
@@ -78,8 +87,10 @@ export async function requestPasswordReset(email: string, ipAddress?: string): P
  * Reset password using a valid token
  */
 export async function resetPassword(token: string, newPassword: string): Promise<{ success: boolean; error?: string }> {
+    // C4: Hash the incoming token before lookup — DB stores only the hash
+    const tokenHash = hashToken(token)
     const resetRecord = await prisma.passwordReset.findUnique({
-        where: { token },
+        where: { token: tokenHash },
         include: { user: true }
     })
 

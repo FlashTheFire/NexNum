@@ -6,7 +6,8 @@ import { logger } from '@/lib/core/logger'
 
 
 const SERVICE_NAME = 'NexNum'
-const totp = new TOTP()
+// C5: Use SHA256 instead of SHA1 for stronger TOTP security
+const totp = new TOTP({ algorithm: 'sha256' })
 
 
 /**
@@ -17,7 +18,7 @@ export function generateTwoFactorSecret(email: string) {
     // Manual keyuri construction since toURI might be different or require specific options
     // Format: otpauth://totp/Label?secret=Secret&issuer=Issuer
     const label = `${SERVICE_NAME}:${email}`
-    const otpauth = `otpauth://totp/${encodeURIComponent(label)}?secret=${secret}&issuer=${encodeURIComponent(SERVICE_NAME)}&algorithm=SHA1&digits=6&period=30`
+    const otpauth = `otpauth://totp/${encodeURIComponent(label)}?secret=${secret}&issuer=${encodeURIComponent(SERVICE_NAME)}&algorithm=SHA256&digits=6&period=30`
 
     return { secret, otpauth }
 }
@@ -62,7 +63,8 @@ export function generateBackupCodes(count = 10): string[] {
 export async function hashBackupCodes(codes: string[]): Promise<string[]> {
     const hashed: string[] = []
     for (const code of codes) {
-        const hash = await bcrypt.hash(code.toUpperCase(), 10)
+        // H6: Use same bcrypt cost as passwords (12) for consistency
+        const hash = await bcrypt.hash(code.toUpperCase(), 12)
         hashed.push(hash)
     }
     return hashed

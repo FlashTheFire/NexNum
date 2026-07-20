@@ -134,6 +134,8 @@ export const POST = apiHandler(
                 id: user.id,
                 name: user.name,
                 email: user.email,
+                role: user.role,
+                emailVerified: user.emailVerified,
             },
         })
     },

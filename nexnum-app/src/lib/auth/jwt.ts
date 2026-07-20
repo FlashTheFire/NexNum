@@ -14,6 +14,8 @@ if (!JWT_SECRET_RAW && process.env.NODE_ENV !== 'production' && process.env.ALLO
 }
 const JWT_SECRET = new TextEncoder().encode(JWT_SECRET_RAW || 'dev-only-not-for-production')
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d'
+const TEMP_TOKEN_EXPIRES_IN = process.env.TEMP_TOKEN_EXPIRES_IN || '5m'
+export { TEMP_TOKEN_EXPIRES_IN }
 const IS_SECURE = process.env.NEXT_PUBLIC_APP_URL?.startsWith('https://') || false
 
 export interface TokenPayload extends JWTPayload {
@@ -29,11 +31,11 @@ export interface TokenPayload extends JWTPayload {
 // Token Lifecycle
 // ============================================================================
 
-export async function generateToken(payload: Omit<TokenPayload, 'iat' | 'exp'>): Promise<string> {
+export async function generateToken(payload: Omit<TokenPayload, 'iat' | 'exp'>, expiresIn?: string): Promise<string> {
     return await new SignJWT(payload)
         .setProtectedHeader({ alg: 'HS256' })
         .setIssuedAt()
-        .setExpirationTime(JWT_EXPIRES_IN)
+        .setExpirationTime(expiresIn || JWT_EXPIRES_IN)
         .sign(JWT_SECRET)
 }
 
@@ -93,6 +95,8 @@ export async function getCurrentUser(headers: Headers): Promise<TokenPayload | n
         if (cached) {
             const data = JSON.parse(cached)
             if (data.isBanned || data.tokenVersion !== payload.version) return null
+            // C3: Check cached role and emailVerified for staleness
+            if (data.role && data.role !== payload.role) return null
             return payload
         }
     } catch (err) {
@@ -103,22 +107,28 @@ export async function getCurrentUser(headers: Headers): Promise<TokenPayload | n
     try {
         const user = await prisma.user.findUnique({
             where: { id: payload.userId },
-            select: { tokenVersion: true, isBanned: true }
+            select: { tokenVersion: true, isBanned: true, role: true, emailVerified: true }
         })
 
         if (!user || user.isBanned || user.tokenVersion !== payload.version) {
             return null
         }
 
-        // 4. Populate Cache (TTL: 60s)
+        // C3: Verify role hasn't changed since token was issued
+        if (user.role !== payload.role) {
+            return null
+        }
+
+        // 4. Populate Cache (TTL: 60s) — include role for staleness detection
         await redis.set(sessionKey, JSON.stringify({
             tokenVersion: user.tokenVersion,
-            isBanned: user.isBanned
+            isBanned: user.isBanned,
+            role: user.role,
         }), 'EX', 60).catch(err => logger.warn('[Auth:JWT] Session cache write failed', { error: err }))
 
         return payload
     } catch (dbError) {
-        console.error('[Auth:JWT] Session verification failed:', dbError)
+        logger.error('[Auth:JWT] Session verification failed', { error: dbError })
         return null
     }
 }

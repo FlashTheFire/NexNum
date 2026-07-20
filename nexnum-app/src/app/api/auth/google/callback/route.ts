@@ -16,7 +16,6 @@ import { cookies } from 'next/headers'
 import { prisma, ensureWallet } from '@/lib/core/db'
 import { generateToken, setAuthCookie } from '@/lib/auth/jwt'
 import { getOAuthSettings } from '@/lib/auth/settings'
-import { v4 as uuidv4 } from 'uuid'
 import { logger } from '@/lib/core/logger'
 
 export const dynamic = 'force-dynamic'
@@ -116,7 +115,9 @@ export async function GET(request: Request) {
                     email: googleUser.email,
                     googleId: googleUser.id,
                     image: googleUser.picture,
-                    passwordHash: uuidv4(), // Placeholder (OAuth users don't have password)
+                    // C7: Use non-bcrypt placeholder — bcrypt.compare() will always return false,
+                    // making password-login impossible for OAuth-only accounts
+                    passwordHash: '!oauth:no-password',
                     role: 'USER',
                     emailVerified: new Date() // Google has already verified the email
                 }

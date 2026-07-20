@@ -2,10 +2,10 @@ import { NextResponse } from 'next/server'
 import { apiHandler } from '@/lib/api/api-handler'
 import { prisma } from '@/lib/core/db'
 import { generateTwoFactorSecret, generateQrCode } from '@/lib/auth/two-factor'
-import { getCurrentUser } from '@/lib/auth/jwt'
+import { redis } from '@/lib/core/redis'
 
-export const POST = apiHandler(async (req) => {
-    const user = await getCurrentUser(req.headers)
+export const POST = apiHandler(async (req, { user }) => {
+    // H8: Use apiHandler user context instead of calling getCurrentUser directly
     if (!user) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -28,19 +28,9 @@ export const POST = apiHandler(async (req) => {
     const { secret, otpauth } = generateTwoFactorSecret(dbUser.email)
     const qrCode = await generateQrCode(otpauth)
 
-    // Return secret and QR code
-    // We do NOT save it to the DB yet, or we could save it as "pending".
-    // Better stateless approach: Send it to client, client sends it back with token to verify.
-    // OR: Save it to DB temp column? Schema doesn't have temp column.
-    // Alternative: Save it to `twoFactorSecret` but keep `twoFactorEnabled` false.
-    // Ideally we verify BEFORE saving, but to verify we need the secret.
-    // So we can save it to `twoFactorSecret` now. If they never complete setup, `twoFactorEnabled` stays false.
-    // This is acceptable.
-
-    await prisma.user.update({
-        where: { id: user.userId },
-        data: { twoFactorSecret: secret }
-    })
+    // H5: Store secret in Redis (5min TTL) instead of DB to prevent orphaned secrets
+    // The verify route will read from Redis and persist to DB only after successful verification
+    await redis.set(`2fa:setup:${user.userId}`, secret, 'EX', 300)
 
     return NextResponse.json({
         success: true,
@@ -50,5 +40,6 @@ export const POST = apiHandler(async (req) => {
         }
     })
 }, {
-    rateLimit: 'auth' // Strict rate limit
+    rateLimit: 'auth', // Strict rate limit
+    requiresAuth: true
 })

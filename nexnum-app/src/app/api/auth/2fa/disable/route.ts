@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server'
 import { apiHandler } from '@/lib/api/api-handler'
 import { prisma } from '@/lib/core/db'
 import { verifyTwoFactorToken } from '@/lib/auth/two-factor'
-import { getCurrentUser } from '@/lib/auth/jwt'
 import { z } from 'zod'
 import bcrypt from 'bcryptjs'
 
@@ -11,8 +10,8 @@ const disableSchema = z.object({
     token: z.string()
 })
 
-export const POST = apiHandler(async (req, { body }) => {
-    const user = await getCurrentUser(req.headers)
+export const POST = apiHandler(async (req, { body, user }) => {
+    // H8: Use apiHandler user context instead of calling getCurrentUser directly
     if (!user) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -36,24 +35,27 @@ export const POST = apiHandler(async (req, { body }) => {
 
     // 2. Verify OTP (Security best practice: ensure they still have the device before removing)
     if (dbUser.twoFactorSecret) {
-        const isValid = verifyTwoFactorToken(token, dbUser.twoFactorSecret)
+        // H2: Add missing await — verifyTwoFactorToken is async
+        const isValid = await verifyTwoFactorToken(token, dbUser.twoFactorSecret)
         if (!isValid) {
             return NextResponse.json({ error: 'Invalid OTP code' }, { status: 400 })
         }
     }
 
-    // Disable
+    // Disable — H3: increment tokenVersion to invalidate existing sessions
     await prisma.user.update({
         where: { id: user.userId },
         data: {
             twoFactorEnabled: false,
             twoFactorSecret: null,
-            twoFactorBackupCodes: []
+            twoFactorBackupCodes: [],
+            tokenVersion: { increment: 1 }
         }
     })
 
     return NextResponse.json({ success: true })
 }, {
     schema: disableSchema,
-    rateLimit: 'auth'
+    rateLimit: 'auth',
+    requiresAuth: true
 })
