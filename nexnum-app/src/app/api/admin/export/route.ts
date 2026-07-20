@@ -13,7 +13,9 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const type = searchParams.get('type') || 'transactions'
     const format = searchParams.get('format') || 'csv'
-    const limit = parseInt(searchParams.get('limit') || '1000')
+    // H-NEW-3: cap export limit to prevent OOM
+    const MAX_EXPORT_LIMIT = 10000
+    const limit = Math.min(parseInt(searchParams.get('limit') || '1000') || 1000, MAX_EXPORT_LIMIT)
 
     try {
         let data: any[] = []
@@ -152,9 +154,16 @@ export async function GET(request: Request) {
 }
 
 function generateCSV(headers: string[], data: any[]): string {
+    // H-NEW-2: prevent CSV formula injection.
+    // Cells starting with =, +, -, @, \t, \r are interpreted as formulas by Excel/LibreOffice.
+    // OWASP: prefix dangerous cells with a single apostrophe.
+    const FORMULA_TRIGGERS = new Set(['=', '+', '-', '@', '\t', '\r'])
     const escapeCSV = (value: any): string => {
-        const str = String(value || '')
-        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        let str = String(value ?? '')
+        if (str.length > 0 && FORMULA_TRIGGERS.has(str[0])) {
+            str = "'" + str
+        }
+        if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes("'")) {
             return `"${str.replace(/"/g, '""')}"`
         }
         return str

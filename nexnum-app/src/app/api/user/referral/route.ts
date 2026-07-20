@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({
                 success: false,
                 error: 'Referral code is required'
-            });
+            }, { status: 400 });
         }
 
         const result = await CouponService.applyCoupon(code, { userId, depositAmount: depositAmount || 0 });

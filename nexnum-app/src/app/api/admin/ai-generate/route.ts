@@ -18,8 +18,25 @@ export async function POST(req: NextRequest) {
   if (auth.error) return auth.error
 
   try {
-    const body = await req.json()
+    // L-NEW-6: cap request body size to 50KB to prevent memory exhaustion
+    const MAX_BODY_SIZE = 50 * 1024
+    const rawText = await req.text()
+    if (rawText.length > MAX_BODY_SIZE) {
+      return NextResponse.json(
+        { error: `Request body exceeds ${MAX_BODY_SIZE} bytes` },
+        { status: 413 }
+      )
+    }
+    const body = JSON.parse(rawText)
     const { prompt, step, mode, supplements, providerType, rawResponse, discoveryType, providerName } = body
+
+    // L-NEW-6: cap individual field lengths
+    if (typeof prompt === 'string' && prompt.length > 50_000) {
+      return NextResponse.json({ error: 'prompt too long (max 50000 chars)' }, { status: 400 })
+    }
+    if (typeof rawResponse === 'string' && rawResponse.length > 50_000) {
+      return NextResponse.json({ error: 'rawResponse too long (max 50000 chars)' }, { status: 400 })
+    }
 
     // ═══════════════════════════════════════════════════════════════════
     // MODE: ANALYZE - Documentation scanning

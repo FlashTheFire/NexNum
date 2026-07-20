@@ -5,6 +5,46 @@ import { logAdminAction, getClientIP } from '@/lib/core/auditLog'
 import { SettingsService } from '@/lib/settings'
 import { encrypt } from '@/lib/security/encryption'
 
+// M-NEW-7: SSRF guard — block private/loopback/link-local/metadata IPs
+const PRIVATE_IP_PATTERNS = [
+    /^10\./,
+    /^127\./,
+    /^169\.254\./,
+    /^172\.(1[6-9]|2[0-9]|3[0-1])\./,
+    /^192\.168\./,
+    /^::1$/,
+    /^fc00:/i,
+    /^fe80:/i,
+]
+const BLOCKED_HOSTNAMES = new Set([
+    'localhost',
+    'metadata.google.internal',
+    '169.254.169.254',
+])
+
+function isPrivateOrBlockedHost(host: string): boolean {
+    const lower = host.toLowerCase()
+    if (BLOCKED_HOSTNAMES.has(lower)) return true
+    if (PRIVATE_IP_PATTERNS.some(p => p.test(lower))) return true
+    return false
+}
+
+function validateApiBaseUrl(url: string): { ok: true } | { ok: false; reason: string } {
+    let parsed: URL
+    try {
+        parsed = new URL(url)
+    } catch {
+        return { ok: false, reason: 'Invalid URL' }
+    }
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        return { ok: false, reason: 'Protocol must be http or https' }
+    }
+    if (isPrivateOrBlockedHost(parsed.hostname)) {
+        return { ok: false, reason: 'URL points to private/loopback/metadata address' }
+    }
+    return { ok: true }
+}
+
 export async function GET(req: Request) {
     const auth = await AuthGuard.requireAdmin()
     if (auth.error) return auth.error
@@ -51,10 +91,8 @@ export async function GET(req: Request) {
             const { authKey, ...safeProvider } = p
             return {
                 ...safeProvider,
-                // @ts-ignore - testResults may not exist in fallback
-                lastTest: p.testResults?.[0] || null,
-                // @ts-ignore - syncCount may not exist in fallback
-                syncCount: p.count || 0
+                lastTest: (p as any).testResults?.[0] || null,
+                syncCount: (p as any).count || 0
             }
         })
 
@@ -76,6 +114,12 @@ export async function POST(req: Request) {
 
         if (!name || !displayName || !apiBaseUrl) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+        }
+
+        // M-NEW-7: SSRF protection
+        const urlCheck = validateApiBaseUrl(apiBaseUrl)
+        if (!urlCheck.ok) {
+            return NextResponse.json({ error: `Invalid apiBaseUrl: ${urlCheck.reason}` }, { status: 400 })
         }
 
         const existing = await prisma.provider.findUnique({ where: { name } })
@@ -131,8 +175,7 @@ export async function POST(req: Request) {
                 apiPair: body.apiPair || '',
                 depositSpent: sanitizedBody.depositSpent || 0.0,
                 depositReceived: sanitizedBody.depositReceived || 0.0,
-                // @ts-ignore - Prisma type sync
-                depositCurrency: body.depositCurrency || 'USD'
+                depositCurrency: body.depositCurrency || 'USD' as any
             }
         })
 

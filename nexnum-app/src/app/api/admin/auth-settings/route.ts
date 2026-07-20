@@ -12,6 +12,7 @@ import { NextResponse } from 'next/server'
 import { apiHandler } from '@/lib/api/api-handler'
 import { redis } from '@/lib/core/redis'
 import { getCurrentUser } from '@/lib/auth/jwt'
+import { AuthGuard } from '@/lib/auth/guard'
 import { z } from 'zod'
 import { ResponseFactory } from '@/lib/api/response-factory'
 import { logger } from '@/lib/core/logger'
@@ -158,24 +159,22 @@ function deepMergeOAuth(current: any, updates: any): any {
     return result
 }
 
+// M-NEW-1: store captcha-enabled flag in Redis instead of a non-existent system_settings table
+const CAPTCHA_ENABLED_KEY = 'system:captcha_enabled'
+
 // GET - Retrieve settings
 export const GET = apiHandler(async (req) => {
-    const user = await getCurrentUser(req.headers)
-
-    if (!user || user.role !== 'ADMIN') {
-        return ResponseFactory.error('Unauthorized', 403, 'FORBIDDEN')
-    }
+    const { error: authErr } = await AuthGuard.requireAdmin()
+    if (authErr) return authErr as NextResponse
 
     try {
         const stored = await redis.get(AUTH_SETTINGS_KEY)
         const settings = stored ? JSON.parse(stored) : defaultSettings
 
-        // Fetch DB-level captcha setting using raw SQL to bypass schema issues
-        const { prisma } = await import('@/lib/core/db')
-        const dbResult = await prisma.$queryRaw`SELECT captcha_enabled FROM system_settings WHERE id = 'default' LIMIT 1` as any[]
-        const dbCaptchaEnabled = dbResult?.[0]?.captcha_enabled
-
-        if (typeof dbCaptchaEnabled === 'boolean') {
+        // M-NEW-1: read captcha_enabled from Redis (no system_settings table)
+        const dbCaptchaRaw = await redis.get(CAPTCHA_ENABLED_KEY)
+        if (dbCaptchaRaw !== null) {
+            const dbCaptchaEnabled = dbCaptchaRaw === 'true'
             settings.captcha = settings.captcha || { ...defaultSettings.captcha }
             settings.captcha.enabled = dbCaptchaEnabled
         }
@@ -226,11 +225,8 @@ export const GET = apiHandler(async (req) => {
 
 // PUT - Update settings
 export const PUT = apiHandler(async (req, { body }) => {
-    const user = await getCurrentUser(req.headers)
-
-    if (!user || user.role !== 'ADMIN') {
-        return ResponseFactory.error('Unauthorized', 403, 'FORBIDDEN')
-    }
+    const { error: authErr } = await AuthGuard.requireAdmin()
+    if (authErr) return authErr as NextResponse
 
     const updates = body!
 
@@ -278,10 +274,9 @@ export const PUT = apiHandler(async (req, { body }) => {
         // Save to Redis
         await redis.set(AUTH_SETTINGS_KEY, JSON.stringify(merged))
 
-        // 3. Update DB-level captcha setting using raw SQL
-        const { prisma } = await import('@/lib/core/db')
+        // M-NEW-1: write captcha_enabled flag to Redis (no system_settings table)
         if (updates.captcha && typeof updates.captcha.enabled === 'boolean') {
-            await prisma.$executeRaw`UPDATE system_settings SET captcha_enabled = ${updates.captcha.enabled} WHERE id = 'default'`
+            await redis.set(CAPTCHA_ENABLED_KEY, updates.captcha.enabled ? 'true' : 'false')
         }
 
         return ResponseFactory.success(merged)

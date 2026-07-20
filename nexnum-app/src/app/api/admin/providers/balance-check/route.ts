@@ -102,19 +102,15 @@ export async function GET(request: Request) {
 
         // Filter in memory for balance < threshold with safe access
         const alerts = providers.filter(p => {
-            // @ts-ignore - balance may not exist in fallback
-            const bal = Number(p.balance || 0)
-            // @ts-ignore - lowBalanceAlert may not exist in fallback  
-            const thresh = Number(p.lowBalanceAlert || 10)
+            const bal = Number((p as any).balance || 0)
+            const thresh = Number((p as any).lowBalanceAlert || 10)
             return bal < thresh
         }).map(p => ({
             id: p.id,
             // Use displayName only, never internal name
             name: p.displayName,
-            // @ts-ignore - balance may not exist
-            balance: Number(p.balance || 0),
-            // @ts-ignore - lowBalanceAlert may not exist
-            threshold: Number(p.lowBalanceAlert || 10),
+            balance: Number((p as any).balance || 0),
+            threshold: Number((p as any).lowBalanceAlert || 10),
             currency: p.currency || 'USD'
         }))
 

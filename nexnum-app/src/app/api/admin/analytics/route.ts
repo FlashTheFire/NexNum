@@ -101,8 +101,7 @@ export async function GET(request: Request) {
             // Profit data - fetch raw records for period to calculate daily profit
             prisma.number.findMany({
                 where: { createdAt: { gte: startDate } },
-                // @ts-ignore - Prisma types might be out of sync in IDE
-                select: { createdAt: true, profit: true }
+                select: { createdAt: true, profit: true } as any
             }),
 
             // Advanced Metrics (Provider health, margins, etc.)

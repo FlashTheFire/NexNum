@@ -190,8 +190,9 @@ async function getKPIs(): Promise<CommandCenterData['kpis']> {
                 if (s.state === 'active') active += Number(s.count)
                 if (s.state === 'idle') idle += Number(s.count)
             })
-            // Assumed max is from env or default
-            updateDbConnections(active, idle, 20)
+            // L-NEW-2: read actual pool size from env (default 50 to match db.ts)
+            const dbPoolMax = parseInt(process.env.DATABASE_POOL_MAX || '50', 10)
+            updateDbConnections(active, idle, dbPoolMax)
         } catch (e) {
             // Ignore if permission denied
         }

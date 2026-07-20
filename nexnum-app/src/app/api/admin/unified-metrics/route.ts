@@ -189,13 +189,20 @@ async function calculateUnifiedMetrics(query: UnifiedMetricsRequest): Promise<Un
         filters.push(`providerName = "${query.provider}"`)
     }
 
-    // Fetch all matching offers
-    const result = await index.search('', {
-        filter: filters.join(' AND '),
-        limit: 5000,
-        sort: ['price:asc']
-    })
-    const offers = result.hits as any[]
+    // L-NEW-3: cap at 1000 and wrap in try/catch to avoid OOM and silent failures
+    const MAX_OFFERS = 1000
+    let result;
+    try {
+        result = await index.search('', {
+            filter: filters.join(' AND '),
+            limit: MAX_OFFERS,
+            sort: ['price:asc']
+        })
+    } catch (meiliError: any) {
+        console.error('[UNIFIED_METRICS] Meili search failed:', meiliError)
+        throw new Error(`Meili search failed: ${meiliError.message || 'unknown error'}`)
+    }
+    const offers = (result.hits as any[]).slice(0, MAX_OFFERS)
 
     // Get provider data
     const providers = await prisma.provider.findMany({

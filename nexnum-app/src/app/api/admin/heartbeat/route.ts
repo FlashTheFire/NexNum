@@ -1,16 +1,18 @@
 /**
- * POST /api/admin/heartbeat - Manually trigger pricing heartbeat
- * GET /api/admin/heartbeat - Get heartbeat status
+ * POST /api/admin/heartbeat - Manually trigger pricing heartbeat (ADMIN ONLY)
+ * GET /api/admin/heartbeat - Get heartbeat status (ADMIN ONLY)
  */
 
 import { NextResponse } from 'next/server'
-import { apiHandler } from '@/lib/api/api-handler'
+import { AuthGuard } from '@/lib/auth/guard'
 import { ResponseFactory } from '@/lib/api/response-factory'
 import { runPricingHeartbeat } from '@/lib/tasks/pricing-heartbeat'
-import { prisma } from '@/lib/core/db'
 import { redis } from '@/lib/core/redis'
 
-export const POST = apiHandler(async () => {
+export async function POST() {
+    const { error } = await AuthGuard.requireAdmin()
+    if (error) return error
+
     // Run the heartbeat manually
     const result = await runPricingHeartbeat()
 
@@ -18,19 +20,22 @@ export const POST = apiHandler(async () => {
         message: result.success ? 'Heartbeat completed successfully' : 'Heartbeat failed',
         ...result
     })
-}, { requiresAuth: true })
+}
 
-export const GET = apiHandler(async () => {
-    // Get current heartbeat status
-    const settings = await prisma.systemSettings.findFirst()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const settingsAny = settings as any
+export async function GET() {
+    const { error } = await AuthGuard.requireAdmin()
+    if (error) return error
 
-    const lastRunFromRedis = await redis.get('heartbeat:lastRun')
+    // M-NEW-1 follow-up: heartbeat config also lives in Redis now (no systemSettings model)
+    const [lastRun, enabledRaw, intervalRaw] = await Promise.all([
+        redis.get('heartbeat:lastRun'),
+        redis.get('system:heartbeat_enabled'),
+        redis.get('system:heartbeat_interval_mins'),
+    ])
 
     return ResponseFactory.success({
-        enabled: settingsAny?.heartbeatEnabled ?? false,
-        intervalMins: settingsAny?.heartbeatIntervalMins ?? 60,
-        lastRun: settingsAny?.heartbeatLastRun || lastRunFromRedis || null
+        enabled: enabledRaw === null ? true : enabledRaw === 'true',
+        intervalMins: intervalRaw ? parseInt(intervalRaw, 10) : 60,
+        lastRun: lastRun || null
     })
-}, { requiresAuth: true })
+}

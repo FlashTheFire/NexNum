@@ -387,6 +387,15 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Invalid bulk action request' }, { status: 400 })
         }
 
+        // M-NEW-8: cap bulk userIds to prevent OOM via unbounded parallel Redis ops
+        const MAX_BULK_USER_IDS = 500
+        if (userIds.length > MAX_BULK_USER_IDS) {
+            return NextResponse.json(
+                { error: `Cannot perform bulk action on more than ${MAX_BULK_USER_IDS} users at once` },
+                { status: 400 }
+            )
+        }
+
         // Prevent bulk action on self
         if (userIds.includes(auth.user.userId) && ['ban', 'demote'].includes(action)) {
             return NextResponse.json({ error: 'Cannot perform this action on yourself' }, { status: 400 })

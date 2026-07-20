@@ -1,15 +1,13 @@
 import { NextResponse } from 'next/server'
-import { getCurrentUser } from '@/lib/auth/jwt'
+import { AuthGuard } from '@/lib/auth/guard'
 import { syncAllProviders, isSyncNeeded, getLastSyncInfo } from '@/lib/providers/provider-sync'
 import { logger } from '@/lib/core/logger'
 
-// GET - Get sync status and info
+// GET - Get sync status and info (ADMIN ONLY)
 export async function GET(request: Request) {
     try {
-        const user = await getCurrentUser(request.headers)
-
-        // For now, allow unauthenticated access to sync status
-        // In production, you'd want to restrict this to admins
+        const { error } = await AuthGuard.requireAdmin()
+        if (error) return error
 
         const needsSync = await isSyncNeeded()
         const syncInfo = await getLastSyncInfo()
@@ -29,20 +27,13 @@ export async function GET(request: Request) {
     }
 }
 
-// POST - Trigger manual sync
+// POST - Trigger manual sync (ADMIN ONLY)
 export async function POST(request: Request) {
     try {
-        // In production, verify admin role
-        const user = await getCurrentUser(request.headers)
+        const { user, error } = await AuthGuard.requireAdmin()
+        if (error) return error
 
-        if (!user) {
-            return NextResponse.json(
-                { error: 'Unauthorized' },
-                { status: 401 }
-            )
-        }
-
-        logger.info(`Manual sync triggered by user ${user.userId}`, { context: 'API_SYNC', userId: user.userId })
+        logger.info(`Manual sync triggered by admin ${user.userId}`, { context: 'API_SYNC', userId: user.userId })
 
         // Run sync in background (don't await)
         syncAllProviders()

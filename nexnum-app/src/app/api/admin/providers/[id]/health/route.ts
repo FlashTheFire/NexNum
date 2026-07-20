@@ -11,6 +11,10 @@ export async function GET(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
+    // L-NEW-4: require admin for health probe (info disclosure prevention)
+    const auth = await AuthGuard.requireAdmin()
+    if (auth.error) return auth.error
+
     const { id } = await params
 
     try {

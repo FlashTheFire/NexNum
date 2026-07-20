@@ -5,16 +5,14 @@
  */
 
 import { NextResponse } from 'next/server'
-import { getCurrentUser } from '@/lib/auth/jwt'
+import { AuthGuard } from '@/lib/auth/guard'
 import { processOutboxEvents, cleanupProcessedEvents, getOutboxStats } from '@/lib/activation/outbox'
 
 export async function GET(request: Request) {
-    try {
-        const user = await getCurrentUser(request.headers)
-        if (!user || user.role !== 'ADMIN') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-        }
+    const { error: authErr } = await AuthGuard.requireAdmin()
+    if (authErr) return authErr
 
+    try {
         const stats = await getOutboxStats()
 
         return NextResponse.json({
@@ -35,12 +33,10 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-    try {
-        const user = await getCurrentUser(request.headers)
-        if (!user || user.role !== 'ADMIN') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-        }
+    const { error: authErr } = await AuthGuard.requireAdmin()
+    if (authErr) return authErr
 
+    try {
         const body = await request.json()
         const action = body.action as string
 
