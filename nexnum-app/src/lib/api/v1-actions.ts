@@ -756,6 +756,7 @@ export async function actionGetPrices(
             const svcId = Number(params.service!)
             const ctyId = Number(params.country!)
 
+            logger.info('[V1] getPrices both-filters', { svcId, ctyId, filterStr })
             const result = await index.search('', {
                 filter: filterStr,
                 limit: 10000,
@@ -845,7 +846,10 @@ export async function actionGetPrices(
         const serviceFacets = (facetResult.facetDistribution?.serviceId as Record<string, number>) || {}
         const serviceIds = Object.keys(serviceFacets).map(Number).filter(n => Number.isFinite(n))
 
-        if (serviceIds.length === 0) return json({}, 200)
+        if (serviceIds.length === 0) {
+            logger.warn('[V1] getPrices no-filter: zero serviceIds from facets', { filterStr })
+            return json({}, 200)
+        }
 
         const result = await index.search('', {
             filter: filterStr,
@@ -859,7 +863,8 @@ export async function actionGetPrices(
 
         aggregateHits(hits)
         return json(output, 200)
-    } catch {
+    } catch (err: any) {
+        logger.error('[V1] getPrices failed', { error: err.message, stack: err.stack })
         return json({}, 200)
     }
 }
