@@ -579,7 +579,7 @@ export async function actionGetStatus(
 
 // ============================================================================
 // Action: getServicesList
-//   On success: JSON {services: [{id, name, lowestPrice, totalStock, countryCount, providerCount}]}
+//   On success: JSON {services: [{id, name}]}
 //   id = numeric serviceId (internal MeiliDocs ID), NOT legacy string code.
 // ============================================================================
 
@@ -600,11 +600,7 @@ export async function actionGetServicesList(
     return json({
         services: result.items.map((s: any) => ({
             id: idByCode.get(s.serviceCode) ?? null,
-            name: s.serviceName,
-            lowestPrice: Number(s.lowestPrice),
-            totalStock: Number(s.totalStock),
-            countryCount: s.countryCount,
-            providerCount: s.providerCount
+            name: s.serviceName
         }))
     }, 200)
 }

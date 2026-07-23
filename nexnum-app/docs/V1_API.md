@@ -80,7 +80,7 @@ the same way.
 | 4  | `getStatus`        | `id`                                      | `STATUS_OK:<code>` (JSON `{status:true,...}`) or status token |
 | 5  | `getPrices`        | optional `country` / `service` (**numeric IDs**) | JSON `{<serviceId>: {cost, count, ...}}`                  |
 | 6  | `getNumbersStatus` | —                                         | JSON `{<activationId>: {phone, serviceId, countryId, ...}}` |
-| 7  | `getServicesList`  | —                                         | JSON `{services: [{id: <serviceId>, name, ...}]}`            |
+| 7  | `getServicesList`  | —                                         | JSON `{services: [{id: <serviceId>, name}]}`                 |
 | 8  | `getCountriesList` | —                                         | JSON `{countries: [{id: <countryId>, name, ...}]}`           |
 
 > **All IDs in V1 are numeric.** The contract never emits legacy string codes
@@ -219,15 +219,14 @@ the calling user, keyed by `activationId` (the upstream provider's id). The
 GET ...&action=getServicesList
 → {
   "services": [
-    { "id": 12, "name": "WhatsApp",
-      "lowestPrice": 17, "totalStock": 22131320,
-      "countryCount": 126, "providerCount": 3 }
+    { "id": 12, "name": "WhatsApp" }
   ]
 }
 ```
 
-`id` is the **numeric** `serviceId` (internal MeiliDocs ID). Legacy `code`
-fields are intentionally not emitted.
+`id` is the **numeric** `serviceId` (internal MeiliDocs ID). Only `id` and `name`
+are returned — no `code`, `lowestPrice`, `totalStock`, `countryCount`, or
+`providerCount` fields.
 
 ### 4.8 `getCountriesList`
 
