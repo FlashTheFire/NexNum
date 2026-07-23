@@ -619,7 +619,7 @@ export async function actionGetCountriesList(
     if (!params.service) {
         const countries = await prisma.countryLookup.findMany({
             orderBy: { countryName: 'asc' },
-            take: 500
+            take: 10000
         })
         return json({
             countries: countries.map((c) => ({
@@ -641,7 +641,7 @@ export async function actionGetCountriesList(
     if (!svcLookup) return json({ countries: [] }, 200)
 
     const [result, countryRows] = await Promise.all([
-        searchCountries(svcLookup.serviceCode, '', { limit: 500 }),
+        searchCountries(svcLookup.serviceCode, '', { limit: 10000 }),
         prisma.countryLookup.findMany({ select: { countryId: true, countryCode: true } })
     ])
     const idByCode = new Map<string, number>()
