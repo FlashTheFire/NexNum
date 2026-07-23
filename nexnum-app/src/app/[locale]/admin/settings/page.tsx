@@ -5,7 +5,7 @@ import { motion } from 'framer-motion'
 import {
     Settings, Globe, DollarSign, Shield, Bell, Save,
     RefreshCw, AlertTriangle, Check, Moon, Sun, Send, Mail,
-    Bitcoin, Timer, Copy
+    Timer, Copy
 } from 'lucide-react'
 import { toast } from 'sonner'
 import LoadingScreen from '@/components/ui/LoadingScreen'
@@ -32,12 +32,11 @@ interface SettingsData {
 
 import { BannedIconsTable } from './BannedIconsTable'
 
-type TabType = 'general' | 'rateLimit' | 'notifications' | 'emailTester' | 'assets' | 'crypto' | 'heartbeat'
+type TabType = 'general' | 'rateLimit' | 'notifications' | 'emailTester' | 'assets' | 'heartbeat'
 
 const tabs = [
     { id: 'general' as TabType, label: 'General', icon: Globe },
-    { id: 'crypto' as TabType, label: 'Crypto', icon: Bitcoin },
-    { id: 'heartbeat' as TabType, label: 'Heartbeat', icon: Timer },
+        { id: 'heartbeat' as TabType, label: 'Heartbeat', icon: Timer },
     { id: 'rateLimit' as TabType, label: 'Rate Limits', icon: Shield },
     { id: 'notifications' as TabType, label: 'Notifications', icon: Bell },
     { id: 'assets' as TabType, label: 'Assets', icon: AlertTriangle },
@@ -470,74 +469,6 @@ export default function SettingsPage() {
                     <SettingsSection title="Asset Management" description="Manage banned icons and other static assets">
                         <BannedIconsTable />
                     </SettingsSection>
-                )}
-
-                {activeTab === 'crypto' && (
-                    <>
-                        <SettingsSection title="Crypto Deposit Configuration" description="Configure USDT deposit settings for cryptocurrency payments">
-                            <div className="space-y-4">
-                                <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg">
-                                    <div className="flex items-start gap-3">
-                                        <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
-                                        <div>
-                                            <p className="font-medium text-amber-200">Important</p>
-                                            <p className="text-sm text-amber-200/70">
-                                                Ensure the wallet addresses are correct. Incorrect addresses may result in lost funds.
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="space-y-4">
-                                        <h4 className="text-white font-medium flex items-center gap-2">
-                                            <span className="bg-violet-500/20 px-2 py-1 rounded text-xs text-violet-300">TRC20</span>
-                                            USDT (Tron Network)
-                                        </h4>
-                                        <SettingsInput
-                                            label="TRC20 Wallet Address"
-                                            value=""
-                                            onChange={() => { }}
-                                            placeholder="T..."
-                                            hint="USDT wallet address on Tron network"
-                                        />
-                                    </div>
-
-                                    <div className="space-y-4">
-                                        <h4 className="text-white font-medium flex items-center gap-2">
-                                            <span className="bg-amber-500/20 px-2 py-1 rounded text-xs text-amber-300">BEP20</span>
-                                            USDT (BNB Smart Chain)
-                                        </h4>
-                                        <SettingsInput
-                                            label="BEP20 Wallet Address"
-                                            value=""
-                                            onChange={() => { }}
-                                            placeholder="0x..."
-                                            hint="USDT wallet address on BSC network"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                        </SettingsSection>
-
-                        <SettingsSection title="Crypto Provider Mode" description="Choose how crypto deposits are processed">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                {[
-                                    { id: 'MANUAL', label: 'Manual', desc: 'Admin manually verifies each deposit' },
-                                    { id: 'THIRD_PARTY', label: 'Third Party', desc: 'Automatic via payment gateway (coming soon)' },
-                                    { id: 'DISABLED', label: 'Disabled', desc: 'Crypto deposits not available' },
-                                ].map((mode) => (
-                                    <button
-                                        key={mode.id}
-                                        className="p-4 bg-gray-800/50 hover:bg-violet-600/20 border border-gray-700 hover:border-violet-500/50 rounded-xl transition-all text-left"
-                                    >
-                                        <p className="font-medium text-white">{mode.label}</p>
-                                        <p className="text-sm text-gray-400">{mode.desc}</p>
-                                    </button>
-                                ))}
-                            </div>
-                        </SettingsSection>
-                    </>
                 )}
 
                 {activeTab === 'heartbeat' && (

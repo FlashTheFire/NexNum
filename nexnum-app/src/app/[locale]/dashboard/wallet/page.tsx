@@ -25,7 +25,6 @@ import { useAuthStore } from "@/stores/authStore"
 import { cn } from "@/lib/utils/utils"
 import { BalanceDisplay, PriceDisplay } from "@/components/common/PriceDisplay"
 import { useCurrency } from "@/providers/CurrencyProvider"
-import { DepositDialog } from "@/components/wallet/deposit-dialog"
 
 // Animation Variants
 const fadeInUp: Variants = {
@@ -64,9 +63,6 @@ export default function WalletPage() {
     const currencySym = currencies[preferredCurrency]?.symbol || '$'
     const formatPriceContext = formatPrice // Use robust formatPrice helper
 
-    // Deposit Dialog
-    const [depositDialogOpen, setDepositDialogOpen] = useState(false)
-
     // Filters
     const [filterType, setFilterType] = useState<'all' | 'credit' | 'debit'>('all')
 
@@ -74,23 +70,7 @@ export default function WalletPage() {
         fetchTransactions()
     }, [fetchTransactions])
 
-    // Auto-complete payment simulation
-    useEffect(() => {
-        let timeout: NodeJS.Timeout
-        if (isLoading && amount) {
-            timeout = setTimeout(() => {
-                const value = parseFloat(amount)
-                if (!isNaN(value)) {
-                    topUp(value)
-                    toast.success(`Successfully added ${formatPriceContext(value)} to wallet`)
-                    setIsLoading(false)
-                    setAmount("")
-                }
-            }, 5000)
-        }
-        return () => clearTimeout(timeout)
-    }, [isLoading, amount, topUp, formatPriceContext])
-
+    
     // Calculate simulated "Card Number" based on User ID for consistent personalization
     const userCardLast4 = user?.id ? user.id.slice(-4).toUpperCase() : "8888"
 
@@ -103,13 +83,34 @@ export default function WalletPage() {
         return true
     })
 
-    const handleTopUp = () => {
+    const handleTopUp = async () => {
         const value = parseFloat(amount)
         if (isNaN(value) || value < 5) {
-            toast.error(`Minimum top-up is ${formatPriceContext(5 * pointsRate)}`)
+            toast.error(`Minimum top-up is ${formatPriceContext(5)}`)
             return
         }
         setIsLoading(true)
+        try {
+            const result = await topUp(value)
+            if (result.success) {
+                toast.success(`Successfully added ${formatPriceContext(value)} to wallet`)
+                setAmount("")
+            } else {
+                toast.error(result.error || "Top-up failed")
+            }
+        } catch {
+            toast.error("Top-up failed. Please try again.")
+        } finally {
+            setIsLoading(false)
+        }
+    }
+
+    const sanitizeCSV = (value: string): string => {
+        // Prevent CSV injection: prefix cells starting with =, +, -, @, \t, \r
+        if (/^[=\+\-@\t\r]/.test(value)) return '\t' + value
+        // Escape double quotes and wrap in quotes if contains comma, newline, or quote
+        if (/[,"\n]/.test(value)) return '"' + value.replace(/"/g, '""') + '"'
+        return value
     }
 
     const downloadReport = () => {
@@ -124,8 +125,8 @@ export default function WalletPage() {
         ])
 
         const csvContent = "data:text/csv;charset=utf-8,"
-            + headers.join(",") + "\n"
-            + rows.map(e => e.join(",")).join("\n")
+            + headers.map(h => sanitizeCSV(h)).join(",") + "\n"
+            + rows.map(row => row.map(cell => sanitizeCSV(cell)).join(",")).join("\n")
 
         const encodedUri = encodeURI(csvContent)
         const link = document.createElement("a")
@@ -258,28 +259,7 @@ export default function WalletPage() {
                             </motion.div>
                         </motion.div>
 
-                        {/* Quick Actions Grid */}
-                        <motion.div variants={fadeInUp} className="grid grid-cols-2 gap-3">
-                            <Button
-                                className="h-14 rounded-xl bg-card/40 border border-white/5 hover:bg-white/5 backdrop-blur-sm group"
-                                variant="outline"
-                                onClick={() => setDepositDialogOpen(true)}
-                            >
-                                <ArrowDownRight className="mr-2 h-5 w-5 text-emerald-400 group-hover:scale-110 transition-transform" />
-                                <div className="text-left">
-                                    <div className="font-semibold text-white">Deposit</div>
-                                    <div className="text-[10px] text-muted-foreground">Add funds via UPI</div>
-                                </div>
-                            </Button>
-                            <Button className="h-14 rounded-xl bg-card/40 border border-white/5 hover:bg-white/5 backdrop-blur-sm group" variant="outline">
-                                <ArrowUpRight className="mr-2 h-5 w-5 text-rose-400 group-hover:scale-110 transition-transform" />
-                                <div className="text-left">
-                                    <div className="font-semibold text-white">Withdraw</div>
-                                    <div className="text-[10px] text-muted-foreground">Transfer to bank</div>
-                                </div>
-                            </Button>
-                        </motion.div>
-
+                        
                         {/* Security Notice */}
                         <motion.div variants={fadeInUp} className="p-4 rounded-xl bg-indigo-500/5 border border-indigo-500/10 flex items-start gap-3">
                             <Shield className="h-5 w-5 text-indigo-400 mt-0.5 shrink-0" />
@@ -370,7 +350,7 @@ export default function WalletPage() {
                                                         "bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 shadow-indigo-500/25"
                                                     )}
                                                 >
-                                                    {amount ? `Pay ${formatPriceContext(parseFloat(amount) * pointsRate)}` : "Enter Amount"}
+                                                    {amount ? `Pay ${formatPriceContext(parseFloat(amount))}` : "Enter Amount"}
                                                 </Button>
                                             </motion.div>
                                         ) : (
@@ -495,14 +475,6 @@ export default function WalletPage() {
                 </div>
             </motion.div>
 
-            {/* Deposit Dialog */}
-            <DepositDialog
-                open={depositDialogOpen}
-                onClose={() => setDepositDialogOpen(false)}
-                onSuccess={() => {
-                    fetchTransactions()
-                }}
-            />
-        </div>
+                    </div>
     )
 }
