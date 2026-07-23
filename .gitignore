@@ -80,3 +80,9 @@ coverage/
 
 # Local log files
 /logs
+
+# Stitch design artifacts (local-only)
+/.stitch/
+/.stitch/**
+nexnum-app/.stitch/
+nexnum-app/.stitch/**
