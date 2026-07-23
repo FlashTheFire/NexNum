@@ -834,34 +834,22 @@ export async function actionGetPrices(
         }
 
         // ── Mode: NO filter (full matrix) ────────────────────────────────────
-        // Use facet distribution on serviceId to get top-level grouping,
-        // then fetch details per service
-        const facetResult = await index.search('', {
-            filter: filterStr,
-            limit: 0,
-            facets: ['serviceId'],
-            attributesToRetrieve: []
-        })
-
-        const serviceFacets = (facetResult.facetDistribution?.serviceId as Record<string, number>) || {}
-        const serviceIds = Object.keys(serviceFacets).map(Number).filter(n => Number.isFinite(n))
-
-        if (serviceIds.length === 0) {
-            logger.warn('[V1] getPrices no-filter: zero serviceIds from facets', { filterStr })
-            return json({}, 200)
-        }
-
         const result = await index.search('', {
             filter: filterStr,
             limit: 100000,
-            maxTotalHits: 1000000,
+            maxTotalHits: 10000000,
             attributesToRetrieve: ['serviceId', 'countryId', 'pointPrice', 'stock', 'provider']
         })
 
         const hits = result.hits as OfferDocument[]
-        if (hits.length === 0) return json({}, 200)
+
+        if (hits.length === 0) {
+            logger.warn('[V1] getPrices no-filter: zero hits from Meili', { filterStr, estimatedTotal: result.estimatedTotalHits })
+            return json({}, 200)
+        }
 
         aggregateHits(hits)
+        logger.info('[V1] getPrices no-filter: success', { hits: hits.length, estimatedTotal: result.estimatedTotalHits, outputCountries: Object.keys(output).length })
         return json(output, 200)
     } catch (err: any) {
         logger.error('[V1] getPrices failed', { error: err.message, stack: err.stack })
