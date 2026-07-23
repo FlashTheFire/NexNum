@@ -40,7 +40,6 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/core/db'
 import { smsProvider } from '@/lib/providers'
 import { getOfferForPurchase, searchCountries, meili, INDEXES, OfferDocument } from '@/lib/search/search'
-import { getServiceAggregates } from '@/lib/search/service-aggregates'
 import { getCachedBalance, invalidateBalanceCache } from '@/lib/cache/user-cache'
 import { WalletService } from '@/lib/wallet/wallet'
 import { PaymentError } from '@/lib/payment/payment-errors'
@@ -590,24 +589,15 @@ export async function actionGetServicesList(
     const denied = requirePerm(ctx.apiKey, 'read')
     if (denied) return json({ services: [] }, 200)
 
-    // Pull aggregates AND serviceId map in parallel
-    const [result, lookupRows] = await Promise.all([
-        getServiceAggregates({ limit: 200 }),
-        prisma.serviceLookup.findMany({ select: { serviceId: true, serviceCode: true, serviceName: true } })
-    ])
-    const idByCode = new Map<string, number>()
-    for (const r of lookupRows) idByCode.set(r.serviceCode, r.serviceId)
+    // Return ALL services from serviceLookup (no limit — lakhs of services supported)
+    const lookupRows = await prisma.serviceLookup.findMany({
+        select: { serviceId: true, serviceName: true }
+    })
 
-    const services: Array<{ id: number; name: string }> = []
-    for (const s of result.items) {
-        const id = idByCode.get(s.serviceCode)
-        if (id !== undefined && id !== null) {
-            services.push({
-                id,
-                name: s.serviceName
-            })
-        }
-    }
+    const services: Array<{ id: number; name: string }> = lookupRows.map(r => ({
+        id: r.serviceId,
+        name: r.serviceName
+    }))
 
     return json({ services }, 200)
 }
