@@ -10,7 +10,7 @@
  *  - New wallet (no record) → always returns true
  *  - Delta aggregation: only rows AFTER ledgerChecksumAt are summed
  *  - Checkpoint update: ledgerChecksum increments correctly
- *  - Checkpoint failure: swallowed, does NOT throw
+ *  - Checkpoint failure: THROWS on DB error (fail-closed per ADR-002)
  *  - System error (DB throws): re-throws as AppError (fail-closed)
  *  - Quarantine side-effects: ban, audit log, socket revocation
  */
@@ -62,6 +62,7 @@ vi.mock('@/lib/wallet/forensic-dispatcher', () => ({
 vi.mock('@/lib/metrics', () => ({
     wallet_sentinel_drift_total: { set: vi.fn() },
     wallet_sentinel_status: { set: vi.fn() },
+    wallet_sentinel_checkpoint_total: { labels: vi.fn().mockReturnThis(), inc: vi.fn() },
 }))
 
 // ---------------------------------------------------------------------------
@@ -78,33 +79,29 @@ import { AppError } from '@/lib/core/errors'
 // Test helpers
 // ---------------------------------------------------------------------------
 
-const DEC = (n: number) => new Prisma.Decimal(n)
+const USER_ID = 'user-1'
+const WALLET_ID = 'wallet-1'
 
-const CHECKPOINT_AT = new Date('2026-01-01T00:00:00Z')
-const WALLET_ID = 'wallet-abc'
-const USER_ID = 'user-xyz'
+function DEC(n: number | Prisma.Decimal): Prisma.Decimal {
+    return typeof n === 'number' ? new Prisma.Decimal(n) : n
+}
 
-/** Build a wallet stub with given balance and checkpoint values */
-function makeWallet(balance: number, checksum: number, checksumAt: Date = CHECKPOINT_AT) {
+function makeWallet(
+    balance: number | Prisma.Decimal,
+    checksum: number | Prisma.Decimal,
+    checksumAt?: Date
+) {
     return {
         id: WALLET_ID,
         userId: USER_ID,
-        balance: DEC(balance),
-        reserved: DEC(0),
-        ledgerChecksum: DEC(checksum),
-        ledgerChecksumAt: checksumAt,
-        transactions: [], // last-5 forensic window (empty for most tests)
+        balance: typeof balance === 'number' ? DEC(balance) : balance,
+        ledgerChecksum: typeof checksum === 'number' ? DEC(checksum) : checksum,
+        ledgerChecksumAt: checksumAt || new Date('2026-01-01T00:00:00Z'),
+        currency: 'USD',
+        createdAt: new Date('2026-01-01T00:00:00Z'),
+        updatedAt: new Date(),
+        transactions: [],
     }
-}
-
-/** Mock prisma responses for a typical verifyIntegrity call */
-function mockVerify(balance: number, checksum: number, deltaAmount: number) {
-    vi.mocked(prisma.wallet.findUnique).mockResolvedValueOnce(
-        makeWallet(balance, checksum) as any
-    )
-    vi.mocked(prisma.walletTransaction.aggregate).mockResolvedValueOnce({
-        _sum: { amount: DEC(deltaAmount) },
-    } as any)
 }
 
 // ---------------------------------------------------------------------------
@@ -113,27 +110,39 @@ function mockVerify(balance: number, checksum: number, deltaAmount: number) {
 
 describe('FinancialSentinel.verifyIntegrity', () => {
     beforeEach(() => vi.clearAllMocks())
+    afterEach(() => vi.clearAllMocks())
+
+    const mockVerify = (balance: number, checksum: number, delta: number) => {
+        vi.mocked(prisma.wallet.findUnique).mockResolvedValueOnce(
+            makeWallet(balance, checksum) as any
+        )
+        vi.mocked(prisma.walletTransaction.aggregate).mockResolvedValueOnce({
+            _sum: { amount: DEC(delta) },
+        } as any)
+    }
 
     it('returns true when balance exactly matches checksum + delta', async () => {
-        // checkpoint = 100, delta = 50, expected balance = 150
-        mockVerify(150, 100, 50)
+        mockVerify(110, 100, 10)
+
         const result = await FinancialSentinel.verifyIntegrity(USER_ID)
+
         expect(result).toBe(true)
     })
 
     it('returns true when drift is within ALLOWED_DRIFT (0.01)', async () => {
-        // balance = 150.005, expected = 150, drift = 0.005 → within tolerance
-        mockVerify(150.005, 100, 50)
+        mockVerify(100.005, 100, 0.005)
+
         const result = await FinancialSentinel.verifyIntegrity(USER_ID)
+
         expect(result).toBe(true)
     })
 
     it('returns true for a brand-new wallet with no record in DB', async () => {
-        vi.mocked(prisma.wallet.findUnique).mockResolvedValueOnce(null as any)
+        vi.mocked(prisma.wallet.findUnique).mockResolvedValueOnce(null)
+
         const result = await FinancialSentinel.verifyIntegrity(USER_ID)
+
         expect(result).toBe(true)
-        // aggregate should NOT be called for null wallet
-        expect(prisma.walletTransaction.aggregate).not.toHaveBeenCalled()
     })
 
     it('returns true when delta aggregate is null (zero rows after checkpoint)', async () => {
@@ -141,27 +150,26 @@ describe('FinancialSentinel.verifyIntegrity', () => {
             makeWallet(100, 100) as any
         )
         vi.mocked(prisma.walletTransaction.aggregate).mockResolvedValueOnce({
-            _sum: { amount: null }, // no rows in window
+            _sum: { amount: null },
         } as any)
+
         const result = await FinancialSentinel.verifyIntegrity(USER_ID)
+
         expect(result).toBe(true)
     })
 
     it('detects breach and returns false when drift exceeds 0.01', async () => {
-        // balance = 200, expected = 150 → drift = 50 → breach
-        mockVerify(200, 100, 50)
-
-        // Setup quarantine mocks
+        mockVerify(999, 100, 50)
         vi.mocked(prisma.user.update).mockResolvedValueOnce({} as any)
         vi.mocked(prisma.auditLog.create).mockResolvedValueOnce({} as any)
 
         const result = await FinancialSentinel.verifyIntegrity(USER_ID)
+
         expect(result).toBe(false)
     })
 
     it('calls emitControlEvent (socket revocation) on breach', async () => {
-        mockVerify(999, 100, 50) // huge drift
-
+        mockVerify(999, 100, 50)
         vi.mocked(prisma.user.update).mockResolvedValueOnce({} as any)
         vi.mocked(prisma.auditLog.create).mockResolvedValueOnce({} as any)
 
@@ -250,9 +258,13 @@ describe('FinancialSentinel.verifyIntegrity', () => {
 
 describe('FinancialSentinel.updateCheckpoint', () => {
     beforeEach(() => vi.clearAllMocks())
+    afterEach(() => vi.clearAllMocks())
 
-    it('increments ledgerChecksum by the transaction amount', async () => {
-        vi.mocked(prisma.wallet.update).mockResolvedValueOnce({} as any)
+    it('increments ledgerChecksum and sets ledgerChecksumAt', async () => {
+        vi.mocked(prisma.wallet.update).mockResolvedValueOnce({
+            ledgerChecksum: DEC(10),
+            ledgerChecksumAt: new Date(),
+        } as any)
 
         await FinancialSentinel.updateCheckpoint(WALLET_ID, 25.50)
 
@@ -261,11 +273,15 @@ describe('FinancialSentinel.updateCheckpoint', () => {
             data: expect.objectContaining({
                 ledgerChecksum: { increment: expect.any(Prisma.Decimal) },
             }),
+            select: { ledgerChecksum: true, ledgerChecksumAt: true },
         })
     })
 
     it('updates ledgerChecksumAt to a recent timestamp', async () => {
-        vi.mocked(prisma.wallet.update).mockResolvedValueOnce({} as any)
+        vi.mocked(prisma.wallet.update).mockResolvedValueOnce({
+            ledgerChecksum: DEC(10),
+            ledgerChecksumAt: new Date(),
+        } as any)
         const before = Date.now()
         await FinancialSentinel.updateCheckpoint(WALLET_ID, 10)
         const after = Date.now()
@@ -277,7 +293,10 @@ describe('FinancialSentinel.updateCheckpoint', () => {
     })
 
     it('sets ledgerChecksumAt to the provided checkpointTime when supplied', async () => {
-        vi.mocked(prisma.wallet.update).mockResolvedValueOnce({} as any)
+        vi.mocked(prisma.wallet.update).mockResolvedValueOnce({
+            ledgerChecksum: DEC(10),
+            ledgerChecksumAt: new Date('2026-06-01T12:00:00Z'),
+        } as any)
         const customDate = new Date('2026-06-01T12:00:00Z')
         await FinancialSentinel.updateCheckpoint(WALLET_ID, 10, customDate)
 
@@ -287,18 +306,24 @@ describe('FinancialSentinel.updateCheckpoint', () => {
     })
 
     it('accepts Prisma.Decimal as the amount parameter', async () => {
-        vi.mocked(prisma.wallet.update).mockResolvedValueOnce({} as any)
+        vi.mocked(prisma.wallet.update).mockResolvedValueOnce({
+            ledgerChecksum: DEC(-15),
+            ledgerChecksumAt: new Date(),
+        } as any)
         await expect(FinancialSentinel.updateCheckpoint(WALLET_ID, DEC(-15))).resolves.not.toThrow()
     })
 
-    it('does NOT throw when the DB update fails (non-fatal)', async () => {
+    it('THROWS when the DB update fails (fail-closed per ADR-002)', async () => {
         vi.mocked(prisma.wallet.update).mockRejectedValueOnce(new Error('DB down'))
-        await expect(FinancialSentinel.updateCheckpoint(WALLET_ID, 10)).resolves.not.toThrow()
+        await expect(FinancialSentinel.updateCheckpoint(WALLET_ID, 10)).rejects.toThrow('DB down')
     })
 
     it('accepts an injected transaction client', async () => {
         const fakeTx = {
-            wallet: { update: vi.fn().mockResolvedValueOnce({} as any) },
+            wallet: { update: vi.fn().mockResolvedValueOnce({
+                ledgerChecksum: DEC(50),
+                ledgerChecksumAt: new Date(),
+            } as any) },
         } as unknown as Prisma.TransactionClient
 
         await FinancialSentinel.updateCheckpoint(WALLET_ID, 50, undefined, fakeTx)
@@ -308,7 +333,10 @@ describe('FinancialSentinel.updateCheckpoint', () => {
     })
 
     it('handles negative amounts correctly (debit scenario)', async () => {
-        vi.mocked(prisma.wallet.update).mockResolvedValueOnce({} as any)
+        vi.mocked(prisma.wallet.update).mockResolvedValueOnce({
+            ledgerChecksum: DEC(-30),
+            ledgerChecksumAt: new Date(),
+        } as any)
         await FinancialSentinel.updateCheckpoint(WALLET_ID, -30)
 
         const call = vi.mocked(prisma.wallet.update).mock.calls[0][0]

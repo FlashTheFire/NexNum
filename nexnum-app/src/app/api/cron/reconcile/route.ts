@@ -52,6 +52,7 @@ export async function GET(request: Request) {
                         order.amount.toNumber(),
                         order.id,
                         'Reconciliation Expired',
+                        undefined, // idempotencyKey
                         tx
                     )
                     await tx.purchaseOrder.update({
@@ -85,6 +86,7 @@ export async function GET(request: Request) {
                         activation.price.toNumber(),
                         activation.id,
                         'Reconciliation: Stuck RESERVED',
+                        undefined, // idempotencyKey
                         tx
                     )
                     // Mark as FAILED

@@ -131,6 +131,8 @@ function makeWallet(balance: number, reserved = 0) {
         userId: USER_ID,
         balance: DEC(balance),
         reserved: DEC(reserved),
+        ledgerChecksum: DEC(0),
+        ledgerChecksumAt: new Date(),
     }
 }
 
@@ -167,6 +169,7 @@ describe('WalletService.reserve', () => {
     it('increments reserved when funds are available', async () => {
         vi.mocked(prisma.wallet.findUnique).mockResolvedValue(makeWallet(100, 0) as any)
         vi.mocked(prisma.wallet.update).mockResolvedValue({} as any)
+        vi.mocked(prisma.walletTransaction.create).mockResolvedValue(MOCK_TRANSACTION as any)
 
         await WalletService.reserve(USER_ID, 50, 'order-1', 'Reserve 50')
 
@@ -292,6 +295,7 @@ describe('WalletService.rollback', () => {
     it('decrements reserved only — does NOT touch balance', async () => {
         vi.mocked(prisma.wallet.findUnique).mockResolvedValue(makeWallet(0, 30) as any)
         vi.mocked(prisma.wallet.update).mockResolvedValue({} as any)
+        vi.mocked(prisma.walletTransaction.create).mockResolvedValue({} as any)
 
         await WalletService.rollback(USER_ID, 30, 'act-1', 'Rollback')
 
@@ -304,13 +308,14 @@ describe('WalletService.rollback', () => {
         expect((call.data as any).balance).toBeUndefined()
     })
 
-    it('does NOT create a walletTransaction record', async () => {
+    it('creates a walletTransaction record for rollback', async () => {
         vi.mocked(prisma.wallet.findUnique).mockResolvedValue(makeWallet(0, 30) as any)
         vi.mocked(prisma.wallet.update).mockResolvedValue({} as any)
+        vi.mocked(prisma.walletTransaction.create).mockResolvedValue({} as any)
 
         await WalletService.rollback(USER_ID, 30, 'act-1', 'Rollback')
 
-        expect(prisma.walletTransaction.create).not.toHaveBeenCalled()
+        expect(prisma.walletTransaction.create).toHaveBeenCalled()
     })
 })
 

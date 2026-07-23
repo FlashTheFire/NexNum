@@ -244,7 +244,14 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
 
             // Rollback
             await prisma.$transaction(async (tx) => {
-                await WalletService.rollback(user.userId, freshPrice, purchaseOrderId!, 'Provider Fail', tx)
+                await WalletService.rollback(
+                    user.userId,
+                    freshPrice,
+                    purchaseOrderId!,
+                    'Provider Fail',
+                    undefined, // idempotencyKey
+                    tx
+                )
                 await tx.purchaseOrder.update({ where: { id: purchaseOrderId! }, data: { status: 'FAILED' } })
                 if (activationId) await tx.activation.update({ where: { id: activationId }, data: { state: 'FAILED' } })
             })

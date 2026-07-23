@@ -197,6 +197,7 @@ export class ActivationService {
             activation.price.toNumber(),
             activationId,
             `Failed: ${reason}`,
+            undefined, // idempotencyKey
             client as Prisma.TransactionClient
         )
 

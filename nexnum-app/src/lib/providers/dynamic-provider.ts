@@ -683,14 +683,14 @@ export class DynamicProvider implements SmsProvider {
         ['$entries',         (o, _ctx) => typeof o === 'object' && o !== null ? Object.entries(o) : []],
         ['$pick',            (o, _ctx, p) => {
             if (typeof o !== 'object' || o === null) return o
-            const keys = p[0]?.split(',').map(k => k.trim()) || []
+            const keys = p?.[0]?.split(',').map(k => k.trim()) || []
             const res: Record<string, unknown> = {}
             for (const k of keys) if (k in o) res[k] = (o as Record<string, unknown>)[k]
             return res
         }],
         ['$omit',            (o, _ctx, p) => {
             if (typeof o !== 'object' || o === null) return o
-            const omit = new Set((p[0]?.split(',').map(k => k.trim()) || []))
+            const omit = new Set((p?.[0]?.split(',').map(k => k.trim()) || []))
             const res: Record<string, unknown> = {}
             for (const [k, v] of Object.entries(o)) if (!omit.has(k)) res[k] = v
             return res

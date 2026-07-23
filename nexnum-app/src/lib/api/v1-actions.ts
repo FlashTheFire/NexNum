@@ -269,7 +269,7 @@ export async function actionGetNumber(
         } catch (providerErr: any) {
             logger.error('[V1 getNumber] provider failed', { correlationId, error: providerErr?.message })
             await prisma.$transaction(async (tx) => {
-                await WalletService.rollback(ctx.userId, freshPrice, purchaseOrderId!, 'Provider Fail', tx)
+                await WalletService.rollback(ctx.userId, freshPrice, purchaseOrderId!, 'Provider Fail', undefined, tx)
                 await tx.purchaseOrder.update({ where: { id: purchaseOrderId! }, data: { status: 'FAILED' } })
                 if (activationId) await tx.activation.update({ where: { id: activationId }, data: { state: 'FAILED' } })
             })
@@ -280,7 +280,7 @@ export async function actionGetNumber(
         if (!providerResult?.phoneNumber || !providerResult?.activationId) {
             logger.error('[V1 getNumber] provider returned empty result', { correlationId })
             await prisma.$transaction(async (tx) => {
-                await WalletService.rollback(ctx.userId, freshPrice, purchaseOrderId!, 'Provider Empty Result', tx)
+                await WalletService.rollback(ctx.userId, freshPrice, purchaseOrderId!, 'Provider Empty Result', undefined, tx)
                 await tx.purchaseOrder.update({ where: { id: purchaseOrderId! }, data: { status: 'FAILED' } })
                 if (activationId) await tx.activation.update({ where: { id: activationId }, data: { state: 'FAILED' } })
             })
@@ -368,7 +368,7 @@ export async function actionGetNumber(
         if (purchaseOrderId && reservedAmount > 0) {
             try {
                 await prisma.$transaction(async (tx) => {
-                    await WalletService.rollback(ctx.userId, reservedAmount, purchaseOrderId!, 'Crash Rollback', tx)
+                    await WalletService.rollback(ctx.userId, reservedAmount, purchaseOrderId!, 'Crash Rollback', undefined, tx)
                     await tx.purchaseOrder.update({ where: { id: purchaseOrderId! }, data: { status: 'FAILED' } })
                     if (activationId) await tx.activation.update({ where: { id: activationId }, data: { state: 'FAILED' } })
                 })
