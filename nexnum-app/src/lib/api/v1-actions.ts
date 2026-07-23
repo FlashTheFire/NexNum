@@ -758,7 +758,8 @@ export async function actionGetPrices(
 
             const result = await index.search('', {
                 filter: filterStr,
-                limit: 100, // operators per service/country rarely exceed 20
+                limit: 10000,
+                maxTotalHits: 1000000,
                 attributesToRetrieve: ['serviceId', 'countryId', 'pointPrice', 'stock', 'provider']
             })
 
@@ -788,7 +789,8 @@ export async function actionGetPrices(
 
             const result = await index.search('', {
                 filter: filterStr,
-                limit: Math.min(500, countryIds.length * 20),
+                limit: 10000,
+                maxTotalHits: 1000000,
                 attributesToRetrieve: ['serviceId', 'countryId', 'pointPrice', 'stock', 'provider']
             })
 
@@ -818,7 +820,8 @@ export async function actionGetPrices(
 
             const result = await index.search('', {
                 filter: filterStr,
-                limit: Math.min(500, serviceIds.length * 20),
+                limit: 10000,
+                maxTotalHits: 1000000,
                 attributesToRetrieve: ['serviceId', 'countryId', 'pointPrice', 'stock', 'provider']
             })
 
@@ -846,7 +849,8 @@ export async function actionGetPrices(
 
         const result = await index.search('', {
             filter: filterStr,
-            limit: Math.min(5000, serviceIds.length * 50),
+            limit: 100000,
+            maxTotalHits: 1000000,
             attributesToRetrieve: ['serviceId', 'countryId', 'pointPrice', 'stock', 'provider']
         })
 
