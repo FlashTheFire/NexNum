@@ -75,13 +75,16 @@ the same way.
 | #  | Action             | Required params (besides `api_key`)      | Success body                                                |
 |----|--------------------|-------------------------------------------|--------------------------------------------------------------|
 | 1  | `getBalance`       | —                                         | `ACCESS_BALANCE:<amount>`                                    |
-| 2  | `getNumber`        | `service`, `country` [, `operator`]       | `ACCESS_NUMBER:<id>:<+E164>`                                  |
+| 2  | `getNumber`        | `service=<serviceId>`, `country=<countryId>` [, `operator`] | `ACCESS_NUMBER:<id>:<+E164>`                |
 | 3  | `setStatus`        | `id`, `status`                            | `ACCESS_READY` / `ACCESS_RETRY_GET` / `ACCESS_ACTIVATION` / `ACCESS_CANCEL` |
 | 4  | `getStatus`        | `id`                                      | `STATUS_OK:<code>` (JSON `{status:true,...}`) or status token |
-| 5  | `getPrices`        | optional `country` and/or `service`       | JSON `{<service>: {<country>: price}}`                       |
-| 6  | `getNumbersStatus` | —                                         | JSON `{<activationId>: {phone, sms, ...}}`                   |
-| 7  | `getServicesList`  | —                                         | JSON `{services: [...]}`                                      |
-| 8  | `getCountriesList` | —                                         | JSON `{countries: [...]}`                                     |
+| 5  | `getPrices`        | optional `country` / `service` (**numeric IDs**) | JSON `{<serviceId>: {cost, count, ...}}`                  |
+| 6  | `getNumbersStatus` | —                                         | JSON `{<activationId>: {phone, serviceId, countryId, ...}}` |
+| 7  | `getServicesList`  | —                                         | JSON `{services: [{id: <serviceId>, name, ...}]}`            |
+| 8  | `getCountriesList` | —                                         | JSON `{countries: [{id: <countryId>, name, ...}]}`           |
+
+> **All IDs in V1 are numeric.** The contract never emits legacy string codes
+> (`tg`, `wa`, `6`, `0`). See [§ 6 Universal ID contract](#6-universal-id-contract).
 
 ### 4.1 `getBalance`
 
@@ -138,34 +141,72 @@ For a valid `id` the response is one of:
 
 ### 4.5 `getPrices`
 
+> **Inputs are numeric IDs** (`serviceId`, `countryId`) — not legacy string
+> codes. See the [Universal ID contract](#6-universal-id-contract) below.
+
 ```
 GET /stubs/handler_api.php?api_key=...&action=getPrices
-→ {"tg":{"6":0.45,"0":0.20},"wa":{"6":0.35,"0":0.18}}
+→ {
+  "12": {                                                 // serviceId
+    "cost": 0.15, "count": 142,
+    "serviceName": "WhatsApp",
+    "countries": {
+      "89": { "cost": 0.15, "count": 142, "countryName": "India" }
+    }
+  }
+}
 
-GET ...&action=getPrices&service=tg
-→ {"tg":{"6":0.45,"0":0.20}}
+GET ...&action=getPrices&service=12
+→ {
+  "12": {
+    "cost": 0.15, "count": 142,
+    "serviceName": "WhatsApp",
+    "countries": {
+      "89": { "cost": 0.15, "count": 142, "countryName": "India" },
+      "0":  { "cost": 0.18, "count":  60, "countryName": "—"        }
+    }
+  }
+}
 
-GET ...&action=getPrices&country=6
-→ {"tg":{"6":0.45},"wa":{"6":0.35}}
+GET ...&action=getPrices&country=89
+→ {
+  "12": { "cost": 0.15, "count": 142,
+          "serviceName": "WhatsApp",
+          "countryId": 89, "countryName": "India" }
+}
 
-GET ...&action=getPrices&service=tg&country=6
-→ {"tg":{"6":[{"operator_name":"...", "price":0.45}, ...]}}
+GET ...&action=getPrices&service=12&country=89
+→ {
+  "12": {
+    "cost": 0.15, "count": 142,
+    "serviceName": "WhatsApp",
+    "countryId": 89, "countryName": "India",
+    "operators": {
+      "any":       { "operator_name": "any",       "price": 0.15 },
+      "airtel":    { "operator_name": "airtel",    "price": 0.18 }
+    }
+  }
+}
 ```
 
-When both `service` and `country` are supplied the response is keyed by
-**operator** to match the legacy provider. When one is omitted, the response
-is keyed by the other dimension. When neither is supplied, every
-service × country combination is returned.
-
-Prices are pulled live from MeiliSearch via
-`getServiceAggregates()` and `searchCountries()` — see
-`src/lib/search/search.ts`.
+`cost` is in user points, `count` is total available stock across all matching
+operators. When both `service` and `country` are supplied, the response is
+keyed by **operator** to match the legacy provider format; otherwise the
+response is keyed by the missing dimension. The output never contains legacy
+string codes (`tg`, `wa`, `6`, `0`) — only numeric IDs and resolved names.
 
 ### 4.6 `getNumbersStatus`
 
 ```
 GET ...&action=getNumbersStatus
-→ {"1234567":{"phone":"+14155551234","sms":[{"code":"12345","receivedAt":"..."}]}}
+→ {
+  "1234567": {
+    "phone":     "+14155551234",
+    "serviceId": 12, "serviceName": "WhatsApp",
+    "countryId": 89, "countryName": "India",
+    "sms": [{ "code": "12345", "receivedAt": "..." }]
+  }
+}
 ```
 
 Returns a map of every active (non-cancelled, non-expired) `Number` row for
@@ -176,15 +217,44 @@ the calling user, keyed by `activationId` (the upstream provider's id). The
 
 ```
 GET ...&action=getServicesList
-→ {"services":[{"code":"tg","name":"Telegram","icon":"..."}, ...]}
+→ {
+  "services": [
+    { "id": 12, "name": "WhatsApp",
+      "lowestPrice": 17, "totalStock": 22131320,
+      "countryCount": 126, "providerCount": 3 }
+  ]
+}
 ```
+
+`id` is the **numeric** `serviceId` (internal MeiliDocs ID). Legacy `code`
+fields are intentionally not emitted.
 
 ### 4.8 `getCountriesList`
 
 ```
 GET ...&action=getCountriesList
-→ {"countries":[{"code":"6","name":"United States","icon":"..."}, ...]}
+→ {
+  "countries": [
+    { "id": 89, "name": "India" }
+  ]
+}
 ```
+
+When called with `?service=<serviceId>`, the result is restricted to countries
+that have at least one live offer for that service and includes `minPrice`,
+`totalStock`, and `serverCount`:
+
+```
+GET ...&action=getCountriesList&service=12
+→ {
+  "countries": [
+    { "id": 89, "name": "India",
+      "minPrice": 0.15, "totalStock": 142, "serverCount": 2 }
+  ]
+}
+```
+
+`id` is the **numeric** `countryId` (internal MeiliDocs ID).
 
 The list is derived from `CountryLookup` and the current MeiliSearch
 index, so a country only appears if it is both known and has at least one
@@ -219,7 +289,39 @@ operator currently serving it.
 
 ---
 
-## 6. Implementation notes
+## 6. Universal ID contract
+
+The V1 contract has been standardized on **internal numeric IDs** so that the
+same response shape works for every payload — no more carrying both a
+provider-supplied slug and an internal name.
+
+* `serviceId` — internal MeiliDocs `serviceId` (an `Int` from
+  `ServiceLookup.serviceId`).
+* `countryId` — internal MeiliDocs `countryId` (an `Int` from
+  `CountryLookup.countryId`).
+* The legacy `providerServiceCode` (`wa`, `tg`, `full`) and
+  `providerCountryCode` (`91`, `0`, `6`) strings are **never** emitted by V1.
+  They are still used internally as the *key* on which MeiliDocs documents are
+  joined to the lookup tables, but the *response* only carries numeric IDs.
+* Resolved `serviceName` and `countryName` are returned alongside every
+  numeric ID so that downstream UIs do not need a second lookup round-trip.
+
+Clients that previously passed string slugs (e.g. `?service=tg&country=6`) must
+migrate to the numeric form (`?service=12&country=89`). The endpoint is
+forgiving: an unparseable ID yields an empty result (`{}` or `[]`) rather than
+an error, so a graceful migration is possible.
+
+Use the **list endpoints** to translate between human-readable names and
+numeric IDs:
+
+```
+GET /stubs/handler_api.php?action=getServicesList
+GET /stubs/handler_api.php?action=getCountriesList
+```
+
+---
+
+## 7. Implementation notes
 
 * **Auth flow** — `withV1Auth` (in `src/lib/api/api-middleware.ts`) extracts
   the key from query string first, then `Authorization: Bearer`, hashes it

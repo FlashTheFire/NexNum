@@ -14,10 +14,10 @@
  *   setStatus        | one of {ACCESS_READY, ACCESS_RETRY_GET,   | "NO_ACTIVATION"
  *   |                 | ACCESS_ACTIVATION, ACCESS_CANCEL}         |
  *   getStatus        | JSON {status, message: "STATUS_OK:..."}   | JSON {status:false, msg:...}
- *   getServicesList  | JSON {services: [{id,name,code,price}]}   | JSON {services:[]}
- *   getCountriesList | JSON {countries: [{id,name,code,price}]}  | JSON {countries:[]}
- *   getPrices        | JSON {<service>: {<country>: price}}      | JSON {}
- *   getNumbersStatus | JSON {<activationId>: {phone,sms,...}}    | JSON {}
+ *   getServicesList  | JSON {services: [{id,numeric, name, ...}]}| JSON {services:[]}
+ *   getCountriesList | JSON {countries: [{id,numeric, name, ...}]}| JSON {countries:[]}
+ *   getPrices        | JSON {<serviceId>: {cost,count,...,countries/operators}} | JSON {}
+ *   getNumbersStatus | JSON {<activationId>: {phone,countryId,serviceId,...}}| JSON {}
  *
  * `setStatus` status inputs (provider-style):
  *    1  -> ACCESS_READY       (SMS has been read; we mark `received`)
@@ -39,7 +39,7 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/core/db'
 import { smsProvider } from '@/lib/providers'
-import { getOfferForPurchase, searchCountries } from '@/lib/search/search'
+import { getOfferForPurchase, searchCountries, meili, INDEXES, OfferDocument } from '@/lib/search/search'
 import { getServiceAggregates } from '@/lib/search/service-aggregates'
 import { getCachedBalance, invalidateBalanceCache } from '@/lib/cache/user-cache'
 import { WalletService } from '@/lib/wallet/wallet'
@@ -155,16 +155,30 @@ export async function actionGetNumber(
 
     try {
         // ---- Phase 1: input validation ----
+        // Universal V1 contract: service and country are numeric IDs.
+        // getOfferForPurchase accepts either numeric or string; pass numbers when valid.
+        const svcId = Number(params.service)
+        const ctyId = Number(params.country)
+        const serviceIdNum = Number.isFinite(svcId) && svcId > 0 ? svcId : undefined
+        const countryIdNum = Number.isFinite(ctyId) && ctyId > 0 ? ctyId : undefined
+
         const validation = validatePurchaseInput({
             countryCode: params.country,
-            serviceCode: params.service
+            serviceCode: params.service,
+            countryId: countryIdNum,
+            serviceId: serviceIdNum
         })
         if (!validation.valid || !validation.sanitized) {
             return plain('BAD_SERVICE', 200)
         }
 
         // ---- Phase 2: offer lookup ----
-        const offer = await getOfferForPurchase(params.service, params.country)
+        const operatorId = params.operator && !isNaN(Number(params.operator)) ? Number(params.operator) : undefined
+        const offer = await getOfferForPurchase(
+            serviceIdNum ?? params.service,
+            countryIdNum ?? params.country,
+            operatorId
+        )
         if (!offer) {
             return plain('NO_NUMBERS', 200)
         }
@@ -178,7 +192,7 @@ export async function actionGetNumber(
         const eligibility = await checkUserEligibility(ctx.userId, offer.pointPrice)
         if (!eligibility.eligible) {
             if (eligibility.code === 'E_INSUFFICIENT_FUNDS') return plain('NO_BALANCE', 200)
-            return plain('RATE_LIMIT_EXCEEDED', 200)
+            return plain('NO_NUMBERS', 200)
         }
 
         // ---- Phase 4: atomic lock ----
@@ -265,6 +279,12 @@ export async function actionGetNumber(
 
         if (!providerResult?.phoneNumber || !providerResult?.activationId) {
             logger.error('[V1 getNumber] provider returned empty result', { correlationId })
+            await prisma.$transaction(async (tx) => {
+                await WalletService.rollback(ctx.userId, freshPrice, purchaseOrderId!, 'Provider Empty Result', tx)
+                await tx.purchaseOrder.update({ where: { id: purchaseOrderId! }, data: { status: 'FAILED' } })
+                if (activationId) await tx.activation.update({ where: { id: activationId }, data: { state: 'FAILED' } })
+            })
+            await invalidateBalanceCache(ctx.userId)
             return plain('NO_NUMBERS', 200)
         }
 
@@ -359,6 +379,15 @@ export async function actionGetNumber(
         if (err instanceof PaymentError) {
             if ((err.code as string) === 'E_INSUFFICIENT_FUNDS') return plain('NO_BALANCE', 200)
         }
+        if (
+            err instanceof Prisma.PrismaClientKnownRequestError ||
+            err instanceof Prisma.PrismaClientUnknownRequestError ||
+            err instanceof Prisma.PrismaClientInitializationError ||
+            err instanceof Prisma.PrismaClientRustPanicError ||
+            (err && typeof err === 'object' && 'name' in err && String(err.name).includes('Prisma'))
+        ) {
+            return plain('ERROR_SQL', 200)
+        }
         return plain('NO_NUMBERS', 200)
     }
 }
@@ -385,7 +414,7 @@ export async function actionSetStatus(
 
     if (!params.id) return plain('NO_ACTIVATION', 200)
     const code = Number(params.status)
-    if (![1, 3, 6, 8, -1].includes(code)) return plain('NO_ACTIVATION', 200)
+    if (isNaN(code) || ![1, 3, 6, 8, -1].includes(code)) return plain('BAD_STATUS', 200)
 
     const number = await prisma.number.findFirst({
         where: { activationId: params.id, ownerId: ctx.userId }
@@ -397,7 +426,7 @@ export async function actionSetStatus(
 
     if (code === 1) {
         // "ready" — mark as received; do not finalize, do not cancel
-        if (number.status !== 'received' && number.status !== 'completed') {
+        if (!finalStates.includes(number.status) && number.status !== 'received') {
             await prisma.number.update({
                 where: { id: number.id },
                 data: { status: 'received' }
@@ -425,6 +454,12 @@ export async function actionSetStatus(
                 where: { id: number.id },
                 data: { status: 'completed' }
             })
+            if (number.activationId) {
+                await prisma.activation.updateMany({
+                    where: { providerActivationId: number.activationId },
+                    data: { state: 'RECEIVED' }
+                }).catch(() => {})
+            }
         }
         responseCode = 'ACCESS_ACTIVATION'
     } else {
@@ -455,6 +490,12 @@ export async function actionSetStatus(
                 where: { id: number.id },
                 data: { status: 'cancelled' }
             })
+            if (number.activationId) {
+                await prisma.activation.updateMany({
+                    where: { providerActivationId: number.activationId },
+                    data: { state: 'CANCELLED' }
+                }).catch(() => {})
+            }
         }
         responseCode = 'ACCESS_CANCEL'
     }
@@ -538,7 +579,8 @@ export async function actionGetStatus(
 
 // ============================================================================
 // Action: getServicesList
-//   On success: JSON {services: [{id, name, code, lowestPrice, totalStock, countryCount, providerCount}]}
+//   On success: JSON {services: [{id, name, lowestPrice, totalStock, countryCount, providerCount}]}
+//   id = numeric serviceId (internal MeiliDocs ID), NOT legacy string code.
 // ============================================================================
 
 export async function actionGetServicesList(
@@ -547,11 +589,17 @@ export async function actionGetServicesList(
     const denied = requirePerm(ctx.apiKey, 'read')
     if (denied) return json({ services: [] }, 200)
 
-    const result = await getServiceAggregates({ limit: 200 })
+    // Pull aggregates AND serviceId map in parallel
+    const [result, lookupRows] = await Promise.all([
+        getServiceAggregates({ limit: 200 }),
+        prisma.serviceLookup.findMany({ select: { serviceId: true, serviceCode: true, serviceName: true } })
+    ])
+    const idByCode = new Map<string, number>()
+    for (const r of lookupRows) idByCode.set(r.serviceCode, r.serviceId)
+
     return json({
         services: result.items.map((s: any) => ({
-            id: s.serviceCode,
-            code: s.serviceCode,
+            id: idByCode.get(s.serviceCode) ?? null,
             name: s.serviceName,
             lowestPrice: Number(s.lowestPrice),
             totalStock: Number(s.totalStock),
@@ -563,8 +611,9 @@ export async function actionGetServicesList(
 
 // ============================================================================
 // Action: getCountriesList
-//   Inputs:  service=<code> (optional; when provided, returns pricing for that service)
-//   On success: JSON {countries: [{id, name, code, minPrice}]}
+//   Inputs:  service=<serviceId|numeric> (optional)
+//   On success: JSON {countries: [{id, name, minPrice?, totalStock?, serverCount?}]}
+//   id = numeric countryId, NOT legacy string code.
 // ============================================================================
 
 export async function actionGetCountriesList(
@@ -575,25 +624,39 @@ export async function actionGetCountriesList(
     if (denied) return json({ countries: [] }, 200)
 
     if (!params.service) {
-        // Without a service, return the master country list from the lookup table
         const countries = await prisma.countryLookup.findMany({
             orderBy: { countryName: 'asc' },
             take: 500
         })
         return json({
             countries: countries.map((c) => ({
-                id: c.countryCode,
-                code: c.countryCode,
+                id: c.countryId,
                 name: c.countryName
             }))
         }, 200)
     }
 
-    const result = await searchCountries(params.service, '', { limit: 500 })
+    // service param is a numeric serviceId now
+    const svcId = Number(params.service)
+    if (!Number.isFinite(svcId) || svcId <= 0) {
+        return json({ countries: [] }, 200)
+    }
+
+    // Resolve the serviceCode so we can re-use searchCountries (which keys on code),
+    // then map results back to numeric countryId.
+    const svcLookup = await prisma.serviceLookup.findUnique({ where: { serviceId: svcId } })
+    if (!svcLookup) return json({ countries: [] }, 200)
+
+    const [result, countryRows] = await Promise.all([
+        searchCountries(svcLookup.serviceCode, '', { limit: 500 }),
+        prisma.countryLookup.findMany({ select: { countryId: true, countryCode: true } })
+    ])
+    const idByCode = new Map<string, number>()
+    for (const r of countryRows) idByCode.set(r.countryCode, r.countryId)
+
     return json({
-        countries: result.countries.map((c) => ({
-            id: c.identifier || c.code,
-            code: c.code,
+        countries: result.countries.map((c: any) => ({
+            id: idByCode.get(c.code) ?? c.identifier ?? null,
             name: c.name,
             minPrice: c.lowestPrice,
             totalStock: c.totalStock,
@@ -604,9 +667,26 @@ export async function actionGetCountriesList(
 
 // ============================================================================
 // Action: getPrices
-//   Inputs:  service=<code> country=<code> (both optional, used to filter)
-//   On success: JSON {<service>: {<country>: price, ...}, ...}
+//   Inputs:  service=<id> country=<id> (both optional numeric IDs, not codes)
+//   On success: JSON keyed by serviceId; each value has {cost, count}
+//               Plus resolved names (serviceName, countryName) for human use.
+//   Universal shape across all filter modes:
+//     - no filter:      { "<serviceId>": { cost, count, serviceName, countries: { "<countryId>": { cost, count, countryName } } } }
+//     - service only:   { "<serviceId>": { cost, count, serviceName, countries: { "<countryId>": { cost, count, countryName } } } }
+//     - country only:   { "<serviceId>": { cost, count, serviceName, countryId, countryName } }   (one entry per matching service)
+//     - both:           { "<serviceId>": { cost, count, serviceName, countryId, countryName, operators: {...} } }
+//   NO string codes (no "tg", "wa", "0", "6") — only numeric IDs and names.
 // ============================================================================
+
+interface PriceEntry {
+    cost: number
+    count: number
+    serviceName: string
+    countryId?: number
+    countryName?: string
+    countries?: Record<string, { cost: number; count: number; countryName: string }>
+    operators?: Record<string, { operator_name: string; price: number }>
+}
 
 export async function actionGetPrices(
     ctx: { userId: string; apiKey: ApiKey },
@@ -615,37 +695,160 @@ export async function actionGetPrices(
     const denied = requirePerm(ctx.apiKey, 'read')
     if (denied) return json({}, 200)
 
-    // Pull service list (and per-service country prices) from Meili-backed
-    // aggregates. `ProviderOffer` does not exist as a Prisma model — pricing
-    // lives in the search index, so we use `getServiceAggregates` and
-    // `searchCountries` to build the legacy `{service: {country: price}}`
-    // shape.
-    const servicesResult = await getServiceAggregates({ limit: 200 })
-    const filteredServices = params.service
-        ? servicesResult.items.filter((s: any) => s.serviceCode === params.service)
-        : servicesResult.items
+    try {
+        const index = meili.index(INDEXES.OFFERS)
 
-    const prices: Record<string, Record<string, number>> = {}
-    for (const s of filteredServices) {
-        const svc = s.serviceCode
-        if (!svc) continue
-        const countriesRes = await searchCountries(svc, '', { limit: 200 })
-        const countries = params.country
-            ? countriesRes.countries.filter((c) => c.code === params.country)
-            : countriesRes.countries
-        if (countries.length === 0) continue
-        prices[svc] = {}
-        for (const c of countries) {
-            prices[svc][c.code] = Number(c.lowestPrice) || 0
+        // Build Meili filter from numeric IDs only
+        const filters: string[] = ['isActive = true']
+        if (params.service) {
+            const svcId = Number(params.service)
+            if (Number.isFinite(svcId) && svcId > 0) {
+                filters.push(`serviceId = ${svcId}`)
+            } else {
+                return json({}, 200) // invalid id → empty
+            }
         }
+        if (params.country) {
+            const ctyId = Number(params.country)
+            if (Number.isFinite(ctyId) && ctyId > 0) {
+                filters.push(`countryId = ${ctyId}`)
+            } else {
+                return json({}, 200) // invalid id → empty
+            }
+        }
+
+        // Pull all matching offers (one row per service×country×operator)
+        const result = await index.search('', {
+            filter: filters.join(' AND '),
+            limit: 5000
+        })
+
+        const hits = result.hits as OfferDocument[]
+        if (hits.length === 0) return json({}, 200)
+
+        // ── Mode: BOTH filters (service + country) ───────────────────────────
+        // Return one serviceId entry with operator list (operator-wise pricing).
+        if (params.service && params.country) {
+            const svcId = Number(params.service)
+            const ctyId = Number(params.country)
+            const first = hits[0]
+            const operators: Record<string, { operator_name: string; price: number }> = {}
+            for (const hit of hits) {
+                const opName = hit.operator || hit.provider || 'any'
+                operators[opName] = {
+                    operator_name: opName,
+                    price: Number(hit.pointPrice) || 0
+                }
+            }
+            const minCost = Math.min(...hits.map((h) => Number(h.pointPrice) || 0))
+            const totalCount = hits.reduce((s, h) => s + (Number(h.stock) || 0), 0)
+            const out: Record<string, PriceEntry> = {
+                [String(svcId)]: {
+                    cost: minCost,
+                    count: totalCount,
+                    serviceName: first.serviceName || '',
+                    countryId: ctyId,
+                    countryName: first.countryName || '',
+                    operators
+                }
+            }
+            return json(out, 200)
+        }
+
+        // ── Mode: SERVICE only ───────────────────────────────────────────────
+        // Return one serviceId with nested countries map.
+        if (params.service) {
+            const svcId = Number(params.service)
+            const first = hits[0]
+            const countries: Record<string, { cost: number; count: number; countryName: string }> = {}
+            for (const hit of hits) {
+                const cid = String(hit.countryId)
+                if (!countries[cid]) {
+                    countries[cid] = {
+                        cost: Number(hit.pointPrice) || 0,
+                        count: Number(hit.stock) || 0,
+                        countryName: hit.countryName || ''
+                    }
+                } else {
+                    // keep lowest cost, sum stock
+                    const cur = countries[cid]
+                    cur.cost = Math.min(cur.cost, Number(hit.pointPrice) || 0)
+                    cur.count += Number(hit.stock) || 0
+                }
+            }
+            const minCost = Math.min(...hits.map((h) => Number(h.pointPrice) || 0))
+            const totalCount = hits.reduce((s, h) => s + (Number(h.stock) || 0), 0)
+            const out: Record<string, PriceEntry> = {
+                [String(svcId)]: {
+                    cost: minCost,
+                    count: totalCount,
+                    serviceName: first.serviceName || '',
+                    countries
+                }
+            }
+            return json(out, 200)
+        }
+
+        // ── Mode: COUNTRY only ───────────────────────────────────────────────
+        // Return one entry per matching service (not nested by country).
+        if (params.country) {
+            const ctyId = Number(params.country)
+            const first = hits[0]
+            const bySvc: Record<string, PriceEntry> = {}
+            for (const hit of hits) {
+                const sid = String(hit.serviceId)
+                if (!bySvc[sid]) {
+                    bySvc[sid] = {
+                        cost: Number(hit.pointPrice) || 0,
+                        count: Number(hit.stock) || 0,
+                        serviceName: hit.serviceName || '',
+                        countryId: ctyId,
+                        countryName: hit.countryName || first.countryName || ''
+                    }
+                } else {
+                    const cur = bySvc[sid]
+                    cur.cost = Math.min(cur.cost, Number(hit.pointPrice) || 0)
+                    cur.count += Number(hit.stock) || 0
+                }
+            }
+            return json(bySvc, 200)
+        }
+
+        // ── Mode: NO filter (full matrix) ───────────────────────────────────
+        // Return one entry per serviceId, each with nested countries map.
+        const bySvc: Record<string, PriceEntry> = {}
+        for (const hit of hits) {
+            const sid = String(hit.serviceId)
+            if (!bySvc[sid]) {
+                bySvc[sid] = {
+                    cost: Number(hit.pointPrice) || 0,
+                    count: 0,
+                    serviceName: hit.serviceName || '',
+                    countries: {}
+                }
+            }
+            const cur = bySvc[sid]
+            cur.cost = Math.min(cur.cost, Number(hit.pointPrice) || 0)
+            cur.count += Number(hit.stock) || 0
+            const cid = String(hit.countryId)
+            if (cur.countries && !cur.countries[cid]) {
+                cur.countries[cid] = {
+                    cost: Number(hit.pointPrice) || 0,
+                    count: Number(hit.stock) || 0,
+                    countryName: hit.countryName || ''
+                }
+            }
+        }
+        return json(bySvc, 200)
+    } catch {
+        return json({}, 200)
     }
-    return json(prices, 200)
 }
 
 // ============================================================================
 // Action: getNumbersStatus
 //   Inputs:  (none)
-//   On success: JSON {<activationId>: {phone, sms:{sender, code, content}, ...}, ...}
+//   On success: JSON {<activationId>: {phone, sms:[{sender, code, content}, ...], ...}, ...}
 //   Returns the user's currently-active numbers (last 100).
 // ============================================================================
 
@@ -666,11 +869,35 @@ export async function actionGetNumbersStatus(
 
     if (active.length === 0) return json({}, 200)
 
-    const ids = active.map((n) => n.id)
-    const messages = await prisma.smsMessage.findMany({
-        where: { numberId: { in: ids } },
-        orderBy: { receivedAt: 'desc' }
-    })
+    // Resolve numeric IDs from lookup tables (one batch query per type)
+    const countryCodes = Array.from(new Set(active.map((n) => n.countryCode).filter(Boolean)))
+    const serviceCodes = Array.from(
+        new Set(active.map((n) => n.serviceCode).filter((c): c is string => Boolean(c)))
+    )
+    const [countryRows, serviceRows, ids, messages] = await Promise.all([
+        countryCodes.length
+            ? prisma.countryLookup.findMany({
+                  where: { countryCode: { in: countryCodes } },
+                  select: { countryCode: true, countryId: true }
+              })
+            : Promise.resolve([]),
+        serviceCodes.length
+            ? prisma.serviceLookup.findMany({
+                  where: { serviceCode: { in: serviceCodes } },
+                  select: { serviceCode: true, serviceId: true }
+              })
+            : Promise.resolve([]),
+        Promise.resolve(active.map((n) => n.id)),
+        prisma.smsMessage.findMany({
+            where: { numberId: { in: active.map((n) => n.id) } },
+            orderBy: { receivedAt: 'desc' }
+        })
+    ])
+    const countryIdByCode = new Map<string, number>()
+    for (const r of countryRows) countryIdByCode.set(r.countryCode, r.countryId)
+    const serviceIdByCode = new Map<string, number>()
+    for (const r of serviceRows) serviceIdByCode.set(r.serviceCode, r.serviceId)
+
     const messagesByNumber = new Map<string, typeof messages>()
     for (const m of messages) {
         const list = messagesByNumber.get(m.numberId) ?? []
@@ -682,20 +909,19 @@ export async function actionGetNumbersStatus(
     for (const n of active) {
         if (!n.activationId) continue
         const smsList = messagesByNumber.get(n.id) ?? []
-        const first = smsList[0]
         out[n.activationId] = {
             phone: n.phoneNumber,
-            country: n.countryCode,
-            service: n.serviceCode,
+            countryId: countryIdByCode.get(n.countryCode) ?? null,
+            countryName: n.countryName ?? '',
+            serviceId: n.serviceCode ? serviceIdByCode.get(n.serviceCode) ?? null : null,
+            serviceName: n.serviceName ?? '',
             status: n.status,
-            sms: first
-                ? {
-                    sender: first.sender ?? '',
-                    code: first.code ?? '',
-                    content: first.content ?? '',
-                    receivedAt: first.receivedAt.toISOString()
-                }
-                : null
+            sms: smsList.map((msg) => ({
+                sender: msg.sender ?? '',
+                code: msg.code ?? '',
+                content: msg.content ?? '',
+                receivedAt: msg.receivedAt.toISOString()
+            }))
         }
     }
     return json(out, 200)

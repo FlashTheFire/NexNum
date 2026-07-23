@@ -59,7 +59,7 @@ function extractPrefix(rawKey: string): string {
 /**
  * Create a new API key for a user
  */
-export async function createApiKey(input: CreateApiKeyInput): Promise<ApiKeyWithRawKey> {
+export async function createApiKey(input: CreateApiKeyInput, db: any = prisma): Promise<ApiKeyWithRawKey> {
     const {
         userId,
         name,
@@ -86,7 +86,7 @@ export async function createApiKey(input: CreateApiKeyInput): Promise<ApiKeyWith
     const prefix = extractPrefix(rawKey)
 
     // Check if user already has max keys (limit: 5 for free, 20 for pro, unlimited for enterprise)
-    const existingKeysCount = await prisma.apiKey.count({
+    const existingKeysCount = await db.apiKey.count({
         where: { userId, isActive: true }
     })
 
@@ -101,7 +101,7 @@ export async function createApiKey(input: CreateApiKeyInput): Promise<ApiKeyWith
     }
 
     // Create the key in database
-    const apiKey = await prisma.apiKey.create({
+    const apiKey = await db.apiKey.create({
         data: {
             userId,
             name,
@@ -124,7 +124,7 @@ export async function createApiKey(input: CreateApiKeyInput): Promise<ApiKeyWith
         tier: apiKey.tier,
         resourceType: 'api_key',
         resourceId: apiKey.id
-    })
+    }, undefined, db)
 
     // Return with raw key (only time it's visible)
     return {

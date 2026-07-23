@@ -22,10 +22,12 @@ export const auditLogger = {
         userId: string,
         action: AuditAction,
         metadata: Record<string, any> = {},
-        ipAddress?: string
+        ipAddress?: string,
+        tx?: any
     ) => {
         try {
-            await prisma.auditLog.create({
+            const client = tx || prisma
+            await client.auditLog.create({
                 data: {
                     userId,
                     action,

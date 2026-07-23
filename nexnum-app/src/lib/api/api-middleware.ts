@@ -128,8 +128,8 @@ export interface V1AuthContext {
     keyId: string
 }
 
-/** Extract API key from query string FIRST, then headers (provider-style priority order). */
-function extractApiKeyV1(request: NextRequest): string | null {
+/** Extract API key from query string FIRST, then headers or POST body (provider-style priority order). */
+async function extractApiKeyV1(request: NextRequest): Promise<string | null> {
     // Provider legacy contract: ?api_key=... is the most common form
     const fromQuery = request.nextUrl.searchParams.get('api_key')
     if (fromQuery) return fromQuery.trim()
@@ -141,6 +141,27 @@ function extractApiKeyV1(request: NextRequest): string | null {
     // Direct header — alternate transport
     const apiKeyHeader = request.headers.get('x-api-key')
     if (apiKeyHeader) return apiKeyHeader.trim()
+
+    if (request.method === 'POST') {
+        try {
+            const reqClone = request.clone()
+            const contentType = reqClone.headers.get('content-type') || ''
+            if (contentType.includes('application/x-www-form-urlencoded') || contentType.includes('multipart/form-data')) {
+                const formData = await reqClone.formData()
+                const key = formData.get('api_key')
+                if (key && typeof key === 'string') return key.trim()
+            } else {
+                const text = await reqClone.text()
+                if (text) {
+                    const params = new URLSearchParams(text)
+                    const key = params.get('api_key')
+                    if (key) return key.trim()
+                }
+            }
+        } catch {
+            // Ignore parse errors
+        }
+    }
 
     return null
 }
@@ -156,9 +177,9 @@ export async function authenticateApiKeyV1(
     request: NextRequest
 ): Promise<
     | { ok: true; context: V1AuthContext }
-    | { ok: false; code: V1AuthErrorCode; status: number; message: string }
+    | { ok: false; code: V1AuthErrorCode; status: number; message: string; headers?: Record<string, string> }
 > {
-    const rawKey = extractApiKeyV1(request)
+    const rawKey = await extractApiKeyV1(request)
 
     if (!rawKey) {
         return { ok: false, code: 'NO_KEY', status: 200, message: 'NO_KEY' }
@@ -182,7 +203,12 @@ export async function authenticateApiKeyV1(
             ok: false,
             code: 'RATE_LIMIT_EXCEEDED',
             status: 429,
-            message: 'RATE_LIMIT_EXCEEDED'
+            message: 'RATE_LIMIT_EXCEEDED',
+            headers: {
+                'X-RateLimit-Limit': keyLimit.toString(),
+                'X-RateLimit-Remaining': (rateLimitResult.remaining ?? 0).toString(),
+                'X-RateLimit-Reset': (rateLimitResult.reset ?? 0).toString()
+            }
         }
     }
 
@@ -218,12 +244,23 @@ export function withV1Auth<P = unknown>(
                 status: auth.status,
                 headers: {
                     'Content-Type': 'text/plain; charset=utf-8',
-                    'Cache-Control': 'no-store'
+                    'Cache-Control': 'no-store',
+                    ...(auth.headers || {})
                 }
             })
         }
         const params = (ctx?.params ? await ctx.params : ({} as P)) as P
-        return handler(request, auth.context, params)
+        try {
+            return await handler(request, auth.context, params)
+        } catch (error) {
+            return new Response('ERROR_SQL', {
+                status: 200,
+                headers: {
+                    'Content-Type': 'text/plain; charset=utf-8',
+                    'Cache-Control': 'no-store'
+                }
+            })
+        }
     }
 }
 

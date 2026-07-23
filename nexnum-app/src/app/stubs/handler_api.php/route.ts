@@ -42,8 +42,38 @@ function asNumber(value: string | undefined): number | undefined {
     return Number.isFinite(n) ? n : undefined
 }
 
-export const GET = withV1Auth(async (request, ctx) => {
-    const action = (request.nextUrl.searchParams.get('action') || '').trim()
+async function parseRequestParams(request: NextRequest): Promise<URLSearchParams> {
+    const params = new URLSearchParams(request.nextUrl.searchParams)
+    if (request.method === 'POST') {
+        try {
+            const reqClone = request.clone()
+            const contentType = reqClone.headers.get('content-type') || ''
+            if (contentType.includes('application/x-www-form-urlencoded') || contentType.includes('multipart/form-data')) {
+                const formData = await reqClone.formData()
+                formData.forEach((value, key) => {
+                    if (typeof value === 'string') {
+                        params.set(key, value)
+                    }
+                })
+            } else {
+                const text = await reqClone.text()
+                if (text) {
+                    const bodyParams = new URLSearchParams(text)
+                    bodyParams.forEach((value, key) => {
+                        params.set(key, value)
+                    })
+                }
+            }
+        } catch {
+            // Fallback to URL searchParams
+        }
+    }
+    return params
+}
+
+async function handleAction(request: NextRequest, ctx: any) {
+    const params = await parseRequestParams(request)
+    const action = (params.get('action') || '').trim()
 
     const shared = {
         userId: ctx.userId,
@@ -55,42 +85,43 @@ export const GET = withV1Auth(async (request, ctx) => {
             return actionGetBalance(shared)
 
         case 'getNumber': {
-            const maxPrice = asNumber(getParam(request, 'maxPrice'))
+            const maxPrice = asNumber(params.get('maxPrice') ?? undefined)
             return actionGetNumber(shared, {
-                service: getParam(request, 'service') || '',
-                country: getParam(request, 'country') || '',
-                operator: getParam(request, 'operator'),
+                service: params.get('service') || '',
+                country: params.get('country') || '',
+                operator: params.get('operator') ?? undefined,
                 maxPrice
             })
         }
 
         case 'setStatus': {
-            const status = asNumber(getParam(request, 'status'))
+            const rawStatus = params.get('status') ?? undefined
+            const status = asNumber(rawStatus)
             if (status === undefined) {
-                return new Response('NO_ACTIVATION', {
+                return new Response('BAD_STATUS', {
                     status: 200,
                     headers: { 'Content-Type': 'text/plain; charset=utf-8' }
                 })
             }
             return actionSetStatus(shared, {
-                id: getParam(request, 'id') || '',
+                id: params.get('id') || '',
                 status
             })
         }
 
         case 'getStatus':
-            return actionGetStatus(shared, { id: getParam(request, 'id') || '' })
+            return actionGetStatus(shared, { id: params.get('id') || '' })
 
         case 'getServicesList':
             return actionGetServicesList(shared)
 
         case 'getCountriesList':
-            return actionGetCountriesList(shared, { service: getParam(request, 'service') })
+            return actionGetCountriesList(shared, { service: params.get('service') ?? undefined })
 
         case 'getPrices':
             return actionGetPrices(shared, {
-                service: getParam(request, 'service'),
-                country: getParam(request, 'country')
+                service: params.get('service') ?? undefined,
+                country: params.get('country') ?? undefined
             })
 
         case 'getNumbersStatus':
@@ -102,7 +133,12 @@ export const GET = withV1Auth(async (request, ctx) => {
                 headers: { 'Content-Type': 'text/plain; charset=utf-8' }
             })
     }
+}
+
+export const GET = withV1Auth(async (request, ctx) => {
+    return handleAction(request, ctx)
 })
 
-// Some provider SDKs probe POST first; mirror GET semantics so they don't 405.
-export const POST = GET
+export const POST = withV1Auth(async (request, ctx) => {
+    return handleAction(request, ctx)
+})
