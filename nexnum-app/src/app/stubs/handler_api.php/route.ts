@@ -116,7 +116,7 @@ async function handleAction(request: NextRequest, ctx: any) {
             return actionGetServicesList(shared)
 
         case 'getCountriesList':
-            return actionGetCountriesList(shared, { service: params.get('service') ?? undefined })
+            return actionGetCountriesList(shared)
 
         case 'getPrices':
             return actionGetPrices(shared, {

@@ -610,34 +610,14 @@ export async function actionGetServicesList(
 // ============================================================================
 
 export async function actionGetCountriesList(
-    ctx: { userId: string; apiKey: ApiKey },
-    params: { service?: string }
+    ctx: { userId: string; apiKey: ApiKey }
 ): Promise<Response> {
     const denied = requirePerm(ctx.apiKey, 'read')
     if (denied) return json({ countries: [] }, 200)
 
-    if (!params.service) {
-        const countries = await prisma.countryLookup.findMany({
-            orderBy: { countryName: 'asc' }
-        })
-        return json({
-            countries: countries.map((c) => ({
-                id: c.countryId,
-                name: c.countryName
-            }))
-        }, 200)
-    }
-
-    // service param is a numeric serviceId now
-    const svcId = Number(params.service)
-    if (!Number.isFinite(svcId) || svcId <= 0) {
-        return json({ countries: [] }, 200)
-    }
-
-    // Return ALL countries from countryLookup (no limit — same as unfiltered path)
+    // Return ALL countries from countryLookup (no limit — lakhs of countries supported)
     const countries = await prisma.countryLookup.findMany({
-        orderBy: { countryName: 'asc' },
-        select: { countryId: true, countryName: true }
+        orderBy: { countryName: 'asc' }
     })
 
     return json({
