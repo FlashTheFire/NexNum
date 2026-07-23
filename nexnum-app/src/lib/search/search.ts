@@ -566,7 +566,7 @@ export async function initSearchIndexes(indexName: string = INDEXES.OFFERS) {
                 enabled: true,
                 minWordSizeForTypos: { oneTypo: 4, twoTypos: 8 },
             },
-            pagination: { maxTotalHits: 10000000 }
+            pagination: { maxTotalHits: 10000 }
         })
 
         logger.info('MeiliSearch "Deep Search" indexes initialized', { context: 'SEARCH' })
