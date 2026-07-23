@@ -37,6 +37,7 @@ import crypto from 'crypto';
 import { CentralRegistry } from '@/lib/normalizers/central-registry';
 import { logger } from '@/lib/core/logger';
 import { getTraceId } from '@/lib/api/request-context';
+import { recordHeartbeat } from '@/lib/workers/heartbeat-registry';
 
 // ============================================
 // CONSTANTS
@@ -1339,6 +1340,9 @@ export async function syncAllProviders(): Promise<SyncResult[]> {
     const totalDuration = Date.now() - startTime;
     logger.success('Full provider sync completed', { context: 'SYNC', durationMs: totalDuration })
 
+    // Heartbeat: marks the scheduled_sync worker as alive.
+    recordHeartbeat('scheduled_sync', Date.now())
+
     // Clear the banned hashes cache so the next sync fetches fresh data
     clearBannedHashesCache()
 
@@ -1366,8 +1370,15 @@ let syncIntervalId: NodeJS.Timeout | null = null
 export function startSyncScheduler() {
     if (syncIntervalId) return
     logger.info('Starting provider sync scheduler', { context: 'SYNC', interval: '12 hours' })
-    syncAllProviders().catch(e => logger.error('Sync scheduler execution failed', { error: e.message }))
-    syncIntervalId = setInterval(() => syncAllProviders().catch(e => logger.error('Sync scheduler execution failed', { error: e.message })), 12 * 60 * 60 * 1000)
+    const safeSync = () =>
+        syncAllProviders().catch(e => {
+            // Record heartbeat even on full failure so the zombie-detector
+            // does not false-alarm — alertmanager will surface the error.
+            recordHeartbeat('scheduled_sync', Date.now())
+            logger.error('Sync scheduler execution failed', { error: e.message })
+        })
+    safeSync()
+    syncIntervalId = setInterval(safeSync, 12 * 60 * 60 * 1000)
 }
 
 export function stopSyncScheduler() {

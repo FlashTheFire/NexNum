@@ -2,6 +2,7 @@ import { prisma } from '@/lib/core/db'
 import { meili, INDEXES } from './search'
 import { logger } from '@/lib/core/logger'
 import { cacheSet, cacheGet, CACHE_KEYS } from '@/lib/core/redis'
+import { withHeartbeat } from '@/lib/workers/with-heartbeat'
 
 interface ServiceAggregateData {
     serviceCode: string
@@ -18,7 +19,7 @@ interface ServiceAggregateData {
  * 
  * Scalability: Uses chunked retrieval to prevent OOM on large indices.
  */
-export async function refreshAllServiceAggregates() {
+export async function refreshAllServiceAggregatesImpl() {
     const startTime = Date.now();
     logger.box('MeiliSearch Aggregate Refresh');
 
@@ -222,6 +223,14 @@ export async function refreshAllServiceAggregates() {
         return 0
     }
 }
+
+/**
+ * Public entry point with zombie-detection heartbeat wrapping.
+ */
+export const refreshAllServiceAggregates = withHeartbeat(
+    'search_aggregates',
+    refreshAllServiceAggregatesImpl
+)
 
 /**
  * Fallback: Compute aggregates directly from MeiliSearch when DB table is empty.

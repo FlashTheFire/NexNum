@@ -1,5 +1,13 @@
 # =============================================================================
-# ALERTMANAGER CONFIGURATION (Unified v2.0)
+# ALERTMANAGER CONFIGURATION (Unified v3.0 - Severity-based routing)
+# =============================================================================
+# Channel matrix:
+#   - info     -> Telegram (ops-telegram)
+#   - warning  -> Telegram + Slack (ops-slack)
+#   - critical -> Telegram + Slack + Email + PagerDuty (ops-pagerduty)
+#
+# Each route has its own group_wait/group_interval to keep high-severity
+# incidents from being throttled by low-severity noise.
 # =============================================================================
 
 global:
@@ -16,36 +24,82 @@ route:
   group_interval: 2m
   repeat_interval: 4h
   receiver: 'ops-telegram'
-
   routes:
-    # Route all critical alerts to urgent channels
-    - match:
-        severity: critical
-      receiver: 'ops-telegram-critical'
+    # ---- critical: page PagerDuty + everything else ----
+    - matchers:
+        - severity = "critical"
+      receiver: 'ops-pagerduty'
+      group_wait: 10s
+      group_interval: 30s
       repeat_interval: 1h
+      continue: true
+
+    # ---- warning: Slack + Telegram ----
+    - matchers:
+        - severity = "warning"
+      receiver: 'ops-slack'
+      group_wait: 20s
+      group_interval: 1m
+      repeat_interval: 4h
+      continue: true
+
+    # ---- info: Telegram only (low-noise) ----
+    - matchers:
+        - severity = "info"
+      receiver: 'ops-telegram'
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 12h
 
 receivers:
-  # General Operations Channel (Telegram)
+  # Info-only: Telegram (cheap, always-on)
   - name: 'ops-telegram'
     webhook_configs:
       - url: 'http://host.docker.internal:3000/api/alerts/telegram'
         send_resolved: true
-
         http_config:
           bearer_token: "nexnum-internal-monitoring-secret-9912"
 
-  # Emergency Channel (Telegram + Email Backup)
-  - name: 'ops-telegram-critical'
+  # Warning: Slack + Telegram in parallel
+  - name: 'ops-slack'
     webhook_configs:
+      - url: 'http://host.docker.internal:3000/api/alerts/slack'
+        send_resolved: true
+        http_config:
+          bearer_token: "nexnum-internal-monitoring-secret-9912"
+
+  # Critical: PagerDuty + Slack + Telegram + Email
+  - name: 'ops-pagerduty'
+    webhook_configs:
+      - url: 'http://host.docker.internal:3000/api/alerts/pagerduty'
+        send_resolved: true
+        http_config:
+          bearer_token: "nexnum-internal-monitoring-secret-9912"
+      - url: 'http://host.docker.internal:3000/api/alerts/slack'
+        send_resolved: true
+        http_config:
+          bearer_token: "nexnum-internal-monitoring-secret-9912"
       - url: 'http://host.docker.internal:3000/api/alerts/telegram'
         send_resolved: true
-
         http_config:
           bearer_token: "nexnum-internal-monitoring-secret-9912"
-
     email_configs:
       - to: 'harshtakur001@gmail.com'
         send_resolved: true
         headers:
           Subject: '🚨 [NEXNUM-CRITICAL] {{ .GroupLabels.alertname }}'
+
+# Inhibition: a critical alert silences info/warning alerts of the same name
+# (avoids "ProviderDown" critical being shadowed by a stream of info events)
+inhibit_rules:
+  - source_matchers:
+      - severity = "critical"
+    target_matchers:
+      - severity = "info"
+    equal: ['alertname']
+  - source_matchers:
+      - severity = "critical"
+    target_matchers:
+      - severity = "warning"
+    equal: ['alertname']
 

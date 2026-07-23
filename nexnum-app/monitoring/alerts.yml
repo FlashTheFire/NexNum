@@ -134,3 +134,54 @@ groups:
         annotations:
           summary: "📉 24h SLA Warning"
           description: "P99 latency has exceeded 3s over a 24-hour window. Performance is trending downwards."
+
+  # ===========================================================================
+  # 🌐 PROVIDER LATENCY (per-vendor P95 / P99)
+  # ===========================================================================
+  - name: provider_latency
+    interval: 30s
+    rules:
+      - alert: ProviderP99High
+        expr: |
+          histogram_quantile(
+            0.99,
+            sum by (le, provider_id) (rate(nexnum_provider_latency_seconds_bucket[5m]))
+          ) > 3
+        for: 5m
+        labels:
+          severity: warning
+          tier: provider
+          signal: latency
+        annotations:
+          summary: "🐢 {{ $labels.provider_id }} P99 > 3s ({{ printf \"%.2f\" $value }}s)"
+          description: "Provider {{ $labels.provider_id }} P99 latency is {{ printf \"%.2f\" $value }}s for 5m. Consider failover or rate-limit."
+
+      - alert: ProviderP99Critical
+        expr: |
+          histogram_quantile(
+            0.99,
+            sum by (le, provider_id) (rate(nexnum_provider_latency_seconds_bucket[5m]))
+          ) > 8
+        for: 3m
+        labels:
+          severity: critical
+          tier: provider
+          signal: latency
+        annotations:
+          summary: "🚨 {{ $labels.provider_id }} P99 > 8s — failing health"
+          description: "Provider {{ $labels.provider_id }} P99 is {{ printf \"%.2f\" $value }}s for 3m. Synthetic health checks will likely flip it to 'unhealthy'."
+
+      - alert: ProviderP95High
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le, provider_id) (rate(nexnum_provider_latency_seconds_bucket[5m]))
+          ) > 1.5
+        for: 10m
+        labels:
+          severity: warning
+          tier: provider
+          signal: latency
+        annotations:
+          summary: "📈 {{ $labels.provider_id }} P95 > 1.5s ({{ printf \"%.2f\" $value }}s)"
+          description: "Provider {{ $labels.provider_id }} P95 latency is {{ printf \"%.2f\" $value }}s for 10m. User-visible slowness likely."

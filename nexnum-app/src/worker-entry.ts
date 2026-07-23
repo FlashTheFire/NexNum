@@ -166,6 +166,11 @@ export async function startQueueWorker() {
         await queue.work(QUEUES.PROVIDER_RELIABILITY, async () => { await calculateProviderReliability(); });
         await queue.schedule(QUEUES.PROVIDER_RELIABILITY, '0 * * * *', {});
 
+        // JOB: Zombie Check (Every 2m) — Detect workers that stopped heartbeating
+        const { runZombieCheck } = await import('./lib/workers/zombie-check-runner');
+        await queue.work(QUEUES.ZOMBIE_CHECK, async () => { await runZombieCheck(); });
+        await queue.schedule(QUEUES.ZOMBIE_CHECK, '*/2 * * * *', {});
+
         // ───────────────────────────────────────────────────────────────────────
         // DEAD LETTER MANAGEMENT
         // ───────────────────────────────────────────────────────────────────────

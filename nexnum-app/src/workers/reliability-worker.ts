@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/core/db'
 import { logger } from '@/lib/core/logger'
+import { recordHeartbeat } from '@/lib/workers/heartbeat-registry'
 
 /**
  * Calculates reliability scores for all providers based on ALL-TIME order history.
@@ -98,10 +99,12 @@ export async function calculateProviderReliability() {
 
         const duration = (Date.now() - startTime) / 1000
         logger.info(`[RELIABILITY] Full Scale Analysis Complete. Updated ${updated} providers in ${duration}s`)
+        recordHeartbeat('provider_reliability', Date.now())
         return updated
 
     } catch (error) {
         logger.error('[RELIABILITY] Calculation failed', { error })
+        recordHeartbeat('provider_reliability', Date.now())
         return 0
     }
 }

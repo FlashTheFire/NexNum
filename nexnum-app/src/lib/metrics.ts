@@ -187,6 +187,29 @@ export const provider_health_latency_avg = register('nexnum_provider_health_late
     registers: [registry]
 }))
 
+// 4b. Synthetic Provider Health Checks (cron-driven E2E probe)
+export const synthetic_health_check_success = register('nexnum_synthetic_health_check_success', () => new Gauge({
+    name: 'nexnum_synthetic_health_check_success',
+    help: 'Last synthetic health check status (1=success, 0=failure)',
+    labelNames: ['provider', 'action'],
+    registers: [registry]
+}))
+
+export const synthetic_health_check_latency_seconds = register('nexnum_synthetic_health_check_latency_seconds', () => new Histogram({
+    name: 'nexnum_synthetic_health_check_latency_seconds',
+    help: 'Duration of synthetic provider health probes',
+    labelNames: ['provider', 'action'],
+    buckets: [0.1, 0.5, 1, 2, 5, 10, 30],
+    registers: [registry]
+}))
+
+export const synthetic_health_check_runs_total = register('nexnum_synthetic_health_check_runs_total', () => new Counter({
+    name: 'nexnum_synthetic_health_check_runs_total',
+    help: 'Total synthetic health check runs by outcome',
+    labelNames: ['provider', 'action', 'outcome'],
+    registers: [registry]
+}))
+
 // 5. Infrastructure & System
 export const system_disk_usage_percent = register('nexnum_system_disk_usage_percent', () => new Gauge({
     name: 'nexnum_system_disk_usage_percent',

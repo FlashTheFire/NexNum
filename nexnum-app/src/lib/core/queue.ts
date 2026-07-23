@@ -17,7 +17,8 @@ export const QUEUES = {
     PAYMENT_RECONCILE: 'payment-reconcile',
     MASTER_WORKER: 'master-worker',
     SEARCH_AGGREGATES: 'search.aggregates',
-    PROVIDER_RELIABILITY: 'provider.reliability'
+    PROVIDER_RELIABILITY: 'provider.reliability',
+    ZOMBIE_CHECK: 'zombie-check'
 } as const
 
 class QueueService {

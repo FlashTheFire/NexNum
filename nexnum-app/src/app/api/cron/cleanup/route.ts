@@ -20,6 +20,8 @@ const RETENTION_DAYS = {
     AUDIT_LOGS: 30,
     ORDERS: 90,
     RESERVATIONS: 1, // Stale reservations older than 1 day
+    PROVIDER_HEALTH_LOGS: 14, // Daily health checks → 14d covers ~2 weeks
+    PROVIDER_TEST_RESULTS: 7, // Diagnostic test results → 7d
 }
 
 export async function POST(req: NextRequest) {
@@ -35,6 +37,8 @@ export async function POST(req: NextRequest) {
         auditLogs: 0,
         orders: 0,
         reservations: 0,
+        providerHealthLogs: 0,
+        providerTestResults: 0,
         errors: [] as string[],
     }
 
@@ -100,6 +104,36 @@ export async function POST(req: NextRequest) {
         results.errors.push(`reservations: ${e.message}`)
     }
 
+    try {
+        // 4. Prune provider health logs (keep last 14d). High-volume time-series
+        // table; deleteMany is cheap because of the (providerId, checkedAt) index.
+        const healthLogCutoff = new Date()
+        healthLogCutoff.setDate(healthLogCutoff.getDate() - RETENTION_DAYS.PROVIDER_HEALTH_LOGS)
+        const deletedHealthLogs = await prisma.providerHealthLog.deleteMany({
+            where: { checkedAt: { lt: healthLogCutoff } }
+        })
+        results.providerHealthLogs = deletedHealthLogs.count
+        logger.info(`[Cleanup] Deleted ${deletedHealthLogs.count} old provider health logs`)
+    } catch (e: any) {
+        logger.error('[Cleanup] Failed to clean provider health logs', { error: e.message })
+        results.errors.push(`provider_health_logs: ${e.message}`)
+    }
+
+    try {
+        // 5. Prune provider test results (keep last 7d). Diagnostic results
+        // from /api/admin/providers/test sweep — debug-grade signal.
+        const testResultCutoff = new Date()
+        testResultCutoff.setDate(testResultCutoff.getDate() - RETENTION_DAYS.PROVIDER_TEST_RESULTS)
+        const deletedTestResults = await prisma.providerTestResult.deleteMany({
+            where: { testedAt: { lt: testResultCutoff } }
+        })
+        results.providerTestResults = deletedTestResults.count
+        logger.info(`[Cleanup] Deleted ${deletedTestResults.count} old provider test results`)
+    } catch (e: any) {
+        logger.error('[Cleanup] Failed to clean provider test results', { error: e.message })
+        results.errors.push(`provider_test_results: ${e.message}`)
+    }
+
     // Log summary
     logger.info('[Cleanup] Daily cleanup completed', results)
 
@@ -109,6 +143,8 @@ export async function POST(req: NextRequest) {
             auditLogs: results.auditLogs,
             orders: results.orders,
             reservations: results.reservations,
+            providerHealthLogs: results.providerHealthLogs,
+            providerTestResults: results.providerTestResults,
         },
         errors: results.errors.length > 0 ? results.errors : undefined,
         timestamp: new Date().toISOString(),

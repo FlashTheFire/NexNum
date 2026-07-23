@@ -1,16 +1,26 @@
 
 import 'dotenv/config'
 import { prisma } from '@/lib/core/db'
+import { notificationManager } from '@/lib/notifications/manager'
+import { captureMessage } from '@/lib/monitoring/sentry'
+import { logger } from '@/lib/core/logger'
 
 // Thresholds
 const MIN_SUCCESS_RATE = 50.0 // %
 const MAX_LATENCY = 5000 // ms
 const CHECK_WINDOW_MINUTES = 60
 
-async function main() {
-    console.log('🩺 Starting System Health Monitor...')
+export interface HealthAlert {
+    level: 'CRITICAL' | 'WARNING'
+    type: 'PROVIDER_HEALTH' | 'PROVIDER_LATENCY' | 'LOW_BALANCE'
+    message: string
+    metadata?: Record<string, any>
+}
 
-    const alerts: any[] = []
+export async function runHealthCheck(): Promise<HealthAlert[]> {
+    logger.info('🩺 Starting System Health Monitor...', { context: 'MONITOR_HEALTH' })
+
+    const alerts: HealthAlert[] = []
 
     // 1. Check Provider Health (Last Hour)
     const windowStart = new Date(Date.now() - CHECK_WINDOW_MINUTES * 60 * 1000)
@@ -58,11 +68,13 @@ async function main() {
     })
 
     for (const provider of providers) {
-        if (Number(provider.balance) < Number(provider.lowBalanceAlert)) {
+        const balance = Number(provider.balance)
+        const threshold = Number(provider.lowBalanceAlert)
+        if (threshold > 0 && balance < threshold) {
             alerts.push({
                 level: 'WARNING',
                 type: 'LOW_BALANCE',
-                message: `Provider ${provider.name} balance low: ${provider.balance} (Alert limit: ${provider.lowBalanceAlert})`,
+                message: `Provider ${provider.name} balance low: ${balance} (Alert limit: ${threshold})`,
                 metadata: { providerId: provider.id, balance: provider.balance }
             })
         }
@@ -70,17 +82,59 @@ async function main() {
 
     // 3. Dispatch Alerts
     if (alerts.length > 0) {
-        console.log(`🚨 Generated ${alerts.length} Alerts:`)
+        logger.warn(`🚨 Generated ${alerts.length} Alerts`, { context: 'MONITOR_HEALTH' })
         for (const alert of alerts) {
-            console.log(JSON.stringify(alert, null, 2))
-            // TODO: Send to Slack/Email/PagerDuty
-            // await sendNotification(alert) 
+            logger.warn(alert.message, {
+                context: 'MONITOR_HEALTH',
+                level: alert.level,
+                type: alert.type,
+                ...alert.metadata
+            })
+
+            const emoji = alert.level === 'CRITICAL' ? '🚨' : '⚠️'
+            const title = `${emoji} ${alert.level} — ${alert.type.replace(/_/g, ' ')}`
+            const severity = alert.level === 'CRITICAL' ? 'critical' : 'warning'
+
+            try {
+                await notificationManager.alert(title, alert.message, severity)
+            } catch (e: any) {
+                logger.error('Notification dispatch failed', {
+                    context: 'MONITOR_HEALTH',
+                    error: e?.message,
+                    alert
+                })
+            }
+
+            if (alert.level === 'CRITICAL') {
+                try {
+                    captureMessage(`${title}\n${alert.message}`, 'error')
+                } catch (e: any) {
+                    logger.warn('Sentry capture failed', {
+                        context: 'MONITOR_HEALTH',
+                        error: e?.message
+                    })
+                }
+            }
         }
     } else {
-        console.log('✅ Systems Nominal. No alerts triggered.')
+        logger.info('✅ Systems Nominal. No alerts triggered.', { context: 'MONITOR_HEALTH' })
     }
 
-    process.exit(0)
+    return alerts
 }
 
-main()
+async function main() {
+    try {
+        await runHealthCheck()
+        process.exit(0)
+    } catch (e: any) {
+        logger.error('Health monitor run failed', { context: 'MONITOR_HEALTH', error: e?.message })
+        process.exit(1)
+    }
+}
+
+// Only run main() when executed as a script, not when imported
+const isDirectRun = typeof process !== 'undefined' && process.argv[1]?.includes('monitor-health')
+if (isDirectRun) {
+    main()
+}

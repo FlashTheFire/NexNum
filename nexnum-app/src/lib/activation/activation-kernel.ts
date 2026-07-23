@@ -18,6 +18,7 @@ import { v4 as uuidv4 } from 'uuid'
 import {
     order_state_transitions_total
 } from '@/lib/metrics'
+import { ActivationStateMachine } from '@/lib/activation/activation-state-machine'
 
 export interface TransitionOptions {
     reason?: string
@@ -48,15 +49,18 @@ export class ActivationKernel {
 
             const fromState = activation.state
 
-            // 2. Validate transition
+            // 2. Skip idempotent duplicate transitions
             if (fromState === toState) {
                 logger.debug(`[ActivationKernel] Skipping duplicate transition: ${activationId} (${toState})`)
                 return activation
             }
 
+            // 3. Validate against canonical state machine graph
+            ActivationStateMachine.validateTransition(fromState, toState as any)
+
             logger.info(`[ActivationKernel:Transition] ${activationId} | ${fromState} -> ${toState}`, { traceId })
 
-            // 3. Update Activation state
+            // 4. Update Activation state
             const updated = await innerTx.activation.update({
                 where: { id: activationId },
                 data: {

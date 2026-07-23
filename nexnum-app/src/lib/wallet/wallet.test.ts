@@ -290,7 +290,7 @@ describe('WalletService.rollback', () => {
     beforeEach(() => vi.clearAllMocks())
 
     it('decrements reserved only — does NOT touch balance', async () => {
-        vi.mocked(prisma.wallet.findUnique).mockResolvedValue({ id: WALLET_ID } as any)
+        vi.mocked(prisma.wallet.findUnique).mockResolvedValue(makeWallet(0, 30) as any)
         vi.mocked(prisma.wallet.update).mockResolvedValue({} as any)
 
         await WalletService.rollback(USER_ID, 30, 'act-1', 'Rollback')
@@ -305,7 +305,7 @@ describe('WalletService.rollback', () => {
     })
 
     it('does NOT create a walletTransaction record', async () => {
-        vi.mocked(prisma.wallet.findUnique).mockResolvedValue({ id: WALLET_ID } as any)
+        vi.mocked(prisma.wallet.findUnique).mockResolvedValue(makeWallet(0, 30) as any)
         vi.mocked(prisma.wallet.update).mockResolvedValue({} as any)
 
         await WalletService.rollback(USER_ID, 30, 'act-1', 'Rollback')

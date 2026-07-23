@@ -16,6 +16,7 @@ import { smsProvider } from '@/lib/providers'
 import { smsAudit } from '@/lib/sms/audit'
 import { REFUNDABLE_STATES } from '@/lib/activation/activation-state-machine'
 import { TimeoutsConfig, WorkersConfig } from '@/config'
+import { withHeartbeat } from '@/lib/workers/with-heartbeat'
 
 // ============================================
 // CONFIGURATION (sourced from central config)
@@ -246,7 +247,7 @@ async function fixOrphans(orphans: OrphanedRecord[]): Promise<number> {
 // MAIN WORKER FUNCTION
 // ============================================
 
-export async function processReconciliationBatch(): Promise<ReconcileResult> {
+export async function processReconciliationBatchImpl(): Promise<ReconcileResult> {
     // Distributed lock
     const locked = await redis.set(CONFIG.LOCK_KEY, 'locked', 'EX', CONFIG.LOCK_TTL_SECONDS, 'NX')
     if (!locked) {
@@ -418,3 +419,13 @@ export async function processReconciliationBatch(): Promise<ReconcileResult> {
         await redis.del(CONFIG.LOCK_KEY)
     }
 }
+
+/**
+ * Public entry point with zombie-detection heartbeat wrapping.
+ * `processReconciliationBatchImpl` (above) is the raw implementation;
+ * callers (cron, queue) should use this wrapped version.
+ */
+export const processReconciliationBatch = withHeartbeat(
+    'payment_reconcile',
+    processReconciliationBatchImpl
+)

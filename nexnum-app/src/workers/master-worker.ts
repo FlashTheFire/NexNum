@@ -6,6 +6,7 @@ import { processInboxBatch } from '@/workers/inbox-worker'
 // import { processReconciliationBatch } from '@/workers/reconcile-worker'
 // import { cleanupNow } from '@/lib/activation/reservation-cleanup'
 import { logger } from '@/lib/core/logger'
+import { recordHeartbeat } from '@/lib/workers/heartbeat-registry'
 
 interface MasterWorkerResult {
     timestamp: string
@@ -80,7 +81,7 @@ export async function runMasterWorker(): Promise<MasterWorkerResult> {
 
     const duration = Date.now() - start
 
-    return {
+    const payload = {
         timestamp: new Date().toISOString(),
         duration: duration,
         outbox: results.outbox || null,
@@ -91,4 +92,12 @@ export async function runMasterWorker(): Promise<MasterWorkerResult> {
         reservations: results.reservations || null,
         errors
     }
+
+    // Heartbeat: record after every tick (success or partial). The
+    // zombie-detector cron reads this to detect a deadlocked master loop.
+    // We record inside the function (not via withHeartbeat) because
+    // runMasterWorker never throws — it always resolves with a result.
+    recordHeartbeat('master_worker', Date.now())
+
+    return payload
 }

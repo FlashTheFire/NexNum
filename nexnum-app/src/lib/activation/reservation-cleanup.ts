@@ -15,6 +15,7 @@ import { logger } from '@/lib/core/logger'
 import { WalletService } from '@/lib/wallet/wallet'
 import { EventDispatcher } from '@/lib/core/event-dispatcher'
 import { ActivationKernel } from './activation-kernel'
+import { recordHeartbeat } from '@/lib/workers/heartbeat-registry'
 
 // Configuration
 const CLEANUP_INTERVAL_MS = 30000 // 30 seconds
@@ -390,9 +391,9 @@ export async function getReservationCleanupStatus() {
 }
 
 /**
- * Manual trigger for cleanup (useful for testing)
+ * Manual trigger for cleanup (useful for testing and cron-driven calls)
  */
-export async function cleanupNow(): Promise<CleanupResult> {
+export async function cleanupNowImpl(): Promise<CleanupResult> {
     const res = await cleanupExpiredReservations()
     const numExpired = await cleanupExpiredNumbers()
 
@@ -401,3 +402,17 @@ export async function cleanupNow(): Promise<CleanupResult> {
         expiredNumbers: numExpired
     }
 }
+
+/**
+ * Public entry point with zombie-detection heartbeat wrapping.
+ */
+export const cleanupNow = (async () => {
+    try {
+        const result = await cleanupNowImpl()
+        recordHeartbeat('lifecycle_cleanup', Date.now())
+        return result
+    } catch (err) {
+        recordHeartbeat('lifecycle_cleanup', Date.now())
+        throw err
+    }
+})
