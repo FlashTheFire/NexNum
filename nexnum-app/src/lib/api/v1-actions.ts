@@ -39,7 +39,7 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/core/db'
 import { smsProvider } from '@/lib/providers'
-import { getOfferForPurchase, searchCountries, meili, INDEXES, OfferDocument } from '@/lib/search/search'
+import { getOfferForPurchase, meili, INDEXES, OfferDocument } from '@/lib/search/search'
 import { getCachedBalance, invalidateBalanceCache } from '@/lib/cache/user-cache'
 import { WalletService } from '@/lib/wallet/wallet'
 import { PaymentError } from '@/lib/payment/payment-errors'
@@ -618,8 +618,7 @@ export async function actionGetCountriesList(
 
     if (!params.service) {
         const countries = await prisma.countryLookup.findMany({
-            orderBy: { countryName: 'asc' },
-            take: 10000
+            orderBy: { countryName: 'asc' }
         })
         return json({
             countries: countries.map((c) => ({
