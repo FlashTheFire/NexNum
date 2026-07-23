@@ -635,25 +635,16 @@ export async function actionGetCountriesList(
         return json({ countries: [] }, 200)
     }
 
-    // Resolve the serviceCode so we can re-use searchCountries (which keys on code),
-    // then map results back to numeric countryId.
-    const svcLookup = await prisma.serviceLookup.findUnique({ where: { serviceId: svcId } })
-    if (!svcLookup) return json({ countries: [] }, 200)
-
-    const [result, countryRows] = await Promise.all([
-        searchCountries(svcLookup.serviceCode, '', { limit: 10000 }),
-        prisma.countryLookup.findMany({ select: { countryId: true, countryCode: true } })
-    ])
-    const idByCode = new Map<string, number>()
-    for (const r of countryRows) idByCode.set(r.countryCode, r.countryId)
+    // Return ALL countries from countryLookup (no limit — same as unfiltered path)
+    const countries = await prisma.countryLookup.findMany({
+        orderBy: { countryName: 'asc' },
+        select: { countryId: true, countryName: true }
+    })
 
     return json({
-        countries: result.countries.map((c: any) => ({
-            id: idByCode.get(c.code) ?? c.identifier ?? null,
-            name: c.name,
-            minPrice: c.lowestPrice,
-            totalStock: c.totalStock,
-            serverCount: c.serverCount
+        countries: countries.map((c) => ({
+            id: c.countryId,
+            name: c.countryName
         }))
     }, 200)
 }
