@@ -101,6 +101,132 @@ export async function authenticateApiKey(request: NextRequest): Promise<ApiAuthR
     }
 }
 
+// ============================================================================
+// V1 (Provider-Compatible) Authentication
+// ----------------------------------------------------------------------------
+// Used by the drop-in `/stubs/handler_api.php` endpoint that mirrors the
+// legacy `handler_api.php` contract consumed from upstream SMS providers.
+//
+// Differences from `authenticateApiKey`:
+//   1. API key may be passed via `?api_key=` query string (provider style).
+//   2. Error responses are plain-text (e.g. "NO_KEY", "BAD_KEY") to match
+//      the legacy wire format — NOT the ResponseFactory JSON envelope.
+//   3. Rate-limit headers are emitted on the same plain-text response so
+//      caller-side SDKs (which only read body) keep working unchanged.
+// ============================================================================
+
+export type V1AuthErrorCode =
+    | 'NO_KEY'        // No api_key in query, header, or bearer token
+    | 'BAD_KEY'       // Key provided but not found / inactive / revoked
+    | 'BAD_SERVICE'   // Not a real error today, reserved
+    | 'RATE_LIMIT_EXCEEDED'
+
+export interface V1AuthContext {
+    apiKey: ApiKey
+    userId: string
+    permissions: string[]
+    keyId: string
+}
+
+/** Extract API key from query string FIRST, then headers (provider-style priority order). */
+function extractApiKeyV1(request: NextRequest): string | null {
+    // Provider legacy contract: ?api_key=... is the most common form
+    const fromQuery = request.nextUrl.searchParams.get('api_key')
+    if (fromQuery) return fromQuery.trim()
+
+    // Bearer header — used by JSON header-mode clients
+    const authHeader = request.headers.get('authorization')
+    if (authHeader?.startsWith('Bearer ')) return authHeader.slice(7).trim()
+
+    // Direct header — alternate transport
+    const apiKeyHeader = request.headers.get('x-api-key')
+    if (apiKeyHeader) return apiKeyHeader.trim()
+
+    return null
+}
+
+/**
+ * V1 (provider-compatible) authentication.
+ *
+ * Returns plain-text `Response` objects that match the legacy wire format
+ * so callers reading the body byte-for-byte see the expected error codes.
+ * On success, returns the validated API key context (no Response).
+ */
+export async function authenticateApiKeyV1(
+    request: NextRequest
+): Promise<
+    | { ok: true; context: V1AuthContext }
+    | { ok: false; code: V1AuthErrorCode; status: number; message: string }
+> {
+    const rawKey = extractApiKeyV1(request)
+
+    if (!rawKey) {
+        return { ok: false, code: 'NO_KEY', status: 200, message: 'NO_KEY' }
+    }
+
+    const clientIp = getClientIp(request)
+    const result = await validateApiKey(rawKey, clientIp)
+
+    if (!result.valid || !result.key) {
+        return { ok: false, code: 'BAD_KEY', status: 200, message: 'BAD_KEY' }
+    }
+
+    const apiKey = result.key
+
+    // Tier-aware rate limit (FREE=60, PRO=300, ENTERPRISE=1000 req/min)
+    const keyLimit = getRateLimit(apiKey)
+    const rateLimitResult = await rateLimiters.api.limit(`apikey:v1:${apiKey.id}`, keyLimit)
+
+    if (!rateLimitResult.success) {
+        return {
+            ok: false,
+            code: 'RATE_LIMIT_EXCEEDED',
+            status: 429,
+            message: 'RATE_LIMIT_EXCEEDED'
+        }
+    }
+
+    return {
+        ok: true,
+        context: {
+            apiKey,
+            userId: apiKey.userId,
+            permissions: apiKey.permissions,
+            keyId: apiKey.id
+        }
+    }
+}
+
+/**
+ * Wrap a V1 (provider-style) handler with auth + a minimal success body
+ * that lets the caller decide the on-wire format (plain text or JSON).
+ */
+export function withV1Auth<P = unknown>(
+    handler: (
+        request: NextRequest,
+        context: V1AuthContext,
+        params: P
+    ) => Promise<Response>
+) {
+    return async (
+        request: NextRequest,
+        ctx: { params: Promise<P> }
+    ): Promise<Response> => {
+        const auth = await authenticateApiKeyV1(request)
+        if (!auth.ok) {
+            return new Response(auth.message, {
+                status: auth.status,
+                headers: {
+                    'Content-Type': 'text/plain; charset=utf-8',
+                    'Cache-Control': 'no-store'
+                }
+            })
+        }
+        const params = (ctx?.params ? await ctx.params : ({} as P)) as P
+        return handler(request, auth.context, params)
+    }
+}
+
 /**
  * Require specific permission
  */
