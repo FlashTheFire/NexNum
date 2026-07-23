@@ -188,6 +188,8 @@ export class ProviderError extends Error {
     }
 }
 
+type AccessorFn = (value: any, context: any, params?: string[]) => any
+
 export class DynamicProvider implements SmsProvider {
     name: string
     public config: Provider
@@ -198,7 +200,6 @@ export class DynamicProvider implements SmsProvider {
     private static latencyHistory = new Map<string, number[]>()
     private static readonly LATENCY_WINDOW = 10
     private static readonly VOLATILITY_THRESHOLD = 0.5
-
 
 
     private getBreaker() {
@@ -591,300 +592,159 @@ export class DynamicProvider implements SmsProvider {
         return current
     }
 
-    // Helper to extract nested value from object by path "data.user.id"
-    // NOW SUPPORTS FALLBACK CHAINS: "cost|price|amount" tries each until one succeeds
-    // Helper to extract nested value from object by path "data.user.id"
-    // NOW SUPPORTS FALLBACK CHAINS: "cost|price|amount" tries each until one succeeds
+    // ============================================================================
+    // ACCESSOR REGISTRY (P1: Split monolithic getValue into composable registry)
+    // ============================================================================
+
+    /** Registry of all accessors keyed by name (e.g., '$first', '$sum', '$lowercase') */
+    private static readonly ACCESSOR_REGISTRY = new Map<string, AccessorFn>([
+        // ───────────────────────────────────────────────────────────────────────
+        // CONTEXT ACCESSORS (no value traversal)
+        // ───────────────────────────────────────────────────────────────────────
+        ['$key',             (_v, ctx) => ctx.key],
+        ['$value',           (_v, ctx) => ctx.value],
+        ['$index',           (_v, ctx) => ctx.index],
+        ['$parentKey',       (_v, ctx) => ctx.parentKey],
+        ['$grandParentKey',  (_v, ctx) => ctx.grandParentKey],
+        ['$grandparentKey',  (_v, ctx) => ctx.grandParentKey],
+        ['$operatorKey',     (_v, ctx) => ctx.operatorKey],
+        ['$greatGrandParentKey', (_v, ctx) => ctx.greatGrandParentKey],
+        ['$greatGrandparentKey', (_v, ctx) => ctx.greatGrandParentKey],
+        ['$parentValue',     (_v, ctx) => ctx.parentValue],
+        ['$rootKey',         (_v, ctx) => ctx.rootKey],
+        ['$depth',           (_v, ctx) => ctx.depth ?? 0],
+        ['$isLeaf',          (_v, ctx) => ctx.isLeaf ?? false],
+        ['$path',            (_v, ctx) => ctx.path ?? ''],
+        ['$ancestors',       (_v, ctx) => ctx.ancestors ?? []],
+        ['$atDepth',         (_v, ctx, p) => ctx.ancestors?.[parseInt(p?.[0] ?? '0')] ?? ctx.key],
+
+        // ───────────────────────────────────────────────────────────────────────
+        // ARRAY / COLLECTION ACCESSORS
+        // ───────────────────────────────────────────────────────────────────────
+        ['$firstKey',        (o, _ctx) => { const k = Object.keys(o); return k.length ? k[0] : undefined }],
+        ['$firstValue',      (o, _ctx) => { const k = Object.keys(o); return k.length ? o[k[0]] : undefined }],
+        ['$first',           (o, _ctx) => Array.isArray(o) ? o[0] : (typeof o === 'object' ? Object.values(o)[0] : o)],
+        ['$lastKey',         (o, _ctx) => { const k = Object.keys(o); return k.length ? k[k.length - 1] : undefined }],
+        ['$lastValue',       (o, _ctx) => { const k = Object.keys(o); return k.length ? o[k[k.length - 1]] : undefined }],
+        ['$last',            (o, _ctx) => Array.isArray(o) ? o[o.length - 1] : (typeof o === 'object' ? Object.values(o).pop() : o)],
+        ['$values',          (o, _ctx) => Object.values(o)],
+        ['$keys',            (o, _ctx) => Object.keys(o)],
+        ['$length',          (o, _ctx) => Array.isArray(o) ? o.length : Object.keys(o).length],
+        ['$count',           (o, _ctx) => Array.isArray(o) ? o.length : Object.keys(o).length],
+        ['$sum',             (o, _ctx) => Array.isArray(o) ? o.reduce((a, v) => a + (Number(v) || 0), 0) : 0],
+        ['$avg',             (o, _ctx) => { if (!Array.isArray(o) || !o.length) return 0; return o.reduce((a, v) => a + (Number(v) || 0), 0) / o.length }],
+        ['$average',         (o, _ctx) => { if (!Array.isArray(o) || !o.length) return 0; return o.reduce((a, v) => a + (Number(v) || 0), 0) / o.length }],
+        ['$min',             (o, _ctx) => { if (!Array.isArray(o) || !o.length) return undefined; return Math.min(...o.map(Number).filter(n => !isNaN(n))) }],
+        ['$max',             (o, _ctx) => { if (!Array.isArray(o) || !o.length) return undefined; return Math.max(...o.map(Number).filter(n => !isNaN(n))) }],
+        ['$unique',          (o, _ctx) => Array.isArray(o) ? [...new Set(o)] : o],
+        ['$flatten',         (o, _ctx) => Array.isArray(o) ? o.flat(Infinity) : o],
+        ['$reverse',         (o, _ctx) => Array.isArray(o) ? [...o].reverse() : o],
+        ['$sort',            (o, _ctx) => Array.isArray(o) ? [...o].sort() : o],
+        ['$slice',           (o, _ctx, p) => Array.isArray(o) ? o.slice(parseInt(p?.[0] ?? '0') || 0, p?.[1] ? parseInt(p[1]) : undefined) : o],
+        ['$join',            (o, _ctx, p) => Array.isArray(o) ? o.join(p?.[0] || '') : o],
+
+        // ───────────────────────────────────────────────────────────────────────
+        // STRING MANIPULATION ACCESSORS
+        // ───────────────────────────────────────────────────────────────────────
+        ['$lowercase',       (o, _ctx) => typeof o === 'string' ? o.toLowerCase() : String(o).toLowerCase()],
+        ['$lower',           (o, _ctx) => typeof o === 'string' ? o.toLowerCase() : String(o).toLowerCase()],
+        ['$uppercase',       (o, _ctx) => typeof o === 'string' ? o.toUpperCase() : String(o).toUpperCase()],
+        ['$upper',           (o, _ctx) => typeof o === 'string' ? o.toUpperCase() : String(o).toUpperCase()],
+        ['$trim',            (o, _ctx) => typeof o === 'string' ? o.trim() : String(o).trim()],
+        ['$split',           (o, _ctx, p) => typeof o === 'string' ? o.split(p?.[0] || '') : [o]],
+        ['$replace',         (o, _ctx, p) => typeof o === 'string' ? o.replace(new RegExp(p?.[0] || '', 'g'), p?.[1] || '') : o],
+        ['$substring',       (o, _ctx, p) => typeof o === 'string' ? o.substring(parseInt(p?.[0] ?? '0') || 0, p?.[1] ? parseInt(p[1]) : undefined) : String(o).substring(parseInt(p?.[0] ?? '0') || 0, p?.[1] ? parseInt(p[1]) : undefined)],
+        ['$padStart',        (o, _ctx, p) => String(o).padStart(parseInt(p?.[0] ?? '0') || 0, p?.[1] || ' ')],
+        ['$padEnd',          (o, _ctx, p) => String(o).padEnd(parseInt(p?.[0] ?? '0') || 0, p?.[1] || ' ')],
+
+        // ───────────────────────────────────────────────────────────────────────
+        // TYPE CONVERSION ACCESSORS
+        // ───────────────────────────────────────────────────────────────────────
+        ['$number',          (o, _ctx) => { const n = Number(o); return isNaN(n) ? 0 : n }],
+        ['$int',             (o, _ctx) => Math.floor(Number(o))],
+        ['$float',           (o, _ctx) => { const n = Number(o); return isNaN(n) ? 0 : n }],
+        ['$string',          (o, _ctx) => String(o)],
+        ['$str',             (o, _ctx) => String(o)],
+        ['$boolean',         (o, _ctx) => typeof o === 'boolean' ? o : (typeof o === 'string' ? o.toLowerCase() === 'true' || o === '1' || o === 'yes' : Boolean(o))],
+        ['$bool',            (o, _ctx) => typeof o === 'boolean' ? o : (typeof o === 'string' ? o.toLowerCase() === 'true' || o === '1' || o === 'yes' : Boolean(o))],
+        ['$json',            (o, _ctx) => { if (typeof o === 'string') try { return JSON.parse(o) } catch { return o }; return o }],
+        ['$stringify',       (o, _ctx) => { try { return JSON.stringify(o) } catch { return String(o) } }],
+
+        // ───────────────────────────────────────────────────────────────────────
+        // CONDITIONAL ACCESSORS
+        // ───────────────────────────────────────────────────────────────────────
+        ['$default',         (o, _ctx, p) => (o === undefined || o === null) ? (p?.[0] ?? '') : o],
+        ['$ifEmpty',         (o, _ctx, p) => (o === '' || o === undefined || o === null) ? (p?.[0] ?? '') : o],
+        ['$exists',          (o, _ctx) => o !== undefined && o !== null],
+
+        // ───────────────────────────────────────────────────────────────────────
+        // OBJECT ACCESSORS
+        // ───────────────────────────────────────────────────────────────────────
+        ['$entries',         (o, _ctx) => typeof o === 'object' && o !== null ? Object.entries(o) : []],
+        ['$pick',            (o, _ctx, p) => {
+            if (typeof o !== 'object' || o === null) return o
+            const keys = p[0]?.split(',').map(k => k.trim()) || []
+            const res: Record<string, unknown> = {}
+            for (const k of keys) if (k in o) res[k] = (o as Record<string, unknown>)[k]
+            return res
+        }],
+        ['$omit',            (o, _ctx, p) => {
+            if (typeof o !== 'object' || o === null) return o
+            const omit = new Set((p[0]?.split(',').map(k => k.trim()) || []))
+            const res: Record<string, unknown> = {}
+            for (const [k, v] of Object.entries(o)) if (!omit.has(k)) res[k] = v
+            return res
+        }],
+        ['$type',            (o, _ctx) => o === null ? 'null' : Array.isArray(o) ? 'array' : typeof o],
+    ])
+
+    /** Fallback chains are handled specially: "cost|price|amount" */
+    private resolveFallbackChain(obj: any, path: string, context: any): any {
+        const fallbacks = path.split('|').map(p => p.trim())
+        for (const fallbackPath of fallbacks) {
+            const value = this.getValue(obj, fallbackPath, context)
+            if (value !== undefined && value !== null) return value
+        }
+        return undefined
+    }
+
+    /**
+     * Extract nested value from object by path "data.user.id"
+     * Supports: dot-notation, fallback chains (a|b|c), and registered accessors ($first, $sum, etc.)
+     */
     private getValue(obj: any, path: string, context: any = {}): any {
         if (!path || path === '$') return obj
 
-        // Handle special accessors
-        if (path === '$key') return context.key
-        if (path === '$value') return context.value
-        if (path === '$index') return context.index
-        if (path === '$parentKey') return context.parentKey
-        if (path === '$grandParentKey' || path === '$grandparentKey') return context.grandParentKey
-        if (path === '$operatorKey') return context.operatorKey
-
-        // ═══════════════════════════════════════════════════════════════════
-        // NEW: Depth & Path Accessors (API Standardization v2.0)
-        // ═══════════════════════════════════════════════════════════════════
-
-        // $greatGrandParentKey - 4-level nesting support
-        if (path === '$greatGrandParentKey' || path === '$greatGrandparentKey') return context.greatGrandParentKey
-        // $parentValue - parent object value
-        if (path === '$parentValue') return context.parentValue
-        // $rootKey - first-level key (always country in pricing)
-        if (path === '$rootKey') return context.rootKey
-        // $depth - current nesting level (0-indexed)
-        if (path === '$depth') return context.depth ?? 0
-        // $isLeaf - boolean: no deeper nesting
-        if (path === '$isLeaf') return context.isLeaf ?? false
-        // $path - full dot-path from root (debugging only)
-        if (path === '$path') return context.path ?? ''
-        // $ancestors - array of all parent keys (debugging only)
-        if (path === '$ancestors') return context.ancestors ?? []
-        // $atDepth:N - key at specific depth level
-        if (path.startsWith('$atDepth:')) {
-            const depthIndex = parseInt(path.substring(9))
-            return context.ancestors?.[depthIndex] ?? context.key
+        // Handle special context-only accessors first
+        const contextOnly = DynamicProvider.ACCESSOR_REGISTRY.get(path)
+        if (contextOnly && !path.startsWith('$atDepth')) {
+            return contextOnly(obj, context)
         }
 
-        // NEW: Handle fallback chains (cost|price|amount)
+        // Handle fallback chains (cost|price|amount)
         if (path.includes('|')) {
-            const fallbacks = path.split('|').map(p => p.trim())
-            for (const fallbackPath of fallbacks) {
-                const value = this.getValue(obj, fallbackPath, context)
-                if (value !== undefined && value !== null) {
-                    return value
-                }
-            }
-            return undefined
+            return this.resolveFallbackChain(obj, path, context)
         }
 
-        return path.split('.').reduce((o, key) => {
-            if (o === undefined || o === null) return undefined
+        // Traverse dot-notation path, applying accessors at each segment
+        return path.split('.').reduce((current, segment) => {
+            if (current === undefined || current === null) return undefined
 
-            // ==========================================
-            // ARRAY/COLLECTION ACCESSORS
-            // ==========================================
-
-            // $firstKey - get first key of object
-            if (key === '$firstKey') {
-                const keys = Object.keys(o)
-                return keys.length > 0 ? keys[0] : undefined
-            }
-            // $firstValue - get first value of object
-            if (key === '$firstValue') {
-                const keys = Object.keys(o)
-                return keys.length > 0 ? o[keys[0]] : undefined
-            }
-            // $first - first element of array
-            if (key === '$first') {
-                return Array.isArray(o) ? o[0] : (typeof o === 'object' ? Object.values(o)[0] : o)
-            }
-            // $lastKey - last key of object
-            if (key === '$lastKey') {
-                const keys = Object.keys(o)
-                return keys.length > 0 ? keys[keys.length - 1] : undefined
-            }
-            // $lastValue - last value of object
-            if (key === '$lastValue') {
-                const keys = Object.keys(o)
-                return keys.length > 0 ? o[keys[keys.length - 1]] : undefined
-            }
-            // $last - last element of array
-            if (key === '$last') {
-                return Array.isArray(o) ? o[o.length - 1] : (typeof o === 'object' ? Object.values(o).pop() : o)
-            }
-            // $values - get all values as array
-            if (key === '$values') {
-                return Object.values(o)
-            }
-            // $keys - get all keys as array
-            if (key === '$keys') {
-                return Object.keys(o)
-            }
-            // $length / $count - get length
-            if (key === '$length' || key === '$count') {
-                return Array.isArray(o) ? o.length : Object.keys(o).length
-            }
-            // $sum - sum of numeric array
-            if (key === '$sum') {
-                if (!Array.isArray(o)) return 0
-                return o.reduce((acc, val) => acc + (Number(val) || 0), 0)
-            }
-            // $avg / $average - average of numeric array
-            if (key === '$avg' || key === '$average') {
-                if (!Array.isArray(o) || o.length === 0) return 0
-                const sum = o.reduce((acc, val) => acc + (Number(val) || 0), 0)
-                return sum / o.length
-            }
-            // $min - minimum value
-            if (key === '$min') {
-                if (!Array.isArray(o) || o.length === 0) return undefined
-                return Math.min(...o.map(Number).filter(n => !isNaN(n)))
-            }
-            // $max - maximum value
-            if (key === '$max') {
-                if (!Array.isArray(o) || o.length === 0) return undefined
-                return Math.max(...o.map(Number).filter(n => !isNaN(n)))
-            }
-            // $unique - deduplicate array
-            if (key === '$unique') {
-                return Array.isArray(o) ? [...new Set(o)] : o
-            }
-            // $flatten - flatten nested arrays
-            if (key === '$flatten') {
-                return Array.isArray(o) ? o.flat(Infinity) : o
-            }
-            // $reverse - reverse array
-            if (key === '$reverse') {
-                return Array.isArray(o) ? [...o].reverse() : o
-            }
-            // $sort - sort array
-            if (key === '$sort') {
-                return Array.isArray(o) ? [...o].sort() : o
-            }
-            // $slice:start:end - get subset of array
-            if (key.startsWith('$slice:')) {
-                const parts = key.substring(7).split(':')
-                const start = parseInt(parts[0]) || 0
-                const end = parts[1] ? parseInt(parts[1]) : undefined
-                return Array.isArray(o) ? o.slice(start, end) : o
-            }
-            // $join:separator - join array with separator
-            if (key.startsWith('$join:')) {
-                const sep = key.substring(6)
-                return Array.isArray(o) ? o.join(sep) : o
+            // Check for parameterized accessor: $slice:0:2, $replace:a:b, etc.
+            const paramMatch = segment.match(/^(\$[^:]+):(.+)$/)
+            if (paramMatch) {
+                const [, accessorName, paramsStr] = paramMatch
+                const params = paramsStr.split(':')
+                const fn = DynamicProvider.ACCESSOR_REGISTRY.get(accessorName)
+                if (fn) return fn(current, context, params)
             }
 
-            // ==========================================
-            // STRING MANIPULATION ACCESSORS
-            // ==========================================
+            // Check for simple accessor: $first, $sum, $lowercase, etc.
+            const fn = DynamicProvider.ACCESSOR_REGISTRY.get(segment)
+            if (fn) return fn(current, context)
 
-            // $lowercase / $lower - convert to lowercase
-            if (key === '$lowercase' || key === '$lower') {
-                return typeof o === 'string' ? o.toLowerCase() : String(o).toLowerCase()
-            }
-            // $uppercase / $upper - convert to uppercase
-            if (key === '$uppercase' || key === '$upper') {
-                return typeof o === 'string' ? o.toUpperCase() : String(o).toUpperCase()
-            }
-            // $trim - remove whitespace
-            if (key === '$trim') {
-                return typeof o === 'string' ? o.trim() : String(o).trim()
-            }
-            // $split:separator - split string to array
-            if (key.startsWith('$split:')) {
-                const sep = key.substring(7)
-                return typeof o === 'string' ? o.split(sep) : [o]
-            }
-            // $replace:old:new - replace substring
-            if (key.startsWith('$replace:')) {
-                const parts = key.substring(9).split(':')
-                const oldStr = parts[0] || ''
-                const newStr = parts[1] || ''
-                return typeof o === 'string' ? o.replace(new RegExp(oldStr, 'g'), newStr) : o
-            }
-            // $substring:start:end - get substring
-            if (key.startsWith('$substring:')) {
-                const parts = key.substring(11).split(':')
-                const start = parseInt(parts[0]) || 0
-                const end = parts[1] ? parseInt(parts[1]) : undefined
-                return typeof o === 'string' ? o.substring(start, end) : String(o).substring(start, end)
-            }
-            // $padStart:length:char - pad string start
-            if (key.startsWith('$padStart:')) {
-                const parts = key.substring(10).split(':')
-                const len = parseInt(parts[0]) || 0
-                const char = parts[1] || ' '
-                return String(o).padStart(len, char)
-            }
-            // $padEnd:length:char - pad string end
-            if (key.startsWith('$padEnd:')) {
-                const parts = key.substring(8).split(':')
-                const len = parseInt(parts[0]) || 0
-                const char = parts[1] || ' '
-                return String(o).padEnd(len, char)
-            }
-
-            // ==========================================
-            // TYPE CONVERSION ACCESSORS
-            // ==========================================
-
-            // $number / $int / $float - convert to number
-            if (key === '$number' || key === '$int' || key === '$float') {
-                const num = Number(o)
-                if (key === '$int') return Math.floor(num)
-                return isNaN(num) ? 0 : num
-            }
-            // $string / $str - convert to string
-            if (key === '$string' || key === '$str') {
-                return String(o)
-            }
-            // $boolean / $bool - convert to boolean
-            if (key === '$boolean' || key === '$bool') {
-                if (typeof o === 'boolean') return o
-                if (typeof o === 'string') {
-                    const lower = o.toLowerCase()
-                    return lower === 'true' || lower === '1' || lower === 'yes'
-                }
-                return Boolean(o)
-            }
-            // $json - parse JSON string
-            if (key === '$json') {
-                if (typeof o === 'string') {
-                    try { return JSON.parse(o) } catch { return o }
-                }
-                return o
-            }
-            // $stringify - convert to JSON string
-            if (key === '$stringify') {
-                try { return JSON.stringify(o) } catch { return String(o) }
-            }
-
-            // ==========================================
-            // CONDITIONAL ACCESSORS
-            // ==========================================
-
-            // $default:value - default if null/undefined
-            if (key.startsWith('$default:')) {
-                const defaultVal = key.substring(9)
-                return (o === undefined || o === null) ? defaultVal : o
-            }
-            // $ifEmpty:value - default if empty string
-            if (key.startsWith('$ifEmpty:')) {
-                const defaultVal = key.substring(9)
-                return (o === '' || o === undefined || o === null) ? defaultVal : o
-            }
-            // $exists - check if field exists (returns boolean)
-            if (key === '$exists') {
-                return o !== undefined && o !== null
-            }
-
-            // ==========================================
-            // OBJECT ACCESSORS
-            // ==========================================
-
-            // $entries - get [key, value] pairs
-            if (key === '$entries') {
-                return typeof o === 'object' && o !== null ? Object.entries(o) : []
-            }
-            // $pick:a,b,c - only specific keys
-            if (key.startsWith('$pick:')) {
-                const keysToKeep = key.substring(6).split(',').map(k => k.trim())
-                if (typeof o === 'object' && o !== null) {
-                    const obj = o as Record<string, unknown>
-                    const result: Record<string, unknown> = {}
-                    for (const k of keysToKeep) {
-                        if (k in obj) result[k] = obj[k]
-                    }
-                    return result
-                }
-                return o
-            }
-            // $omit:a,b,c - exclude specific keys
-            if (key.startsWith('$omit:')) {
-                const keysToOmit = key.substring(6).split(',').map(k => k.trim())
-                if (typeof o === 'object' && o !== null) {
-                    const obj = o as Record<string, unknown>
-                    const result: Record<string, unknown> = {}
-                    for (const [k, v] of Object.entries(obj)) {
-                        if (!keysToOmit.includes(k)) result[k] = v
-                    }
-                    return result
-                }
-                return o
-            }
-            // $type - get JavaScript type
-            if (key === '$type') {
-                if (o === null) return 'null'
-                if (Array.isArray(o)) return 'array'
-                return typeof o
-            }
-
-            return o[key]
+            // Plain property access
+            return current[segment]
         }, obj)
     }
 

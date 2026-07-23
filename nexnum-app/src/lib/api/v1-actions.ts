@@ -580,7 +580,8 @@ export async function actionGetStatus(
 // ============================================================================
 // Action: getServicesList
 //   On success: JSON {services: [{id, name}]}
-//   id = numeric serviceId (internal MeiliDocs ID), NOT legacy string code.
+//   id = numeric serviceId (internal registry), NOT legacy string code.
+//   Universal format: only id + name, regardless of filter.
 // ============================================================================
 
 export async function actionGetServicesList(
@@ -669,25 +670,31 @@ export async function actionGetCountriesList(
 
 // ============================================================================
 // Action: getPrices
-//   Inputs:  service=<id> country=<id> (both optional numeric IDs, not codes)
-//   On success: JSON keyed by serviceId; each value has {cost, count}
-//               Plus resolved names (serviceName, countryName) for human use.
-//   Universal shape across all filter modes:
-//     - no filter:      { "<serviceId>": { cost, count, serviceName, countries: { "<countryId>": { cost, count, countryName } } } }
-//     - service only:   { "<serviceId>": { cost, count, serviceName, countries: { "<countryId>": { cost, count, countryName } } } }
-//     - country only:   { "<serviceId>": { cost, count, serviceName, countryId, countryName } }   (one entry per matching service)
-//     - both:           { "<serviceId>": { cost, count, serviceName, countryId, countryName, operators: {...} } }
-//   NO string codes (no "tg", "wa", "0", "6") — only numeric IDs and names.
+//   Universal response format (all filter modes):
+//   {
+//     "<countryId>": {
+//       "<serviceId>": {
+//         "price": <minPrice>,
+//         "count": <totalStock>,
+//         "providers": {
+//           "<providerId>": { "count": <n>, "price": <minPrice>, "provider_id": "<providerId>" }
+//         }
+//       }
+//     }
+//   }
+//   Keys are numeric IDs as strings. If no matches, returns {}.
 // ============================================================================
 
-interface PriceEntry {
-    cost: number
+interface ProviderInfo {
     count: number
-    serviceName: string
-    countryId?: number
-    countryName?: string
-    countries?: Record<string, { cost: number; count: number; countryName: string }>
-    operators?: Record<string, { operator_name: string; price: number }>
+    price: number
+    provider_id: string
+}
+
+interface ServicePriceInfo {
+    price: number
+    count: number
+    providers: Record<string, ProviderInfo>
 }
 
 export async function actionGetPrices(
@@ -719,129 +726,145 @@ export async function actionGetPrices(
             }
         }
 
-        // Pull all matching offers (one row per service×country×operator)
+        const filterStr = filters.join(' AND ')
+
+        // Determine optimal query strategy based on filter mode
+        const hasService = !!params.service
+        const hasCountry = !!params.country
+
+        // Universal output: { "<countryId>": { "<serviceId>": { price, count, providers: { "<providerId>": { count, price, provider_id } } } } }
+        const output: Record<string, Record<string, ServicePriceInfo>> = {}
+
+        // Helper to aggregate hits into the universal format
+        const aggregateHits = (hits: OfferDocument[]) => {
+            for (const hit of hits) {
+                const countryId = String(hit.countryId)
+                const serviceId = String(hit.serviceId)
+                const providerId = hit.provider || 'unknown'
+                const price = Number(hit.pointPrice) || 0
+                const count = Number(hit.stock) || 0
+
+                if (!output[countryId]) output[countryId] = {}
+                if (!output[countryId][serviceId]) {
+                    output[countryId][serviceId] = { price: 0, count: 0, providers: {} }
+                }
+                const svc = output[countryId][serviceId]
+                if (svc.price === 0 || price < svc.price) svc.price = price
+                svc.count += count
+
+                if (!svc.providers[providerId]) {
+                    svc.providers[providerId] = { count: 0, price, provider_id: providerId }
+                }
+                svc.providers[providerId].count += count
+                // Keep min price per provider
+                if (price < svc.providers[providerId].price) svc.providers[providerId].price = price
+            }
+        }
+
+        // ── Mode: BOTH filters (service + country) ───────────────────────────
+        if (hasService && hasCountry) {
+            const svcId = Number(params.service!)
+            const ctyId = Number(params.country!)
+
+            const result = await index.search('', {
+                filter: filterStr,
+                limit: 100, // operators per service/country rarely exceed 20
+                attributesToRetrieve: ['serviceId', 'countryId', 'pointPrice', 'stock', 'provider']
+            })
+
+            const hits = result.hits as OfferDocument[]
+            if (hits.length === 0) return json({}, 200)
+
+            aggregateHits(hits)
+            return json(output, 200)
+        }
+
+        // ── Mode: SERVICE only ───────────────────────────────────────────────
+        // Multiple countries per service — use facet distribution on countryId
+        if (hasService) {
+            const svcId = Number(params.service!)
+
+            const facetResult = await index.search('', {
+                filter: filterStr,
+                limit: 0,
+                facets: ['countryId'],
+                attributesToRetrieve: []
+            })
+
+            const countryFacets = (facetResult.facetDistribution?.countryId as Record<string, number>) || {}
+            const countryIds = Object.keys(countryFacets).map(Number).filter(n => Number.isFinite(n))
+
+            if (countryIds.length === 0) return json({}, 200)
+
+            const result = await index.search('', {
+                filter: filterStr,
+                limit: Math.min(500, countryIds.length * 20),
+                attributesToRetrieve: ['serviceId', 'countryId', 'pointPrice', 'stock', 'provider']
+            })
+
+            const hits = result.hits as OfferDocument[]
+            if (hits.length === 0) return json({}, 200)
+
+            aggregateHits(hits)
+            return json(output, 200)
+        }
+
+        // ── Mode: COUNTRY only ───────────────────────────────────────────────
+        // Multiple services per country — use facet distribution on serviceId
+        if (hasCountry) {
+            const ctyId = Number(params.country!)
+
+            const facetResult = await index.search('', {
+                filter: filterStr,
+                limit: 0,
+                facets: ['serviceId'],
+                attributesToRetrieve: []
+            })
+
+            const serviceFacets = (facetResult.facetDistribution?.serviceId as Record<string, number>) || {}
+            const serviceIds = Object.keys(serviceFacets).map(Number).filter(n => Number.isFinite(n))
+
+            if (serviceIds.length === 0) return json({}, 200)
+
+            const result = await index.search('', {
+                filter: filterStr,
+                limit: Math.min(500, serviceIds.length * 20),
+                attributesToRetrieve: ['serviceId', 'countryId', 'pointPrice', 'stock', 'provider']
+            })
+
+            const hits = result.hits as OfferDocument[]
+            if (hits.length === 0) return json({}, 200)
+
+            aggregateHits(hits)
+            return json(output, 200)
+        }
+
+        // ── Mode: NO filter (full matrix) ────────────────────────────────────
+        // Use facet distribution on serviceId to get top-level grouping,
+        // then fetch details per service
+        const facetResult = await index.search('', {
+            filter: filterStr,
+            limit: 0,
+            facets: ['serviceId'],
+            attributesToRetrieve: []
+        })
+
+        const serviceFacets = (facetResult.facetDistribution?.serviceId as Record<string, number>) || {}
+        const serviceIds = Object.keys(serviceFacets).map(Number).filter(n => Number.isFinite(n))
+
+        if (serviceIds.length === 0) return json({}, 200)
+
         const result = await index.search('', {
-            filter: filters.join(' AND '),
-            limit: 5000
+            filter: filterStr,
+            limit: Math.min(5000, serviceIds.length * 50),
+            attributesToRetrieve: ['serviceId', 'countryId', 'pointPrice', 'stock', 'provider']
         })
 
         const hits = result.hits as OfferDocument[]
         if (hits.length === 0) return json({}, 200)
 
-        // ── Mode: BOTH filters (service + country) ───────────────────────────
-        // Return one serviceId entry with operator list (operator-wise pricing).
-        if (params.service && params.country) {
-            const svcId = Number(params.service)
-            const ctyId = Number(params.country)
-            const first = hits[0]
-            const operators: Record<string, { operator_name: string; price: number }> = {}
-            for (const hit of hits) {
-                const opName = hit.operator || hit.provider || 'any'
-                operators[opName] = {
-                    operator_name: opName,
-                    price: Number(hit.pointPrice) || 0
-                }
-            }
-            const minCost = Math.min(...hits.map((h) => Number(h.pointPrice) || 0))
-            const totalCount = hits.reduce((s, h) => s + (Number(h.stock) || 0), 0)
-            const out: Record<string, PriceEntry> = {
-                [String(svcId)]: {
-                    cost: minCost,
-                    count: totalCount,
-                    serviceName: first.serviceName || '',
-                    countryId: ctyId,
-                    countryName: first.countryName || '',
-                    operators
-                }
-            }
-            return json(out, 200)
-        }
-
-        // ── Mode: SERVICE only ───────────────────────────────────────────────
-        // Return one serviceId with nested countries map.
-        if (params.service) {
-            const svcId = Number(params.service)
-            const first = hits[0]
-            const countries: Record<string, { cost: number; count: number; countryName: string }> = {}
-            for (const hit of hits) {
-                const cid = String(hit.countryId)
-                if (!countries[cid]) {
-                    countries[cid] = {
-                        cost: Number(hit.pointPrice) || 0,
-                        count: Number(hit.stock) || 0,
-                        countryName: hit.countryName || ''
-                    }
-                } else {
-                    // keep lowest cost, sum stock
-                    const cur = countries[cid]
-                    cur.cost = Math.min(cur.cost, Number(hit.pointPrice) || 0)
-                    cur.count += Number(hit.stock) || 0
-                }
-            }
-            const minCost = Math.min(...hits.map((h) => Number(h.pointPrice) || 0))
-            const totalCount = hits.reduce((s, h) => s + (Number(h.stock) || 0), 0)
-            const out: Record<string, PriceEntry> = {
-                [String(svcId)]: {
-                    cost: minCost,
-                    count: totalCount,
-                    serviceName: first.serviceName || '',
-                    countries
-                }
-            }
-            return json(out, 200)
-        }
-
-        // ── Mode: COUNTRY only ───────────────────────────────────────────────
-        // Return one entry per matching service (not nested by country).
-        if (params.country) {
-            const ctyId = Number(params.country)
-            const first = hits[0]
-            const bySvc: Record<string, PriceEntry> = {}
-            for (const hit of hits) {
-                const sid = String(hit.serviceId)
-                if (!bySvc[sid]) {
-                    bySvc[sid] = {
-                        cost: Number(hit.pointPrice) || 0,
-                        count: Number(hit.stock) || 0,
-                        serviceName: hit.serviceName || '',
-                        countryId: ctyId,
-                        countryName: hit.countryName || first.countryName || ''
-                    }
-                } else {
-                    const cur = bySvc[sid]
-                    cur.cost = Math.min(cur.cost, Number(hit.pointPrice) || 0)
-                    cur.count += Number(hit.stock) || 0
-                }
-            }
-            return json(bySvc, 200)
-        }
-
-        // ── Mode: NO filter (full matrix) ───────────────────────────────────
-        // Return one entry per serviceId, each with nested countries map.
-        const bySvc: Record<string, PriceEntry> = {}
-        for (const hit of hits) {
-            const sid = String(hit.serviceId)
-            if (!bySvc[sid]) {
-                bySvc[sid] = {
-                    cost: Number(hit.pointPrice) || 0,
-                    count: 0,
-                    serviceName: hit.serviceName || '',
-                    countries: {}
-                }
-            }
-            const cur = bySvc[sid]
-            cur.cost = Math.min(cur.cost, Number(hit.pointPrice) || 0)
-            cur.count += Number(hit.stock) || 0
-            const cid = String(hit.countryId)
-            if (cur.countries && !cur.countries[cid]) {
-                cur.countries[cid] = {
-                    cost: Number(hit.pointPrice) || 0,
-                    count: Number(hit.stock) || 0,
-                    countryName: hit.countryName || ''
-                }
-            }
-        }
-        return json(bySvc, 200)
+        aggregateHits(hits)
+        return json(output, 200)
     } catch {
         return json({}, 200)
     }

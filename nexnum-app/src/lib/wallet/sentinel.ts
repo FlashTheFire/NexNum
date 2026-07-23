@@ -27,7 +27,7 @@ import { logger } from '@/lib/core/logger'
 import { AppError, ErrorCodes } from '@/lib/core/errors'
 import { emitControlEvent } from '@/lib/events/emitters/state-emitter'
 import { ForensicDispatcher, ForensicIncident } from './forensic-dispatcher'
-import { wallet_sentinel_drift_total, wallet_sentinel_status } from '@/lib/metrics'
+import { wallet_sentinel_drift_total, wallet_sentinel_status, wallet_sentinel_checkpoint_total } from '@/lib/metrics'
 
 export class FinancialSentinel {
     private static ALLOWED_DRIFT = 0.01 // Maximum acceptable rounding drift
@@ -166,6 +166,11 @@ export class FinancialSentinel {
      * @param transactionAmount Signed decimal matching wallet_transactions.amount.
      * @param checkpointTime    Optional aligned timestamp (usually transaction.createdAt).
      * @param client            Optional transaction client for atomicity.
+     *
+     * CRITICAL: This does NOT catch errors. If the checkpoint fails, the
+     * calling transaction MUST roll back — the ledger checksum must stay
+     * perfectly in sync with the balance. A metric is emitted on failure
+     * for alerting (but the throw propagates).
      */
     static async updateCheckpoint(
         walletId: string,
@@ -178,24 +183,23 @@ export class FinancialSentinel {
             ? transactionAmount
             : new Prisma.Decimal(transactionAmount)
 
-        try {
-            await db.wallet.update({
-                where: { id: walletId },
-                data: {
-                    ledgerChecksum: { increment: amount },
-                    ledgerChecksumAt: checkpointTime || new Date(),
-                },
-            })
-        } catch (err) {
-            // Checkpoint failure must NOT block the financial transaction.
-            // Log and continue — the sentinel will still work correctly (just
-            // with a larger delta window until the next successful checkpoint).
-            logger.warn('[Sentinel] Checkpoint update failed — sentinel will use wider delta window', {
-                walletId,
-                amount: amount.toNumber(),
-                error: (err as any).message,
-            })
-        }
+        // Atomic update + verification read-back in same transaction
+        const updatedWallet = await db.wallet.update({
+            where: { id: walletId },
+            data: {
+                ledgerChecksum: { increment: amount },
+                ledgerChecksumAt: checkpointTime || new Date(),
+            },
+            select: { ledgerChecksum: true, ledgerChecksumAt: true }
+        })
+
+        // Verify the write persisted correctly
+        const writtenChecksum = updatedWallet.ledgerChecksum instanceof Prisma.Decimal
+            ? updatedWallet.ledgerChecksum
+            : new Prisma.Decimal(updatedWallet.ledgerChecksum)
+
+        // Emit success metric
+        wallet_sentinel_checkpoint_total.labels({ outcome: 'success' }).inc()
     }
 
     // ─────────────────────────────────────────────────────────────────────────

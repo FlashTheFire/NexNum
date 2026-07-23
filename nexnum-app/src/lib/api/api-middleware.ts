@@ -172,6 +172,9 @@ async function extractApiKeyV1(request: NextRequest): Promise<string | null> {
  * Returns plain-text `Response` objects that match the legacy wire format
  * so callers reading the body byte-for-byte see the expected error codes.
  * On success, returns the validated API key context (no Response).
+ *
+ * SECURITY FIX: Returns proper HTTP status codes (401/403/429/500) instead of 200
+ * while preserving the legacy wire format body (NO_KEY, BAD_KEY, etc.)
  */
 export async function authenticateApiKeyV1(
     request: NextRequest
@@ -182,14 +185,14 @@ export async function authenticateApiKeyV1(
     const rawKey = await extractApiKeyV1(request)
 
     if (!rawKey) {
-        return { ok: false, code: 'NO_KEY', status: 200, message: 'NO_KEY' }
+        return { ok: false, code: 'NO_KEY', status: 401, message: 'NO_KEY' }
     }
 
     const clientIp = getClientIp(request)
     const result = await validateApiKey(rawKey, clientIp)
 
     if (!result.valid || !result.key) {
-        return { ok: false, code: 'BAD_KEY', status: 200, message: 'BAD_KEY' }
+        return { ok: false, code: 'BAD_KEY', status: 403, message: 'BAD_KEY' }
     }
 
     const apiKey = result.key
@@ -254,7 +257,7 @@ export function withV1Auth<P = unknown>(
             return await handler(request, auth.context, params)
         } catch (error) {
             return new Response('ERROR_SQL', {
-                status: 200,
+                status: 500,
                 headers: {
                     'Content-Type': 'text/plain; charset=utf-8',
                     'Cache-Control': 'no-store'

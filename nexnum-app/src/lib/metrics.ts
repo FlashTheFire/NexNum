@@ -61,6 +61,13 @@ export const wallet_sentinel_status = register('nexnum_wallet_sentinel_status', 
     registers: [registry]
 }))
 
+export const wallet_sentinel_checkpoint_total = register('nexnum_wallet_sentinel_checkpoint_total', () => new Counter({
+    name: 'nexnum_wallet_sentinel_checkpoint_total',
+    help: 'Total sentinel checkpoint updates by outcome',
+    labelNames: ['outcome'],
+    registers: [registry]
+}))
+
 export const wallet_operation_duration_seconds = register('nexnum_wallet_operation_duration_seconds', () => new Histogram({
     name: 'nexnum_wallet_operation_duration_seconds',
     help: 'Duration of wallet operations',

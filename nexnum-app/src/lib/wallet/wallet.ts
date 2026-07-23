@@ -56,6 +56,7 @@ export class WalletService {
      * Phase 1: Reserve Funds
      * Checks (Balance - Reserved) >= Amount
      * Adds to 'reserved' field.
+     * Idempotent: if idempotencyKey provided and exists, returns existing reservation.
      */
     static async reserve(
         userId: string,
@@ -69,29 +70,37 @@ export class WalletService {
         const performReservation = async (client: Prisma.TransactionClient) => {
             const decAmount = new Prisma.Decimal(amount)
 
-            // 1. LOCK the wallet row to prevent race conditions (SELECT FOR UPDATE)
+            // 1. Idempotency Check (if key provided)
+            if (idempotencyKey) {
+                const existing = await client.walletTransaction.findUnique({
+                    where: { idempotencyKey }
+                })
+                if (existing) return existing;
+            }
+
+            // 2. LOCK the wallet row to prevent race conditions (SELECT FOR UPDATE)
             await client.$executeRaw`SELECT 1 FROM "wallets" WHERE "user_id" = ${userId} FOR UPDATE`
 
-            // 2. ELITE INTEGRITY CHECK (Sentinel)
+            // 3. ELITE INTEGRITY CHECK (Sentinel)
             const isIntegrityIntact = await FinancialSentinel.verifyIntegrity(userId, client);
             if (!isIntegrityIntact) {
                 throw PaymentError.integrityBreach(userId);
             }
 
-            // 3. Read Fresh State
+            // 4. Read Fresh State
             const wallet = await client.wallet.findUnique({
                 where: { userId },
                 select: { id: true, balance: true, reserved: true }
             })
             if (!wallet) throw new PaymentError('Wallet not found', 'E_PROVIDER_ERROR', 404)
 
-            // 3. Check availability
+            // 5. Check availability
             const liquid = wallet.balance.sub(wallet.reserved)
             if (liquid.lessThan(decAmount)) {
                 throw PaymentError.insufficientFunds()
             }
 
-            // 4. Update
+            // 6. Update reserved balance
             await client.wallet.update({
                 where: { id: wallet.id },
                 data: {
@@ -99,7 +108,26 @@ export class WalletService {
                 }
             })
 
-            return wallet.id
+            // 7. Capture immutable fiat snapshot BEFORE creating the transaction record
+            const currencySnapshot = await captureTransactionSnapshot(userId, amount)
+
+            // 8. Record Reservation Transaction
+            const transaction = await client.walletTransaction.create({
+                data: {
+                    walletId: wallet.id,
+                    amount: decAmount.negated(), // Reservation is a pending debit (negative)
+                    type: 'reservation',
+                    description,
+                    idempotencyKey,
+                    metadata: { refId },
+                    currencySnapshot: currencySnapshot as any,
+                }
+            })
+
+            // 9. Advance sentinel checkpoint (reservation is a negative amount pending commit)
+            await FinancialSentinel.updateCheckpoint(wallet.id, decAmount.negated(), transaction.createdAt, client)
+
+            return { walletId: wallet.id, transaction }
         }
 
         // Use provided transaction OR create a new one to guarantee locking
@@ -116,6 +144,7 @@ export class WalletService {
      * Phase 2: Commit (Confirm Purchase)
      * Decrements 'reserved' and 'balance'.
      * Creates final 'purchase' transaction.
+     * Idempotent: if idempotencyKey provided and exists, returns existing charge.
      */
     static async commit(
         userId: string,
@@ -128,10 +157,18 @@ export class WalletService {
         const performCommit = async (client: Prisma.TransactionClient) => {
             const decAmount = new Prisma.Decimal(amount)
 
-            // 1. LOCK the wallet row to prevent race conditions (SELECT FOR UPDATE)
+            // 1. Idempotency Check (if key provided)
+            if (idempotencyKey) {
+                const existing = await client.walletTransaction.findUnique({
+                    where: { idempotencyKey }
+                })
+                if (existing) return existing;
+            }
+
+            // 2. LOCK the wallet row to prevent race conditions (SELECT FOR UPDATE)
             await client.$executeRaw`SELECT 1 FROM "wallets" WHERE "user_id" = ${userId} FOR UPDATE`
 
-            // 2. Get wallet with full state for guards
+            // 3. Get wallet with full state for guards
             const wallet = await client.wallet.findUnique({
                 where: { userId },
                 select: { id: true, balance: true, reserved: true }
@@ -183,9 +220,8 @@ export class WalletService {
             })
 
             // Advance sentinel checkpoint (amount is negative for a purchase debit)
-            await FinancialSentinel.updateCheckpoint(wallet.id, decAmount.negated(), transaction.createdAt, client).catch((err) => {
-                logger.error('FinancialSentinel checkpoint update failed', { error: err, walletId: wallet.id })
-            })
+            // CRITICAL: No .catch() - if checkpoint fails, transaction rolls back
+            await FinancialSentinel.updateCheckpoint(wallet.id, decAmount.negated(), transaction.createdAt, client)
 
             wallet_transactions_total.labels('purchase', 'success').inc()
 
@@ -216,28 +252,36 @@ export class WalletService {
     /**
      * Phase 2 (Fail): Rollback Reservation
      * Decrements 'reserved' only. Balance stays same.
+     * Idempotent: if idempotencyKey provided and exists, returns existing rollback.
      */
     static async rollback(
         userId: string,
         amount: number,
         refId: string, // PurchaseOrder ID
         description: string,
+        idempotencyKey?: string,
         tx?: Prisma.TransactionClient
     ) {
         const performRollback = async (client: Prisma.TransactionClient) => {
             const decAmount = new Prisma.Decimal(amount)
 
-            // 1. LOCK the wallet row to prevent race conditions
+            // 1. Idempotency Check (if key provided)
+            if (idempotencyKey) {
+                const existing = await client.walletTransaction.findUnique({ where: { idempotencyKey } })
+                if (existing) return existing
+            }
+
+            // 2. LOCK the wallet row to prevent race conditions
             await client.$executeRaw`SELECT 1 FROM "wallets" WHERE "user_id" = ${userId} FOR UPDATE`
 
-            // 2. Read fresh state
+            // 3. Read fresh state
             const wallet = await client.wallet.findUnique({
                 where: { userId },
                 select: { id: true, reserved: true }
             })
             if (!wallet) throw new PaymentError('Wallet not found', 'E_PROVIDER_ERROR', 404)
 
-            // 3. Guard: don't decrement below zero (prevents double-rollback)
+            // 4. Guard: don't decrement below zero (prevents double-rollback)
             if (wallet.reserved.lessThan(decAmount)) {
                 logger.warn('Rollback amount exceeds reserved - clamping to zero', {
                     reserved: wallet.reserved.toString(),
@@ -261,7 +305,28 @@ export class WalletService {
                 })
             }
 
+            // Capture immutable fiat snapshot BEFORE creating the transaction record
+            const currencySnapshot = await captureTransactionSnapshot(userId, amount)
+
+            // 5. Record Rollback Transaction (positive amount = credit back to reserved)
+            const transaction = await client.walletTransaction.create({
+                data: {
+                    walletId: wallet.id,
+                    amount: decAmount, // Positive = credit to reserved
+                    type: 'rollback',
+                    description,
+                    idempotencyKey,
+                    metadata: { refId },
+                    currencySnapshot: currencySnapshot as any,
+                }
+            })
+
+            // 6. Advance sentinel checkpoint (rollback is a positive credit to reserved)
+            await FinancialSentinel.updateCheckpoint(wallet.id, decAmount, transaction.createdAt, client)
+
             wallet_transactions_total.labels('purchase_rollback', 'success').inc()
+
+            return transaction
         }
 
         // Use provided transaction OR create a new one to guarantee locking
@@ -337,7 +402,10 @@ export class WalletService {
             })
 
             // Advance sentinel checkpoint (charge is a debit — negative)
-            await FinancialSentinel.updateCheckpoint(wallet.id, decAmount.negated(), transaction.createdAt, client).catch(() => {})
+            // CRITICAL: No .catch() - if checkpoint fails, transaction rolls back
+            await FinancialSentinel.updateCheckpoint(wallet.id, decAmount.negated(), transaction.createdAt, client)
+
+            wallet_transactions_total.labels(type, 'success').inc()
 
             return transaction
         }
@@ -396,7 +464,10 @@ export class WalletService {
             })
 
             // Advance sentinel checkpoint (refund is a credit — positive)
-            await FinancialSentinel.updateCheckpoint(wallet.id, decAmount, transaction.createdAt, client).catch(() => {})
+            // CRITICAL: No .catch() - if checkpoint fails, transaction rolls back
+            await FinancialSentinel.updateCheckpoint(wallet.id, decAmount, transaction.createdAt, client)
+
+            wallet_transactions_total.labels(type, 'success').inc()
 
             return transaction
         }
@@ -454,7 +525,8 @@ export class WalletService {
             })
 
             // Advance sentinel checkpoint (credit is positive)
-            await FinancialSentinel.updateCheckpoint(wallet.id, decAmount, transaction.createdAt, client).catch(() => {})
+            // CRITICAL: No .catch() - if checkpoint fails, transaction rolls back
+            await FinancialSentinel.updateCheckpoint(wallet.id, decAmount, transaction.createdAt, client)
 
             wallet_transactions_total.labels(type, 'success').inc()
 
@@ -524,7 +596,8 @@ export class WalletService {
             })
 
             // Advance sentinel checkpoint (debit is negative)
-            await FinancialSentinel.updateCheckpoint(wallet.id, decAmount.negated(), transaction.createdAt, client).catch(() => {})
+            // CRITICAL: No .catch() - if checkpoint fails, transaction rolls back
+            await FinancialSentinel.updateCheckpoint(wallet.id, decAmount.negated(), transaction.createdAt, client)
 
             wallet_transactions_total.labels(type, 'success').inc()
 
@@ -619,9 +692,10 @@ export class WalletService {
             })
 
             // Advance sentinel checkpoints for both wallets
+            // CRITICAL: No .catch() - if checkpoint fails, transaction rolls back
             await Promise.all([
-                FinancialSentinel.updateCheckpoint(fromWallet.id, decAmount.negated(), debitTx.createdAt, client).catch(() => {}),
-                FinancialSentinel.updateCheckpoint(toWallet.id, decAmount, creditTx.createdAt, client).catch(() => {})
+                FinancialSentinel.updateCheckpoint(fromWallet.id, decAmount.negated(), debitTx.createdAt, client),
+                FinancialSentinel.updateCheckpoint(toWallet.id, decAmount, creditTx.createdAt, client)
             ])
 
             wallet_transactions_total.labels('p2p_transfer', 'success').inc()
@@ -692,7 +766,8 @@ export class WalletService {
             })
 
             // Advance sentinel checkpoint (topup deposit is a credit — positive)
-            await FinancialSentinel.updateCheckpoint(transaction.walletId, amount, new Date(), client).catch(() => {})
+            // CRITICAL: No .catch() - if checkpoint fails, transaction rolls back
+            await FinancialSentinel.updateCheckpoint(transaction.walletId, amount, new Date(), client)
 
             wallet_transactions_total.labels('topup', 'success').inc()
 

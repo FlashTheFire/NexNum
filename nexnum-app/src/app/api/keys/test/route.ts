@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth/jwt'
 import { createApiKey } from '@/lib/api/api-keys'
 import { ApiTier } from '@prisma/client'
@@ -15,13 +15,39 @@ import { validateCSRFRequest } from '@/lib/security/csrf'
  * WARNING: This endpoint is for development / local testing only.
  * It will DELETE every existing API key for the authenticated user
  * and immediately create one fresh `nxn_live_<32 chars>` key.
+ *
+ * Security hardening (P1):
+ *   - Strict 1 KB body size limit (prevents body smuggling)
+ *   - CSRF validation BEFORE any body read
+ *   - Environment-flag gated (ENABLE_TEST_KEY_DISPENSER=true)
+ *   - Returns 404 in production regardless of flag
  */
-async function dispenseTestKey(request: Request) {
+const MAX_BODY_SIZE = 1024 // 1 KB
+
+async function dispenseTestKey(request: NextRequest) {
     // 0. Feature-flag / Environment guard
     if (process.env.NODE_ENV === 'production' || process.env.ENABLE_TEST_KEY_DISPENSER !== 'true') {
         return NextResponse.json(
             { success: false, error: 'Endpoint disabled' },
             { status: 404 }
+        )
+    }
+
+    // 1. CSRF validation FIRST (before any body read)
+    const csrfResult = await validateCSRFRequest(request.headers)
+    if (!csrfResult.valid) {
+        return NextResponse.json(
+            { success: false, error: csrfResult.error || 'CSRF validation failed' },
+            { status: 403 }
+        )
+    }
+
+    // 2. Strict body size limit
+    const contentLength = request.headers.get('content-length')
+    if (contentLength && parseInt(contentLength, 10) > MAX_BODY_SIZE) {
+        return NextResponse.json(
+            { success: false, error: 'Request body too large' },
+            { status: 413 }
         )
     }
 
@@ -113,13 +139,6 @@ async function dispenseTestKey(request: Request) {
     }
 }
 
-export async function POST(request: Request) {
-    const csrfResult = await validateCSRFRequest(request.headers)
-    if (!csrfResult.valid) {
-        return NextResponse.json(
-            { success: false, error: csrfResult.error || 'CSRF validation failed' },
-            { status: 403 }
-        )
-    }
+export async function POST(request: NextRequest) {
     return dispenseTestKey(request)
 }
