@@ -597,12 +597,18 @@ export async function actionGetServicesList(
     const idByCode = new Map<string, number>()
     for (const r of lookupRows) idByCode.set(r.serviceCode, r.serviceId)
 
-    return json({
-        services: result.items.map((s: any) => ({
-            id: idByCode.get(s.serviceCode) ?? null,
-            name: s.serviceName
-        }))
-    }, 200)
+    const services: Array<{ id: number; name: string }> = []
+    for (const s of result.items) {
+        const id = idByCode.get(s.serviceCode)
+        if (id !== undefined && id !== null) {
+            services.push({
+                id,
+                name: s.serviceName
+            })
+        }
+    }
+
+    return json({ services }, 200)
 }
 
 // ============================================================================
