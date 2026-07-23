@@ -447,7 +447,7 @@ export default function ServiceSelector({ selectedService, defaultSelected, onSe
 
                     {/* ===================== DESKTOP LAYOUT (matches mobile design) ===================== */}
                     <div className="hidden lg:block">
-                        <div className="relative bg-gradient-to-br from-white/[0.06] to-transparent border border-white/10 rounded-2xl p-5 backdrop-blur-xl overflow-hidden max-w-md mx-auto">
+                        <div className="relative bg-gradient-to-br from-white/[0.06] to-transparent border border-white/10 rounded-2xl p-5 backdrop-blur-xl overflow-hidden">
                             <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-bl from-[hsl(var(--neon-lime)/0.12)] to-transparent rounded-bl-full" />
                             <div className="relative z-10 flex items-center gap-3 mb-4">
                                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-white/10 to-white/5 border border-white/10 flex items-center justify-center">
