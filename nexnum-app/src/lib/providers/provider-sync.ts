@@ -862,6 +862,8 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
             countryCodeToNumeric.set(c.countryName.toLowerCase(), c.countryId)
             countryCodeToNumeric.set(generateCanonicalCode(c.countryName), c.countryId)
             countryCodeToNumeric.set(generateCanonicalCode(c.countryCode), c.countryId)
+            countryCodeToNumeric.set(normalizeCountryName(c.countryName).toLowerCase(), c.countryId)
+            countryCodeToNumeric.set(String(c.countryId), c.countryId)
         }
 
         // 3. Sync Prices (DEEP SEARCH ENGINE) - Always use Dynamic Engine
@@ -1034,16 +1036,43 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
 
                     const offerId = `${provider.name}_${countryCode}_${p.service}_${externalOp}`.toLowerCase().replace(/[^a-z0-9_]/g, '')
 
+                    let resolvedCtyId = countryCodeToNumeric.get(canonicalCtyCode) ??
+                        countryCodeToNumeric.get(canonicalCtyName.toLowerCase()) ??
+                        countryCodeToNumeric.get(resolvedCountryName.toLowerCase()) ??
+                        countryCodeToNumeric.get(countryCode.toLowerCase()) ??
+                        countryCodeToNumeric.get(countryCode) ??
+                        countryCodeToNumeric.get(String(countryCode))
+
+                    if (resolvedCtyId === undefined) {
+                        const cNum = Number(countryCode)
+                        if (Number.isFinite(cNum) && cNum >= 0) {
+                            resolvedCtyId = cNum
+                        }
+                    }
+
+                    let resolvedSvcId = serviceCodeToNumeric.get(canonicalSvcCode) ??
+                        serviceCodeToNumeric.get(canonicalSvcName.toLowerCase()) ??
+                        serviceCodeToNumeric.get(p.service.toLowerCase()) ??
+                        serviceCodeToNumeric.get(p.service) ??
+                        serviceCodeToNumeric.get(String(p.service))
+
+                    if (resolvedSvcId === undefined) {
+                        const sNum = Number(p.service)
+                        if (Number.isFinite(sNum) && sNum >= 0) {
+                            resolvedSvcId = sNum
+                        }
+                    }
+
                     allOffersMap.set(offerId, {
                         id: offerId,
                         provider: provider.name,
                         providerCountryCode: countryCode,
                         countryName: canonicalCtyName,
-                        countryId: countryCodeToNumeric.get(canonicalCtyCode) ?? countryCodeToNumeric.get(countryCode) ?? countryCodeToNumeric.get(resolvedCountryName.toLowerCase()),
+                        countryId: resolvedCtyId ?? 0,
                         countryIcon: getCountryFlagUrlSync(canonicalCtyName) || getCountryFlagUrlSync(p.country || country?.name || '') || '',
                         providerServiceCode: p.service,
                         serviceName: canonicalSvcName,
-                        serviceId: serviceCodeToNumeric.get(canonicalSvcCode) ?? serviceCodeToNumeric.get(p.service) ?? serviceCodeToNumeric.get(p.service.toLowerCase()),
+                        serviceId: resolvedSvcId ?? 0,
                         serviceIcon: (() => {
                             const canonKey = getCanonicalKey(p.service) || getCanonicalKey(svcName) || generateCanonicalCode(canonicalSvcName) || p.service.toLowerCase()
                             const iconsDir = path.join(process.cwd(), 'public/assets/icons/services')
