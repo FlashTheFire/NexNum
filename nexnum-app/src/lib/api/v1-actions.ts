@@ -696,8 +696,12 @@ export async function actionGetPrices(
         const output: Record<string, Record<string, ServicePriceInfo>> = {}
 
         // Helper to aggregate hits into the universal format
+        // Skips any hit missing countryId or serviceId (prevents "undefined" keys)
         const aggregateHits = (hits: OfferDocument[]) => {
             for (const hit of hits) {
+                // Skip offers with missing FKs — they are incomplete data
+                if (!hit.countryId || !hit.serviceId) continue
+
                 const countryId = String(hit.countryId)
                 const serviceId = String(hit.serviceId)
                 const providerId = hit.provider || 'unknown'
@@ -721,18 +725,35 @@ export async function actionGetPrices(
             }
         }
 
+        // Fetch all hits with pagination (Meili caps page at 10,000 per page)
+        const fetchAllHits = async (): Promise<OfferDocument[]> => {
+            const allHits: OfferDocument[] = []
+            let page = 1
+            const PAGE_SIZE = 1000
+            while (true) {
+                const result = await index.search('', {
+                    filter: filterStr,
+                    limit: PAGE_SIZE,
+                    offset: (page - 1) * PAGE_SIZE,
+                    attributesToRetrieve: ['serviceId', 'countryId', 'pointPrice', 'stock', 'provider']
+                })
+                const hits = result.hits as OfferDocument[]
+                if (!hits.length) break
+                allHits.push(...hits)
+                if (hits.length < PAGE_SIZE) break // last page
+                page++
+            }
+            return allHits
+        }
+
         // ── Mode: BOTH filters (service + country) ───────────────────────────
         if (hasService && hasCountry) {
             const svcId = Number(params.service!)
             const ctyId = Number(params.country!)
 
             logger.info('[V1] getPrices both-filters', { svcId, ctyId, filterStr })
-            const result = await index.search('', {
-                filter: filterStr,
-                attributesToRetrieve: ['serviceId', 'countryId', 'pointPrice', 'stock', 'provider']
-            })
+            const hits = await fetchAllHits()
 
-            const hits = result.hits as OfferDocument[]
             if (hits.length === 0) return json({}, 200)
 
             aggregateHits(hits)
@@ -740,10 +761,7 @@ export async function actionGetPrices(
         }
 
         // ── Mode: SERVICE only ───────────────────────────────────────────────
-        // Multiple countries per service — use facet distribution on countryId
         if (hasService) {
-            const svcId = Number(params.service!)
-
             const facetResult = await index.search('', {
                 filter: filterStr,
                 limit: 0,
@@ -756,12 +774,7 @@ export async function actionGetPrices(
 
             if (countryIds.length === 0) return json({}, 200)
 
-            const result = await index.search('', {
-                filter: filterStr,
-                attributesToRetrieve: ['serviceId', 'countryId', 'pointPrice', 'stock', 'provider']
-            })
-
-            const hits = result.hits as OfferDocument[]
+            const hits = await fetchAllHits()
             if (hits.length === 0) return json({}, 200)
 
             aggregateHits(hits)
@@ -769,10 +782,7 @@ export async function actionGetPrices(
         }
 
         // ── Mode: COUNTRY only ───────────────────────────────────────────────
-        // Multiple services per country — use facet distribution on serviceId
         if (hasCountry) {
-            const ctyId = Number(params.country!)
-
             const facetResult = await index.search('', {
                 filter: filterStr,
                 limit: 0,
@@ -785,12 +795,7 @@ export async function actionGetPrices(
 
             if (serviceIds.length === 0) return json({}, 200)
 
-            const result = await index.search('', {
-                filter: filterStr,
-                attributesToRetrieve: ['serviceId', 'countryId', 'pointPrice', 'stock', 'provider']
-            })
-
-            const hits = result.hits as OfferDocument[]
+            const hits = await fetchAllHits()
             if (hits.length === 0) return json({}, 200)
 
             aggregateHits(hits)
@@ -798,20 +803,15 @@ export async function actionGetPrices(
         }
 
         // ── Mode: NO filter (full matrix) ────────────────────────────────────
-        const result = await index.search('', {
-            filter: filterStr,
-            attributesToRetrieve: ['serviceId', 'countryId', 'pointPrice', 'stock', 'provider']
-        })
-
-        const hits = result.hits as OfferDocument[]
+        const hits = await fetchAllHits()
 
         if (hits.length === 0) {
-            logger.warn('[V1] getPrices no-filter: zero hits from Meili', { filterStr, estimatedTotal: result.estimatedTotalHits })
+            logger.warn('[V1] getPrices no-filter: zero hits from Meili', { filterStr })
             return json({}, 200)
         }
 
         aggregateHits(hits)
-        logger.info('[V1] getPrices no-filter: success', { hits: hits.length, estimatedTotal: result.estimatedTotalHits, outputCountries: Object.keys(output).length })
+        logger.info('[V1] getPrices no-filter: success', { totalHits: hits.length, outputCountries: Object.keys(output).length })
         return json(output, 200)
     } catch (err: any) {
         logger.error('[V1] getPrices failed', { error: err.message, stack: err.stack })
