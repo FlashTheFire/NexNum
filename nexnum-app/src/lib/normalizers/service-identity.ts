@@ -72,15 +72,16 @@ export function getCanonicalName(input: string): string {
         .trim();
 
 
-    // 1. Check SERVICE MAPS
+    // 1. Check SERVICE MAPS (Check alias map first so 'nf' -> 'Netflix', 'tg' -> 'Telegram', 'wa' -> 'WhatsApp')
     const normalizedInput = normalizeServiceName(cleanInput)
-    if (CANONICAL_SERVICE_NAME_MAP[normalizedInput]) {
-        return CANONICAL_SERVICE_NAME_MAP[normalizedInput]
-    }
 
     if (CANONICAL_SERVICE_NAMES[normalizedInput]) {
         const key = CANONICAL_SERVICE_NAMES[normalizedInput]
-        return CANONICAL_DISPLAY_NAMES[key] || key
+        return CANONICAL_DISPLAY_NAMES[key] || CANONICAL_SERVICE_NAME_MAP[key.toLowerCase()] || key
+    }
+
+    if (CANONICAL_SERVICE_NAME_MAP[normalizedInput]) {
+        return CANONICAL_SERVICE_NAME_MAP[normalizedInput]
     }
 
     // 2. Check COUNTRY MAP

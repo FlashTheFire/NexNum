@@ -91,7 +91,22 @@
             "displayName": "OpenAI",
             "slugAliases": [
                 "openai",
-                "chatgpt"
+                "chatgpt",
+                "dr"
+            ]
+        },
+        "netflix": {
+            "displayName": "Netflix",
+            "slugAliases": [
+                "nf",
+                "netflix"
+            ]
+        },
+        "discord": {
+            "displayName": "Discord",
+            "slugAliases": [
+                "ds",
+                "discord"
             ]
         }
     },
