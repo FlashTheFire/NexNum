@@ -674,6 +674,24 @@ export async function actionGetPrices(
 
         const index = meili.index(INDEXES.OFFERS)
 
+        // Pre-cache lookup maps to recover any legacy documents missing explicit countryId/serviceId FKs
+        const [allCountries, allServices] = await Promise.all([
+            prisma.countryLookup.findMany({ select: { countryId: true, countryCode: true, countryName: true } }),
+            prisma.serviceLookup.findMany({ select: { serviceId: true, serviceCode: true, serviceName: true } })
+        ])
+
+        const countryCodeToId = new Map<string, number>()
+        for (const c of allCountries) {
+            countryCodeToId.set(c.countryCode.toLowerCase(), c.countryId)
+            countryCodeToId.set(c.countryName.toLowerCase(), c.countryId)
+        }
+
+        const serviceCodeToId = new Map<string, number>()
+        for (const s of allServices) {
+            serviceCodeToId.set(s.serviceCode.toLowerCase(), s.serviceId)
+            serviceCodeToId.set(s.serviceName.toLowerCase(), s.serviceId)
+        }
+
         // Build Meili filter directly from numeric parameters (allowing countryId=0)
         const filters: string[] = ['isActive = true']
 
@@ -700,11 +718,23 @@ export async function actionGetPrices(
 
         // Parallel batch retrieval from MeiliSearch
         const PAGE_SIZE = 5000
+        const attrs = [
+            'serviceId',
+            'countryId',
+            'providerCountryCode',
+            'countryName',
+            'providerServiceCode',
+            'serviceName',
+            'pointPrice',
+            'stock',
+            'provider'
+        ]
+
         const firstResult = await index.search('', {
             filter: filterStr,
             limit: PAGE_SIZE,
             offset: 0,
-            attributesToRetrieve: ['serviceId', 'countryId', 'pointPrice', 'stock', 'provider']
+            attributesToRetrieve: attrs
         })
 
         const initialHits = (firstResult.hits || []) as OfferDocument[]
@@ -726,7 +756,7 @@ export async function actionGetPrices(
                                 filter: filterStr,
                                 limit: PAGE_SIZE,
                                 offset: (page - 1) * PAGE_SIZE,
-                                attributesToRetrieve: ['serviceId', 'countryId', 'pointPrice', 'stock', 'provider']
+                                attributesToRetrieve: attrs
                             })
                         )
                     )
@@ -741,10 +771,18 @@ export async function actionGetPrices(
 
         // Single linear pass over offers to build output matrix
         for (const hit of hits) {
-            if (hit.countryId === undefined || hit.countryId === null || hit.serviceId === undefined || hit.serviceId === null) continue
+            const cIdNum = (hit.countryId !== undefined && hit.countryId !== null && Number.isFinite(Number(hit.countryId)))
+                ? Number(hit.countryId)
+                : (countryCodeToId.get(String(hit.providerCountryCode || '').toLowerCase()) ?? countryCodeToId.get(String(hit.countryName || '').toLowerCase()))
 
-            const countryId = String(hit.countryId)
-            const serviceId = String(hit.serviceId)
+            const sIdNum = (hit.serviceId !== undefined && hit.serviceId !== null && Number.isFinite(Number(hit.serviceId)))
+                ? Number(hit.serviceId)
+                : (serviceCodeToId.get(String(hit.providerServiceCode || '').toLowerCase()) ?? serviceCodeToId.get(String(hit.serviceName || '').toLowerCase()))
+
+            if (cIdNum === undefined || cIdNum === null || sIdNum === undefined || sIdNum === null) continue
+
+            const countryId = String(cIdNum)
+            const serviceId = String(sIdNum)
             const providerId = hit.provider || 'unknown'
             const price = Number(hit.pointPrice) || 0
             const count = Number(hit.stock) || 0
