@@ -729,7 +729,6 @@ export async function actionGetPrices(
             logger.info('[V1] getPrices both-filters', { svcId, ctyId, filterStr })
             const result = await index.search('', {
                 filter: filterStr,
-                limit: 10000,
                 attributesToRetrieve: ['serviceId', 'countryId', 'pointPrice', 'stock', 'provider']
             })
 
@@ -759,7 +758,6 @@ export async function actionGetPrices(
 
             const result = await index.search('', {
                 filter: filterStr,
-                limit: 10000,
                 attributesToRetrieve: ['serviceId', 'countryId', 'pointPrice', 'stock', 'provider']
             })
 
@@ -789,7 +787,6 @@ export async function actionGetPrices(
 
             const result = await index.search('', {
                 filter: filterStr,
-                limit: 10000,
                 attributesToRetrieve: ['serviceId', 'countryId', 'pointPrice', 'stock', 'provider']
             })
 
@@ -803,7 +800,6 @@ export async function actionGetPrices(
         // ── Mode: NO filter (full matrix) ────────────────────────────────────
         const result = await index.search('', {
             filter: filterStr,
-            limit: 100000,
             attributesToRetrieve: ['serviceId', 'countryId', 'pointPrice', 'stock', 'provider']
         })
 
