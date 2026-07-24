@@ -807,11 +807,26 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
         }
 
         // Pre-cache numeric IDs for search indexing
-        const allServiceIds = await prisma.serviceLookup.findMany({ select: { serviceCode: true, serviceId: true } })
-        const allCountryIds = await prisma.countryLookup.findMany({ select: { countryCode: true, countryId: true } })
+        const allServiceIds = await prisma.serviceLookup.findMany({ select: { serviceCode: true, serviceName: true, serviceId: true } })
+        const allCountryIds = await prisma.countryLookup.findMany({ select: { countryCode: true, countryName: true, countryId: true } })
 
-        const serviceCodeToNumeric = new Map<string, number>(allServiceIds.map((s) => [s.serviceCode, s.serviceId]))
-        const countryCodeToNumeric = new Map<string, number>(allCountryIds.map((c) => [c.countryCode, c.countryId]))
+        const serviceCodeToNumeric = new Map<string, number>()
+        for (const s of allServiceIds) {
+            serviceCodeToNumeric.set(s.serviceCode, s.serviceId)
+            serviceCodeToNumeric.set(s.serviceCode.toLowerCase(), s.serviceId)
+            serviceCodeToNumeric.set(s.serviceName.toLowerCase(), s.serviceId)
+            serviceCodeToNumeric.set(generateCanonicalCode(s.serviceName), s.serviceId)
+            serviceCodeToNumeric.set(generateCanonicalCode(s.serviceCode), s.serviceId)
+        }
+
+        const countryCodeToNumeric = new Map<string, number>()
+        for (const c of allCountryIds) {
+            countryCodeToNumeric.set(c.countryCode, c.countryId)
+            countryCodeToNumeric.set(c.countryCode.toLowerCase(), c.countryId)
+            countryCodeToNumeric.set(c.countryName.toLowerCase(), c.countryId)
+            countryCodeToNumeric.set(generateCanonicalCode(c.countryName), c.countryId)
+            countryCodeToNumeric.set(generateCanonicalCode(c.countryCode), c.countryId)
+        }
 
         // 3. Sync Prices (DEEP SEARCH ENGINE) - Always use Dynamic Engine
         logger.info('Starting provider price sync', {
@@ -988,11 +1003,11 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                         provider: provider.name,
                         providerCountryCode: countryCode,
                         countryName: canonicalCtyName,
-                        countryId: countryCodeToNumeric.get(canonicalCtyCode),
+                        countryId: countryCodeToNumeric.get(canonicalCtyCode) ?? countryCodeToNumeric.get(countryCode) ?? countryCodeToNumeric.get(resolvedCountryName.toLowerCase()),
                         countryIcon: getCountryFlagUrlSync(canonicalCtyName) || getCountryFlagUrlSync(p.country || country?.name || '') || '',
                         providerServiceCode: p.service,
                         serviceName: canonicalSvcName,
-                        serviceId: serviceCodeToNumeric.get(canonicalSvcCode),
+                        serviceId: serviceCodeToNumeric.get(canonicalSvcCode) ?? serviceCodeToNumeric.get(p.service) ?? serviceCodeToNumeric.get(p.service.toLowerCase()),
                         serviceIcon: (() => {
                             const canonKey = getCanonicalKey(p.service) || getCanonicalKey(svcName) || generateCanonicalCode(canonicalSvcName) || p.service.toLowerCase()
                             const iconsDir = path.join(process.cwd(), 'public/assets/icons/services')

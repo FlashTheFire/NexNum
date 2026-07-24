@@ -45,6 +45,7 @@ import { WalletService } from '@/lib/wallet/wallet'
 import { PaymentError } from '@/lib/payment/payment-errors'
 import { hasPermission } from './api-keys'
 import { logger } from '@/lib/core/logger'
+import { redis } from '@/lib/core/redis'
 import {
     validatePurchaseInput,
     checkUserEligibility,
@@ -158,8 +159,8 @@ export async function actionGetNumber(
         // getOfferForPurchase accepts either numeric or string; pass numbers when valid.
         const svcId = Number(params.service)
         const ctyId = Number(params.country)
-        const serviceIdNum = Number.isFinite(svcId) && svcId > 0 ? svcId : undefined
-        const countryIdNum = Number.isFinite(ctyId) && ctyId > 0 ? ctyId : undefined
+        const serviceIdNum = Number.isFinite(svcId) && svcId >= 0 ? svcId : undefined
+        const countryIdNum = Number.isFinite(ctyId) && ctyId >= 0 ? ctyId : undefined
 
         const validation = validatePurchaseInput({
             countryCode: params.country,
@@ -665,154 +666,111 @@ export async function actionGetPrices(
     if (denied) return json({}, 200)
 
     try {
+        const cacheKey = `v1:getprices:${params.country ?? 'all'}:${params.service ?? 'all'}`
+        try {
+            const cached = await redis.get(cacheKey)
+            if (cached) return new Response(cached, { status: 200, headers: JSON_HEADERS })
+        } catch {}
+
         const index = meili.index(INDEXES.OFFERS)
 
-        // Build Meili filter from numeric IDs only
+        // Build Meili filter directly from numeric parameters (allowing countryId=0)
         const filters: string[] = ['isActive = true']
+
         if (params.service) {
             const svcId = Number(params.service)
-            if (Number.isFinite(svcId) && svcId > 0) {
+            if (Number.isFinite(svcId) && svcId >= 0) {
                 filters.push(`serviceId = ${svcId}`)
             } else {
-                return json({}, 200) // invalid id → empty
+                return json({}, 200) // Invalid non-numeric ID -> empty
             }
         }
+
         if (params.country) {
             const ctyId = Number(params.country)
-            if (Number.isFinite(ctyId) && ctyId > 0) {
+            if (Number.isFinite(ctyId) && ctyId >= 0) {
                 filters.push(`countryId = ${ctyId}`)
             } else {
-                return json({}, 200) // invalid id → empty
+                return json({}, 200) // Invalid non-numeric ID -> empty
             }
         }
 
         const filterStr = filters.join(' AND ')
-
-        // Determine optimal query strategy based on filter mode
-        const hasService = !!params.service
-        const hasCountry = !!params.country
-
-        // Universal output: { "<countryId>": { "<serviceId>": { price, count, providers: { "<providerId>": { count, price, provider_id } } } } }
         const output: Record<string, Record<string, ServicePriceInfo>> = {}
 
-        // Helper to aggregate hits into the universal format
-        // Skips any hit missing countryId or serviceId (prevents "undefined" keys)
-        const aggregateHits = (hits: OfferDocument[]) => {
-            for (const hit of hits) {
-                // Skip offers with missing FKs — they are incomplete data
-                if (!hit.countryId || !hit.serviceId) continue
+        // Parallel batch retrieval from MeiliSearch
+        const PAGE_SIZE = 5000
+        const firstResult = await index.search('', {
+            filter: filterStr,
+            limit: PAGE_SIZE,
+            offset: 0,
+            attributesToRetrieve: ['serviceId', 'countryId', 'pointPrice', 'stock', 'provider']
+        })
 
-                const countryId = String(hit.countryId)
-                const serviceId = String(hit.serviceId)
-                const providerId = hit.provider || 'unknown'
-                const price = Number(hit.pointPrice) || 0
-                const count = Number(hit.stock) || 0
+        const initialHits = (firstResult.hits || []) as OfferDocument[]
+        let hits: OfferDocument[] = initialHits
 
-                if (!output[countryId]) output[countryId] = {}
-                if (!output[countryId][serviceId]) {
-                    output[countryId][serviceId] = { price: 0, count: 0, providers: {} }
+        if (initialHits.length > 0) {
+            const totalHits = firstResult.estimatedTotalHits || firstResult.hits.length
+            if (initialHits.length < totalHits && initialHits.length >= PAGE_SIZE) {
+                const totalPages = Math.min(Math.ceil(totalHits / PAGE_SIZE), 200)
+                const pagesToFetch: number[] = []
+                for (let p = 2; p <= totalPages; p++) pagesToFetch.push(p)
+
+                const BATCH_SIZE = 5
+                for (let i = 0; i < pagesToFetch.length; i += BATCH_SIZE) {
+                    const batch = pagesToFetch.slice(i, i + BATCH_SIZE)
+                    const pageResults = await Promise.all(
+                        batch.map((page) =>
+                            index.search('', {
+                                filter: filterStr,
+                                limit: PAGE_SIZE,
+                                offset: (page - 1) * PAGE_SIZE,
+                                attributesToRetrieve: ['serviceId', 'countryId', 'pointPrice', 'stock', 'provider']
+                            })
+                        )
+                    )
+                    for (const res of pageResults) {
+                        hits.push(...((res.hits || []) as OfferDocument[]))
+                    }
                 }
-                const svc = output[countryId][serviceId]
-                if (svc.price === 0 || price < svc.price) svc.price = price
-                svc.count += count
-
-                if (!svc.providers[providerId]) {
-                    svc.providers[providerId] = { count: 0, price, provider_id: providerId }
-                }
-                svc.providers[providerId].count += count
-                // Keep min price per provider
-                if (price < svc.providers[providerId].price) svc.providers[providerId].price = price
             }
         }
 
-        // Fetch all hits with pagination (Meili caps page at 10,000 per page)
-        const fetchAllHits = async (): Promise<OfferDocument[]> => {
-            const allHits: OfferDocument[] = []
-            let page = 1
-            const PAGE_SIZE = 1000
-            while (true) {
-                const result = await index.search('', {
-                    filter: filterStr,
-                    limit: PAGE_SIZE,
-                    offset: (page - 1) * PAGE_SIZE,
-                    attributesToRetrieve: ['serviceId', 'countryId', 'pointPrice', 'stock', 'provider']
-                })
-                const hits = result.hits as OfferDocument[]
-                if (!hits.length) break
-                allHits.push(...hits)
-                if (hits.length < PAGE_SIZE) break // last page
-                page++
+        if (hits.length === 0) return json({}, 200)
+
+        // Single linear pass over offers to build output matrix
+        for (const hit of hits) {
+            if (hit.countryId === undefined || hit.countryId === null || hit.serviceId === undefined || hit.serviceId === null) continue
+
+            const countryId = String(hit.countryId)
+            const serviceId = String(hit.serviceId)
+            const providerId = hit.provider || 'unknown'
+            const price = Number(hit.pointPrice) || 0
+            const count = Number(hit.stock) || 0
+
+            if (!output[countryId]) output[countryId] = {}
+            if (!output[countryId][serviceId]) {
+                output[countryId][serviceId] = { price: 0, count: 0, providers: {} }
             }
-            return allHits
+            const svc = output[countryId][serviceId]
+            if (svc.price === 0 || price < svc.price) svc.price = price
+            svc.count += count
+
+            if (!svc.providers[providerId]) {
+                svc.providers[providerId] = { count: 0, price, provider_id: providerId }
+            }
+            svc.providers[providerId].count += count
+            if (price < svc.providers[providerId].price) svc.providers[providerId].price = price
         }
 
-        // ── Mode: BOTH filters (service + country) ───────────────────────────
-        if (hasService && hasCountry) {
-            const svcId = Number(params.service!)
-            const ctyId = Number(params.country!)
+        const responseString = JSON.stringify(output)
 
-            logger.info('[V1] getPrices both-filters', { svcId, ctyId, filterStr })
-            const hits = await fetchAllHits()
+        try {
+            await redis.set(cacheKey, responseString, 'EX', 10)
+        } catch {}
 
-            if (hits.length === 0) return json({}, 200)
-
-            aggregateHits(hits)
-            return json(output, 200)
-        }
-
-        // ── Mode: SERVICE only ───────────────────────────────────────────────
-        if (hasService) {
-            const facetResult = await index.search('', {
-                filter: filterStr,
-                limit: 0,
-                facets: ['countryId'],
-                attributesToRetrieve: []
-            })
-
-            const countryFacets = (facetResult.facetDistribution?.countryId as Record<string, number>) || {}
-            const countryIds = Object.keys(countryFacets).map(Number).filter(n => Number.isFinite(n))
-
-            if (countryIds.length === 0) return json({}, 200)
-
-            const hits = await fetchAllHits()
-            if (hits.length === 0) return json({}, 200)
-
-            aggregateHits(hits)
-            return json(output, 200)
-        }
-
-        // ── Mode: COUNTRY only ───────────────────────────────────────────────
-        if (hasCountry) {
-            const facetResult = await index.search('', {
-                filter: filterStr,
-                limit: 0,
-                facets: ['serviceId'],
-                attributesToRetrieve: []
-            })
-
-            const serviceFacets = (facetResult.facetDistribution?.serviceId as Record<string, number>) || {}
-            const serviceIds = Object.keys(serviceFacets).map(Number).filter(n => Number.isFinite(n))
-
-            if (serviceIds.length === 0) return json({}, 200)
-
-            const hits = await fetchAllHits()
-            if (hits.length === 0) return json({}, 200)
-
-            aggregateHits(hits)
-            return json(output, 200)
-        }
-
-        // ── Mode: NO filter (full matrix) ────────────────────────────────────
-        const hits = await fetchAllHits()
-
-        if (hits.length === 0) {
-            logger.warn('[V1] getPrices no-filter: zero hits from Meili', { filterStr })
-            return json({}, 200)
-        }
-
-        aggregateHits(hits)
-        logger.info('[V1] getPrices no-filter: success', { totalHits: hits.length, outputCountries: Object.keys(output).length })
-        return json(output, 200)
+        return new Response(responseString, { status: 200, headers: JSON_HEADERS })
     } catch (err: any) {
         logger.error('[V1] getPrices failed', { error: err.message, stack: err.stack })
         return json({}, 200)
