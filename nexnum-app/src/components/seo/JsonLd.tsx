@@ -38,18 +38,21 @@ export default function JsonLd({ data }: JsonLdProps) {
             '@context': 'https://schema.org',
             '@type': 'Organization',
             name: 'NexNum',
+            alternateName: ['NexNum', 'nexnum', 'NexNum SMS', 'nx1.in'],
             url: baseUrl,
-            logo: `${baseUrl}/assets/brand/nexnum-logo.svg`,
-            sameAs: socialLinks
+            logo: `${baseUrl}/icon.svg`,
+            sameAs: socialLinks,
+            description: 'NexNum is the leading provider of virtual phone numbers and SMS verification services worldwide.'
         },
         {
             '@context': 'https://schema.org',
             '@type': 'WebSite',
             name: 'NexNum',
+            alternateName: ['NexNum Platform', 'nx1.in'],
             url: baseUrl,
             potentialAction: {
                 '@type': 'SearchAction',
-                target: `${baseUrl}/search?q={search_term_string}`,
+                target: `${baseUrl}/en?q={search_term_string}`,
                 'query-input': 'required name=search_term_string'
             }
         }
