@@ -321,6 +321,42 @@ function getProviderRateLimits(provider: Provider): { concurrency: number; inter
 
 async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<SyncResult> {
     const startTime = Date.now()
+
+    // INACTIVE PROVIDER HANDLING: Do not sync data from inactive providers, but clear existing search index data
+    if (!provider.isActive) {
+        logger.warn(`[SYNC] Provider "${provider.name}" is inactive. Clearing search data and skipping sync.`, {
+            context: 'SYNC',
+            provider: provider.name
+        })
+
+        try {
+            const { deleteOffersByProvider } = await import('@/lib/search/search')
+            await deleteOffersByProvider(provider.name)
+            logger.info(`[SYNC] Cleared MeiliSearch data for inactive provider "${provider.name}"`)
+        } catch (e: any) {
+            logger.warn('[SYNC] Failed to clear inactive provider search documents', { provider: provider.name, error: e.message })
+        }
+
+        try {
+            const { redis } = await import('@/lib/core/redis')
+            const keys = await redis.keys('v1:getprices:*')
+            if (keys.length > 0) await redis.del(...keys)
+        } catch {}
+
+        await prisma.provider.update({
+            where: { id: provider.id },
+            data: { syncStatus: 'idle' }
+        })
+
+        return {
+            provider: provider.name,
+            countries: 0,
+            services: 0,
+            prices: 0,
+            duration: Date.now() - startTime
+        }
+    }
+
     let countriesCount = 0, servicesCount = 0, pricesCount = 0, error: string | undefined
     const serviceMap = new Map<string, string>()          // code -> name
     const countryNameMap = new Map<string, string>()      // code -> name

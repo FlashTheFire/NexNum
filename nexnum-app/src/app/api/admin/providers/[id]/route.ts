@@ -208,6 +208,26 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
             }
         })
 
+        // Handle active state toggle: Purge offers if set to inactive, or trigger sync if activated
+        if (isActive !== undefined) {
+            if (!isActive) {
+                try {
+                    await deleteOffersByProvider(updated.name)
+                    const { redis } = await import('@/lib/core/redis')
+                    const keys = await redis.keys('v1:getprices:*')
+                    if (keys.length > 0) await redis.del(...keys)
+                    logger.info('Cleared offers for disabled provider', { provider: updated.name })
+                } catch (e: any) {
+                    logger.warn('Failed to clear offers on provider disable', { provider: updated.name, error: e.message })
+                }
+            } else {
+                const { syncProviderData } = await import('@/lib/providers/provider-sync')
+                syncProviderData(updated.name).catch(err => {
+                    logger.error('Failed background sync on provider activation', { provider: updated.name, error: err.message })
+                })
+            }
+        }
+
         logger.info('Provider updated', { providerId: id, changes: updateData, adminId: auth.user.userId })
 
         return NextResponse.json({ success: true, provider: updated })

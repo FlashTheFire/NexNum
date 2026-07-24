@@ -1258,6 +1258,22 @@ export async function getOfferForPurchase(
         }
 
         const offer = result.hits[0] as OfferDocument
+
+        // Ensure provider is active in PostgreSQL
+        if (offer.provider) {
+            const dbProvider = await prisma.provider.findFirst({
+                where: { name: offer.provider, isActive: true },
+                select: { id: true }
+            })
+            if (!dbProvider) {
+                logger.warn('Offer belongs to an inactive provider, ignoring', {
+                    context: 'SEARCH',
+                    provider: offer.provider
+                })
+                return null
+            }
+        }
+
         logger.debug('Found offer for purchase', {
             context: 'SEARCH',
             providerName: offer.provider,

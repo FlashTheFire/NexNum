@@ -675,10 +675,14 @@ export async function actionGetPrices(
         const index = meili.index(INDEXES.OFFERS)
 
         // Pre-cache lookup maps to recover any legacy documents missing explicit countryId/serviceId FKs
-        const [allCountries, allServices] = await Promise.all([
+        // Also fetch active provider names so inactive provider offers are never exposed to API or users
+        const [allCountries, allServices, activeProviders] = await Promise.all([
             prisma.countryLookup.findMany({ select: { countryId: true, countryCode: true, countryName: true } }),
-            prisma.serviceLookup.findMany({ select: { serviceId: true, serviceCode: true, serviceName: true } })
+            prisma.serviceLookup.findMany({ select: { serviceId: true, serviceCode: true, serviceName: true } }),
+            prisma.provider.findMany({ where: { isActive: true }, select: { name: true } })
         ])
+
+        const activeProviderNames = new Set(activeProviders.map(p => p.name.toLowerCase()))
 
         const countryCodeToId = new Map<string, number>()
         for (const c of allCountries) {
@@ -793,6 +797,9 @@ export async function actionGetPrices(
 
         // Single linear pass over offers to build output matrix
         for (const hit of hits) {
+            const providerId = hit.provider || 'unknown'
+            if (!activeProviderNames.has(providerId.toLowerCase())) continue // Skip inactive providers
+
             const cIdNum = (hit.countryId !== undefined && hit.countryId !== null && Number.isFinite(Number(hit.countryId)))
                 ? Number(hit.countryId)
                 : (countryCodeToId.get(String(hit.providerCountryCode || '').toLowerCase()) ?? countryCodeToId.get(String(hit.countryName || '').toLowerCase()))
@@ -805,7 +812,6 @@ export async function actionGetPrices(
 
             const countryId = String(cIdNum)
             const serviceId = String(sIdNum)
-            const providerId = hit.provider || 'unknown'
             const price = Number(hit.pointPrice) || 0
             const count = Number(hit.stock) || 0
 

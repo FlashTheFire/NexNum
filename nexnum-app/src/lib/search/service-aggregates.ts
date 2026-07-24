@@ -46,6 +46,9 @@ export async function refreshAllServiceAggregatesImpl() {
             _providers: Set<string>;
         }>()
 
+        const activeProviders = await prisma.provider.findMany({ where: { isActive: true }, select: { name: true } })
+        const activeProviderNames = new Set(activeProviders.map(p => p.name.toLowerCase()))
+
         // 1. Chunked Retrieval (5000 docs per page)
         let offset = 0;
         const limit = 5000;
@@ -64,6 +67,8 @@ export async function refreshAllServiceAggregatesImpl() {
             }
 
             for (const hit of result.hits as any[]) {
+                if (hit.provider && !activeProviderNames.has(String(hit.provider).toLowerCase())) continue;
+
                 const rawCode = hit.providerServiceCode || 'unknown';
                 // DEDUP: a single logical service (e.g. "Amazon") is often listed by
                 // providers under multiple raw codes ("am", "amazon", "AMAZON").
