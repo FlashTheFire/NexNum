@@ -283,6 +283,44 @@ export async function getTopCountriesWithFlags(
 // ...
 
 /**
+ * Universal Dynamic Service Filter Resolver
+ * Dynamically resolves any service input (name, code, slug, alias) against MeiliSearch live indices.
+ * 100% metadata independent & universal for any provider/service.
+ */
+export async function resolveUniversalServiceFilter(index: any, serviceInput: string): Promise<string> {
+    const rawInput = String(serviceInput).trim()
+    if (!rawInput) return 'isActive = true'
+
+    let resolvedName = getCanonicalName(rawInput) || rawInput
+    let resolvedCode = generateCanonicalCode(resolvedName)
+
+    try {
+        const lookup = await index.search(rawInput, {
+            limit: 1,
+            attributesToRetrieve: ['serviceName', 'providerServiceCode']
+        })
+
+        if (lookup.hits.length > 0) {
+            const hit = lookup.hits[0] as any
+            if (hit.serviceName) resolvedName = hit.serviceName
+            if (hit.providerServiceCode) resolvedCode = hit.providerServiceCode
+        }
+    } catch (e) {
+        // Fallback silently if MeiliSearch index is initializing
+    }
+
+    const uniqueTerms = Array.from(new Set([
+        resolvedName,
+        resolvedCode,
+        rawInput,
+        rawInput.toLowerCase()
+    ])).filter(Boolean)
+
+    const clauses = uniqueTerms.map(t => `serviceName = "${t}" OR providerServiceCode = "${t}"`).join(' OR ')
+    return `(${clauses})`
+}
+
+/**
  * Search Countries for a Service (High-Performance Aggregation)
  * Returns countries where a specific service is available.
  * Optimized for scaling: 100k offers scan per service.
@@ -298,12 +336,7 @@ export async function searchCountries(
         const limit = options?.limit || 50
         const page = options?.page || 1
 
-        const canonicalSvc = getCanonicalName(serviceCode) || serviceCode
-        const codeSvc = generateCanonicalCode(canonicalSvc)
-
-        const serviceFilter = canonicalSvc === serviceCode
-            ? `(serviceName = "${canonicalSvc}" OR providerServiceCode = "${codeSvc}")`
-            : `(serviceName = "${canonicalSvc}" OR providerServiceCode = "${serviceCode}" OR providerServiceCode = "${codeSvc}")`
+        const serviceFilter = await resolveUniversalServiceFilter(index, serviceCode)
 
         // OPTIMIZATION: Reduced from 100k to 10k to prevent OOM under load.
         // We fetch offers for this service to find the lowest price and stock.
