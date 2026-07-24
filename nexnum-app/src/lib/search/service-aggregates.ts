@@ -383,38 +383,32 @@ export async function getServiceAggregates(options?: {
         try {
             const index = meili.index(INDEXES.OFFERS)
             const searchResults = await index.search(options.query, {
-                limit: 100,
+                limit: 200,
                 attributesToRetrieve: ['providerServiceCode', 'serviceName'],
             })
 
-            // DEDUP: collapse multiple raw codes that share a canonical serviceName.
-            // Defense-in-depth: even if a future code path lets two raw codes for the
-            // same logical service through, the user only ever sees ONE card per service.
-            const allSlugs = [...new Set(searchResults.hits.map((h: any) => h.providerServiceCode).filter(Boolean))]
-            const slugToName = new Map<string, string>()
-            for (const hit of searchResults.hits as any[]) {
-                if (hit.providerServiceCode && !slugToName.has(hit.providerServiceCode)) {
-                    slugToName.set(hit.providerServiceCode, (hit.serviceName || hit.providerServiceCode).toLowerCase().trim())
+            const matchedCodes = new Set<string>()
+            const matchedNames = new Set<string>()
+
+            for (const hit of (searchResults.hits || []) as any[]) {
+                if (hit.providerServiceCode) matchedCodes.add(hit.providerServiceCode.toLowerCase().trim())
+                if (hit.serviceName) {
+                    const cleanedName = hit.serviceName.toLowerCase().trim()
+                    matchedNames.add(cleanedName)
+                    matchedCodes.add(cleanedName)
                 }
             }
-            const seenNames = new Set<string>()
-            matchedSlugsOrder = allSlugs.filter(slug => {
-                const name = slugToName.get(slug)
-                if (!name) return true
-                if (seenNames.has(name)) return false
-                seenNames.add(name)
-                return true
-            })
 
-            if (matchedSlugsOrder.length > 0) {
-                where = { serviceCode: { in: matchedSlugsOrder } }
-            } else {
-                where = {
-                    OR: [
-                        { serviceCode: { contains: options.query, mode: 'insensitive' } },
-                        { serviceName: { contains: options.query, mode: 'insensitive' } }
-                    ]
-                }
+            const codeList = Array.from(matchedCodes)
+            const nameList = Array.from(matchedNames)
+
+            where = {
+                OR: [
+                    { serviceCode: { in: codeList } },
+                    { serviceName: { in: nameList } },
+                    { serviceName: { contains: options.query, mode: 'insensitive' } },
+                    { serviceCode: { contains: options.query, mode: 'insensitive' } }
+                ]
             }
         } catch (e) {
             logger.warn('[SEARCH] Meili search failed, using DB fallback:', { error: e })
@@ -442,33 +436,17 @@ export async function getServiceAggregates(options?: {
             break;
     }
 
-    let items, total;
-
-    if (matchedSlugsOrder.length > 0) {
-        const dbItems = await prisma.serviceAggregate.findMany({ where })
-
-        const orderMap = new Map(matchedSlugsOrder.map((slug, i) => [slug, i]))
-        dbItems.sort((a, b) => {
-            const indexA = orderMap.get(a.serviceCode) ?? 999
-            const indexB = orderMap.get(b.serviceCode) ?? 999
-            return indexA - indexB
-        })
-
-        total = dbItems.length
-        items = dbItems.slice(offset, offset + limit).map(i => ({ ...i, totalStock: Number(i.totalStock) }))
-    } else {
-        const [dbItems, count] = await Promise.all([
-            prisma.serviceAggregate.findMany({
-                where,
-                orderBy,
-                skip: offset,
-                take: limit
-            }),
-            prisma.serviceAggregate.count({ where })
-        ])
-        items = dbItems.map(i => ({ ...i, totalStock: Number(i.totalStock) }))
-        total = count
-    }
+    const [dbItems, count] = await Promise.all([
+        prisma.serviceAggregate.findMany({
+            where,
+            orderBy,
+            skip: offset,
+            take: limit
+        }),
+        prisma.serviceAggregate.count({ where })
+    ])
+    const items = dbItems.map(i => ({ ...i, totalStock: Number(i.totalStock) }))
+    const total = count
 
     return { items, total, page, limit }
 }
