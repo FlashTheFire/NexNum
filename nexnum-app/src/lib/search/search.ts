@@ -298,12 +298,17 @@ export async function searchCountries(
         const limit = options?.limit || 50
         const page = options?.page || 1
 
-        const serviceNameToFilter = getCanonicalName(serviceCode) || serviceCode
+        const canonicalSvc = getCanonicalName(serviceCode) || serviceCode
+        const codeSvc = generateCanonicalCode(canonicalSvc)
+
+        const serviceFilter = canonicalSvc === serviceCode
+            ? `(serviceName = "${canonicalSvc}" OR providerServiceCode = "${codeSvc}")`
+            : `(serviceName = "${canonicalSvc}" OR providerServiceCode = "${serviceCode}" OR providerServiceCode = "${codeSvc}")`
 
         // OPTIMIZATION: Reduced from 100k to 10k to prevent OOM under load.
         // We fetch offers for this service to find the lowest price and stock.
-        const result = await index.search(query, {
-            filter: `serviceName = "${serviceNameToFilter}" AND isActive = true`,
+        const result = await index.search(query || undefined, {
+            filter: `${serviceFilter} AND isActive = true`,
             limit: 10000,
             attributesToRetrieve: [
                 'providerCountryCode',
