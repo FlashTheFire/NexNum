@@ -124,7 +124,14 @@ export class CentralRegistry {
     // Find or create provider
     const provider = await prisma.provider.upsert({
       where: { name: providerName },
-      create: { name: providerName, isActive: true },
+      create: {
+        name: providerName,
+        displayName: providerName,
+        apiBaseUrl: '',
+        endpoints: {},
+        mappings: {},
+        isActive: true,
+      },
       update: {},
     })
 
@@ -168,7 +175,14 @@ export class CentralRegistry {
   ): Promise<void> {
     const provider = await prisma.provider.upsert({
       where: { name: providerName },
-      create: { name: providerName, isActive: true },
+      create: {
+        name: providerName,
+        displayName: providerName,
+        apiBaseUrl: '',
+        endpoints: {},
+        mappings: {},
+        isActive: true,
+      },
       update: {},
     })
 
@@ -290,7 +304,14 @@ export class CentralRegistry {
   ): Promise<void> {
     const provider = await prisma.provider.upsert({
       where: { name: providerName },
-      create: { name: providerName, isActive: true },
+      create: {
+        name: providerName,
+        displayName: providerName,
+        apiBaseUrl: '',
+        endpoints: {},
+        mappings: {},
+        isActive: true,
+      },
       update: {},
     })
 
@@ -328,7 +349,14 @@ export class CentralRegistry {
   ): Promise<void> {
     const provider = await prisma.provider.upsert({
       where: { name: providerName },
-      create: { name: providerName, isActive: true },
+      create: {
+        name: providerName,
+        displayName: providerName,
+        apiBaseUrl: '',
+        endpoints: {},
+        mappings: {},
+        isActive: true,
+      },
       update: {},
     })
 
