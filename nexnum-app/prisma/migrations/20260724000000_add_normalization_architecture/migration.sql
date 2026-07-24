@@ -59,13 +59,13 @@ CREATE TYPE match_method AS ENUM ('AUTO_ALIAS', 'AUTO_FUZZY', 'AUTO_NEW', 'MANUA
 -- ============================================================
 CREATE TABLE "provider_service_mappings" (
   id                  SERIAL PRIMARY KEY,
-  provider_id         UUID NOT NULL REFERENCES providers(id) ON DELETE CASCADE,
-  provider_service_id UUID NOT NULL REFERENCES provider_services(id) ON DELETE CASCADE,
+  provider_id         TEXT NOT NULL REFERENCES providers(id) ON DELETE CASCADE,
+  provider_service_id TEXT NOT NULL REFERENCES provider_services(id) ON DELETE CASCADE,
   canonical_service_id INTEGER NOT NULL REFERENCES canonical_services(id) ON DELETE RESTRICT,
   confidence          FLOAT NOT NULL DEFAULT 0,
   match_method        match_method NOT NULL DEFAULT 'AUTO_ALIAS',
   is_verified         BOOLEAN NOT NULL DEFAULT false,
-  reviewed_by_id      UUID REFERENCES users(id),
+  reviewed_by_id      TEXT REFERENCES users(id),
   reviewed_at         TIMESTAMPTZ,
   created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -92,7 +92,7 @@ CREATE TYPE review_status AS ENUM ('PENDING', 'APPROVED', 'REJECTED', 'CREATE_NE
 CREATE TABLE "mapping_review_queue" (
   id                      SERIAL PRIMARY KEY,
   entity_type             review_entity_type NOT NULL,
-  provider_id             UUID NOT NULL REFERENCES providers(id) ON DELETE CASCADE,
+  provider_id             TEXT NOT NULL REFERENCES providers(id) ON DELETE CASCADE,
   raw_external_id         VARCHAR(100) NOT NULL,
   raw_name                VARCHAR(255) NOT NULL,
   raw_code                VARCHAR(100),
@@ -100,7 +100,7 @@ CREATE TABLE "mapping_review_queue" (
   best_match_id           INTEGER,
   best_match_confidence   FLOAT,
   status                  review_status NOT NULL DEFAULT 'PENDING',
-  resolved_by_id          UUID REFERENCES users(id),
+  resolved_by_id          TEXT REFERENCES users(id),
   resolved_at             TIMESTAMPTZ,
   priority                INTEGER NOT NULL DEFAULT 0,
   created_at              TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -115,13 +115,13 @@ CREATE INDEX idx_mrq_priority_created ON mapping_review_queue(priority DESC, cre
 -- ============================================================
 CREATE TABLE "provider_country_mappings" (
   id                  SERIAL PRIMARY KEY,
-  provider_id         UUID NOT NULL REFERENCES providers(id) ON DELETE CASCADE,
-  provider_country_id UUID NOT NULL REFERENCES provider_countries(id) ON DELETE CASCADE,
+  provider_id         TEXT NOT NULL REFERENCES providers(id) ON DELETE CASCADE,
+  provider_country_id TEXT NOT NULL REFERENCES provider_countries(id) ON DELETE CASCADE,
   canonical_country_id INTEGER NOT NULL REFERENCES canonical_countries(id) ON DELETE RESTRICT,
   confidence          FLOAT NOT NULL DEFAULT 0,
   match_method        match_method NOT NULL DEFAULT 'AUTO_ALIAS',
   is_verified         BOOLEAN NOT NULL DEFAULT false,
-  reviewed_by_id      UUID REFERENCES users(id),
+  reviewed_by_id      TEXT REFERENCES users(id),
   reviewed_at         TIMESTAMPTZ,
   created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT now(),

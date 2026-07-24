@@ -26,6 +26,9 @@ if [ -n "$DATABASE_URL" ]; then
     echo "[STARTUP] Debug: Checking for valibot..."
     ls -la node_modules/valibot || echo "valibot not found in node_modules"
 
+    # Auto-resolve any previously failed migration attempt (P3009 protection)
+    npx prisma migrate resolve --rolled-back 20260724000000_add_normalization_architecture 2>/dev/null || true
+
     echo "[STARTUP] Running: npx prisma migrate deploy"
     # Run migrations with a bounded retry+backoff so a transient blip
     # doesn't crash-loop the container. After MAX_ATTEMPTS, we exit 1
