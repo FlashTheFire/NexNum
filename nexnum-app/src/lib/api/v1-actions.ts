@@ -692,24 +692,46 @@ export async function actionGetPrices(
             serviceCodeToId.set(s.serviceName.toLowerCase(), s.serviceId)
         }
 
-        // Build Meili filter directly from numeric parameters (allowing countryId=0)
+        // Build Meili filter matching countryId AND providerCountryCode (handles both DB ID and provider country code)
         const filters: string[] = ['isActive = true']
 
         if (params.service) {
-            const svcId = Number(params.service)
-            if (Number.isFinite(svcId) && svcId >= 0) {
-                filters.push(`serviceId = ${svcId}`)
+            const rawSvc = params.service.trim()
+            const svcNum = Number(rawSvc)
+            if (Number.isFinite(svcNum) && svcNum >= 0) {
+                const foundSvcId = serviceCodeToId.get(rawSvc.toLowerCase())
+                if (foundSvcId !== undefined && foundSvcId !== svcNum) {
+                    filters.push(`(serviceId = ${svcNum} OR serviceId = ${foundSvcId} OR providerServiceCode = "${rawSvc}")`)
+                } else {
+                    filters.push(`(serviceId = ${svcNum} OR providerServiceCode = "${rawSvc}")`)
+                }
             } else {
-                return json({}, 200) // Invalid non-numeric ID -> empty
+                const foundSvcId = serviceCodeToId.get(rawSvc.toLowerCase())
+                if (foundSvcId !== undefined) {
+                    filters.push(`(serviceId = ${foundSvcId} OR providerServiceCode = "${rawSvc}")`)
+                } else {
+                    filters.push(`providerServiceCode = "${rawSvc}"`)
+                }
             }
         }
 
         if (params.country) {
-            const ctyId = Number(params.country)
-            if (Number.isFinite(ctyId) && ctyId >= 0) {
-                filters.push(`countryId = ${ctyId}`)
+            const rawCty = params.country.trim()
+            const ctyNum = Number(rawCty)
+            if (Number.isFinite(ctyNum) && ctyNum >= 0) {
+                const foundCtyId = countryCodeToId.get(rawCty.toLowerCase())
+                if (foundCtyId !== undefined && foundCtyId !== ctyNum) {
+                    filters.push(`(countryId = ${ctyNum} OR countryId = ${foundCtyId} OR providerCountryCode = "${rawCty}")`)
+                } else {
+                    filters.push(`(countryId = ${ctyNum} OR providerCountryCode = "${rawCty}")`)
+                }
             } else {
-                return json({}, 200) // Invalid non-numeric ID -> empty
+                const foundCtyId = countryCodeToId.get(rawCty.toLowerCase())
+                if (foundCtyId !== undefined) {
+                    filters.push(`(countryId = ${foundCtyId} OR providerCountryCode = "${rawCty}")`)
+                } else {
+                    filters.push(`providerCountryCode = "${rawCty}"`)
+                }
             }
         }
 
