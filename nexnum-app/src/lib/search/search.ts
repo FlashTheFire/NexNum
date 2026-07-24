@@ -111,12 +111,6 @@ export const INDEXES = {
     OFFERS: (process.env.MEILISEARCH_INDEX || 'offers') as string,   // Main index - all pricing data
 }
 
-// Validation Guard: Ensure we never hit MeiliSearch with an empty indexUid
-if (!INDEXES.OFFERS) {
-    logger.error('CRITICAL: INDEXES.OFFERS is not defined. Defaulting to "offers" to prevent 400 API errors.');
-    INDEXES.OFFERS = 'offers';
-}
-
 /**
  * Enterprise Shadow Index Prefixes
  * Used for Blue-Green atomic swaps during long-running syncs.
@@ -1385,7 +1379,7 @@ export async function searchOffers(
             const name = CANONICAL_SERVICE_NAMES[effective] || CANONICAL_DISPLAY_NAMES[effective] || effective
             filterParts.push(`serviceName = "${name}"`)
         }
-        if (filters?.maxPrice) filterParts.push(`price <= ${filters.maxPrice}`)
+        if (filters?.maxPrice) filterParts.push(`pointPrice <= ${filters.maxPrice}`)
         if (filters?.minCount) filterParts.push(`stock >= ${filters.minCount}`)
 
         const result = await index.search(query, {

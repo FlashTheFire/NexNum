@@ -110,7 +110,13 @@ export async function startQueueWorker() {
                 const { provider } = job.data;
                 try {
                     const { syncProviderData, syncAllProviders } = await import('./lib/providers/provider-sync');
-                    if (provider) await syncProviderData(provider); else await syncAllProviders();
+                    const { reconfigureIndexes } = await import('./lib/search/search');
+                    if (provider) {
+                        await reconfigureIndexes();
+                        await syncProviderData(provider);
+                    } else {
+                        await syncAllProviders();
+                    }
                 } catch (error: unknown) {
                     const errorMsg = error instanceof Error ? error.message : String(error);
                     logger.error('Sync failed', { context: 'WORKER', jobId: job.id, error: errorMsg });

@@ -43,25 +43,16 @@ import { recordHeartbeat } from '@/lib/workers/heartbeat-registry';
 // CONSTANTS
 // ============================================
 
-// Banned hashes are now fully managed via DB (seed-banned-icons.ts)
-// Cached in module scope for the duration of a master sync to avoid repeated DB queries
-let _bannedHashesCache: Set<string> | null = null
-
+// Banned hashes are now fully managed via DB (seed-banned-icons.ts).
+// Always return a fresh copy to avoid race conditions during parallel provider syncs.
 async function getBannedHashes(): Promise<Set<string>> {
-    if (_bannedHashesCache) return _bannedHashesCache
     try {
         const dbHashes = await prisma.bannedIcon.findMany({ select: { hash: true } })
-        _bannedHashesCache = new Set<string>(dbHashes.map((b) => b.hash))
-        return _bannedHashesCache
+        return new Set<string>(dbHashes.map((b) => b.hash))
     } catch (e) {
         console.error('[SYNC] Failed to fetch banned hashes:', e)
         return new Set<string>()
     }
-}
-
-/** Clear the banned hashes cache. Call after master sync completes. */
-export function clearBannedHashesCache(): void {
-    _bannedHashesCache = null
 }
 
 // Helper: Download image to local path with strict single-file enforcement
@@ -1290,11 +1281,6 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
 export async function syncProviderData(providerName: string, options?: SyncOptions): Promise<SyncResult> {
     const provider = await prisma.provider.findUnique({ where: { name: providerName } })
     if (provider) {
-        // ENSURE INDEX HEALTH: Always re-apply settings before sync to prevent search breakage 
-        // if indexes were recently wiped or settings were lost.
-        const { reconfigureIndexes } = await import('@/lib/search/search')
-        await reconfigureIndexes()
-
         // RESILIENCE: Fetch use_global_sync via raw SQL to bypass Prisma schema sync issues in production.
         // SAFETY: $1 is parameterized; provider.id is server-controlled (from DB), not user input — no SQL injection.
         const raw = await prisma.$queryRawUnsafe<Array<{ use_global_sync: boolean }>>(`SELECT use_global_sync FROM providers WHERE id = $1`, provider.id)
@@ -1349,6 +1335,11 @@ export async function syncAllProviders(): Promise<SyncResult[]> {
             error: (e as any).message
         })
     }
+
+    // F-5: Reconfigure MeiliSearch index settings ONCE before iterating providers
+    // (previously called per-provider inside syncProviderData, causing N redundant overwrites)
+    const { reconfigureIndexes } = await import('@/lib/search/search')
+    await reconfigureIndexes()
 
     const results: SyncResult[] = []
     const syncTarget = process.env.SYNC_PROVIDER
@@ -1422,9 +1413,6 @@ export async function syncAllProviders(): Promise<SyncResult[]> {
 
     // Heartbeat: marks the scheduled_sync worker as alive.
     recordHeartbeat('scheduled_sync', Date.now())
-
-    // Clear the banned hashes cache so the next sync fetches fresh data
-    clearBannedHashesCache()
 
     return results
 }

@@ -1,10 +1,11 @@
 import { parentPort, workerData } from 'node:worker_threads'
 import { syncProviderData } from './provider-sync.ts'
+import { reconfigureIndexes } from '@/lib/search/search'
 import { logger } from '@/lib/core/logger'
 
 /**
  * Sync Worker Thread
- * 
+ *
  * Offloads heavy fetching, parsing, and indexing logic from the main thread.
  * This ensures the API remains responsive during 50k+ offer syncs.
  */
@@ -15,6 +16,7 @@ async function runSync() {
 
     try {
         logger.info('Worker sync started', { provider: providerName })
+        await reconfigureIndexes()
         const result = await syncProviderData(providerName, options)
         parentPort.postMessage({ status: 'success', result })
     } catch (error: unknown) {
