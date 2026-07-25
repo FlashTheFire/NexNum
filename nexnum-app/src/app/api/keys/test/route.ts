@@ -82,9 +82,9 @@ async function dispenseTestKey(request: NextRequest) {
                 userId: user.userId,
                 name: 'test-dispenser-key',
                 permissions: ['read', 'numbers', 'sms'],
-                tier: 'FREE' as ApiTier
+                tier: 'FREE' as ApiTier,
+                isTest: true
             }, tx)
-
             await auditLogger.log(user.userId, 'API_KEY_CREATE', {
                 keyId: newKey.id,
                 resourceType: 'api_key',

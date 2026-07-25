@@ -321,8 +321,9 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
         })
 
         try {
-            const { deleteOffersByProvider } = await import('@/lib/search/search')
-            await deleteOffersByProvider(provider.name)
+            const { deleteOffersByProvider, waitForTasks } = await import('@/lib/search/search')
+            const taskUid = await deleteOffersByProvider(provider.name)
+            if (taskUid) await waitForTasks([taskUid])
             logger.info(`[SYNC] Cleared MeiliSearch data for inactive provider "${provider.name}"`)
         } catch (e: any) {
             logger.warn('[SYNC] Failed to clear inactive provider search documents', { provider: provider.name, error: e.message })
@@ -330,9 +331,15 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
 
         try {
             const { redis } = await import('@/lib/core/redis')
-            const keys = await redis.keys('v1:getprices:*')
-            if (keys.length > 0) await redis.del(...keys)
-        } catch {}
+            let cursor = '0'
+            do {
+                const [nextCursor, keys] = await redis.scan(cursor, 'MATCH', 'v1:getprices:*', 'COUNT', 1000)
+                cursor = nextCursor
+                if (keys.length > 0) await redis.unlink(...keys)
+            } while (cursor !== '0')
+        } catch (e: any) {
+            logger.warn('[SYNC] Failed to flush Redis price cache for inactive provider', { provider: provider.name, error: e.message })
+        }
 
         await prisma.provider.update({
             where: { id: provider.id },
@@ -1032,11 +1039,11 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                         countryCodeToNumeric.get(resolvedCountryName.toLowerCase()) ??
                         countryCodeToNumeric.get(countryCode.toLowerCase()) ??
                         countryCodeToNumeric.get(countryCode) ??
-                        countryCodeToNumeric.get(String(countryCode))
+                        countryIdToNumeric.get(String(countryCode))
 
                     if (resolvedCtyId === undefined) {
                         const cNum = Number(countryCode)
-                        if (Number.isFinite(cNum) && cNum >= 0) {
+                        if (Number.isSafeInteger(cNum) && cNum >= 0) {
                             resolvedCtyId = cNum
                         }
                     }
@@ -1049,7 +1056,7 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
 
                     if (resolvedSvcId === undefined) {
                         const sNum = Number(p.service)
-                        if (Number.isFinite(sNum) && sNum >= 0) {
+                        if (Number.isSafeInteger(sNum) && sNum >= 0) {
                             resolvedSvcId = sNum
                         }
                     }

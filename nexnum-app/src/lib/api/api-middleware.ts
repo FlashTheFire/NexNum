@@ -257,7 +257,7 @@ export function withV1Auth<P = unknown>(
             return await handler(request, auth.context, params)
         } catch (error) {
             return new Response('ERROR_SQL', {
-                status: 500,
+                status: 200,
                 headers: {
                     'Content-Type': 'text/plain; charset=utf-8',
                     'Cache-Control': 'no-store'

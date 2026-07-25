@@ -67,9 +67,8 @@ export async function refreshAllServiceAggregatesImpl() {
             }
 
             for (const hit of result.hits as any[]) {
-                if (hit.provider && !activeProviderNames.has(String(hit.provider).toLowerCase())) continue;
-
-                const rawCode = hit.providerServiceCode || 'unknown';
+                const providerName = typeof hit.provider === 'string' ? hit.provider.toLowerCase() : ''
+                if (!activeProviderNames.has(providerName)) continue; const rawCode = hit.providerServiceCode || 'unknown';
                 // DEDUP: a single logical service (e.g. "Amazon") is often listed by
                 // providers under multiple raw codes ("am", "amazon", "AMAZON").
                 // Key the aggregate Map by the canonical lowercased serviceName so all

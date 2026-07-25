@@ -62,8 +62,7 @@ export async function POST(req: NextRequest) {
     if (error || !userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     // Per-user soft limit on writes (60/min) to prevent runaway loops
-    const ip = getClientIp(req);
-    const rl = await rateLimiters.api.limit(`fav-write:${userId}:${ip}`, 60);
+    const rl = await rateLimiters.api.limit(`fav-write:${userId}`, 60);
     if (!rl.success) {
         const res = NextResponse.json({ error: 'Too many requests' }, { status: 429 });
         res.headers.set('X-RateLimit-Limit', String(rl.limit));
@@ -71,7 +70,6 @@ export async function POST(req: NextRequest) {
         res.headers.set('X-RateLimit-Reset', String(rl.reset));
         return res;
     }
-
     try {
         const body = await req.json();
         const parsed = upsertSchema.safeParse(body);

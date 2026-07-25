@@ -262,6 +262,10 @@ export class WalletService {
         idempotencyKey?: string,
         tx?: Prisma.TransactionClient
     ) {
+        if (typeof amount !== 'number' || isNaN(amount) || amount <= 0) {
+            throw new PaymentError('Rollback amount must be strictly positive', 'E_INVALID_AMOUNT', 400)
+        }
+
         const performRollback = async (client: Prisma.TransactionClient) => {
             const decAmount = new Prisma.Decimal(amount)
 

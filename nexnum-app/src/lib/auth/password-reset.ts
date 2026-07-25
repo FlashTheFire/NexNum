@@ -73,7 +73,7 @@ export async function requestPasswordReset(email: string, ipAddress?: string): P
         })
         if (!result.success) {
             logger.error('Failed to send reset email', { error: result.error, userId: user.id })
-            return { success: false, error: 'Failed to send email' }
+            return { success: true }
         }
 
         return { success: true }

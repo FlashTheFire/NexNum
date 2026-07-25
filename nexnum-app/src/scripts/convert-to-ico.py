@@ -6,8 +6,7 @@ def convert_to_ico():
     dest_path = "src/app/favicon.ico"
     
     if not os.path.exists(src_path):
-        print(f"Error: {src_path} does not exist!")
-        return
+        raise FileNotFoundError(f"{src_path} does not exist")
         
     # Open and explicitly convert to RGBA format
     img = Image.open(src_path).convert('RGBA')

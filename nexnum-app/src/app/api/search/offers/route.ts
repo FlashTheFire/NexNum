@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
         const cookieToken = req.cookies.get('token')?.value;
         const authHeader = req.headers.get('authorization');
         const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
-        const token = cookieToken || bearerToken;
+        const token = bearerToken || cookieToken;
         if (!token) {
             return NextResponse.json({ hits: [], total: 0, error: "Authentication required" }, { status: 401 });
         }

@@ -34,18 +34,18 @@ export const POST = apiHandler(async (request, { body, security }) => {
         return ResponseFactory.error('Invalid email or password', 401)
     }
 
-    // C2: Check if user is banned before proceeding
-    if (user.isBanned) {
-        auth_events_total.labels('login', 'failed_banned').inc()
-        return ResponseFactory.error('Account suspended. Contact support.', 403)
-    }
-
     // Verify password
     const isValidPassword = await bcrypt.compare(password, user.passwordHash)
 
     if (!isValidPassword) {
         auth_events_total.labels('login', 'failed_invalid_password').inc()
         return ResponseFactory.error('Invalid email or password', 401)
+    }
+
+    // Check if user is banned (after valid credentials to prevent user enumeration)
+    if (user.isBanned) {
+        auth_events_total.labels('login', 'failed_banned').inc()
+        return ResponseFactory.error('Account suspended. Contact support.', 403)
     }
 
     // Check for 2FA

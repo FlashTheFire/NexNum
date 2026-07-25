@@ -311,8 +311,8 @@ export default function ServiceSelector({ selectedService, defaultSelected, onSe
         }
     };
 
-    // Derived state for services: keep favorites always visible (even if not in current page)
-    // and sort favorites to the top.
+    // Derived state for services: sort favorited services (present in the current
+    // result set) to the top. Favorites outside the current page are not injected.
     const sortedServices = useMemo(() => {
         const merged = [...fetchedServices];
         return merged.sort((a, b) => {
@@ -322,7 +322,6 @@ export default function ServiceSelector({ selectedService, defaultSelected, onSe
             return aP ? -1 : 1;
         });
     }, [fetchedServices, isFavorite]);
-
     // Load More Logic (Infinite Scroll)
     const { ref: loadMoreRef, isIntersecting } = useInView({ threshold: 0.5 });
 

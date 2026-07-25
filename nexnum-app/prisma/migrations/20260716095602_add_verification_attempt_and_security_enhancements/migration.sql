@@ -20,8 +20,8 @@ ALTER TABLE "country_lookups" ALTER COLUMN "id" SET DEFAULT nextval('country_loo
 ALTER SEQUENCE country_lookups_id_seq OWNED BY "country_lookups"."id";
 
 -- AlterTable
-ALTER TABLE "providers" DROP COLUMN "isActive",
-ADD COLUMN     "is_active" BOOLEAN NOT NULL DEFAULT false,
+ALTER TABLE "providers" RENAME COLUMN "isActive" TO "is_active";
+ALTER TABLE "providers"
 ADD COLUMN     "sync_buffer_percent" DECIMAL(5,2) NOT NULL DEFAULT 0.0;
 
 -- AlterTable

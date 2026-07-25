@@ -237,7 +237,7 @@ model AuditLog {
   action       String
   resourceType String?  @map("resource_type")
   resourceId   String?  @map("resource_id")
-  metadata     Json?
+  user         User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   ipAddress    String?  @map("ip_address")
   createdAt    DateTime @default(now()) @map("created_at")
   user         User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -383,7 +383,7 @@ model MappingReviewQueue {
   createdAt           DateTime         @default(now()) @map("created_at")
 
   // Relations
-  provider         Provider?         @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider         Provider          @relation(fields: [providerId], references: [id], onDelete: Cascade)
   canonicalService CanonicalService? @relation(fields: [canonicalServiceId], references: [id], onDelete: SetNull)
   canonicalCountry CanonicalCountry? @relation(fields: [canonicalCountryId], references: [id], onDelete: SetNull)
   resolvedBy       User?             @relation("ReviewResolver", fields: [resolvedById], references: [id])

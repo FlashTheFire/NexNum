@@ -83,8 +83,6 @@ export function validateEnvironment() {
             );
         }
     }
-
-    console.log('✅ Environment validation passed');
 }
 
 // Auto-validate when imported (in production)

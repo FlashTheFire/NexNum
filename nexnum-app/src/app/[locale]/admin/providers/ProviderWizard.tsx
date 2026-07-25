@@ -788,9 +788,8 @@ export default function ProviderWizard({ onComplete, onCancel }: WizardProps) {
                                                         +${preview.profitUsd.toFixed(2)}
                                                     </div>
                                                     <div className="mt-0.5 text-[9px] font-bold text-emerald-500/50">
-                                                        ROI {preview.marginPct.toFixed(0)}%
-                                                    </div>
-                                                </div>
+                                                        Margin {preview.marginPct.toFixed(0)}%
+                                                    </div>                                                </div>
                                             </div>
                                         )
                                     })()}

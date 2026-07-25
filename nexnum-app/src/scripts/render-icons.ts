@@ -1,5 +1,6 @@
 import { chromium } from '@playwright/test';
 import * as path from 'path';
+import { pathToFileURL } from 'url';
 
 async function main() {
     const browser = await chromium.launch({ headless: true });
@@ -8,9 +9,8 @@ async function main() {
     });
     const page = await context.newPage();
     
-    // Convert path to standard file:/// URL for Windows
     const svgPath = path.resolve('src/app/icon.svg');
-    const fileUrl = `file:///${svgPath.replace(/\\/g, '/')}`;
+    const fileUrl = pathToFileURL(svgPath).href;
     
     console.log(`Navigating to: ${fileUrl}`);
     await page.goto(fileUrl);

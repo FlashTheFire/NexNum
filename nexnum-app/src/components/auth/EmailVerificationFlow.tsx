@@ -143,6 +143,8 @@ export default function EmailVerificationFlow() {
         setIsResending(false)
 
         if (response.success) {
+            setErrorMessage("")
+            setStatus("awaiting")
             setCooldown(60)
             return
         }
@@ -157,7 +159,7 @@ export default function EmailVerificationFlow() {
     }
 
     const copy = statusCopy[status]
-    const canResend = !token && !!user && !user.emailVerified
+    const canResend = !!user && !user.emailVerified
     const email = user?.email
 
     const actions = (() => {

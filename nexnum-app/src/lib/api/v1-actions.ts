@@ -157,8 +157,8 @@ export async function actionGetNumber(
         // ---- Phase 1: input validation ----
         // Universal V1 contract: service and country are numeric IDs.
         // getOfferForPurchase accepts either numeric or string; pass numbers when valid.
-        const svcId = Number(params.service)
-        const ctyId = Number(params.country)
+        const svcId = Number(params.service?.trim())
+        const ctyId = Number(params.country?.trim())
         const serviceIdNum = Number.isFinite(svcId) && svcId >= 0 ? svcId : undefined
         const countryIdNum = Number.isFinite(ctyId) && ctyId >= 0 ? ctyId : undefined
 
@@ -458,7 +458,7 @@ export async function actionSetStatus(
                 await prisma.activation.updateMany({
                     where: { providerActivationId: number.activationId },
                     data: { state: 'RECEIVED' }
-                }).catch(() => {})
+                }).catch(() => { })
             }
         }
         responseCode = 'ACCESS_ACTIVATION'
@@ -494,7 +494,7 @@ export async function actionSetStatus(
                 await prisma.activation.updateMany({
                     where: { providerActivationId: number.activationId },
                     data: { state: 'CANCELLED' }
-                }).catch(() => {})
+                }).catch(() => { })
             }
         }
         responseCode = 'ACCESS_CANCEL'
@@ -670,7 +670,7 @@ export async function actionGetPrices(
         try {
             const cached = await redis.get(cacheKey)
             if (cached) return new Response(cached, { status: 200, headers: JSON_HEADERS })
-        } catch {}
+        } catch { }
 
         const index = meili.index(INDEXES.OFFERS)
 
@@ -834,7 +834,7 @@ export async function actionGetPrices(
 
         try {
             await redis.set(cacheKey, responseString, 'EX', 10)
-        } catch {}
+        } catch { }
 
         return new Response(responseString, { status: 200, headers: JSON_HEADERS })
     } catch (err: any) {
@@ -875,15 +875,15 @@ export async function actionGetNumbersStatus(
     const [countryRows, serviceRows, ids, messages] = await Promise.all([
         countryCodes.length
             ? prisma.countryLookup.findMany({
-                  where: { countryCode: { in: countryCodes } },
-                  select: { countryCode: true, countryId: true }
-              })
+                where: { countryCode: { in: countryCodes } },
+                select: { countryCode: true, countryId: true }
+            })
             : Promise.resolve([]),
         serviceCodes.length
             ? prisma.serviceLookup.findMany({
-                  where: { serviceCode: { in: serviceCodes } },
-                  select: { serviceCode: true, serviceId: true }
-              })
+                where: { serviceCode: { in: serviceCodes } },
+                select: { serviceCode: true, serviceId: true }
+            })
             : Promise.resolve([]),
         Promise.resolve(active.map((n) => n.id)),
         prisma.smsMessage.findMany({

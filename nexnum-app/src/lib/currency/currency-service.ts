@@ -103,10 +103,10 @@ export interface SyncStats {
 }
 
 // v3 Redis keys — safe alongside old v1 (currency:rates:latest) and v2 (currency:rates) keys
-const RATES_CACHE_KEY   = 'currency:v3:rates'
-const CONFIG_CACHE_KEY  = 'currency:v3:config'
-const RATES_CACHE_TTL   = 3600  // 1 hour
-const CONFIG_CACHE_TTL  = 300   // 5 minutes
+const RATES_CACHE_KEY = 'currency:v3:rates'
+const CONFIG_CACHE_KEY = 'currency:v3:config'
+const RATES_CACHE_TTL = 3600  // 1 hour
+const CONFIG_CACHE_TTL = 300   // 5 minutes
 
 // Safe defaults used only when DB is unreachable
 const DEFAULTS: ConversionConfig = {
@@ -132,7 +132,7 @@ export class CurrencyService {
     private config: ConversionConfig | null = null
     private rates: ExchangeRates | null = null
 
-    private constructor() {}
+    private constructor() { }
 
     public static getInstance(): CurrencyService {
         if (!CurrencyService.instance) {
@@ -164,8 +164,8 @@ export class CurrencyService {
             const s = settings as any
 
             this.config = {
-                pointsRate:        s?.pointsRate        ? Number(s.pointsRate)        : DEFAULTS.pointsRate,
-                inrToUsdRate:      PricingConfig.exchangeRates.INR,
+                pointsRate: s?.pointsRate ? Number(s.pointsRate) : DEFAULTS.pointsRate,
+                inrToUsdRate: PricingConfig.exchangeRates.INR,
                 syncBufferPercent: s?.syncBufferPercent ? Number(s.syncBufferPercent) : DEFAULTS.syncBufferPercent,
             }
 
@@ -293,15 +293,15 @@ export class CurrencyService {
                     create: {
                         code,
                         name: code === 'USD' ? 'US Dollar' :
-                              code === 'INR' ? 'Indian Rupee' :
-                              code === 'RUB' ? 'Russian Ruble' :
-                              code === 'EUR' ? 'Euro' :
-                              code === 'GBP' ? 'British Pound' : 'Chinese Yuan',
+                            code === 'INR' ? 'Indian Rupee' :
+                                code === 'RUB' ? 'Russian Ruble' :
+                                    code === 'EUR' ? 'Euro' :
+                                        code === 'GBP' ? 'British Pound' : 'Chinese Yuan',
                         symbol: code === 'USD' ? '$' :
-                                code === 'INR' ? '₹' :
+                            code === 'INR' ? '₹' :
                                 code === 'RUB' ? '₽' :
-                                code === 'EUR' ? '€' :
-                                code === 'GBP' ? '£' : '¥',
+                                    code === 'EUR' ? '€' :
+                                        code === 'GBP' ? '£' : '¥',
                         rate: rateVal,
                         isBase: code === 'USD',
                         isActive: true,
@@ -429,13 +429,14 @@ export class CurrencyService {
         // given (effectiveRate) overrides the resolver. The resolver checks
         // MANUAL first — we encode the explicit rate into normalizationMode/
         // normalizationRate so all callers get the same answer.
-        const safeRate = effectiveRate > 0 ? effectiveRate : 1
+        if (!Number.isFinite(effectiveRate) || effectiveRate <= 0) {
+            return { pointPrice: 0, costUsd: 0 }
+        }
         const providerCfg: PricingProviderConfig = {
             currency: providerCurrency,
             // Bypass the resolver: caller already computed the rate.
             normalizationMode: 'MANUAL',
-            normalizationRate: safeRate,
-            priceMultiplier: multiplier,
+            normalizationRate: effectiveRate, priceMultiplier: multiplier,
             fixedMarkup: fixedMarkupUsd,
         }
 

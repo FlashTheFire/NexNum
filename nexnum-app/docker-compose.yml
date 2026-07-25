@@ -14,6 +14,7 @@ services:
       args:
         DATABASE_URL: ${DATABASE_URL}
         DATABASE_URL_DIRECT: ${DATABASE_URL_DIRECT}
+        NEXT_PUBLIC_SOCKET_URL: ${NEXT_PUBLIC_SOCKET_URL}
     image: nexnum-app
     container_name: nexnum-app
     restart: unless-stopped
@@ -68,7 +69,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "pgrep", "node"]
+      test: [ "CMD", "pgrep", "node" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -137,14 +138,13 @@ services:
     image: getmeili/meilisearch:v1.12
     container_name: nexnum-meilisearch
     environment:
-      MEILI_MASTER_KEY: ${MEILISEARCH_API_KEY:-masterkey}
+      MEILI_MASTER_KEY: ${MEILISEARCH_API_KEY:?MEILISEARCH_API_KEY must be set to a 16+ byte master key}
       MEILI_ENV: production
       MEILI_NO_ANALYTICS: true
     deploy:
       resources:
         limits:
-          memory: 1G
-    # ports:
+          memory: 512M # ports:
     #   - "7700:7700"
     volumes:
       - meili_data:/meili_data
@@ -166,7 +166,6 @@ volumes:
     driver: local
   meili_data:
     driver: local
-
 
 # ============================================
 # Networks (optional, for isolation)

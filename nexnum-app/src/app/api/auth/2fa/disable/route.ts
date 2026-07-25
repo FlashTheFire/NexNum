@@ -53,6 +53,12 @@ export const POST = apiHandler(async (req, { body, user }) => {
         }
     })
 
+    // Evict cached session in Redis
+    try {
+        const { redis } = await import('@/lib/core/redis')
+        await redis.del(`auth:session:${user.userId}`)
+    } catch {}
+
     return NextResponse.json({ success: true })
 }, {
     schema: disableSchema,

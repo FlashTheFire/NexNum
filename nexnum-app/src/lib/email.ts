@@ -157,10 +157,7 @@ export class EmailService {
                 })
 
                 if (response.error || !response.data) {
-                    const details = response.error
-                        ? `${response.error.name} (${response.error.statusCode ?? 'unknown status'}): ${response.error.message}`
-                        : 'no response data returned'
-                    throw new Error(`[EmailService] Resend email failed: ${details}`)
+                    throw new Error(`[EmailService] Resend email failed: ${response.error?.message ?? 'missing response data'}`)
                 }
 
                 console.log(`[EmailService] Sent email via Resend: ${response.data.id}`)
