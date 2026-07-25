@@ -25,7 +25,6 @@ export interface StaticServiceInput {
     code: string
     name: string
     iconUrl?: string | null
-    countries?: string[] // Optional ISO / country code filter (e.g. ["us", "in"])
 }
 
 export interface StaticCatalogConfig {

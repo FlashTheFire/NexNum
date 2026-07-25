@@ -1497,17 +1497,7 @@ export class DynamicProvider implements SmsProvider {
 
         if (!Array.isArray(items) || items.length === 0) return null
 
-        const normalizedCountry = countryCode ? String(countryCode).toLowerCase().trim() : ''
-
-        return items.filter(s => {
-            if (!s.code || !s.name) return false
-            // Optional country scoping
-            if (normalizedCountry && Array.isArray(s.countries) && s.countries.length > 0) {
-                const countriesArr = s.countries.map((c: any) => String(c).toLowerCase().trim())
-                return countriesArr.includes(normalizedCountry) || countriesArr.includes('*')
-            }
-            return true
-        }).map(s => ({
+        return items.filter(s => Boolean(s.code && s.name)).map(s => ({
             ...s,
             code: String(s.code ?? s.id ?? ''),
             name: String(s.name ?? ''),

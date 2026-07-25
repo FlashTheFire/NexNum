@@ -426,7 +426,7 @@ export function StaticCatalogEditor({
             { "code": "in", "name": "India" }
         ]
         const sTemplate = [
-            { "code": "wa", "name": "WhatsApp", "countries": ["us", "in"] },
+            { "code": "wa", "name": "WhatsApp" },
             { "code": "tg", "name": "Telegram" }
         ]
         updateCatalog(JSON.stringify(cTemplate, null, 2), JSON.stringify(sTemplate, null, 2))
