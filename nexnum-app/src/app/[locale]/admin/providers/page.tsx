@@ -16,7 +16,7 @@ import { PremiumSkeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 import { formatDistanceToNow } from "date-fns"
 import ProviderWizard from "./ProviderWizard"
-import { EndpointEditor, MappingEditor, safeParse, PROVIDER_TEMPLATES } from "./editors"
+import { EndpointEditor, MappingEditor, StaticCatalogEditor, safeParse, PROVIDER_TEMPLATES } from "./editors"
 import { ProviderAIHub } from "./ProviderAIHub"
 import { JsonEditor } from "@/components/ui/json-editor"
 import { InfoTooltip, TT, TTCode } from "@/components/ui/tooltip"
@@ -1995,8 +1995,13 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                         maxHeight="350px"
                                     />
                                 )}
-                            </div>
                         </div>
+
+                        {/* STEP 3: Static Catalog Fallback (JSON) */}
+                        <StaticCatalogEditor
+                            mappings={safeParse(formData.mappings)}
+                            onChange={(newMappings) => setFormData({ ...formData, mappings: JSON.stringify(newMappings, null, 2) })}
+                        />
 
                         {/* Bottom spacer */}
                         <div className="h-8" />

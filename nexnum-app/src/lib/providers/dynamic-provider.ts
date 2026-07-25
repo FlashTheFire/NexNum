@@ -1442,25 +1442,118 @@ export class DynamicProvider implements SmsProvider {
     }
 
     /**
+     * Get static countries from provider configuration if present
+     */
+    private getStaticCountries(): Country[] | null {
+        const mappings = this.config.mappings as any
+        const endpoints = this.config.endpoints as any
+
+        const rawList = mappings?.staticCatalog?.countries ||
+            mappings?.staticCountries ||
+            endpoints?.staticCountries ||
+            mappings?.staticLists?.countries ||
+            endpoints?.staticLists?.countries
+
+        if (!rawList) return null
+
+        let items: any[] = []
+        if (typeof rawList === 'string') {
+            try { items = JSON.parse(rawList) } catch { return null }
+        } else if (Array.isArray(rawList)) {
+            items = rawList
+        }
+
+        if (!Array.isArray(items) || items.length === 0) return null
+
+        return items.map((i) => ({
+            ...i,
+            code: String(i.code ?? i.id ?? ''),
+            name: String(i.name ?? ''),
+            flagUrl: typeof i.flagUrl === 'string' ? i.flagUrl : undefined
+        })).filter(c => Boolean(c.code && c.name))
+    }
+
+    /**
+     * Get static services from provider configuration if present
+     */
+    private getStaticServices(countryCode?: string | number): Service[] | null {
+        const mappings = this.config.mappings as any
+        const endpoints = this.config.endpoints as any
+
+        const rawList = mappings?.staticCatalog?.services ||
+            mappings?.staticServices ||
+            endpoints?.staticServices ||
+            mappings?.staticLists?.services ||
+            endpoints?.staticLists?.services
+
+        if (!rawList) return null
+
+        let items: any[] = []
+        if (typeof rawList === 'string') {
+            try { items = JSON.parse(rawList) } catch { return null }
+        } else if (Array.isArray(rawList)) {
+            items = rawList
+        }
+
+        if (!Array.isArray(items) || items.length === 0) return null
+
+        const normalizedCountry = countryCode ? String(countryCode).toLowerCase().trim() : ''
+
+        return items.filter(s => {
+            if (!s.code || !s.name) return false
+            // Optional country scoping
+            if (normalizedCountry && Array.isArray(s.countries) && s.countries.length > 0) {
+                const countriesArr = s.countries.map((c: any) => String(c).toLowerCase().trim())
+                return countriesArr.includes(normalizedCountry) || countriesArr.includes('*')
+            }
+            return true
+        }).map(s => ({
+            ...s,
+            code: String(s.code ?? s.id ?? ''),
+            name: String(s.name ?? ''),
+            iconUrl: typeof s.iconUrl === 'string' ? s.iconUrl : undefined
+        }))
+    }
+
+    /**
      * Get countries from provider (API Standardization v2.0)
      */
     async getCountriesList(options?: { forceRefresh?: boolean }): Promise<Country[]> {
-        const response = await this.request('getCountriesList')
-        const items = this.parseResponse(response, 'getCountriesList')
+        // 1. Check static JSON catalog list first
+        const staticCountries = this.getStaticCountries()
+        if (staticCountries && staticCountries.length > 0) {
+            logger.info('Using static country catalog for provider', { provider: this.name, count: staticCountries.length })
+            return staticCountries
+        }
 
-        return Promise.all(items.map(async (i) => {
-            // Determine Code/Name strictly from mapping, no fallbacks
-            const code = String(i.code ?? i.id ?? '')
-            const name = String(i.name ?? '')
-            const flagUrl = i.flagUrl ?? undefined
+        // 2. Check if API endpoint exists
+        const endpoints = (this.config.endpoints || {}) as Record<string, EndpointConfig>
+        if (!endpoints?.getCountriesList) {
+            logger.debug('No getCountriesList API endpoint or static catalog configured for provider', { provider: this.name })
+            return []
+        }
 
-            return {
-                ...i, // Preserve all mapped fields
-                code,
-                name,
-                flagUrl: (flagUrl && typeof flagUrl === 'string') ? flagUrl : undefined
-            }
-        }))
+        // 3. Fallback to API request
+        try {
+            const response = await this.request('getCountriesList')
+            const items = this.parseResponse(response, 'getCountriesList')
+
+            return Promise.all(items.map(async (i) => {
+                const code = String(i.code ?? i.id ?? '')
+                const name = String(i.name ?? '')
+                const flagUrl = i.flagUrl ?? undefined
+
+                return {
+                    ...i, // Preserve all mapped fields
+                    code,
+                    name,
+                    flagUrl: (flagUrl && typeof flagUrl === 'string') ? flagUrl : undefined
+                }
+            }))
+        } catch (e: any) {
+            logger.warn('Failed to fetch getCountriesList from API endpoint', { provider: this.name, error: e.message })
+            return []
+        }
     }
 
     /** @deprecated Use getCountriesList instead */
@@ -1502,28 +1595,42 @@ export class DynamicProvider implements SmsProvider {
      * Get services from provider (API Standardization v2.0)
      */
     async getServicesList(countryCode: string | number, options?: { forceRefresh?: boolean }): Promise<Service[]> {
-        // Resolve to external ID first
-        const externalCountry = await this.resolveExternalId('country', countryCode)
+        // 1. Check static JSON catalog list first
+        const staticServices = this.getStaticServices(countryCode)
+        if (staticServices && staticServices.length > 0) {
+            logger.info('Using static service catalog for provider', { provider: this.name, countryCode, count: staticServices.length })
+            return staticServices
+        }
 
-        // Logic simplified to strict dynamic
-        const response = await this.request('getServicesList', { country: externalCountry })
+        // 2. Check if API endpoint exists
+        const endpoints = (this.config.endpoints || {}) as Record<string, EndpointConfig>
+        if (!endpoints?.getServicesList) {
+            logger.debug('No getServicesList API endpoint or static catalog configured for provider', { provider: this.name })
+            return []
+        }
 
-        const items = this.parseResponse(response, 'getServicesList')
+        // 3. Fallback to API request
+        try {
+            const externalCountry = await this.resolveExternalId('country', countryCode)
+            const response = await this.request('getServicesList', { country: externalCountry })
+            const items = this.parseResponse(response, 'getServicesList')
 
-        return Promise.all(items.map(async (s) => {
-            // Determine Code/Name strictly from mapping, no fallbacks
-            const code = String(s.code ?? s.id ?? '')
-            const name = String(s.name ?? '')
+            return Promise.all(items.map(async (s) => {
+                const code = String(s.code ?? s.id ?? '')
+                const name = String(s.name ?? '')
+                const iconUrl = s.iconUrl ?? undefined
 
-            const iconUrl = s.iconUrl ?? undefined
-
-            return {
-                ...s, // Preserve all mapped fields
-                code,
-                name,
-                iconUrl: (iconUrl && typeof iconUrl === 'string') ? iconUrl : undefined
-            }
-        }))
+                return {
+                    ...s, // Preserve all mapped fields
+                    code,
+                    name,
+                    iconUrl: (iconUrl && typeof iconUrl === 'string') ? iconUrl : undefined
+                }
+            }))
+        } catch (e: any) {
+            logger.warn('Failed to fetch getServicesList from API endpoint', { provider: this.name, countryCode, error: e.message })
+            return []
+        }
     }
 
     /** @deprecated Use getServicesList instead */

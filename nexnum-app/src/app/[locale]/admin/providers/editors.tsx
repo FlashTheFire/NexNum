@@ -364,3 +364,120 @@ export function MappingEditor({ mappings, onChange }: { mappings: any, onChange:
         </div>
     )
 }
+
+export function StaticCatalogEditor({
+    mappings,
+    onChange
+}: {
+    mappings: any,
+    onChange: (newMappings: any) => void
+}) {
+    const staticCatalog = mappings?.staticCatalog || {}
+    const countriesStr = JSON.stringify(staticCatalog.countries || mappings?.staticCountries || [], null, 2)
+    const servicesStr = JSON.stringify(staticCatalog.services || mappings?.staticServices || [], null, 2)
+
+    const [countriesJson, setCountriesJson] = useState(countriesStr)
+    const [servicesJson, setServicesJson] = useState(servicesStr)
+    const [errorMsg, setErrorMsg] = useState<string | null>(null)
+
+    const updateCatalog = (newCountries: string, newServices: string) => {
+        setCountriesJson(newCountries)
+        setServicesJson(newServices)
+
+        try {
+            const parsedCountries = newCountries.trim() ? JSON.parse(newCountries) : []
+            const parsedServices = newServices.trim() ? JSON.parse(newServices) : []
+
+            if (!Array.isArray(parsedCountries)) throw new Error('Static Countries must be a JSON array []')
+            if (!Array.isArray(parsedServices)) throw new Error('Static Services must be a JSON array []')
+
+            setErrorMsg(null)
+
+            onChange({
+                ...mappings,
+                staticCatalog: {
+                    countries: parsedCountries,
+                    services: parsedServices
+                }
+            })
+        } catch (e: any) {
+            setErrorMsg(e.message)
+        }
+    }
+
+    const formatJson = () => {
+        try {
+            const cObj = countriesJson.trim() ? JSON.parse(countriesJson) : []
+            const sObj = servicesJson.trim() ? JSON.parse(servicesJson) : []
+            updateCatalog(JSON.stringify(cObj, null, 2), JSON.stringify(sObj, null, 2))
+        } catch (e: any) {
+            setErrorMsg(`Format Error: ${e.message}`)
+        }
+    }
+
+    const insertTemplate = () => {
+        const cTemplate = [
+            { "code": "us", "name": "United States" },
+            { "code": "in", "name": "India" }
+        ]
+        const sTemplate = [
+            { "code": "wa", "name": "WhatsApp", "countries": ["us", "in"] },
+            { "code": "tg", "name": "Telegram" }
+        ]
+        updateCatalog(JSON.stringify(cTemplate, null, 2), JSON.stringify(sTemplate, null, 2))
+    }
+
+    return (
+        <div className="space-y-4 p-4 bg-black/40 border border-white/10 rounded-xl">
+            <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                <div>
+                    <h4 className="text-xs font-bold text-white uppercase tracking-wider">Static Catalog Fallback (JSON)</h4>
+                    <p className="text-[10px] text-white/50">Used when provider has no getCountriesList or getServicesList API endpoints.</p>
+                </div>
+                <div className="flex gap-2">
+                    <button
+                        onClick={insertTemplate}
+                        className="px-2.5 py-1 text-[10px] rounded bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 transition-colors border border-purple-500/30"
+                    >
+                        Load Example Template
+                    </button>
+                    <button
+                        onClick={formatJson}
+                        className="px-2.5 py-1 text-[10px] rounded bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 transition-colors border border-blue-500/30"
+                    >
+                        Format & Validate JSON
+                    </button>
+                </div>
+            </div>
+
+            {errorMsg && (
+                <div className="p-2.5 text-[11px] bg-red-500/10 border border-red-500/30 text-red-300 rounded-lg">
+                    ⚠️ {errorMsg}
+                </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                    <label className="text-[10px] font-semibold text-white/70 uppercase tracking-wider">Static Countries JSON</label>
+                    <textarea
+                        rows={8}
+                        className="w-full p-2.5 text-[11px] font-mono bg-black/60 border border-white/10 rounded-lg text-emerald-300 focus:outline-none focus:border-emerald-500/50"
+                        placeholder={'[\n  { "code": "us", "name": "United States" }\n]'}
+                        value={countriesJson}
+                        onChange={(e) => updateCatalog(e.target.value, servicesJson)}
+                    />
+                </div>
+                <div className="space-y-1.5">
+                    <label className="text-[10px] font-semibold text-white/70 uppercase tracking-wider">Static Services JSON</label>
+                    <textarea
+                        rows={8}
+                        className="w-full p-2.5 text-[11px] font-mono bg-black/60 border border-white/10 rounded-lg text-emerald-300 focus:outline-none focus:border-emerald-500/50"
+                        placeholder={'[\n  { "code": "wa", "name": "WhatsApp", "countries": ["us"] }\n]'}
+                        value={servicesJson}
+                        onChange={(e) => updateCatalog(countriesJson, e.target.value)}
+                    />
+                </div>
+            </div>
+        </div>
+    )
+}

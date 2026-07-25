@@ -15,6 +15,24 @@ export interface Service {
     [key: string]: any // Support the preservation of any mapped fields
 }
 
+export interface StaticCountryInput {
+    code: string
+    name: string
+    flagUrl?: string | null
+}
+
+export interface StaticServiceInput {
+    code: string
+    name: string
+    iconUrl?: string | null
+    countries?: string[] // Optional ISO / country code filter (e.g. ["us", "in"])
+}
+
+export interface StaticCatalogConfig {
+    countries?: StaticCountryInput[]
+    services?: StaticServiceInput[]
+}
+
 export interface NumberResult {
     activationId: string
     phoneNumber: string
