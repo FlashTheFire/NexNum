@@ -1,4 +1,4 @@
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import { Input } from "@/components/ui/input"
 import { Globe, Search } from "lucide-react"
 
@@ -379,6 +379,11 @@ export function StaticCatalogEditor({
     const [countriesJson, setCountriesJson] = useState(countriesStr)
     const [servicesJson, setServicesJson] = useState(servicesStr)
     const [errorMsg, setErrorMsg] = useState<string | null>(null)
+
+    useEffect(() => {
+        setCountriesJson(countriesStr)
+        setServicesJson(servicesStr)
+    }, [countriesStr, servicesStr])
 
     const updateCatalog = (newCountries: string, newServices: string) => {
         setCountriesJson(newCountries)

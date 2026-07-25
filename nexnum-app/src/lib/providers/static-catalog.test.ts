@@ -87,4 +87,16 @@ describe('DynamicProvider — Static Catalog Fallback', () => {
         expect(countries).toEqual([])
         expect(services).toEqual([])
     })
+
+    it('propagates API error when configured endpoint fails so callers can distinguish failure from []', async () => {
+        const providerConfig = makeTestProvider({}, {
+            getCountriesList: { method: 'GET', path: '/countries' }
+        })
+
+        const provider = new DynamicProvider(providerConfig)
+        // Mock request to throw API error
+        vi.spyOn(provider as any, 'request').mockRejectedValue(new Error('HTTP 500 Internal Server Error'))
+
+        await expect(provider.getCountriesList()).rejects.toThrow('HTTP 500 Internal Server Error')
+    })
 })

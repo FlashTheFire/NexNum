@@ -1534,26 +1534,21 @@ export class DynamicProvider implements SmsProvider {
         }
 
         // 3. Fallback to API request
-        try {
-            const response = await this.request('getCountriesList')
-            const items = this.parseResponse(response, 'getCountriesList')
+        const response = await this.request('getCountriesList')
+        const items = this.parseResponse(response, 'getCountriesList')
 
-            return Promise.all(items.map(async (i) => {
-                const code = String(i.code ?? i.id ?? '')
-                const name = String(i.name ?? '')
-                const flagUrl = i.flagUrl ?? undefined
+        return Promise.all(items.map(async (i) => {
+            const code = String(i.code ?? i.id ?? '')
+            const name = String(i.name ?? '')
+            const flagUrl = i.flagUrl ?? undefined
 
-                return {
-                    ...i, // Preserve all mapped fields
-                    code,
-                    name,
-                    flagUrl: (flagUrl && typeof flagUrl === 'string') ? flagUrl : undefined
-                }
-            }))
-        } catch (e: any) {
-            logger.warn('Failed to fetch getCountriesList from API endpoint', { provider: this.name, error: e.message })
-            return []
-        }
+            return {
+                ...i, // Preserve all mapped fields
+                code,
+                name,
+                flagUrl: (flagUrl && typeof flagUrl === 'string') ? flagUrl : undefined
+            }
+        }))
     }
 
     /** @deprecated Use getCountriesList instead */
@@ -1610,27 +1605,22 @@ export class DynamicProvider implements SmsProvider {
         }
 
         // 3. Fallback to API request
-        try {
-            const externalCountry = await this.resolveExternalId('country', countryCode)
-            const response = await this.request('getServicesList', { country: externalCountry })
-            const items = this.parseResponse(response, 'getServicesList')
+        const externalCountry = await this.resolveExternalId('country', countryCode)
+        const response = await this.request('getServicesList', { country: externalCountry })
+        const items = this.parseResponse(response, 'getServicesList')
 
-            return Promise.all(items.map(async (s) => {
-                const code = String(s.code ?? s.id ?? '')
-                const name = String(s.name ?? '')
-                const iconUrl = s.iconUrl ?? undefined
+        return Promise.all(items.map(async (s) => {
+            const code = String(s.code ?? s.id ?? '')
+            const name = String(s.name ?? '')
+            const iconUrl = s.iconUrl ?? undefined
 
-                return {
-                    ...s, // Preserve all mapped fields
-                    code,
-                    name,
-                    iconUrl: (iconUrl && typeof iconUrl === 'string') ? iconUrl : undefined
-                }
-            }))
-        } catch (e: any) {
-            logger.warn('Failed to fetch getServicesList from API endpoint', { provider: this.name, countryCode, error: e.message })
-            return []
-        }
+            return {
+                ...s, // Preserve all mapped fields
+                code,
+                name,
+                iconUrl: (iconUrl && typeof iconUrl === 'string') ? iconUrl : undefined
+            }
+        }))
     }
 
     /** @deprecated Use getServicesList instead */
