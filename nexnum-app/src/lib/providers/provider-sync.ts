@@ -846,22 +846,27 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
 
         const serviceCodeToNumeric = new Map<string, number>()
         for (const s of allServiceIds) {
-            serviceCodeToNumeric.set(s.serviceCode, s.serviceId)
-            serviceCodeToNumeric.set(s.serviceCode.toLowerCase(), s.serviceId)
-            serviceCodeToNumeric.set(s.serviceName.toLowerCase(), s.serviceId)
-            serviceCodeToNumeric.set(generateCanonicalCode(s.serviceName), s.serviceId)
-            serviceCodeToNumeric.set(generateCanonicalCode(s.serviceCode), s.serviceId)
+            const setIfAbsent = (k: string, id: number) => { if (k && !serviceCodeToNumeric.has(k)) serviceCodeToNumeric.set(k, id) }
+            setIfAbsent(s.serviceCode, s.serviceId)
+            setIfAbsent(s.serviceCode.toLowerCase(), s.serviceId)
+            setIfAbsent(s.serviceName.toLowerCase(), s.serviceId)
+            setIfAbsent(generateCanonicalCode(s.serviceName), s.serviceId)
+            setIfAbsent(generateCanonicalCode(s.serviceCode), s.serviceId)
         }
 
         const countryCodeToNumeric = new Map<string, number>()
+        const countryIdToNumeric = new Map<string, number>()
         for (const c of allCountryIds) {
-            countryCodeToNumeric.set(c.countryCode, c.countryId)
-            countryCodeToNumeric.set(c.countryCode.toLowerCase(), c.countryId)
-            countryCodeToNumeric.set(c.countryName.toLowerCase(), c.countryId)
-            countryCodeToNumeric.set(generateCanonicalCode(c.countryName), c.countryId)
-            countryCodeToNumeric.set(generateCanonicalCode(c.countryCode), c.countryId)
-            countryCodeToNumeric.set(normalizeCountryName(c.countryName).toLowerCase(), c.countryId)
-            countryCodeToNumeric.set(String(c.countryId), c.countryId)
+            const setIfAbsent = (k: string, id: number) => { if (k && !countryCodeToNumeric.has(k)) countryCodeToNumeric.set(k, id) }
+            setIfAbsent(c.countryCode, c.countryId)
+            setIfAbsent(c.countryCode.toLowerCase(), c.countryId)
+            setIfAbsent(c.countryName.toLowerCase(), c.countryId)
+            setIfAbsent(generateCanonicalCode(c.countryName), c.countryId)
+            setIfAbsent(generateCanonicalCode(c.countryCode), c.countryId)
+            setIfAbsent(normalizeCountryName(c.countryName).toLowerCase(), c.countryId)
+
+            const idKey = String(c.countryId)
+            if (idKey && !countryIdToNumeric.has(idKey)) countryIdToNumeric.set(idKey, c.countryId)
         }
 
         // 3. Sync Prices (DEEP SEARCH ENGINE) - Always use Dynamic Engine

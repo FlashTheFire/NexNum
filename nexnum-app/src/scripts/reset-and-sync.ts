@@ -1,5 +1,5 @@
 import 'dotenv/config'
-import { meili, INDEXES } from '../lib/search/search'
+import { meili, INDEXES, waitForTask } from '../lib/search/search'
 import { redis } from '../lib/core/redis'
 import { syncAllProviders } from '../lib/providers/provider-sync'
 import { prisma } from '../lib/core/db'
@@ -10,7 +10,7 @@ async function resetAndSync() {
         // 1. Delete all documents in MeiliSearch offers index and wait for completion
         const index = meili.index(INDEXES.OFFERS)
         const deleteTask = await index.deleteAllDocuments()
-        await meili.waitForTask(deleteTask.taskUid)
+        await waitForTask(deleteTask.taskUid)
         console.log('✅ Cleared all documents from MeiliSearch "offers" index.')
 
         // 2. Clear Redis cache for getPrices using SCAN
