@@ -57,15 +57,15 @@ describe('DynamicProvider — Static Catalog Fallback', () => {
         const providerConfig = makeTestProvider({
             staticCatalog: {
                 services: [
-                    { code: 'wa', name: 'WhatsApp' },
-                    { code: 'tg', name: 'Telegram' }
+                    { code: 'wa', name: 'WhatsApp', countries: ['us'] },
+                    { code: 'tg', name: 'Telegram', countries: ['ru'] }
                 ]
             }
         })
 
         const provider = new DynamicProvider(providerConfig)
-        
-        const services = await provider.getServicesList()
+
+        const services = await provider.getServicesList('us')
         expect(services).toHaveLength(2)
         expect(services.map(s => s.code)).toEqual(['wa', 'tg'])
     })
