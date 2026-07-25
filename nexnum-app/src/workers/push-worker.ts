@@ -7,11 +7,15 @@ import { redis, REDIS_KEYS, TTL } from '@/lib/core/redis'
 
 // Initialize VAPID
 if (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
-    webpush.setVapidDetails(
-        process.env.VAPID_SUBJECT || 'mailto:harshtakur001@gmail.com',
-        process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
-        process.env.VAPID_PRIVATE_KEY
-    )
+    try {
+        webpush.setVapidDetails(
+            process.env.VAPID_SUBJECT || 'mailto:harshtakur001@gmail.com',
+            process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+            process.env.VAPID_PRIVATE_KEY
+        )
+    } catch (e: any) {
+        logger.warn('[PUSH] Failed to set VAPID details', { error: e.message })
+    }
 }
 
 // interface NotificationJob {
