@@ -1995,6 +1995,7 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                                         maxHeight="350px"
                                     />
                                 )}
+                            </div>
                         </div>
 
                         {/* STEP 3: Static Catalog Fallback (JSON) */}
