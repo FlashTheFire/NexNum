@@ -1,74 +1,64 @@
-# =============================================
-# NEXNUM � UNIFIED .gitignore
-# =============================================
-# This single .gitignore covers both nexnum-app (Next.js) and nexnum-bot (Python/Telegram bot).
+# ==============================================================================
+# NexNum Unified Git Ignore Specification (.gitignore)
+# ==============================================================================
 
-# --- Dependencies ---
-node_modules/
-.pnp/
-.pnp.js
-.pnp.*
-.pdm-python
-.python-version
+# ── 1. Environment Secrets & Credentials ─────────────────────────────────────
+.env
+.env*
+!.env.example
+*.pem
+*.key
+*.crt
+user_accounts.json
 
-# --- Python (nexnum-bot) ---
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-venv/
-.venv/
-*.egg-info/
-dist/
-*.egg
-
-# --- Next.js (nexnum-app) ---
-.next/
-out/
-next-env.d.ts
-*.tsbuildinfo
-
-# --- Build Output ---
-build/
-dist/
-*.exe
-*.dll
-*.so
-*.dylib
-
-# --- Debug & Logs ---
+# ── 2. Logs & Temporary Debug Files ──────────────────────────────────────────
+logs
+logs/
 *.log
+build.log
+application.log
+support.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
-.npm
-.eslintcache
-.stylelintcache
-node_modules_bak/
-.node_repl_history
 
-# --- Environment Files ---
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-.env.*.local
-! .env.example
+# ── 3. Node.js & Next.js Build Artifacts ──────────────────────────────────────
+node_modules/
+.next/
+out/
+build/
+dist/
+.pnpm-debug.log*
+.turbo/
+*.tsbuildinfo
 
-# --- IDE & Editor ---
-.idea/
-.vscode/
-.serena/
-*.swp
-*.swo
-*.sublime-project
-*.sublime-workspace
-.history/
+# ── 4. Python Environment & Cache ───────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+.pytest_cache/
+.coverage
+htmlcov/
+.pytype/
 
-# --- OS Specific ---
+# ── 5. Telegram Bot Sessions & User Assets ───────────────────────────────────
+*.session
+*.session-journal
+sessions/
+nexnum-bot/*.session
+nexnum-bot/**/*.session
+nexnum-bot/user_accounts.json
+nexnum-bot/bot_project/images/current/*.jpg
+
+# ── 6. OS & IDE System Files ─────────────────────────────────────────────────
 .DS_Store
 .DS_Store?
 ._*
@@ -76,53 +66,13 @@ node_modules_bak/
 .Trashes
 ehthumbs.db
 Thumbs.db
-desktop.ini
+.vscode/
+.idea/
+*.swp
+*.swo
 
-# --- Testing ---
-coverage/
-.nyc_output
-.testsprite
-.playwright
-
-# --- Infrastructure Security ---
-*.pem
-*.key
-*.pub
-
-# --- Sentry ---
-.sentryclirc
-
-# --- Agent / Cache Artifacts ---
-.agent
-/cache
-project.local.yml
-
-# --- Stitch Design (local-only) ---
-/.stitch/
-/.stitch/**
-nexnum-app/.stitch/
-nexnum-app/.stitch/**
-
-# ======== nexnum-bot specific ========
-
-# Bot session files
-nexnum-bot/sessions/
-nexnum-bot/*.session
-nexnum-bot/**/*.session
-
-# Bot user data  
-nexnum-bot/user_accounts.json
-
-# Bot images (generated/cached)
-nexnum-bot/bot_project/images/current/*.jpg
-
-# Log files
-nexnum-bot/application.log
-nexnum-bot/support.log
-nexnum-bot/bot_project/support.log
-
-# Bot update script
-nexnum-bot/fsupdate-safe.sh
-
-# Docker user
-nexnum-bot/.dockerignore
+# ── 7. Internal Tooling & Worktrees ──────────────────────────────────────────
+.stitch/
+docs/.stitch/
+docs/.stitch/.claude/
+.claude/
