@@ -1,0 +1,1198 @@
+2026-Jul-15 08:48:40.074338 Docker 29.6.1 with BuildKit and Buildx detected on deployment server (localhost).
+2026-Jul-15 08:48:40.085554 Starting deployment of nex-num:main-trglyi81w6bx03c5o36kde7a to localhost.
+2026-Jul-15 08:48:40.452224 Preparing container with helper image: docker.io/coollabsio/coolify-helper:1.0.14
+2026-Jul-15 08:48:40.603744 [CMD]: docker stop --time=30 v1bcwvjlxcfpajsio56ensou
+2026-Jul-15 08:48:40.603744 Flag --time has been deprecated, use --timeout instead
+2026-Jul-15 08:48:40.619758 Error response from daemon: No such container: v1bcwvjlxcfpajsio56ensou
+2026-Jul-15 08:48:41.207193 [CMD]: docker run -d --network 'coolify' --name v1bcwvjlxcfpajsio56ensou --rm -v /root/.docker/config.json:/root/.docker/config.json:ro -v /root/.docker/buildx:/root/.docker/buildx -v /var/run/docker.sock:/var/run/docker.sock docker.io/coollabsio/coolify-helper:1.0.14
+2026-Jul-15 08:48:41.207193 245194b8bdca4f4a9a47a21fe7f6623091305c5219b072ebd13c388841592bcb
+2026-Jul-15 08:48:43.262903 [CMD]: docker exec v1bcwvjlxcfpajsio56ensou bash -c 'GIT_SSH_COMMAND="ssh -o ConnectTimeout=30 -p 22 -o Port=22 -o LogLevel=ERROR -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" git ls-remote '\''https://github.com/FlashTheFire/NexNum'\'' '\''refs/heads/main'\'''
+2026-Jul-15 08:48:43.262903 f645145390572b7410509e3853fce1aaf39c9de9 refs/heads/main
+2026-Jul-15 08:48:43.288769 ----------------------------------------
+2026-Jul-15 08:48:43.299720 Importing FlashTheFire/NexNum:main (commit sha f645145390572b7410509e3853fce1aaf39c9de9) to /artifacts/v1bcwvjlxcfpajsio56ensou.
+2026-Jul-15 08:48:43.528073 [CMD]: docker exec v1bcwvjlxcfpajsio56ensou bash -c 'git -c http.version=HTTP/1.1 clone --depth=1 --recurse-submodules --shallow-submodules -b '\''main'\'' '\''https://github.com/FlashTheFire/NexNum'\'' '\''/artifacts/v1bcwvjlxcfpajsio56ensou'\'' && cd '\''/artifacts/v1bcwvjlxcfpajsio56ensou'\'' && GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" git -c http.version=HTTP/1.1 fetch --depth=1 origin '\''f645145390572b7410509e3853fce1aaf39c9de9'\'' && git -c http.version=HTTP/1.1 -c advice.detachedHead=false checkout '\''f645145390572b7410509e3853fce1aaf39c9de9'\'' >/dev/null 2>&1 && cd '\''/artifacts/v1bcwvjlxcfpajsio56ensou'\'' && if [ -f .gitmodules ]; then sed -i "s#git@\(.*\):#https://\1/#g" '\''/artifacts/v1bcwvjlxcfpajsio56ensou'\''/.gitmodules || true && git -c http.version=HTTP/1.1 submodule sync && GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" git -c http.version=HTTP/1.1 submodule update --init --recursive --depth=1; fi'
+2026-Jul-15 08:48:43.528073 Cloning into '/artifacts/v1bcwvjlxcfpajsio56ensou'...
+2026-Jul-15 08:48:49.428638 From https://github.com/FlashTheFire/NexNum
+2026-Jul-15 08:48:49.428638 * branch f645145390572b7410509e3853fce1aaf39c9de9 -> FETCH_HEAD
+2026-Jul-15 08:48:50.042158 [CMD]: docker exec v1bcwvjlxcfpajsio56ensou bash -c 'cd /artifacts/v1bcwvjlxcfpajsio56ensou/nexnum-app && git log -1 '\''f645145390572b7410509e3853fce1aaf39c9de9'\'' --pretty=%B'
+2026-Jul-15 08:48:50.042158 fix: use REDIS_PASSWORD variable in compose, remove external network
+2026-Jul-15 08:48:57.211596 [CMD]: docker exec v1bcwvjlxcfpajsio56ensou bash -c 'test -f /artifacts/v1bcwvjlxcfpajsio56ensou/nexnum-app/Dockerfile && echo '\''exists'\'' || echo '\''not found'\'''
+2026-Jul-15 08:48:57.211596 exists
+2026-Jul-15 08:48:57.420167 [CMD]: docker exec v1bcwvjlxcfpajsio56ensou bash -c 'cat /artifacts/v1bcwvjlxcfpajsio56ensou/nexnum-app/Dockerfile'
+2026-Jul-15 08:48:57.420167 # ==============================================================================
+2026-Jul-15 08:48:57.420167 # NexNum Main API Dockerfile (Optimized)
+2026-Jul-15 08:48:57.420167 # Strategy: Debian Build (Stability) -> Debian Runner (Consistency)
+2026-Jul-15 08:48:57.420167 # ==============================================================================
+2026-Jul-15 08:48:57.420167
+2026-Jul-15 08:48:57.420167 # Stage 1: Dependencies
+2026-Jul-15 08:48:57.420167 FROM node:22-bookworm-slim AS deps
+2026-Jul-15 08:48:57.420167 RUN apt-get update && apt-get install -y openssl libssl-dev libc6-dev ca-certificates \
+2026-Jul-15 08:48:57.420167 && rm -rf /var/lib/apt/lists/*
+2026-Jul-15 08:48:57.420167 WORKDIR /app
+2026-Jul-15 08:48:57.420167
+2026-Jul-15 08:48:57.420167 # Install dependencies first (most stable layer — only busts on package.json change)
+2026-Jul-15 08:48:57.420167 COPY package.json package-lock.json ./
+2026-Jul-15 08:48:57.420167 RUN --mount=type=cache,target=/root/.npm NODE_ENV=development npm ci --legacy-peer-deps
+2026-Jul-15 08:48:57.420167
+2026-Jul-15 08:48:57.420167 # Prisma generate AFTER npm ci (schema changes don't invalidate dep cache)
+2026-Jul-15 08:48:57.420167 COPY prisma/schema.prisma prisma/schema.prisma
+2026-Jul-15 08:48:57.420167 ARG DATABASE_URL
+2026-Jul-15 08:48:57.420167 ARG DATABASE_URL_DIRECT
+2026-Jul-15 08:48:57.420167 ENV DATABASE_URL=${DATABASE_URL}
+2026-Jul-15 08:48:57.420167 ENV DATABASE_URL_DIRECT=${DATABASE_URL_DIRECT}
+2026-Jul-15 08:48:57.420167 RUN npx prisma generate
+2026-Jul-15 08:48:57.420167
+2026-Jul-15 08:48:57.420167
+2026-Jul-15 08:48:57.420167 # Stage 2: Builder
+2026-Jul-15 08:48:57.420167 FROM deps AS builder
+2026-Jul-15 08:48:57.420167 WORKDIR /app
+2026-Jul-15 08:48:57.420167
+2026-Jul-15 08:48:57.420167 ENV NEXT_TELEMETRY_DISABLED=1
+2026-Jul-15 08:48:57.420167 ENV JWT_SECRET=placeholder_for_build_must_be_32_chars_long
+2026-Jul-15 08:48:57.420167 ENV ENCRYPTION_KEY=placeholder_for_build_must_be_32_chars_long
+2026-Jul-15 08:48:57.420167 ENV HOME=/tmp
+2026-Jul-15 08:48:57.420167
+2026-Jul-15 08:48:57.420167 COPY . .
+2026-Jul-15 08:48:57.420167
+2026-Jul-15 08:48:57.420167 # Build with persistent Next.js cache across Docker builds
+2026-Jul-15 08:48:57.420167 RUN --mount=type=cache,target=/app/.next/cache npm run build:skip-types
+2026-Jul-15 08:48:57.420167
+2026-Jul-15 08:48:57.420167 # Prune dev dependencies — removes ~100MB of eslint, typescript, vitest, playwright, etc.
+2026-Jul-15 08:48:57.420167 RUN --mount=type=cache,target=/root/.npm npm prune --omit=dev --legacy-peer-deps
+2026-Jul-15 08:48:57.420167
+2026-Jul-15 08:48:57.420167
+2026-Jul-15 08:48:57.420167 # Stage 3: Runner (minimal production image)
+2026-Jul-15 08:48:57.420167 FROM node:22-bookworm-slim AS runner
+2026-Jul-15 08:48:57.420167 RUN apt-get update && apt-get install -y openssl ca-certificates curl \
+2026-Jul-15 08:48:57.420167 && rm -rf /var/lib/apt/lists/*
+2026-Jul-15 08:48:57.420167 WORKDIR /app
+2026-Jul-15 08:48:57.420167 ENV NODE_ENV=production
+2026-Jul-15 08:48:57.420167 ENV NEXT_TELEMETRY_DISABLED=1
+2026-Jul-15 08:48:57.420167 ENV PRISMA_CLIENT_ENGINE_TYPE=library
+2026-Jul-15 08:48:57.420167
+2026-Jul-15 08:48:57.420167 RUN addgroup --system --gid 1001 nodejs
+2026-Jul-15 08:48:57.420167 RUN adduser --system --uid 1001 --ingroup nodejs --home /home/nextjs nextjs
+2026-Jul-15 08:48:57.420167 RUN mkdir -p /home/nextjs/.npm && chown -R nextjs:nodejs /home/nextjs
+2026-Jul-15 08:48:57.420167
+2026-Jul-15 08:48:57.420167 # Copy built artifacts from standalone build
+2026-Jul-15 08:48:57.420167 COPY --from=builder /app/public ./public
+2026-Jul-15 08:48:57.420167 COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
+2026-Jul-15 08:48:57.420167 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+2026-Jul-15 08:48:57.420167 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+2026-Jul-15 08:48:57.420167
+2026-Jul-15 08:48:57.420167 # Copy Prisma schema and config for migrations
+2026-Jul-15 08:48:57.420167 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
+2026-Jul-15 08:48:57.420167 COPY --from=builder --chown=nextjs:nodejs /app/prisma.config.ts ./prisma.config.ts
+2026-Jul-15 08:48:57.420167
+2026-Jul-15 08:48:57.420167 # Copy startup script that runs migrations then starts server
+2026-Jul-15 08:48:57.420167 COPY --chown=nextjs:nodejs docker-entrypoint.sh ./docker-entrypoint.sh
+2026-Jul-15 08:48:57.420167 RUN chmod +x docker-entrypoint.sh
+2026-Jul-15 08:48:57.420167
+2026-Jul-15 08:48:57.420167 USER nextjs
+2026-Jul-15 08:48:57.420167 EXPOSE 3000
+2026-Jul-15 08:48:57.420167 ENV PORT=3000
+2026-Jul-15 08:48:57.420167 ENV HOSTNAME="0.0.0.0"
+2026-Jul-15 08:48:57.420167 ENV HOME=/home/nextjs
+2026-Jul-15 08:48:57.420167 ENV npm_config_cache=/home/nextjs/.npm
+2026-Jul-15 08:48:57.420167
+2026-Jul-15 08:48:57.420167 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+2026-Jul-15 08:48:57.420167 CMD curl -f http://localhost:3000/api/health || exit 1
+2026-Jul-15 08:48:57.420167
+2026-Jul-15 08:48:57.420167 CMD ["./docker-entrypoint.sh"]
+2026-Jul-15 08:48:57.721491 Added 279 ARG declarations to Dockerfile for service nexnum-app (multi-stage build, added to 3 stages).
+2026-Jul-15 08:48:57.982839 [CMD]: docker exec v1bcwvjlxcfpajsio56ensou bash -c 'test -f /artifacts/v1bcwvjlxcfpajsio56ensou/nexnum-app/Dockerfile.worker && echo '\''exists'\'' || echo '\''not found'\'''
+2026-Jul-15 08:48:57.982839 exists
+2026-Jul-15 08:48:58.214409 [CMD]: docker exec v1bcwvjlxcfpajsio56ensou bash -c 'cat /artifacts/v1bcwvjlxcfpajsio56ensou/nexnum-app/Dockerfile.worker'
+2026-Jul-15 08:48:58.214409 # ==============================================================================
+2026-Jul-15 08:48:58.214409 # NexNum Worker Dockerfile (Optimized)
+2026-Jul-15 08:48:58.214409 # Strategy: Debian Build (Stability) -> Debian Runner (Consistency)
+2026-Jul-15 08:48:58.214409 # ==============================================================================
+2026-Jul-15 08:48:58.214409
+2026-Jul-15 08:48:58.214409 # Stage 1: Dependencies
+2026-Jul-15 08:48:58.214409 FROM node:22-bookworm-slim AS deps
+2026-Jul-15 08:48:58.214409 RUN apt-get update && apt-get install -y openssl libssl-dev libc6-dev ca-certificates \
+2026-Jul-15 08:48:58.214409 && rm -rf /var/lib/apt/lists/*
+2026-Jul-15 08:48:58.214409 WORKDIR /app
+2026-Jul-15 08:48:58.214409
+2026-Jul-15 08:48:58.214409 # Install dependencies first (most stable layer)
+2026-Jul-15 08:48:58.214409 COPY package.json package-lock.json ./
+2026-Jul-15 08:48:58.214409 RUN --mount=type=cache,target=/root/.npm NODE_ENV=development npm ci --legacy-peer-deps
+2026-Jul-15 08:48:58.214409
+2026-Jul-15 08:48:58.214409 # Prisma generate AFTER npm ci (schema changes don't invalidate dep cache)
+2026-Jul-15 08:48:58.214409 COPY prisma/schema.prisma prisma/schema.prisma
+2026-Jul-15 08:48:58.214409 ARG DATABASE_URL
+2026-Jul-15 08:48:58.214409 ARG DATABASE_URL_DIRECT
+2026-Jul-15 08:48:58.214409 ENV DATABASE_URL=${DATABASE_URL}
+2026-Jul-15 08:48:58.214409 ENV DATABASE_URL_DIRECT=${DATABASE_URL_DIRECT}
+2026-Jul-15 08:48:58.214409 RUN npx prisma generate
+2026-Jul-15 08:48:58.214409
+2026-Jul-15 08:48:58.214409
+2026-Jul-15 08:48:58.214409 # Stage 2: Builder
+2026-Jul-15 08:48:58.214409 FROM deps AS builder
+2026-Jul-15 08:48:58.214409 WORKDIR /app
+2026-Jul-15 08:48:58.214409
+2026-Jul-15 08:48:58.214409 # Copy only what the worker needs (no next.config.mjs — worker doesn't run Next.js)
+2026-Jul-15 08:48:58.214409 COPY src ./src
+2026-Jul-15 08:48:58.214409 COPY messages ./messages
+2026-Jul-15 08:48:58.214409 COPY public ./public
+2026-Jul-15 08:48:58.214409 COPY prisma.config.ts tsconfig.json ./
+2026-Jul-15 08:48:58.214409
+2026-Jul-15 08:48:58.214409 # Prune dev dependencies
+2026-Jul-15 08:48:58.214409 RUN --mount=type=cache,target=/root/.npm npm prune --omit=dev --legacy-peer-deps
+2026-Jul-15 08:48:58.214409
+2026-Jul-15 08:48:58.214409
+2026-Jul-15 08:48:58.214409 # Stage 3: Runner (minimal production image)
+2026-Jul-15 08:48:58.214409 FROM node:22-bookworm-slim AS runner
+2026-Jul-15 08:48:58.214409 RUN apt-get update && apt-get install -y openssl ca-certificates curl \
+2026-Jul-15 08:48:58.214409 && rm -rf /var/lib/apt/lists/*
+2026-Jul-15 08:48:58.214409 WORKDIR /app
+2026-Jul-15 08:48:58.214409 ENV NODE_ENV=production
+2026-Jul-15 08:48:58.214409 ENV PRISMA_CLIENT_ENGINE_TYPE=library
+2026-Jul-15 08:48:58.214409
+2026-Jul-15 08:48:58.214409 RUN addgroup --system --gid 1001 nodejs
+2026-Jul-15 08:48:58.214409 RUN adduser --system --uid 1001 --ingroup nodejs --home /home/worker worker
+2026-Jul-15 08:48:58.214409 RUN mkdir -p /home/worker/.npm && chown -R worker:nodejs /home/worker
+2026-Jul-15 08:48:58.214409
+2026-Jul-15 08:48:58.214409 # Copy production artifacts
+2026-Jul-15 08:48:58.214409 COPY --from=builder --chown=worker:nodejs /app/node_modules ./node_modules
+2026-Jul-15 08:48:58.214409 COPY --from=builder --chown=worker:nodejs /app/package.json ./
+2026-Jul-15 08:48:58.214409 COPY --from=builder --chown=worker:nodejs /app/src ./src
+2026-Jul-15 08:48:58.214409 COPY --from=builder --chown=worker:nodejs /app/prisma ./prisma
+2026-Jul-15 08:48:58.214409 COPY --from=builder --chown=worker:nodejs /app/prisma.config.ts ./prisma.config.ts
+2026-Jul-15 08:48:58.214409 COPY --from=builder --chown=worker:nodejs /app/public ./public
+2026-Jul-15 08:48:58.214409 COPY --from=builder --chown=worker:nodejs /app/tsconfig.json ./tsconfig.json
+2026-Jul-15 08:48:58.214409
+2026-Jul-15 08:48:58.214409 # Hardened Permissions: Ensure worker owns assets for icon downloads
+2026-Jul-15 08:48:58.214409 USER root
+2026-Jul-15 08:48:58.214409 RUN mkdir -p /app/public/assets/icons/services && \
+2026-Jul-15 08:48:58.214409 mkdir -p /app/public/assets/icons/countries && \
+2026-Jul-15 08:48:58.214409 chown -R worker:nodejs /app/public && \
+2026-Jul-15 08:48:58.214409 chmod -R 775 /app/public
+2026-Jul-15 08:48:58.214409
+2026-Jul-15 08:48:58.214409 USER worker
+2026-Jul-15 08:48:58.214409 ENV HOME=/home/worker
+2026-Jul-15 08:48:58.214409 ENV npm_config_cache=/home/worker/.npm
+2026-Jul-15 08:48:58.214409
+2026-Jul-15 08:48:58.214409 ENTRYPOINT ["node", "--import", "tsx", "-r", "dotenv/config", "src/worker-entry.ts"]
+2026-Jul-15 08:48:58.470249 Added 279 ARG declarations to Dockerfile for service nexnum-worker (multi-stage build, added to 3 stages).
+2026-Jul-15 08:48:58.738870 [CMD]: docker exec v1bcwvjlxcfpajsio56ensou bash -c 'test -f /artifacts/v1bcwvjlxcfpajsio56ensou/nexnum-app/Dockerfile.socket && echo '\''exists'\'' || echo '\''not found'\'''
+2026-Jul-15 08:48:58.738870 exists
+2026-Jul-15 08:48:59.025512 [CMD]: docker exec v1bcwvjlxcfpajsio56ensou bash -c 'cat /artifacts/v1bcwvjlxcfpajsio56ensou/nexnum-app/Dockerfile.socket'
+2026-Jul-15 08:48:59.025512 # ==============================================================================
+2026-Jul-15 08:48:59.025512 # NexNum Socket Server Dockerfile (Optimized)
+2026-Jul-15 08:48:59.025512 # Strategy: Debian Build (Stability) -> Debian Runner (Consistency)
+2026-Jul-15 08:48:59.025512 # ==============================================================================
+2026-Jul-15 08:48:59.025512
+2026-Jul-15 08:48:59.025512 # Stage 1: Dependencies
+2026-Jul-15 08:48:59.025512 FROM node:22-bookworm-slim AS deps
+2026-Jul-15 08:48:59.025512 RUN apt-get update && apt-get install -y openssl libssl-dev libc6-dev ca-certificates \
+2026-Jul-15 08:48:59.025512 && rm -rf /var/lib/apt/lists/*
+2026-Jul-15 08:48:59.025512 WORKDIR /app
+2026-Jul-15 08:48:59.025512
+2026-Jul-15 08:48:59.025512 # Install dependencies first (most stable layer)
+2026-Jul-15 08:48:59.025512 COPY package.json package-lock.json ./
+2026-Jul-15 08:48:59.025512 RUN --mount=type=cache,target=/root/.npm NODE_ENV=development npm ci --legacy-peer-deps
+2026-Jul-15 08:48:59.025512
+2026-Jul-15 08:48:59.025512 # Prisma generate AFTER npm ci (schema changes don't invalidate dep cache)
+2026-Jul-15 08:48:59.025512 COPY prisma/schema.prisma prisma/schema.prisma
+2026-Jul-15 08:48:59.025512 ARG DATABASE_URL
+2026-Jul-15 08:48:59.025512 ARG DATABASE_URL_DIRECT
+2026-Jul-15 08:48:59.025512 ENV DATABASE_URL=${DATABASE_URL}
+2026-Jul-15 08:48:59.025512 ENV DATABASE_URL_DIRECT=${DATABASE_URL_DIRECT}
+2026-Jul-15 08:48:59.025512 RUN npx prisma generate
+2026-Jul-15 08:48:59.025512
+2026-Jul-15 08:48:59.025512
+2026-Jul-15 08:48:59.025512 # Stage 2: Builder
+2026-Jul-15 08:48:59.025512 FROM deps AS builder
+2026-Jul-15 08:48:59.025512 WORKDIR /app
+2026-Jul-15 08:48:59.025512
+2026-Jul-15 08:48:59.025512 # Copy only what the socket server needs (no next.config.mjs)
+2026-Jul-15 08:48:59.025512 COPY src ./src
+2026-Jul-15 08:48:59.025512 COPY messages ./messages
+2026-Jul-15 08:48:59.025512 COPY public ./public
+2026-Jul-15 08:48:59.025512 COPY prisma.config.ts tsconfig.json ./
+2026-Jul-15 08:48:59.025512
+2026-Jul-15 08:48:59.025512 # Prune dev dependencies
+2026-Jul-15 08:48:59.025512 RUN --mount=type=cache,target=/root/.npm npm prune --omit=dev --legacy-peer-deps
+2026-Jul-15 08:48:59.025512
+2026-Jul-15 08:48:59.025512
+2026-Jul-15 08:48:59.025512 # Stage 3: Runner (minimal production image)
+2026-Jul-15 08:48:59.025512 FROM node:22-bookworm-slim AS runner
+2026-Jul-15 08:48:59.025512 RUN apt-get update && apt-get install -y openssl ca-certificates curl \
+2026-Jul-15 08:48:59.025512 && rm -rf /var/lib/apt/lists/*
+2026-Jul-15 08:48:59.025512 WORKDIR /app
+2026-Jul-15 08:48:59.025512 ENV NODE_ENV=production
+2026-Jul-15 08:48:59.025512 ENV PRISMA_CLIENT_ENGINE_TYPE=library
+2026-Jul-15 08:48:59.025512
+2026-Jul-15 08:48:59.025512 RUN addgroup --system --gid 1001 nodejs
+2026-Jul-15 08:48:59.025512 RUN adduser --system --uid 1001 --ingroup nodejs --home /home/socket socket
+2026-Jul-15 08:48:59.025512 RUN mkdir -p /home/socket/.npm && chown -R socket:nodejs /home/socket
+2026-Jul-15 08:48:59.025512
+2026-Jul-15 08:48:59.025512 # Copy production artifacts
+2026-Jul-15 08:48:59.025512 COPY --from=builder --chown=socket:nodejs /app/node_modules ./node_modules
+2026-Jul-15 08:48:59.025512 COPY --from=builder --chown=socket:nodejs /app/package.json ./
+2026-Jul-15 08:48:59.025512 COPY --from=builder --chown=socket:nodejs /app/src ./src
+2026-Jul-15 08:48:59.025512 COPY --from=builder --chown=socket:nodejs /app/prisma ./prisma
+2026-Jul-15 08:48:59.025512 COPY --from=builder --chown=socket:nodejs /app/prisma.config.ts ./prisma.config.ts
+2026-Jul-15 08:48:59.025512 COPY --from=builder --chown=socket:nodejs /app/public ./public
+2026-Jul-15 08:48:59.025512 COPY --from=builder --chown=socket:nodejs /app/tsconfig.json ./tsconfig.json
+2026-Jul-15 08:48:59.025512
+2026-Jul-15 08:48:59.025512 USER socket
+2026-Jul-15 08:48:59.025512 EXPOSE 3951
+2026-Jul-15 08:48:59.025512 ENV HOME=/home/socket
+2026-Jul-15 08:48:59.025512 ENV npm_config_cache=/home/socket/.npm
+2026-Jul-15 08:48:59.025512
+2026-Jul-15 08:48:59.025512 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+2026-Jul-15 08:48:59.025512 CMD curl -f http://localhost:3951/health || exit 1
+2026-Jul-15 08:48:59.025512
+2026-Jul-15 08:48:59.025512 ENTRYPOINT ["node", "--import", "tsx", "-r", "dotenv/config", "src/socket-entry.ts"]
+2026-Jul-15 08:48:59.318462 Added 279 ARG declarations to Dockerfile for service nexnum-socket (multi-stage build, added to 3 stages).
+2026-Jul-15 08:48:59.335545 Pulling & building required images.
+2026-Jul-15 08:48:59.973980 Creating build-time .env file in /artifacts (outside Docker context).
+2026-Jul-15 08:49:00.262087 Adding build arguments to Docker Compose build command.
+2026-Jul-15 08:49:02.079599 [CMD]: docker exec v1bcwvjlxcfpajsio56ensou bash -c 'DOCKER_BUILDKIT=1 COOLIFY_BRANCH='\''main'\'' COOLIFY_RESOURCE_UUID=ohac8gyc2fze9vgyvqbgpf7a docker compose --env-file /artifacts/build-time.env --project-name ohac8gyc2fze9vgyvqbgpf7a --project-directory /artifacts/v1bcwvjlxcfpajsio56ensou/nexnum-app -f /artifacts/v1bcwvjlxcfpajsio56ensou/nexnum-app/docker-compose.yml build --pull --build-arg COOLIFY_FQDN --build-arg DATABASE_URL_DIRECT --build-arg MEILISEARCH_API_KEY --build-arg MEILISEARCH_HOST --build-arg DIRECT_URL --build-arg REDIS_PASSWORD --build-arg JWT_SECRET --build-arg JWT_EXPIRES_IN --build-arg ADMIN_API_KEY --build-arg NEXTAUTH_SECRET --build-arg SMS_FINGERPRINT_SECRET --build-arg FINGERPRINT_SALT --build-arg CSRF_SECRET --build-arg NEXT_PUBLIC_APP_URL --build-arg NEXTAUTH_URL --build-arg JWT_REFRESH_EXPIRES_IN --build-arg ENCRYPTION_KEY --build-arg CRON_SECRET --build-arg TELEGRAM_BOT_TOKEN --build-arg TELEGRAM_ADMIN_CHANNEL --build-arg SMTP_HOST --build-arg SMTP_PORT --build-arg SMTP_USER --build-arg SMTP_PASS --build-arg ALERT_WEBHOOK_SECRET --build-arg METRICS_SCRAPE_TOKEN --build-arg VAPID_PRIVATE_KEY --build-arg VAPID_SUBJECT --build-arg GOOGLE_CLIENT_ID --build-arg GOOGLE_CLIENT_SECRET --build-arg FIVESIM_API_KEY --build-arg HERO_SMS_API_KEY --build-arg NEXT_PUBLIC_VAPID_PUBLIC_KEY --build-arg ONLINESIM_API_KEY --build-arg FREEIMAGE_API_KEY --build-arg IMGE_API_KEY --build-arg NEXT_PUBLIC_HCAPTCHA_SITEKEY --build-arg HCAPTCHA_SECRET --build-arg UPI_PROVIDER_MODE --build-arg SMSBOWER_API_KEY --build-arg GRIZZLYSMS_API_KEY --build-arg UPI_CHECK_STATUS_URL --build-arg UPI_QR_BASE_URL --build-arg UPI_WEBHOOK_URL --build-arg UPI_ORDER_TIMEOUT_MINUTES --build-arg UPI_MIN_AMOUNT --build-arg UPI_MAX_AMOUNT --build-arg DAILY_SPEND_LIMIT --build-arg UPI_API_TOKEN --build-arg UPI_CREATE_ORDER_URL --build-arg MAX_ACTIVE_NUMBERS --build-arg MAX_SMS_PER_ACTIVATION --build-arg RESERVATION_TTL_MS --build-arg MIN_REFUND_AGE_MS --build-arg STUCK_THRESHOLD_MS --build-arg PROVIDER_TIMEOUT_MS --build-arg NUMBER_LIFETIME_MS --build-arg GRACE_PERIOD_MS --build-arg WORKER_BATCH_SIZE --build-arg MAX_PURCHASE_AMOUNT --build-arg MIN_PURCHASE_AMOUNT --build-arg POLL_INTERVAL_MS --build-arg RECONCILE_INTERVAL_MS --build-arg CLEANUP_INTERVAL_MS --build-arg ENABLE_MOCK_PROVIDER --build-arg DEBUG --build-arg MAINTENANCE_MODE --build-arg ENABLE_SMS_FINGERPRINTING --build-arg ENABLE_HEALTH_MONITORING --build-arg NEXT_PUBLIC_SOCKET_ENABLED --build-arg WORKER_CONCURRENCY --build-arg DEFAULT_MARKUP_PERCENT --build-arg MIN_PRICE_USD --build-arg MAX_PRICE_USD --build-arg PRICE_PRECISION --build-arg EXCHANGE_RATE_USD --build-arg EXCHANGE_RATE_INR --build-arg EXCHANGE_RATE_RUB --build-arg EXCHANGE_RATE_EUR --build-arg EXCHANGE_RATE_GBP --build-arg OUTBOX_WORKER_ENABLED --build-arg DEPOSIT_TAX_PERCENT --build-arg DEPOSIT_MARKUP_PERCENT --build-arg RATE_LIMIT_WINDOW_MS --build-arg RATE_LIMIT_MAX --build-arg TRUST_PROXY --build-arg NEXT_TELEMETRY_DISABLED --build-arg PRISMA_CLIENT_ENGINE_TYPE --build-arg PRISMA_CLI_QUERY_ENGINE_TYPE --build-arg NODE_TLS_REJECT_UNAUTHORIZED --build-arg EXCHANGE_RATE_CNY --build-arg DATABASE_URL --build-arg FROM_EMAIL --build-arg COOLIFY_BUILD_SECRETS_HASH=1a057453ed33437ffc24233cefe13a1dc639a05e7d5c9f69908cbb6d96d738bc'
+2026-Jul-15 08:49:02.079599 #1 [internal] load local bake definitions
+2026-Jul-15 08:49:02.230655 #1 reading from stdin 17.09kB done
+2026-Jul-15 08:49:02.230655 #1 DONE 0.0s
+2026-Jul-15 08:49:02.522085 #2 [nexnum-socket internal] load build definition from Dockerfile.socket
+2026-Jul-15 08:49:02.522085 #2 transferring dockerfile: 8.72kB done
+2026-Jul-15 08:49:02.522085 #2 DONE 0.1s
+2026-Jul-15 08:49:02.522085
+2026-Jul-15 08:49:02.522085 #3 [nexnum-worker internal] load build definition from Dockerfile.worker
+2026-Jul-15 08:49:02.522085 #3 transferring dockerfile: 8.85kB done
+2026-Jul-15 08:49:02.522085 #3 DONE 0.1s
+2026-Jul-15 08:49:02.522085
+2026-Jul-15 08:49:02.522085 #4 [nexnum-app internal] load build definition from Dockerfile
+2026-Jul-15 08:49:02.522085 #4 transferring dockerfile: 9.13kB 0.0s done
+2026-Jul-15 08:49:02.522085 #4 DONE 0.1s
+2026-Jul-15 08:49:02.522085
+2026-Jul-15 08:49:02.522085 #5 [nexnum-socket internal] load metadata for docker.io/library/node:22-bookworm-slim
+2026-Jul-15 08:49:03.630511 #5 ...
+2026-Jul-15 08:49:03.630511
+2026-Jul-15 08:49:03.630511 #6 [auth] library/node:pull token for registry-1.docker.io
+2026-Jul-15 08:49:03.630511 #6 DONE 0.0s
+2026-Jul-15 08:49:03.779899 #5 [nexnum-app internal] load metadata for docker.io/library/node:22-bookworm-slim
+2026-Jul-15 08:49:05.973476 #5 DONE 3.4s
+2026-Jul-15 08:49:05.973476
+2026-Jul-15 08:49:05.973476 #7 [nexnum-app internal] load .dockerignore
+2026-Jul-15 08:49:05.973476 #7 transferring context: 1.00kB done
+2026-Jul-15 08:49:05.973476 #7 DONE 0.1s
+2026-Jul-15 08:49:06.136952 #8 [nexnum-app deps 1/7] FROM docker.io/library/node:22-bookworm-slim@sha256:6c74791e557ce11fc957704f6d4fe134a7bc8d6f5ca4403205b2966bd488f6b3
+2026-Jul-15 08:49:06.136952 #8 resolve docker.io/library/node:22-bookworm-slim@sha256:6c74791e557ce11fc957704f6d4fe134a7bc8d6f5ca4403205b2966bd488f6b3 0.0s done
+2026-Jul-15 08:49:06.446087 #8 sha256:437216719022b2853003498de36b055604c6ff1bcee290b912ed44226f2d3d46 0B / 446B 0.2s
+2026-Jul-15 08:49:06.446087 #8 sha256:392df1351ac2d7628088ee58b248e62a2c1b749e4beb94b7640994df1857c8ca 0B / 1.71MB 0.2s
+2026-Jul-15 08:49:06.446087 #8 sha256:bb65bd65926c2b38f8a7d518cefa8524e1484182dd6ffba7883654d886b4cfb3 0B / 49.94MB 0.2s
+2026-Jul-15 08:49:06.446087 #8 sha256:e33bee2ce77b0c3748e6a8f2b808a5ab1d2ed466d5ee5a9b991cba597bd028e2 0B / 3.31kB 0.2s
+2026-Jul-15 08:49:06.545702 #8 sha256:437216719022b2853003498de36b055604c6ff1bcee290b912ed44226f2d3d46 446B / 446B 0.3s done
+2026-Jul-15 08:49:06.746477 #8 sha256:597c6c618d36213af657a6a8444a5d87801f9a219682b206ad21ccb8f3e57bbd 0B / 28.23MB 0.2s
+2026-Jul-15 08:49:25.248624 #8 sha256:bb65bd65926c2b38f8a7d518cefa8524e1484182dd6ffba7883654d886b4cfb3 0B / 49.94MB 19.0s
+2026-Jul-15 08:49:25.248624 #8 sha256:e33bee2ce77b0c3748e6a8f2b808a5ab1d2ed466d5ee5a9b991cba597bd028e2 0B / 3.31kB 19.0s
+2026-Jul-15 08:49:25.248624 #8 sha256:597c6c618d36213af657a6a8444a5d87801f9a219682b206ad21ccb8f3e57bbd 0B / 28.23MB 18.7s
+2026-Jul-15 08:49:07.099851 #8 ...
+2026-Jul-15 08:49:07.099851
+2026-Jul-15 08:49:07.099851 #9 [nexnum-worker internal] load build context
+2026-Jul-15 08:49:07.099851 #9 transferring context: 20.12MB 19.3s done
+2026-Jul-15 08:49:07.099851 #9 DONE 19.4s
+2026-Jul-15 08:49:07.099851
+2026-Jul-15 08:49:07.099851 #10 [nexnum-app internal] load build context
+2026-Jul-15 08:49:07.099851 #10 transferring context: 20.19MB 19.3s done
+2026-Jul-15 08:49:07.099851 #10 DONE 19.4s
+2026-Jul-15 08:49:07.099851
+2026-Jul-15 08:49:07.099851 #8 [nexnum-socket deps 1/7] FROM docker.io/library/node:22-bookworm-slim@sha256:6c74791e557ce11fc957704f6d4fe134a7bc8d6f5ca4403205b2966bd488f6b3
+2026-Jul-15 08:49:07.099851 #8 sha256:392df1351ac2d7628088ee58b248e62a2c1b749e4beb94b7640994df1857c8ca 1.05MB / 1.71MB 0.9s
+2026-Jul-15 08:49:07.211225 #8 sha256:392df1351ac2d7628088ee58b248e62a2c1b749e4beb94b7640994df1857c8ca 1.71MB / 1.71MB 1.0s done
+2026-Jul-15 08:49:07.211225 #8 sha256:e33bee2ce77b0c3748e6a8f2b808a5ab1d2ed466d5ee5a9b991cba597bd028e2 3.31kB / 3.31kB 1.0s done
+2026-Jul-15 08:49:07.411047 #8 sha256:e33bee2ce77b0c3748e6a8f2b808a5ab1d2ed466d5ee5a9b991cba597bd028e2 3.31kB / 3.31kB 1.0s done
+2026-Jul-15 08:49:08.612669 #8 sha256:bb65bd65926c2b38f8a7d518cefa8524e1484182dd6ffba7883654d886b4cfb3 3.15MB / 49.94MB 2.4s
+2026-Jul-15 08:49:08.612669 #8 sha256:597c6c618d36213af657a6a8444a5d87801f9a219682b206ad21ccb8f3e57bbd 2.10MB / 28.23MB 1.9s
+2026-Jul-15 08:49:09.210990 #8 sha256:597c6c618d36213af657a6a8444a5d87801f9a219682b206ad21ccb8f3e57bbd 4.19MB / 28.23MB 2.5s
+2026-Jul-15 08:49:09.661562 #8 sha256:bb65bd65926c2b38f8a7d518cefa8524e1484182dd6ffba7883654d886b4cfb3 6.29MB / 49.94MB 3.4s
+2026-Jul-15 08:49:09.960613 #8 sha256:597c6c618d36213af657a6a8444a5d87801f9a219682b206ad21ccb8f3e57bbd 6.29MB / 28.23MB 3.3s
+2026-Jul-15 08:49:10.860849 #8 sha256:597c6c618d36213af657a6a8444a5d87801f9a219682b206ad21ccb8f3e57bbd 8.39MB / 28.23MB 4.2s
+2026-Jul-15 08:49:11.010412 #8 sha256:bb65bd65926c2b38f8a7d518cefa8524e1484182dd6ffba7883654d886b4cfb3 9.44MB / 49.94MB 4.8s
+2026-Jul-15 08:49:11.460958 #8 sha256:597c6c618d36213af657a6a8444a5d87801f9a219682b206ad21ccb8f3e57bbd 10.49MB / 28.23MB 4.8s
+2026-Jul-15 08:49:30.316468 #8 sha256:bb65bd65926c2b38f8a7d518cefa8524e1484182dd6ffba7883654d886b4cfb3 11.53MB / 49.94MB 24.1s
+2026-Jul-15 08:49:12.039878 #8 sha256:597c6c618d36213af657a6a8444a5d87801f9a219682b206ad21ccb8f3e57bbd 11.53MB / 28.23MB 23.8s
+2026-Jul-15 08:49:12.490061 #8 sha256:597c6c618d36213af657a6a8444a5d87801f9a219682b206ad21ccb8f3e57bbd 13.63MB / 28.23MB 5.8s
+2026-Jul-15 08:49:12.789862 #8 sha256:bb65bd65926c2b38f8a7d518cefa8524e1484182dd6ffba7883654d886b4cfb3 14.68MB / 49.94MB 6.6s
+2026-Jul-15 08:49:13.240799 #8 sha256:597c6c618d36213af657a6a8444a5d87801f9a219682b206ad21ccb8f3e57bbd 15.73MB / 28.23MB 6.6s
+2026-Jul-15 08:49:13.840482 #8 sha256:bb65bd65926c2b38f8a7d518cefa8524e1484182dd6ffba7883654d886b4cfb3 17.83MB / 49.94MB 7.6s
+2026-Jul-15 08:49:13.840482 #8 sha256:597c6c618d36213af657a6a8444a5d87801f9a219682b206ad21ccb8f3e57bbd 17.83MB / 28.23MB 7.2s
+2026-Jul-15 08:49:14.439584 #8 sha256:597c6c618d36213af657a6a8444a5d87801f9a219682b206ad21ccb8f3e57bbd 19.92MB / 28.23MB 7.8s
+2026-Jul-15 08:49:14.739838 #8 sha256:bb65bd65926c2b38f8a7d518cefa8524e1484182dd6ffba7883654d886b4cfb3 20.97MB / 49.94MB 8.5s
+2026-Jul-15 08:49:15.040732 #8 sha256:597c6c618d36213af657a6a8444a5d87801f9a219682b206ad21ccb8f3e57bbd 22.02MB / 28.23MB 8.4s
+2026-Jul-15 08:49:15.790551 #8 sha256:bb65bd65926c2b38f8a7d518cefa8524e1484182dd6ffba7883654d886b4cfb3 24.12MB / 49.94MB 9.6s
+2026-Jul-15 08:49:15.790551 #8 sha256:597c6c618d36213af657a6a8444a5d87801f9a219682b206ad21ccb8f3e57bbd 24.12MB / 28.23MB 9.1s
+2026-Jul-15 08:49:16.689173 #8 sha256:597c6c618d36213af657a6a8444a5d87801f9a219682b206ad21ccb8f3e57bbd 26.21MB / 28.23MB 10.0s
+2026-Jul-15 08:49:35.265854 #8 sha256:bb65bd65926c2b38f8a7d518cefa8524e1484182dd6ffba7883654d886b4cfb3 26.21MB / 49.94MB 29.0s
+2026-Jul-15 08:49:17.013967 #8 sha256:597c6c618d36213af657a6a8444a5d87801f9a219682b206ad21ccb8f3e57bbd 26.21MB / 28.23MB 28.8s
+2026-Jul-15 08:49:17.464153 #8 sha256:597c6c618d36213af657a6a8444a5d87801f9a219682b206ad21ccb8f3e57bbd 28.23MB / 28.23MB 10.8s done
+2026-Jul-15 08:49:17.464153 #8 extracting sha256:597c6c618d36213af657a6a8444a5d87801f9a219682b206ad21ccb8f3e57bbd
+2026-Jul-15 08:49:17.914311 #8 sha256:bb65bd65926c2b38f8a7d518cefa8524e1484182dd6ffba7883654d886b4cfb3 29.36MB / 49.94MB 11.7s
+2026-Jul-15 08:49:18.514907 #8 sha256:bb65bd65926c2b38f8a7d518cefa8524e1484182dd6ffba7883654d886b4cfb3 32.51MB / 49.94MB 12.3s
+2026-Jul-15 08:49:18.663537 #8 extracting sha256:597c6c618d36213af657a6a8444a5d87801f9a219682b206ad21ccb8f3e57bbd 1.2s done
+2026-Jul-15 08:49:18.663537 #8 extracting sha256:e33bee2ce77b0c3748e6a8f2b808a5ab1d2ed466d5ee5a9b991cba597bd028e2 0.0s done
+2026-Jul-15 08:49:18.965198 #8 sha256:bb65bd65926c2b38f8a7d518cefa8524e1484182dd6ffba7883654d886b4cfb3 35.65MB / 49.94MB 12.7s
+2026-Jul-15 08:49:19.564287 #8 sha256:bb65bd65926c2b38f8a7d518cefa8524e1484182dd6ffba7883654d886b4cfb3 38.80MB / 49.94MB 13.3s
+2026-Jul-15 08:49:20.014450 #8 sha256:bb65bd65926c2b38f8a7d518cefa8524e1484182dd6ffba7883654d886b4cfb3 41.94MB / 49.94MB 13.8s
+2026-Jul-15 08:49:20.463396 #8 sha256:bb65bd65926c2b38f8a7d518cefa8524e1484182dd6ffba7883654d886b4cfb3 45.09MB / 49.94MB 14.2s
+2026-Jul-15 08:49:21.064228 #8 sha256:bb65bd65926c2b38f8a7d518cefa8524e1484182dd6ffba7883654d886b4cfb3 48.23MB / 49.94MB 14.8s
+2026-Jul-15 08:49:21.448783 #8 sha256:bb65bd65926c2b38f8a7d518cefa8524e1484182dd6ffba7883654d886b4cfb3 49.94MB / 49.94MB 15.1s done
+2026-Jul-15 08:49:21.448783 #8 extracting sha256:bb65bd65926c2b38f8a7d518cefa8524e1484182dd6ffba7883654d886b4cfb3
+2026-Jul-15 08:49:22.901233 #8 extracting sha256:bb65bd65926c2b38f8a7d518cefa8524e1484182dd6ffba7883654d886b4cfb3 1.6s done
+2026-Jul-15 08:49:22.901233 #8 extracting sha256:392df1351ac2d7628088ee58b248e62a2c1b749e4beb94b7640994df1857c8ca
+2026-Jul-15 08:49:23.142958 #8 extracting sha256:bb65bd65926c2b38f8a7d518cefa8524e1484182dd6ffba7883654d886b4cfb3 1.6s done
+2026-Jul-15 08:49:23.142958 #8 extracting sha256:392df1351ac2d7628088ee58b248e62a2c1b749e4beb94b7640994df1857c8ca 0.1s done
+2026-Jul-15 08:49:23.142958 #8 extracting sha256:437216719022b2853003498de36b055604c6ff1bcee290b912ed44226f2d3d46 0.0s done
+2026-Jul-15 08:49:23.142958 #8 DONE 17.1s
+2026-Jul-15 08:49:23.142958
+2026-Jul-15 08:49:23.142958 #11 [nexnum-socket deps 2/7] RUN apt-get update && apt-get install -y openssl libssl-dev libc6-dev ca-certificates && rm -rf /var/lib/apt/lists/*
+2026-Jul-15 08:49:24.158902 #11 1.185 Get:1 http://deb.debian.org/debian bookworm InRelease [151 kB]
+2026-Jul-15 08:49:24.655321 #11 1.680 Get:2 http://deb.debian.org/debian bookworm-updates InRelease [55.4 kB]
+2026-Jul-15 08:49:25.090171 #11 1.909 Get:3 http://deb.debian.org/debian-security bookworm-security InRelease [34.8 kB]
+2026-Jul-15 08:49:25.090171 #11 1.963 Get:4 http://deb.debian.org/debian bookworm/main amd64 Packages [8790 kB]
+2026-Jul-15 08:49:28.332993 #11 5.174 Get:5 http://deb.debian.org/debian bookworm-updates/main amd64 Packages [6924 B]
+2026-Jul-15 08:49:28.332993 #11 5.207 Get:6 http://deb.debian.org/debian-security bookworm-security/main amd64 Packages [316 kB]
+2026-Jul-15 08:49:29.423580 #11 6.298 Fetched 9355 kB in 6s (1689 kB/s)
+2026-Jul-15 08:49:29.423580 #11 6.298 Reading package lists...
+2026-Jul-15 08:49:30.278445 #11 7.153 Reading package lists...
+2026-Jul-15 08:49:30.894405 #11 7.756 Building dependency tree...
+2026-Jul-15 08:49:31.077105 #11 7.935 Reading state information...
+2026-Jul-15 08:49:31.233326 #11 8.102 The following additional packages will be installed:
+2026-Jul-15 08:49:31.233326 #11 8.102 fontconfig-config fonts-dejavu-core krb5-locales libabsl20220623 libaom3
+2026-Jul-15 08:49:31.233326 #11 8.102 libavif15 libbrotli1 libbsd0 libc-dev-bin libc-devtools libcrypt-dev
+2026-Jul-15 08:49:31.233326 #11 8.102 libdav1d6 libde265-0 libdeflate0 libexpat1 libfontconfig1 libfreetype6
+2026-Jul-15 08:49:31.233326 #11 8.103 libgav1-1 libgd3 libgssapi-krb5-2 libheif1 libjbig0 libjpeg62-turbo
+2026-Jul-15 08:49:31.233326 #11 8.103 libk5crypto3 libkeyutils1 libkrb5-3 libkrb5support0 liblerc4 libnsl-dev
+2026-Jul-15 08:49:31.233326 #11 8.104 libnsl2 libnuma1 libpng16-16 librav1e0 libssl3 libsvtav1enc1 libtiff6
+2026-Jul-15 08:49:31.233326 #11 8.104 libtirpc-common libtirpc-dev libtirpc3 libwebp7 libx11-6 libx11-data
+2026-Jul-15 08:49:31.233326 #11 8.104 libx265-199 libxau6 libxcb1 libxdmcp6 libxpm4 libyuv0 linux-libc-dev
+2026-Jul-15 08:49:31.233326 #11 8.105 manpages manpages-dev rpcsvc-proto
+2026-Jul-15 08:49:31.233326 #11 8.108 Suggested packages:
+2026-Jul-15 08:49:31.233326 #11 8.108 glibc-doc libgd-tools krb5-doc krb5-user libssl-doc man-browser
+2026-Jul-15 08:49:31.591462 #11 8.463 The following NEW packages will be installed:
+2026-Jul-15 08:49:31.591462 #11 8.463 ca-certificates fontconfig-config fonts-dejavu-core krb5-locales
+2026-Jul-15 08:49:31.591462 #11 8.463 libabsl20220623 libaom3 libavif15 libbrotli1 libbsd0 libc-dev-bin
+2026-Jul-15 08:49:31.591462 #11 8.464 libc-devtools libc6-dev libcrypt-dev libdav1d6 libde265-0 libdeflate0
+2026-Jul-15 08:49:31.591462 #11 8.464 libexpat1 libfontconfig1 libfreetype6 libgav1-1 libgd3 libgssapi-krb5-2
+2026-Jul-15 08:49:31.591462 #11 8.464 libheif1 libjbig0 libjpeg62-turbo libk5crypto3 libkeyutils1 libkrb5-3
+2026-Jul-15 08:49:31.591462 #11 8.465 libkrb5support0 liblerc4 libnsl-dev libnsl2 libnuma1 libpng16-16 librav1e0
+2026-Jul-15 08:49:31.591462 #11 8.465 libssl-dev libssl3 libsvtav1enc1 libtiff6 libtirpc-common libtirpc-dev
+2026-Jul-15 08:49:31.591462 #11 8.465 libtirpc3 libwebp7 libx11-6 libx11-data libx265-199 libxau6 libxcb1
+2026-Jul-15 08:49:31.591462 #11 8.466 libxdmcp6 libxpm4 libyuv0 linux-libc-dev manpages manpages-dev openssl
+2026-Jul-15 08:49:31.591462 #11 8.466 rpcsvc-proto
+2026-Jul-15 08:49:31.760499 #11 8.618 0 upgraded, 56 newly installed, 0 to remove and 0 not upgraded.
+2026-Jul-15 08:49:31.760499 #11 8.618 Need to get 28.2 MB of archives.
+2026-Jul-15 08:49:31.760499 #11 8.618 After this operation, 103 MB of additional disk space will be used.
+2026-Jul-15 08:49:31.760499 #11 8.618 Get:1 http://deb.debian.org/debian bookworm/main amd64 libssl3 amd64 3.0.20-1~deb12u2 [2036 kB]
+2026-Jul-15 08:49:32.207749 #11 ...
+2026-Jul-15 08:49:32.207749
+2026-Jul-15 08:49:32.207749 #12 [nexnum-socket runner 2/14] RUN apt-get update && apt-get install -y openssl ca-certificates curl && rm -rf /var/lib/apt/lists/*
+2026-Jul-15 08:49:32.207749 #12 1.185 Get:1 http://deb.debian.org/debian bookworm InRelease [151 kB]
+2026-Jul-15 08:49:32.207749 #12 1.680 Get:2 http://deb.debian.org/debian bookworm-updates InRelease [55.4 kB]
+2026-Jul-15 08:49:32.207749 #12 1.909 Get:3 http://deb.debian.org/debian-security bookworm-security InRelease [34.8 kB]
+2026-Jul-15 08:49:32.207749 #12 1.963 Get:4 http://deb.debian.org/debian bookworm/main amd64 Packages [8790 kB]
+2026-Jul-15 08:49:32.207749 #12 4.761 Get:5 http://deb.debian.org/debian bookworm-updates/main amd64 Packages [6924 B]
+2026-Jul-15 08:49:32.207749 #12 4.843 Get:6 http://deb.debian.org/debian-security bookworm-security/main amd64 Packages [316 kB]
+2026-Jul-15 08:49:32.207749 #12 5.866 Fetched 9355 kB in 5s (1829 kB/s)
+2026-Jul-15 08:49:32.207749 #12 5.866 Reading package lists...
+2026-Jul-15 08:49:32.207749 #12 6.713 Reading package lists...
+2026-Jul-15 08:49:32.207749 #12 7.442 Building dependency tree...
+2026-Jul-15 08:49:32.207749 #12 7.609 Reading state information...
+2026-Jul-15 08:49:32.207749 #12 7.766 The following additional packages will be installed:
+2026-Jul-15 08:49:32.207749 #12 7.766 krb5-locales libbrotli1 libcurl4 libgssapi-krb5-2 libk5crypto3 libkeyutils1
+2026-Jul-15 08:49:32.207749 #12 7.766 libkrb5-3 libkrb5support0 libldap-2.5-0 libldap-common libnghttp2-14 libpsl5
+2026-Jul-15 08:49:32.207749 #12 7.766 librtmp1 libsasl2-2 libsasl2-modules libsasl2-modules-db libssh2-1 libssl3
+2026-Jul-15 08:49:32.207749 #12 7.767 publicsuffix
+2026-Jul-15 08:49:32.207749 #12 7.769 Suggested packages:
+2026-Jul-15 08:49:32.207749 #12 7.769 krb5-doc krb5-user libsasl2-modules-gssapi-mit
+2026-Jul-15 08:49:32.207749 #12 7.769 | libsasl2-modules-gssapi-heimdal libsasl2-modules-ldap libsasl2-modules-otp
+2026-Jul-15 08:49:32.207749 #12 7.769 libsasl2-modules-sql
+2026-Jul-15 08:49:32.207749 #12 7.921 The following NEW packages will be installed:
+2026-Jul-15 08:49:32.207749 #12 7.921 ca-certificates curl krb5-locales libbrotli1 libcurl4 libgssapi-krb5-2
+2026-Jul-15 08:49:32.207749 #12 7.921 libk5crypto3 libkeyutils1 libkrb5-3 libkrb5support0 libldap-2.5-0
+2026-Jul-15 08:49:32.207749 #12 7.922 libldap-common libnghttp2-14 libpsl5 librtmp1 libsasl2-2 libsasl2-modules
+2026-Jul-15 08:49:32.207749 #12 7.923 libsasl2-modules-db libssh2-1 libssl3 openssl publicsuffix
+2026-Jul-15 08:49:32.207749 #12 8.008 0 upgraded, 22 newly installed, 0 to remove and 0 not upgraded.
+2026-Jul-15 08:49:32.207749 #12 8.008 Need to get 6122 kB of archives.
+2026-Jul-15 08:49:32.207749 #12 8.008 After this operation, 15.7 MB of additional disk space will be used.
+2026-Jul-15 08:49:32.207749 #12 8.008 Get:1 http://deb.debian.org/debian bookworm/main amd64 libssl3 amd64 3.0.20-1~deb12u2 [2036 kB]
+2026-Jul-15 08:49:32.207749 #12 8.417 Get:2 http://deb.debian.org/debian bookworm/main amd64 openssl amd64 3.0.20-1~deb12u2 [1439 kB]
+2026-Jul-15 08:49:32.207749 #12 8.639 Get:3 http://deb.debian.org/debian bookworm/main amd64 ca-certificates all 20230311+deb12u1 [155 kB]
+2026-Jul-15 08:49:32.207749 #12 8.671 Get:4 http://deb.debian.org/debian bookworm/main amd64 krb5-locales all 1.20.1-2+deb12u5 [63.5 kB]
+2026-Jul-15 08:49:32.207749 #12 8.680 Get:5 http://deb.debian.org/debian bookworm/main amd64 libbrotli1 amd64 1.0.9-2+b6 [275 kB]
+2026-Jul-15 08:49:32.207749 #12 8.765 Get:6 http://deb.debian.org/debian bookworm/main amd64 libkrb5support0 amd64 1.20.1-2+deb12u5 [33.2 kB]
+2026-Jul-15 08:49:32.207749 #12 8.781 Get:7 http://deb.debian.org/debian bookworm/main amd64 libk5crypto3 amd64 1.20.1-2+deb12u5 [79.7 kB]
+2026-Jul-15 08:49:32.207749 #12 8.792 Get:8 http://deb.debian.org/debian bookworm/main amd64 libkeyutils1 amd64 1.6.3-2 [8808 B]
+2026-Jul-15 08:49:32.207749 #12 8.792 Get:9 http://deb.debian.org/debian bookworm/main amd64 libkrb5-3 amd64 1.20.1-2+deb12u5 [332 kB]
+2026-Jul-15 08:49:32.207749 #12 8.807 Get:10 http://deb.debian.org/debian bookworm/main amd64 libgssapi-krb5-2 amd64 1.20.1-2+deb12u5 [135 kB]
+2026-Jul-15 08:49:32.207749 #12 8.859 Get:11 http://deb.debian.org/debian bookworm/main amd64 libsasl2-modules-db amd64 2.1.28+dfsg-10 [20.3 kB]
+2026-Jul-15 08:49:32.207749 #12 8.863 Get:12 http://deb.debian.org/debian bookworm/main amd64 libsasl2-2 amd64 2.1.28+dfsg-10 [59.7 kB]
+2026-Jul-15 08:49:32.207749 #12 8.866 Get:13 http://deb.debian.org/debian bookworm/main amd64 libldap-2.5-0 amd64 2.5.13+dfsg-5 [183 kB]
+2026-Jul-15 08:49:32.207749 #12 27.30 Get:14 http://deb.debian.org/debian bookworm/main amd64 libnghttp2-14 amd64 1.52.0-1+deb12u3 [72.4 kB]
+2026-Jul-15 08:49:32.207749 #12 27.31 Get:15 http://deb.debian.org/debian bookworm/main amd64 libpsl5 amd64 0.21.2-1 [58.7 kB]
+2026-Jul-15 08:49:32.207749 #12 27.32 Get:16 http://deb.debian.org/debian bookworm/main amd64 librtmp1 amd64 2.4+20151223.gitfa8646d.1-2+b2 [60.8 kB]
+2026-Jul-15 08:49:32.207749 #12 27.33 Get:17 http://deb.debian.org/debian bookworm/main amd64 libssh2-1 amd64 1.10.0-3+b1 [179 kB]
+2026-Jul-15 08:49:32.207749 #12 27.35 Get:18 http://deb.debian.org/debian bookworm/main amd64 libcurl4 amd64 7.88.1-10+deb12u15 [392 kB]
+2026-Jul-15 08:49:32.207749 #12 27.43 Get:19 http://deb.debian.org/debian bookworm/main amd64 curl amd64 7.88.1-10+deb12u15 [316 kB]
+2026-Jul-15 08:49:32.207749 #12 9.075 Get:20 http://deb.debian.org/debian bookworm/main amd64 libldap-common all 2.5.13+dfsg-5 [29.3 kB]
+2026-Jul-15 08:49:32.207749 #12 9.079 Get:21 http://deb.debian.org/debian bookworm/main amd64 libsasl2-modules amd64 2.1.28+dfsg-10 [66.6 kB]
+2026-Jul-15 08:49:32.207749 #12 9.086 Get:22 http://deb.debian.org/debian bookworm/main amd64 publicsuffix all 20230209.2326-1 [126 kB]
+2026-Jul-15 08:49:32.442885 #12 9.233 debconf: delaying package configuration, since apt-utils is not installed
+2026-Jul-15 08:49:32.442885 #12 9.271 Fetched 6122 kB in 1s (5140 kB/s)
+2026-Jul-15 08:49:32.442885 #12 9.301 Selecting previously unselected package libssl3:amd64.
+2026-Jul-15 08:49:32.442885 #12 9.301 (Reading database ... (Reading database ... 5% (Reading database ... 10% (Reading database ... 15% (Reading database ... 20% (Reading database ... 25% (Reading database ... 30% (Reading database ... 35% (Reading database ... 40% (Reading database ... 45% (Reading database ... 50% (Reading database ... 55% (Reading database ... 60% (Reading database ... 65% (Reading database ... 70% (Reading database ... 75% (Reading database ... 80% (Reading database ... 85% (Reading database ... 90% (Reading database ... 95% (Reading database ... 100% (Reading database ... 6096 files and directories currently installed.)
+2026-Jul-15 08:49:32.442885 #12 9.308 Preparing to unpack .../00-libssl3_3.0.20-1~deb12u2_amd64.deb ...
+2026-Jul-15 08:49:32.442885 #12 9.318 Unpacking libssl3:amd64 (3.0.20-1~deb12u2) ...
+2026-Jul-15 08:49:32.630573 #12 9.504 Selecting previously unselected package openssl.
+2026-Jul-15 08:49:32.630573 #12 9.506 Preparing to unpack .../01-openssl_3.0.20-1~deb12u2_amd64.deb ...
+2026-Jul-15 08:49:32.630573 #12 9.511 Unpacking openssl (3.0.20-1~deb12u2) ...
+2026-Jul-15 08:49:32.630573 #12 9.655 Selecting previously unselected package ca-certificates.
+2026-Jul-15 08:49:32.630573 #12 ...
+2026-Jul-15 08:49:32.630573
+2026-Jul-15 08:49:32.630573 #11 [nexnum-socket deps 2/7] RUN apt-get update && apt-get install -y openssl libssl-dev libc6-dev ca-certificates && rm -rf /var/lib/apt/lists/*
+2026-Jul-15 08:49:32.630573 #11 9.584 Get:2 http://deb.debian.org/debian bookworm/main amd64 openssl amd64 3.0.20-1~deb12u2 [1439 kB]
+2026-Jul-15 08:49:32.968139 #11 9.901 Get:3 http://deb.debian.org/debian bookworm/main amd64 ca-certificates all 20230311+deb12u1 [155 kB]
+2026-Jul-15 08:49:32.968139 #11 9.921 Get:4 http://deb.debian.org/debian bookworm/main amd64 krb5-locales all 1.20.1-2+deb12u5 [63.5 kB]
+2026-Jul-15 08:49:32.968139 #11 9.935 Get:5 http://deb.debian.org/debian bookworm/main amd64 manpages all 6.03-2 [1332 kB]
+2026-Jul-15 08:49:33.203489 #11 10.17 Get:6 http://deb.debian.org/debian bookworm/main amd64 fonts-dejavu-core all 2.37-6 [1068 kB]
+2026-Jul-15 08:49:33.315419 #11 10.34 Get:7 http://deb.debian.org/debian bookworm/main amd64 fontconfig-config amd64 2.14.1-4 [315 kB]
+2026-Jul-15 08:49:33.426886 #11 10.38 Get:8 http://deb.debian.org/debian bookworm/main amd64 libabsl20220623 amd64 20220623.1-1+deb12u2 [391 kB]
+2026-Jul-15 08:49:33.426886 #11 10.45 Get:9 http://deb.debian.org/debian bookworm/main amd64 libaom3 amd64 3.6.0-1+deb12u2 [1850 kB]
+2026-Jul-15 08:49:33.817109 #11 10.74 Get:10 http://deb.debian.org/debian bookworm/main amd64 libdav1d6 amd64 1.0.0-2+deb12u1 [513 kB]
+2026-Jul-15 08:49:33.817109 #11 10.81 Get:11 http://deb.debian.org/debian bookworm/main amd64 libgav1-1 amd64 0.18.0-1+b1 [332 kB]
+2026-Jul-15 08:49:33.930103 #11 10.85 Get:12 http://deb.debian.org/debian bookworm/main amd64 librav1e0 amd64 0.5.1-6 [763 kB]
+2026-Jul-15 08:49:34.033973 #11 10.98 Get:13 http://deb.debian.org/debian bookworm/main amd64 libsvtav1enc1 amd64 1.4.1+dfsg-1 [2121 kB]
+2026-Jul-15 08:49:34.745500 #11 11.64 Get:14 http://deb.debian.org/debian bookworm/main amd64 libjpeg62-turbo amd64 1:2.1.5-2 [166 kB]
+2026-Jul-15 08:49:34.745500 #11 11.70 Get:15 http://deb.debian.org/debian bookworm/main amd64 libyuv0 amd64 0.0~git20230123.b2528b0-1 [168 kB]
+2026-Jul-15 08:49:34.745500 #11 11.77 Get:16 http://deb.debian.org/debian bookworm/main amd64 libavif15 amd64 0.11.1-1+deb12u1 [94.4 kB]
+2026-Jul-15 08:49:34.879736 #11 11.80 Get:17 http://deb.debian.org/debian bookworm/main amd64 libbrotli1 amd64 1.0.9-2+b6 [275 kB]
+2026-Jul-15 08:49:35.033833 #11 11.91 Get:18 http://deb.debian.org/debian bookworm/main amd64 libbsd0 amd64 0.11.7-2 [117 kB]
+2026-Jul-15 08:49:35.033833 #11 11.93 Get:19 http://deb.debian.org/debian bookworm/main amd64 libc-dev-bin amd64 2.36-9+deb12u14 [48.1 kB]
+2026-Jul-15 08:49:35.033833 #11 11.94 Get:20 http://deb.debian.org/debian bookworm/main amd64 libexpat1 amd64 2.5.0-1+deb12u2 [99.9 kB]
+2026-Jul-15 08:49:35.033833 #11 11.96 Get:21 http://deb.debian.org/debian bookworm/main amd64 libpng16-16 amd64 1.6.39-2+deb12u5 [277 kB]
+2026-Jul-15 08:49:35.033833 #11 12.00 Get:22 http://deb.debian.org/debian bookworm/main amd64 libfreetype6 amd64 2.12.1+dfsg-5+deb12u4 [398 kB]
+2026-Jul-15 08:49:35.033833 #11 12.06 Get:23 http://deb.debian.org/debian bookworm/main amd64 libfontconfig1 amd64 2.14.1-4 [386 kB]
+2026-Jul-15 08:49:35.278234 #11 12.12 Get:24 http://deb.debian.org/debian bookworm/main amd64 libde265-0 amd64 1.0.11-1+deb12u2 [185 kB]
+2026-Jul-15 08:49:35.278234 #11 12.15 Get:25 http://deb.debian.org/debian bookworm/main amd64 libnuma1 amd64 2.0.16-1 [21.0 kB]
+2026-Jul-15 08:49:35.278234 #11 12.15 Get:26 http://deb.debian.org/debian bookworm/main amd64 libx265-199 amd64 3.5-2+b1 [1150 kB]
+2026-Jul-15 08:49:35.506753 #11 12.53 Get:27 http://deb.debian.org/debian bookworm/main amd64 libheif1 amd64 1.15.1-1+deb12u1 [215 kB]
+2026-Jul-15 08:49:35.616218 #11 12.56 Get:28 http://deb.debian.org/debian bookworm/main amd64 libdeflate0 amd64 1.14-1 [61.4 kB]
+2026-Jul-15 08:49:35.717366 #11 12.64 Get:29 http://deb.debian.org/debian bookworm/main amd64 libjbig0 amd64 2.1-6.1 [31.7 kB]
+2026-Jul-15 08:49:35.717366 #11 12.65 Get:30 http://deb.debian.org/debian bookworm/main amd64 liblerc4 amd64 4.0.0+ds-2 [170 kB]
+2026-Jul-15 08:49:35.717366 #11 12.69 Get:31 http://deb.debian.org/debian bookworm/main amd64 libwebp7 amd64 1.2.4-0.2+deb12u1 [286 kB]
+2026-Jul-15 08:49:35.717366 #11 12.74 Get:32 http://deb.debian.org/debian bookworm/main amd64 libtiff6 amd64 4.5.0-6+deb12u4 [316 kB]
+2026-Jul-15 08:49:35.826877 #11 12.78 Get:33 http://deb.debian.org/debian bookworm/main amd64 libxau6 amd64 1:1.0.9-1 [19.7 kB]
+2026-Jul-15 08:49:35.826877 #11 12.79 Get:34 http://deb.debian.org/debian bookworm/main amd64 libxdmcp6 amd64 1:1.1.2-3 [26.3 kB]
+2026-Jul-15 08:49:35.826877 #11 12.79 Get:35 http://deb.debian.org/debian bookworm/main amd64 libxcb1 amd64 1.15-1 [144 kB]
+2026-Jul-15 08:49:35.826877 #11 12.81 Get:36 http://deb.debian.org/debian bookworm/main amd64 libx11-data all 2:1.8.4-2+deb12u2 [292 kB]
+2026-Jul-15 08:49:35.945538 #11 12.85 Get:37 http://deb.debian.org/debian bookworm/main amd64 libx11-6 amd64 2:1.8.4-2+deb12u2 [760 kB]
+2026-Jul-15 08:49:36.125042 #11 12.97 Get:38 http://deb.debian.org/debian bookworm/main amd64 libxpm4 amd64 1:3.5.12-1.1+deb12u1 [48.6 kB]
+2026-Jul-15 08:49:36.125042 #11 12.98 Get:39 http://deb.debian.org/debian bookworm/main amd64 libgd3 amd64 2.3.3-9 [124 kB]
+2026-Jul-15 08:49:36.125042 #11 12.99 Get:40 http://deb.debian.org/debian bookworm/main amd64 libc-devtools amd64 2.36-9+deb12u14 [55.7 kB]
+2026-Jul-15 08:49:36.125042 #11 13.00 Get:41 http://deb.debian.org/debian bookworm/main amd64 linux-libc-dev amd64 6.1.176-1 [2304 kB]
+2026-Jul-15 08:49:36.406105 #11 13.35 Get:42 http://deb.debian.org/debian bookworm/main amd64 libcrypt-dev amd64 1:4.4.33-2 [118 kB]
+2026-Jul-15 08:49:36.406105 #11 13.36 Get:43 http://deb.debian.org/debian bookworm/main amd64 libkrb5support0 amd64 1.20.1-2+deb12u5 [33.2 kB]
+2026-Jul-15 08:49:36.406105 #11 13.37 Get:44 http://deb.debian.org/debian bookworm/main amd64 libk5crypto3 amd64 1.20.1-2+deb12u5 [79.7 kB]
+2026-Jul-15 08:49:36.406105 #11 13.38 Get:45 http://deb.debian.org/debian bookworm/main amd64 libkeyutils1 amd64 1.6.3-2 [8808 B]
+2026-Jul-15 08:49:36.406105 #11 13.38 Get:46 http://deb.debian.org/debian bookworm/main amd64 libkrb5-3 amd64 1.20.1-2+deb12u5 [332 kB]
+2026-Jul-15 08:49:36.648684 #11 13.43 Get:47 http://deb.debian.org/debian bookworm/main amd64 libgssapi-krb5-2 amd64 1.20.1-2+deb12u5 [135 kB]
+2026-Jul-15 08:49:36.648684 #11 13.46 Get:48 http://deb.debian.org/debian bookworm/main amd64 libtirpc-common all 1.3.3+ds-1 [14.0 kB]
+2026-Jul-15 08:49:36.648684 #11 13.46 Get:49 http://deb.debian.org/debian bookworm/main amd64 libtirpc3 amd64 1.3.3+ds-1 [85.2 kB]
+2026-Jul-15 08:49:36.648684 #11 13.47 Get:50 http://deb.debian.org/debian bookworm/main amd64 libnsl2 amd64 1.3.0-2 [39.5 kB]
+2026-Jul-15 08:49:36.648684 #11 13.48 Get:51 http://deb.debian.org/debian bookworm/main amd64 libtirpc-dev amd64 1.3.3+ds-1 [191 kB]
+2026-Jul-15 08:49:36.648684 #11 13.50 Get:52 http://deb.debian.org/debian bookworm/main amd64 libnsl-dev amd64 1.3.0-2 [66.4 kB]
+2026-Jul-15 08:49:36.648684 #11 13.51 Get:53 http://deb.debian.org/debian bookworm/main amd64 rpcsvc-proto amd64 1.4.3-1 [63.3 kB]
+2026-Jul-15 08:49:36.648684 #11 13.52 Get:54 http://deb.debian.org/debian bookworm/main amd64 libc6-dev amd64 2.36-9+deb12u14 [1904 kB]
+2026-Jul-15 08:49:55.271921 #11 ...
+2026-Jul-15 08:49:55.271921
+2026-Jul-15 08:49:55.271921 #12 [nexnum-worker runner 2/14] RUN apt-get update && apt-get install -y openssl ca-certificates curl && rm -rf /var/lib/apt/lists/*
+2026-Jul-15 08:49:55.271921 #12 9.658 Preparing to unpack .../02-ca-certificates_20230311+deb12u1_all.deb ...
+2026-Jul-15 08:49:55.271921 #12 9.663 Unpacking ca-certificates (20230311+deb12u1) ...
+2026-Jul-15 08:49:55.271921 #12 9.753 Selecting previously unselected package krb5-locales.
+2026-Jul-15 08:49:55.271921 #12 9.755 Preparing to unpack .../03-krb5-locales_1.20.1-2+deb12u5_all.deb ...
+2026-Jul-15 08:49:55.271921 #12 9.759 Unpacking krb5-locales (1.20.1-2+deb12u5) ...
+2026-Jul-15 08:49:55.271921 #12 9.807 Selecting previously unselected package libbrotli1:amd64.
+2026-Jul-15 08:49:55.271921 #12 9.809 Preparing to unpack .../04-libbrotli1_1.0.9-2+b6_amd64.deb ...
+2026-Jul-15 08:49:55.271921 #12 9.814 Unpacking libbrotli1:amd64 (1.0.9-2+b6) ...
+2026-Jul-15 08:49:55.271921 #12 9.873 Selecting previously unselected package libkrb5support0:amd64.
+2026-Jul-15 08:49:55.271921 #12 9.874 Preparing to unpack .../05-libkrb5support0_1.20.1-2+deb12u5_amd64.deb ...
+2026-Jul-15 08:49:55.271921 #12 9.880 Unpacking libkrb5support0:amd64 (1.20.1-2+deb12u5) ...
+2026-Jul-15 08:49:55.271921 #12 9.927 Selecting previously unselected package libk5crypto3:amd64.
+2026-Jul-15 08:49:55.271921 #12 9.929 Preparing to unpack .../06-libk5crypto3_1.20.1-2+deb12u5_amd64.deb ...
+2026-Jul-15 08:49:55.271921 #12 9.935 Unpacking libk5crypto3:amd64 (1.20.1-2+deb12u5) ...
+2026-Jul-15 08:49:55.271921 #12 9.993 Selecting previously unselected package libkeyutils1:amd64.
+2026-Jul-15 08:49:55.271921 #12 9.995 Preparing to unpack .../07-libkeyutils1_1.6.3-2_amd64.deb ...
+2026-Jul-15 08:49:55.271921 #12 10.00 Unpacking libkeyutils1:amd64 (1.6.3-2) ...
+2026-Jul-15 08:49:55.271921 #12 10.04 Selecting previously unselected package libkrb5-3:amd64.
+2026-Jul-15 08:49:55.271921 #12 10.05 Preparing to unpack .../08-libkrb5-3_1.20.1-2+deb12u5_amd64.deb ...
+2026-Jul-15 08:49:55.271921 #12 10.05 Unpacking libkrb5-3:amd64 (1.20.1-2+deb12u5) ...
+2026-Jul-15 08:49:55.271921 #12 10.13 Selecting previously unselected package libgssapi-krb5-2:amd64.
+2026-Jul-15 08:49:55.271921 #12 10.13 Preparing to unpack .../09-libgssapi-krb5-2_1.20.1-2+deb12u5_amd64.deb ...
+2026-Jul-15 08:49:55.271921 #12 10.14 Unpacking libgssapi-krb5-2:amd64 (1.20.1-2+deb12u5) ...
+2026-Jul-15 08:49:55.271921 #12 10.18 Selecting previously unselected package libsasl2-modules-db:amd64.
+2026-Jul-15 08:49:55.271921 #12 10.18 Preparing to unpack .../10-libsasl2-modules-db_2.1.28+dfsg-10_amd64.deb ...
+2026-Jul-15 08:49:55.271921 #12 10.19 Unpacking libsasl2-modules-db:amd64 (2.1.28+dfsg-10) ...
+2026-Jul-15 08:49:55.271921 #12 10.23 Selecting previously unselected package libsasl2-2:amd64.
+2026-Jul-15 08:49:55.271921 #12 10.23 Preparing to unpack .../11-libsasl2-2_2.1.28+dfsg-10_amd64.deb ...
+2026-Jul-15 08:49:55.271921 #12 10.24 Unpacking libsasl2-2:amd64 (2.1.28+dfsg-10) ...
+2026-Jul-15 08:49:55.271921 #12 10.29 Selecting previously unselected package libldap-2.5-0:amd64.
+2026-Jul-15 08:49:55.271921 #12 10.30 Preparing to unpack .../12-libldap-2.5-0_2.5.13+dfsg-5_amd64.deb ...
+2026-Jul-15 08:49:55.271921 #12 10.30 Unpacking libldap-2.5-0:amd64 (2.5.13+dfsg-5) ...
+2026-Jul-15 08:49:55.271921 #12 10.36 Selecting previously unselected package libnghttp2-14:amd64.
+2026-Jul-15 08:49:55.271921 #12 10.36 Preparing to unpack .../13-libnghttp2-14_1.52.0-1+deb12u3_amd64.deb ...
+2026-Jul-15 08:49:55.271921 #12 10.37 Unpacking libnghttp2-14:amd64 (1.52.0-1+deb12u3) ...
+2026-Jul-15 08:49:55.271921 #12 10.42 Selecting previously unselected package libpsl5:amd64.
+2026-Jul-15 08:49:55.271921 #12 10.42 Preparing to unpack .../14-libpsl5_0.21.2-1_amd64.deb ...
+2026-Jul-15 08:49:55.271921 #12 10.42 Unpacking libpsl5:amd64 (0.21.2-1) ...
+2026-Jul-15 08:49:55.271921 #12 10.48 Selecting previously unselected package librtmp1:amd64.
+2026-Jul-15 08:49:55.271921 #12 10.48 Preparing to unpack .../15-librtmp1_2.4+20151223.gitfa8646d.1-2+b2_amd64.deb ...
+2026-Jul-15 08:49:55.271921 #12 10.49 Unpacking librtmp1:amd64 (2.4+20151223.gitfa8646d.1-2+b2) ...
+2026-Jul-15 08:49:55.271921 #12 10.53 Selecting previously unselected package libssh2-1:amd64.
+2026-Jul-15 08:49:55.271921 #12 10.54 Preparing to unpack .../16-libssh2-1_1.10.0-3+b1_amd64.deb ...
+2026-Jul-15 08:49:55.271921 #12 10.54 Unpacking libssh2-1:amd64 (1.10.0-3+b1) ...
+2026-Jul-15 08:49:55.271921 #12 10.60 Selecting previously unselected package libcurl4:amd64.
+2026-Jul-15 08:49:55.271921 #12 10.60 Preparing to unpack .../17-libcurl4_7.88.1-10+deb12u15_amd64.deb ...
+2026-Jul-15 08:49:55.271921 #12 10.61 Unpacking libcurl4:amd64 (7.88.1-10+deb12u15) ...
+2026-Jul-15 08:49:55.271921 #12 10.67 Selecting previously unselected package curl.
+2026-Jul-15 08:49:55.271921 #12 10.67 Preparing to unpack .../18-curl_7.88.1-10+deb12u15_amd64.deb ...
+2026-Jul-15 08:49:55.271921 #12 10.68 Unpacking curl (7.88.1-10+deb12u15) ...
+2026-Jul-15 08:49:55.271921 #12 10.73 Selecting previously unselected package libldap-common.
+2026-Jul-15 08:49:55.271921 #12 10.73 Preparing to unpack .../19-libldap-common_2.5.13+dfsg-5_all.deb ...
+2026-Jul-15 08:49:55.271921 #12 10.74 Unpacking libldap-common (2.5.13+dfsg-5) ...
+2026-Jul-15 08:49:55.271921 #12 10.78 Selecting previously unselected package libsasl2-modules:amd64.
+2026-Jul-15 08:49:55.271921 #12 10.79 Preparing to unpack .../20-libsasl2-modules_2.1.28+dfsg-10_amd64.deb ...
+2026-Jul-15 08:49:55.271921 #12 10.80 Unpacking libsasl2-modules:amd64 (2.1.28+dfsg-10) ...
+2026-Jul-15 08:49:55.271921 #12 10.84 Selecting previously unselected package publicsuffix.
+2026-Jul-15 08:49:55.271921 #12 10.84 Preparing to unpack .../21-publicsuffix_20230209.2326-1_all.deb ...
+2026-Jul-15 08:49:55.271921 #12 10.85 Unpacking publicsuffix (20230209.2326-1) ...
+2026-Jul-15 08:49:55.271921 #12 10.91 Setting up libkeyutils1:amd64 (1.6.3-2) ...
+2026-Jul-15 08:49:55.271921 #12 10.92 Setting up libpsl5:amd64 (0.21.2-1) ...
+2026-Jul-15 08:49:55.271921 #12 10.94 Setting up libbrotli1:amd64 (1.0.9-2+b6) ...
+2026-Jul-15 08:49:55.271921 #12 10.96 Setting up libssl3:amd64 (3.0.20-1~deb12u2) ...
+2026-Jul-15 08:49:55.271921 #12 10.97 Setting up libnghttp2-14:amd64 (1.52.0-1+deb12u3) ...
+2026-Jul-15 08:49:55.271921 #12 10.98 Setting up krb5-locales (1.20.1-2+deb12u5) ...
+2026-Jul-15 08:49:55.271921 #12 11.00 Setting up libldap-common (2.5.13+dfsg-5) ...
+2026-Jul-15 08:49:55.271921 #12 11.02 Setting up libkrb5support0:amd64 (1.20.1-2+deb12u5) ...
+2026-Jul-15 08:49:55.271921 #12 11.03 Setting up libsasl2-modules-db:amd64 (2.1.28+dfsg-10) ...
+2026-Jul-15 08:49:55.271921 #12 11.05 Setting up librtmp1:amd64 (2.4+20151223.gitfa8646d.1-2+b2) ...
+2026-Jul-15 08:49:55.271921 #12 11.06 Setting up libk5crypto3:amd64 (1.20.1-2+deb12u5) ...
+2026-Jul-15 08:49:55.271921 #12 11.07 Setting up libsasl2-2:amd64 (2.1.28+dfsg-10) ...
+2026-Jul-15 08:49:55.271921 #12 11.09 Setting up libssh2-1:amd64 (1.10.0-3+b1) ...
+2026-Jul-15 08:49:55.271921 #12 11.10 Setting up libkrb5-3:amd64 (1.20.1-2+deb12u5) ...
+2026-Jul-15 08:49:55.271921 #12 11.12 Setting up openssl (3.0.20-1~deb12u2) ...
+2026-Jul-15 08:49:55.271921 #12 11.14 Setting up publicsuffix (20230209.2326-1) ...
+2026-Jul-15 08:49:55.271921 #12 11.16 Setting up libsasl2-modules:amd64 (2.1.28+dfsg-10) ...
+2026-Jul-15 08:49:55.271921 #12 11.18 Setting up libldap-2.5-0:amd64 (2.5.13+dfsg-5) ...
+2026-Jul-15 08:49:55.271921 #12 11.19 Setting up ca-certificates (20230311+deb12u1) ...
+2026-Jul-15 08:49:55.271921 #12 11.27 debconf: unable to initialize frontend: Dialog
+2026-Jul-15 08:49:55.271921 #12 11.27 debconf: (TERM is not set, so the dialog frontend is not usable.)
+2026-Jul-15 08:49:55.271921 #12 11.27 debconf: falling back to frontend: Readline
+2026-Jul-15 08:49:55.271921 #12 11.27 debconf: unable to initialize frontend: Readline
+2026-Jul-15 08:49:55.271921 #12 11.27 debconf: (Can't locate Term/ReadLine.pm in @INC (you may need to install the Term::ReadLine module) (@INC contains: /etc/perl /usr/local/lib/x86_64-linux-gnu/perl/5.36.0 /usr/local/share/perl/5.36.0 /usr/lib/x86_64-linux-gnu/perl5/5.36 /usr/share/perl5 /usr/lib/x86_64-linux-gnu/perl-base /usr/lib/x86_64-linux-gnu/perl/5.36 /usr/share/perl/5.36 /usr/local/lib/site_perl) at /usr/share/perl5/Debconf/FrontEnd/Readline.pm line 7.)
+2026-Jul-15 08:49:55.271921 #12 11.27 debconf: falling back to frontend: Teletype
+2026-Jul-15 08:49:55.271921 #12 11.79 Updating certificates in /etc/ssl/certs...
+2026-Jul-15 08:49:55.271921 #12 12.56 142 added, 0 removed; done.
+2026-Jul-15 08:49:55.271921 #12 12.59 Setting up libgssapi-krb5-2:amd64 (1.20.1-2+deb12u5) ...
+2026-Jul-15 08:49:55.271921 #12 12.61 Setting up libcurl4:amd64 (7.88.1-10+deb12u15) ...
+2026-Jul-15 08:49:55.271921 #12 12.62 Setting up curl (7.88.1-10+deb12u15) ...
+2026-Jul-15 08:49:55.271921 #12 12.64 Processing triggers for libc-bin (2.36-9+deb12u14) ...
+2026-Jul-15 08:49:55.271921 #12 12.67 Processing triggers for ca-certificates (20230311+deb12u1) ...
+2026-Jul-15 08:49:55.271921 #12 12.68 Updating certificates in /etc/ssl/certs...
+2026-Jul-15 08:49:55.271921 #12 13.29 0 added, 0 removed; done.
+2026-Jul-15 08:49:55.271921 #12 13.29 Running hooks in /etc/ca-certificates/update.d...
+2026-Jul-15 08:49:55.271921 #12 13.29 done.
+2026-Jul-15 08:49:55.271921 #12 DONE 13.8s
+2026-Jul-15 08:49:55.271921
+2026-Jul-15 08:49:55.271921 #13 [nexnum-worker runner 3/14] WORKDIR /app
+2026-Jul-15 08:49:55.271921 #13 DONE 0.1s
+2026-Jul-15 08:49:55.421974 #14 [nexnum-socket runner 4/14] RUN addgroup --system --gid 1001 nodejs
+2026-Jul-15 08:49:37.888551 #14 0.943 Adding group `nodejs' (GID 1001) ...
+2026-Jul-15 08:49:37.888551 #14 0.975 Done.
+2026-Jul-15 08:49:37.888551 #14 DONE 1.0s
+2026-Jul-15 08:49:37.888551
+2026-Jul-15 08:49:37.888551 #15 [nexnum-app runner 4/14] RUN addgroup --system --gid 1001 nodejs
+2026-Jul-15 08:49:37.888551 #15 0.915 Adding group `nodejs' (GID 1001) ...
+2026-Jul-15 08:49:37.888551 #15 0.947 Done.
+2026-Jul-15 08:49:37.888551 #15 DONE 1.0s
+2026-Jul-15 08:49:37.888551
+2026-Jul-15 08:49:37.888551 #11 [nexnum-socket deps 2/7] RUN apt-get update && apt-get install -y openssl libssl-dev libc6-dev ca-certificates && rm -rf /var/lib/apt/lists/*
+2026-Jul-15 08:49:37.888551 #11 32.29 Get:55 http://deb.debian.org/debian bookworm/main amd64 libssl-dev amd64 3.0.20-1~deb12u2 [2443 kB]
+2026-Jul-15 08:49:37.888551 #11 14.18 Get:56 http://deb.debian.org/debian bookworm/main amd64 manpages-dev all 6.03-2 [2030 kB]
+2026-Jul-15 08:49:37.888551 #11 14.63 debconf: delaying package configuration, since apt-utils is not installed
+2026-Jul-15 08:49:37.888551 #11 14.67 Fetched 28.2 MB in 6s (4638 kB/s)
+2026-Jul-15 08:49:37.888551 #11 14.71 Selecting previously unselected package libssl3:amd64.
+2026-Jul-15 08:49:37.888551 #11 14.71 (Reading database ... (Reading database ... 5% (Reading database ... 10% (Reading database ... 15% (Reading database ... 20% (Reading database ... 25% (Reading database ... 30% (Reading database ... 35% (Reading database ... 40% (Reading database ... 45% (Reading database ... 50% (Reading database ... 55% (Reading database ... 60% (Reading database ... 65% (Reading database ... 70% (Reading database ... 75% (Reading database ... 80% (Reading database ... 85% (Reading database ... 90% (Reading database ... 95% (Reading database ... 100% (Reading database ... 6096 files and directories currently installed.)
+2026-Jul-15 08:49:37.888551 #11 14.72 Preparing to unpack .../00-libssl3_3.0.20-1~deb12u2_amd64.deb ...
+2026-Jul-15 08:49:37.888551 #11 14.73 Unpacking libssl3:amd64 (3.0.20-1~deb12u2) ...
+2026-Jul-15 08:49:37.888551 #11 14.91 Selecting previously unselected package openssl.
+2026-Jul-15 08:49:38.045761 #11 14.91 Preparing to unpack .../01-openssl_3.0.20-1~deb12u2_amd64.deb ...
+2026-Jul-15 08:49:38.045761 #11 14.92 Unpacking openssl (3.0.20-1~deb12u2) ...
+2026-Jul-15 08:49:38.174827 #11 15.07 Selecting previously unselected package ca-certificates.
+2026-Jul-15 08:49:38.174827 #11 15.07 Preparing to unpack .../02-ca-certificates_20230311+deb12u1_all.deb ...
+2026-Jul-15 08:49:38.174827 #11 15.08 Unpacking ca-certificates (20230311+deb12u1) ...
+2026-Jul-15 08:49:38.174827 #11 15.15 Selecting previously unselected package krb5-locales.
+2026-Jul-15 08:49:38.174827 #11 15.15 Preparing to unpack .../03-krb5-locales_1.20.1-2+deb12u5_all.deb ...
+2026-Jul-15 08:49:38.174827 #11 15.16 Unpacking krb5-locales (1.20.1-2+deb12u5) ...
+2026-Jul-15 08:49:38.290968 #11 15.20 Selecting previously unselected package manpages.
+2026-Jul-15 08:49:38.290968 #11 15.20 Preparing to unpack .../04-manpages_6.03-2_all.deb ...
+2026-Jul-15 08:49:38.290968 #11 15.21 Unpacking manpages (6.03-2) ...
+2026-Jul-15 08:49:38.290968 #11 15.32 Selecting previously unselected package fonts-dejavu-core.
+2026-Jul-15 08:49:38.436674 #11 15.32 Preparing to unpack .../05-fonts-dejavu-core_2.37-6_all.deb ...
+2026-Jul-15 08:49:38.436674 #11 15.32 Unpacking fonts-dejavu-core (2.37-6) ...
+2026-Jul-15 08:49:38.436674 #11 15.46 Selecting previously unselected package fontconfig-config.
+2026-Jul-15 08:49:38.587556 #11 15.46 Preparing to unpack .../06-fontconfig-config_2.14.1-4_amd64.deb ...
+2026-Jul-15 08:49:38.587556 #11 15.61 Unpacking fontconfig-config (2.14.1-4) ...
+2026-Jul-15 08:49:38.737976 #11 15.67 Selecting previously unselected package libabsl20220623:amd64.
+2026-Jul-15 08:49:38.737976 #11 15.67 Preparing to unpack .../07-libabsl20220623_20220623.1-1+deb12u2_amd64.deb ...
+2026-Jul-15 08:49:38.737976 #11 15.68 Unpacking libabsl20220623:amd64 (20220623.1-1+deb12u2) ...
+2026-Jul-15 08:49:38.737976 #11 15.76 Selecting previously unselected package libaom3:amd64.
+2026-Jul-15 08:49:38.895124 #11 15.76 Preparing to unpack .../08-libaom3_3.6.0-1+deb12u2_amd64.deb ...
+2026-Jul-15 08:49:38.895124 #11 15.77 Unpacking libaom3:amd64 (3.6.0-1+deb12u2) ...
+2026-Jul-15 08:49:39.091842 #11 15.96 Selecting previously unselected package libdav1d6:amd64.
+2026-Jul-15 08:49:39.091842 #11 15.96 Preparing to unpack .../09-libdav1d6_1.0.0-2+deb12u1_amd64.deb ...
+2026-Jul-15 08:49:39.091842 #11 15.96 Unpacking libdav1d6:amd64 (1.0.0-2+deb12u1) ...
+2026-Jul-15 08:49:39.091842 #11 16.05 Selecting previously unselected package libgav1-1:amd64.
+2026-Jul-15 08:49:39.091842 #11 16.05 Preparing to unpack .../10-libgav1-1_0.18.0-1+b1_amd64.deb ...
+2026-Jul-15 08:49:39.091842 #11 16.05 Unpacking libgav1-1:amd64 (0.18.0-1+b1) ...
+2026-Jul-15 08:49:39.195684 #11 16.12 Selecting previously unselected package librav1e0:amd64.
+2026-Jul-15 08:49:39.195684 #11 16.12 Preparing to unpack .../11-librav1e0_0.5.1-6_amd64.deb ...
+2026-Jul-15 08:49:39.195684 #11 16.12 Unpacking librav1e0:amd64 (0.5.1-6) ...
+2026-Jul-15 08:49:39.195684 #11 16.22 Selecting previously unselected package libsvtav1enc1:amd64.
+2026-Jul-15 08:49:39.195684 #11 16.22 Preparing to unpack .../12-libsvtav1enc1_1.4.1+dfsg-1_amd64.deb ...
+2026-Jul-15 08:49:39.310073 #11 16.22 Unpacking libsvtav1enc1:amd64 (1.4.1+dfsg-1) ...
+2026-Jul-15 08:49:39.557504 #11 ...
+2026-Jul-15 08:49:39.557504
+2026-Jul-15 08:49:39.557504 #16 [nexnum-socket runner 5/13] RUN adduser --system --uid 1001 --ingroup nodejs --home /home/socket socket
+2026-Jul-15 08:49:39.557504 #16 1.515 Adding system user `socket' (UID 1001) ...
+2026-Jul-15 08:49:39.557504 #16 1.515 Adding new user `socket' (UID 1001) with group `nodejs' ...
+2026-Jul-15 08:49:39.557504 #16 1.548 useradd warning: socket's uid 1001 is greater than SYS_UID_MAX 999
+2026-Jul-15 08:49:39.557504 #16 1.581 Creating home directory `/home/socket' ...
+2026-Jul-15 08:49:39.557504 #16 DONE 1.6s
+2026-Jul-15 08:49:39.557504
+2026-Jul-15 08:49:39.557504 #17 [nexnum-app runner 5/14] RUN adduser --system --uid 1001 --ingroup nodejs --home /home/nextjs nextjs
+2026-Jul-15 08:49:39.557504 #17 1.512 Adding system user `nextjs' (UID 1001) ...
+2026-Jul-15 08:49:39.557504 #17 1.512 Adding new user `nextjs' (UID 1001) with group `nodejs' ...
+2026-Jul-15 08:49:39.557504 #17 1.549 useradd warning: nextjs's uid 1001 is greater than SYS_UID_MAX 999
+2026-Jul-15 08:49:39.557504 #17 1.582 Creating home directory `/home/nextjs' ...
+2026-Jul-15 08:49:39.557504 #17 DONE 1.6s
+2026-Jul-15 08:49:39.557504
+2026-Jul-15 08:49:39.557504 #18 [nexnum-worker runner 5/14] RUN adduser --system --uid 1001 --ingroup nodejs --home /home/worker worker
+2026-Jul-15 08:49:39.557504 #18 1.534 Adding system user `worker' (UID 1001) ...
+2026-Jul-15 08:49:39.557504 #18 1.534 Adding new user `worker' (UID 1001) with group `nodejs' ...
+2026-Jul-15 08:49:39.557504 #18 1.565 useradd warning: worker's uid 1001 is greater than SYS_UID_MAX 999
+2026-Jul-15 08:49:39.557504 #18 1.627 Creating home directory `/home/worker' ...
+2026-Jul-15 08:49:39.557504 #18 DONE 1.7s
+2026-Jul-15 08:49:39.557504
+2026-Jul-15 08:49:39.557504 #11 [nexnum-socket deps 2/7] RUN apt-get update && apt-get install -y openssl libssl-dev libc6-dev ca-certificates && rm -rf /var/lib/apt/lists/*
+2026-Jul-15 08:49:39.557504 #11 16.50 Selecting previously unselected package libjpeg62-turbo:amd64.
+2026-Jul-15 08:49:39.557504 #11 16.50 Preparing to unpack .../13-libjpeg62-turbo_1%3a2.1.5-2_amd64.deb ...
+2026-Jul-15 08:49:39.557504 #11 16.51 Unpacking libjpeg62-turbo:amd64 (1:2.1.5-2) ...
+2026-Jul-15 08:49:39.557504 #11 16.58 Selecting previously unselected package libyuv0:amd64.
+2026-Jul-15 08:49:39.674502 #11 16.58 Preparing to unpack .../14-libyuv0_0.0~git20230123.b2528b0-1_amd64.deb ...
+2026-Jul-15 08:49:39.674502 #11 16.59 Unpacking libyuv0:amd64 (0.0~git20230123.b2528b0-1) ...
+2026-Jul-15 08:49:39.674502 #11 16.64 Selecting previously unselected package libavif15:amd64.
+2026-Jul-15 08:49:39.674502 #11 16.64 Preparing to unpack .../15-libavif15_0.11.1-1+deb12u1_amd64.deb ...
+2026-Jul-15 08:49:39.674502 #11 16.65 Unpacking libavif15:amd64 (0.11.1-1+deb12u1) ...
+2026-Jul-15 08:49:39.785902 #11 16.70 Selecting previously unselected package libbrotli1:amd64.
+2026-Jul-15 08:49:39.785902 #11 16.70 Preparing to unpack .../16-libbrotli1_1.0.9-2+b6_amd64.deb ...
+2026-Jul-15 08:49:39.785902 #11 16.71 Unpacking libbrotli1:amd64 (1.0.9-2+b6) ...
+2026-Jul-15 08:49:39.785902 #11 16.77 Selecting previously unselected package libbsd0:amd64.
+2026-Jul-15 08:49:39.785902 #11 16.77 Preparing to unpack .../17-libbsd0_0.11.7-2_amd64.deb ...
+2026-Jul-15 08:49:39.785902 #11 16.77 Unpacking libbsd0:amd64 (0.11.7-2) ...
+2026-Jul-15 08:49:39.886369 #11 16.81 Selecting previously unselected package libc-dev-bin.
+2026-Jul-15 08:49:39.886369 #11 16.81 Preparing to unpack .../18-libc-dev-bin_2.36-9+deb12u14_amd64.deb ...
+2026-Jul-15 08:49:39.886369 #11 16.82 Unpacking libc-dev-bin (2.36-9+deb12u14) ...
+2026-Jul-15 08:49:39.886369 #11 16.86 Selecting previously unselected package libexpat1:amd64.
+2026-Jul-15 08:49:39.886369 #11 16.86 Preparing to unpack .../19-libexpat1_2.5.0-1+deb12u2_amd64.deb ...
+2026-Jul-15 08:49:39.886369 #11 16.87 Unpacking libexpat1:amd64 (2.5.0-1+deb12u2) ...
+2026-Jul-15 08:49:40.023114 #11 16.91 Selecting previously unselected package libpng16-16:amd64.
+2026-Jul-15 08:49:40.023114 #11 16.91 Preparing to unpack .../20-libpng16-16_1.6.39-2+deb12u5_amd64.deb ...
+2026-Jul-15 08:49:40.023114 #11 16.92 Unpacking libpng16-16:amd64 (1.6.39-2+deb12u5) ...
+2026-Jul-15 08:49:40.023114 #11 16.97 Selecting previously unselected package libfreetype6:amd64.
+2026-Jul-15 08:49:40.023114 #11 16.98 Preparing to unpack .../21-libfreetype6_2.12.1+dfsg-5+deb12u4_amd64.deb ...
+2026-Jul-15 08:49:40.023114 #11 16.98 Unpacking libfreetype6:amd64 (2.12.1+dfsg-5+deb12u4) ...
+2026-Jul-15 08:49:40.140217 #11 17.05 Selecting previously unselected package libfontconfig1:amd64.
+2026-Jul-15 08:49:40.140217 #11 17.05 Preparing to unpack .../22-libfontconfig1_2.14.1-4_amd64.deb ...
+2026-Jul-15 08:49:40.140217 #11 17.05 Unpacking libfontconfig1:amd64 (2.14.1-4) ...
+2026-Jul-15 08:49:40.140217 #11 17.11 Selecting previously unselected package libde265-0:amd64.
+2026-Jul-15 08:49:40.140217 #11 17.11 Preparing to unpack .../23-libde265-0_1.0.11-1+deb12u2_amd64.deb ...
+2026-Jul-15 08:49:40.140217 #11 17.11 Unpacking libde265-0:amd64 (1.0.11-1+deb12u2) ...
+2026-Jul-15 08:49:40.140217 #11 17.17 Selecting previously unselected package libnuma1:amd64.
+2026-Jul-15 08:49:40.343394 #11 17.17 Preparing to unpack .../24-libnuma1_2.0.16-1_amd64.deb ...
+2026-Jul-15 08:49:40.343394 #11 17.17 Unpacking libnuma1:amd64 (2.0.16-1) ...
+2026-Jul-15 08:49:40.343394 #11 17.21 Selecting previously unselected package libx265-199:amd64.
+2026-Jul-15 08:49:40.343394 #11 17.21 Preparing to unpack .../25-libx265-199_3.5-2+b1_amd64.deb ...
+2026-Jul-15 08:49:40.343394 #11 17.22 Unpacking libx265-199:amd64 (3.5-2+b1) ...
+2026-Jul-15 08:49:40.491876 #11 17.37 Selecting previously unselected package libheif1:amd64.
+2026-Jul-15 08:49:40.491876 #11 17.38 Preparing to unpack .../26-libheif1_1.15.1-1+deb12u1_amd64.deb ...
+2026-Jul-15 08:49:40.491876 #11 17.38 Unpacking libheif1:amd64 (1.15.1-1+deb12u1) ...
+2026-Jul-15 08:49:40.491876 #11 17.45 Selecting previously unselected package libdeflate0:amd64.
+2026-Jul-15 08:49:40.491876 #11 17.45 Preparing to unpack .../27-libdeflate0_1.14-1_amd64.deb ...
+2026-Jul-15 08:49:40.491876 #11 17.46 Unpacking libdeflate0:amd64 (1.14-1) ...
+2026-Jul-15 08:49:40.615664 #11 17.52 Selecting previously unselected package libjbig0:amd64.
+2026-Jul-15 08:49:40.615664 #11 17.52 Preparing to unpack .../28-libjbig0_2.1-6.1_amd64.deb ...
+2026-Jul-15 08:49:40.615664 #11 17.52 Unpacking libjbig0:amd64 (2.1-6.1) ...
+2026-Jul-15 08:49:40.615664 #11 17.58 Selecting previously unselected package liblerc4:amd64.
+2026-Jul-15 08:49:40.615664 #11 17.58 Preparing to unpack .../29-liblerc4_4.0.0+ds-2_amd64.deb ...
+2026-Jul-15 08:49:40.615664 #11 17.59 Unpacking liblerc4:amd64 (4.0.0+ds-2) ...
+2026-Jul-15 08:49:40.737668 #11 17.64 Selecting previously unselected package libwebp7:amd64.
+2026-Jul-15 08:49:40.737668 #11 17.64 Preparing to unpack .../30-libwebp7_1.2.4-0.2+deb12u1_amd64.deb ...
+2026-Jul-15 08:49:40.737668 #11 17.65 Unpacking libwebp7:amd64 (1.2.4-0.2+deb12u1) ...
+2026-Jul-15 08:49:40.737668 #11 17.71 Selecting previously unselected package libtiff6:amd64.
+2026-Jul-15 08:49:40.737668 #11 17.71 Preparing to unpack .../31-libtiff6_4.5.0-6+deb12u4_amd64.deb ...
+2026-Jul-15 08:49:40.737668 #11 17.71 Unpacking libtiff6:amd64 (4.5.0-6+deb12u4) ...
+2026-Jul-15 08:49:40.838290 #11 17.76 Selecting previously unselected package libxau6:amd64.
+2026-Jul-15 08:49:40.838290 #11 17.76 Preparing to unpack .../32-libxau6_1%3a1.0.9-1_amd64.deb ...
+2026-Jul-15 08:49:40.838290 #11 17.77 Unpacking libxau6:amd64 (1:1.0.9-1) ...
+2026-Jul-15 08:49:40.838290 #11 17.81 Selecting previously unselected package libxdmcp6:amd64.
+2026-Jul-15 08:49:40.838290 #11 17.81 Preparing to unpack .../33-libxdmcp6_1%3a1.1.2-3_amd64.deb ...
+2026-Jul-15 08:49:40.838290 #11 17.82 Unpacking libxdmcp6:amd64 (1:1.1.2-3) ...
+2026-Jul-15 08:49:40.838290 #11 17.86 Selecting previously unselected package libxcb1:amd64.
+2026-Jul-15 08:49:40.838290 #11 17.86 Preparing to unpack .../34-libxcb1_1.15-1_amd64.deb ...
+2026-Jul-15 08:49:40.992958 #11 17.87 Unpacking libxcb1:amd64 (1.15-1) ...
+2026-Jul-15 08:49:40.992958 #11 17.91 Selecting previously unselected package libx11-data.
+2026-Jul-15 08:49:40.992958 #11 17.91 Preparing to unpack .../35-libx11-data_2%3a1.8.4-2+deb12u2_all.deb ...
+2026-Jul-15 08:49:40.992958 #11 17.92 Unpacking libx11-data (2:1.8.4-2+deb12u2) ...
+2026-Jul-15 08:49:41.096768 #11 18.02 Selecting previously unselected package libx11-6:amd64.
+2026-Jul-15 08:49:41.096768 #11 18.02 Preparing to unpack .../36-libx11-6_2%3a1.8.4-2+deb12u2_amd64.deb ...
+2026-Jul-15 08:49:41.096768 #11 18.03 Unpacking libx11-6:amd64 (2:1.8.4-2+deb12u2) ...
+2026-Jul-15 08:49:41.096768 #11 18.12 Selecting previously unselected package libxpm4:amd64.
+2026-Jul-15 08:49:41.096768 #11 18.12 Preparing to unpack .../37-libxpm4_1%3a3.5.12-1.1+deb12u1_amd64.deb ...
+2026-Jul-15 08:49:41.096768 #11 18.12 Unpacking libxpm4:amd64 (1:3.5.12-1.1+deb12u1) ...
+2026-Jul-15 08:49:41.229055 #11 18.17 Selecting previously unselected package libgd3:amd64.
+2026-Jul-15 08:49:41.229055 #11 18.17 Preparing to unpack .../38-libgd3_2.3.3-9_amd64.deb ...
+2026-Jul-15 08:49:41.229055 #11 18.17 Unpacking libgd3:amd64 (2.3.3-9) ...
+2026-Jul-15 08:49:41.229055 #11 18.21 Selecting previously unselected package libc-devtools.
+2026-Jul-15 08:49:41.229055 #11 18.21 Preparing to unpack .../39-libc-devtools_2.36-9+deb12u14_amd64.deb ...
+2026-Jul-15 08:49:41.229055 #11 18.22 Unpacking libc-devtools (2.36-9+deb12u14) ...
+2026-Jul-15 08:49:41.385813 #11 18.25 Selecting previously unselected package linux-libc-dev:amd64.
+2026-Jul-15 08:49:41.385813 #11 18.26 Preparing to unpack .../40-linux-libc-dev_6.1.176-1_amd64.deb ...
+2026-Jul-15 08:49:41.385813 #11 18.26 Unpacking linux-libc-dev:amd64 (6.1.176-1) ...
+2026-Jul-15 08:49:41.538225 #11 18.56 Selecting previously unselected package libcrypt-dev:amd64.
+2026-Jul-15 08:49:41.669245 #11 ...
+2026-Jul-15 08:49:41.669245
+2026-Jul-15 08:49:41.669245 #19 [nexnum-socket runner 6/13] RUN mkdir -p /home/socket/.npm && chown -R socket:nodejs /home/socket
+2026-Jul-15 08:49:41.669245 #19 DONE 2.1s
+2026-Jul-15 08:49:41.669245
+2026-Jul-15 08:49:41.669245 #20 [nexnum-worker runner 6/14] RUN mkdir -p /home/worker/.npm && chown -R worker:nodejs /home/worker
+2026-Jul-15 08:49:41.669245 #20 DONE 2.1s
+2026-Jul-15 08:49:41.669245
+2026-Jul-15 08:49:41.669245 #21 [nexnum-app runner 6/14] RUN mkdir -p /home/nextjs/.npm && chown -R nextjs:nodejs /home/nextjs
+2026-Jul-15 08:49:41.669245 #21 DONE 2.1s
+2026-Jul-15 08:49:41.669245
+2026-Jul-15 08:49:41.669245 #11 [nexnum-socket deps 2/7] RUN apt-get update && apt-get install -y openssl libssl-dev libc6-dev ca-certificates && rm -rf /var/lib/apt/lists/*
+2026-Jul-15 08:49:41.669245 #11 18.57 Preparing to unpack .../41-libcrypt-dev_1%3a4.4.33-2_amd64.deb ...
+2026-Jul-15 08:49:41.669245 #11 18.58 Unpacking libcrypt-dev:amd64 (1:4.4.33-2) ...
+2026-Jul-15 08:49:41.669245 #11 18.64 Selecting previously unselected package libkrb5support0:amd64.
+2026-Jul-15 08:49:41.669245 #11 18.64 Preparing to unpack .../42-libkrb5support0_1.20.1-2+deb12u5_amd64.deb ...
+2026-Jul-15 08:49:41.669245 #11 18.65 Unpacking libkrb5support0:amd64 (1.20.1-2+deb12u5) ...
+2026-Jul-15 08:49:41.778700 #11 18.69 Selecting previously unselected package libk5crypto3:amd64.
+2026-Jul-15 08:49:41.778700 #11 18.70 Preparing to unpack .../43-libk5crypto3_1.20.1-2+deb12u5_amd64.deb ...
+2026-Jul-15 08:49:41.778700 #11 18.70 Unpacking libk5crypto3:amd64 (1.20.1-2+deb12u5) ...
+2026-Jul-15 08:49:41.778700 #11 18.75 Selecting previously unselected package libkeyutils1:amd64.
+2026-Jul-15 08:49:41.778700 #11 18.76 Preparing to unpack .../44-libkeyutils1_1.6.3-2_amd64.deb ...
+2026-Jul-15 08:49:41.778700 #11 18.76 Unpacking libkeyutils1:amd64 (1.6.3-2) ...
+2026-Jul-15 08:50:00.332981 #11 18.80 Selecting previously unselected package libkrb5-3:amd64.
+2026-Jul-15 08:50:00.332981 #11 18.81 Preparing to unpack .../45-libkrb5-3_1.20.1-2+deb12u5_amd64.deb ...
+2026-Jul-15 08:50:00.332981 #11 18.81 Unpacking libkrb5-3:amd64 (1.20.1-2+deb12u5) ...
+2026-Jul-15 08:50:00.332981 #11 18.88 Selecting previously unselected package libgssapi-krb5-2:amd64.
+2026-Jul-15 08:50:00.332981 #11 18.88 Preparing to unpack .../46-libgssapi-krb5-2_1.20.1-2+deb12u5_amd64.deb ...
+2026-Jul-15 08:50:00.332981 #11 37.31 Unpacking libgssapi-krb5-2:amd64 (1.20.1-2+deb12u5) ...
+2026-Jul-15 08:50:00.443873 #11 37.36 Selecting previously unselected package libtirpc-common.
+2026-Jul-15 08:50:00.443873 #11 37.36 Preparing to unpack .../47-libtirpc-common_1.3.3+ds-1_all.deb ...
+2026-Jul-15 08:50:00.443873 #11 37.37 Unpacking libtirpc-common (1.3.3+ds-1) ...
+2026-Jul-15 08:50:00.443873 #11 37.41 Selecting previously unselected package libtirpc3:amd64.
+2026-Jul-15 08:50:00.443873 #11 37.41 Preparing to unpack .../48-libtirpc3_1.3.3+ds-1_amd64.deb ...
+2026-Jul-15 08:50:00.443873 #11 37.42 Unpacking libtirpc3:amd64 (1.3.3+ds-1) ...
+2026-Jul-15 08:49:42.150181 #11 37.47 Selecting previously unselected package libnsl2:amd64.
+2026-Jul-15 08:49:42.150181 #11 37.47 Preparing to unpack .../49-libnsl2_1.3.0-2_amd64.deb ...
+2026-Jul-15 08:49:42.150181 #11 37.48 Unpacking libnsl2:amd64 (1.3.0-2) ...
+2026-Jul-15 08:49:42.150181 #11 19.11 Selecting previously unselected package libtirpc-dev:amd64.
+2026-Jul-15 08:49:42.150181 #11 19.11 Preparing to unpack .../50-libtirpc-dev_1.3.3+ds-1_amd64.deb ...
+2026-Jul-15 08:49:42.150181 #11 19.12 Unpacking libtirpc-dev:amd64 (1.3.3+ds-1) ...
+2026-Jul-15 08:49:42.252391 #11 19.18 Selecting previously unselected package libnsl-dev:amd64.
+2026-Jul-15 08:49:42.252391 #11 19.18 Preparing to unpack .../51-libnsl-dev_1.3.0-2_amd64.deb ...
+2026-Jul-15 08:49:42.252391 #11 19.18 Unpacking libnsl-dev:amd64 (1.3.0-2) ...
+2026-Jul-15 08:49:42.252391 #11 19.22 Selecting previously unselected package rpcsvc-proto.
+2026-Jul-15 08:49:42.252391 #11 19.22 Preparing to unpack .../52-rpcsvc-proto_1.4.3-1_amd64.deb ...
+2026-Jul-15 08:49:42.252391 #11 19.23 Unpacking rpcsvc-proto (1.4.3-1) ...
+2026-Jul-15 08:49:42.252391 #11 19.27 Selecting previously unselected package libc6-dev:amd64.
+2026-Jul-15 08:49:42.252391 #11 19.27 Preparing to unpack .../53-libc6-dev_2.36-9+deb12u14_amd64.deb ...
+2026-Jul-15 08:49:42.252391 #11 19.28 Unpacking libc6-dev:amd64 (2.36-9+deb12u14) ...
+2026-Jul-15 08:49:42.634797 #11 19.50 Selecting previously unselected package libssl-dev:amd64.
+2026-Jul-15 08:49:42.634797 #11 19.50 Preparing to unpack .../54-libssl-dev_3.0.20-1~deb12u2_amd64.deb ...
+2026-Jul-15 08:49:42.634797 #11 19.51 Unpacking libssl-dev:amd64 (3.0.20-1~deb12u2) ...
+2026-Jul-15 08:49:42.845235 #11 19.71 Selecting previously unselected package manpages-dev.
+2026-Jul-15 08:49:42.845235 #11 19.71 Preparing to unpack .../55-manpages-dev_6.03-2_all.deb ...
+2026-Jul-15 08:49:42.845235 #11 19.72 Unpacking manpages-dev (6.03-2) ...
+2026-Jul-15 08:49:42.919781 #11 19.95 Setting up libexpat1:amd64 (2.5.0-1+deb12u2) ...
+2026-Jul-15 08:49:43.030482 #11 19.96 Setting up libaom3:amd64 (3.6.0-1+deb12u2) ...
+2026-Jul-15 08:49:43.030482 #11 19.97 Setting up libabsl20220623:amd64 (20220623.1-1+deb12u2) ...
+2026-Jul-15 08:49:43.030482 #11 19.99 Setting up libxau6:amd64 (1:1.0.9-1) ...
+2026-Jul-15 08:49:43.030482 #11 20.00 Setting up libkeyutils1:amd64 (1.6.3-2) ...
+2026-Jul-15 08:49:43.030482 #11 20.01 Setting up liblerc4:amd64 (4.0.0+ds-2) ...
+2026-Jul-15 08:49:43.030482 #11 20.03 Setting up manpages (6.03-2) ...
+2026-Jul-15 08:49:43.030482 #11 20.04 Setting up libtirpc-common (1.3.3+ds-1) ...
+2026-Jul-15 08:49:43.136458 #11 20.06 Setting up libbrotli1:amd64 (1.0.9-2+b6) ...
+2026-Jul-15 08:49:43.136458 #11 20.07 Setting up libssl3:amd64 (3.0.20-1~deb12u2) ...
+2026-Jul-15 08:49:43.136458 #11 20.08 Setting up libdeflate0:amd64 (1.14-1) ...
+2026-Jul-15 08:49:43.136458 #11 20.10 Setting up linux-libc-dev:amd64 (6.1.176-1) ...
+2026-Jul-15 08:49:43.136458 #11 20.11 Setting up krb5-locales (1.20.1-2+deb12u5) ...
+2026-Jul-15 08:49:43.136458 #11 20.12 Setting up libsvtav1enc1:amd64 (1.4.1+dfsg-1) ...
+2026-Jul-15 08:49:43.136458 #11 20.14 Setting up libjbig0:amd64 (2.1-6.1) ...
+2026-Jul-15 08:49:43.136458 #11 20.15 Setting up librav1e0:amd64 (0.5.1-6) ...
+2026-Jul-15 08:49:43.136458 #11 20.16 Setting up libkrb5support0:amd64 (1.20.1-2+deb12u5) ...
+2026-Jul-15 08:49:43.294575 #11 20.18 Setting up rpcsvc-proto (1.4.3-1) ...
+2026-Jul-15 08:49:43.294575 #11 20.19 Setting up libjpeg62-turbo:amd64 (1:2.1.5-2) ...
+2026-Jul-15 08:49:43.294575 #11 20.21 Setting up libx11-data (2:1.8.4-2+deb12u2) ...
+2026-Jul-15 08:49:43.294575 #11 20.22 Setting up libssl-dev:amd64 (3.0.20-1~deb12u2) ...
+2026-Jul-15 08:49:43.294575 #11 20.24 Setting up libpng16-16:amd64 (1.6.39-2+deb12u5) ...
+2026-Jul-15 08:49:43.294575 #11 20.25 Setting up fonts-dejavu-core (2.37-6) ...
+2026-Jul-15 08:49:43.396725 #11 20.32 Setting up libgav1-1:amd64 (0.18.0-1+b1) ...
+2026-Jul-15 08:49:43.396725 #11 20.33 Setting up libk5crypto3:amd64 (1.20.1-2+deb12u5) ...
+2026-Jul-15 08:49:43.396725 #11 20.35 Setting up libdav1d6:amd64 (1.0.0-2+deb12u1) ...
+2026-Jul-15 08:49:43.396725 #11 20.36 Setting up libwebp7:amd64 (1.2.4-0.2+deb12u1) ...
+2026-Jul-15 08:49:43.396725 #11 20.37 Setting up libnuma1:amd64 (2.0.16-1) ...
+2026-Jul-15 08:49:43.396725 #11 20.39 Setting up libcrypt-dev:amd64 (1:4.4.33-2) ...
+2026-Jul-15 08:49:43.396725 #11 20.41 Setting up libtiff6:amd64 (4.5.0-6+deb12u4) ...
+2026-Jul-15 08:49:43.509113 #11 20.42 Setting up libkrb5-3:amd64 (1.20.1-2+deb12u5) ...
+2026-Jul-15 08:49:43.509113 #11 20.44 Setting up libde265-0:amd64 (1.0.11-1+deb12u2) ...
+2026-Jul-15 08:49:43.509113 #11 20.45 Setting up libc-dev-bin (2.36-9+deb12u14) ...
+2026-Jul-15 08:49:43.509113 #11 20.46 Setting up openssl (3.0.20-1~deb12u2) ...
+2026-Jul-15 08:49:43.509113 #11 20.48 Setting up libbsd0:amd64 (0.11.7-2) ...
+2026-Jul-15 08:49:43.509113 #11 20.50 Setting up libyuv0:amd64 (0.0~git20230123.b2528b0-1) ...
+2026-Jul-15 08:49:43.509113 #11 20.52 Setting up manpages-dev (6.03-2) ...
+2026-Jul-15 08:49:43.509113 #11 20.53 Setting up libxdmcp6:amd64 (1:1.1.2-3) ...
+2026-Jul-15 08:49:43.627291 #11 20.55 Setting up libxcb1:amd64 (1.15-1) ...
+2026-Jul-15 08:49:43.627291 #11 20.56 Setting up libavif15:amd64 (0.11.1-1+deb12u1) ...
+2026-Jul-15 08:49:43.627291 #11 20.58 Setting up fontconfig-config (2.14.1-4) ...
+2026-Jul-15 08:49:43.627291 #11 20.65 debconf: unable to initialize frontend: Dialog
+2026-Jul-15 08:49:43.627291 #11 20.65 debconf: (TERM is not set, so the dialog frontend is not usable.)
+2026-Jul-15 08:49:43.627291 #11 20.65 debconf: falling back to frontend: Readline
+2026-Jul-15 08:49:43.778523 #11 20.65 debconf: unable to initialize frontend: Readline
+2026-Jul-15 08:49:43.778523 #11 20.65 debconf: (Can't locate Term/ReadLine.pm in @INC (you may need to install the Term::ReadLine module) (@INC contains: /etc/perl /usr/local/lib/x86_64-linux-gnu/perl/5.36.0 /usr/local/share/perl/5.36.0 /usr/lib/x86_64-linux-gnu/perl5/5.36 /usr/share/perl5 /usr/lib/x86_64-linux-gnu/perl-base /usr/lib/x86_64-linux-gnu/perl/5.36 /usr/share/perl/5.36 /usr/local/lib/site_perl) at /usr/share/perl5/Debconf/FrontEnd/Readline.pm line 7.)
+2026-Jul-15 08:49:43.778523 #11 20.65 debconf: falling back to frontend: Teletype
+2026-Jul-15 08:49:43.794800 #11 20.81 Setting up ca-certificates (20230311+deb12u1) ...
+2026-Jul-15 08:49:44.012114 #11 20.89 debconf: unable to initialize frontend: Dialog
+2026-Jul-15 08:49:44.012114 #11 20.89 debconf: (TERM is not set, so the dialog frontend is not usable.)
+2026-Jul-15 08:49:44.012114 #11 20.89 debconf: falling back to frontend: Readline
+2026-Jul-15 08:49:44.012114 #11 20.89 debconf: unable to initialize frontend: Readline
+2026-Jul-15 08:49:44.012114 #11 20.89 debconf: (Can't locate Term/ReadLine.pm in @INC (you may need to install the Term::ReadLine module) (@INC contains: /etc/perl /usr/local/lib/x86_64-linux-gnu/perl/5.36.0 /usr/local/share/perl/5.36.0 /usr/lib/x86_64-linux-gnu/perl5/5.36 /usr/share/perl5 /usr/lib/x86_64-linux-gnu/perl-base /usr/lib/x86_64-linux-gnu/perl/5.36 /usr/share/perl/5.36 /usr/local/lib/site_perl) at /usr/share/perl5/Debconf/FrontEnd/Readline.pm line 7.)
+2026-Jul-15 08:49:44.012114 #11 20.89 debconf: falling back to frontend: Teletype
+2026-Jul-15 08:49:44.496522 #11 21.37 Updating certificates in /etc/ssl/certs...
+2026-Jul-15 08:49:45.149862 #11 22.06 142 added, 0 removed; done.
+2026-Jul-15 08:49:45.149862 #11 22.11 Setting up libfreetype6:amd64 (2.12.1+dfsg-5+deb12u4) ...
+2026-Jul-15 08:49:45.149862 #11 22.12 Setting up libgssapi-krb5-2:amd64 (1.20.1-2+deb12u5) ...
+2026-Jul-15 08:49:45.149862 #11 22.14 Setting up libx265-199:amd64 (3.5-2+b1) ...
+2026-Jul-15 08:49:45.149862 #11 22.15 Setting up libx11-6:amd64 (2:1.8.4-2+deb12u2) ...
+2026-Jul-15 08:49:45.149862 #11 22.16 Setting up libfontconfig1:amd64 (2.14.1-4) ...
+2026-Jul-15 08:49:45.149862 #11 22.18 Setting up libtirpc3:amd64 (1.3.3+ds-1) ...
+2026-Jul-15 08:49:45.252221 #11 22.19 Setting up libxpm4:amd64 (1:3.5.12-1.1+deb12u1) ...
+2026-Jul-15 08:49:45.252221 #11 22.21 Setting up libheif1:amd64 (1.15.1-1+deb12u1) ...
+2026-Jul-15 08:49:45.252221 #11 22.22 Setting up libtirpc-dev:amd64 (1.3.3+ds-1) ...
+2026-Jul-15 08:49:45.252221 #11 22.23 Setting up libgd3:amd64 (2.3.3-9) ...
+2026-Jul-15 08:49:45.252221 #11 22.25 Setting up libnsl2:amd64 (1.3.0-2) ...
+2026-Jul-15 08:49:45.252221 #11 22.26 Setting up libc-devtools (2.36-9+deb12u14) ...
+2026-Jul-15 08:49:45.474381 #11 22.28 Setting up libnsl-dev:amd64 (1.3.0-2) ...
+2026-Jul-15 08:49:45.474381 #11 22.29 Setting up libc6-dev:amd64 (2.36-9+deb12u14) ...
+2026-Jul-15 08:49:45.474381 #11 22.31 Processing triggers for libc-bin (2.36-9+deb12u14) ...
+2026-Jul-15 08:49:45.474381 #11 22.34 Processing triggers for ca-certificates (20230311+deb12u1) ...
+2026-Jul-15 08:49:45.474381 #11 22.35 Updating certificates in /etc/ssl/certs...
+2026-Jul-15 08:49:45.973627 #11 22.88 0 added, 0 removed; done.
+2026-Jul-15 08:49:45.973627 #11 22.88 Running hooks in /etc/ca-certificates/update.d...
+2026-Jul-15 08:49:45.973627 #11 22.88 done.
+2026-Jul-15 08:49:46.103724 #11 DONE 23.0s
+2026-Jul-15 08:49:46.103724
+2026-Jul-15 08:49:46.103724 #22 [nexnum-socket deps 3/7] WORKDIR /app
+2026-Jul-15 08:49:46.103724 #22 DONE 0.1s
+2026-Jul-15 08:49:46.103724
+2026-Jul-15 08:49:46.103724 #23 [nexnum-socket deps 4/7] COPY package.json package-lock.json ./
+2026-Jul-15 08:49:46.258218 #23 DONE 0.1s
+2026-Jul-15 08:49:46.258218
+2026-Jul-15 08:49:46.258218 #24 [nexnum-socket deps 5/7] RUN --mount=type=cache,target=/root/.npm NODE_ENV=development npm ci --legacy-peer-deps
+2026-Jul-15 08:50:05.323062 #24 19.23 (node:7) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2026-Jul-15 08:50:05.323062 #24 19.23 (Use `node --trace-warnings ...` to show where the warning was created)
+2026-Jul-15 08:49:54.275570 #24 8.185 npm warn deprecated rimraf@3.0.2: Rimraf versions prior to v4 are no longer supported
+2026-Jul-15 08:49:57.636741 #24 11.55 npm warn deprecated node-domexception@1.0.0: Use your platform's native DOMException instead
+2026-Jul-15 08:49:58.982810 #24 12.74 npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
+2026-Jul-15 08:50:05.132418 #24 18.89 npm warn deprecated eslint@8.57.1: This version is no longer supported. Please see https://eslint.org/version-support for other options.
+2026-Jul-15 08:52:24.602393 #24 158.5 npm warn deprecated @humanwhocodes/object-schema@2.0.3: Use @eslint/object-schema instead
+2026-Jul-15 08:52:24.792979 #24 158.6 npm warn deprecated @humanwhocodes/config-array@0.13.0: Use @eslint/config-array instead
+2026-Jul-15 08:52:38.194817 #24 172.1 npm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+2026-Jul-15 08:53:04.453780 #24 198.4 npm error code ECONNRESET
+2026-Jul-15 08:53:04.453780 #24 198.4 npm error network Client network socket disconnected before secure TLS connection was established
+2026-Jul-15 08:53:04.453780 #24 198.4 npm error network This is a problem related to network connectivity.
+2026-Jul-15 08:53:04.453780 #24 198.4 npm error network In most cases you are behind a proxy or have bad network settings.
+2026-Jul-15 08:53:04.453780 #24 198.4 npm error network
+2026-Jul-15 08:53:04.453780 #24 198.4 npm error network If you are behind a proxy, please make sure that the
+2026-Jul-15 08:53:04.453780 #24 198.4 npm error network 'proxy' config is set properly. See: 'npm help config'
+2026-Jul-15 08:53:04.607430 #24 198.4 npm notice
+2026-Jul-15 08:53:04.607430 #24 198.4 npm notice New major version of npm available! 10.9.8 -> 12.0.1
+2026-Jul-15 08:53:04.607430 #24 198.4 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.1
+2026-Jul-15 08:53:04.607430 #24 198.4 npm notice To update run:<REDACTED>@12.0.1
+2026-Jul-15 08:53:04.607430 #24 198.4 npm notice
+2026-Jul-15 08:53:04.607430 #24 198.4 npm error A complete log of this run can be found in: /root/.npm/_logs/2026-07-15T08_49_46_629Z-debug-0.log
+2026-Jul-15 08:53:05.119682 #24 ERROR: process "/bin/sh -c NODE_ENV=development npm ci --legacy-peer-deps" did not complete successfully: exit code: 1
+2026-Jul-15 08:53:05.411552 ------
+2026-Jul-15 08:53:05.411552 > [nexnum-app deps 5/7] RUN --mount=type=cache,target=/root/.npm NODE_ENV=development npm ci --legacy-peer-deps:
+2026-Jul-15 08:53:05.411552 198.4 npm error network In most cases you are behind a proxy or have bad network settings.
+2026-Jul-15 08:53:05.411552 198.4 npm error network
+2026-Jul-15 08:53:05.411552 198.4 npm error network If you are behind a proxy, please make sure that the
+2026-Jul-15 08:53:05.411552 198.4 npm error network 'proxy' config is set properly. See: 'npm help config'
+2026-Jul-15 08:53:05.411552 198.4 npm notice
+2026-Jul-15 08:53:05.411552 198.4 npm notice New major version of npm available! 10.9.8 -> 12.0.1
+2026-Jul-15 08:53:05.411552 198.4 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.1
+2026-Jul-15 08:53:05.411552 198.4 npm notice To update run:<REDACTED>@12.0.1
+2026-Jul-15 08:53:05.411552 198.4 npm notice
+2026-Jul-15 08:53:05.411552 198.4 npm error A complete log of this run can be found in: /root/.npm/_logs/2026-07-15T08_49_46_629Z-debug-0.log
+2026-Jul-15 08:53:05.411552 ------
+2026-Jul-15 08:53:05.429690 target nexnum-socket: failed to solve: process "/bin/sh -c NODE_ENV=development npm ci --legacy-peer-deps" did not complete successfully: exit code: 1
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 122 /usr/local/bin/dockerd --config-file /run/config/docker/daemon.json
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 github.com/moby/buildkit/executor/runcexecutor.exitError
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 /root/build-deb/engine/vendor/github.com/moby/buildkit/executor/runcexecutor/executor.go:434
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 github.com/moby/buildkit/executor/runcexecutor.(*runcExecutor).Run
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 /root/build-deb/engine/vendor/github.com/moby/buildkit/executor/runcexecutor/executor.go:382
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 github.com/moby/buildkit/solver/llbsolver/ops.(*ExecOp).Exec
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 /root/build-deb/engine/vendor/github.com/moby/buildkit/solver/llbsolver/ops/exec.go:524
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 github.com/moby/buildkit/solver.(*sharedOp).Exec.func2
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 /root/build-deb/engine/vendor/github.com/moby/buildkit/solver/jobs.go:1242
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 github.com/moby/buildkit/util/flightcontrol.(*call[...]).run
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 /root/build-deb/engine/vendor/github.com/moby/buildkit/util/flightcontrol/flightcontrol.go:122
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 sync.(*Once).doSlow
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 /usr/local/go/src/sync/once.go:78
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 sync.(*Once).Do
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 /usr/local/go/src/sync/once.go:69
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 runtime.goexit
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 /usr/local/go/src/runtime/asm_amd64.s:1771
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 251 v0.25.0 /root/.docker/cli-plugins/docker-buildx bake --file - --progress rawjson --metadata-file /tmp/compose-build-metadataFile-1217541212.json --allow fs.read=/artifacts/v1bcwvjlxcfpajsio56ensou/nexnum-app --allow fs.read=/artifacts/v1bcwvjlxcfpajsio56ensou/nexnum-app --allow fs.read=/artifacts/v1bcwvjlxcfpajsio56ensou/nexnum-app
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 google.golang.org/grpc.(*ClientConn).Invoke
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 google.golang.org/grpc@v1.72.2/call.go:35
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 github.com/moby/buildkit/api/services/control.(*controlClient).Solve
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 github.com/moby/buildkit@v0.23.0/api/services/control/control_grpc.pb.go:88
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 github.com/moby/buildkit/client.(*Client).solve.func2
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 github.com/moby/buildkit@v0.23.0/client/solve.go:268
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 golang.org/x/sync/errgroup.(*Group).add.func1
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 golang.org/x/sync@v0.14.0/errgroup/errgroup.go:130
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 runtime.goexit
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 runtime/asm_amd64.s:1700
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 251 v0.25.0 /root/.docker/cli-plugins/docker-buildx bake --file - --progress rawjson --metadata-file /tmp/compose-build-metadataFile-1217541212.json --allow fs.read=/artifacts/v1bcwvjlxcfpajsio56ensou/nexnum-app --allow fs.read=/artifacts/v1bcwvjlxcfpajsio56ensou/nexnum-app --allow fs.read=/artifacts/v1bcwvjlxcfpajsio56ensou/nexnum-app
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 github.com/docker/buildx/build.BuildWithResultHandler.func1.5.2
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 github.com/docker/buildx/build/build.go:619
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 github.com/docker/buildx/build.BuildWithResultHandler.func1.5
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 github.com/docker/buildx/build/build.go:625
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 golang.org/x/sync/errgroup.(*Group).add.func1
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 golang.org/x/sync@v0.14.0/errgroup/errgroup.go:130
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 122 /usr/local/bin/dockerd --config-file /run/config/docker/daemon.json
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 github.com/moby/buildkit/solver.(*edge).execOp
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 /root/build-deb/engine/vendor/github.com/moby/buildkit/solver/edge.go:963
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 github.com/moby/buildkit/solver/internal/pipe.NewWithFunction[...].func2
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 /root/build-deb/engine/vendor/github.com/moby/buildkit/solver/internal/pipe/pipe.go:78
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 runtime.goexit
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 /usr/local/go/src/runtime/asm_amd64.s:1771
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 251 v0.25.0 /root/.docker/cli-plugins/docker-buildx bake --file - --progress rawjson --metadata-file /tmp/compose-build-metadataFile-1217541212.json --allow fs.read=/artifacts/v1bcwvjlxcfpajsio56ensou/nexnum-app --allow fs.read=/artifacts/v1bcwvjlxcfpajsio56ensou/nexnum-app --allow fs.read=/artifacts/v1bcwvjlxcfpajsio56ensou/nexnum-app
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 github.com/moby/buildkit/client.(*Client).solve.func2
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 github.com/moby/buildkit@v0.23.0/client/solve.go:285
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 golang.org/x/sync/errgroup.(*Group).add.func1
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 golang.org/x/sync@v0.14.0/errgroup/errgroup.go:130
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 122 /usr/local/bin/dockerd --config-file /run/config/docker/daemon.json
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 github.com/moby/buildkit/solver/llbsolver/ops.(*ExecOp).Exec
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 /root/build-deb/engine/vendor/github.com/moby/buildkit/solver/llbsolver/ops/exec.go:555
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 github.com/moby/buildkit/solver.(*sharedOp).Exec.func2
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 /root/build-deb/engine/vendor/github.com/moby/buildkit/solver/jobs.go:1242
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690
+2026-Jul-15 08:53:05.429690 exit status 1
+2026-Jul-15 08:53:05.504594 ========================================
+2026-Jul-15 08:53:05.528721 Deployment failed: Command execution failed (exit code 1): docker exec v1bcwvjlxcfpajsio56ensou bash -c 'DOCKER_BUILDKIT=1 COOLIFY_BRANCH='\''main'\'' COOLIFY_RESOURCE_UUID=ohac8gyc2fze9vgyvqbgpf7a docker compose --env-file /artifacts/build-time.env --project-name ohac8gyc2fze9vgyvqbgpf7a --project-directory /artifacts/v1bcwvjlxcfpajsio56ensou/nexnum-app -f /artifacts/v1bcwvjlxcfpajsio56ensou/nexnum-app/docker-compose.yml build --pull --build-arg COOLIFY_FQDN --build-arg DATABASE_URL_DIRECT --build-arg MEILISEARCH_API_KEY --build-arg MEILISEARCH_HOST --build-arg DIRECT_URL --build-arg REDIS_PASSWORD --build-arg JWT_SECRET --build-arg JWT_EXPIRES_IN --build-arg ADMIN_API_KEY --build-arg NEXTAUTH_SECRET --build-arg SMS_FINGERPRINT_SECRET --build-arg FINGERPRINT_SALT --build-arg CSRF_SECRET --build-arg NEXT_PUBLIC_APP_URL --build-arg NEXTAUTH_URL --build-arg JWT_REFRESH_EXPIRES_IN --build-arg ENCRYPTION_KEY --build-arg CRON_SECRET --build-arg TELEGRAM_BOT_TOKEN --build-arg TELEGRAM_ADMIN_CHANNEL --build-arg SMTP_HOST --build-arg SMTP_PORT --build-arg SMTP_USER --build-arg SMTP_PASS --build-arg ALERT_WEBHOOK_SECRET --build-arg METRICS_SCRAPE_TOKEN --build-arg VAPID_PRIVATE_KEY --build-arg VAPID_SUBJECT --build-arg GOOGLE_CLIENT_ID --build-arg GOOGLE_CLIENT_SECRET --build-arg FIVESIM_API_KEY --build-arg HERO_SMS_API_KEY --build-arg NEXT_PUBLIC_VAPID_PUBLIC_KEY --build-arg ONLINESIM_API_KEY --build-arg FREEIMAGE_API_KEY --build-arg IMGE_API_KEY --build-arg NEXT_PUBLIC_HCAPTCHA_SITEKEY --build-arg HCAPTCHA_SECRET --build-arg UPI_PROVIDER_MODE --build-arg SMSBOWER_API_KEY --build-arg GRIZZLYSMS_API_KEY --build-arg UPI_CHECK_STATUS_URL --build-arg UPI_QR_BASE_URL --build-arg UPI_WEBHOOK_URL --build-arg UPI_ORDER_TIMEOUT_MINUTES --build-arg UPI_MIN_AMOUNT --build-arg UPI_MAX_AMOUNT --build-arg DAILY_SPEND_LIMIT --build-arg UPI_API_TOKEN --build-arg UPI_CREATE_ORDER_URL --build-arg MAX_ACTIVE_NUMBERS --build-arg MAX_SMS_PER_ACTIVATION --build-arg RESERVATION_TTL_MS --build-arg MIN_REFUND_AGE_MS --build-arg STUCK_THRESHOLD_MS --build-arg PROVIDER_TIMEOUT_MS --build-arg NUMBER_LIFETIME_MS --build-arg GRACE_PERIOD_MS --build-arg WORKER_BATCH_SIZE --build-arg MAX_PURCHASE_AMOUNT --build-arg MIN_PURCHASE_AMOUNT --build-arg POLL_INTERVAL_MS --build-arg RECONCILE_INTERVAL_MS --build-arg CLEANUP_INTERVAL_MS --build-arg ENABLE_MOCK_PROVIDER --build-arg DEBUG --build-arg MAINTENANCE_MODE --build-arg ENABLE_SMS_FINGERPRINTING --build-arg ENABLE_HEALTH_MONITORING --build-arg NEXT_PUBLIC_SOCKET_ENABLED --build-arg WORKER_CONCURRENCY --build-arg DEFAULT_MARKUP_PERCENT --build-arg MIN_PRICE_USD --build-arg MAX_PRICE_USD --build-arg PRICE_PRECISION --build-arg EXCHANGE_RATE_USD --build-arg EXCHANGE_RATE_INR --build-arg EXCHANGE_RATE_RUB --build-arg EXCHANGE_RATE_EUR --build-arg EXCHANGE_RATE_GBP --build-arg OUTBOX_WORKER_ENABLED --build-arg DEPOSIT_TAX_PERCENT --build-arg DEPOSIT_MARKUP_PERCENT --build-arg RATE_LIMIT_WINDOW_MS --build-arg RATE_LIMIT_MAX --build-arg TRUST_PROXY --build-arg NEXT_TELEMETRY_DISABLED --build-arg PRISMA_CLIENT_ENGINE_TYPE --build-arg PRISMA_CLI_QUERY_ENGINE_TYPE --build-arg NODE_TLS_REJECT_UNAUTHORIZED --build-arg EXCHANGE_RATE_CNY --build-arg DATABASE_URL --build-arg FROM_EMAIL --build-arg COOLIFY_BUILD_SECRETS_HASH=1a057453ed33437ffc24233cefe13a1dc639a05e7d5c9f69908cbb6d96d738bc'
+2026-Jul-15 08:53:05.528721 Error: target nexnum-socket: failed to solve: process "/bin/sh -c NODE_ENV=development npm ci --legacy-peer-deps" did not complete successfully: exit code: 1
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 122 /usr/local/bin/dockerd --config-file /run/config/docker/daemon.json
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 github.com/moby/buildkit/executor/runcexecutor.exitError
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 /root/build-deb/engine/vendor/github.com/moby/buildkit/executor/runcexecutor/executor.go:434
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 github.com/moby/buildkit/executor/runcexecutor.(*runcExecutor).Run
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 /root/build-deb/engine/vendor/github.com/moby/buildkit/executor/runcexecutor/executor.go:382
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 github.com/moby/buildkit/solver/llbsolver/ops.(*ExecOp).Exec
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 /root/build-deb/engine/vendor/github.com/moby/buildkit/solver/llbsolver/ops/exec.go:524
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 github.com/moby/buildkit/solver.(*sharedOp).Exec.func2
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 /root/build-deb/engine/vendor/github.com/moby/buildkit/solver/jobs.go:1242
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 github.com/moby/buildkit/util/flightcontrol.(*call[...]).run
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 /root/build-deb/engine/vendor/github.com/moby/buildkit/util/flightcontrol/flightcontrol.go:122
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 sync.(*Once).doSlow
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 /usr/local/go/src/sync/once.go:78
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 sync.(*Once).Do
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 /usr/local/go/src/sync/once.go:69
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 runtime.goexit
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 /usr/local/go/src/runtime/asm_amd64.s:1771
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 251 v0.25.0 /root/.docker/cli-plugins/docker-buildx bake --file - --progress rawjson --metadata-file /tmp/compose-build-metadataFile-1217541212.json --allow fs.read=/artifacts/v1bcwvjlxcfpajsio56ensou/nexnum-app --allow fs.read=/artifacts/v1bcwvjlxcfpajsio56ensou/nexnum-app --allow fs.read=/artifacts/v1bcwvjlxcfpajsio56ensou/nexnum-app
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 google.golang.org/grpc.(*ClientConn).Invoke
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 google.golang.org/grpc@v1.72.2/call.go:35
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 github.com/moby/buildkit/api/services/control.(*controlClient).Solve
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 github.com/moby/buildkit@v0.23.0/api/services/control/control_grpc.pb.go:88
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 github.com/moby/buildkit/client.(*Client).solve.func2
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 github.com/moby/buildkit@v0.23.0/client/solve.go:268
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 golang.org/x/sync/errgroup.(*Group).add.func1
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 golang.org/x/sync@v0.14.0/errgroup/errgroup.go:130
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 runtime.goexit
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 runtime/asm_amd64.s:1700
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 251 v0.25.0 /root/.docker/cli-plugins/docker-buildx bake --file - --progress rawjson --metadata-file /tmp/compose-build-metadataFile-1217541212.json --allow fs.read=/artifacts/v1bcwvjlxcfpajsio56ensou/nexnum-app --allow fs.read=/artifacts/v1bcwvjlxcfpajsio56ensou/nexnum-app --allow fs.read=/artifacts/v1bcwvjlxcfpajsio56ensou/nexnum-app
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 github.com/docker/buildx/build.BuildWithResultHandler.func1.5.2
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 github.com/docker/buildx/build/build.go:619
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 github.com/docker/buildx/build.BuildWithResultHandler.func1.5
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 github.com/docker/buildx/build/build.go:625
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 golang.org/x/sync/errgroup.(*Group).add.func1
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 golang.org/x/sync@v0.14.0/errgroup/errgroup.go:130
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 122 /usr/local/bin/dockerd --config-file /run/config/docker/daemon.json
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 github.com/moby/buildkit/solver.(*edge).execOp
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 /root/build-deb/engine/vendor/github.com/moby/buildkit/solver/edge.go:963
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 github.com/moby/buildkit/solver/internal/pipe.NewWithFunction[...].func2
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 /root/build-deb/engine/vendor/github.com/moby/buildkit/solver/internal/pipe/pipe.go:78
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 runtime.goexit
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 /usr/local/go/src/runtime/asm_amd64.s:1771
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 251 v0.25.0 /root/.docker/cli-plugins/docker-buildx bake --file - --progress rawjson --metadata-file /tmp/compose-build-metadataFile-1217541212.json --allow fs.read=/artifacts/v1bcwvjlxcfpajsio56ensou/nexnum-app --allow fs.read=/artifacts/v1bcwvjlxcfpajsio56ensou/nexnum-app --allow fs.read=/artifacts/v1bcwvjlxcfpajsio56ensou/nexnum-app
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 github.com/moby/buildkit/client.(*Client).solve.func2
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 github.com/moby/buildkit@v0.23.0/client/solve.go:285
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 golang.org/x/sync/errgroup.(*Group).add.func1
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 golang.org/x/sync@v0.14.0/errgroup/errgroup.go:130
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 122 /usr/local/bin/dockerd --config-file /run/config/docker/daemon.json
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 github.com/moby/buildkit/solver/llbsolver/ops.(*ExecOp).Exec
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 /root/build-deb/engine/vendor/github.com/moby/buildkit/solver/llbsolver/ops/exec.go:555
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 github.com/moby/buildkit/solver.(*sharedOp).Exec.func2
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 /root/build-deb/engine/vendor/github.com/moby/buildkit/solver/jobs.go:1242
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721
+2026-Jul-15 08:53:05.528721 exit status 1
+2026-Jul-15 08:53:05.553880 Error type: App\Exceptions\DeploymentException
+2026-Jul-15 08:53:05.578010 Error code: 0
+2026-Jul-15 08:53:05.602148 Location: /var/www/html/app/Traits/ExecuteRemoteCommand.php:242
+2026-Jul-15 08:53:05.626821 Stack trace (first 5 lines):
+2026-Jul-15 08:53:05.650792 #0 /var/www/html/app/Traits/ExecuteRemoteCommand.php(106): App\Jobs\ApplicationDeploymentJob->executeCommandWithProcess()
+2026-Jul-15 08:53:05.674599 #1 /var/www/html/vendor/laravel/framework/src/Illuminate/Collections/Traits/EnumeratesValues.php(275): App\Jobs\ApplicationDeploymentJob->{closure:App\Traits\ExecuteRemoteCommand::execute_remote_command():72}()
+2026-Jul-15 08:53:05.698738 #2 /var/www/html/app/Traits/ExecuteRemoteCommand.php(72): Illuminate\Support\Collection->each()
+2026-Jul-15 08:53:05.723401 #3 /var/www/html/app/Jobs/ApplicationDeploymentJob.php(773): App\Jobs\ApplicationDeploymentJob->execute_remote_command()
+2026-Jul-15 08:53:05.748580 #4 /var/www/html/app/Jobs/ApplicationDeploymentJob.php(497): App\Jobs\ApplicationDeploymentJob->deploy_docker_compose_buildpack()

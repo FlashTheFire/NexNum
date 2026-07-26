@@ -1,0 +1,17 @@
+# Pyrefly configuration for FlashSmsRobot
+# Scopes analysis to the project root and suppresses false positives caused by
+# the host Windows Python not having Docker-installed packages.
+
+project_root = "."
+
+# Tell Pyrefly which source directories to analyse
+include = ["bot_project"]
+search_paths = ["bot_project", "nexnum-bot/bot_project", "nexnum-bot", "."]
+
+# Packages installed inside Docker that the host Python does not have.
+# Listing them here prevents "Cannot find module" false positives.
+ignore_missing_imports = true
+
+# Suppress the not-async and missing-import false positives.
+[[error_codes]]
+disable = ["not-async", "missing-import"]

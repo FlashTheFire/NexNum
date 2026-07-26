@@ -1,16 +1,16 @@
-# Production Docker Compose
-# For self-hosted or VPS deployments
+# Production Docker Compose (Monorepo Root)
+# For self-hosted, VPS, or Coolify deployments
 
 name: nexnum
 
 services:
   # ============================================
-  # Main Application
+  # Main Web Application & API
   # ============================================
   nexnum-app:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.app
       args:
         DATABASE_URL: ${DATABASE_URL}
         DATABASE_URL_DIRECT: ${DATABASE_URL_DIRECT}
@@ -27,6 +27,8 @@ services:
       NEXT_PUBLIC_SOCKET_URL: ${NEXT_PUBLIC_SOCKET_URL}
     env_file:
       - .env
+    ports:
+      - "3000:3000"
     depends_on:
       redis:
         condition: service_healthy
@@ -61,6 +63,8 @@ services:
       NODE_ENV: production
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       MEILISEARCH_HOST: http://meilisearch:7700
+      TELEGRAM_BOT_TOKEN: ${BOT_TOKEN}
+      ZOMBIE_ALERT_CHAT_ID: ${ADMIN_ID}
     env_file:
       - .env
     depends_on:
@@ -94,8 +98,11 @@ services:
       NODE_ENV: production
       PORT: 3951
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      MEILISEARCH_HOST: http://meilisearch:7700
     env_file:
       - .env
+    ports:
+      - "127.0.0.1:3951:3951"
     depends_on:
       redis:
         condition: service_healthy
@@ -115,16 +122,17 @@ services:
   # Redis (Production)
   # ============================================
   redis:
-    image: redis:7-alpine
+    image: redis/redis-stack-server:latest
     container_name: nexnum-redis
-    command: redis-server --save 60 1 --loglevel warning --requirepass ${REDIS_PASSWORD:-strongpassword}
-    # ports:
-    #   - "6379:6379"
+    environment:
+      REDIS_ARGS: "--requirepass ${REDIS_PASSWORD:-strongpassword} --save 60 1"
     volumes:
       - redis_data:/data
     restart: unless-stopped
     env_file:
       - .env
+    ports:
+      - "127.0.0.1:6379:6379"
     healthcheck:
       test: [ "CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-strongpassword}", "ping" ]
       interval: 10s
@@ -141,18 +149,44 @@ services:
       MEILI_MASTER_KEY: ${MEILISEARCH_API_KEY:-masterkey}
       MEILI_ENV: development
       MEILI_NO_ANALYTICS: true
-    # ports:
-    #   - "7700:7700"
     volumes:
       - meili_data:/meili_data
     restart: unless-stopped
     env_file:
       - .env
+    ports:
+      - "127.0.0.1:7700:7700"
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:7700/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
+
+  # ============================================
+  # NexNum Telegram Bot
+  # ============================================
+  nexnum-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile.bot
+    image: nexnum-bot
+    container_name: nexnum-bot
+    restart: unless-stopped
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-strongpassword}
+      DATABASE_URL: ${DATABASE_URL}
+      NEXNUM_API_URL: http://nexnum-app:3000
+      ENABLE_PROVIDER_SYNC: ${ENABLE_PROVIDER_SYNC:-true}
+      NEXNUM_API_KEY: ${NEXNUM_API_KEY:-nxn_live_-YbCKi0hkPq1W4PQfn_GRAYUMYfdUYkr}
+    env_file:
+      - .env
+    depends_on:
+      nexnum-app:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
 # ============================================
 # Volumes
@@ -164,7 +198,7 @@ volumes:
     driver: local
 
 # ============================================
-# Networks (optional, for isolation)
+# Networks
 # ============================================
 networks:
   default:

@@ -1,6 +1,5 @@
 # ==============================================================================
-# NexNum Main API Dockerfile (Optimized)
-# Strategy: Debian Build (Stability) -> Debian Runner (Consistency)
+# NexNum Main API Dockerfile (Monorepo Root)
 # ==============================================================================
 
 # Stage 1: Dependencies
@@ -8,17 +7,15 @@ FROM node:22-bookworm-slim AS deps
 RUN apt-get update && apt-get install -y openssl libssl-dev libc6-dev ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
-COPY package.json package-lock.json ./
+COPY nexnum-app/package*.json ./
 RUN --mount=type=cache,target=/root/.npm NODE_ENV=development npm ci --legacy-peer-deps --timeout=600000 --fetch-retries=5 --fetch-retry-mintimeout=20000 --fetch-retry-maxtimeout=120000
 
-# Prisma 7 requires prisma.config.ts alongside the schema for `prisma generate`
-# and `prisma migrate deploy` to resolve the datasource URL.
-COPY prisma/schema.prisma prisma/schema.prisma
-COPY prisma.config.ts ./prisma.config.ts
-ARG DATABASE_URL
-ARG DATABASE_URL_DIRECT
-ENV DATABASE_URL=${DATABASE_URL}
-ENV DATABASE_URL_DIRECT=${DATABASE_URL_DIRECT}
+COPY nexnum-app/prisma/schema.prisma prisma/schema.prisma
+COPY nexnum-app/prisma.config.ts ./prisma.config.ts
+ARG DATABASE_URL="postgresql://postgres:postgres@localhost:5432/postgres"
+ARG DATABASE_URL_DIRECT="postgresql://postgres:postgres@localhost:5432/postgres"
+ENV DATABASE_URL=${DATABASE_URL:-"postgresql://postgres:postgres@localhost:5432/postgres"}
+ENV DATABASE_URL_DIRECT=${DATABASE_URL_DIRECT:-"postgresql://postgres:postgres@localhost:5432/postgres"}
 RUN npx prisma generate
 
 
@@ -31,14 +28,9 @@ ENV JWT_SECRET=placeholder_for_build_must_be_32_chars_long
 ENV ENCRYPTION_KEY=placeholder_for_build_must_be_32_chars_long
 ENV HOME=/tmp
 
-COPY . .
+COPY nexnum-app .
 
-# Build with persistent Next.js cache across Docker builds
 RUN --mount=type=cache,target=/app/.next/cache npm run build:skip-types
-
-# Prune dev dependencies — removes ~100MB of eslint, typescript, vitest, playwright, etc.
-# --prefer-offline + --no-audit cut ~60-90s off on a fresh cache (Coolify helper has a
-# per-command timeout; this step is the bottleneck on a 2-core build host).
 RUN --mount=type=cache,target=/root/.npm npm prune --omit=dev --legacy-peer-deps --prefer-offline --no-audit
 
 
@@ -54,18 +46,14 @@ RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 --ingroup nodejs --home /home/nextjs nextjs
 RUN mkdir -p /home/nextjs/.npm && chown -R nextjs:nodejs /home/nextjs
 
-# Copy built artifacts from standalone build
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-
-# Copy Prisma schema and config for migrations
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 COPY --from=builder --chown=nextjs:nodejs /app/prisma.config.ts ./prisma.config.ts
+COPY --from=builder --chown=nextjs:nodejs /app/docker-entrypoint.sh ./docker-entrypoint.sh
 
-# Copy startup script that runs migrations then starts server
-COPY --chown=nextjs:nodejs docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x docker-entrypoint.sh
 
 USER nextjs
@@ -75,14 +63,6 @@ ENV HOSTNAME="0.0.0.0"
 ENV HOME=/home/nextjs
 ENV npm_config_cache=/home/nextjs/.npm
 
-# Runtime env is supplied by the orchestrator (Coolify/docker-compose
-# env_file) at container start, NOT pinned into the image. Pinned ARG/ENV
-# blocks here are redundant and were removed because Coolify's pre-build
-# ARG injection was corrupting multi-line `ENV ... \` continuations with
-# parser errors like `Syntax error - can't find = in "ARG"`.
-
-# Health check: grace period 60s to let Next.js + Prisma warm up,
-# timeout 10s so a slow DB read doesn't trip the check.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 CMD curl -f http://localhost:3000/api/health || exit 1
 
-CMD ["./docker-entrypoint.sh"]
+ENTRYPOINT ["sh", "./docker-entrypoint.sh"]

@@ -142,7 +142,7 @@ export async function actionGetNumber(
     const denied = requirePerm(ctx.apiKey, 'numbers')
     if (denied) return denied
 
-    if (!params.service || !params.country) {
+    if (!params.service || !params.country || !params.operator) {
         return plain('BAD_SERVICE', 200)
     }
 

@@ -1,15 +1,34 @@
-# Dependencies
+# =============================================
+# NEXNUM — UNIFIED .gitignore
+# =============================================
+# This single .gitignore covers both nexnum-app (Next.js) and nexnum-bot (Python/Telegram bot).
+
+# --- Dependencies ---
 node_modules/
 .pnp/
 .pnp.js
+.pnp.*
+.pdm-python
+.python-version
 
-# Next.js
+# --- Python (nexnum-bot) ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+.venv/
+*.egg-info/
+dist/
+*.egg
+
+# --- Next.js (nexnum-app) ---
 .next/
 out/
 next-env.d.ts
 *.tsbuildinfo
 
-# Build Output
+# --- Build Output ---
 build/
 dist/
 *.exe
@@ -17,7 +36,7 @@ dist/
 *.so
 *.dylib
 
-# Debug & Logs
+# --- Debug & Logs ---
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -30,16 +49,16 @@ lerna-debug.log*
 node_modules_bak/
 .node_repl_history
 
-# Local Environment Files
+# --- Environment Files ---
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
-.env*
+.env.*.local
 ! .env.example
 
-# IDE & Editor
+# --- IDE & Editor ---
 .idea/
 .vscode/
 .serena/
@@ -48,10 +67,8 @@ node_modules_bak/
 *.sublime-project
 *.sublime-workspace
 .history/
-.pdm-python
-.python-version
 
-# OS Specific
+# --- OS Specific ---
 .DS_Store
 .DS_Store?
 ._*
@@ -61,28 +78,51 @@ ehthumbs.db
 Thumbs.db
 desktop.ini
 
-# Testing
+# --- Testing ---
 coverage/
 .nyc_output
+.testsprite
+.playwright
 
-# Sentry
-.sentryclirc
-
-# Infrastructure Security
+# --- Infrastructure Security ---
 *.pem
 *.key
 *.pub
 
-# Tests
-.testsprite
-.playwright
+# --- Sentry ---
+.sentryclirc
+
+# --- Agent / Cache Artifacts ---
 .agent
+/cache
+project.local.yml
 
-# Local log files
-/logs
-
-# Stitch design artifacts (local-only)
+# --- Stitch Design (local-only) ---
 /.stitch/
 /.stitch/**
 nexnum-app/.stitch/
 nexnum-app/.stitch/**
+
+# ======== nexnum-bot specific ========
+
+# Bot session files
+nexnum-bot/sessions/
+nexnum-bot/*.session
+nexnum-bot/**/*.session
+
+# Bot user data  
+nexnum-bot/user_accounts.json
+
+# Bot images (generated/cached)
+nexnum-bot/bot_project/images/current/*.jpg
+
+# Log files
+nexnum-bot/application.log
+nexnum-bot/support.log
+nexnum-bot/bot_project/support.log
+
+# Bot update script
+nexnum-bot/fsupdate-safe.sh
+
+# Docker user
+nexnum-bot/.dockerignore

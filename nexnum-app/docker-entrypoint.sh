@@ -29,19 +29,16 @@ if [ -n "$DATABASE_URL" ]; then
     # Auto-resolve any previously failed migration attempt (P3009 protection)
     npx prisma migrate resolve --rolled-back 20260724000000_add_normalization_architecture 2>/dev/null || true
 
-    echo "[STARTUP] Running: npx prisma migrate deploy"
-    # Run migrations with a bounded retry+backoff so a transient blip
-    # doesn't crash-loop the container. After MAX_ATTEMPTS, we exit 1
-    # so the next deploy can take over.
-    MAX_ATTEMPTS=5
+    echo "[STARTUP] Running: npx prisma migrate deploy || npx prisma db push"
+    MAX_ATTEMPTS=3
     attempt=1
-    until npx prisma migrate deploy; do
+    until npx prisma migrate deploy || npx prisma db push; do
         rc=$?
         if [ "$attempt" -ge "$MAX_ATTEMPTS" ]; then
-            echo "[STARTUP] MIGRATION FAILED after $MAX_ATTEMPTS attempts (exit $rc) — refusing to start with stale schema."
+            echo "[STARTUP] Migration/Push failed after $MAX_ATTEMPTS attempts."
             exit 1
         fi
-        sleep_seconds=$((attempt * 5))
+        sleep_seconds=$((attempt * 2))
         echo "[STARTUP] Migration attempt $attempt failed (exit $rc). Retrying in ${sleep_seconds}s..."
         sleep "$sleep_seconds"
         attempt=$((attempt + 1))

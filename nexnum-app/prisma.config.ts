@@ -1,4 +1,8 @@
-import "dotenv/config";
+import dotenv from 'dotenv';
+import path from 'path';
+
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
+dotenv.config();
 import { defineConfig, env } from '@prisma/config';
 
 export default defineConfig({
@@ -18,7 +22,11 @@ export default defineConfig({
     // The runtime pg.Pool in src/lib/core/db.ts still uses DATABASE_URL
     // (also the session-mode pooler) via the driver adapter.
     datasource: {
-        url: env("DATABASE_URL") + (env("DATABASE_URL").includes("pgbouncer=true") ? "" : "?pgbouncer=true"),
+        url: env("DATABASE_URL").includes("pgbouncer=true")
+            ? env("DATABASE_URL")
+            : (env("DATABASE_URL").includes("?")
+                ? `${env("DATABASE_URL")}&pgbouncer=true`
+                : `${env("DATABASE_URL")}?pgbouncer=true`),
         // shadowDatabaseUrl is only required for `prisma migrate dev`.
         // Optional for `migrate deploy` / `migrate reset` in production.
         shadowDatabaseUrl: process.env.SHADOW_DATABASE_URL,
