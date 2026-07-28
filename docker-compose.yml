@@ -128,13 +128,14 @@ services:
           memory: 256M
 
   # ============================================
-  # Redis (Production)
+  # Redis (Production with RediSearch)
   # ============================================
   redis:
-    image: redis:7-alpine
+    image: redis/redis-stack-server:latest
     container_name: nexnum-redis
     environment:
-      REDIS_ARGS: "--requirepass ${REDIS_PASSWORD} --save 900 1"
+      REDIS_ARGS: "--requirepass ${REDIS_PASSWORD:-4807afac74c98db34a06d9c50158a83b87746b4b2e47273e20495dbb92f85811} --save 900 1"
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-4807afac74c98db34a06d9c50158a83b87746b4b2e47273e20495dbb92f85811}
     volumes:
       - redis_data:/data
     restart: unless-stopped
@@ -143,7 +144,7 @@ services:
     ports:
       - "127.0.0.1:6379:6379"
     healthcheck:
-      test: [ "CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping" ]
+      test: [ "CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-4807afac74c98db34a06d9c50158a83b87746b4b2e47273e20495dbb92f85811}", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -199,7 +200,7 @@ services:
     environment:
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-4807afac74c98db34a06d9c50158a83b87746b4b2e47273e20495dbb92f85811}
       DATABASE_URL: ${DATABASE_URL}
       NEXNUM_API_URL: http://nexnum-app:3000
       ENABLE_PROVIDER_SYNC: ${ENABLE_PROVIDER_SYNC:-true}
