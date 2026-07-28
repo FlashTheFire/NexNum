@@ -1070,8 +1070,8 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                         serviceVisibilityMap.get(serviceCode.toLowerCase()) !== false
                     const isActive = isCountryVisible && isServiceVisible
 
-                    let svcName = serviceMap.get(serviceCode) || serviceMap.get(serviceCode.toLowerCase())
-                    if (!svcName || svcName === serviceCode) {
+                    let svcName = (serviceMap.get(serviceCode) || serviceMap.get(serviceCode.toLowerCase()) || sample.service || serviceCode || '').trim()
+                    if (!svcName) {
                         noServiceNameCount++
                         continue
                     }
