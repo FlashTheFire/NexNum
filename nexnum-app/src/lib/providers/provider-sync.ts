@@ -933,43 +933,56 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
         // sync, services sync, and price-indexing loop all share them.
 
             // Track valid country external IDs / codes / names / canonical codes from getCountriesList()
+            // Track valid country external IDs / codes / names / canonical codes from getCountriesList()
             const validCountryCodes = new Set<string>()
+            const addCleanCountry = (val: string) => {
+                if (!val) return
+                const lower = val.toLowerCase().trim()
+                validCountryCodes.add(lower)
+                const clean = lower.replace(/[^a-z0-9]/g, '')
+                if (clean) validCountryCodes.add(clean)
+            }
+
             for (const c of countries) {
                 if (c.code != null && String(c.code).trim()) {
-                    const codeStr = String(c.code).toLowerCase().trim()
-                    validCountryCodes.add(codeStr)
-                    const iso = getCountryIsoCode(c.code)?.toLowerCase()
-                    if (iso) validCountryCodes.add(iso)
+                    addCleanCountry(String(c.code))
+                    const iso = getCountryIsoCode(c.code)
+                    if (iso) addCleanCountry(iso)
                 }
                 if ((c as any).id != null) {
-                    validCountryCodes.add(String((c as any).id).toLowerCase().trim())
+                    addCleanCountry(String((c as any).id))
                 }
                 if (c.name != null && String(c.name).trim()) {
-                    const nameStr = String(c.name).toLowerCase().trim()
-                    validCountryCodes.add(nameStr)
-                    const cName = getCanonicalName(c.name).toLowerCase()
-                    if (cName) validCountryCodes.add(cName)
+                    addCleanCountry(String(c.name))
+                    const cName = getCanonicalName(c.name)
+                    if (cName) addCleanCountry(cName)
                     const cCode = generateCanonicalCode(cName)
-                    if (cCode) validCountryCodes.add(cCode)
+                    if (cCode) addCleanCountry(cCode)
                 }
             }
 
             // Track valid service codes / names / canonical codes from getServicesList()
             const validServiceCodes = new Set<string>()
+            const addCleanService = (val: string) => {
+                if (!val) return
+                const lower = val.toLowerCase().trim()
+                validServiceCodes.add(lower)
+                const clean = lower.replace(/[^a-z0-9]/g, '')
+                if (clean) validServiceCodes.add(clean)
+            }
+
             for (const s of services) {
                 if (s.code != null && String(s.code).trim()) {
-                    const codeStr = String(s.code).toLowerCase().trim()
-                    validServiceCodes.add(codeStr)
-                    const cCode = generateCanonicalCode(codeStr)
-                    if (cCode) validServiceCodes.add(cCode)
+                    addCleanService(String(s.code))
+                    const cCode = generateCanonicalCode(String(s.code))
+                    if (cCode) addCleanService(cCode)
                 }
                 if (s.name != null && String(s.name).trim()) {
-                    const nameStr = String(s.name).toLowerCase().trim()
-                    validServiceCodes.add(nameStr)
-                    const cName = getCanonicalName(s.name).toLowerCase()
-                    if (cName) validServiceCodes.add(cName)
+                    addCleanService(String(s.name))
+                    const cName = getCanonicalName(s.name)
+                    if (cName) addCleanService(cName)
                     const cCode = generateCanonicalCode(cName)
-                    if (cCode) validServiceCodes.add(cCode)
+                    if (cCode) addCleanService(cCode)
                 }
             }
 
@@ -985,7 +998,9 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                     const countryCode = p.country || currentCountryCode
 
                     // STRICT FILTER: skip offers whose country is not present in getCountriesList()
-                    if (validCountryCodes.size > 0 && countryCode && !validCountryCodes.has(String(countryCode).toLowerCase())) {
+                    const normCty = String(countryCode).toLowerCase().trim()
+                    const cleanCty = normCty.replace(/[^a-z0-9]/g, '')
+                    if (validCountryCodes.size > 0 && countryCode && !validCountryCodes.has(normCty) && !validCountryCodes.has(cleanCty)) {
                         logger.warn(`[SYNC] Skipping price: country code/ID '${countryCode}' not present in getCountriesList()`, {
                             context: 'SYNC',
                             provider: provider.name,
@@ -996,7 +1011,9 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                     }
 
                     // STRICT FILTER: skip offers whose service code is not present in getServicesList()
-                    if (validServiceCodes.size > 0 && p.service && !validServiceCodes.has(String(p.service).toLowerCase())) {
+                    const normSvc = String(p.service).toLowerCase().trim()
+                    const cleanSvc = normSvc.replace(/[^a-z0-9]/g, '')
+                    if (validServiceCodes.size > 0 && p.service && !validServiceCodes.has(normSvc) && !validServiceCodes.has(cleanSvc)) {
                         logger.warn(`[SYNC] Skipping price: service code '${p.service}' not present in getServicesList()`, {
                             context: 'SYNC',
                             provider: provider.name,
