@@ -119,7 +119,7 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
         if (!currentOffer) return ResponseFactory.error('No providers available for this route', 404, 'E_NO_ROUTE')
     }
 
-    const freshPrice = currentOffer.price
+    const freshPrice = Number(currentOffer.pointPrice ?? currentOffer.price ?? 0)
     const serviceName = currentOffer.serviceName
     const countryName = currentOffer.countryName
     let providerName = currentOffer.provider || 'unknown'
