@@ -8,10 +8,10 @@
 // ============================================
 export const LimitsConfig = {
     /** Maximum daily spend per user in USD */
-    dailySpend: parseFloat(process.env.DAILY_SPEND_LIMIT || '1000'),
+    dailySpend: parseFloat(process.env.DAILY_SPEND_LIMIT || '10000'),
 
     /** Maximum single purchase amount in USD */
-    maxPurchase: parseFloat(process.env.MAX_PURCHASE_AMOUNT || '50'),
+    maxPurchase: parseFloat(process.env.MAX_PURCHASE_AMOUNT || '100'),
 
     /** Minimum purchase amount in USD */
     minPurchase: parseFloat(process.env.MIN_PURCHASE_AMOUNT || '0.01'),
@@ -20,7 +20,7 @@ export const LimitsConfig = {
     maxActiveNumbers: parseInt(process.env.MAX_ACTIVE_NUMBERS || '10', 10),
 
     /** Maximum SMS messages per activation */
-    maxSmsPerActivation: parseInt(process.env.MAX_SMS_PER_ACTIVATION || '5', 10),
+    maxSmsPerActivation: parseInt(process.env.MAX_SMS_PER_ACTIVATION || '50', 10),
 } as const
 
 // ============================================

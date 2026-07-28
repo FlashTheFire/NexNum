@@ -45,11 +45,11 @@ export const envSchema = z.object({
 
 
     // ── Limits ────────────────────────────────
-    DAILY_SPEND_LIMIT: positiveNumber.default(100),
-    MAX_PURCHASE_AMOUNT: positiveNumber.default(50),
+    DAILY_SPEND_LIMIT: positiveNumber.default(10000),
+    MAX_PURCHASE_AMOUNT: positiveNumber.default(100),
     MIN_PURCHASE_AMOUNT: positiveNumber.default(0.01),
     MAX_ACTIVE_NUMBERS: z.coerce.number().int().positive().default(10),
-    MAX_SMS_PER_ACTIVATION: z.coerce.number().int().positive().default(5),
+    MAX_SMS_PER_ACTIVATION: z.coerce.number().int().positive().default(50),
 
     // ── Timeouts (milliseconds) ───────────────
     RESERVATION_TTL_MS: z.coerce.number().int().positive().default(300000),
