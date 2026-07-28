@@ -79,7 +79,7 @@ class DatabaseAdapter:
         """
         if not self.pool:
             return False
-        sql_file = _bot_project_dir / "migrations" / "001_redis_to_pg.sql"
+        sql_file = _bot_project_dir / "migrations" / "bot_schema.sql"
         if not sql_file.exists():
             logger.warning(f"Bot schema migration file not found at {sql_file}")
             return False
