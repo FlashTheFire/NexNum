@@ -135,18 +135,39 @@ export class CentralRegistry {
       update: {},
     })
 
+    // Ensure parent ProviderService record exists
+    const providerService = await (prisma as any).providerService.upsert({
+      where: {
+        providerId_externalId: {
+          providerId: provider.id,
+          externalId,
+        },
+      },
+      create: {
+        providerId: provider.id,
+        externalId,
+        code: match.canonicalCode || externalId,
+        name: rawName,
+        isActive: true,
+      },
+      update: {
+        name: rawName,
+        lastSyncAt: new Date(),
+      },
+    })
+
     const confidence = method === 'AUTO_FUZZY' ? match.confidence : 1.0
 
     await (prisma as any).providerServiceMapping.upsert({
       where: {
         providerId_providerServiceId: {
           providerId: provider.id,
-          providerServiceId: externalId,
+          providerServiceId: providerService.id,
         },
       },
       create: {
         providerId: provider.id,
-        providerServiceId: externalId,
+        providerServiceId: providerService.id,
         canonicalServiceId: match.canonicalId,
         confidence,
         matchMethod: method,
@@ -186,18 +207,39 @@ export class CentralRegistry {
       update: {},
     })
 
+    // Ensure parent ProviderCountry record exists
+    const providerCountry = await (prisma as any).providerCountry.upsert({
+      where: {
+        providerId_externalId: {
+          providerId: provider.id,
+          externalId,
+        },
+      },
+      create: {
+        providerId: provider.id,
+        externalId,
+        code: match.canonicalCode || externalId,
+        name: rawName,
+        isActive: true,
+      },
+      update: {
+        name: rawName,
+        lastSyncAt: new Date(),
+      },
+    })
+
     const confidence = method === 'AUTO_FUZZY' ? match.confidence : 1.0
 
     await (prisma as any).providerCountryMapping.upsert({
       where: {
         providerId_providerCountryId: {
           providerId: provider.id,
-          providerCountryId: externalId,
+          providerCountryId: providerCountry.id,
         },
       },
       create: {
         providerId: provider.id,
-        providerCountryId: externalId,
+        providerCountryId: providerCountry.id,
         canonicalCountryId: match.canonicalId,
         confidence,
         matchMethod: method,
