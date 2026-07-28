@@ -126,13 +126,22 @@ class UserStartManager:
         async_logger = await get_async_logger()
         try:
             if request_type == "start":
-                await bot.send_photo(
-                    chat_id=chat_id,
-                    photo=START_PAGE,
-                    caption=caption,
-                    parse_mode="HTML",
-                    reply_markup=keyboard
-                )
+                try:
+                    await bot.send_photo(
+                        chat_id=chat_id,
+                        photo=START_PAGE,
+                        caption=caption,
+                        parse_mode="HTML",
+                        reply_markup=keyboard
+                    )
+                except Exception as photo_err:
+                    await async_logger.warn(f"Failed to send welcome photo ({photo_err}), falling back to text message")
+                    await bot.send_message(
+                        chat_id=chat_id,
+                        text=caption,
+                        parse_mode="HTML",
+                        reply_markup=keyboard
+                    )
             elif request_type == "edit" and message_id:
                 try:
                     await bot.edit_message_caption(
@@ -143,16 +152,25 @@ class UserStartManager:
                         reply_markup=keyboard
                     )
                 except Exception:
-                    await bot.edit_message_media(
-                        media=InputMediaPhoto(
-                            media=START_PAGE,
-                            caption=caption,
-                            parse_mode="HTML"
-                        ),
-                        chat_id=chat_id,
-                        message_id=message_id,
-                        reply_markup=keyboard
-                    )
+                    try:
+                        await bot.edit_message_media(
+                            media=InputMediaPhoto(
+                                media=START_PAGE,
+                                caption=caption,
+                                parse_mode="HTML"
+                            ),
+                            chat_id=chat_id,
+                            message_id=message_id,
+                            reply_markup=keyboard
+                        )
+                    except Exception:
+                        await bot.edit_message_text(
+                            chat_id=chat_id,
+                            message_id=message_id,
+                            text=caption,
+                            parse_mode="HTML",
+                            reply_markup=keyboard
+                        )
             else:
                 return False
             return True

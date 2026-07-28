@@ -121,11 +121,12 @@ PUBLIC_APP_URL = os.getenv("NEXT_PUBLIC_APP_URL", os.getenv("PUBLIC_APP_URL", "h
 URL = os.getenv("URL", "")
 
 # Optional configurations with sensible defaults
-START_PAGE = os.getenv("START_PAGE", "default_start_page")
-DEPOSIT_PAGE = os.getenv("DEPOSIT_PAGE", "default_deposit_page")
-REFERRAL_PAGE = os.getenv("REFERRAL_PAGE", "default_referral_page")
-LOADING_GIF = os.getenv("LOADING_GIF", "default_loading.gif")
-WALLET_PAGE = os.getenv("WALLET_PAGE", "default_wallet_page")
+DEFAULT_BANNER_URL = "https://i.ibb.co/Wvh4R4yX/image-removebg-preview.png"
+START_PAGE = os.getenv("START_PAGE") or DEFAULT_BANNER_URL
+DEPOSIT_PAGE = os.getenv("DEPOSIT_PAGE") or DEFAULT_BANNER_URL
+REFERRAL_PAGE = os.getenv("REFERRAL_PAGE") or DEFAULT_BANNER_URL
+LOADING_GIF = os.getenv("LOADING_GIF") or DEFAULT_BANNER_URL
+WALLET_PAGE = os.getenv("WALLET_PAGE") or DEFAULT_BANNER_URL
 DEPOSIT_INR_QR_CODE = os.getenv("DEPOSIT_INR_QR_CODE", "https://i.postimg.cc/1thT9t0C/image.png")
 
 # Redis configuration (Optional - only required if in-memory cache/search is enabled)
