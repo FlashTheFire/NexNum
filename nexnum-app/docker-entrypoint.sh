@@ -23,8 +23,13 @@ if [ -n "$DATABASE_URL" ]; then
     echo "[STARTUP] Debug: Checking for valibot..."
     ls -la node_modules/valibot || echo "valibot not found in node_modules"
 
-    # Auto-resolve any previously failed migration attempt (P3009 protection)
-    timeout 15 npx prisma migrate resolve --rolled-back 20260724000000_add_normalization_architecture 2>/dev/null || true
+    # Auto-resolve the normalization migration ONLY if it is in a "failed" state (P3009 protection).
+    # On a fresh DB this is a no-op because _prisma_migrations doesn't exist.
+    FAILED_MIGRATION=$(timeout 10 npx prisma migrate status 2>&1 | grep -c "20260724000000_add_normalization_architecture.*failed" || true)
+    if [ "$FAILED_MIGRATION" -gt 0 ]; then
+        echo "[STARTUP] Resolving previously failed normalization migration..."
+        timeout 15 npx prisma migrate resolve --rolled-back 20260724000000_add_normalization_architecture 2>/dev/null || true
+    fi
 
     # Use DIRECT_URL for migrations if available (bypasses PgBouncer advisory lock issues)
     if [ -n "$DIRECT_URL" ]; then
