@@ -90,7 +90,7 @@ class UserStartManager:
 
     async def _create_welcome_keyboard(self) -> InlineKeyboardMarkup:
         keyboard = InlineKeyboardMarkup()
-        webapp_url = os.getenv("WEBAPP_URL", "https://nexnum.app")
+        webapp_url = os.getenv("WEBAPP_URL") or os.getenv("NEXT_PUBLIC_APP_URL") or os.getenv("PUBLIC_APP_URL") or "https://nx1.in"
         keyboard.row(
             InlineKeyboardButton("🌐 Dᴀsʜʙᴏᴀʀᴅ", web_app=types.WebAppInfo(url=webapp_url)),
             InlineKeyboardButton("🛒 Sᴇʀᴠɪᴄᴇs", switch_inline_query_current_chat="")

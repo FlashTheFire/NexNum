@@ -117,7 +117,7 @@ _raw_direct_url = os.getenv("DIRECT_URL", DATABASE_URL)
 DIRECT_URL = sanitize_db_url(_raw_direct_url)
 NEXNUM_API_URL = os.getenv("NEXNUM_API_URL", "http://nexnum-app:3000")
 NEXNUM_API_KEY = os.getenv("NEXNUM_API_KEY", os.getenv("ADMIN_API_KEY", "nexnum_admin_secret_key"))
-PUBLIC_APP_URL = os.getenv("NEXT_PUBLIC_APP_URL", os.getenv("PUBLIC_APP_URL", "https://nexnum.app")).rstrip("/")
+PUBLIC_APP_URL = os.getenv("NEXT_PUBLIC_APP_URL", os.getenv("PUBLIC_APP_URL", "https://nx1.in")).rstrip("/")
 URL = os.getenv("URL", "")
 
 # Optional configurations with sensible defaults
