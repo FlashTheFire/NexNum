@@ -949,15 +949,17 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
             }
 
             const processPrices = async (prices: PriceData[], country?: { code: string; name: string }) => {
-            const currentCountryOffers: OfferDocument[] = []
             const currentCountryCode = country?.code || ''
+
+            // Group price records by (countryCode, serviceCode) to aggregate candidates into a single document per (provider, country, service)
+            const groupedPrices = new Map<string, PriceData[]>()
 
             for (const p of prices) {
                 try {
-                    if (p.count <= 0) continue
+                    // Do NOT filter out zero stock (p.count <= 0) here — providers count fluctuates rapidly!
+                    const countryCode = p.country || currentCountryCode
 
                     // STRICT FILTER: skip offers whose country is not present in getCountriesList()
-                    const countryCode = p.country || currentCountryCode
                     if (validCountryCodes.size > 0 && countryCode && !validCountryCodes.has(String(countryCode).toLowerCase())) {
                         logger.warn(`[SYNC] Skipping price: country code/ID '${countryCode}' not present in getCountriesList()`, {
                             context: 'SYNC',
@@ -979,105 +981,100 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                         continue
                     }
 
-                    // Zero-cost filter: drop offers where the provider returned
-                    // cost = 0 (some providers do this for "free" SMS). Without
-                    // this filter the offer would index as pointPrice = 0.
+                    // Zero-cost filter: drop offers where provider returned invalid cost <= 0
                     if (!Number.isFinite(p.cost) || p.cost <= 0) {
                         filteredZeroCount++
                         continue
                     }
 
+                    const groupKey = `${countryCode}_${p.service}`.toLowerCase()
+                    if (!groupedPrices.has(groupKey)) {
+                        groupedPrices.set(groupKey, [])
+                    }
+                    groupedPrices.get(groupKey)!.push({ ...p, country: countryCode })
+
+                } catch (rowErr: any) {
+                    erroredRows++
+                }
+            }
+
+            // Process each (country, service) group
+            for (const [groupKey, items] of groupedPrices.entries()) {
+                try {
+                    if (!items.length) continue
+                    const sample = items[0]
+                    const countryCode = sample.country
+                    const serviceCode = sample.service
+
                     // Visibility Checks
                     const isCountryVisible = countryVisibilityMap.get(countryCode) !== false
-                    const isServiceVisible = serviceVisibilityMap.get(p.service) !== false &&
-                        serviceVisibilityMap.get(p.service.toLowerCase()) !== false
+                    const isServiceVisible = serviceVisibilityMap.get(serviceCode) !== false &&
+                        serviceVisibilityMap.get(serviceCode.toLowerCase()) !== false
                     const isActive = isCountryVisible && isServiceVisible
 
-                    let svcName = serviceMap.get(p.service)
-                    if (!svcName) svcName = serviceMap.get(p.service.toLowerCase())
-                    // GUARD: if the service name wasn't resolved to a human-readable
-                    // string, OR the only thing we have is the raw service code
-                    // (the `|| p.service` fallback that previously polluted the
-                    // catalog with "tg", "wa", "ig" as display names), skip this
-                    // offer. Real providers always return a service name; missing
-                    // one is a data-quality bug worth surfacing in logs.
-                    if (!svcName || svcName === p.service) {
+                    let svcName = serviceMap.get(serviceCode) || serviceMap.get(serviceCode.toLowerCase())
+                    if (!svcName || svcName === serviceCode) {
                         noServiceNameCount++
-                        logger.warn(`[SYNC] Skipping price: no resolvable service name`, {
-                            context: 'SYNC',
-                            provider: provider.name,
-                            country: countryCode,
-                            service: p.service,
-                            svcName
-                        })
                         continue
                     }
 
-                    // CURRENCY & MARGIN LOGIC — single PricingService call.
-                    // Returns null if rawCost is invalid (zero, negative, NaN).
-                    const pricing = PricingService.compute({
-                        rawCost: Number(p.cost),
-                        providerCurrency,
-                        provider: providerCfg,
-                        standardRates,
-                        pointsRate,
-                        isPointsMode: true,
-                    })
-                    if (!pricing) {
-                        filteredZeroCount++
-                        continue
-                    }
-
-                    // Cap to configured USD bounds so a misconfigured multiplier
-                    // can't produce a $0.001 or $9999 offer.
-                    if (pricing.costUsd < minPriceUsd) {
-                        filteredBelowMinCount++
-                        continue
-                    }
-                    if (pricing.sellUsd > maxPriceUsd) {
-                        filteredAboveMaxCount++
-                        continue
-                    }
-
-                    const sellPrice = pricing.pointPrice
-
-                    // MULTI-CURRENCY: Pre-compute prices for all active currencies using unified map generator
-                    const currencyPrices = await currencyService.pointsToAllFiat(sellPrice)
-
-                    // OPERATOR MAPPING
-                    const externalOp = p.operator != null ? String(p.operator) : 'default'
-                    const opKey = `${provider.name}_${externalOp}`
-                    if (!operatorMap.has(opKey)) {
-                        operatorMap.set(opKey, operatorCounter++)
-                    }
-                    const internalOpId = operatorMap.get(opKey)!
-
-                    // Prepare OfferDocument for MeiliSearch
-                    const canonicalSvcName = getCanonicalName(svcName)
-
-                    // Resolve Country Name from Map (Crucial for numeric provider IDs).
-                    // GUARD: if no human-readable country name resolves, skip the
-                    // offer. Falling back to the country code (e.g. "us") or
-                    // "Unknown" as a display name pollutes the catalog. Real
-                    // providers always return a country name; missing one is a
-                    // data-quality bug worth surfacing in logs.
-                    const resolvedCountryName = (countryNameMap.get(countryCode) || p.country || country?.name || '').trim()
+                    const resolvedCountryName = (countryNameMap.get(countryCode) || sample.country || country?.name || '').trim()
                     if (!resolvedCountryName || resolvedCountryName.toLowerCase() === 'unknown') {
                         noCountryNameCount++
-                        logger.warn(`[SYNC] Skipping price: no resolvable country name`, {
-                            context: 'SYNC',
-                            provider: provider.name,
-                            country: countryCode,
-                            service: p.service,
-                            resolvedCountryName
-                        })
                         continue
                     }
+
                     const canonicalCtyName = normalizeCountryName(resolvedCountryName)
+                    const canonicalSvcName = getCanonicalName(svcName)
                     const canonicalSvcCode = generateCanonicalCode(canonicalSvcName)
                     const canonicalCtyCode = generateCanonicalCode(canonicalCtyName)
 
-                    const offerId = `${provider.name}_${countryCode}_${p.service}_${externalOp}`.toLowerCase().replace(/[^a-z0-9_]/g, '')
+                    // Build purchaseCandidates array from all operators in this group
+                    const candidatesList: any[] = []
+                    let totalGroupStock = 0
+
+                    for (const item of items) {
+                        const rawCostNum = Number(item.cost)
+                        const pricing = PricingService.compute({
+                            rawCost: rawCostNum,
+                            providerCurrency,
+                            provider: providerCfg,
+                            standardRates,
+                            pointsRate,
+                            isPointsMode: true,
+                        })
+                        if (!pricing) continue
+
+                        if (pricing.costUsd < minPriceUsd || pricing.sellUsd > maxPriceUsd) continue
+
+                        const opStr = item.operator != null ? String(item.operator) : 'default'
+                        const candidateId = `${provider.name}:${countryCode}:${serviceCode}:${opStr}`.toLowerCase()
+                        const stockCount = Math.max(0, Number(item.count) || 0)
+                        totalGroupStock += stockCount
+
+                        candidatesList.push({
+                            candidateId,
+                            provider: provider.name,
+                            operator: opStr,
+                            providerCountryCode: countryCode,
+                            providerServiceCode: serviceCode,
+                            rawPrice: Number(pricing.rawCost.toFixed(6)),
+                            pointPrice: Number(pricing.pointPrice),
+                            stock: stockCount,
+                            priority: 0 // Will set after sorting
+                        })
+                    }
+
+                    if (!candidatesList.length) continue
+
+                    // Sort candidates strictly by pointPrice ascending (cheapest first)
+                    candidatesList.sort((a, b) => a.pointPrice - b.pointPrice)
+                    candidatesList.forEach((c, idx) => { c.priority = idx + 1 })
+
+                    // Select canonical offer details (cheapest with stock > 0, else absolute cheapest)
+                    const canonicalCandidate = candidatesList.find(c => c.stock > 0) || candidatesList[0]
+
+                    const offerId = `${provider.name}_${countryCode}_${serviceCode}`.toLowerCase().replace(/[^a-z0-9_]/g, '')
 
                     let resolvedCtyId = countryCodeToNumeric.get(canonicalCtyCode) ??
                         countryCodeToNumeric.get(canonicalCtyName.toLowerCase()) ??
@@ -1088,23 +1085,21 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
 
                     if (resolvedCtyId === undefined) {
                         const cNum = Number(countryCode)
-                        if (Number.isSafeInteger(cNum) && cNum >= 0) {
-                            resolvedCtyId = cNum
-                        }
+                        if (Number.isSafeInteger(cNum) && cNum >= 0) resolvedCtyId = cNum
                     }
 
                     let resolvedSvcId = serviceCodeToNumeric.get(canonicalSvcCode) ??
                         serviceCodeToNumeric.get(canonicalSvcName.toLowerCase()) ??
-                        serviceCodeToNumeric.get(p.service.toLowerCase()) ??
-                        serviceCodeToNumeric.get(p.service) ??
-                        serviceCodeToNumeric.get(String(p.service))
+                        serviceCodeToNumeric.get(serviceCode.toLowerCase()) ??
+                        serviceCodeToNumeric.get(serviceCode) ??
+                        serviceCodeToNumeric.get(String(serviceCode))
 
                     if (resolvedSvcId === undefined) {
-                        const sNum = Number(p.service)
-                        if (Number.isSafeInteger(sNum) && sNum >= 0) {
-                            resolvedSvcId = sNum
-                        }
+                        const sNum = Number(serviceCode)
+                        if (Number.isSafeInteger(sNum) && sNum >= 0) resolvedSvcId = sNum
                     }
+
+                    const currencyPrices = await currencyService.pointsToAllFiat(canonicalCandidate.pointPrice)
 
                     allOffersMap.set(offerId, {
                         id: offerId,
@@ -1112,12 +1107,12 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                         providerCountryCode: countryCode,
                         countryName: canonicalCtyName,
                         countryId: resolvedCtyId ?? 0,
-                        countryIcon: getCountryFlagUrlSync(canonicalCtyName) || getCountryFlagUrlSync(p.country || country?.name || '') || '',
-                        providerServiceCode: p.service,
+                        countryIcon: getCountryFlagUrlSync(canonicalCtyName) || getCountryFlagUrlSync(sample.country || country?.name || '') || '',
+                        providerServiceCode: serviceCode,
                         serviceName: canonicalSvcName,
                         serviceId: resolvedSvcId ?? 0,
                         serviceIcon: (() => {
-                            const canonKey = getCanonicalKey(p.service) || getCanonicalKey(svcName) || generateCanonicalCode(canonicalSvcName) || p.service.toLowerCase()
+                            const canonKey = getCanonicalKey(serviceCode) || getCanonicalKey(svcName) || generateCanonicalCode(canonicalSvcName) || serviceCode.toLowerCase()
                             const iconsDir = path.join(process.cwd(), 'public/assets/icons/services')
                             let finalExt = '.webp'
                             let foundLocal = false
@@ -1136,33 +1131,32 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                             const localPath = `/assets/icons/services/${canonKey}${finalExt}`
                             if (foundLocal) return localPath
 
-                            const providerIcon = iconUrlMap.get(p.service) || iconUrlMap.get(p.service.toLowerCase())
+                            const providerIcon = iconUrlMap.get(serviceCode) || iconUrlMap.get(serviceCode.toLowerCase())
                             if (providerIcon && isValidImageUrl(providerIcon)) {
                                 downloadImageToLocal(providerIcon, path.join(process.cwd(), 'public', localPath)).catch(err => logger.warn('[ProviderSync] downloadImageToLocal failed', { url: providerIcon, error: err }))
                             }
 
-                            const nameForIcon = canonKey || p.service
+                            const nameForIcon = canonKey || serviceCode
                             return `https://api.dicebear.com/7.x/initials/svg?seed=${nameForIcon}&backgroundColor=000000&chars=2`
                         })(),
-                        operator: String(internalOpId),
-                        pointPrice: Number(sellPrice),
-                        rawPrice: Number(pricing.rawCost.toFixed(6)),
+                        operator: canonicalCandidate.operator || 'default',
+                        pointPrice: canonicalCandidate.pointPrice,
+                        rawPrice: canonicalCandidate.rawPrice,
                         currencyPrices,
-                        stock: p.count,
+                        purchaseCandidates: candidatesList,
+                        stock: totalGroupStock,
                         lastSyncedAt: Date.now(),
                         isActive: isActive
                     })
 
                     pricesCount++
-                } catch (rowErr: any) {
-                    // One bad row must not fail the whole batch. Log and continue.
+                } catch (groupErr: any) {
                     erroredRows++
-                    logger.warn('[SYNC] Row processing error, skipping offer', {
+                    logger.warn('[SYNC] Group processing error, skipping offer', {
                         context: 'SYNC',
                         provider: provider.name,
-                        country: country?.code,
-                        service: p.service,
-                        error: rowErr?.message
+                        groupKey,
+                        error: groupErr?.message
                     })
                 }
             }

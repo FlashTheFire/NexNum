@@ -131,6 +131,8 @@ export type InventoryViewMode = 'aggregated' | 'raw';
 
 // ...
 
+import type { PurchaseCandidate } from '@/lib/providers/types'
+
 export interface OfferDocument {
     id: string;           // Composite: provider_country_service_operator
     provider: string;     // Provider slug (e.g. "provider-a", "provider-b")
@@ -152,7 +154,8 @@ export interface OfferDocument {
     rawPrice: number;      // Provider's raw cost (Their Currency unit)
     currencyPrices: Record<string, number>;  // Pre-computed: {"USD": 1.50, "INR": 125.00}
 
-
+    // === Universal Purchase Candidates (Failover Engine) ===
+    purchaseCandidates?: PurchaseCandidate[];
 
     // === Inventory ===
     stock: number;

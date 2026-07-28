@@ -1620,9 +1620,152 @@ export class DynamicProvider implements SmsProvider {
     }
 
 
-    async getNumber(countryCode: string | number, serviceCode: string | number, options?: { operator?: string; maxPrice?: string | number }): Promise<NumberResult> {
-        // Strict Mode: No fallback
+    async getNumber(countryCode: string | number, serviceCode: string | number, options?: { operator?: string; maxPrice?: string | number; purchaseCandidates?: any[]; expectedPrice?: number; provider?: string }): Promise<NumberResult> {
+        // Feature Flag: CHECK PURCHASE_CANDIDATE_ENGINE (default: enabled)
+        const isCandidateEngineEnabled = process.env.PURCHASE_CANDIDATE_ENGINE !== 'false'
+        const candidates = (isCandidateEngineEnabled && options?.purchaseCandidates && options.purchaseCandidates.length > 0)
+            ? options.purchaseCandidates
+            : null
 
+        // If candidates list is present, run the Universal Purchase Candidate Engine Failover Loop
+        if (candidates) {
+            const overallStartTime = Date.now()
+            const OVERALL_TIMEOUT_MS = 15000 // 15s total operation ceiling
+            const PER_CANDIDATE_TIMEOUT_MS = 3000 // 3s per-candidate HTTP timeout
+            const attemptLogs: string[] = []
+
+            for (const candidate of candidates) {
+                // 1. Check overall 15s timeout budget
+                if (Date.now() - overallStartTime > OVERALL_TIMEOUT_MS) {
+                    logger.warn(`[CandidateEngine:${this.name}] Purchase candidate loop exceeded 15s overall budget`, {
+                        countryCode,
+                        serviceCode,
+                        attemptLogs
+                    })
+                    break
+                }
+
+                const opName = candidate.operator || 'default'
+                const candidateId = candidate.candidateId || `${this.name}:${countryCode}:${serviceCode}:${opName}`.toLowerCase()
+                const quarantineKey = `quarantine:candidate:${candidateId}`
+
+                // 2. Check Candidate Circuit Breaker (Quarantine in Redis)
+                try {
+                    const isQuarantined = await redis.get(quarantineKey)
+                    if (isQuarantined) {
+                        logger.debug(`[CandidateEngine:${this.name}] Skipping quarantined candidate: ${candidateId}`)
+                        attemptLogs.push(`${opName}(QUARANTINED)`)
+                        continue
+                    }
+                } catch {
+                    // Graceful fallback if Redis is down
+                }
+
+                const candStartTime = Date.now()
+                try {
+                    // Attempt single candidate purchase with 3.0s timeout wrapper
+                    const singleResult = await Promise.race([
+                        this.executeSingleGetNumber(countryCode, serviceCode, {
+                            operator: candidate.operator || options?.operator,
+                            maxPrice: options?.maxPrice
+                        }),
+                        new Promise<never>((_, reject) =>
+                            setTimeout(() => reject(new ProviderError('TIMEOUT', `Candidate timeout after ${PER_CANDIDATE_TIMEOUT_MS}ms`)), PER_CANDIDATE_TIMEOUT_MS)
+                        )
+                    ])
+
+                    // SUCCESS! Record rich telemetry and reset failures in Redis
+                    const latencyMs = Date.now() - candStartTime
+                    this.recordCandidateTelemetryAsync(candidateId, true, latencyMs, 'SUCCESS')
+
+                    return {
+                        ...singleResult,
+                        operator: candidate.operator || singleResult.operator || 'default'
+                    }
+
+                } catch (err: any) {
+                    const latencyMs = Date.now() - candStartTime
+                    const errorType = err.errorType || 'UNKNOWN'
+                    const isRetryable = err.isRetryable ?? ['NO_NUMBERS', 'BAD_OPERATOR', 'NO_BALANCE', 'RATE_LIMITED', 'SERVER_ERROR', 'TIMEOUT'].includes(errorType)
+
+                    attemptLogs.push(`${opName}(${errorType})`)
+
+                    // Record failure telemetry and check for quarantine threshold (>=5 consecutive failures)
+                    this.recordCandidateTelemetryAsync(candidateId, false, latencyMs, errorType)
+
+                    if (!isRetryable && err.isPermanent) {
+                        // Non-retryable permanent error (e.g. BAD_KEY) — throw immediately
+                        throw err
+                    }
+
+                    logger.warn(`[CandidateEngine:${this.name}] Candidate ${opName} failed (${errorType}), failing over to next candidate...`, {
+                        candidateId,
+                        error: err.message
+                    })
+                    // Continue to next candidate
+                }
+            }
+
+            throw new Error(`All purchase candidates failed for provider '${this.name}' (${countryCode}/${serviceCode}). Attempts: ${attemptLogs.join(', ')}`)
+        }
+
+        // Direct single execution fallback (no candidates list provided or candidate engine disabled)
+        return this.executeSingleGetNumber(countryCode, serviceCode, options)
+    }
+
+    /**
+     * Asynchronously record candidate performance telemetry in Redis with 30-day TTL and trigger quarantine if >= 5 consecutive failures
+     */
+    private async recordCandidateTelemetryAsync(candidateId: string, isSuccess: boolean, latencyMs: number, errorType: string) {
+        try {
+            const metricsKey = `metrics:purchaseCandidate:${candidateId}`
+            const quarantineKey = `quarantine:candidate:${candidateId}`
+            const TTL_30_DAYS = 2592000 // 30 days in seconds
+
+            if (isSuccess) {
+                // Reset consecutive failures and update success stats
+                await redis.del(quarantineKey)
+                await redis.hset(metricsKey, {
+                    candidateId,
+                    consecutiveFailures: 0,
+                    lastSuccessAt: new Date().toISOString(),
+                    lastSeenAt: new Date().toISOString()
+                })
+                await redis.hincrby(metricsKey, 'totalAttempts', 1)
+                await redis.hincrby(metricsKey, 'successfulPurchases', 1)
+                await redis.expire(metricsKey, TTL_30_DAYS)
+            } else {
+                // Increment failure stats
+                const consecutive = await redis.hincrby(metricsKey, 'consecutiveFailures', 1)
+                await redis.hincrby(metricsKey, 'totalAttempts', 1)
+
+                if (errorType === 'TIMEOUT') await redis.hincrby(metricsKey, 'timeoutCount', 1)
+                else if (errorType === 'NO_NUMBERS') await redis.hincrby(metricsKey, 'noNumbersCount', 1)
+                else await redis.hincrby(metricsKey, 'retryCount', 1)
+
+                await redis.hset(metricsKey, {
+                    candidateId,
+                    lastFailureType: errorType,
+                    lastFailureAt: new Date().toISOString(),
+                    lastSeenAt: new Date().toISOString()
+                })
+                await redis.expire(metricsKey, TTL_30_DAYS)
+
+                // Quarantine Circuit Breaker: 5 consecutive failures -> 5m quarantine
+                if (consecutive >= 5) {
+                    await redis.set(quarantineKey, '1', 'EX', 300) // 5 minutes
+                    logger.warn(`[CandidateEngine] Candidate enter Redis Quarantine (5m) due to 5 consecutive failures`, { candidateId })
+                }
+            }
+        } catch {
+            // Graceful fallback: Telemetry failure must never break purchase flow
+        }
+    }
+
+    /**
+     * Single getNumber HTTP request execution logic
+     */
+    private async executeSingleGetNumber(countryCode: string | number, serviceCode: string | number, options?: { operator?: string; maxPrice?: string | number }): Promise<NumberResult> {
         // Resolve identifiers to provider-specific codes
         const [externalCountry, externalService] = await Promise.all([
             this.resolveExternalId('country', countryCode),
@@ -1664,8 +1807,6 @@ export class DynamicProvider implements SmsProvider {
             const rawPriceNum = Number(rawPriceValue || 0)
             const currencyService = getCurrencyService()
 
-            // 5s memoization of settings so a burst of purchases for the same
-            // provider doesn't hit systemSettings.findUnique 200× per second.
             const settings = await currencyService.getSettings()
             const rates = await currencyService.getAllRates()
             const standardRates = rates as Record<string, number>
@@ -1705,6 +1846,7 @@ export class DynamicProvider implements SmsProvider {
             phoneNumber,
             countryCode: String(countryCode),
             serviceCode: String(serviceCode),
+            operator: options?.operator || mapped.operator,
             price: normalizedPrice,
             rawPrice: baseCost,
             expiresAt: new Date(Date.now() + ((this.config as any).activationExpiryMinutes || 15) * 60 * 1000)

@@ -59,12 +59,25 @@ export type NumberStatus =
     | 'expired'      // Timed out
     | 'error'        // Provider error
 
+export interface PurchaseCandidate {
+    candidateId: string          // Unique: `${provider}:${country}:${service}:${operator}`
+    provider: string             // Provider slug (e.g., "5sim")
+    operator?: string            // Mapped operator (e.g., "virtual53")
+    providerCountryCode: string  // Provider-specific country code
+    providerServiceCode: string  // Provider-specific service code
+    rawPrice: number             // Provider raw cost
+    pointPrice: number           // System sell price in Points
+    stock: number                // Reported count (UI display hint only)
+    priority: number             // Sequence priority (1 = best)
+}
+
 export interface PriceData {
     country: string
     service: string
     operator?: string
     cost: number
     count: number
+    purchaseCandidates?: PurchaseCandidate[]
 }
 
 export interface StatusResult {
@@ -94,6 +107,9 @@ export interface SmsProvider {
     getNumber?(countryCode: string | number, serviceCode: string | number, options?: {
         operator?: string
         maxPrice?: string | number
+        purchaseCandidates?: PurchaseCandidate[]
+        expectedPrice?: number
+        provider?: string
     }): Promise<NumberResult>
 
     /** Check status and get SMS */

@@ -394,6 +394,7 @@ export class SmartSmsRouter implements SmsProvider {
     async getNumber(countryCode: string | number, serviceCode: string | number, options?: {
         operator?: string;
         maxPrice?: string | number;
+        purchaseCandidates?: any[];
         provider?: string;
         expectedPrice?: number;  // The price user selected from offers
     }): Promise<NumberResult> {
@@ -402,8 +403,6 @@ export class SmartSmsRouter implements SmsProvider {
 
         const providerPreference = options?.provider
         const expectedPrice = options?.expectedPrice
-
-
 
         // If preference is specified, strictly use that provider only (Phase 11 Update)
         if (providerPreference) {
@@ -436,9 +435,10 @@ export class SmartSmsRouter implements SmsProvider {
             try {
                 logger.info(`SmartRouter: Attempting purchase from ${provider.name} for ${countryCode}...`)
 
-                // Pass maxPrice to limit what the provider can charge
+                // Pass maxPrice and purchaseCandidates to limit what the provider can charge
                 const result = await provider.getNumber(countryCode, serviceCode, {
                     operator: options?.operator,
+                    purchaseCandidates: options?.purchaseCandidates,
                     maxPrice: providerPreference ? undefined : (expectedPrice || options?.maxPrice)
                 })
 
