@@ -2192,72 +2192,25 @@ export class DynamicProvider implements SmsProvider {
             const { SettingsService } = await import('@/lib/settings')
             const settings = await getSettingsCached(SettingsService)
 
-            // Helper: coerce a raw item into a PriceData, applying the zero-cost
-            // filter at the source so cached prices also obey it.
+            // Helper: coerce a raw item into a PriceData, preserving zero stock counts for candidate engine
             const toPriceData = (item: any, fallbackCountry: string, fallbackService: string): PriceData | null => {
                 const cost = Number(item.cost ?? item.price ?? 0)
-                const count = Number(item.count ?? item.qty ?? 0)
-                // Zero / negative / non-finite cost = offer would index at $0.
-                // Non-finite count = bogus payload. Drop both.
+                const count = Math.max(0, Number(item.count ?? item.qty ?? 0))
+                // Drop invalid/zero cost offers (prevent $0 indexing)
                 if (!Number.isFinite(cost) || cost <= 0) return null
-                if (!Number.isFinite(count) || count <= 0) return null
                 return {
                     country: String(item.country || fallbackCountry || ''),
                     service: String(item.service || fallbackService || ''),
-                    operator: item.operator || undefined,
+                    operator: item.operator != null ? String(item.operator) : undefined,
                     cost,
                     count,
                 }
             }
 
-            if (!settings.priceOptimization.enabled) {
-                // Optimization disabled — coerce and filter
-                return items
-                    .map((item: any) => toPriceData(item, countryCode || '', serviceCode || ''))
-                    .filter((p: PriceData | null): p is PriceData => p !== null)
-            }
-
-            // Group by (country, service) to detect multiple operators
-            const groups = new Map<string, typeof items>()
-            for (const item of items) {
-                const key = `${item.country || countryCode}:${item.service || serviceCode}`
-                if (!groups.has(key)) groups.set(key, [])
-                groups.get(key)!.push(item)
-            }
-
-            const { getOptimizer } = require('@/lib/wallet/price-optimizer')
-            const optimizer = getOptimizer({
-                costWeight: settings.priceOptimization.costWeight,
-                stockWeight: settings.priceOptimization.stockWeight,
-                minStock: settings.priceOptimization.minStock
-            })
-
-            const results: PriceData[] = []
-            for (const [, group] of groups) {
-                if (group.length === 1) {
-                    const pd = toPriceData(group[0], countryCode || '', serviceCode || '')
-                    if (pd) results.push(pd)
-                } else {
-                    // Select best from multiple operators
-                    const best = optimizer.selectBestOption(group.map((i: any) => ({
-                        operator: i.operator,
-                        cost: Number(i.cost ?? i.price ?? 0),
-                        count: Number(i.count ?? i.qty ?? 0),
-                        metadata: i
-                    })))
-
-                    if (best) {
-                        const pd = toPriceData(
-                            { ...group[0], cost: best.cost, count: best.count, operator: best.operator },
-                            countryCode || '',
-                            serviceCode || ''
-                        )
-                        if (pd) results.push(pd)
-                    }
-                }
-            }
-
-            return results
+            // Return ALL parsed operator records for candidate engine processing
+            return items
+                .map((item: any) => toPriceData(item, countryCode || '', serviceCode || ''))
+                .filter((p: PriceData | null): p is PriceData => p !== null)
         }, CACHE_TTL.PRICES)
     }
 
