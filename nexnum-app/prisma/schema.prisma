@@ -154,23 +154,90 @@ model WalletTransaction {
 }
 
 model PurchaseOrder {
-  id             String   @id @default(uuid())
-  userId         String   @map("user_id")
-  serviceName    String   @map("service_name")
-  countryName    String   @map("country_name")
-  amount         Decimal  @db.Decimal(8, 2)
+  id             String    @id @default(uuid())
+  userId         String    @map("user_id")
+  serviceName    String    @map("service_name")
+  countryName    String    @map("country_name")
+  amount         Decimal   @db.Decimal(8, 2)
   status         String
   provider       String?
-  activationId   String?  @map("activation_id")
-  idempotencyKey String?  @unique @map("idempotency_key")
-  expiresAt      DateTime @map("expires_at")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activationId   String?   @map("activation_id")
+  phoneNumber    String?   @map("phone_number")
+  smsCode        String?   @map("sms_code")
+  completedAt    DateTime? @map("completed_at")
+  retryCount     Int?      @default(0) @map("retry_count")
+  rawResponse    Json?     @map("raw_response")
+  idempotencyKey String?   @unique @map("idempotency_key")
+  expiresAt      DateTime  @map("expires_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([status, expiresAt])
   @@index([userId])
   @@map("purchase_orders")
+}
+
+model DepositRequest {
+  id              String    @id @default(uuid())
+  userId          String    @map("user_id")
+  amount          Decimal   @db.Decimal(12, 2)
+  gateway         String?   @default("upi") @map("gateway")
+  paymentGateway  String?   @map("payment_gateway")
+  status          String    @default("PENDING")
+  transactionCode String?   @map("transaction_code")
+  idempotencyKey  String?   @unique @map("idempotency_key")
+  completedAt     DateTime? @map("completed_at")
+  createdAt       DateTime? @default(now()) @map("created_at")
+  updatedAt       DateTime? @updatedAt @map("updated_at")
+
+  @@index([userId, createdAt])
+  @@map("deposit_requests")
+}
+
+model SupportTicket {
+  id         String    @id @default(uuid())
+  userId     String    @map("user_id")
+  ticketType String?   @default("general") @map("ticket_type")
+  subject    String?
+  message    String
+  status     String    @default("OPEN")
+  createdAt  DateTime? @default(now()) @map("created_at")
+  updatedAt  DateTime? @updatedAt @map("updated_at")
+
+  @@index([userId, createdAt])
+  @@map("support_tickets")
+}
+
+model UserReferral {
+  telegramId         String    @id @default("") @map("telegram_id")
+  id                 String?   @map("id")
+  referralCode       String?   @unique @map("referral_code")
+  referrerId         String?   @map("referrer_id")
+  totalEarnings      Decimal?  @default(0.0) @map("total_earnings") @db.Decimal(12, 2)
+  totalReferredCount Int?      @default(0) @map("total_referred_count")
+  createdAt          DateTime? @default(now()) @map("created_at")
+  updatedAt          DateTime? @updatedAt @map("updated_at")
+
+  @@index([referrerId])
+  @@map("user_referrals")
+}
+
+model UserSession {
+  userId     String   @id @map("user_id")
+  data       Json     @default("{}")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("user_sessions")
+}
+
+model AccountLinkToken {
+  token     String   @id
+  userId    String   @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("account_link_tokens")
 }
 
 model Number {
@@ -272,15 +339,15 @@ model CountryLookup {
 
 model CanonicalService {
   id            Int      @id @default(autoincrement())
-  canonicalCode String   @unique @db.VarChar(100) // e.g. "google-voice", "whatsapp"
-  canonicalName String   @db.VarChar(255) // e.g. "Google Voice"
-  displayName   String?  @db.VarChar(255) // e.g. "Google Voice (US)"
+  canonicalCode String   @unique @map("canonical_code") @db.VarChar(100) // e.g. "google-voice", "whatsapp"
+  canonicalName String   @map("canonical_name") @db.VarChar(255) // e.g. "Google Voice"
+  displayName   String?  @map("display_name") @db.VarChar(255) // e.g. "Google Voice (US)"
   aliases       Json // ["gvoice", "gvoice-us", "googlevoice"]
   metadata      Json? // { category, logo, description, tags }
-  isVerified    Boolean  @default(false) // admin-confirmed
-  isActive      Boolean  @default(true)
-  providerCount Int      @default(0) // denormalized: how many providers map here
-  offerCount    Int      @default(0) // denormalized: total offers across providers
+  isVerified    Boolean  @default(false) @map("is_verified") // admin-confirmed
+  isActive      Boolean  @default(true) @map("is_active")
+  providerCount Int      @default(0) @map("provider_count") // denormalized: how many providers map here
+  offerCount    Int      @default(0) @map("offer_count") // denormalized: total offers across providers
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
@@ -296,17 +363,17 @@ model CanonicalService {
 
 model CanonicalCountry {
   id            Int      @id @default(autoincrement())
-  canonicalCode String   @unique @db.Char(2) // ISO 3166-1 alpha-2
-  canonicalName String   @db.VarChar(255)
-  displayName   Json // { en: "United States", ar: "الولايات المتحدة", ... }
+  canonicalCode String   @unique @map("canonical_code") @db.VarChar(100) // e.g. "IN", "US", "india"
+  canonicalName String   @map("canonical_name") @db.VarChar(255)
+  displayName   Json     @map("display_name") // { en: "United States", ar: "الولايات المتحدة", ... }
   aliases       Json // ["usa", "united states of america", ...]
-  flagUrl       String?  @db.VarChar(500)
+  flagUrl       String?  @map("flag_url") @db.VarChar(500)
   region        String?  @db.VarChar(100)
-  subRegion     String?  @db.VarChar(100)
+  subRegion     String?  @map("sub_region") @db.VarChar(100)
   coordinates   Json? // { lat, lng }
-  isVerified    Boolean  @default(false)
-  isActive      Boolean  @default(true)
-  providerCount Int      @default(0)
+  isVerified    Boolean  @default(false) @map("is_verified")
+  isActive      Boolean  @default(true) @map("is_active")
+  providerCount Int      @default(0) @map("provider_count")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
@@ -331,10 +398,10 @@ model ProviderServiceMapping {
   id                 Int         @id @default(autoincrement())
   providerId         String      @map("provider_id")
   providerServiceId  String      @map("provider_service_id")
-  canonicalServiceId Int
+  canonicalServiceId Int         @map("canonical_service_id")
   confidence         Float       @default(0) // 0.0 – 1.0
-  matchMethod        MatchMethod @default(AUTO_ALIAS)
-  isVerified         Boolean     @default(false) // human-confirmed?
+  matchMethod        MatchMethod @default(AUTO_ALIAS) @map("match_method")
+  isVerified         Boolean     @default(false) @map("is_verified") // human-confirmed?
   reviewedById       String?     @map("reviewed_by_id")
   reviewedAt         DateTime?   @map("reviewed_at")
   createdAt          DateTime    @default(now()) @map("created_at")
@@ -346,6 +413,7 @@ model ProviderServiceMapping {
   canonicalService CanonicalService @relation(fields: [canonicalServiceId], references: [id], onDelete: Restrict)
   reviewedBy       User?            @relation("ServiceMappingReviewer", fields: [reviewedById], references: [id])
 
+  @@unique([providerId, providerServiceId])
   @@index([providerId, canonicalServiceId])
   @@index([confidence])
   @@index([matchMethod])
@@ -366,12 +434,12 @@ enum ReviewStatus {
 
 model MappingReviewQueue {
   id                  Int              @id @default(autoincrement())
-  entityType          ReviewEntityType
+  entityType          ReviewEntityType @map("entity_type")
   providerId          String           @map("provider_id")
   rawExternalId       String           @map("raw_external_id") @db.VarChar(100)
   rawName             String           @map("raw_name") @db.VarChar(255)
   rawCode             String?          @map("raw_code") @db.VarChar(100)
-  candidateMatches    Json // [{ canonicalId, canonicalName, confidence, reason }]
+  candidateMatches    Json             @map("candidate_matches") // [{ canonicalId, canonicalName, confidence, reason }]
   canonicalServiceId  Int?             @map("canonical_service_id")
   canonicalCountryId  Int?             @map("canonical_country_id")
   bestMatchId         Int?             @map("best_match_id")
@@ -398,10 +466,10 @@ model ProviderCountryMapping {
   id                 Int         @id @default(autoincrement())
   providerId         String      @map("provider_id")
   providerCountryId  String      @map("provider_country_id")
-  canonicalCountryId Int
+  canonicalCountryId Int         @map("canonical_country_id")
   confidence         Float       @default(0)
-  matchMethod        MatchMethod @default(AUTO_ALIAS)
-  isVerified         Boolean     @default(false)
+  matchMethod        MatchMethod @default(AUTO_ALIAS) @map("match_method")
+  isVerified         Boolean     @default(false) @map("is_verified")
   reviewedById       String?     @map("reviewed_by_id")
   reviewedAt         DateTime?   @map("reviewed_at")
   createdAt          DateTime    @default(now()) @map("created_at")
@@ -413,6 +481,7 @@ model ProviderCountryMapping {
   canonicalCountry CanonicalCountry @relation(fields: [canonicalCountryId], references: [id], onDelete: Restrict)
   reviewedBy       User?            @relation("CountryMappingReviewer", fields: [reviewedById], references: [id])
 
+  @@unique([providerId, providerCountryId])
   @@index([providerId, canonicalCountryId])
   @@index([confidence])
   @@index([matchMethod])

@@ -142,7 +142,7 @@ export default function ProviderSelector({
     // Helper to validate if a URL is a valid flag URL
     const isValidFlagUrl = (url?: string) => {
         if (!url) return false;
-        if (url.includes('circle-flags') && /\/flags\/\d+\.svg$/.test(url)) return false;
+        if (url.includes('circle-flags') && /\/icons\/flags\/\d+\.svg$/.test(url)) return false;
         return true;
     };
 

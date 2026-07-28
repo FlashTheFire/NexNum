@@ -137,6 +137,14 @@ class DepositTrackerManagement:
             deposit_status = api_status.get('deposit_status', 'ERROR')
             
             deposit_info = (await self.deposit_manager.get_deposit_data(deposit_id))['result']
+            current_status = deposit_info.get('deposit_status', 'PENDING')
+            if current_status in ('COMPLETED', 'SUCCESS'):
+                await self._log('info', f"Deposit {deposit_id} already completed, skipping")
+                return
+
+            # Update Redis status to COMPLETED immediately to stop other concurrent checks
+            await self.deposit_manager.update_deposit_status(deposit_id, 'COMPLETED')
+
             valid_until = deposit_info.get('valid_until', None)
             deposit_info['deposit_status'] = 'COMPLETED'
             await asyncio.gather(
@@ -330,19 +338,20 @@ class DepositTrackerManagement:
                 return
 
             deposit_info = deposit_data['result']
-            if deposit_info['deposit_status'] != 'PENDING':
+            current_status = deposit_info.get('deposit_status', 'PENDING')
+            if current_status != 'PENDING':
                 await self._log('debug', f"Skipping timeout - Deposit {deposit_id} is not PENDING")
                 return
 
-            api_result = await self.deposit_manager.cancel_deposit(deposit_id, deposit_info['user_id'], 'TIMEOUT')
+            tg_user_id = deposit_info.get('telegram_id') or deposit_info.get('user_id')
+            api_result = await self.deposit_manager.cancel_deposit(deposit_id, tg_user_id, 'TIMEOUT')
             if not api_result.get('response', False):
                 await self._log('error', f"API cancellation failed for {deposit_id}")
                 return
 
-            await asyncio.gather(
-                self.deposit_manager.cancel_deposit(deposit_id, deposit_info['user_id'], 'TIMEOUT'),
-                self._update_deposit_ui(deposit_info, is_timeout=True)
-            )
+            await self.deposit_manager.update_deposit_status(deposit_id, 'TIMEOUT')
+            await self._update_deposit_ui(deposit_info, is_timeout=True)
+
     async def _update_deposit_ui(self, deposit_info: Dict, is_timeout: bool = False, api_status: Dict = {}) -> None:
         try:
             deposit_id = deposit_info.get('deposit_id', 'unknown')
@@ -353,69 +362,95 @@ class DepositTrackerManagement:
             deposit_status = api_status.get('deposit_status', 'FAILED')
 
             qr_image = deposit_info.get('file_id', 'https://i.postimg.cc/hGZ2G2v5/IMG-20240620-025944-733.jpg')
+            tg_user_id = deposit_info.get('telegram_id') or deposit_info.get('user_id')
+            if not tg_user_id or not str(tg_user_id).isdigit():
+                await self._log('error', f"Could not find valid Telegram user ID for UI update of deposit {deposit_id}")
+                return
+
+            message_id = deposit_info.get('message_id')
             
             if deposit_status == 'COMPLETED':
                 keyboard_for_send = InlineKeyboardMarkup()
-                keyboard_for_send.row(InlineKeyboardButton("🛒 Bᴜʏ Sᴇʀᴠɪᴄᴇ Nᴏᴡ",switch_inline_query_current_chat=''))
+                keyboard_for_send.row(InlineKeyboardButton("🛒 Bᴜʏ Sᴇʀᴠɪᴄᴇ Nᴏᴡ", switch_inline_query_current_chat=''))
                 text = await self._get_completed_deposit_text(api_status, deposit_info)
-                await self.bot.send_message(
-                    chat_id=deposit_info['user_id'],
-                    text=text,
-                    parse_mode='HTML',
-                    reply_markup=keyboard_for_send
-                )
-                keyboard_for_edit = InlineKeyboardMarkup()
-                keyboard_for_edit.row(
-                    InlineKeyboardButton("⌕ Dᴇᴘᴏsɪᴛ Hɪsᴛᴏʀʏ", switch_inline_query_current_chat='#Hɪsᴛᴏʀʏ-Dᴇᴘᴏsɪᴛ'),
-                    InlineKeyboardButton("ⓘ Hᴇʟᴘ & Sᴜᴘᴘᴏʀᴛ", callback_data="USER:HELP")
-                )
-                await self.bot.edit_message_media(
-                    media=InputMediaPhoto(
-                        media='https://st2.depositphotos.com/1006899/9688/i/450/depositphotos_96887528-stock-photo-deposit-word-hanging-on-string.jpg',
-                        **template,
-                        parse_mode='HTML'
-                    ),
-                    chat_id=deposit_info['user_id'],
-                    message_id=deposit_info['message_id'],
-                    reply_markup=keyboard_for_edit
-                )
+                try:
+                    await self.bot.send_message(
+                        chat_id=tg_user_id,
+                        text=text,
+                        parse_mode='HTML',
+                        reply_markup=keyboard_for_send
+                    )
+                except Exception as send_err:
+                    await self._log('error', f"Failed to send completion message for deposit {deposit_id}: {send_err}")
+
+                if message_id:
+                    keyboard_for_edit = InlineKeyboardMarkup()
+                    keyboard_for_edit.row(
+                        InlineKeyboardButton("⌕ Dᴇᴘᴏsɪᴛ Hɪsᴛᴏʀʏ", switch_inline_query_current_chat='#Hɪsᴛᴏʀʏ-Dᴇᴘᴏsɪᴛ'),
+                        InlineKeyboardButton("ⓘ Hᴇʟᴘ & Sᴜᴘᴘᴏʀᴛ", callback_data="USER:HELP")
+                    )
+                    try:
+                        await self.bot.edit_message_media(
+                            media=InputMediaPhoto(
+                                media='https://st2.depositphotos.com/1006899/9688/i/450/depositphotos_96887528-stock-photo-deposit-word-hanging-on-string.jpg',
+                                **template,
+                                parse_mode='HTML'
+                            ),
+                            chat_id=tg_user_id,
+                            message_id=message_id,
+                            reply_markup=keyboard_for_edit
+                        )
+                    except Exception as edit_err:
+                        await self._log('warning', f"Failed to edit message media for completed deposit {deposit_id}: {edit_err}")
                 
                 # Send deposit notification
-                user_data = {'id': deposit_info['user_id'], 'username': deposit_info.get('username', 'N/A')}
+                user_data = {'id': tg_user_id, 'username': deposit_info.get('username', 'N/A')}
             elif is_timeout:
-                keyboard_for_edit = InlineKeyboardMarkup()
-                keyboard_for_edit.row(
-                    InlineKeyboardButton("💰 Dᴇᴘᴏsɪᴛ Aɢᴀɪɴ", callback_data='USER:DEPOSIT'),
-                    InlineKeyboardButton("ⓘ Hᴇʟᴘ & Sᴜᴘᴘᴏʀᴛ", callback_data="USER:HELP")
-                )
-                await self.bot.edit_message_media(
-                    media=InputMediaPhoto(
-                        media='https://st2.depositphotos.com/1006899/9688/i/450/depositphotos_96887528-stock-photo-deposit-word-hanging-on-string.jpg',
-                        **template,
+                if message_id:
+                    keyboard_for_edit = InlineKeyboardMarkup()
+                    keyboard_for_edit.row(
+                        InlineKeyboardButton("💰 Dᴇᴘᴏsɪᴛ Aɢᴀɪɴ", callback_data='USER:DEPOSIT'),
+                        InlineKeyboardButton("ⓘ Hᴇʟᴘ & Sᴜᴘᴘᴏʀᴛ", callback_data="USER:HELP")
+                    )
+                    try:
+                        await self.bot.edit_message_media(
+                            media=InputMediaPhoto(
+                                media='https://st2.depositphotos.com/1006899/9688/i/450/depositphotos_96887528-stock-photo-deposit-word-hanging-on-string.jpg',
+                                **template,
+                                parse_mode='HTML'
+                            ),
+                            chat_id=tg_user_id,
+                            message_id=message_id,
+                            reply_markup=keyboard_for_edit
+                        )
+                    except Exception as edit_err:
+                        await self._log('warning', f"Failed to edit message media for timedout deposit {deposit_id}: {edit_err}")
+                
+                try:
+                    await self.bot.send_message(
+                        chat_id=tg_user_id,
+                        reply_to_message_id=message_id,
+                        text='<blockquote><b>⌛ Tʜɪs Dᴇᴘᴏsɪᴛ Hᴀs Exᴘɪʀᴇᴅ, Aɴᴅ Tʜᴇ Aᴍᴏᴜɴᴛ Hᴀs Nᴏᴛ Bᴇᴇɴ Rᴇᴄᴇɪᴠᴇᴅ Iɴ Yᴏᴜʀ Aᴄᴄᴏᴜɴᴛ!</b></blockquote>',
                         parse_mode='HTML'
-                    ),
-                    chat_id=deposit_info['user_id'],
-                    message_id=deposit_info['message_id'],
-                    reply_markup=keyboard_for_edit
-                ) 
-                await self.bot.send_message(
-                    chat_id=deposit_info['user_id'],
-                    reply_to_message_id=deposit_info['message_id'],
-                    text='<blockquote><b>⌛ Tʜɪs Dᴇᴘᴏsɪᴛ Hᴀs Exᴘɪʀᴇᴅ, Aɴᴅ Tʜᴇ Aᴍᴏᴜɴᴛ Hᴀs Nᴏᴛ Bᴇᴇɴ Rᴇᴄᴇɪᴠᴇᴅ Iɴ Yᴏᴜʀ Aᴄᴄᴏᴜɴᴛ!</b></blockquote>',
-                    parse_mode='HTML'
-                )
+                    )
+                except Exception as send_err:
+                    await self._log('error', f"Failed to send timeout message for deposit {deposit_id}: {send_err}")
             else:
-                keyboard = await self._get_cached_keyboard(deposit_info, is_timeout)
-                await self.bot.edit_message_media(
-                    media=InputMediaPhoto(
-                        media=qr_image,
-                        **template,
-                        parse_mode='HTML'
-                    ),
-                    chat_id=deposit_info['user_id'],
-                    message_id=deposit_info['message_id'],
-                    reply_markup=keyboard
-                )
+                if message_id:
+                    keyboard = await self._get_cached_keyboard(deposit_info, is_timeout)
+                    try:
+                        await self.bot.edit_message_media(
+                            media=InputMediaPhoto(
+                                media=qr_image,
+                                **template,
+                                parse_mode='HTML'
+                            ),
+                            chat_id=tg_user_id,
+                            message_id=message_id,
+                            reply_markup=keyboard
+                        )
+                    except Exception as edit_err:
+                        await self._log('warning', f"Failed to edit message media for active deposit {deposit_id}: {edit_err}")
         except KeyError as e:
             await self._log('error', f"Key error in UI update: {e}")
         except Exception as e:
@@ -629,6 +664,12 @@ class DepositTrackerManagement:
             await self._log('warning', f"Invalid deposit ID: {deposit.get('deposit_id', 'Unknown')}")
             return
 
+        # Early exit: skip deposits that are already completed/cancelled/failed
+        local_status = deposit.get('deposit_status', 'PENDING')
+        if local_status in ('COMPLETED', 'SUCCESS', 'CANCELLED', 'FAILED', 'TIMEOUT'):
+            await self._log('debug', f"Skipping deposit {deposit_id} — already {local_status}")
+            return
+
         try:
             async with self._semaphore:
                 await self._log('info', f"Processing deposit {deposit_id}, expired: {is_expired}")
@@ -640,12 +681,12 @@ class DepositTrackerManagement:
                         return
 
                     current_status = deposit_data['result'].get('deposit_status', 'PENDING')
+                    if current_status in ('COMPLETED', 'SUCCESS'):
+                        await self._log('info', f"Deposit {deposit_id} already completed, skipping")
+                        return
                     if current_status == 'PENDING':
                         await self._log('info', f"Handling timeout for expired deposit {deposit_id}")
                         await self._handle_deposit_timeout(deposit_id)
-                    elif current_status == 'COMPLETED':
-                        await self._log('info', f"Completing expired but completed deposit {deposit_id}")
-                        await self._complete_deposit(deposit_id, deposit_data['result'], 'COMPLETED')
                     return
 
                 # Active deposit processing

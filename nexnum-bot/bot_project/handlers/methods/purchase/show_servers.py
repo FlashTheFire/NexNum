@@ -12,7 +12,8 @@ from redis.commands.search.query import Query
 from utils.functions import setup_logger, small_caps, large_caps, country_flag_link, format_number_to_text
 from utils.cache_manager import cache_manager, CachePrefix
 from utils.redis_manager import redis_manager, RedisManager
-from utils.config import APP_COUNT, SERVICE_INDEX, COMMISSION
+from utils.config import APP_COUNT, COMMISSION
+from utils.api_client import api_client
 from handlers.security import RateLimiter, InputValidator, TransactionGuard
 from handlers.manager.operation import OrderManagement, UserManagement
 from datetime import datetime, timedelta
@@ -93,7 +94,7 @@ class UserServerManagement:
                 #return {"valid": False, "error": f"⚠️ Tᴏᴏ Mᴀɴʏ Sᴇʀᴠᴇʀ Rᴇǫᴜᴇsᴛs. Pʟᴇᴀsᴇ Wᴀɪᴛ {reset_time:.0f}s. (🔄 {remaining} ʟᴇғᴛ)"}
             if not self.input_validator.validate_user_id(user_id):
                 return {"valid": False, "error": "🆔 Iɴᴠᴀʟɪᴅ Usᴇʀ ID Fᴏʀᴍᴀᴛ"}
-            if not app_id.isdigit():
+            if not app_id:
                 return {"valid": False, "error": "🔢 Iɴᴠᴀʟɪᴅ Aᴘᴘ ID Fᴏʀᴍᴀᴛ"}
             if server_id and not server_id.isdigit():
                 return {"valid": False, "error": "🔢 Iɴᴠᴀʟɪᴅ Sᴇʀᴠᴇʀ ID Fᴏʀᴍᴀᴛ"}
@@ -139,88 +140,57 @@ class UserServerManagement:
             if cache_data:
                 return cache_data
 
-            # Build base query
-            query_str = f"@app_id:{app_id}"
-            if country_id:
-                query_str += f" @country_id:{country_id}"
-            if country_name:
-                query_str += f" @country_name:(%%{country_name}%%|{country_name}*|{country_name})"
-            query_str += f" @app_price:{app_price}"
-            if not is_admin:
-                query_str += " @is_show_server:(True) @is_show_country:(True) @is_show_app:(True)"
+            # Resolve service info to get exact service code/name
+            svc_resp = await api_client.get_services(limit=500)
+            svc_list = svc_resp.get("services", [])
+            clean_id = str(app_id).lower().replace("-", " ")
+            target_svc = next((
+                s for s in svc_list
+                if str(s.get("id", "")).lower() == clean_id
+                or str(s.get("code", "")).lower() == clean_id
+                or str(s.get("name", "")).lower() == clean_id
+                or str(s.get("code", "")).lower().replace(" ", "-") == str(app_id).lower()
+                or str(s.get("name", "")).lower().replace(" ", "-") == str(app_id).lower()
+            ), None)
 
-            # Set groupby
-            fields = ["@server_id", "@app_name", "@country_id"]
-            groupby_num = "4" if is_admin else "3"
-            if is_admin:
-                fields.append("@is_show_server")
-
-            # Build aggregation command
-            aggregation_query = [
-                "FT.AGGREGATE", SERVICE_INDEX, query_str,
-                "GROUPBY", groupby_num, *fields,
-                "REDUCE", "MIN", "1", "@app_price", "AS", "MIN_PRICE",
-                "REDUCE", "SUM", "1", "@app_count", "AS", "TOTAL_STOCK"
-            ]
-            if sort_by:
-                aggregation_query += ["SORTBY", "2", "@MIN_PRICE", sort_by.upper()]
-            if limit:
-                aggregation_query += ["LIMIT", "0", str(limit)]
-
-            # Execute aggregation
-            result = await self.user_manager._run_aggregate_cursor(aggregation_query, SERVICE_INDEX)
-            if not result:
+            svc_param = target_svc.get("code") or target_svc.get("name") if target_svc else clean_id
+            items = await api_client.get_countries(service=svc_param, limit=limit or 200)
+            if not items and target_svc and target_svc.get("name"):
+                items = await api_client.get_countries(service=target_svc.get("name"), limit=limit or 200)
+            if not items:
+                items = await api_client.get_countries(limit=limit or 200)
+            if not items:
                 return None
 
-            # Load country metadata
             whole_country_data = await redis_client.json().get('main_data:details:country_data') or {}
             servers_data: Dict[str, Any] = {}
             all_countries: Dict[str, float] = {}
-            global_app_name: Optional[str] = None
+            global_app_name: str = target_svc.get("name") or app_id if target_svc else str(app_id)
 
-            # Process every returned row (including the first)
-            for row in result:
-                # Decode row to strings
-                flat = [item.decode() if isinstance(item, bytes) else str(item) for item in row]
-                row_dict = {flat[i]: flat[i+1] for i in range(0, len(flat), 2) if i+1 < len(flat)}
+            for item in items:
+                sid_raw = str(item.get("serverId") or item.get("providerId") or "1")
+                app_name_val = str(item.get("serviceName") or global_app_name)
+                cid = str(item.get("id") or item.get("countryCode") or "1")
+                ccode = str(item.get("code") or item.get("flag") or item.get("name") or whole_country_data.get(cid, {}).get('country_code', cid))
 
-                server = row_dict.get("server_id")
-                app_name_val = row_dict.get("app_name", "Unknown Service")
-                cid = row_dict.get("country_id", "0")
-                country_code = whole_country_data.get(cid, {}).get('country_code', '')
-                if not server or not country_code:
-                    continue
-
-                try:
-                    price = float(row_dict.get("MIN_PRICE", 0))
-                    stock = int(float(row_dict.get("TOTAL_STOCK", 0)))
-                except ValueError:
-                    continue
+                price = float(item.get("price") or item.get("pointPrice") or item.get("minPrice") or 0.0)
+                stock = int(item.get("stock") or item.get("totalStock") or 0)
 
                 global_app_name = app_name_val
-                # Track overall country minimums
                 all_countries[cid] = min(all_countries.get(cid, float('inf')), price)
 
-                # Build server-specific data
-                if server not in servers_data:
-                    servers_data[server] = {
+                if sid_raw not in servers_data:
+                    servers_data[sid_raw] = {
                         "countries": {cid: price},
+                        "country_codes": {cid: ccode},
                         "min_price": price,
                         "total_stock": stock
                     }
-                    if is_admin:
-                        servers_data[server]["is_show_server"] = row_dict.get("is_show_server")
-                    if is_inline:
-                        servers_data[server]["prices"] = {cid: price}
                 else:
-                    srv = servers_data[server]
-                    srv["countries"][cid] = min(srv["countries"].get(cid, float('inf')), price)
-                    srv["min_price"] = min(srv["min_price"], price)
-                    srv["total_stock"] += stock
-                    if is_admin:
-                        srv["is_show_server"] = row_dict.get("is_show_server")
-                    if is_inline:
-                        srv["prices"][cid] = min(srv["prices"].get(cid, float('inf')), price)
+                    servers_data[sid_raw]["countries"][cid] = min(servers_data[sid_raw]["countries"].get(cid, float('inf')), price)
+                    servers_data[sid_raw]["country_codes"][cid] = ccode
+                    servers_data[sid_raw]["min_price"] = min(servers_data[sid_raw]["min_price"], price)
+                    servers_data[sid_raw]["total_stock"] += stock
 
             if not servers_data:
                 return None
@@ -288,7 +258,7 @@ class UserServerManagement:
                 is_admin=is_admin
             )
             if not data or not data.get("servers"):
-                return None, None, None
+                return None, None
 
             keyboard = InlineKeyboardMarkup()
             full_country_data = await self.get_country_data()
@@ -305,9 +275,11 @@ class UserServerManagement:
                 for i, cid in enumerate(countries):
                     if i >= 3:
                         break
-                    code = full_country_data.get(cid, {}).get("country_code", "")
+                    code = full_country_data.get(cid, {}).get("country_code") or info.get("country_codes", {}).get(cid) or cid
                     if code:
-                        country_display.append(code)
+                        country_display.append(str(code))
+                if not country_display:
+                    country_display.append(str(country_code or country_id or "IN"))
                 if len(countries) > 3:
                     country_display.append("...")
                 price = float(info["min_price"]) * float(COMMISSION)
@@ -381,7 +353,7 @@ class UserServerManagement:
                 message,
                 "❌ Aɴ Eʀʀᴏʀ Oᴄᴄᴜʀʀᴇᴅ Wʜɪʟᴇ Fᴇᴛᴄʜɪɴɢ Sᴇʀᴠᴇʀs."
             )
-            return None, None, None
+            return None, None
 
     async def process_show_servers(self, call: CallbackQuery, is_admin: bool = False) -> None:
         """
@@ -398,7 +370,7 @@ class UserServerManagement:
             app_id = parts[1]
             country_id = parts[2] if len(parts) > 2 else None
             page = parts[3] if len(parts) > 3 else 1
-            if not app_id.isdigit():
+            if not app_id:
                 await self.bot.answer_callback_query(call.id, "🚫 Iɴᴠᴀʟɪᴅ Aᴘᴘ ID", show_alert=True)
                 return
             transaction_key = RedisKeys.transaction_lock_key(user_id, f"show_servers:{app_id}:{country_id}")
@@ -431,12 +403,12 @@ class UserServerManagement:
 
     async def is_server_save(self, app_id: str, server_id: str, country_id: str, is_show: bool):
         """
-        Searches Redis for keys matching the pattern 'service_data:{country_id}:*:{app_id}'
+        Searches Redis for keys matching the pattern 'quote:{country_id}:*:{app_id}'
         and updates each hash field ('is_show_app', 'is_show_server', 'is_show_country') to "True"
         if is_admin is True; otherwise "False".
         Returns a list of keys if found, or None.
         """
-        pattern = f"service_data:{country_id}:{server_id}:{app_id}"
+        pattern = f"quote:{country_id}:{server_id}:{app_id}"
         # If your Redis client is async, use await here; otherwise adjust accordingly.
         keys = await self.redis_client.keys(pattern)
         if not keys:
@@ -469,7 +441,7 @@ class UserServerManagement:
             country_id = parts[3]
             server_id = parts[4]
             is_show = parts[5] if len(parts) > 5 else False
-            if not app_id.isdigit() or not server_id.isdigit():
+            if not app_id or not server_id:
                 await self.bot.answer_callback_query(call.id, "🚫 Iɴᴠᴀʟɪᴅ Aᴘᴘ ID or Sᴇʀᴠᴇʀ ID", show_alert=True)
                 return
             transaction_key = RedisKeys.transaction_lock_key(user_id, f"show_servers:{app_id}:{country_id}")
@@ -537,16 +509,11 @@ class UserServerManagement:
             user_id = message.from_user.id
             app_id = parts[1]
             country_id = parts[2] if len(parts) > 2 else None
-            if not app_id.isdigit():
+            if not app_id:
                 await self.bot.reply_to(message, "🚫 Iɴᴠᴀʟɪᴅ Aᴘᴘ ID")
                 return
             if len(parts) < 2:
                 await self.bot.reply_to(message, "⚠️ Iɴᴠᴀʟɪᴅ Rᴇǫᴜᴇsᴛ", show_alert=True)
-                return
-            app_id = parts[1]
-            country_id = parts[2] if len(parts) > 2 else None
-            if not app_id.isdigit():
-                await self.bot.reply_to(message, "🚫 Iɴᴠᴀʟɪᴅ Aᴘᴘ ID", show_alert=True)
                 return
             transaction_key = RedisKeys.transaction_lock_key(user_id, f"show_servers:{app_id}:{country_id}")
             async with TransactionGuard(self.redis_client) as guard:
@@ -861,7 +828,7 @@ class UserServerManagement:
                 print(f"Callback error: {e}")
                 asyncio.create_task(bot.answer_callback_query(call.id, "🚫 Sʏsᴛᴇᴍ Eʀʀᴏʀ Oᴄᴄᴜʀʀᴇᴅ", show_alert=True))
 
-        @bot.message_handler(regexp=r'^/Buy_\d+_\d+$')
+        @bot.message_handler(regexp=r'^/Buy_[\w\-]+_[\w\-]+$')
         async def handle_buy_command(message: Message):
             try:
                 process_task = partial(self.process_buy_command, message)

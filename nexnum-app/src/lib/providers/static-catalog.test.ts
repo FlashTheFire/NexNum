@@ -39,8 +39,8 @@ describe('DynamicProvider — Static Catalog Fallback', () => {
         const providerConfig = makeTestProvider({
             staticCatalog: {
                 countries: [
-                    { code: 'us', name: 'United States', flagUrl: '/flags/us.svg' },
-                    { code: 'in', name: 'India', flagUrl: '/flags/in.svg' }
+                    { code: 'us', name: 'United States', flagUrl: '/icons/flags/us.svg' },
+                    { code: 'in', name: 'India', flagUrl: '/icons/flags/in.svg' }
                 ]
             }
         })
@@ -49,8 +49,8 @@ describe('DynamicProvider — Static Catalog Fallback', () => {
         const countries = await provider.getCountriesList()
 
         expect(countries).toHaveLength(2)
-        expect(countries[0]).toEqual({ code: 'us', name: 'United States', flagUrl: '/flags/us.svg' })
-        expect(countries[1]).toEqual({ code: 'in', name: 'India', flagUrl: '/flags/in.svg' })
+        expect(countries[0]).toEqual({ code: 'us', name: 'United States', flagUrl: '/icons/flags/us.svg' })
+        expect(countries[1]).toEqual({ code: 'in', name: 'India', flagUrl: '/icons/flags/in.svg' })
     })
 
     it('returns static services list when API endpoint is absent', async () => {

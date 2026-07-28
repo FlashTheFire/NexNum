@@ -271,35 +271,29 @@ class ReferManagement:
             member = referred_user_id, score = epoch seconds
         """
         try:
-            
+            from utils.db import db_adapter
             referrer_id = str(inline_query.from_user.id)
             offset = int(inline_query.offset or 0)
-            start = offset
-            end = offset + 10 - 1
 
-            zkey = f"user_data:{referrer_id}:profile:reffer"
-
-            # fetch referrals newest first
-            raw = await redis_manager.redis_client.zrevrange(zkey, start, end, withscores=True)
-            # total count
-            total_referrals = int(await redis_manager.redis_client.zcard(zkey) or 0)
+            stats = await db_adapter.get_user_referral_stats(referrer_id, limit=10, offset=offset)
+            total_referrals = stats["total"]
+            ref_list = stats["referrals"]
 
             inline_results = []
 
-            # Summary top article (demo total_earned calculation — replace as needed)
-            demo_per_referral = 5.0  # demo points per referral
+            # Summary top article
+            demo_per_referral = 5.0
             total_earned_demo = total_referrals * demo_per_referral
             summary_text = (
                 f"📊 <b>Your Referral Summary</b>\n\n"
                 f"🔢 Total referrals » <b>{total_referrals}</b>\n"
-                f"💎 Total earned (demo) » <b>{total_earned_demo:.2f} Points</b>\n\n"
-                f"ℹ️ This is demo data — replace `demo_per_referral` with real logic."
+                f"💎 Total earned » <b>{total_earned_demo:.2f} Points</b>\n\n"
             )
             inline_results.append(
                 InlineQueryResultArticle(
                     id="ref_summary",
                     title="🧾 Your Referrals",
-                    description=f"Total: {total_referrals}  •  Earned (demo): {total_earned_demo:.2f} pts",
+                    description=f"Total: {total_referrals}  •  Earned: {total_earned_demo:.2f} pts",
                     input_message_content=InputTextMessageContent(
                         message_text=summary_text,
                         parse_mode="HTML",
@@ -308,15 +302,9 @@ class ReferManagement:
             )
 
             # For each referred user, build an article
-            for idx, (member, score) in enumerate(raw, start=1 + offset):
-                # decode bytes if necessary
-                if isinstance(member, (bytes, bytearray)):
-                    member_id = member.decode()
-                else:
-                    member_id = str(member)
-
-                # score from zset is int epoch seconds (or may be float depending on how you stored it)
-                ts = float(score)
+            for idx, item in enumerate(ref_list, start=1 + offset):
+                member_id = item["telegram_id"]
+                name = item.get("name") or "User"
 
                 # try to get user profile (small hgetall)
                 uname = None

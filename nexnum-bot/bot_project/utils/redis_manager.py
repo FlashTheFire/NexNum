@@ -1,17 +1,19 @@
 import sys
 import os
+import asyncio
+import logging
 from pathlib import Path
+from typing import Optional
+from dotenv import load_dotenv
+
 _bot_project_dir = Path(__file__).resolve().parent
 while _bot_project_dir.name != "bot_project" and _bot_project_dir.parent != _bot_project_dir:
     _bot_project_dir = _bot_project_dir.parent
 if str(_bot_project_dir) not in sys.path:
     sys.path.insert(0, str(_bot_project_dir))
+
 import redis.asyncio as redis
-import logging
-import asyncio
-from typing import Optional
-from dotenv import load_dotenv
-from .config import REDIS_HOST, REDIS_PORT, REDIS_PASSWORD, REDIS_DB
+from .config import REDIS_HOST, REDIS_PORT, REDIS_PASSWORD, REDIS_DB, ENABLE_REDIS
 
 load_dotenv()
 
@@ -30,18 +32,21 @@ class RedisManager:
         self.redis_client = None
         self.connection_lock = asyncio.Lock()
 
-        # Tweak these to taste:
-        self.MAX_RETRIES = 10             # up from 3 → more attempts
-        self.RETRY_DELAY = 2              # base delay in seconds
-        self.MAX_BACKOFF = 30             # cap exponential back‐off
-        self.SOCKET_TIMEOUT = 10          # per‐operation timeout
-        self.SOCKET_CONNECT_TIMEOUT = 10  # how long to wait for TCP
-
+        # Configurable timeouts & retries
+        self.MAX_RETRIES = 3              # Max attempts when connecting
+        self.RETRY_DELAY = 1              # Base delay in seconds
+        self.MAX_BACKOFF = 5              # Cap exponential back-off
+        self.SOCKET_TIMEOUT = 5           # Per-operation timeout
+        self.SOCKET_CONNECT_TIMEOUT = 5   # TCP connect timeout
         self.POOL_SIZE = 20
         self.HEALTH_CHECK_INTERVAL = 15
 
     async def connect(self) -> bool:
         """Establish connection pool and do an initial ping (with timeout)."""
+        if not ENABLE_REDIS:
+            logger.info("Redis is disabled via ENABLE_REDIS=False configuration.")
+            return False
+
         if self.redis_client:
             return True
 
@@ -70,45 +75,42 @@ class RedisManager:
                     decode_responses=True
                 )
 
-                # give Redis up to SOCKET_CONNECT_TIMEOUT + a bit for PING
-                await asyncio.wait_for(self.redis_client.ping(), timeout=self.SOCKET_CONNECT_TIMEOUT + 5)
+                await asyncio.wait_for(self.redis_client.ping(), timeout=self.SOCKET_CONNECT_TIMEOUT)
                 logger.info("Successfully connected to Redis")
                 return True
 
             except asyncio.TimeoutError:
-                logger.error("Redis ping timeout during connect()")
+                logger.warning("Redis ping timeout during connect()")
             except Exception as e:
-                logger.error(f"Failed to connect to Redis: {e}")
+                logger.warning(f"Failed to connect to Redis: {e}")
 
-            # if anything went wrong, reset client and return False
             self.redis_client = None
             return False
 
     async def ensure_connection(self) -> bool:
         """Make sure we have a live connection; retry with exponential backoff."""
-        # quick check first
+        if not ENABLE_REDIS:
+            return False
+
         if self.redis_client:
             try:
                 await self.redis_client.ping()
                 return True
             except Exception:
-                self.redis_client = None  # force reconnect
+                self.redis_client = None
 
-        # retry loop
         for attempt in range(1, self.MAX_RETRIES + 1):
             if await self.connect():
                 return True
-
-            # exponential backoff
             delay = min(self.RETRY_DELAY * (2 ** (attempt - 1)), self.MAX_BACKOFF)
-            logger.warning(f"Redis connection attempt {attempt}/{self.MAX_RETRIES} failed. Retrying in {delay}s…")
+            logger.warning(f"Redis connection attempt {attempt}/{self.MAX_RETRIES} failed. Retrying in {delay}s...")
             await asyncio.sleep(delay)
 
-        logger.error("All Redis connection attempts failed.")
+        logger.warning("Redis unavailable — system operating with PostgreSQL database fallback.")
         return False
 
     async def get_client(self) -> Optional[redis.Redis]:
-        """Return a connected client, or None if we couldn’t connect."""
+        """Return a connected client, or None if connection failed or Redis is disabled."""
         if not await self.ensure_connection():
             return None
         return self.redis_client
@@ -119,6 +121,4 @@ class RedisManager:
             self.redis_client = None
             logger.info("Redis connection closed.")
 
-# Singleton instance
 redis_manager = RedisManager()
-

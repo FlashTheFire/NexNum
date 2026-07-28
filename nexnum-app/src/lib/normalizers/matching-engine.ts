@@ -104,10 +104,15 @@ export class MatchingEngine {
 
     // Step 3: Trigram fuzzy match
     {
+      // Ensure pg_trgm extension exists (suppress errors if already created)
+      try {
+        await prisma.$executeRawUnsafe(`CREATE EXTENSION IF NOT EXISTS pg_trgm;`)
+      } catch {}
+
       const candidates: FuzzyCandidate[] = await prisma.$queryRawUnsafe(
-        `SELECT id, canonical_code, canonical_name, similarity(canonical_name, $1) AS similarity
+        `SELECT id, canonical_code, canonical_name, similarity(canonical_name::text, $1::text)::double precision AS similarity
          FROM ${table}
-         WHERE similarity(canonical_name, $1) > $2
+         WHERE similarity(canonical_name::text, $1::text) > $2::double precision
          ORDER BY similarity DESC LIMIT 5`,
         norm,
         FUZZY_THRESHOLD,

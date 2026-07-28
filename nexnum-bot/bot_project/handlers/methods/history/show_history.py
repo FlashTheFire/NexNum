@@ -106,27 +106,35 @@ class HistoryManager:
     ) -> dict:
         filters = filters or {}
         filters['user_id'] = user_id
+        ht_map = {
+            'ALL': 'ALL', 'Aʟʟ': 'ALL',
+            'DEPOSIT': 'DEPOSIT', 'Dᴇᴘᴏsɪᴛ': 'DEPOSIT',
+            'ORDER': 'ORDER', 'Oʀᴅᴇʀ': 'ORDER',
+            'ORDERID': 'ORDERID', 'OʀᴅᴇʀIᴅ': 'ORDERID'
+        }
+        ht_key = history_type.strip()
+        ht_upper = ht_map.get(ht_key, ht_key.upper())
         try:
-            if history_type == 'OʀᴅᴇʀIᴅ':
+            if ht_upper == 'ORDERID':
                 return await self.order_mgr.get_order_data(order_id=filters['order_id'])
-            elif history_type == 'Oʀᴅᴇʀ':
+            elif ht_upper == 'ORDER':
                 filters.setdefault('order_status', ['COMPLETED', 'PROCESSING', 'PENDING'])
                 return await self.order_mgr.search_orders_advanced(filters, sort_by, sort_asc, offset, limit)
-            elif history_type == 'Dᴇᴘᴏsɪᴛ':
-                filters.setdefault('deposit_status', ['COMPLETED', 'PROCESSING'])
+            elif ht_upper == 'DEPOSIT':
+                filters.setdefault('deposit_status', ['COMPLETED', 'PROCESSING', 'PENDING'])
                 return await self.deposit_mgr.search_deposits_advanced(filters, sort_by, sort_asc, offset, limit)
-            elif history_type == 'Aʟʟ':
+            elif ht_upper == 'ALL':
                 order_task = asyncio.create_task(self.order_mgr.search_orders_advanced(
                     {**filters, 'order_status': ['COMPLETED', 'PROCESSING', 'PENDING']},
                     sort_by='recorded_at', sort_asc=False, offset=0, limit=1000
                 ))
                 deposit_task = asyncio.create_task(self.deposit_mgr.search_deposits_advanced(
-                    {**filters, 'deposit_status': ['COMPLETED', 'PROCESSING']},
+                    {**filters, 'deposit_status': ['COMPLETED', 'PROCESSING', 'PENDING']},
                     sort_by='recorded_at', sort_asc=False, offset=0, limit=1000
                 ))
                 order_result, deposit_result = await asyncio.gather(order_task, deposit_task)
 
-                if not order_result.get('response') or not deposit_result.get('response'):
+                if not order_result.get('response') and not deposit_result.get('response'):
                     error_msg = order_result.get('error', deposit_result.get('error', 'Unknown error'))
                     return {'response': False, 'error': f'Search failed: {error_msg}'}
 
@@ -135,7 +143,7 @@ class HistoryManager:
                 results = combined[offset : offset + limit]
                 return {'response': True, 'results': results}
             else:
-                return {'response': False, 'error': 'Invalid history type'}
+                return {'response': False, 'error': f'Invalid history type: {history_type}'}
         except Exception as e:
             logger.error(f"History search error: {e}")
             return {'response': False, 'error': str(e)}
@@ -164,7 +172,7 @@ class HistoryManager:
         }
         deposit_filters = {
             'recorded_at': (start_timestamp, end_timestamp),
-            'deposit_status': ['COMPLETED', 'PROCESSING'],
+            'deposit_status': ['COMPLETED', 'PROCESSING', 'PENDING'],
             **deposit_filters
         }
 
@@ -172,11 +180,17 @@ class HistoryManager:
         deposit_task = asyncio.create_task(self.search_history('Dᴇᴘᴏsɪᴛ', user_id, deposit_filters))
         orders, deposits = await asyncio.gather(order_task, deposit_task)
 
+        order_results = orders.get('results', [])
+        deposit_results = deposits.get('results', [])
+
+        completed_deposits = [d for d in deposit_results if str(d.get('deposit_status', '')).upper() in ['COMPLETED', 'SUCCESS']]
+        completed_orders = [o for o in order_results if str(o.get('order_status', '')).upper() in ['COMPLETED', 'PROCESSING']]
+
         return {
-            'purchases': orders.get('total_orders', 0),
-            'deposits': deposits.get('total_deposits', 0),
-            'order_amount': sum(float(o.get('order_amount', 0)) for o in orders.get('results', [])),
-            'deposit_amount': sum(float(d.get('deposit_amount', 0)) for d in deposits.get('results', []))
+            'purchases': len(completed_orders) if completed_orders else orders.get('total', len(order_results)),
+            'deposits': len(completed_deposits) if completed_deposits else deposits.get('total', len(deposit_results)),
+            'order_amount': sum(float(o.get('order_amount', o.get('amount', 0))) for o in completed_orders or order_results),
+            'deposit_amount': sum(float(d.get('deposit_amount', d.get('amount', 0))) for d in completed_deposits or deposit_results)
         }
     
     async def _get_cached_keyboard(self, order_info: Dict, is_timeout: bool, order_id: str) -> InlineKeyboardMarkup:
@@ -493,12 +507,18 @@ async def register_handlers(bot: AsyncTeleBot) -> None:
         try:
             if len(query_parts) < 2:
                 return
-            # Extract main part: e.g., "Hɪsᴛᴏʀʏ-Aʟʟ 2025-06-12|2025-06-20"
+            # Extract main part: e.g., "Hɪsᴛᴏʀʏ-Aʟʟ 2025-06-12|2025-06-20" or "HISTORY-ALL 2025-06-12|2025-06-20"
             main_part = query_parts[1].strip()
             action_and_date = main_part.split(" ", 1)
 
-            history_type = action_and_date[0].split('-')[1].strip()  # e.g. Aʟʟ
+            raw_type = action_and_date[0].split('-')[1].strip() if '-' in action_and_date[0] else 'ALL'
             date_input = action_and_date[1].strip() if len(action_and_date) > 1 else None
+
+            ht_map = {
+                'ALL': 'Aʟʟ', 'DEPOSIT': 'Dᴇᴘᴏsɪᴛ', 'ORDER': 'Oʀᴅᴇʀ', 'ORDERID': 'OʀᴅᴇʀIᴅ',
+                'Aʟʟ': 'Aʟʟ', 'Dᴇᴘᴏsɪᴛ': 'Dᴇᴘᴏsɪᴛ', 'Oʀᴅᴇʀ': 'Oʀᴅᴇʀ', 'OʀᴅᴇʀIᴅ': 'OʀᴅᴇʀIᴅ',
+            }
+            history_type = ht_map.get(raw_type, ht_map.get(raw_type.upper(), raw_type))
 
         except Exception as e:
             logger.error(f"Error processing query: {e}")
@@ -548,51 +568,79 @@ async def register_handlers(bot: AsyncTeleBot) -> None:
         redis_client = await redis_manager.get_client()
         link_data = await redis_client.hgetall(key)
         for idx, item in enumerate(result['results'], 1):
-            if item["id"].startswith("order_data"):
+            item_id = str(item.get("id", ""))
+            is_order = item_id.startswith("order_data") or "order_status" in item or "order_amount" in item
+            is_deposit = item_id.startswith("deposit_data") or "deposit_status" in item or "gateway" in item
+
+            if is_order:
                 recorded_at = float(item.get('recorded_at', 0))
                 app_name = item.get('app_name', '')
-                sms_list = json.loads(item.get('sms_list', '[]'))
+                raw_sms = item.get('sms_list', '[]')
+                if isinstance(raw_sms, list):
+                    sms_list = raw_sms
+                else:
+                    try:
+                        sms_list = json.loads(raw_sms)
+                    except Exception:
+                        sms_list = []
                 
                 country_code = item.get('country_code', '')
                 country_id = item.get('country_id', '')
                 country_name = country_data.get(country_id, {}).get('country_name', '').translate(await small_caps())
-                order_status = item.get('order_status', '')
-                order_amount = float(item.get('order_amount', 0))
+                order_status = item.get('order_status', item.get('status', ''))
+                order_amount = float(item.get('order_amount', item.get('amount', 0)))
                 
                 app_id = item.get('app_id', '')
                 server_id = item.get('server_id', '')
-                order_id = item["id"].split(":")[-1] if item["id"].startswith("order_data:info:") else ''
-                order_number = json.loads(item.get('order_number', '[]'))
-                sms_list = [s.strip("'")[:10] + (",..." if len(s) > 10 else '') for s in sms_list]
-                sms = "Nᴏᴛ Rᴇᴄᴇɪᴠᴇᴅ" if not sms_list else ", ".join(sms_list[:3] + (["..."] if len(sms_list) > 3 else []))
+                order_id = str(item.get('order_id', item_id.split(":")[-1]))
+                
+                raw_order_num = item.get('order_number', '[]')
+                if isinstance(raw_order_num, list):
+                    order_number = raw_order_num
+                else:
+                    try:
+                        order_number = json.loads(raw_order_num)
+                    except Exception:
+                        order_number = [item.get('phone_number', 'N/A')]
+
+                sms_list_fmt = [str(s).strip("'")[:10] + (",..." if len(str(s)) > 10 else '') for s in sms_list]
+                sms = "Nᴏᴛ Rᴇᴄᴇɪᴠᴇᴅ" if not sms_list_fmt else ", ".join(sms_list_fmt[:3] + (["..."] if len(sms_list_fmt) > 3 else []))
                 thumbnail_url = link_data.get(f"{country_id}-{app_id}", "https://i.postimg.cc/13PMXbT7/Pngtree-hourglass-waiting-for-mouse-pointer-5453296.png")
-                status = "⏳" if order_status == "PENDING" else "⌛" if order_status == "PROCESSING" else "✅" if order_status == "COMPLETED" else "🛑"
-                order_status = "Aᴄᴛɪᴠᴇ" if order_status == "PENDING" else "Pʀᴏᴄᴇssɪɴɢ" if order_status == "PROCESSING" else "Cᴏᴍᴘʟᴇᴛᴇᴅ" if order_status == "COMPLETED" else "Iɴᴀᴄᴛɪᴠᴇ"
-                order_at = time_ago(recorded_at)
-                app = app_name.translate(await small_caps())
+                status_icon = "⏳" if order_status == "PENDING" else "⌛" if order_status == "PROCESSING" else "✅" if order_status == "COMPLETED" else "🛑"
+                order_status_str = "Aᴄᴛɪᴠᴇ" if order_status == "PENDING" else "Pʀᴏᴄᴇssɪɴɢ" if order_status == "PROCESSING" else "Cᴏᴍᴘʟᴇᴛᴇᴅ" if order_status == "COMPLETED" else "Iɴᴀᴄᴛɪᴠᴇ"
+                order_at = time_ago(recorded_at) if recorded_at > 0 else "Recently"
+                app = app_name.translate(await small_caps()) if app_name else "Sᴇʀᴠɪᴄᴇ"
                 title = f"{app} 💎 {order_amount:.2f} [{country_code}] [{server_id}]"
                 description = (
-                    f"📞 Nᴜᴍʙᴇʀ   » {order_number[0] if order_number else 'N/A'} {order_number[1] if len(order_number) > 1 else ''}\n"
+                    f"📞 Nᴜᴍʙᴇʀ   » {order_number[0] if order_number else 'N/A'}\n"
                     f"💬 Sᴍs Lɪsᴛ  » {sms}\n"
-                    f"{status} Oʀᴅᴇʀ Aᴛ » {order_at}..."
+                    f"{status_icon} Oʀᴅᴇʀ Aᴛ » {order_at}..."
                 )
-                barcode_id = await encode_order_id(order_id)
-                if len(sms_list) > 2:
-                    text = "<code>" + "</code>\n<code>          </code><b>•</b> <code>".join(sms_list) + "</code>"
+                try:
+                    barcode_id = await encode_order_id(int(order_id)) if order_id.isdigit() else order_id
+                except Exception:
+                    barcode_id = order_id
+
+                if len(sms_list_fmt) > 2:
+                    text = "<code>" + "</code>\n<code>          </code><b>•</b> <code>".join(sms_list_fmt) + "</code>"
                     sms_section = f"<blockquote expandable>💬 <b>Sᴍs Lɪsᴛ »</b> {text}</blockquote>\n\n"
-                elif len(sms_list) == 2:
-                    sms_section = f"💬 <b>Sᴍs Lɪsᴛ »</b> <code>{sms_list[0]}</code><code>,</code> <code>{sms_list[1]}</code>\n\n"
-                elif len(sms_list) == 1:
-                    sms_section = f"💬 <b>Sᴍs Lɪsᴛ »</b> <code>{sms_list[0]}</code>\n\n"
+                elif len(sms_list_fmt) == 2:
+                    sms_section = f"💬 <b>Sᴍs Lɪsᴛ »</b> <code>{sms_list_fmt[0]}</code><code>,</code> <code>{sms_list_fmt[1]}</code>\n\n"
+                elif len(sms_list_fmt) == 1:
+                    sms_section = f"💬 <b>Sᴍs Lɪsᴛ »</b> <code>{sms_list_fmt[0]}</code>\n\n"
                 else:
                     sms_section = f"💬 <b>Sᴍs Lɪsᴛ »</b> <code>{sms}</code>\n\n"
+
+                num_str_0 = order_number[0] if order_number else 'N/A'
+                num_str_1 = order_number[1] if len(order_number) > 1 else ''
+
                 message_text = (
                     f"📜 <b>Oʀᴅᴇʀ Hɪsᴛᴏʀʏ</b> <code>[</code> <code>{app}</code> <code>]</code>\n\n"
                     f"📦 <b>Bᴀʀ-Cᴏᴅᴇ »</b> <code>{barcode_id}</code>\n"
-                    f"{status} <b>Sᴛᴀᴛᴜs »</b> <code>{order_status}</code>\n\n"
+                    f"{status_icon} <b>Sᴛᴀᴛᴜs »</b> <code>{order_status_str}</code>\n\n"
                     f"💎 <b>Aᴍᴏᴜɴᴛ »</b> <code>{order_amount:.2f}</code> <code>Pᴏɪɴᴛs</code>\n"
                     f"🌍 <b>Rᴇɢɪᴏɴ »</b> <code>{country_name}</code> <b>[</b> <code>{country_code}</code> <b>]</b>\n\n"
-                    f"📞 <b>Nᴜᴍʙᴇʀ »</b> <code>{order_number[0]}</code> <code>{order_number[1]}</code>\n"
+                    f"📞 <b>Nᴜᴍʙᴇʀ »</b> <code>{num_str_0}</code> <code>{num_str_1}</code>\n"
                     f"{sms_section}"
                     f"🗓️ <b>Oʀᴅᴇʀ Tɪᴍᴇ »</b> <code>{order_at}</code>"
                 )
@@ -604,31 +652,31 @@ async def register_handlers(bot: AsyncTeleBot) -> None:
                     input_message_content=InputTextMessageContent(message_text=message_text, parse_mode="HTML"),
                     reply_markup=await history_manager._get_cached_keyboard(item, is_timeout=False, order_id=order_id)
                 ))
-            elif item["id"].startswith("deposit_data"):
+            elif is_deposit:
                 recorded_at = float(item.get('recorded_at', 0))
-                deposit_id = int(item.get('deposit_id', 0))
-                method = item.get('method', 'Uᴘɪ')
-                deposit_amount = float(item.get('deposit_amount', 0))
-                deposit_status = item.get('deposit_status', 'UNKNOWN').upper()
+                raw_deposit_id = str(item.get('deposit_id', item_id.split(':')[-1]))
+                method = item.get('method', item.get('gateway', 'Uᴘɪ'))
+                deposit_amount = float(item.get('deposit_amount', item.get('amount', 0)))
+                deposit_status = str(item.get('deposit_status', item.get('status', 'UNKNOWN'))).upper()
                 status_map = {
                     "PENDING": "Aᴄᴛɪᴠᴇ",
                     "PROCESSING": "Pʀᴏᴄᴇssɪɴɢ",
                     "COMPLETED": "Cᴏᴍᴘʟᴇᴛᴇᴅ"
                 }
-                deposit_status = status_map.get(deposit_status, "Iɴᴀᴄᴛɪᴠᴇ")
-                deposit_time = time_ago(recorded_at)
+                deposit_status_str = status_map.get(deposit_status, "Iɴᴀᴄᴛɪᴠᴇ")
+                deposit_time = time_ago(recorded_at) if recorded_at > 0 else "Recently"
                 
                 title = f"Dᴇᴘᴏsɪᴛ Hɪsᴛᴏʀʏ [{method}]"
                 description = (
-                    f"💰 Dᴇᴘᴏsɪᴛ Iᴅ ❯ {deposit_id}\n"
+                    f"💰 Dᴇᴘᴏsɪᴛ Iᴅ ❯ {raw_deposit_id}\n"
                     f"💎 Aᴍᴏᴜɴᴛ ❯ {deposit_amount:.2f} Pᴏɪɴᴛs\n"
                     f"🗓️ Dᴇᴘᴏsɪᴛ Tɪᴍᴇ ❯ {deposit_time}..."
                 )
                 thumbnail_url = "https://i.ibb.co/Y4sY9N6h/20250302-230204.png"
                 message_text = (
                     f"📜 <b>Dᴇᴘᴏsɪᴛ Hɪsᴛᴏʀʏ</b> <code>[</code> <code>{method}</code> <code>]</code>\n\n"
-                    f"📦 <b>Dᴇᴘᴏsɪᴛ Iᴅ »</b> <code>{deposit_id}</code>\n"
-                    f"✅ <b>Sᴛᴀᴛᴜs »</b> <code>{deposit_status}</code>\n\n"
+                    f"📦 <b>Dᴇᴘᴏsɪᴛ Iᴅ »</b> <code>{raw_deposit_id}</code>\n"
+                    f"✅ <b>Sᴛᴀᴛᴜs »</b> <code>{deposit_status_str}</code>\n\n"
                     f"💎 <b>Aᴍᴏᴜɴᴛ »</b> <code>{deposit_amount:.2f}</code> <code>Pᴏɪɴᴛs</code>\n"
                     f"🗓️ <b>Dᴇᴘᴏsɪᴛ Tɪᴍᴇ »</b> <code>{deposit_time}</code>"
                 )
@@ -1017,12 +1065,341 @@ async def register_handlers(bot: AsyncTeleBot) -> None:
         )
 
 
+    @bot.callback_query_handler(func=lambda call: call.data.startswith('date_picker:'))
+    async def handle_query(call: CallbackQuery):
+        data = call.data.removeprefix('date_picker:')
+        cid = call.message.chat.id
+        mid = call.message.message_id
+        state = history_manager.SELECTIONS.setdefault(cid, {'start': None, 'end': None})
+        start, end = state['start'], state['end']
+
+        if data == 'OPEN':
+            now = datetime.now()
+            mk = await history_manager.create_calendar(now.year, now.month)
+            await bot.answer_callback_query(call.id, text="📅 Cᴀʟᴇɴᴅᴀʀ Iɴɪᴛɪᴀʟɪᴢᴇᴅ – Sᴇʟᴇᴄᴛ Yᴏᴜʀ Dᴀᴛᴇ Rᴀɴɢᴇ")
+            await asyncio.gather(
+                bot.send_message(
+                    chat_id=cid,
+                    text=f"{history_manager.HEADER_TEXT_HTML}",
+                    parse_mode='HTML',
+                    reply_markup=mk,
+                    disable_web_page_preview=False
+                ),
+                bot.delete_message(cid, mid)
+            )
+            history_manager.SELECTIONS[cid] = {'start': None, 'end': None}
+
+        elif data.startswith('DAY:'):
+            date_str = data.split(':', 1)[1]
+            if not start or (start and end):
+                state['start'], state['end'] = date_str, None
+                await bot.answer_callback_query(call.id, text=f"🟢 Sᴛᴀʀᴛ Dᴀᴛᴇ Sᴇʟᴇᴄᴛᴇᴅ – {date_str}")
+            else:
+                if date_str < start:
+                    state['start'], date_str = date_str, start
+                state['end'] = date_str
+                await bot.answer_callback_query(call.id, text=f"🔴 Eɴᴅ Dᴀᴛᴇ Cᴏɴғɪʀᴍᴇᴅ – {date_str}")
+            y, m = map(int, date_str.split('-')[:2])
+            mk = await history_manager.create_calendar(y, m, state['start'], state['end'])
+            await bot.edit_message_text(
+                chat_id=cid,
+                message_id=mid,
+                text=f"{history_manager.HEADER_TEXT_HTML}",
+                parse_mode='HTML',
+                reply_markup=mk,
+                disable_web_page_preview=False
+            )
+
+        elif data.startswith('PREV:') or data.startswith('NEXT:'):
+            _, ym = data.split(':', 1)
+            y, m = map(int, ym.split('-'))
+            mk = await history_manager.create_calendar(y, m, state.get('start'), state.get('end'))
+            await bot.edit_message_text(
+                chat_id=cid,
+                message_id=mid,
+                text=f"{history_manager.HEADER_TEXT_HTML}",
+                parse_mode='HTML',
+                reply_markup=mk,
+                disable_web_page_preview=False
+            )
+            await bot.answer_callback_query(call.id, text="🔁 Vɪᴇᴡ Uᴘᴅᴀᴛᴇᴅ – Nᴀᴠɪɢᴀᴛɪɴɢ Mᴏɴᴛʜs.")
+
+        elif data == 'CLEAR':
+            history_manager.SELECTIONS[cid] = {'start': None, 'end': None}
+            now = datetime.now()
+            mk = await history_manager.create_calendar(now.year, now.month)
+            await bot.edit_message_text(
+                chat_id=cid,
+                message_id=mid,
+                text=f"{history_manager.HEADER_TEXT_HTML}",
+                parse_mode='HTML',
+                reply_markup=mk,
+                disable_web_page_preview=False
+            )
+            await bot.answer_callback_query(call.id, text="🧹 Sᴇʟᴇᴄᴛɪᴏɴ Rᴇsᴇᴛ – Sᴛᴀʀᴛ Aɢᴀɪɴ Fʀᴇsʜ.")
+        elif data == 'NO-NEXT':
+            await bot.answer_callback_query(
+                call.id,
+                text="📅 Yᴏᴜ Cᴀɴɴᴏᴛ Cʜᴏᴏsᴇ Uᴘᴄᴏᴍɪɴɢ Dᴀᴛᴇs – Sᴇʟᴇᴄᴛ A Vᴀʟɪᴅ Dᴀʏ."
+            )
+        elif data == 'NO-PREV':
+            await bot.answer_callback_query(
+                call.id,
+                text="⏳ Dᴀᴛᴇ Bᴇғᴏʀᴇ Aʟʟᴏᴡᴇᴅ Rᴀɴɢᴇ – Pʟᴇᴀsᴇ Sᴇʟᴇᴄᴛ A Fʀᴏᴍ Dᴀʏ."
+            )
+        elif data == 'ignore':
+            await bot.answer_callback_query(call.id)
+        else:
+            await bot.answer_callback_query(call.id, text="⚠️ Iɴᴠᴀʟɪᴅ Aᴄᴛɪᴏɴ – Pʟᴇᴀsᴇ Tʀʏ Aɢᴀɪɴ")
+
+
+    @bot.callback_query_handler(func=lambda call: call.data.startswith("#RᴇғʀᴇsʜMᴇᴛʀɪᴄs"))
+    async def refresh_metrics_handler(call: CallbackQuery):
+        try:
+            user_id = call.data.split(":")[1]
+            await bot.answer_callback_query(call.id, "📊 Rᴇғʀᴇsʜɪɴɢ Mᴇᴛʀɪᴄs...")
+            
+            metrics_result = await history_manager.user_mgr.user_metrics_report(
+                bot, "edit_message_text", user_id, CHANNEL_ID
+            )
+            
+            if metrics_result is not None:
+                await bot.send_message(call.from_user.id, "📊 Mᴇᴛʀɪᴄs Rᴇғʀᴇsʜᴇᴅ Sᴜᴄᴄᴇssғᴜʟʟʏ")
+            else:
+                await bot.send_message(call.from_user.id, "⚠️ Fᴀɪʟᴇᴅ ᴛᴏ ʀᴇғʀᴇsʜ ᴍᴇᴛʀɪᴄs. Pʟᴇᴀsᴇ ᴛʀʏ ᴀɢᴀɪɴ.")
+        except Exception as e:
+            logger.error(f"Error in refresh_metrics_handler: {e}")
+            await bot.send_message(call.from_user.id, "🚫 Aɴ ᴇʀʀᴏʀ ᴏᴄᴄᴜʀʀᴇᴅ ᴡʜɪʟᴇ ʀᴇғʀᴇsʜɪɴɢ ᴍᴇᴛʀɪᴄs.")
+
+    @bot.inline_handler(func=lambda query: query.query.startswith('#BᴀʀCᴏᴅᴇ-'))
+    async def handle_barcode_inline(inline_query):
+        logger.info(f"Received inline query: {inline_query.query}")
+        user_id = str(inline_query.from_user.id)
+        query_parts = inline_query.query.split('-')
+        if len(query_parts) < 2:
+            logger.error("Invalid query format")
+            return
+        barcode_id = query_parts[1].split(':')[0].strip()
+        order_id = await decode_barcode_id(barcode_id)
+        number_images = {
+            "1": "https://i.ibb.co/1tFqHRDB/IMG-20250616-001326-425.png",
+            "2": "https://i.ibb.co/B5kvxC4h/IMG-20250616-001438-747.png",
+            "3": "https://i.ibb.co/XkLW1JMD/IMG-20250616-001509-853.png",
+            "4": "https://i.ibb.co/BV4tmnzV/IMG-20250616-001539-153.png",
+            "5": "https://i.ibb.co/7Jhkswbx/IMG-20250616-001600-754.png",
+            "6": "https://i.ibb.co/vCyntfC0/IMG-20250616-001622-141.png",
+            "7": "https://i.ibb.co/vv3673bF/IMG-20250616-001642-217.png",
+            "8": "https://i.ibb.co/vx75SQnv/IMG-20250616-001701-946.png",
+            "9": "https://i.ibb.co/HjfFzMS/IMG-20250616-001721-317.png",
+            "10": "https://i.ibb.co/XrRWwv1N/IMG-20250616-001748-924.png",
+            "11": "https://i.ibb.co/v4ytZMhB/IMG-20250616-001829-283.png",
+            "12": "https://i.ibb.co/XxYNk92n/IMG-20250616-001854-594.png",
+            "13": "https://i.ibb.co/Q7p9RYfL/IMG-20250616-001924-017.png",
+            "14": "https://i.ibb.co/hRT1jhgM/IMG-20250616-001947-626.png",
+            "15": "https://i.ibb.co/nM36KKm4/IMG-20250616-002014-687.png",
+            "16": "https://i.ibb.co/hJCZLSYD/IMG-20250616-002040-979.png",
+            "17": "https://i.ibb.co/bgNM03kX/IMG-20250616-002932-998.png",
+            "18": "https://i.ibb.co/XkWdhpWs/IMG-20250616-002327-856.png",
+            "19": "https://i.ibb.co/tpFKyQNp/IMG-20250616-002929-290.png",
+            "20": "https://i.ibb.co/Rp1Btr5P/IMG-20250616-002625-707.png"
+        }
+
+        filters = {
+            "user_id": user_id,
+            "order_id": order_id,
+            "order_status": ["COMPLETED", "PROCESSING"]
+        }
+        if ':' in inline_query.query:
+            _, filter_part = inline_query.query.split(':', 1)
+            for pair in filter_part.split('&'):
+                if '=' in pair:
+                    key, val = pair.split('=', 1)
+                    if key in ("start", "end"):
+                        filters[key] = float(val)
+        result = await history_manager.search_history(
+            history_type="OʀᴅᴇʀIᴅ",
+            user_id=user_id,
+            filters=filters,
+        )
+        if not result.get("response"):
+            logger.warning(f"No results found for user {user_id} and order {order_id}")
+            return await bot.answer_inline_query(inline_query.id, [])
+        order_info = result["result"]
+        try:
+            order_history = json.loads(order_info.get("order_history", "[]"))
+            sms_list = json.loads(order_info.get("sms_list", "[]"))
+            order_number = json.loads(order_info.get("order_number", "[]"))
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON decode error: {e}")
+            order_history, sms_list, order_number = [], [], []
+        order_amount = float(order_info.get("order_amount", 0))
+        order_amount_display = f"{order_amount:.2f}"
+        app_name = order_info.get("app_name", "N/A")
+        order_status = order_info.get("order_status", "")
+        country_code = order_info.get("country_code", "")
+        country_id = order_info.get("country_id", "")
+        recorded_at = float(order_info.get("recorded_at", 0))
+        server_id = order_info.get("server_id", 0)
+        inline_results = []
+        sms_count = 0
+        country_data = await redis_manager.redis_client.json().get('main_data:details:country_data') or {}
+
+        async def process_event(idx, event):
+            nonlocal sms_count, order_amount_display
+            event_timestamp = event.get("timestamp", "0")
+            event_time = time_ago(event_timestamp)
+            event_action = event.get("action", "")
+            if "SMS_RECEIVED" in event_action:
+                if sms_count == 1:
+                    order_amount_display = "Fʀᴇᴇ"
+                sms_count += 1
+                event_sms = event.get("sms", "N/A")
+                suffix = "sᴛ" if sms_count == 1 else "ɴᴅ" if sms_count == 2 else "ʀᴅ" if sms_count == 3 else "ᴛʜ"
+                event_title = f"{sms_count}{suffix}. Sᴍs Rᴇᴄɪᴇᴠᴇᴅ [{event_sms}]"
+                event_desc = f"💎 Pʀɪᴄᴇ ❯ {order_amount_display}\n⏳ Rᴇᴄɪᴇᴠᴇᴅ Aᴛ {event_time}"
+                return InlineQueryResultArticle(
+                    id=str(idx),
+                    title=event_title,
+                    description=event_desc,
+                    thumbnail_url=number_images.get(str(sms_count), "https://i.postimg.cc/59q18wJT/image.png"),
+                    input_message_content=InputTextMessageContent(
+                        message_text=(
+                            f"<b>Bᴀʀ-Cᴏᴅᴇ:</b> <code>{barcode_id}</code>\n"
+                            f"<b>Eᴠᴇɴᴛ:</b> {event_title}\n\n"
+                            f"<b>💎 Pʀɪᴄᴇ ❯</b> <code>{order_amount_display}</code>\n"
+                            f"<b>⏳ Rᴇᴄɪᴠᴇᴅ Aᴛ</b> {event_time}"
+                        ),
+                        parse_mode="HTML"
+                    ),
+                    reply_markup=await history_manager._get_cached_keyboard(event, is_timeout=False, order_id=order_id)
+                )
+            return None
+
+        tasks = [process_event(idx, event) for idx, event in enumerate(order_history, start=1)]
+        results = await asyncio.gather(*tasks)
+        inline_results = [result for result in results if result is not None]
+
+        if not inline_query.offset:
+            description = await asyncio.to_thread(lambda: (
+                f"📞 Nᴜᴍʙᴇʀ   » {order_number[0] if order_number else 'N/A'} {order_number[1] if len(order_number) > 1 else ''}\n"
+                f"⚡ Oʀᴅᴇʀ Bᴜʏᴇᴅ Aᴛ {time_ago(recorded_at)}\n"
+                f"💬 Tᴏᴛᴀʟ Sᴍs Rᴇᴄɪᴇᴠᴇᴅ ❯ {sms_count} Sᴍs{'s' if sms_count > 1 else ''}"
+            ))
+            country_name = country_data.get(country_id, {}).get('country_name', '').translate(await small_caps())
+            order_at = time_ago(recorded_at)
+            status = "⏳" if order_status == "PENDING" else "⌛" if order_status == "PROCESSING" else "✅" if order_status == "COMPLETED" else "🛑"
+
+            if len(sms_list) > 2:
+                text = "<code>" + "</code>\n<code>          </code><b>•</b> <code>".join(sms_list) + "</code>"
+                sms_section = f"<blockquote expandable>💬 <b>Sᴍs Lɪsᴛ »</b> {text}</blockquote>\n\n"
+            elif len(sms_list) == 2:
+                sms_section = f"💬 <b>Sᴍs Lɪsᴛ »</b> <code>{sms_list[0]}</code><code>,</code> <code>{sms_list[1]}</code>\n\n"
+            elif len(sms_list) == 1:
+                sms_section = f"💬 <b>Sᴍs Lɪsᴛ »</b> <code>{sms_list[0]}</code>\n\n"
+            else:
+                sms_section = "💬 <b>Sᴍs Lɪsᴛ »</b> <code>N/A</code>\n\n"
+            message_text = (
+                    f"📜 <b>Oʀᴅᴇʀ Hɪsᴛᴏʀʏ</b> <code>[</code> <code>{app_name.translate(await small_caps())}</code> <code>]</code>\n\n"
+                    f"📦 <b>Bᴀʀ-Cᴏᴅᴇ »</b> <code>{barcode_id}</code>\n"
+                    f"{status} <b>Sᴛᴀᴛᴜs »</b> <code>{order_status}</code>\n\n"
+                    f"💎 <b>Aᴍᴏᴜɴᴛ »</b> <code>{order_amount_display}</code> <code>Pᴏɪɴᴛs</code>\n"
+                    f"🌍 <b>Rᴇɢɪᴏɴ »</b> <code>{country_name}</code> <b>[</b> <code>{country_code}</code> <b>]</b>\n\n"
+                    f"📞 <b>Nᴜᴍʙᴇʀ »</b> <code>{order_number[0]}</code> <code>{order_number[1]}</code>\n"
+                    f"{sms_section}"
+                    f"🗓️ <b>Oʀᴅᴇʀ Tɪᴍᴇ »</b> <code>{order_at}</code>"
+                )
+            summary_result = InlineQueryResultArticle(
+                id="summary",
+                title=f"🛍️ Oʀᴅᴇʀ Sᴍs Hɪsᴛᴏʀʏ [{app_name.translate(await small_caps())}]",
+                description=description,
+                input_message_content=InputTextMessageContent(message_text=message_text, parse_mode="HTML"),
+                thumbnail_url="https://i.postimg.cc/JhdcD1S6/ainvoice.png",
+                reply_markup=await history_manager._get_cached_keyboard(order_info, is_timeout=False, order_id=order_id)
+            )
+            inline_results.insert(0, summary_result)
+
+        next_offset = str(int(inline_query.offset or 0) + 50) if len(inline_results) == 50 else ""
+        await bot.answer_inline_query(
+            inline_query.id,
+            results=inline_results,
+            cache_time=0,
+            next_offset=next_offset
+        )
+
+        logger.info("Inline handler for #BᴀʀCᴏᴅᴇ- registered successfully")
+
+    @bot.inline_handler(func=lambda query: query.query.startswith("#SᴛᴀᴛᴜsCᴀɴᴄᴇʟ"))
+    async def handle_status_cancel_pending_inline(inline_query):
+        user_id = str(inline_query.from_user.id)
+        query_text = inline_query.query
+        filters = {
+            "user_id": user_id,
+            "order_status": ["PENDING"]
+        }
+        result = await history_manager.search_history(
+            history_type="Oʀᴅᴇʀ",
+            user_id=user_id,
+            filters=filters,
+            sort_by="recorded_at",
+            sort_asc=False,
+            offset=int(inline_query.offset or 0),
+            limit=RESULT_LIMIT
+        )
+        inline_results = []
+        if result.get("response") and result.get("results"):
+            for idx, order in enumerate(result["results"], 1):
+                if order.get("order_status", "").upper() == "PENDING":
+                    order_id = order["id"].split(":")[-1] if order["id"].startswith("order_data:info:") else ""
+                    app_name = order.get("app_name", "Unknown").translate(await small_caps())
+                    order_amount = order.get("order_amount", "N/A")
+                    country_code = order.get("country_code", "N/A")
+                    server_id = order.get("server_id", "N/A")
+                    app_code = order.get("app_code", "N/A")
+                    recorded_at = float(order.get("recorded_at", 0))
+                    order_at = time_ago(recorded_at)
+                    if app_code and app_code.startswith('['):
+                        try:
+                            app_code = app_code.strip('[]').split(',')[0].strip().strip("'\"")
+                        except (IndexError, AttributeError):
+                            app_code = app_code.strip('[]')
+                    first_code = app_code.split(",")[0].strip().lower() if app_code and "," in app_code else app_code.lower() if app_code else ''
+                    thumbnail_url = f"https://smsactivate.s3.eu-central-1.amazonaws.com/assets/ico/{first_code}0.webp"
+                    encoded_order_id = await encode_order_id(order_id)
+                    title = f"{app_name} 💎 {order_amount} [{country_code}]"
+                    description = f"Oʀᴅᴇʀᴇᴅ {order_at} | Bᴀʀ-Cᴏᴅᴇ : {encoded_order_id}"
+                    inline_results.append(
+                        InlineQueryResultArticle(
+                            id=str(idx),
+                            title=title,
+                            description=description,
+                            thumbnail_url=thumbnail_url,
+                            input_message_content=InputTextMessageContent(
+                                message_text=f"#SᴛᴀᴛᴜsCᴀɴᴄᴇʟ:{encoded_order_id}",
+                                parse_mode="HTML"
+                            )
+                        )
+                    )
+        if not inline_results:
+            inline_results.append(
+                InlineQueryResultArticle(
+                    id="no_order",
+                    title="No Order To Cancel",
+                    description="No order to cancel",
+                    input_message_content=InputTextMessageContent(
+                        message_text="no order to cancel",
+                        parse_mode="HTML"
+                    )
+                )
+            )
+        await bot.answer_inline_query(
+            inline_query.id,
+            results=inline_results,
+            cache_time=1,
+            next_offset=str(int(inline_query.offset or 0) + RESULT_LIMIT) if len(inline_results) >= RESULT_LIMIT else ""
+        )
+
+
 __all__ = ["init_managers", "register_handlers"]
 
 
-
-
-#query_str = f'@app_id:{app_id}'
-#query = Query(query_str).return_fields("app_code").dialect(2)
-#search_result = await redis_client.ft(SERVICE_INDEX).search(query)
-#app_code = search_result.docs[0]["app_code"].lower().strip() if search_result.docs else None'
+

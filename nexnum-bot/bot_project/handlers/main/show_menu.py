@@ -19,7 +19,6 @@ from telebot.async_telebot import AsyncTeleBot
 from telebot import types
 from telebot.types import InputMediaPhoto, Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 import os
-from handlers.manager.auto_updater import AutoUpdater, auto_updater
 from dotenv import load_dotenv
 
 from utils.redis_manager import redis_manager
@@ -46,7 +45,6 @@ class UserStartManager:
         self.input_validator: Any = None
         self.transaction_guard: Any = None
         self.bot: Any = None
-        self.auto_updater: Any = None
         self.aggregator: Any = None
         self._initialized = False
         self.DEFAULT_VALUES = {
@@ -67,7 +65,6 @@ class UserStartManager:
                 return False
 
             self.user_manager = user_mgr
-            self.auto_updater = auto_updater
             self.bot = bot
             self.input_validator = getattr(bot, 'input_validator', None)
             self.transaction_guard = getattr(bot, 'transaction_guard', None)
@@ -183,7 +180,10 @@ class UserStartManager:
         Best-effort; logs errors and does not block user creation.
         """
         try:
-            await redis_manager.redis_client.zadd(f"user_data:{referrer_id}:profile:reffer", {new_user_id: int(time.time())})
+            await db_adapter.save_referral_info(telegram_id=str(new_user_id), referrer_id=str(referrer_id))
+            r_client = await redis_manager.get_client()
+            if r_client:
+                await r_client.zadd(f"user_data:{referrer_id}:profile:reffer", {new_user_id: int(time.time())})
         except Exception as e:
             print(f"_record_referral error: {e}")
 
@@ -205,9 +205,8 @@ class UserStartManager:
                     # decode_base62 should return an int user_id (awaitable in your original snippet)
                     decoded = await decode_base62(ref_code)
                     if decoded is not None:
-                        user_key = f"user_data:{str(decoded)}:profile:main"
-                        exists = await redis_manager.redis_client.exists(user_key)
-                        if exists:
+                        user_session = await db_adapter.get_user_session(str(decoded))
+                        if user_session:
                             return str(decoded)
                         return None
         except Exception as e:
@@ -252,27 +251,37 @@ class UserStartManager:
             first_name = self.input_validator.sanitize_text(message.from_user.first_name)
             username = self.input_validator.sanitize_text(message.from_user.username or "N/A")
 
-            # Check for Account Linking Deep Link (/start link_XXXXXX)
+            # Check for Account Linking Deep Link (/start link_LINK-XXXXXX)
             if message.text:
                 parts = message.text.strip().split(maxsplit=1)
                 if len(parts) == 2 and parts[1].startswith("link_"):
-                    link_code = parts[1].strip()
+                    raw_token = parts[1].replace("link_", "").strip()
                     try:
-                        from utils.db import db_adapter
-                        link_res = await db_adapter.consume_account_link(link_code, user_id, name=first_name)
-                        if link_res.get("success"):
-                            await bot.reply_to(
-                                message,
-                                f"🎉 <b>Aᴄᴄᴏᴜɴᴛ Cᴏɴɴᴇᴄᴛᴇᴅ Sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n"
-                                f"Yᴏᴜʀ Tᴇʟᴇɢʀᴀᴍ Aᴄᴄᴏᴜɴᴛ (<code>{user_id}</code>) ɪs ɴᴏᴡ ʟɪɴᴋᴇᴅ ᴛᴏ ʏᴏᴜʀ NᴇxNᴜᴍ Wᴇʙ Aᴘᴘ ᴘʀᴏғɪʟᴇ.",
-                                parse_mode="HTML"
+                        web_user_id = await db_adapter.consume_account_link_token(raw_token)
+                        if web_user_id:
+                            link_res = await db_adapter.link_telegram_account(
+                                web_user_id=web_user_id,
+                                telegram_id=user_id,
+                                first_name=first_name,
+                                username=username
                             )
+                            if link_res.get("success"):
+                                bal = link_res.get("balance", 0.0)
+                                await bot.reply_to(
+                                    message,
+                                    f"🎉 <b>Aᴄᴄᴏᴜɴᴛ Cᴏɴɴᴇᴄᴛᴇᴅ Sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n"
+                                    f"Yᴏᴜʀ Tᴇʟᴇɢʀᴀᴍ Aᴄᴄᴏᴜɴᴛ (<code>{user_id}</code>) ɪs ɴᴏᴡ ʟɪɴᴋᴇᴅ ᴛᴏ ʏᴏᴜʀ NᴇxNᴜᴍ Wᴇʙ Aᴘᴘ ᴘʀᴏғɪʟᴇ.\n"
+                                    f"💰 <b>Sʜᴀʀᴇᴅ Wᴀʟʟᴇᴛ Bᴀʟᴀɴᴄᴇ:</b> <code>₹{bal:.2f}</code>",
+                                    parse_mode="HTML"
+                                )
+                                return
                         else:
                             await bot.reply_to(
                                 message,
-                                f"🚫 <b>Aᴄᴄᴏᴜɴᴛ Lɪɴᴋɪɴɢ Fᴀɪʟᴇᴅ:</b> {link_res.get('error', 'Invalid or expired code')}",
+                                "🚫 <b>Aᴄᴄᴏᴜɴᴛ Lɪɴᴋɪɴɢ Fᴀɪʟᴇᴅ:</b> Link token is invalid or has expired (valid for 10 mins).",
                                 parse_mode="HTML"
                             )
+                            return
                     except Exception as le:
                         await async_logger.error(f"Error handling account link code: {le}")
 
@@ -576,9 +585,7 @@ class UserStartManager:
                 await self.bot.send_message(message.chat.id, "❌ Invalid URL. Must start with http or https.")
                 return
 
-            await self.bot.send_message(message.chat.id, f"⏳ Importing Redis data from:\n{url}")
-            await self.auto_updater.import_redis_dump(url)
-            await self.bot.send_message(message.chat.id, "✅ Redis import complete.")
+            await self.bot.send_message(message.chat.id, "ℹ️ Redis dump import feature is no longer active as data is served live via API.")
 
         except Exception as e:
             logging.error(f"[add_dump_from_url] Error: {e}")

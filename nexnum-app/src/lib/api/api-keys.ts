@@ -174,7 +174,8 @@ export async function validateApiKey(rawKey: string, requestIp?: string): Promis
             return { valid: true, key: data }
         }
     } catch (err) {
-        logger.warn('[Auth:Cache] Redis lookup failed, falling back to DB', { error: err })
+        const e = err instanceof Error ? err : new Error(String(err))
+        logger.warn('[Auth:Cache] Redis lookup failed, falling back to DB', { error: e.message, code: (err as any)?.code })
     }
 
     // 2. Database Fallback
@@ -198,7 +199,8 @@ export async function validateApiKey(rawKey: string, requestIp?: string): Promis
     try {
         await redis.set(cacheKey, JSON.stringify(apiKey), 'EX', 300)
     } catch (err) {
-        logger.warn('[Auth:Cache] Failed to populate cache', { error: err })
+        const e = err instanceof Error ? err : new Error(String(err))
+        logger.warn('[Auth:Cache] Failed to populate cache', { error: e.message, code: (err as any)?.code })
     }
 
     // Update usage stats (async)

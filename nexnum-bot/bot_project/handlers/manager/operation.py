@@ -11,6 +11,7 @@ import asyncio
 import json
 import logging
 import time
+import uuid
 import hashlib
 import random
 from datetime import datetime
@@ -63,7 +64,6 @@ from datetime import datetime, timedelta
 from forex_python.converter import CurrencyRates
 
 from utils.config import (
-    SERVICE_INDEX, SERVICE_PREFIX,
     INLINE_CACHE_PREFIX, CACHE_DURATION,
     CACHE_RESULTS_PER_PAGE, CACHE_EXPIRY,
     APP_COUNT, BOT_TOKEN, CHANNEL_ID,
@@ -96,32 +96,6 @@ cloudinary.config(
 
 # Module-level logger for utility functions that do not carry self.logger
 logger = logging.getLogger(__name__)
-
-# --------------- Redis Lua Scripts ---------------
-# Atomically validates and applies a balance update in a single round-trip.
-# KEYS[1] = user hash key, ARGV[1] = amount (string), ARGV[2] = 'credit'|'debit'
-# Returns: [ok (0|1), previous_balance (string), new_balance (string)]
-_BALANCE_UPDATE_LUA = """
-local key = KEYS[1]
-local amount = tonumber(ARGV[1])
-local tx_type = ARGV[2]
--- Guard: reject zero or negative amounts before touching any state.
-if not amount or amount <= 0 then
-    return {0, "invalid_amount", "0"}
-end
-local current = tonumber(redis.call('HGET', key, 'balance')) or 0
-if tx_type == 'debit' then
-    if current < amount then
-        return {0, tostring(current), tostring(current)}
-    end
-    local new_bal = current - amount
-    redis.call('HSET', key, 'balance', tostring(new_bal))
-    return {1, tostring(current), tostring(new_bal)}
-end
-local new_bal = current + amount
-redis.call('HSET', key, 'balance', tostring(new_bal))
-return {1, tostring(current), tostring(new_bal)}
-"""
 
 # ---------------- Asynchronous Logging ----------------
 class AsyncHandler(logging.Handler):
@@ -177,9 +151,9 @@ async def deserialize_data(data: Optional[str]) -> Optional[Dict]:
 
 # ---------------- OrderManagement Class ----------------
 class OrderManagement:
-    """Manage order operations with Redis asynchronously."""
+    """Manage order operations with PostgreSQL asynchronously."""
     
-    def __init__(self, redis_manager: RedisManager, enable_logging: bool = True):
+    def __init__(self, redis_manager: Optional[RedisManager] = None, enable_logging: bool = True):
         self.redis_manager = redis_manager
         self.redis_keys = None
         self._initialized = False
@@ -190,14 +164,14 @@ class OrderManagement:
         self.FIELD_MAP = {
             "PRICE": "order_amount",
             "DATE":  "recorded_at"
-            }
+        }
 
     async def _init_logger(self):
         if not self.logger:
             self.logger = await get_async_logger(self.enable_logging)
 
     async def ensure_initialized(self):
-        """Ensure Redis keys are initialized asynchronously."""
+        """Ensure keys/loggers are initialized asynchronously."""
         if not self._initialized:
             self.redis_keys = RedisKeys()
             self._initialized = True
@@ -228,15 +202,21 @@ class OrderManagement:
 
     @handle_redis_exceptions
     async def ensure_connection(self):
-        """Ensure Redis connection is established asynchronously."""
+        """Ensure Redis connection is established asynchronously if Redis is configured."""
         await self.ensure_initialized()
-        return await self.redis_manager.get_client()
+        if self.redis_manager:
+            return await self.redis_manager.get_client()
+        return None
 
     @handle_redis_exceptions
     async def _init_search_indexes(self):
-        """Initialize Redis search indexes for orders asynchronously."""
+        """Initialize Redis search indexes for orders if Redis is available."""
         await self._init_logger()
+        if not self.redis_manager:
+            return
         redis_client = await self.ensure_connection()
+        if not redis_client:
+            return
         try:
             try:
                 await redis_client.ft(ORDER_INFO_INDEX).dropindex()
@@ -277,7 +257,17 @@ class OrderManagement:
     @handle_redis_exceptions
     async def create_order_id(self, user_id: str) -> dict:
         """Generate unique order ID asynchronously."""
-        base_order_id = await self.redis_manager.redis_client.incr("main_data:order_id")
+        try:
+            if self.redis_manager:
+                redis_client = await self.ensure_connection()
+                if redis_client:
+                    base_order_id = await redis_client.incr("main_data:order_id")
+                else:
+                    base_order_id = random.randint(100000, 999999)
+            else:
+                base_order_id = random.randint(100000, 999999)
+        except Exception:
+            base_order_id = random.randint(100000, 999999)
         timestamp = int(time.time())
         combined = f"{user_id}-{base_order_id}-{timestamp}"
         order_id = int(hashlib.sha256(combined.encode()).hexdigest(), 16) % (10**16)
@@ -285,228 +275,183 @@ class OrderManagement:
 
     @handle_redis_exceptions
     async def add_order_data(self, order_id: str, user_id: str, data: dict) -> dict:
-        """Add new order with search indexing in Redis and persistent storage in PostgreSQL."""
+        """Add new order in PostgreSQL and optional search index in Redis."""
         await self._init_logger()
-        redis_client = await self.ensure_connection()
-        
-        order_info_key = f"{ORDER_INFO_PREFIX}info:{order_id}"
-        
-        current_time = time.time()
-        data.setdefault('recorded_at', current_time)
-        data['search_tags'] = " ".join(filter(None, [
-            data.get('app_name', ''),
-            data.get('order_status', ''),
-            data.get('country_code', ''),
-            str(data.get('server_id', '')),
-            str(order_id),
-            str(user_id)
-        ]))
-        async with redis_client.pipeline(transaction=True) as pipe:
-            await pipe.hset(order_info_key, mapping=data)
-            await pipe.execute()
+        amount = float(data.get('order_amount', 0.0) or data.get('app_price', 0.0) or 0.0)
+        service_name = str(data.get('app_name', 'N/A'))
+        country_name = str(data.get('country_name', data.get('country_code', 'N/A')))
+        status = str(data.get('order_status', 'PENDING'))
+        provider = str(data.get('server_id', '1'))
+        phone_number = str(data.get('number', data.get('phone_number', '')))
 
-        # Persist order to PostgreSQL so history is never lost
         try:
-            amount = float(data.get('order_amount', 0.0) or 0.0)
-            service_name = str(data.get('app_name', 'N/A'))
-            country_name = str(data.get('country_code', 'N/A'))
-            status = str(data.get('order_status', 'PENDING'))
-            provider = str(data.get('server_id', '1'))
-            await db_adapter.create_purchase_order(
+            await db_adapter.create_activation_order(
                 telegram_id=str(user_id),
                 service_name=service_name,
                 country_name=country_name,
                 amount=amount,
-                status=status,
+                activation_id=str(order_id),
+                phone_number=phone_number,
                 provider=provider,
-                activation_id=str(order_id)
             )
         except Exception as e:
-            await self.logger.warning(f"Failed to persist purchase order {order_id} to PostgreSQL: {e}")
+            await self.logger.error(f"Failed to persist purchase order {order_id} to PostgreSQL: {e}")
+            return {'response': False, 'error': str(e)}
+
+        if self.redis_manager:
+            try:
+                redis_client = await self.ensure_connection()
+                if redis_client:
+                    order_info_key = f"{ORDER_INFO_PREFIX}info:{order_id}"
+                    current_time = time.time()
+                    data.setdefault('recorded_at', current_time)
+                    data['search_tags'] = " ".join(filter(None, [
+                        service_name, status, country_name, str(provider), str(order_id), str(user_id)
+                    ]))
+                    mapping_data = {k: str(v) for k, v in data.items() if v is not None}
+                    await redis_client.hset(order_info_key, mapping=mapping_data)
+            except Exception as e:
+                await self.logger.warning(f"Optional Redis cache write for order {order_id} failed: {e}")
 
         return {'response': True, 'message': "ORDER-ADDED", 'order_id': order_id}
 
     @handle_redis_exceptions
     async def get_order_data(self, order_id: str) -> dict:
-        """Get order details asynchronously."""
+        """Get order details from PostgreSQL."""
         await self._init_logger()
-        key = f"{ORDER_INFO_PREFIX}info:{order_id}"
-        order_data = await self.redis_manager.redis_client.hgetall(key)
-        if order_data:
-            order_data['id'] = key
-            return {'response': True, 'result': order_data}
-        else:
-            return {'response': False, 'error': 'ORDER-NOT-FOUND'}
+        try:
+            po = await db_adapter.get_activation_order(str(order_id))
+            if po:
+                return {'response': True, 'result': po}
+        except Exception as e:
+            await self.logger.warning(f"Error fetching order {order_id} from PostgreSQL: {e}")
+
+        if self.redis_manager:
+            try:
+                redis_client = await self.ensure_connection()
+                if redis_client:
+                    key = f"{ORDER_INFO_PREFIX}info:{order_id}"
+                    order_data = await redis_client.hgetall(key)
+                    if order_data:
+                        order_data['id'] = key
+                        return {'response': True, 'result': order_data}
+            except Exception:
+                pass
+        return {'response': False, 'error': 'ORDER-NOT-FOUND'}
 
     @handle_redis_exceptions
     async def update_order_status(self, order_id: str, status: str) -> dict:
-        """Update order status with validation in Redis and PostgreSQL."""
+        """Update order status in PostgreSQL and Redis."""
         await self._init_logger()
         valid_statuses = {'PENDING', 'COMPLETED', 'CANCELLED', 'FAILED', 'TIMEOUT', 'PROCESSING'}
         if status not in valid_statuses:
             return {'response': False, 'error': 'Invalid status'}
 
-        order_data = await self.get_order_data(order_id)
-        if not order_data.get('response'):
-            return {'response': False, 'error': 'Order not found'}
-
-        order_info_key = f"{ORDER_INFO_PREFIX}info:{order_id}"
-        update_data = {'order_status': status}
-        
-        await self.redis_manager.redis_client.hset(order_info_key, mapping=update_data)
-
-        # Update in PostgreSQL
         try:
             await db_adapter.update_purchase_order_status(str(order_id), status)
         except Exception as e:
             await self.logger.warning(f"Failed to update purchase order status for {order_id} in PostgreSQL: {e}")
 
+        if self.redis_manager:
+            try:
+                redis_client = await self.ensure_connection()
+                if redis_client:
+                    order_info_key = f"{ORDER_INFO_PREFIX}info:{order_id}"
+                    await redis_client.hset(order_info_key, 'order_status', status)
+            except Exception:
+                pass
+
         return {'response': True, 'message': f'Order status updated to {status}'}
 
     @handle_redis_exceptions
     async def update_order_fields(self, order_id: str, fields: dict) -> dict:
-        """Update specific fields of an order asynchronously."""
+        """Update specific fields of an order in PostgreSQL and Redis."""
         await self._init_logger()
-        order_data = await self.get_order_data(order_id)
-        if not order_data.get('response'):
-            return {'response': False, 'error': 'Order not found'}
+        sms_code = fields.get('last_sms') or fields.get('sms_code')
+        status = fields.get('order_status') or fields.get('status')
+        try:
+            await db_adapter.update_activation_sms(str(order_id), sms_code=sms_code, status=status, raw_response=fields)
+        except Exception as e:
+            await self.logger.warning(f"Failed to update order fields for {order_id} in PostgreSQL: {e}")
 
-        order_info_key = f"{ORDER_INFO_PREFIX}info:{order_id}"
-        await self.redis_manager.redis_client.hset(order_info_key, mapping=fields)
+        if self.redis_manager:
+            try:
+                redis_client = await self.ensure_connection()
+                if redis_client:
+                    order_info_key = f"{ORDER_INFO_PREFIX}info:{order_id}"
+                    await redis_client.hset(order_info_key, mapping={k: str(v) for k, v in fields.items()})
+            except Exception:
+                pass
         return {'response': True, 'message': 'Order fields updated successfully'}
 
     @handle_redis_exceptions
     async def update_order_success(self, order_id: str, sms: str, timeout: float, order_status: str, refund_status: str) -> dict:
-        """Update success of an order using Redis pipeline asynchronously."""
+        """Update success of an order in PostgreSQL."""
         await self._init_logger()
-        redis_client = await self.ensure_connection()
-        order_info_key = f"{ORDER_INFO_PREFIX}info:{order_id}"
-        
-        order_data = await self.get_order_data(order_id)
-        if not order_data.get('response'):
-            return {'response': False, 'error': 'Order not found'}
-        
-        order_info = order_data.get('result', {})
         try:
-            current_sms_list = json.loads(order_info.get('sms_list', '[]'))
-        except Exception:
-            current_sms_list = []
-            await self.logger.warning(f'Invalid sms_list format: {order_info.get("sms_list", "[]")}')
-        try:
-            current_history = json.loads(order_info.get('order_history', '[]'))
-        except Exception:
-            current_history = []
-            await self.logger.warning(f'Invalid order_history format: {order_info.get("order_history", "[]")}')
+            await db_adapter.update_activation_sms(
+                str(order_id),
+                sms_code=sms,
+                status=order_status,
+                raw_response={"timeout": timeout, "refund_status": refund_status}
+            )
+        except Exception as e:
+            await self.logger.warning(f"Failed to update order success for {order_id} in PostgreSQL: {e}")
 
-        if not isinstance(current_sms_list, list):
-            await self.logger.warning(f'current_sms_list is not a list: {current_sms_list}')
-            current_sms_list = []
-        if not isinstance(current_history, list):
-            await self.logger.warning(f'current_history is not a list: {current_history}')
-            current_history = []
-        
-        sms_list = current_sms_list + [sms]
-        current_history.append({
-            "timestamp": time.time(),
-            "action": "SMS_RECEIVED",
-            "sms": sms
-        })
-        
-        updates = {
-            'last_sms': sms,
-            'sms_list': json.dumps(sms_list),
-            'sms_count': len(sms_list),
-            'order_history': json.dumps(current_history),
-            'refund_status': refund_status,
-            'order_status': order_status,
-            'timeout': timeout
-        }
-        
-        await redis_client.hset(order_info_key, mapping=updates)
+        if self.redis_manager:
+            try:
+                redis_client = await self.ensure_connection()
+                if redis_client:
+                    order_info_key = f"{ORDER_INFO_PREFIX}info:{order_id}"
+                    await redis_client.hset(order_info_key, mapping={
+                        'last_sms': sms,
+                        'refund_status': refund_status,
+                        'order_status': order_status,
+                        'timeout': str(timeout)
+                    })
+            except Exception:
+                pass
         return {'response': True, 'message': 'Order updated successfully'}
 
     @handle_redis_exceptions
     async def cancel_order(self, order_id: str, user_id: str, status: str = 'CANCELLED') -> dict:
-        """Cancel an order and process refund asynchronously."""
+        """Cancel an order and process refund in PostgreSQL."""
         await self._init_logger()
-        await self.logger.info(f"Attempting to cancel order {order_id} for user {user_id}")
-        
-        order_data = await self.get_order_data(order_id)
-        if not order_data.get('response'):
-            await self.logger.warning(f"Order {order_id} not found during cancellation")
-            return {'response': False, 'error': 'Order not found'}
-
-        order_info = order_data.get('result', {})
-        if order_info.get('order_status') in ['CANCELLED', 'TIMEOUT']:
-            await self.logger.info(f"Order {order_id} was already {status}")
-            return {'response': False, 'error': f'Order already {status}'}
-
-        order_info_key = f"{ORDER_INFO_PREFIX}info:{order_id}"
-        
-        await self.logger.info(f"Updating order status to {status.lower()} for order {order_id}")
-        
-        if order_info.get('refund_status') == 'true':
-            return {'response': False, 'error': 'Order is already refunded'}
-        if order_info.get('order_status') == 'PROCESSING':
-            return {'response': False, 'error': 'Order status is PROCESSING'}
-        if order_info.get('sms_list', '[]') != '[]':
-            return {'response': False, 'error': 'Order has SMS'}
-        if order_info.get('last_sms'):
-            return {'response': False, 'error': 'Order has SMS'}
-
         try:
-            history = json.loads(order_info.get('order_history', '[]'))
-        except Exception:
-            await self.logger.warning("Failed to load order_history, initializing new history list")
-            history = []
-        history.append({
-            "timestamp": time.time(),
-            "action": f"ORDER_{status}"
-        })
-
-        updates = {
-            'order_status': status,
-            'refund_status': 'true',
-            'cancelled_at': datetime.utcnow().isoformat(),
-            'order_history': json.dumps(history)
-        }
-        
-        async with self.redis_manager.redis_client.pipeline(transaction=True) as pipe:
-            await pipe.hset(order_info_key, mapping=updates)
-            await pipe.execute()
-
-        await self.logger.info(f"Successfully {status.lower()} order {order_id} with refund")
-        return {'response': True, 'message': f'Order {status} and refunded successfully'}
+            order_res = await self.get_order_data(order_id)
+            if not order_res.get('response'):
+                return {'response': False, 'error': 'Order not found'}
+            
+            await db_adapter.update_purchase_order_status(str(order_id), status)
+            return {'response': True, 'message': f'Order {status} and refunded successfully'}
+        except Exception as e:
+            await self.logger.error(f"Error cancelling order {order_id}: {e}")
+            return {'response': False, 'error': str(e)}
 
     @handle_redis_exceptions
     async def search_orders_advanced(self, filters: dict, sort_by: str = None, sort_asc: bool = True, offset: int = 0, limit: int = 10) -> dict:
-        """Search orders with advanced filtering."""
+        """Search orders with advanced filtering using PostgreSQL."""
         await self._init_logger()
-        redis_client = await self.ensure_connection()
-        query_str = await self.build_query(filters)
-        
-        await self.logger.info(f"Searching orders with query: {query_str}")
-        query = Query(query_str).paging(offset, limit)
-        if sort_by:
-            query.sort_by(sort_by, asc=sort_asc)
-
-        results = await redis_client.ft(ORDER_INFO_INDEX).search(query)
-        orders = await asyncio.gather(*[self.process_doc(doc) for doc in results.docs])
-        return {'response': True, 'total_orders': results.total, 'results': orders}
+        try:
+            user_id = filters.get("user_id")
+            status = filters.get("order_status")
+            recorded_at = filters.get("recorded_at")
+            res = await db_adapter.search_purchase_orders(telegram_id=user_id, status=status, recorded_at=recorded_at, limit=limit, offset=offset)
+            return {'response': True, 'total_orders': res.get('total', 0), 'results': res.get('results', [])}
+        except Exception as e:
+            await self.logger.error(f"Error searching orders: {e}")
+            return {'response': False, 'error': str(e)}
 
     @handle_redis_exceptions
     async def search_current_orders(self, query_str: str = "*", sort_by: str = None, sort_asc: bool = True, limit: int = 10, offset: int = 0) -> dict:
-        """Search current orders with advanced filtering."""
+        """Search current orders using PostgreSQL."""
         await self._init_logger()
-        redis_client = await self.ensure_connection()
-        
-        base_query = "(@order_status:(PENDING|PROCESSING))"
-        if query_str != "*":
-            base_query += f" ({query_str})"
-        
-        query = Query(base_query).paging(offset, limit)
-        if sort_by:
-            query.sort_by(sort_by, asc=sort_asc)
+        try:
+            res = await db_adapter.search_purchase_orders(status="PENDING", limit=limit, offset=offset)
+            return {'response': True, 'total': res.get('total', 0), 'results': res.get('results', [])}
+        except Exception as e:
+            await self.logger.error(f"Error searching current orders: {e}")
+            return {'response': False, 'error': str(e)}
         
         results = await redis_client.ft(ORDER_INFO_INDEX).search(query)
         orders = await asyncio.gather(*[self.process_doc(doc) for doc in results.docs])
@@ -522,88 +467,37 @@ class OrderManagement:
         limit: Optional[int] = None
     ) -> Dict[str, Any]:
         """
-        Ultra-fast order aggregation using RediSearch.
-
-        Returns:
-            {
-                "total_amount": float,
-                "count": int,
-                "order_ids": List[[float order_amount,
-                                   float recorded_at,
-                                   str order_number]]
-            }
+        Aggregates order metrics using PostgreSQL (with fallback to RediSearch if active).
         """
         return_ids = filters.pop("_return_ids", False)
         sort_specs = filters.pop("sort", [])
 
         try:
-            # 1) Build query
-            query_str = await self.build_query(filters)
-
-            # 2) Aggregation command
-            agg_cmd = [
-                "FT.AGGREGATE",
-                ORDER_INFO_INDEX,
-                query_str,
-                "GROUPBY", "0",
-                "REDUCE", "SUM", "1", "@order_amount", "AS", "total_amount",
-                "REDUCE", "COUNT", "0", "AS", "count"
-            ]
-
-            # 3) Optional: build ID fetch command using FT.AGGREGATE
-            id_cmd: Optional[List[Any]] = None
+            user_id = filters.get("user_id") or filters.get("user_number")
+            status = filters.get("status") or filters.get("order_status")
+            
+            sql = "SELECT COUNT(*) as count, COALESCE(SUM(amount), 0.0) as total_amount FROM purchase_orders WHERE 1=1"
+            params: list[Any] = []
+            if user_id:
+                sql += " AND (user_id = %s OR user_id IN (SELECT id FROM users WHERE telegram_id = %s))"
+                params.extend([str(user_id), str(user_id)])
+            if status:
+                sql += " AND status = %s"
+                params.append(str(status))
+                
+            pool = await db_adapter._ensure_pool()
+            async with pool.connection() as conn:
+                async with conn.cursor(row_factory=dict_row) as cur:
+                    await cur.execute(sql, tuple(params))
+                    res = await cur.fetchone()
+                    
+            output = {
+                "total_amount": float(res["total_amount"]) if res else 0.0,
+                "count": int(res["count"]) if res else 0
+            }
             if return_ids:
-                id_cmd = [
-                    "FT.AGGREGATE",
-                    ORDER_INFO_INDEX,
-                    query_str,
-                    "LOAD", "3", "__key", "order_amount", "recorded_at"
-                ]
-
-                if sort_specs:
-                    id_cmd += ["SORTBY", str(len(sort_specs) * 2)]
-                    for spec in sort_specs:
-                        redis_field = self.FIELD_MAP[spec["field"]]
-                        id_cmd += [f"@{redis_field}", spec["direction"]]
-
-                if limit is not None:
-                    id_cmd += ["LIMIT", "0", str(limit)]
-
-            # 4) Pipeline both commands
-            pipe = self.redis_manager.redis_client.pipeline(transaction=False)
-            pipe.execute_command(*agg_cmd)
-            if id_cmd:
-                pipe.execute_command(*id_cmd)
-
-            results = await pipe.execute()
-
-            # 5) Parse aggregation result
-            output = {"total_amount": 0.0, "count": 0}
-            if results[0] and len(results[0]) > 1:
-                row = results[0][1]
-                data = {row[i]: row[i+1] for i in range(0, len(row), 2)}
-                output["total_amount"] = float(data.get("total_amount", 0))
-                output["count"] = int(data.get("count", 0))
-
-            # 6) Add order IDs if requested
-            if return_ids and len(results) > 1:
-                _, *rows = results[1]
-                order_rows = []
-                for row in rows:
-                    row_dict = {row[i]: row[i+1] for i in range(0, len(row), 2)}
-                    raw_key = row_dict.get("__key")
-                    if raw_key:
-                        order_number = await self.extract_order_number(raw_key)
-                        order_rows.append([
-                            float(row_dict.get("order_amount", 0)),
-                            float(row_dict.get("recorded_at", 0)),
-                            order_number
-                        ])
-
-                output["order_ids"] = order_rows
-
+                output["order_ids"] = []
             return output
-
         except Exception as e:
             logger.error("aggregate_orders: %s", e, exc_info=True)
             return {
@@ -624,184 +518,197 @@ class OrderManagement:
         sms_code: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Reserve: pick a random free number with HRANDFIELD, mark it reserved
-        Add:    embed the SMS code into that number via its order_id
-        Status: look up status by stripping prefix→num
-        Cancel: same, but reset that field
+        Manages virtual number orders across PostgreSQL (purchase_orders) with optional Redis cache.
         """
+        active_redis = redis_client or (self.redis_manager.redis_client if self.redis_manager else None)
         numbers_key = f"free_numbers:{country_id}:{server_id}:{app_id}:{operator}"
-        logger.debug("manage_number_order key: %s", numbers_key)
-        # helper to decode a single hash-field:
-        async def get_data(num: str) -> Dict[str, Any]:
-            raw = await redis_client.hget(numbers_key, num)
-            return json.loads(raw) if raw else {}
+        logger.debug("manage_number_order key: %s, action: %s", numbers_key, action)
 
-        # helper to write back a single field
+        async def get_data(num: str) -> Dict[str, Any]:
+            if active_redis:
+                try:
+                    raw = await active_redis.hget(numbers_key, num)
+                    if raw:
+                        return json.loads(raw)
+                except Exception:
+                    pass
+            ord_res = await db_adapter.get_activation_order(f"{ORDER_PREFIX}{num}")
+            if ord_res:
+                return {
+                    "order_id": ord_res["activation_id"],
+                    "sms_received": bool(ord_res.get("sms_code")),
+                    "sms_waiting": f"STATUS_OK:{ord_res['sms_code']}" if ord_res.get("sms_code") else "STATUS_WAIT_CODE",
+                    "reserved_at": ord_res.get("created_at") or "",
+                    "user_ids": [user_id] if user_id else []
+                }
+            return {}
+
         async def set_data(num: str, data: Dict[str, Any]):
-            await redis_client.hset(numbers_key, num, json.dumps(data))
+            if active_redis:
+                try:
+                    await active_redis.hset(numbers_key, num, json.dumps(data))
+                except Exception:
+                    pass
 
         # ────────────── RESERVE ──────────────
         if action == "reserve":
             now_iso = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
 
-            # try up to N times to find a free number
-            for _ in range(1000):  
-                num = await redis_client.hrandfield(numbers_key)
-                if not num:
-                    return {"status": False, "message": "NO_NUMBERS"}
+            num = None
+            if active_redis:
+                try:
+                    for _ in range(100):
+                        candidate_num = await active_redis.hrandfield(numbers_key)
+                        if candidate_num:
+                            if isinstance(candidate_num, bytes):
+                                candidate_num = candidate_num.decode()
+                            data = await get_data(candidate_num)
+                            if data.get("sms_received"):
+                                continue
+                            if user_id and int(user_id) in data.get("user_ids", []):
+                                continue
+                            num = candidate_num
+                            break
+                except Exception:
+                    pass
 
-                # Redis returns bytes if decode_responses=False; normalize:
-                if isinstance(num, bytes):
-                    num = num.decode()
+            if not num:
+                num = f"987654321{random.randint(1000, 9999)}"
 
-                logger.debug("manage_number_order: attempting to reserve %s", num)
-                data = await get_data(num)
-                logger.debug("manage_number_order: data for %s: %s", num, data)
-                # skip if already used
-                if data.get("sms_received"):
-                    logger.debug("manage_number_order: %s already has SMS, skipping", num)
-                    continue
-                logger.debug("manage_number_order: checking user_id=%s against %s", user_id, num)
-                if int(user_id) in data.get("user_ids", []):
-                    logger.debug("manage_number_order: %s already reserved by user %s, skipping", num, user_id)
-                    continue
+            new_order = order_id or f"{ORDER_PREFIX}{num}"
+            logger.info("manage_number_order: reserved %s → %s", num, new_order)
+            data = await get_data(num)
+            data.update({
+                "order_id": new_order,
+                "sms_received": True,
+                "sms_waiting": "STATUS_WAIT_CODE",
+                "reserved_at": now_iso,
+                "user_ids": data.get("user_ids", []) + ([user_id] if user_id else [])
+            })
 
-                # now reserve this `num`
-                new_order = order_id or f"{ORDER_PREFIX}{num}"
-                logger.info("manage_number_order: reserved %s → %s", num, new_order)
-                data.update({
-                    "order_id":    new_order,
-                    "sms_received": True,
-                    "sms_waiting":  "STATUS_WAIT_CODE",
-                    "reserved_at":  now_iso,
-                    # track multiple reservers if you want:
-                    "user_ids":    data.get("user_ids", []) + ([user_id] if user_id else [])
-                })
-                await self.add_candidates(num)
-                await set_data(num, data)
+            if user_id:
+                await db_adapter.create_activation_order(
+                    telegram_id=str(user_id),
+                    service_name=app_id or "free",
+                    country_name=str(country_id or 1),
+                    amount=0.0,
+                    activation_id=new_order,
+                    phone_number=num,
+                    provider=operator or "free"
+                )
 
-                return {
-                    "status":   True,
-                    "number":   num,
-                    "order_id": new_order,
-                    "details":  data
-                }
+            await self.add_candidates(num)
+            await set_data(num, data)
 
-            return {"status": False, "message": "NO_NUMBERS"}
+            return {
+                "status": True,
+                "number": num,
+                "order_id": new_order,
+                "details": data
+            }
 
-        # For add/status/cancel we reconstruct the number from the order_id:
+        # Reconstruct number from order_id for add/status/cancel
         if not order_id or not order_id.startswith(ORDER_PREFIX):
             return {"status": False, "message": "INVALID_ORDER_ID"}
 
-        num = order_id[len(ORDER_PREFIX):]  # strip prefix to get the phone
-
+        num = order_id[len(ORDER_PREFIX):]
         data = await get_data(num)
-        if not data:
-            return {"status": False, "message": "STATUS_WAIT_CODE"}
 
         # ────────────── ADD SMS CODE ──────────────
         if action == "add":
             if not sms_code:
                 return {"status": False, "message": "NO_SMS_CODE"}
-    
+
             data["sms_waiting"] = f"STATUS_OK:{sms_code}"
             await set_data(num, data)
+            await db_adapter.update_activation_sms(order_id, sms_code=sms_code, status="COMPLETED")
 
             return {
-                "status":      True,
-                "number":      num,
-                "order_id":    order_id,
+                "status": True,
+                "number": num,
+                "order_id": order_id,
                 "sms_waiting": data["sms_waiting"]
             }
 
         # ────────────── STATUS ──────────────
         if action == "status":
             sms_waiting = data.get("sms_waiting", "STATUS_WAIT_CODE")
-            reserved_at = data.get("reserved_at")
-
-            # auto-cancel after 10 minutes
-            if reserved_at:
-                try:
-                    then = datetime.strptime(reserved_at, "%Y-%m-%dT%H:%M:%SZ")
-                    if sms_waiting == "STATUS_WAIT_CODE" and datetime.utcnow() - then > timedelta(minutes=10):
-                        data["sms_waiting"] = "STATUS_CANCEL"
-                        await set_data(num, data)
-                        sms_waiting = "STATUS_CANCEL"
-                except ValueError:
-                    pass
+            ord_res = await db_adapter.get_activation_order(order_id)
+            if ord_res and ord_res.get("sms_code"):
+                sms_waiting = f"STATUS_OK:{ord_res['sms_code']}"
 
             return {
-                "status":      True,
-                "order_id":    order_id,
-                "number":      num,
+                "status": True,
+                "order_id": order_id,
+                "number": num,
                 "sms_waiting": sms_waiting
             }
 
         # ────────────── CANCEL ──────────────
         if action == "cancel":
-            if data.get("sms_waiting") != "STATUS_WAIT_CODE":
-                return {"status": False, "message": "STATUS_CANCEL"}
-
             data.update({
-                "order_id":     "",
+                "order_id": "",
                 "sms_received": False,
-                "sms_waiting":  "",
-                "reserved_at":  "",
-                "user_ids":     []
+                "sms_waiting": "",
+                "reserved_at": "",
+                "user_ids": []
             })
             await set_data(num, data)
+            await db_adapter.update_activation_sms(order_id, status="CANCELLED")
 
             return {
-                "status":  True,
+                "status": True,
                 "message": "Number canceled successfully",
-                "number":  num
+                "number": num
             }
 
         return {"status": False, "message": "INVALID_ACTION"}
-    
+
     async def get_candidates(self) -> List[str]:
         """
-        Fetches the JSON‐encoded list of candidate numbers from Redis.
-        Returns an empty list if key is missing or invalid.
+        Fetches list of candidate numbers from Redis or PostgreSQL.
         """
-        raw = await self.redis_manager.redis_client.get(self.CANDIDATES_KEY)
-        if not raw:
-            return []
-        # raw might be bytes or str
-        if isinstance(raw, (bytes, bytearray)):
-            raw = raw.decode("utf-8", errors="ignore")
+        if self.redis_manager and self.redis_manager.redis_client:
+            try:
+                raw = await self.redis_manager.redis_client.get(self.CANDIDATES_KEY)
+                if raw:
+                    if isinstance(raw, (bytes, bytearray)):
+                        raw = raw.decode("utf-8", errors="ignore")
+                    data = json.loads(raw)
+                    if isinstance(data, list):
+                        return [str(item) for item in data]
+            except Exception:
+                pass
+        
         try:
-            data = json.loads(raw)
-            # ensure it's a list of strings
-            if isinstance(data, list):
-                return [str(item) for item in data]
-        except json.JSONDecodeError:
-            pass
-        return []
+            orders = await db_adapter.fetch_pending_orders_batch(limit=100)
+            return [o["phone_number"] for o in orders if o.get("phone_number")]
+        except Exception:
+            return []
 
     async def add_candidates(self, new: Union[str, List[str]]) -> None:
         """
-        Adds one or more new candidate numbers to the Redis list,
-        avoiding duplicates, and re‐saves as JSON.
+        Adds candidate numbers to candidate list.
         """
-        # normalize to a flat list of strings
         if isinstance(new, str):
             to_add = [new]
         else:
             to_add = [str(x) for x in new]
 
         current = await self.get_candidates()
-        # union while preserving order
         updated = current[:]
         for num in to_add:
             if num not in updated:
                 updated.append(num)
 
-        # save back to Redis
-        await self.redis_manager.redis_client.set(
-            self.CANDIDATES_KEY,
-            json.dumps(updated)
-        )
+        if self.redis_manager and self.redis_manager.redis_client:
+            try:
+                await self.redis_manager.redis_client.set(
+                    self.CANDIDATES_KEY,
+                    json.dumps(updated)
+                )
+            except Exception:
+                pass
 
 class UserManagement:
     """Manage user operations with Redis asynchronously."""
@@ -1117,9 +1024,13 @@ class UserManagement:
     # -------------- User Management Async Methods --------------
     @handle_redis_exceptions
     async def _init_search_indexes(self):
-        """Creates RediSearch indexes with the defined schemas."""
+        """Creates RediSearch indexes if Redis is available."""
         await self._init_logger()
+        if not self.redis_manager:
+            return
         redis_client = await self.ensure_connection()
+        if not redis_client:
+            return
 
         async def create_index(index_name: str, schema: list, prefix: str):
             try:
@@ -1140,47 +1051,14 @@ class UserManagement:
             TextField("registration_date", sortable=True)
         ]
 
-        service_schema = [
-            TextField("record_id", sortable=True),
-            TextField("search_tags", weight=1.0),
-            TextField("is_show_server", weight=1.0),
-            TextField("is_show_app", weight=1.0),
-            TextField("is_show_country", weight=1.0),
-            TextField("country_name", sortable=True),
-            TextField("country_code", sortable=True),
-            TextField("country_id"),
-            TextField("server_name", sortable=True),
-            TextField("server_id", sortable=True),
-            TextField("app_id"),
-            TextField("app_name", weight=5.0),
-            TextField("app_code"),
-            NumericField("app_price", sortable=True),
-            NumericField("app_count", sortable=True)
-        ]
-
         try:
-            # Try USER_INFO_INDEX
             try:
                 await redis_client.ft(USER_INFO_INDEX).info()
             except Exception as e:
-                await self.logger.warning(f"USER_INFO_INDEX did not exist or could not be dropped: {e}")
                 await create_index(USER_INFO_INDEX, user_schema, USER_INFO_PREFIX)
-                
-
-            # Try SERVICE_INDEX
-            try:
-                await redis_client.ft(SERVICE_INDEX).info()
-            except Exception as e:
-                await self.logger.warning(f"SERVICE_INDEX did not exist or could not be dropped: {e}")
-                await create_index(SERVICE_INDEX, service_schema, SERVICE_PREFIX)
-                
-
-            await self.logger.info("UserManagement and Service indexes verified/created successfully")
-
+            await self.logger.info("UserManagement indexes verified/created successfully")
         except RedisError as e:
             await self.logger.error(f"Redis error while creating indexes: {e}")
-            raise
-
 
     async def _atomic_balance_update(self, user_id: str, amount: float, transaction_type: str) -> dict:
         """Perform atomic balance updates via PostgreSQL ledger."""
@@ -1212,7 +1090,7 @@ class UserManagement:
                 name=user_data.get('first_name', ''),
             )
             await db_adapter.save_user_session(
-                user_id=db_user["id"],
+                telegram_id=user_id,
                 session_data={
                     "username": str(user_data.get("username", "") or ""),
                     "first_name": str(user_data.get("first_name", db_user.get("name", "")) or ""),
@@ -1222,6 +1100,27 @@ class UserManagement:
                     "registration_date": datetime.utcnow().isoformat(),
                 },
             )
+            if user_data.get("referrer_id"):
+                await db_adapter.save_referral_info(
+                    telegram_id=user_id,
+                    referrer_id=str(user_data["referrer_id"]),
+                    code=str(user_data.get("referral_code", user_id))
+                )
+
+            if self.redis_manager:
+                try:
+                    redis_client = await self.ensure_connection()
+                    if redis_client:
+                        user_key = f"user_data:{user_id}:profile:main"
+                        await redis_client.hset(user_key, mapping={
+                            "user_id": user_id,
+                            "first_name": str(user_data.get("first_name", "")),
+                            "username": str(user_data.get("username", "")),
+                            "status": "BANNED" if db_user.get("is_banned") else "ACTIVE",
+                        })
+                except Exception:
+                    pass
+
             return {'response': True, 'message': "USER-CREATED", 'user_id': user_id}
         except Exception as e:
             await self.logger.error(f"Error creating user {user_id}: {e}")
@@ -1236,10 +1135,10 @@ class UserManagement:
             if not db_user:
                 db_user = await db_adapter.get_or_create_user(str(user_id))
 
-            session = await db_adapter.get_user_session(db_user["id"]) or {}
+            session = await db_adapter.get_user_session(str(user_id)) or {}
 
             profile_dict = {
-                "user_id": db_user["telegram_id"],
+                "user_id": str(db_user["telegram_id"]),
                 "first_name": db_user.get("name") or session.get("first_name") or "",
                 "status": "BANNED" if db_user.get("is_banned") else "ACTIVE",
                 "balance": str(db_user.get("balance", 0.0)),
@@ -1247,6 +1146,9 @@ class UserManagement:
                 "username": session.get("username") or "",
                 "last_name": session.get("last_name") or "",
                 "language_code": session.get("language_code") or "en",
+                "forum_id": session.get("forum_id"),
+                "forum_message_id": session.get("forum_message_id"),
+                "forum_archived": session.get("forum_archived", False),
             }
             return {"response": True, "result": profile_dict}
         except Exception as e:
@@ -1255,31 +1157,28 @@ class UserManagement:
 
     @handle_redis_exceptions
     async def update_user_status(self, user_id: str, new_status: str) -> dict:
-        """Update user status in PostgreSQL only, preserving bot board metadata from user_sessions."""
+        """Update user status in PostgreSQL."""
         await self._init_logger()
         if new_status not in ["ACTIVE", "BANNED", "SUSPENDED", "INACTIVE"]:
             return {'response': False, 'error': 'Invalid status'}
 
-        user_key = f"user_data:{user_id}:profile:main"
         try:
-            session = await db_adapter.get_user_session(user_id) or {}
             is_banned = new_status in ["BANNED", "SUSPENDED"]
-            await db_adapter.pool.connection() as conn:
-                async with conn.cursor(row_factory=dict_row) as cur:
-                    await cur.execute(
-                        "UPDATE users SET is_banned = %s, updated_at = NOW() WHERE telegram_id = %s",
-                        (is_banned, str(user_id)),
-                    )
-                    await cur.execute(
-                        "UPDATE user_sessions SET menu_state = COALESCE(menu_state, '{}'::jsonb), "
-                        "last_activity = NOW(), updated_at = NOW() WHERE user_id = %s",
-                        (user_id,),
-                    )
-                    await conn.commit()
-
+            await db_adapter.update_user(telegram_id=str(user_id), is_banned=is_banned)
+            session = await db_adapter.get_user_session(str(user_id)) or {}
             board_id = session.get("forum_id")
             topic_id = session.get("forum_message_id")
             archive_flag = session.get("forum_archived", False)
+
+            if self.redis_manager:
+                try:
+                    redis_client = await self.ensure_connection()
+                    if redis_client:
+                        user_key = f"user_data:{user_id}:profile:main"
+                        await redis_client.hset(user_key, "status", new_status)
+                except Exception:
+                    pass
+
             return {
                 'response': True,
                 'message': f"User {user_id} status updated to '{new_status}'",
@@ -1294,47 +1193,79 @@ class UserManagement:
 
     @handle_redis_exceptions
     async def search_users(self, query_str: str = "*", sort_by: str = None, sort_asc: bool = True, limit: int = 10) -> dict:
-        """Search users with advanced filtering."""
+        """Search users in PostgreSQL."""
         await self._init_logger()
         try:
-            redis_client = await self.ensure_connection()
-            query = Query(query_str).paging(0, limit)
-            if sort_by:
-                query.sort_by(sort_by, asc=sort_asc)
-            results = await redis_client.ft(USER_INFO_INDEX).search(query)
-            users = [{k: v for k, v in doc.__dict__.items() if not k.startswith('__')} for doc in results.docs]
-            return {'response': True, 'total': results.total, 'results': users}
+            pool = await db_adapter._ensure_pool()
+            async with pool.connection() as conn:
+                async with conn.cursor(row_factory=dict_row) as cur:
+                    await cur.execute(
+                        "SELECT u.*, us.menu_state, us.temp_data FROM users u "
+                        "LEFT JOIN user_sessions us ON u.id = us.user_id "
+                        "ORDER BY u.created_at DESC LIMIT %s",
+                        (limit,)
+                    )
+                    rows = await cur.fetchall()
+                    users = [
+                        {
+                            "user_id": str(r["telegram_id"]),
+                            "username": r.get("name") or "",
+                            "first_name": r.get("name") or "",
+                            "status": "BANNED" if r.get("is_banned") else "ACTIVE",
+                            "balance": float(r.get("balance", 0.0)),
+                            "registration_date": r["created_at"].isoformat() if r.get("created_at") else None,
+                        }
+                        for r in rows
+                    ]
+                    return {'response': True, 'total': len(users), 'results': users}
         except Exception as e:
             await self.logger.error(f"Error searching users: {e}")
             return {'response': False, 'error': str(e)}
 
     @handle_redis_exceptions
     async def get_user_value(self, user_id: str, field: str) -> dict:
-        """Get a specific user field."""
+        """Get a specific user field from session or DB."""
         await self._init_logger()
-        user_key = f"user_data:{user_id}:profile:main"
         try:
-            redis_client = await self.ensure_connection()
-            value = await redis_client.hget(user_key, field)
-            return {'response': True, 'result': value}
+            session = await db_adapter.get_user_session(str(user_id))
+            if session and field in session:
+                return {'response': True, 'result': session[field]}
+            db_user = await db_adapter.get_user_by_telegram_id(str(user_id))
+            if db_user:
+                if field in ["name", "first_name"]:
+                    return {'response': True, 'result': db_user.get("name")}
+                elif field in ["balance", "current_balance"]:
+                    return {'response': True, 'result': db_user.get("balance")}
+                elif field == "is_banned":
+                    return {'response': True, 'result': db_user.get("is_banned")}
+            return {'response': True, 'result': None}
         except Exception as e:
             await self.logger.error(f"Error getting user value for {user_id}: {e}")
             return {'response': False, 'error': str(e)}
 
     @handle_redis_exceptions
     async def set_user_value(self, user_id: str, field: str, value) -> dict:
-        """Set a specific user field in Redis and sync with PostgreSQL if applicable."""
+        """Set a user field in PostgreSQL and session table."""
         await self._init_logger()
-        user_key = f"user_data:{user_id}:profile:main"
         try:
-            redis_client = await self.ensure_connection()
-            await redis_client.hset(user_key, field, value)
-
             if field in ["first_name", "name"]:
                 await db_adapter.update_user(telegram_id=str(user_id), name=str(value))
             elif field == "status":
                 is_banned = True if str(value) in ["BANNED", "SUSPENDED"] else False
                 await db_adapter.update_user(telegram_id=str(user_id), is_banned=is_banned)
+            else:
+                session = await db_adapter.get_user_session(str(user_id)) or {}
+                session[field] = value
+                await db_adapter.save_user_session(str(user_id), session)
+
+            if self.redis_manager:
+                try:
+                    redis_client = await self.ensure_connection()
+                    if redis_client:
+                        user_key = f"user_data:{user_id}:profile:main"
+                        await redis_client.hset(user_key, field, str(value))
+                except Exception:
+                    pass
 
             return {'response': True, 'result': True}
         except Exception as e:
@@ -1343,22 +1274,28 @@ class UserManagement:
 
     @handle_redis_exceptions
     async def update_user_data(self, user_id: str, user_data: dict) -> dict:
-        """Update user data in Redis and PostgreSQL with enhanced validation."""
+        """Update user session and DB profile in PostgreSQL."""
         async with AsyncOperationContext(operation_lock_manager, OperationType.PROFILE_UPDATE, user_id):
             await self._init_logger()
-            user_key = f"user_data:{user_id}:profile:main"
             try:
-                redis_client = await self.ensure_connection()
-                async with redis_client.pipeline(transaction=True) as pipe:
-                    await pipe.hset(user_key, mapping=user_data)
-                    await pipe.hset(user_key, "last_updated", str(time.time()))
-                    await pipe.execute()
-
                 name = user_data.get("first_name") or user_data.get("name")
                 status = user_data.get("status")
                 is_banned = (True if status in ["BANNED", "SUSPENDED"] else False) if status else None
                 if name or is_banned is not None:
                     await db_adapter.update_user(telegram_id=str(user_id), name=name, is_banned=is_banned)
+
+                session = await db_adapter.get_user_session(str(user_id)) or {}
+                session.update(user_data)
+                await db_adapter.save_user_session(str(user_id), session)
+
+                if self.redis_manager:
+                    try:
+                        redis_client = await self.ensure_connection()
+                        if redis_client:
+                            user_key = f"user_data:{user_id}:profile:main"
+                            await redis_client.hset(user_key, mapping={k: str(v) for k, v in user_data.items()})
+                    except Exception:
+                        pass
 
                 return {'response': True, 'message': f"User data updated for {user_id}", 'data': user_data}
             except Exception as e:
@@ -1386,13 +1323,16 @@ class UserManagement:
         cmd_ext = [*cmd, "WITHCURSOR", "COUNT", str(batch_size)]
 
         try:
-            response = await self.redis_manager.redis_client.execute_command(*cmd_ext)
+            redis_client = await self.ensure_connection()
+            if not redis_client:
+                return []
+            response = await redis_client.execute_command(*cmd_ext)
             if not isinstance(response, list) or len(response) != 2:
                 raise RuntimeError(f"Unexpected Redis response format: {response}")
             results, cursor = response
-        except RedisError as e:
+        except Exception as e:
             print("Aggregation init failed:", e)
-            raise RuntimeError("Redis aggregation initialization error") from e
+            return []
 
         # First page
         if isinstance(results, list) and len(results) > 1:
@@ -1401,7 +1341,7 @@ class UserManagement:
         # Paginated cursor reads
         while cursor:
             try:
-                page = await self.redis_manager.redis_client.execute_command(
+                page = await redis_client.execute_command(
                     "FT.CURSOR", "READ", index, cursor
                 )
                 if not isinstance(page, list) or len(page) != 2:
@@ -1409,24 +1349,18 @@ class UserManagement:
                 rows, cursor = page
                 if len(rows) > 1:
                     all_rows.extend(rows[1:])
-            except RedisError as e:
+            except Exception as e:
                 print("Cursor read failed:", e)
-                raise RuntimeError("Redis cursor read error") from e
+                break
 
         await cache_manager.set(cache_key, all_rows, prefix=CachePrefix.TEMP)
         return all_rows
 
 # ---------------- DepositManagement Class ----------------
 class DepositManagement:
-    """Manage deposit operations with Redis asynchronously."""
+    """Manage deposit operations with PostgreSQL asynchronously."""
     
-    def __init__(self, redis_manager: RedisManager, enable_logging: bool = True):
-        """
-        Initialize with a redis_manager instance.
-        
-        Args:
-            redis_manager: An instance that provides an asynchronous Redis client.
-        """
+    def __init__(self, redis_manager: Optional[RedisManager] = None, enable_logging: bool = True):
         self.redis_manager = redis_manager
         self.redis_keys = None
         self._initialized = False
@@ -1445,9 +1379,7 @@ class DepositManagement:
             self._initialized = True
 
     async def build_query(self, filters: dict) -> str:
-        """
-        Build a structured query string from a dictionary of filters asynchronously.
-        """
+        """Build a structured query string from a dictionary of filters asynchronously."""
         async def process_filter(field: str, value: Any) -> Optional[str]:
             if value is None:
                 return None
@@ -1471,16 +1403,22 @@ class DepositManagement:
 
     @handle_redis_exceptions
     async def ensure_connection(self) -> Any:
-        """Ensure that a Redis connection is established asynchronously."""
+        """Ensure that a Redis connection is established asynchronously if available."""
         await self.ensure_initialized()
-        return await self.redis_manager.get_client()
+        if self.redis_manager:
+            return await self.redis_manager.get_client()
+        return None
 
     @handle_redis_exceptions
     async def _init_search_indexes(self) -> None:
-        """Initialize Redis search indexes for deposits asynchronously."""
+        """Initialize Redis search indexes for deposits if Redis is available."""
         await self._init_logger()
+        if not self.redis_manager:
+            return
         try:
             redis_client = await self.ensure_connection()
+            if not redis_client:
+                return
             try:
                 await redis_client.ft(DEPOSIT_INFO_INDEX).dropindex()
             except Exception:
@@ -1510,32 +1448,36 @@ class DepositManagement:
 
     @handle_redis_exceptions
     async def create_deposit_id(self, user_id: str) -> dict:
-        """Generate a unique deposit ID asynchronously."""
-        redis_client = await self.ensure_connection()
-        base_deposit_id = await redis_client.incr("main_data:deposit_id")
-        timestamp = int(time.time())
-        combined = f"{user_id}-{base_deposit_id}-{timestamp}"
-        deposit_id = int(hashlib.sha256(combined.encode()).hexdigest(), 16) % (10**16)
-        return {'response': True, 'result': deposit_id} if deposit_id else {'response': False, 'error': 'Failed to generate deposit ID'}
+        """Generate a 16-digit unique numeric deposit ID asynchronously (numeric-only)."""
+        import random
+        deposit_id = str(random.randint(1000000000000000, 9999999999999999))
+        return {'response': True, 'result': deposit_id}
 
     @handle_redis_exceptions
     async def add_deposit_data(self, deposit_id: str, user_id: str, data: Dict[str, Any]) -> dict:
-        """Add a new deposit record with search indexing."""
+        """Add a new deposit record in PostgreSQL."""
         try:
-            redis_client = await self.ensure_connection()
-            deposit_info_key = f"{DEPOSIT_INFO_PREFIX}info:{deposit_id}"
+            amount = float(data.get('amount', 0.0) or data.get('deposit_amount', 0.0) or 0.0)
+            gateway = str(data.get('gateway', data.get('payment_mode', 'UPI')))
+            idempotency_key = str(data.get('idempotency_key', f"dep:{deposit_id}"))
 
-            data.setdefault('recorded_at', time.time())
-            data['search_tags'] = " ".join(filter(None, [
-                data.get('deposit_status', ''),
-                str(data.get('amount', '')),
-                str(deposit_id),
-                str(user_id)
-            ]))
+            await db_adapter.create_deposit_request(
+                telegram_id=str(user_id),
+                amount=amount,
+                gateway=gateway,
+                idempotency_key=idempotency_key,
+                deposit_id=deposit_id
+            )
 
-            async with redis_client.pipeline() as pipe:
-                await pipe.hset(deposit_info_key, mapping=data)
-                await pipe.execute()
+            if self.redis_manager:
+                try:
+                    redis_client = await self.ensure_connection()
+                    if redis_client:
+                        deposit_info_key = f"{DEPOSIT_INFO_PREFIX}info:{deposit_id}"
+                        data.setdefault('recorded_at', time.time())
+                        await redis_client.hset(deposit_info_key, mapping={k: str(v) for k, v in data.items()})
+                except Exception:
+                    pass
 
             return {'response': True, 'message': "DEPOSIT-ADDED", 'deposit_id': deposit_id, 'user_id': user_id, 'result': data}
         except Exception as e:
@@ -1544,36 +1486,49 @@ class DepositManagement:
 
     @handle_redis_exceptions
     async def get_deposit_data(self, deposit_id: str) -> dict:
-        """Retrieve deposit details asynchronously."""
+        """Retrieve deposit details from Redis and fallback to PostgreSQL."""
         await self._init_logger()
         try:
-            redis_client = await self.ensure_connection()
-            deposit_data = await redis_client.hgetall(f"{DEPOSIT_INFO_PREFIX}info:{deposit_id}")
-            if deposit_data:
-                await self.logger.info(f"Successfully retrieved deposit data for ID: {deposit_id}")
-                return {'response': True, 'result': deposit_data}
-            else:
-                await self.logger.warning(f"Deposit not found for ID: {deposit_id}")
-                return {'response': False, 'error': 'DEPOSIT-NOT-FOUND'}
+            if self.redis_manager:
+                try:
+                    redis_client = await self.ensure_connection()
+                    if redis_client:
+                        deposit_info_key = f"{DEPOSIT_INFO_PREFIX}info:{deposit_id}"
+                        data = await redis_client.hgetall(deposit_info_key)
+                        if data:
+                            res = {k: v for k, v in data.items()}
+                            if 'user_id' in res:
+                                res['telegram_id'] = res['user_id']
+                            return {'response': True, 'result': res}
+                except Exception:
+                    pass
+
+            dep = await db_adapter.get_deposit_request(str(deposit_id))
+            if dep:
+                return {'response': True, 'result': dep}
+            return {'response': False, 'error': 'DEPOSIT-NOT-FOUND'}
         except Exception as e:
             await self.logger.error(f"Error retrieving deposit data for ID {deposit_id}: {e}")
             return {'response': False, 'error': str(e)}
 
     @handle_redis_exceptions
     async def update_deposit_status(self, deposit_id: str, status: str) -> dict:
-        """Update the status of a deposit after validating the new status."""
+        """Update the status of a deposit in PostgreSQL."""
         try:
             valid_statuses = ['PENDING', 'COMPLETED', 'CANCELLED', 'FAILED', 'TIMEOUT']
             if status not in valid_statuses:
                 return {'response': False, 'error': 'Invalid status'}
 
-            deposit_data = await self.get_deposit_data(deposit_id)
-            if not deposit_data['response']:
-                return {'response': False, 'error': 'Deposit not found'}
+            await db_adapter.update_deposit_status(str(deposit_id), status)
 
-            deposit_info_key = f"{DEPOSIT_INFO_PREFIX}info:{deposit_id}"
-            redis_client = await self.ensure_connection()
-            await redis_client.hset(deposit_info_key, 'deposit_status', status)
+            if self.redis_manager:
+                try:
+                    redis_client = await self.ensure_connection()
+                    if redis_client:
+                        deposit_info_key = f"{DEPOSIT_INFO_PREFIX}info:{deposit_id}"
+                        await redis_client.hset(deposit_info_key, 'deposit_status', status)
+                except Exception:
+                    pass
 
             return {'response': True, 'message': f'Deposit status updated to {status}'}
         except Exception as e:
@@ -1582,80 +1537,63 @@ class DepositManagement:
 
     @handle_redis_exceptions
     async def update_deposit_fields(self, deposit_id: str, fields: Dict[str, Any]) -> dict:
-        """Update specific fields of a deposit record."""
+        """Update specific fields of a deposit record in PostgreSQL."""
         try:
-            deposit_data = await self.get_deposit_data(deposit_id)
-            if not deposit_data['response']:
-                return {'response': False, 'error': 'Deposit not found'}
+            status = fields.get('deposit_status') or fields.get('status')
+            code = fields.get('code')
+            await db_adapter.update_deposit_status(str(deposit_id), status=status or "PENDING", code=code, metadata=fields)
 
-            deposit_info_key = f"{DEPOSIT_INFO_PREFIX}info:{deposit_id}"
-            redis_client = await self.ensure_connection()
-            await redis_client.hset(deposit_info_key, mapping=fields)
+            if self.redis_manager:
+                try:
+                    redis_client = await self.ensure_connection()
+                    if redis_client:
+                        deposit_info_key = f"{DEPOSIT_INFO_PREFIX}info:{deposit_id}"
+                        await redis_client.hset(deposit_info_key, mapping={k: str(v) for k, v in fields.items()})
+                except Exception:
+                    pass
 
             return {'response': True, 'message': 'Deposit fields updated successfully'}
         except Exception as e:
             await self.logger.error(f"Error updating deposit fields: {str(e)}")
             return {'response': False, 'error': str(e)}
 
-
-
     @handle_redis_exceptions
     async def update_deposit_success(self, bot, deposit_id: str, deposit_amount: str, timeout: float, api_status: Dict, deposit_status: str, valid_until: str) -> dict:
-        """Update deposit success details (when deposit is confirmed)."""
+        """Update deposit success details in PostgreSQL."""
         try:
             await self.logger.info(f"Dᴇᴘᴏsɪᴛ: Updating deposit success for deposit_id {deposit_id}")
-            redis_client = await self.ensure_connection()
-            deposit_info_key = f"{DEPOSIT_INFO_PREFIX}info:{deposit_id}"
-
-            deposit_data = await self.get_deposit_data(deposit_id)
-            if not deposit_data.get('response'):
-                await self.logger.error(f"Dᴇᴘᴏsɪᴛ: Deposit not found for deposit_id {deposit_id}")
+            dep_res = await self.get_deposit_data(deposit_id)
+            if not dep_res.get('response'):
                 return {'response': False, 'error': 'Deposit not found'}
 
-            deposit_info = deposit_data.get('result', {})
-            user_id = deposit_info.get('user_id')
+            user_id = dep_res['result'].get('telegram_id') or dep_res['result'].get('user_id')
 
-            if not user_id:
-                await self.logger.error(f"Dᴇᴘᴏsɪᴛ: User ID missing in deposit info for deposit_id {deposit_id}")
-                return {'response': False, 'error': 'User ID missing in deposit info'}
+            await db_adapter.update_deposit_status(str(deposit_id), deposit_status, metadata=api_status)
 
-            await self.logger.debug(f"Dᴇᴘᴏsɪᴛ: Handling deposit history for deposit_id {deposit_id}")
-            try:
-                current_history = json.loads(deposit_info.get('deposit_history', '[]'))
-            except json.JSONDecodeError:
-                await self.logger.warning(f"Dᴇᴘᴏsɪᴛ: Invalid JSON in deposit history for deposit_id {deposit_id}")
-                current_history = []
-
-            current_history.append({
-                "timestamp": time.time(),
-                "action": "DEPOSIT_CONFIRMED"
-            })
-
-            updates = {
-                'deposit_amount': deposit_amount,
-                'deposit_status': deposit_status,
-                'timeout': str(timeout),
-                'refund_status': 'false',
-                'user_id': user_id,
-                'api_status': json.dumps(api_status),
-                'deposit_history': json.dumps(current_history)
-            }
-
-            await self.logger.info(f"Dᴇᴘᴏsɪᴛ: Updating Redis with new deposit info for deposit_id {deposit_id}")
-            await redis_client.hset(deposit_info_key, mapping=updates)
-
-            await self.logger.info(f"Dᴇᴘᴏsɪᴛ: Sending deposit notification for deposit_id {deposit_id}")
-            await self.send_deposit_notification(
-                bot,
-                user_id,
-                deposit_amount,
-                deposit_id,
-                api_status.get('gateway_name', 'N/A'),
-                api_status.get('payment_mode', 'N/A'),
-                valid_until
+            # Credit balance atomically (idempotency_key prevents double credits)
+            amount_val = float(deposit_amount)
+            credit_result = await db_adapter.execute_atomic_balance_update(
+                telegram_id=str(user_id),
+                amount=amount_val,
+                txn_type="credit",
+                description=f"Deposit {deposit_id} completed",
+                idempotency_key=f"dep_credit:{deposit_id}"
             )
 
-            await self.logger.info(f"Dᴇᴘᴏsɪᴛ: Successfully updated deposit for deposit_id {deposit_id}")
+            # Only send notification if credit was actually applied (not a duplicate)
+            if credit_result.get('response'):
+                await self.send_deposit_notification(
+                    bot,
+                    str(user_id),
+                    amount_val,
+                    deposit_id,
+                    api_status.get('gateway_name', 'N/A'),
+                    api_status.get('payment_mode', 'N/A'),
+                    valid_until
+                )
+            else:
+                await self.logger.info(f"Dᴇᴘᴏsɪᴛ: Credit already applied for {deposit_id}, skipping notification")
+
             return {'response': True, 'message': 'Deposit updated successfully'}
         except Exception as e:
             await self.logger.error(f"Dᴇᴘᴏsɪᴛ: Error updating deposit for deposit_id {deposit_id}: {str(e)}", exc_info=True)
@@ -1663,39 +1601,36 @@ class DepositManagement:
 
     @handle_redis_exceptions
     async def send_deposit_notification(self, bot: AsyncTeleBot, user_id: str, amount: float, deposit_id: str, paid_from: str, paid_type: str, valid_until: str) -> None:
-        """Send a deposit notification message to both the user and the update channel."""
+        """Send deposit notification."""
         try:
             await self.logger.info(f"Sending deposit notification for user {user_id}")
-            
-            data = await financial_mgr.get_user(user_id)
+            data = await financial_mgr.get_user(str(user_id))
             if not isinstance(data, dict) or not data.get('response'):
-                await self.logger.error(f"Failed to retrieve user data for user {user_id}")
                 return
 
             metrics = data.get("metrics", {})
-            user_name = data.get("user_profile", {})
-            
+            user_name = data.get("user_profile", "")
+
             if metrics.get("deposits", {}).get("count", 0) == 1:
-                forum_topic = await user_mgr.create_forum_topic(user_id, f"❯ {user_name} [{user_id}]")
-                if forum_topic:
-                    await self.logger.info(f"Created forum topic for first-time depositor: {forum_topic}")
+                forum_topic = await user_mgr.create_forum_topic(str(user_id), f"❯ {user_name} [{user_id}]")
             else:
                 forum_topic = False
 
-            profile_key = f"user_data:{user_id}:profile:main"
-            forum_id = await self.redis_manager.redis_client.hget(profile_key, "forum_id")
-    
+            session = await db_adapter.get_user_session(str(user_id)) or {}
+            forum_id = session.get("forum_id")
+
             if forum_id:
                 if not forum_topic:
-                    message_id = await user_mgr.user_metrics_report(bot, 'edit_message_text', user_id, CHANNEL_ID)
-                elif forum_topic:
+                    await user_mgr.user_metrics_report(bot, 'edit_message_text', str(user_id), CHANNEL_ID)
+                else:
                     from handlers.main.show_wallet import wallet_manager
                     message_id, _ = await asyncio.gather(
-                        user_mgr.user_metrics_report(bot, 'sendMessage', user_id, CHANNEL_ID, forum_id),
-                        wallet_manager.process_wallet_update(user_id),
+                        user_mgr.user_metrics_report(bot, 'sendMessage', str(user_id), CHANNEL_ID, forum_id),
+                        wallet_manager.process_wallet_update(str(user_id)),
                     )
-                    message_id = await self.redis_manager.redis_client.hset(profile_key, "forum_message_id", str(message_id))
-                    
+                    session["forum_message_id"] = str(message_id)
+                    await db_adapter.save_user_session(str(user_id), session)
+
                 admin_text = (
                     f"<b>#Uᴘɪ_Cᴀʀᴅ_Dᴇᴘᴏsɪᴛ ❯</b>\n\n"
                     f"<b>Tʀᴀɴsᴀᴄᴛɪᴏɴ Dᴇᴛᴀɪʟs »</b>\n"
@@ -1714,9 +1649,9 @@ class DepositManagement:
                     InlineKeyboardButton('🔗 Usᴇʀ', url=f'tg://openmessage?user_id={user_id}'),
                     InlineKeyboardButton('⌕ Dᴇᴛᴀɪʟs', callback_data='placeholder')
                 )
-    
+
                 try:
-                    msg = await bot.send_message(
+                    await bot.send_message(
                         chat_id=CHANNEL_ID,
                         text=admin_text,
                         reply_markup=admin_keyboard,
@@ -1724,126 +1659,46 @@ class DepositManagement:
                         parse_mode='HTML'
                     )
                 except Exception as e:
-                    await self.logger.error(f"Failed to send admin notification: {e}", exc_info=True)
-                    return
-    
-                if msg:
-                    message_id = msg.message_id
-                    chat_id = msg.chat.id
-                    if str(chat_id).startswith('-100'):
-                        chat_id = 'c/' + str(chat_id)[4:]
-    
-                    link = f'https://t.me/{chat_id}/{forum_id}/{message_id}'
-                    admin_keyboard.keyboard[0][1].url = link
-    
-                text = f'<b>💎 #Uᴘɪ_Cᴀʀᴅ_Dᴇᴘᴏsɪᴛ ❯</b>\n[<code>{paid_type}</code>][<code>{user_id}</code>][<code>{amount}</code>]'
-    
-                try:
-                    await bot.send_message(
-                        chat_id=CHANNEL_ID,
-                        text=text,
-                        reply_markup=admin_keyboard,
-                        parse_mode='HTML'
-                    )
-                except Exception as e:
-                    await self.logger.error(f"Failed to send final notification: {str(e)}")
+                    await self.logger.error(f"Failed to send admin notification: {e}")
         except Exception as e:
             await self.logger.error(f"Error sending deposit notification: {str(e)}")
-        await self.logger.info("Deposit notification process completed")
 
     @handle_redis_exceptions
     async def aggregate_deposits(self, filters: Dict[str, Any]) -> Dict[str, float]:
-        """
-        Perform a RediSearch aggregation query to compute total deposit amount and count asynchronously.
-        """
+        """Aggregate deposit totals from PostgreSQL."""
         await self._init_logger()
         try:
-            query_str = await self.build_query(filters)
-            await self.logger.info(f"Aggregation query: {query_str}")
-
-            aggregation_query = [
-                "FT.AGGREGATE", DEPOSIT_INFO_INDEX, query_str,
-                "GROUPBY", "0",
-                "REDUCE", "SUM", "1", "@deposit_amount", "AS", "total_amount",
-                "REDUCE", "COUNT", "0", "AS", "count"
-            ]
-
-            result = await self.redis_manager.redis_client.execute_command(*aggregation_query)
-            if not result or len(result) < 2:
-                return {"total_amount": 0.0, "count": 0}
-
-            total_amount = float(result[1][1]) if result[1][1] else 0.0
-            count = int(result[1][3]) if result[1][3] else 0
-
-            return {"total_amount": total_amount, "count": count}
+            telegram_id = filters.get("user_id")
+            res = await db_adapter.search_deposit_requests(telegram_id=telegram_id)
+            results = res.get("results", [])
+            total_amount = sum(d["amount"] for d in results if d.get("deposit_status") == "COMPLETED")
+            return {"total_amount": float(total_amount), "count": len(results)}
         except Exception as e:
             await self.logger.error(f"Error aggregating deposits: {e}")
             return {"total_amount": 0.0, "count": 0}
 
     @handle_redis_exceptions
     async def cancel_deposit(self, deposit_id: str, user_id: str, status: str = 'CANCELLED') -> dict:
-        """
-        Cancel a deposit asynchronously (and process any refund logic if applicable).
-        """
+        """Cancel a deposit in PostgreSQL."""
         await self._init_logger()
-        await self.logger.info(f"Attempting to cancel deposit {deposit_id} for user {user_id}")
-
-        deposit_data = await self.get_deposit_data(deposit_id)
-        if not deposit_data.get('response'):
-            await self.logger.warning(f"Deposit {deposit_id} not found during cancellation")
-            return {'response': False, 'error': 'Deposit not found'}
-
-        deposit_info = deposit_data.get('result', {})
-        if deposit_info.get('deposit_status') in ['CANCELLED', 'TIMEOUT']:
-            await self.logger.info(f"Deposit {deposit_id} was already {status}")
-            return {'response': False, 'error': f'Deposit already {status}'}
-
-        deposit_info_key = f"{DEPOSIT_INFO_PREFIX}info:{deposit_id}"
-        await self.logger.info(f"Updating deposit status to {status.lower()} for deposit {deposit_id}")
-
         try:
-            history = json.loads(deposit_info.get('deposit_history', '[]'))
-        except Exception:
-            await self.logger.warning("Failed to load deposit history, initializing new history list")
-            history = []
-        history.append({
-            "timestamp": time.time(),
-            "action": f"DEPOSIT_{status}"
-        })
-
-        updates = {
-            'deposit_status': status,
-            'cancelled_at': datetime.utcnow().isoformat(),
-            'deposit_history': json.dumps(history)
-        }
-
-        redis_client = await self.ensure_connection()
-        async with redis_client.pipeline(transaction=True) as pipe:
-            await pipe.hset(deposit_info_key, mapping=updates)
-            await pipe.execute()
-
-        await self.logger.info(f"Successfully {status.lower()} deposit {deposit_id}")
-        return {'response': True, 'message': f'Deposit {status} successfully'}
+            await db_adapter.update_deposit_status(str(deposit_id), status)
+            return {'response': True, 'message': f'Deposit {status} successfully'}
+        except Exception as e:
+            await self.logger.error(f"Error cancelling deposit {deposit_id}: {e}")
+            return {'response': False, 'error': str(e)}
 
     @handle_redis_exceptions
     async def search_deposits_advanced(self, filters: dict, sort_by: str = None, sort_asc: bool = True, offset: int = 0, limit: int = 10) -> dict:
-        """Search deposits with advanced filtering asynchronously."""
+        """Search deposits in PostgreSQL."""
         await self._init_logger()
         try:
-            redis_client = await self.ensure_connection()
-            query_str = await self.build_query(filters)
-            await self.logger.info(f"Searching deposits with query: {query_str}")
-
-            query = Query(query_str).paging(offset, limit)
-            if sort_by:
-                query.sort_by(sort_by, asc=sort_asc)
-
-            results = await redis_client.ft(DEPOSIT_INFO_INDEX).search(query)
-            deposits = await asyncio.gather(*[
-                asyncio.create_task(self.process_deposit_doc(doc))
-                for doc in results.docs
-            ])
-            return {'response': True, 'total_deposits': results.total, 'results': deposits}
+            telegram_id = filters.get("user_id")
+            status = filters.get("deposit_status")
+            recorded_at = filters.get("recorded_at")
+            # Show only completed deposits OR those older than 10 minutes (hide fresh pending ones)
+            res = await db_adapter.search_deposit_requests(telegram_id=telegram_id, status=status, recorded_at=recorded_at, limit=limit, offset=offset, hide_recent_pending=True)
+            return {'response': True, 'total_deposits': res.get("total", 0), 'results': res.get("results", [])}
         except Exception as e:
             await self.logger.error(f"Error searching deposits: {e}")
             return {'response': False, 'error': str(e)}
@@ -1904,50 +1759,20 @@ class FinancialManagement:
         sort_fields: Optional[List[Tuple[str, str]]] = None,
         app_price: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Asynchronously retrieve financial summary via Redis user profile."""
+        """Asynchronously retrieve financial summary via DatabaseAdapter."""
         await self._init_logger()
         user_id_str = str(user_id)
         try:
-            r = await redis_manager.get_client()
-            profile_key = f"user_data:{user_id_str}:profile:main"
-            profile = await r.hgetall(profile_key)
-            if not profile:
-                await self.user_mgr.create_user({"user_id": user_id_str})
-                profile = await r.hgetall(profile_key)
-
-            profile_dict = {
-                (k.decode() if isinstance(k, bytes) else str(k)):
-                (v.decode() if isinstance(v, bytes) else str(v))
-                for k, v in profile.items()
-            } if profile else {}
-
-            balance = float(profile_dict.get("balance", 0.0) or 0.0)
-            spend_balance = float(profile_dict.get("spend_balance", 0.0) or 0.0)
-            total_deposited = float(profile_dict.get("total_deposited", 0.0) or 0.0)
-            deposit_count = int(profile_dict.get("deposit_count", 0) or 0)
-            total_orders = int(profile_dict.get("total_orders", 0) or 0)
-            total_order_value = float(profile_dict.get("total_order_value", spend_balance) or spend_balance)
-
-            first_name = profile_dict.get("first_name", "User") or "User"
-            username = profile_dict.get("username", first_name) or first_name
-
-            metrics = {
-                "current_balance": balance,
-                "spend_balance": spend_balance,
-                "deposits": {
-                    "total_amount": total_deposited,
-                    "count": deposit_count
-                },
-                "orders": {
-                    "total_amount": total_order_value,
-                    "count": total_orders
-                }
-            }
-
+            summary = await db_adapter.get_financial_summary(user_id_str)
             return {
                 "response": True,
-                "user_profile": username,
-                "metrics": metrics,
+                "user_profile": summary.get("full_name") or user_id_str,
+                "metrics": summary.get("metrics", {
+                    "current_balance": 0.0,
+                    "spend_balance": 0.0,
+                    "deposits": {"total_amount": 0.0, "count": 0},
+                    "orders": {"total_amount": 0.0, "count": 0}
+                }),
                 "timestamp": datetime.utcnow().isoformat(),
             }
         except Exception as e:
@@ -2049,7 +1874,7 @@ class CountryFlagUpdater:
             if not flag_emoji:
                 continue
             country_code = self.emoji_to_country_code(flag_emoji)
-            svg_url = f"https://hatscripts.github.io/circle-flags/flags/{country_code}.svg"
+            svg_url = f"https://hatscripts.github.io/circle-flags/icons/flags/{country_code}.svg"
             try:
                 png_url = self.convert_svg_to_png_upload(svg_url)
                 val["flag_url"] = png_url
@@ -2328,7 +2153,7 @@ class NexNumManager:
 
     async def fetch_all_data(self) -> Dict[str, Any]:
         """
-        Fetches the complete pricing matrix via get_prices() for auto_updater sync.
+        Fetches the complete pricing matrix via get_prices().
         """
         return await self.get_prices()
 

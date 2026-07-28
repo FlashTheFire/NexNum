@@ -18,6 +18,9 @@ services:
     image: nexnum-app
     container_name: nexnum-app
     restart: unless-stopped
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     environment:
       NODE_ENV: production
       PORT: 3000
@@ -43,8 +46,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '1.0'
-          memory: 512M
+          cpus: '2.0'
+          memory: 1G
         reservations:
           cpus: '0.25'
           memory: 256M
@@ -59,6 +62,9 @@ services:
     image: nexnum-worker
     container_name: nexnum-worker
     restart: unless-stopped
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     environment:
       NODE_ENV: production
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
@@ -94,6 +100,9 @@ services:
     image: nexnum-socket
     container_name: nexnum-socket
     restart: unless-stopped
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     environment:
       NODE_ENV: production
       PORT: 3951
@@ -125,7 +134,7 @@ services:
     image: redis/redis-stack-server:latest
     container_name: nexnum-redis
     environment:
-      REDIS_ARGS: "--requirepass ${REDIS_PASSWORD:-strongpassword} --save 60 1"
+      REDIS_ARGS: "--requirepass ${REDIS_PASSWORD:-strongpassword} --save 900 1"
     volumes:
       - redis_data:/data
     restart: unless-stopped
@@ -138,6 +147,21 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # ============================================
+  # RedisInsight (Local GUI)
+  # ============================================
+  redisinsight:
+    image: redis/redisinsight:latest
+    container_name: nexnum-redisinsight
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5540:5540"
+    volumes:
+      - redisinsight_data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
 
   # ============================================
   # MeiliSearch (Production)
@@ -180,19 +204,23 @@ services:
       NEXNUM_API_URL: http://nexnum-app:3000
       ENABLE_PROVIDER_SYNC: ${ENABLE_PROVIDER_SYNC:-true}
       NEXNUM_API_KEY: ${NEXNUM_API_KEY:-nxn_live_-YbCKi0hkPq1W4PQfn_GRAYUMYfdUYkr}
+      SUPPORT_AI_API_KEY: ${SUPPORT_AI_API_KEY:-sk-kTVlkRa5qCMsH1qaBnG7CtL6I9HU3q2WKwyL1CRyLV4ukXDp}
     env_file:
       - .env
     depends_on:
       nexnum-app:
         condition: service_healthy
       redis:
-        condition: service_healthy
+        condition: service_started
+        required: false
 
 # ============================================
 # Volumes
 # ============================================
 volumes:
   redis_data:
+    driver: local
+  redisinsight_data:
     driver: local
   meili_data:
     driver: local

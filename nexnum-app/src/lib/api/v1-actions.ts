@@ -590,15 +590,21 @@ export async function actionGetServicesList(
     const denied = requirePerm(ctx.apiKey, 'read')
     if (denied) return json({ services: [] }, 200)
 
-    // Return ALL services from serviceLookup (no limit — lakhs of services supported)
+    // Return ALL services from serviceLookup
     const lookupRows = await prisma.serviceLookup.findMany({
-        select: { serviceId: true, serviceName: true }
+        select: { serviceId: true, serviceCode: true, serviceName: true, serviceIcon: true }
     })
 
-    const services: Array<{ id: number; name: string }> = lookupRows.map(r => ({
-        id: r.serviceId,
-        name: r.serviceName
-    }))
+    const services = lookupRows.map(r => {
+        const code = r.serviceCode || '';
+        const iconPath = r.serviceIcon || `/assets/icons/services/${code}`;
+        return {
+            id: r.serviceId,
+            name: r.serviceName,
+            code: code,
+            serviceIcon: iconPath
+        };
+    })
 
     return json({ services }, 200)
 }
@@ -606,7 +612,7 @@ export async function actionGetServicesList(
 // ============================================================================
 // Action: getCountriesList
 //   Inputs:  service=<serviceId|numeric> (optional)
-//   On success: JSON {countries: [{id, name, minPrice?, totalStock?, serverCount?}]}
+//   On success: JSON {countries: [{id, name, flagIcon, countryIcon}]}
 //   id = numeric countryId, NOT legacy string code.
 // ============================================================================
 
@@ -616,17 +622,40 @@ export async function actionGetCountriesList(
     const denied = requirePerm(ctx.apiKey, 'read')
     if (denied) return json({ countries: [] }, 200)
 
-    // Return ALL countries from countryLookup (no limit — lakhs of countries supported)
+    // Return ALL countries from countryLookup
     const countries = await prisma.countryLookup.findMany({
         orderBy: { countryName: 'asc' }
     })
 
     return json({
-        countries: countries.map((c) => ({
-            id: c.countryId,
-            name: c.countryName
-        }))
+        countries: countries.map((c) => {
+            const code = (c.countryCode || '').toLowerCase();
+            const iconPath = c.countryIcon || `/assets/icons/flags/${code}.svg`;
+            return {
+                id: c.countryId,
+                name: c.countryName,
+                code: c.countryCode,
+                flagIcon: iconPath,
+                countryIcon: iconPath
+            };
+        })
     }, 200)
+}
+
+/**
+ * Universal Provider Code Generator
+ * Maps any provider name/slug deterministically to a static 4-digit numeric ID [1000..9999].
+ * "grizzlysms" will ALWAYS map to the exact same 4-digit code everywhere.
+ */
+export function getProviderCode(providerSlugOrName: string): string {
+    if (!providerSlugOrName) return '1000'
+    const normalized = providerSlugOrName.trim().toLowerCase()
+    let hash = 2166136261
+    for (let i = 0; i < normalized.length; i++) {
+        hash ^= normalized.charCodeAt(i)
+        hash = Math.imul(hash, 16777619)
+    }
+    return String(1000 + (Math.abs(hash) % 9000))
 }
 
 // ============================================================================
@@ -679,10 +708,15 @@ export async function actionGetPrices(
         const [allCountries, allServices, activeProviders] = await Promise.all([
             prisma.countryLookup.findMany({ select: { countryId: true, countryCode: true, countryName: true } }),
             prisma.serviceLookup.findMany({ select: { serviceId: true, serviceCode: true, serviceName: true } }),
-            prisma.provider.findMany({ where: { isActive: true }, select: { name: true } })
+            prisma.provider.findMany({ where: { isActive: true }, select: { name: true, displayName: true } })
         ])
 
         const activeProviderNames = new Set(activeProviders.map(p => p.name.toLowerCase()))
+        const providerCodeMap = new Map<string, { code: string; name: string }>()
+        for (const p of activeProviders) {
+            const pCode = getProviderCode(p.name)
+            providerCodeMap.set(p.name.toLowerCase(), { code: pCode, name: p.displayName || p.name })
+        }
 
         const countryCodeToId = new Map<string, number>()
         for (const c of allCountries) {
@@ -823,11 +857,15 @@ export async function actionGetPrices(
             if (svc.price === 0 || price < svc.price) svc.price = price
             svc.count += count
 
-            if (!svc.providers[providerId]) {
-                svc.providers[providerId] = { count: 0, price, provider_id: providerId }
+            const provMeta = providerCodeMap.get(providerId.toLowerCase())
+            const pNumericId = provMeta?.code || providerId
+            const pDisplayName = provMeta?.name || providerId
+
+            if (!svc.providers[pNumericId]) {
+                svc.providers[pNumericId] = { count: 0, price, provider_id: pNumericId, provider_name: pDisplayName } as any
             }
-            svc.providers[providerId].count += count
-            if (price < svc.providers[providerId].price) svc.providers[providerId].price = price
+            svc.providers[pNumericId].count += count
+            if (price < svc.providers[pNumericId].price) svc.providers[pNumericId].price = price
         }
 
         const responseString = JSON.stringify(output)
@@ -911,7 +949,6 @@ export async function actionGetNumbersStatus(
             phone: n.phoneNumber,
             countryId: countryIdByCode.get(n.countryCode) ?? null,
             countryName: n.countryName ?? '',
-            serviceId: n.serviceCode ? serviceIdByCode.get(n.serviceCode) ?? null : null,
             serviceName: n.serviceName ?? '',
             status: n.status,
             sms: smsList.map((msg) => ({
@@ -922,5 +959,53 @@ export async function actionGetNumbersStatus(
             }))
         }
     }
+
     return json(out, 200)
+}
+
+// ============================================================================
+// Action: getProviders / getServers / getOperators
+//   Exact response format:
+//   {
+//     "providers": [
+//       { "id": "1000", "name": "GrizzlySMS" },
+//       { "id": "1001", "name": "5sim" }
+//     ]
+//   }
+// ============================================================================
+export async function actionGetProviders(
+    ctx: { userId: string; apiKey: ApiKey }
+): Promise<Response> {
+    const denied = requirePerm(ctx.apiKey, 'read')
+    if (denied) return json({ providers: [] }, 200)
+
+    try {
+        const cacheKey = `v1:getproviders:list`
+        try {
+            const cached = await redis.get(cacheKey)
+            if (cached) return new Response(cached, { status: 200, headers: JSON_HEADERS })
+        } catch {}
+
+        const providers = await prisma.provider.findMany({
+            where: { isActive: true },
+            select: { displayName: true, name: true },
+            orderBy: { createdAt: 'asc' }
+        })
+
+        const list = providers.map((p) => ({
+            id: getProviderCode(p.name),
+            name: p.displayName || p.name
+        }))
+
+        const responseString = JSON.stringify({ providers: list })
+
+        try {
+            await redis.set(cacheKey, responseString, 'EX', 60)
+        } catch {}
+
+        return new Response(responseString, { status: 200, headers: JSON_HEADERS })
+    } catch (err: any) {
+        logger.error('[V1] getProviders failed', { error: err.message })
+        return json({ providers: [] }, 200)
+    }
 }

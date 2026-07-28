@@ -76,7 +76,7 @@ export async function GET(req: Request) {
                         api_base_url as "apiBaseUrl", auth_type as "authType",
                         provider_type as "providerType", is_active as "isActive",
                         currency, created_at as "createdAt", updated_at as "updatedAt"
-                    FROM "Provider"
+                    FROM "providers"
                     ORDER BY name ASC
                 ` as any[];
             } catch (rawError) {

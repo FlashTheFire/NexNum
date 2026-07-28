@@ -37,7 +37,7 @@ export const OfferCard = ({ offer, onBuy, disabled }: OfferCardProps) => {
     const stockStatus = offer.count > 1000 ? 'High' : offer.count > 100 ? 'Med' : 'Low';
     const stockColor = stockStatus === 'High' ? 'text-green-400' : stockStatus === 'Med' ? 'text-yellow-400' : 'text-red-400';
 
-    const countryFlag = getCountryFlagUrlSync(offer.countryName) || "/assets/flags/un.svg";
+    const countryFlag = getCountryFlagUrlSync(offer.countryName) || "/assets/icons/flags/un.svg";
 
     return (
         <motion.button
@@ -61,7 +61,7 @@ export const OfferCard = ({ offer, onBuy, disabled }: OfferCardProps) => {
                     <div className="flex items-center gap-2">
                         <SafeImage
                             src={countryFlag}
-                            fallbackSrc="/assets/flags/un.svg"
+                            fallbackSrc="/assets/icons/flags/un.svg"
                             alt={offer.countryName}
                             className="w-5 h-[15px] object-cover rounded-[2px] opacity-80"
                             hideOnError

@@ -76,3 +76,6 @@ Thumbs.db
 docs/.stitch/
 docs/.stitch/.claude/
 .claude/
+.antigravity/
+.docs/
+.serena/

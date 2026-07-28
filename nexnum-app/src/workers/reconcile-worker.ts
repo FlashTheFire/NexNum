@@ -285,11 +285,12 @@ export async function processReconciliationBatchImpl(): Promise<ReconcileResult>
             try {
                 await prisma.$transaction(async (tx) => {
                     await WalletService.rollback(
-                        order.userId,
-                        order.amount.toNumber(),
-                        order.id,
+                        String(order.userId),
+                        typeof order.amount === 'number' ? order.amount : order.amount.toNumber(),
+                        String(order.id),
                         'Reconciliation Expired',
-                        tx as any
+                        `reconcile_exp_${order.id}`,
+                        tx
                     )
                     await tx.purchaseOrder.update({
                         where: { id: order.id },
@@ -298,7 +299,15 @@ export async function processReconciliationBatchImpl(): Promise<ReconcileResult>
                 })
                 results.purchaseOrders.succeeded++
             } catch (err: unknown) {
-                logger.error(`[Reconcile] PurchaseOrder ${order.id} failed`, err as Record<string, unknown>)
+                const e = err instanceof Error ? err : new Error(String(err))
+                logger.error(`[Reconcile] PurchaseOrder ${order.id} failed`, {
+                    error: e.message,
+                    stack: e.stack,
+                    cause: (e as any).cause,
+                    orderId: order.id,
+                    userId: order.userId,
+                    amount: order.amount.toNumber(),
+                })
                 results.purchaseOrders.failed++
             }
         }
@@ -317,11 +326,12 @@ export async function processReconciliationBatchImpl(): Promise<ReconcileResult>
             try {
                 await prisma.$transaction(async (tx) => {
                     await WalletService.rollback(
-                        activation.userId,
-                        activation.price.toNumber(),
-                        activation.id,
+                        String(activation.userId),
+                        typeof activation.price === 'number' ? activation.price : activation.price.toNumber(),
+                        String(activation.id),
                         'Reconciliation: Stuck RESERVED',
-                        tx as any
+                        `reconcile_stuck_${activation.id}`,
+                        tx
                     )
                     await tx.activation.update({
                         where: { id: activation.id },
@@ -330,9 +340,15 @@ export async function processReconciliationBatchImpl(): Promise<ReconcileResult>
                 })
                 results.activations.succeeded++
                 logger.info(`[Reconcile] Activation ${activation.id} -> FAILED (stuck)`)
-                logger.info(`[Reconcile] Activation ${activation.id} -> FAILED (stuck)`)
             } catch (err: unknown) {
-                logger.error(`[Reconcile] Activation ${activation.id} failed`, err as Record<string, unknown>)
+                const e = err instanceof Error ? err : new Error(String(err))
+                logger.error(`[Reconcile] Activation ${activation.id} failed`, {
+                    error: e.message,
+                    stack: e.stack,
+                    cause: (e as any).cause,
+                    activationId: activation.id,
+                    userId: activation.userId,
+                })
                 results.activations.failed++
             }
         }
@@ -398,9 +414,16 @@ export async function processReconciliationBatchImpl(): Promise<ReconcileResult>
                 })
                 results.refunds.succeeded++
                 logger.info(`[Reconcile] Activation ${activation.id} -> REFUNDED`)
-                logger.info(`[Reconcile] Activation ${activation.id} -> REFUNDED`)
             } catch (err: unknown) {
-                logger.error(`[Reconcile] Refund for ${activation.id} failed`, err as Record<string, unknown>)
+                const e = err instanceof Error ? err : new Error(String(err))
+                logger.error(`[Reconcile] Refund for ${activation.id} failed`, {
+                    error: e.message,
+                    stack: e.stack,
+                    cause: (e as any).cause,
+                    activationId: activation.id,
+                    userId: activation.userId,
+                    price: activation.price.toNumber(),
+                })
                 results.refunds.failed++
             }
         }

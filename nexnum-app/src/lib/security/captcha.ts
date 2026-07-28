@@ -36,9 +36,10 @@ interface CaptchaSettings {
  * Get captcha settings with strict Environment Variable Priority
  */
 export async function getCaptchaSettings(): Promise<CaptchaSettings> {
-    // 1. Base from Environment Variables (Single Source of Truth for secrets)
+    // 1. Base from Environment Variables (Disabled by default unless ENABLE_CAPTCHA=true)
+    const captchaEnvEnabled = process.env.ENABLE_CAPTCHA === 'true'
     const envConfig: CaptchaSettings = {
-        enabled: !!(process.env.NEXT_PUBLIC_HCAPTCHA_SITEKEY || process.env.NEXT_PUBLIC_RECAPTCHA_SITEKEY),
+        enabled: captchaEnvEnabled,
         provider: process.env.HCAPTCHA_SECRET ? 'hcaptcha' : 'recaptcha',
         hcaptchaSiteKey: process.env.NEXT_PUBLIC_HCAPTCHA_SITEKEY,
         hcaptchaSecret: process.env.HCAPTCHA_SECRET,

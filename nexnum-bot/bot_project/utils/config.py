@@ -1,4 +1,4 @@
-﻿import sys
+import sys
 import os
 from pathlib import Path
 _bot_project_dir = Path(__file__).resolve().parent
@@ -105,7 +105,8 @@ _raw_direct_url = os.getenv("DIRECT_URL", DATABASE_URL)
 DIRECT_URL = sanitize_db_url(_raw_direct_url)
 NEXNUM_API_URL = os.getenv("NEXNUM_API_URL", "http://nexnum-app:3000")
 NEXNUM_API_KEY = os.getenv("NEXNUM_API_KEY", os.getenv("ADMIN_API_KEY", "nexnum_admin_secret_key"))
-URL = os.getenv("URL", "http://temp.sh/ePGDP/flashsms.json")
+PUBLIC_APP_URL = os.getenv("NEXT_PUBLIC_APP_URL", os.getenv("PUBLIC_APP_URL", "https://nexnum.app")).rstrip("/")
+URL = os.getenv("URL", "")
 
 # Optional configurations with sensible defaults
 START_PAGE = os.getenv("START_PAGE", "default_start_page")
@@ -115,7 +116,10 @@ LOADING_GIF = os.getenv("LOADING_GIF", "default_loading.gif")
 WALLET_PAGE = os.getenv("WALLET_PAGE", "default_wallet_page")
 DEPOSIT_INR_QR_CODE = os.getenv("DEPOSIT_INR_QR_CODE", "https://i.postimg.cc/1thT9t0C/image.png")
 
-# Redis configuration with defaults
+# Redis configuration (Optional - only required if in-memory cache/search is enabled)
+ENABLE_REDIS = os.getenv("ENABLE_REDIS", "true").lower() == "true"
+USE_REDIS_FOR_SEARCH = os.getenv("USE_REDIS_FOR_SEARCH", "true").lower() == "true"
+REDIS_URL = os.getenv("REDIS_URL", None)
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
 REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", "")  # Empty string if not set
@@ -124,9 +128,6 @@ REDIS_DB = int(os.getenv("REDIS_DB", 0))
 # Service configuration
 SMS_PROVIDERS = os.getenv("SMS_PROVIDERS", "default_provider")
 APP_COUNT = int(os.getenv("APP_COUNT", 5))
-
-SERVICE_INDEX = os.getenv("SERVICE_INDEX", "service_index")
-SERVICE_PREFIX = os.getenv("SERVICE_PREFIX", "service_data:")
 
 ORDER_INDEX = os.getenv("ORDER_INDEX", "order_index")
 ORDER_PREFIX = os.getenv("ORDER_PREFIX", "order_data:")

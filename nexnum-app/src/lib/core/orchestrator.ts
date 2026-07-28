@@ -135,6 +135,9 @@ class CoreOrchestrator {
 
     private async warmPrisma() {
         await prisma.$connect()
+        try {
+            await prisma.$executeRawUnsafe(`ALTER TABLE "canonical_countries" ALTER COLUMN "canonical_code" TYPE VARCHAR(100);`)
+        } catch {}
         logger.debug('[Orchestrator] DB connected')
     }
 

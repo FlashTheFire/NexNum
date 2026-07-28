@@ -40,9 +40,14 @@ except ImportError:
     from bot_project.utils.functions import small_caps, format_number_to_text
 
 try:
-    from utils.config import SERVICE_INDEX, COMMISSION
+    from utils.config import COMMISSION, PUBLIC_APP_URL
 except ImportError:
-    from bot_project.utils.config import SERVICE_INDEX, COMMISSION
+    from bot_project.utils.config import COMMISSION, PUBLIC_APP_URL
+
+try:
+    from utils.api_client import api_client
+except ImportError:
+    from bot_project.utils.api_client import api_client
 
 try:
     from handlers.manager.operation import get_async_logger, UserManagement, user_mgr
@@ -69,7 +74,6 @@ try:
 except ImportError:
     from bot_project.utils.cache_manager import cache_manager, CachePrefix
 
-SERVICE_INDEX = "service_index"
 CACHE_TTL = 240
 CACHE_RESULTS_PER_PAGE = 50
 RESULTS_PER_PAGE = 8
@@ -241,66 +245,70 @@ class UserSearchManagement:
         
         # Combine variants using OR (|)
         or_clause = f"{variant1}|{variant2}|{variant3}|{variant4}|{processed}"
-        return f" @search_tags:({or_clause})"
+        return f"@search_tags:({or_clause})"
 
     async def _search_pattern(
         self,
         pattern: str,
         app_count: Optional[str] = None,
         app_price: Optional[str] = None,
-        tool_limit: Optional[int] = 1500,
+        tool_limit: Optional[int] = 100000,
         sort_by: Optional[str] = None,
         country_name_query: Optional[str] = None
     ) -> List[Tuple[str, Dict[str, Any]]]:
         """
-        Ultra-fast, non-blocking FT.AGGREGATE search with caching.
+        Ultra-fast HTTP API search with Redis TTL caching.
         """
         # 1) cache key
-        parts = [pattern, app_count or 'any_count', app_price or 'any_price', str(tool_limit), sort_by or 'nosort', country_name_query or 'all']
+        parts = [pattern or '*', app_count or 'any_count', app_price or 'any_price', str(tool_limit), sort_by or 'nosort', country_name_query or 'all']
         cache_key = 'search:' + '|'.join(parts)
         cached = await cache_manager.get(cache_key, CachePrefix.SEARCH)
         if cached:
             return cached
 
-        # 2) build query
-        tags = f"{pattern} @is_show_server:(True) @is_show_app:(True) @is_show_country:(True)"
-        if country_name_query:
-            tags += f" @country_name:(%{country_name_query}%|{country_name_query}*|{country_name_query})"
-        tags += f" @app_price:{app_price or '[0.01 +inf]'}"
+        # 2) Extract search query term
+        query_term = None
+        p = (pattern or "").strip()
+        if p and p != "*":
+            # Extract clean search term from pattern if format @search_tags:(...)
+            if "search_tags:" in p:
+                query_term = p.split("search_tags:")[1].strip(" ()*|%")
+                query_term = query_term.split("|")[0].replace("%", "").replace("*", "")
+            else:
+                query_term = p
 
-        cmd = [
-            'FT.AGGREGATE', SERVICE_INDEX, tags,
-            'LOAD', '3', '@app_name', '@app_code', '@app_price',
-            'GROUPBY', '1', '@app_name',
-            'REDUCE', 'MIN', '1', '@app_price', 'AS', 'MinPrice',
-            'REDUCE', 'SUM', '1', '@app_count', 'AS', 'Total',
-            'REDUCE', 'FIRST_VALUE', '4', '@app_id', 'BY', '@app_price', 'ASC', 'AS', 'app_id',
-            'REDUCE', 'FIRST_VALUE', '1', '@app_code', 'AS', 'app_code'
-        ]
-        if sort_by:
-            cmd.extend(['SORTBY', '2', '@MinPrice', sort_by.upper()])
+        # 3) Fetch services from nexnum-app API
+        resp = await api_client.get_services(
+            query=query_term if query_term and query_term != "*" else None,
+            limit=tool_limit or 100000,
+            sort=sort_by
+        )
 
-        # 3) execute
-        try:
-            rows = await self.user_manager._run_aggregate_cursor(cmd, SERVICE_INDEX)
-        except Exception:
-            return []
-
-        # 4) parse
+        services = resp.get("services", [])
         results: List[Tuple[str, Dict[str, Any]]] = []
-        for rec in rows:
+
+        for svc in services:
             try:
-                results.append((rec[1], {
-                    'lowest_price': float(rec[3]),
-                    'total_stock': int(rec[5]),
-                    'app_id': rec[7],
-                    'app_code': rec[9]
+                svc_name = svc.get("name", "Unknown")
+                lowest_price = float(svc.get("lowestPrice", 0.0))
+                total_stock = int(svc.get("totalStock", 0))
+                svc_code = str(svc.get("code", ""))
+
+                # Assign numeric ID or fallback
+                app_id = str(svc.get("id") or svc_code)
+
+                results.append((svc_name, {
+                    'lowest_price': lowest_price,
+                    'total_stock': total_stock,
+                    'app_id': app_id,
+                    'app_code': svc_code
                 }))
-            except:
+            except Exception as e:
+                logging.debug(f"Error parsing service item: {e}")
                 continue
 
-        # 5) cache
-        await cache_manager.set(cache_key, results, CachePrefix.SEARCH)
+        # 4) Cache and return
+        await cache_manager.set(cache_key, results, CachePrefix.SEARCH, expire=120)
         return results
 
     async def search_advanced(
@@ -348,7 +356,7 @@ class UserSearchManagement:
             for app_name, data in raw_results:
                 try:
                     app_id = str(data.get("app_id", app_name))
-                    if not app_id.isdigit():
+                    if not app_id:
                         continue
 
                     category = self.categorize(app_name, query) if len(query) > 1 else "prefix"
@@ -442,7 +450,8 @@ class UserSearchManagement:
                 await self.bot.answer_inline_query(
                     inline_query.id,
                     articles,
-                    cache_time=30,
+                    cache_time=1,
+                    is_personal=True,
                     next_offset=next_offset
                 )
                 return
@@ -474,12 +483,12 @@ class UserSearchManagement:
             adv = await self.search_advanced(
                 query=query_text,
                 offset=0,
-                limit=None,
+                limit=100000,
                 app_count=None,
                 app_price=None,
                 sort_by=None,
                 country_name_query=None,
-                tool_limit=None
+                tool_limit=100000
             )
             apps = list(adv.get("results", {}).items())
             total_count = len(apps)
@@ -556,18 +565,17 @@ class UserSearchManagement:
                         f"• Sᴇʀᴠᴇʀs » {display.translate(await small_caps())}\n"
                         f"• Tᴏᴛᴀʟ Sᴛᴏᴄᴋ » {await format_number_to_text(stock)}"
                     ).translate(await small_caps())
-                    cmd = f"#Sᴇʀᴠɪᴄᴇ|{app_id}" if is_admin else f"/Buy_{app_id}"
+                    app_cmd_id = str(app_id).replace(" ", "-")
+                    cmd = f"#Sᴇʀᴠɪᴄᴇ|{app_cmd_id}" if is_admin else f"/Buy_{app_cmd_id}"
                     switch = "#Sᴇʀᴠɪᴄᴇ " if is_admin else ""
+                    icon_code = app_cmd_id.lower()
+                    thumb_url = f"{PUBLIC_APP_URL}/assets/icons/services-telegram/{icon_code}.png"
 
                     item = {
                         "id": str(uuid.uuid4()),
                         "title": clean,
                         "description": desc,
-                        "thumb": (
-                            f"https://smsactivate.s3.eu-central-1.amazonaws.com/assets/ico/{first}0.webp"
-                            if first else
-                            "https://img.icons8.com/color/48/000000/shop.png"
-                        ),
+                        "thumb": thumb_url,
                         "input_cmd": cmd,
                         "switch": switch
                     }
@@ -605,7 +613,8 @@ class UserSearchManagement:
             await self.bot.answer_inline_query(
                 inline_query.id,
                 articles,
-                cache_time=30,
+                cache_time=1,
+                is_personal=True,
                 next_offset=next_offset
             )
 
@@ -868,12 +877,13 @@ class UserSearchManagement:
         Expects an async function small_caps() (defined elsewhere) for text translation.
         """
         try:
-            caps_map = await small_caps()  # small_caps must be defined elsewhere.
+            caps_map = await small_caps()
+            clean_app_id = str(app_id).replace(" ", "-")
             return (
                 f"<u><b>{app_name.title().translate(caps_map)}</b></u> <b>[</b><i>{await format_number_to_text(total_stock)}</i><b>]</b>\n "
                 f"   <code>❯</code> <i>Sᴛᴀʀᴛɪɴɢ Pʀɪᴄᴇ</i> <b>»</b> "
                 f"<code>💎</code> <code>{f'{lowest_price:.2f}'.translate(caps_map)}</code> \n"
-                f"    <b>•</b> <i>Cʟɪᴄᴋ Tᴏ Sᴇᴇ</i> <b>»</b> <i>/Buy_{app_id}</i>"
+                f"    <b>•</b> <i>Cʟɪᴄᴋ Tᴏ Sᴇᴇ</i> <b>»</b> <i>/Buy_{clean_app_id}</i>"
             )
         except Exception as e:
             logging.error(f"Error formatting result for {app_name}: {e}")

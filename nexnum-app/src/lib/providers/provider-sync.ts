@@ -930,13 +930,52 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
         // Filter counters — declared in the outer scope so the countries
         // sync, services sync, and price-indexing loop all share them.
 
-        const processPrices = async (prices: PriceData[], country?: { code: string; name: string }) => {
+            // Track valid country external IDs / codes from getCountriesList()
+            const validCountryCodes = new Set<string>()
+            for (const c of countries) {
+                if (c.code != null) {
+                    validCountryCodes.add(String(c.code).toLowerCase())
+                }
+            }
+
+            // Track valid service codes from getServicesList()
+            const validServiceCodes = new Set<string>()
+            for (const s of services) {
+                if (s.code != null) {
+                    validServiceCodes.add(String(s.code).toLowerCase())
+                }
+            }
+
+            const processPrices = async (prices: PriceData[], country?: { code: string; name: string }) => {
             const currentCountryOffers: OfferDocument[] = []
             const currentCountryCode = country?.code || ''
 
             for (const p of prices) {
                 try {
                     if (p.count <= 0) continue
+
+                    // STRICT FILTER: skip offers whose country is not present in getCountriesList()
+                    const countryCode = p.country || currentCountryCode
+                    if (validCountryCodes.size > 0 && countryCode && !validCountryCodes.has(String(countryCode).toLowerCase())) {
+                        logger.warn(`[SYNC] Skipping price: country code/ID '${countryCode}' not present in getCountriesList()`, {
+                            context: 'SYNC',
+                            provider: provider.name,
+                            country: countryCode,
+                            service: p.service
+                        })
+                        continue
+                    }
+
+                    // STRICT FILTER: skip offers whose service code is not present in getServicesList()
+                    if (validServiceCodes.size > 0 && p.service && !validServiceCodes.has(String(p.service).toLowerCase())) {
+                        logger.warn(`[SYNC] Skipping price: service code '${p.service}' not present in getServicesList()`, {
+                            context: 'SYNC',
+                            provider: provider.name,
+                            country: countryCode,
+                            service: p.service
+                        })
+                        continue
+                    }
 
                     // Zero-cost filter: drop offers where the provider returned
                     // cost = 0 (some providers do this for "free" SMS). Without
@@ -947,7 +986,6 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                     }
 
                     // Visibility Checks
-                    const countryCode = p.country || currentCountryCode
                     const isCountryVisible = countryVisibilityMap.get(countryCode) !== false
                     const isServiceVisible = serviceVisibilityMap.get(p.service) !== false &&
                         serviceVisibilityMap.get(p.service.toLowerCase()) !== false

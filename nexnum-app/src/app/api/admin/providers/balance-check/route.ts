@@ -25,7 +25,7 @@ export async function POST(request: Request) {
                 providers = await prisma.$queryRaw`
                     SELECT id, name, display_name as "displayName", api_base_url as "apiBaseUrl",
                            auth_type as "authType", is_active as "isActive"
-                    FROM "Provider"
+                    FROM "providers"
                     WHERE is_active = true
                 ` as any[];
             } catch (rawError) {
@@ -90,7 +90,7 @@ export async function GET(request: Request) {
                     SELECT id, name, display_name as "displayName", 
                            balance, low_balance_alert as "lowBalanceAlert",
                            currency, is_active as "isActive"
-                    FROM "Provider"
+                    FROM "providers"
                     WHERE is_active = true
                 ` as any[];
             } catch (rawError) {

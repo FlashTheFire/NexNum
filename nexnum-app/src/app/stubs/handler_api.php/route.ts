@@ -29,7 +29,8 @@ import {
     actionGetServicesList,
     actionGetCountriesList,
     actionGetPrices,
-    actionGetNumbersStatus
+    actionGetNumbersStatus,
+    actionGetProviders
 } from '@/lib/api/v1-actions'
 
 function getParam(req: NextRequest, name: string): string | undefined {
@@ -126,6 +127,11 @@ async function handleAction(request: NextRequest, ctx: any) {
 
         case 'getNumbersStatus':
             return actionGetNumbersStatus(shared)
+
+        case 'getProviders':
+        case 'getServers':
+        case 'getOperators':
+            return actionGetProviders(shared)
 
         default:
             return new Response('BAD_ACTION', {

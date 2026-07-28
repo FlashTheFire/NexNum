@@ -42,9 +42,13 @@ from utils.config import COMMISSION, ADMIN_ID
 
 
 # ========== CONFIGURATION ==========
-MODEL = "gpt-4.1-mini" #"gpt-3.5-turbo-0125" #"r1-1776" #"misnousreseamistralai/ministral-3b" #"nousreseamistralai/ministral-3b" # mistralai/mistral-7b-instruct
-API_BASE_URL = "https://api.chatanywhere.org/v1" #"https://api.perplexity.ai/chat/completions" # #f"https://api.pawan.krd/{MODEL}/v1"
-API_KEY = os.getenv("SUPPORT_AI_API_KEY", "")
+MODEL = "gpt-5-nano"
+API_BASE_URL = "https://api.chatanywhere.tech/v1"
+DEFAULT_AI_KEY = "sk-kTVlkRa5qCMsH1qaBnG7CtL6I9HU3q2WKwyL1CRyLV4ukXDp"
+
+def get_openai_client() -> AsyncOpenAI:
+    key = os.getenv("SUPPORT_AI_API_KEY", "").strip() or DEFAULT_AI_KEY
+    return AsyncOpenAI(api_key=key, base_url=API_BASE_URL)
 MAX_HISTORY_TOKENS = 4096
 RESERVE_FOR_REPLY = 524
 MAX_TOTAL_ALLOWED = MAX_HISTORY_TOKENS - RESERVE_FOR_REPLY
@@ -274,9 +278,7 @@ SYSTEM_PROMPT = (
 )
 
 # ========== LOGGER SETUP ==========
-client = AsyncOpenAI(
-    api_key=API_KEY,
-    base_url=API_BASE_URL)
+client = get_openai_client()
 
 try:
     encoding = tiktoken.encoding_for_model(MODEL)
@@ -889,6 +891,7 @@ class AISupportManagement:
     # ========== OPENAI API WRAPPER ==========
     async def _chat_completion(self, payload: Dict[str, Any]) -> Any:
         """Async call to OpenAI chat completion endpoint."""
+        client = get_openai_client()
         response = await client.chat.completions.create(**payload)
         return response
 
@@ -1003,8 +1006,8 @@ class AISupportManagement:
             return {
                 "model": MODEL,
                 "messages": self._sanitize_for_api(trim_history(tools, msgs)),
-                "functions": tools,
-                "function_call": "auto",
+                "tools": tools,
+                "tool_choice": "auto",
                 "max_tokens": RESERVE_FOR_REPLY,
                 "temperature": 0.0,
             }

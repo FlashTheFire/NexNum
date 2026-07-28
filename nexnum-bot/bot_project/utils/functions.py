@@ -100,7 +100,7 @@ async def country_flag_link(flag_emoji: str, size: int = 320) -> str:
     country_code = ''.join(chr(ord(c) - 127397) for c in flag_emoji).lower()
 
     # Construct the URL using FlagCDN's URL pattern.
-    url = f"https://hatscripts.github.io/circle-flags/flags/{country_code}.svg"
+    url = f"https://hatscripts.github.io/circle-flags/icons/flags/{country_code}.svg"
     return "https://res.cloudinary.com/djfsvvzto/image/upload/zfanvluzouhuys0qn7ou.png"
 
 async def fetch_qr(order_id: str) -> Optional[BytesIO]:

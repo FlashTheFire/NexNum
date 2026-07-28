@@ -8,7 +8,7 @@
 import { getCountryIsoCode, normalizeCountryName } from './country-normalizer';
 
 // Circle-flags base URL (Served locally)
-const FLAG_BASE = "/assets/flags";
+const FLAG_BASE = "/assets/icons/flags";
 
 
 /**

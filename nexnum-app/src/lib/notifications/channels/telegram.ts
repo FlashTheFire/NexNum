@@ -1,5 +1,6 @@
 import { Telegraf, Context } from 'telegraf'
 import { redis } from '@/lib/core/redis'
+import { prisma } from '@/lib/core/db'
 import { logger } from '@/lib/core/logger'
 import { NotificationChannel, NotificationPayload, OrderNotification, DepositNotification, MetricReportNotification } from '../types'
 
@@ -49,7 +50,18 @@ export class TelegramService implements NotificationChannel {
 
     private async getOrCreateForumTopic(userId: string, userName: string): Promise<number | null> {
         const profileKey = `user_data:${userId}:profile:main`
-        const storedForumId = await redis.hget(profileKey, 'forum_id')
+        let storedForumId = await redis.hget(profileKey, 'forum_id').catch(() => null)
+
+        if (!storedForumId) {
+            try {
+                const rows = await prisma.$queryRaw<Array<{ data: any }>>`SELECT data FROM user_sessions s JOIN users u ON s.user_id = u.id WHERE u.telegram_id = ${userId} OR s.user_id = ${userId} LIMIT 1`
+                if (rows.length > 0 && rows[0].data?.forum_id) {
+                    storedForumId = String(rows[0].data.forum_id)
+                }
+            } catch (err) {
+                // Ignore query failure fallback
+            }
+        }
 
         if (storedForumId) {
             return parseInt(storedForumId)
@@ -277,7 +289,18 @@ ${validStatus}
         }
 
         const profileKey = `user_data:${payload.userId}:profile:main`
-        const storedMsgId = await redis.hget(profileKey, 'forum_message_id')
+        let storedMsgId = await redis.hget(profileKey, 'forum_message_id').catch(() => null)
+
+        if (!storedMsgId) {
+            try {
+                const rows = await prisma.$queryRaw<Array<{ data: any }>>`SELECT data FROM user_sessions s JOIN users u ON s.user_id = u.id WHERE u.telegram_id = ${payload.userId} OR s.user_id = ${payload.userId} LIMIT 1`
+                if (rows.length > 0 && rows[0].data?.forum_message_id) {
+                    storedMsgId = String(rows[0].data.forum_message_id)
+                }
+            } catch (err) {
+                // Fallback catch
+            }
+        }
 
         try {
             if (storedMsgId) {

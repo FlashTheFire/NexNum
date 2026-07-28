@@ -47,7 +47,7 @@ from utils.redis_keys import RedisKeys
 from utils.functions import convert_rub_to_usd, get_api_info, AfterMin, small_caps, convert_rub_to_usd
 from handlers.manager.operation import FinancialManagement, UserManagement, OrderManagement
 from utils.cache_manager import cache_manager, CachePrefix
-from utils.config import SERVICE_INDEX
+from utils.api_client import api_client
 from handlers.security import RateLimiter, InputValidator, TransactionGuard
 from utils.redis_manager import RedisManager, redis_manager
 from utils.config import BASE_TIMEOUT, ADMIN_ID, IMGBB_API_KEY
@@ -143,26 +143,28 @@ class UserPurchaseManagement:
         ]))
         base_q = " ".join(tags) or "*"
 
-        # Build the RedisSearch query
-        #print(base_q)
-        if price is None:
-            q = Query(base_q).sort_by("app_price", asc=True).paging(0, 1)
-        else:
-            q = Query(f"{base_q} @app_price:[0 {price}]").paging(0, 1)
+        # Fetch live quote / service pricing via api_client
+        quote_data = await api_client.get_number_quote(str(country_id or "1"), str(app_id or "tg"))
+        svc_resp = await api_client.get_services(limit=100)
+        svc_list = svc_resp.get("services", [])
+        target_svc = next((s for s in svc_list if str(s.get("id")) == str(app_id) or str(s.get("code")) == str(app_id)), None)
 
-        res = await self.redis_client.ft(SERVICE_INDEX).search(q)
-        if not res.docs:
-            q = Query(base_q).sort_by("app_price", asc=True).paging(0, 1)
-            res = await self.redis_client.ft(SERVICE_INDEX).search(q)
-            if not res.docs:
-                return {'status': False, 'message': 'BAD_REQUEST'}
-            else:
-                return {'status': False, 'message': f'WRONG_MAX_PRICE:{res.docs[0].app_price}'}
+        lowest_price = float(target_svc.get("lowestPrice", 1.0)) if target_svc else 1.0
+        svc_name = target_svc.get("name", "Service") if target_svc else "Service"
+        svc_code = target_svc.get("code", "svc") if target_svc else "svc"
 
-        # Process the first document
-        app_data = await self._process_app_documents(res.docs[:1])
-        app_data['status'] = True
-        return app_data
+        if price is not None and lowest_price > float(price):
+            return {'status': False, 'message': f'WRONG_MAX_PRICE:{lowest_price}'}
+
+        return {
+            'status': True,
+            'app_id': str(app_id),
+            'app_name': svc_name,
+            'app_code': svc_code,
+            'app_price': lowest_price,
+            'country_id': str(country_id or "1"),
+            'server_id': str(server_id or "1")
+        }
 
     async def _process_app_documents(self, docs) -> Dict:
         doc = docs[0]
@@ -285,11 +287,13 @@ class UserPurchaseManagement:
         callback_user_id = call.from_user.id if call.from_user else None
         chat_id = call.message.chat.id if call.message and call.message.chat else callback_user_id
 
-        redis_key = f"service_data:{country_id}:{server_id}:{app_id}"
-        current_price = await redis_manager.redis_client.hget(redis_key, 'app_price')
+        # Fetch live price quote via api_client
+        svc_resp = await api_client.get_services(limit=100)
+        target_svc = next((s for s in svc_resp.get("services", []) if str(s.get("id")) == str(app_id) or str(s.get("code")) == str(app_id)), None)
+        current_price = target_svc.get("lowestPrice") if target_svc else None
         
         if current_price is not None:
-            current_price = float(current_price.decode() if isinstance(current_price, bytes) else current_price)
+            current_price = float(current_price)
             price = round(float(current_price) * float(COMMISSION), 2)
         else:
             price = 1000
@@ -993,7 +997,7 @@ class UserPurchaseManagement:
         poll_interval = full_data.get('poll_interval', 10)
 
         # Build redis keys
-        key_suffix = f"service_data:{full_data['country_id']}:{full_data['server_id']}:{full_data['app_id']}"
+        key_suffix = f"quote:{full_data['country_id']}:{full_data['server_id']}:{full_data['app_id']}"
         redis_key = f"schedule:{key_suffix}"
         full_data['key'] = key_suffix
         full_data['timeout_seconds'] = timeout_seconds
@@ -1012,49 +1016,53 @@ class UserPurchaseManagement:
         Bootstrap existing schedules once, then subscribe to keyspace events for zadd.
         Launch _background_check_loop only if there's not already a loop running for that key.
         """
+        try:
+            if not self.redis_client:
+                return
+            # 1) Enable keyspace notifications for sorted-set events
+            await self.redis_client.config_set('notify-keyspace-events', 'Kz')
 
-        # 1) Enable keyspace notifications for sorted-set events
-        await self.redis_client.config_set('notify-keyspace-events', 'Kz')
+            # 2) Bootstrap existing schedules *once* at startup
+            cursor = '0'
+            while True:
+                cursor, keys = await self.redis_client.scan(
+                    cursor=cursor,
+                    match='schedule:quote:*',
+                    count=100
+                )
+                for raw_key in keys:
+                    key = raw_key.decode() if isinstance(raw_key, bytes) else raw_key
+                    if key not in self._running_schedules:
+                        logger.debug(f"Bootstrapping existing schedule: {key}")
+                        self._start_schedule_loop(key)
+                if cursor == '0':
+                    break
 
-        # 2) Bootstrap existing schedules *once* at startup
-        cursor = '0'
-        while True:
-            cursor, keys = await self.redis_client.scan(
-                cursor=cursor,
-                match='schedule:service_data:*',
-                count=100
-            )
-            for raw_key in keys:
-                key = raw_key.decode() if isinstance(raw_key, bytes) else raw_key
-                if key not in self._running_schedules:
-                    logger.debug(f"Bootstrapping existing schedule: {key}")
-                    self._start_schedule_loop(key)
-            if cursor == '0':
-                break
+            # 3) Subscribe to keyspace pattern for real-time adds
+            pubsub = self.redis_client.pubsub()
+            await pubsub.psubscribe('__keyspace@0__:schedule:quote:*')
+            logger.info("Listening for schedule events...")
 
-        # 3) Subscribe to keyspace pattern for real-time adds
-        pubsub = self.redis_client.pubsub()
-        await pubsub.psubscribe('__keyspace@0__:schedule:service_data:*')
-        logger.info("Listening for schedule events...")
+            async for message in pubsub.listen():
+                if message['type'] != 'pmessage':
+                    continue
 
-        async for message in pubsub.listen():
-            if message['type'] != 'pmessage':
-                continue
+                event = message['data']
+                if isinstance(event, bytes):
+                    event = event.decode()
+                if event != 'zadd':
+                    continue
 
-            event = message['data']
-            if isinstance(event, bytes):
-                event = event.decode()
-            if event != 'zadd':
-                continue
+                channel = message['channel']
+                if isinstance(channel, bytes):
+                    channel = channel.decode()
+                # Extract the actual Redis key
+                _, key = channel.split('__keyspace@0__:', 1)
 
-            channel = message['channel']
-            if isinstance(channel, bytes):
-                channel = channel.decode()
-            # Extract the actual Redis key
-            _, key = channel.split('__keyspace@0__:', 1)
-
-            logger.debug(f"New schedule event for key: {key}")
-            self._start_schedule_loop(key)
+                logger.debug(f"New schedule event for key: {key}")
+                self._start_schedule_loop(key)
+        except Exception as e:
+            logger.warning(f"Schedule listener error (Redis optional): {e}")
 
     def _start_schedule_loop(self, key: str):
         """
@@ -1317,8 +1325,8 @@ async def register_handlers(bot: AsyncTeleBot) -> None:
         try:
             _, app_id, price, server_id, country_id, country_code = call.data.replace(' ', '').split(':')
             #logging.info(app_id, price, server_id, country_id, country_code)
-            text = f'service_data:{country_id}:{server_id}:{app_id}'
-            country_name = await redis_manager.redis_client.hget(text, 'country_name')
+            text = f'quote:{country_id}:{server_id}:{app_id}'
+            country_name = None
             
             process_purchase = partial(
                 purchase_manager.process_purchase_flow,
@@ -1397,7 +1405,7 @@ async def register_handlers(bot: AsyncTeleBot) -> None:
             await bot.answer_callback_query(call.id, "⛔ Expired data.")
             return
         full_data = json.loads(raw_data)
-        redis_key = f"service_data:{full_data['country_id']}:{full_data['server_id']}:{full_data['app_id']}"
+        redis_key = f"quote:{full_data['country_id']}:{full_data['server_id']}:{full_data['app_id']}"
         await redis_manager.redis_client.zrem(f"schedule:{redis_key}", callback_id)
         await bot.answer_callback_query(call.id, "🔕 𝗡ᴏᴛɪғɪᴄᴀᴛɪᴏɴꜱ Dɪsᴀʙʟᴇᴅ – Aʟᴇʀᴛs Sɪʟᴇɴᴄᴇᴅ. Yᴏᴜ'ʀᴇ Oғғ ᴛʜᴇ Gʀɪᴅ...")
         try:

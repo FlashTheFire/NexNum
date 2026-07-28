@@ -116,7 +116,7 @@ export async function refreshAllServiceAggregatesImpl() {
                 return 0;
             }
 
-            logger.warn('No documents found in MeiliSearch and no active providers. Clearing aggregates.', { context: 'AGGREGATES' });
+            logger.info('No documents found in MeiliSearch and no active providers. Clearing aggregates.', { context: 'AGGREGATES' })
             await prisma.serviceAggregate.deleteMany({})
             return 0
         }
@@ -342,10 +342,11 @@ export async function getServiceAggregates(options?: {
     limit?: number
     sortBy?: 'name' | 'pointPrice' | 'pointPriceDesc' | 'stock'
 }) {
-    const limit = options?.limit || 50
-    const page = options?.page || 1
-    const offset = (page - 1) * limit
-    const isDefaultList = !options?.query && page === 1 && limit === 50 && (!options?.sortBy || options.sortBy === 'name');
+    const isUnlimited = options?.limit === 0 || (options?.limit !== undefined && options.limit >= 10000);
+    const limit = isUnlimited ? 0 : (options?.limit || 50);
+    const page = options?.page || 1;
+    const offset = isUnlimited ? 0 : (page - 1) * limit;
+    const isDefaultList = !isUnlimited && !options?.query && page === 1 && limit === 50 && (!options?.sortBy || options.sortBy === 'name');
 
     // FALLBACK CHECK: If ServiceAggregate table is empty, use direct MeiliSearch
     const dbCount = await prisma.serviceAggregate.count();
@@ -440,12 +441,12 @@ export async function getServiceAggregates(options?: {
             where,
             orderBy,
             skip: offset,
-            take: limit
+            take: isUnlimited ? undefined : limit
         }),
         prisma.serviceAggregate.count({ where })
     ])
     const items = dbItems.map(i => ({ ...i, totalStock: Number(i.totalStock) }))
     const total = count
 
-    return { items, total, page, limit }
+    return { items, total, page, limit: isUnlimited ? total : limit }
 }

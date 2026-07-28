@@ -15,10 +15,12 @@ import redis.asyncio as redis
 
 logger = logging.getLogger(__name__)
 
+from utils.db import db_adapter
+
 class TransactionGuard:
     """Secure transaction handler for database operations."""
 
-    def __init__(self, redis_client: redis.Redis, lock_timeout: int = 30):
+    def __init__(self, redis_client: Optional[redis.Redis] = None, lock_timeout: int = 30):
         self.redis_client = redis_client
         self.lock_timeout = lock_timeout
         self.current_lock = None
@@ -34,15 +36,21 @@ class TransactionGuard:
         return False
 
     async def acquire_lock(self, lock_key: str, timeout: int = None) -> bool:
-        """Acquire a lock for a transaction."""
+        """Acquire a lock for a transaction using PostgreSQL advisory locks."""
+        ttl = timeout or self.lock_timeout
         try:
             async with self._lock:
-                success = await self.redis_client.set(
-                    f"lock:{lock_key}",
-                    str(datetime.utcnow().isoformat()),
-                    nx=True,
-                    ex=timeout or self.lock_timeout
-                )
+                success = await db_adapter.acquire_advisory_lock(lock_key, ttl_seconds=ttl)
+                if not success and self.redis_client:
+                    try:
+                        success = await self.redis_client.set(
+                            f"lock:{lock_key}",
+                            str(datetime.utcnow().isoformat()),
+                            nx=True,
+                            ex=ttl
+                        )
+                    except Exception:
+                        pass
                 if success:
                     self.current_lock = lock_key
                     self.logger.debug(f"Lock acquired: {lock_key}")
@@ -54,16 +62,19 @@ class TransactionGuard:
             return False
 
     async def release_lock(self, lock_key: str) -> bool:
-        """Release a transaction lock."""
+        """Release a transaction lock using PostgreSQL advisory locks."""
         try:
             async with self._lock:
-                if await self.redis_client.delete(f"lock:{lock_key}"):
-                    if self.current_lock == lock_key:
-                        self.current_lock = None
-                    self.logger.debug(f"Lock released: {lock_key}")
-                    return True
-                self.logger.warning(f"Failed to release lock: {lock_key}")
-                return False
+                await db_adapter.release_advisory_lock(lock_key)
+                if self.redis_client:
+                    try:
+                        await self.redis_client.delete(f"lock:{lock_key}")
+                    except Exception:
+                        pass
+                if self.current_lock == lock_key:
+                    self.current_lock = None
+                self.logger.debug(f"Lock released: {lock_key}")
+                return True
         except Exception as e:
             self.logger.error(f"Failed to release lock: {e}")
             return False

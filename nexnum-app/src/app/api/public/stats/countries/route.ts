@@ -107,7 +107,7 @@ function findMetadataByName(name: string): CountryMeta | undefined {
 }
 
 function getFlagUrl(code: string): string {
-    return `/assets/flags/${code.toLowerCase()}.svg`;
+    return `/assets/icons/flags/${code.toLowerCase()}.svg`;
 }
 
 

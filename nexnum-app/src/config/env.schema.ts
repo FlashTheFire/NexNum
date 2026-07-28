@@ -98,6 +98,7 @@ export const envSchema = z.object({
     CSRF_SECRET: z.string().optional(),
     HCAPTCHA_SECRET: z.string().optional(),
     NEXT_PUBLIC_HCAPTCHA_SITEKEY: z.string().optional(),
+    ENABLE_CAPTCHA: z.string().optional(),
 
     // ── Monitoring ────────────────────────────
     SENTRY_DSN: z.string().optional(),

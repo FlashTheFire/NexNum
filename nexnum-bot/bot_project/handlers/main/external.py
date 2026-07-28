@@ -550,18 +550,24 @@ class ForwardManager:
         return "\n".join(lines_out)
 
     async def _get_filter_list(self) -> None:
-        SERVICE_PREFIX = "free_numbers"
-        pattern = re.compile(rf"^{SERVICE_PREFIX}:(.+):free$")
-        async for key in self.redis_client.scan_iter(match=f"{SERVICE_PREFIX}:*:free", count=1_000):
-            m = pattern.match(key)
-            if m:
-                service_key = f"service_data:{m.group(1)}"
-                app_name = await self.redis_client.hget(service_key, 'app_name')
-                country_name = await self.redis_client.hget(service_key, 'country_name')
-                if app_name:
-                    await self._update_list(str(ADMIN_USER_ID), app_name, self.app_list, "App", True)
-                if country_name:
-                    await self._update_list(str(ADMIN_USER_ID), country_name, self.country_list, "Country", True)
+        try:
+            from utils.api_client import api_client
+            services = await api_client.get_services(limit=200)
+            countries = await api_client.get_countries(limit=200)
+
+            for svc in services.get("services", []):
+                svc_name = svc.get("name")
+                if svc_name:
+                    await self._update_list(str(ADMIN_USER_ID), svc_name, self.app_list, "App", True)
+
+            for cnt in countries:
+                cname = cnt.get("name")
+                if cname:
+                    await self._update_list(str(ADMIN_USER_ID), cname, self.country_list, "Country", True)
+
+        except Exception as e:
+            logging.debug(f"Error updating filter list: {e}")
+
         self.enabled = True
 
     async def get_account_details(self, user_id: int, account_id: str) -> str:
@@ -1267,13 +1273,13 @@ class ForwardManager:
         if add:
             if text not in lst:
                 lst.append(text)
-                await self.safe_send(chat_id, f"✅ <b>{label} Added</b>\n<code>{text}</code>", parse_mode="HTML")
+                #await self.safe_send(chat_id, f"✅ <b>{label} Added</b>\n<code>{text}</code>", parse_mode="HTML")
             else:
                 await self.safe_send(chat_id, f"⚠️ <b>{label} Exists</b>\n<code>{text}</code>", parse_mode="HTML")
         else:
             if text in lst:
                 lst.remove(text)
-                await self.safe_send(chat_id, f"❌ <b>{label} Removed</b>\n<code>{text}</code>", parse_mode="HTML")
+                #await self.safe_send(chat_id, f"❌ <b>{label} Removed</b>\n<code>{text}</code>", parse_mode="HTML")
             else:
                 await self.safe_send(chat_id, f"⚠️ <b>{label} Not Found</b>\n<code>{text}</code>", parse_mode="HTML")
     

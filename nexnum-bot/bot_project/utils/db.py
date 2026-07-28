@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import uuid
+import time
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal
@@ -19,6 +20,9 @@ if str(_bot_project_dir) not in sys.path:
 
 from .config import DATABASE_URL
 
+if sys.platform == 'win32':
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
 logger = logging.getLogger("db_adapter")
 
 class DatabaseAdapter:
@@ -26,9 +30,10 @@ class DatabaseAdapter:
     Async PostgreSQL Adapter for NexBots targeting NexNum's Supabase schema.
     Uses psycopg 3 with connection pooling.
     """
-    def __init__(self, conninfo: str = DATABASE_URL, min_size: int = 2, max_size: int = 20):
-        from .config import sanitize_db_url
-        self.conninfo = sanitize_db_url(conninfo)
+    def __init__(self, conninfo: Optional[str] = None, min_size: int = 2, max_size: int = 20):
+        from .config import DATABASE_URL, sanitize_db_url
+        target_info = conninfo or DATABASE_URL or os.getenv("DATABASE_URL", "")
+        self.conninfo = sanitize_db_url(target_info)
         self.min_size = min_size
         self.max_size = max_size
         self.pool: Optional[AsyncConnectionPool] = None
@@ -38,15 +43,27 @@ class DatabaseAdapter:
         """Initialize the async connection pool."""
         if self.pool is not None:
             return True
+        from .config import DATABASE_URL, sanitize_db_url
+        if not self.conninfo or "localhost:5432" in self.conninfo:
+            target_info = os.getenv("DATABASE_URL") or DATABASE_URL or ""
+            if target_info and "localhost:5432" not in target_info:
+                self.conninfo = sanitize_db_url(target_info)
         try:
             self.pool = AsyncConnectionPool(
                 conninfo=self.conninfo,
                 min_size=self.min_size,
                 max_size=self.max_size,
+                timeout=10,
+                max_lifetime=300,
+                reconnect_timeout=5,
                 open=False,
-                kwargs={"row_factory": dict_row}
+                kwargs={"row_factory": dict_row, "prepare_threshold": None}
             )
             await self.pool.open()
+            try:
+                self._pool_loop = asyncio.get_running_loop()
+            except RuntimeError:
+                self._pool_loop = None
             logger.info("Successfully initialized PostgreSQL connection pool.")
             return True
         except Exception as e:
@@ -63,8 +80,23 @@ class DatabaseAdapter:
 
     async def _ensure_pool(self) -> AsyncConnectionPool:
         """Helper to ensure pool is initialized and return non-null pool."""
+        try:
+            cur_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            cur_loop = None
+
+        if self.pool is not None and getattr(self, "_pool_loop", None) != cur_loop:
+            logger.info("Event loop changed, resetting PostgreSQL connection pool.")
+            try:
+                await self.pool.close()
+            except Exception:
+                pass
+            self.pool = None
+
         if self.pool is None:
+            self._pool_loop = cur_loop
             await self.init_pool()
+
         if self.pool is None:
             raise RuntimeError("Database pool not initialized.")
         return self.pool
@@ -474,64 +506,73 @@ class DatabaseAdapter:
                     "email": user_row['email'] if user_row else None
                 }
 
-# Global database adapter singleton
-db_adapter = DatabaseAdapter()
 
-
-# ────────────────────────────────────────────────────────────────
-# Extension: Session, Referral, Deposit, and Lock DAOs
-# ────────────────────────────────────────────────────────────────
-
-class DatabaseAdapterExtensions:
-    """
-    Additional persistence methods that replace Redis-backed operations.
-    All methods use the shared pool from the parent DatabaseAdapter instance.
-    """
-
-    # ---- User Sessions (replaces user_data:{uid}:profile:main) ----
+    # ────────────────────────────────────────────────────────────────
+    # Extension Methods: Sessions, Referrals, Deposits, Orders & Locks
+    # ────────────────────────────────────────────────────────────────
 
     async def get_user_session(self, telegram_id: str) -> Dict[str, Any]:
         """Return cached session data for a user (country, service, menu state)."""
-        pool = await db_adapter._ensure_pool()
+        pool = await self._ensure_pool()
         async with pool.connection() as conn:
             async with conn.cursor(row_factory=dict_row) as cur:
                 await cur.execute(
-                    "SELECT selected_country_id, selected_service_code, menu_state, last_activity "
-                    "FROM user_sessions WHERE user_id = %s",
-                    (telegram_id,)
+                    "SELECT us.selected_country_id, us.selected_service_code, us.menu_state, us.temp_data, us.last_activity, us.forum_id, us.forum_message_id, us.forum_archived "
+                    "FROM user_sessions us JOIN users u ON us.user_id = u.id "
+                    "WHERE u.telegram_id = %s OR us.user_id = %s",
+                    (str(telegram_id), str(telegram_id))
                 )
                 row = await cur.fetchone()
                 if row:
+                    m_state = row.get("menu_state")
+                    if isinstance(m_state, str):
+                        try:
+                            m_state = json.loads(m_state)
+                        except Exception:
+                            pass
                     return {
                         "selected_country_id": row.get("selected_country_id"),
                         "selected_service_code": row.get("selected_service_code"),
-                        "menu_state": row.get("menu_state") or "main",
+                        "menu_state": m_state or "main",
                         "temp_data": row.get("temp_data") or {},
+                        "forum_id": row.get("forum_id"),
+                        "forum_message_id": row.get("forum_message_id"),
+                        "forum_archived": row.get("forum_archived", False),
+                        "last_activity": row.get("last_activity").isoformat() if row.get("last_activity") else None,
                     }
                 return {"menu_state": "main", "temp_data": {}}
 
     async def save_user_session(self, telegram_id: str, session_data: Dict[str, Any]) -> bool:
         """Persist session data into user_sessions table."""
-        pool = await db_adapter._ensure_pool()
+        pool = await self._ensure_pool()
+        user_info = await self.get_or_create_user(str(telegram_id))
+        user_uuid = user_info["id"]
         try:
             async with pool.connection() as conn:
                 async with conn.cursor(row_factory=dict_row) as cur:
+                    menu_state_val = session_data.get("menu_state", "main")
                     await cur.execute(
                         "INSERT INTO user_sessions (user_id, selected_country_id, selected_service_code, "
-                        "menu_state, temp_data, updated_at) VALUES (%s, %s, %s, %s, %s, NOW()) "
+                        "menu_state, temp_data, forum_id, forum_message_id, forum_archived, updated_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW()) "
                         "ON CONFLICT (user_id) DO UPDATE SET "
-                        "selected_country_id = EXCLUDED.selected_country_id, "
-                        "selected_service_code = EXCLUDED.selected_service_code, "
-                        "menu_state = EXCLUDED.menu_state, "
-                        "temp_data = EXCLUDED.temp_data, "
+                        "selected_country_id = COALESCE(EXCLUDED.selected_country_id, user_sessions.selected_country_id), "
+                        "selected_service_code = COALESCE(EXCLUDED.selected_service_code, user_sessions.selected_service_code), "
+                        "menu_state = COALESCE(EXCLUDED.menu_state, user_sessions.menu_state), "
+                        "temp_data = COALESCE(EXCLUDED.temp_data, user_sessions.temp_data), "
+                        "forum_id = COALESCE(EXCLUDED.forum_id, user_sessions.forum_id), "
+                        "forum_message_id = COALESCE(EXCLUDED.forum_message_id, user_sessions.forum_message_id), "
+                        "forum_archived = COALESCE(EXCLUDED.forum_archived, user_sessions.forum_archived), "
                         "updated_at = NOW() "
                         "RETURNING user_id",
                         (
-                            telegram_id,
+                            user_uuid,
                             session_data.get("selected_country_id"),
                             session_data.get("selected_service_code"),
-                            session_data.get("menu_state", "main"),
+                            json.dumps(menu_state_val),
                             json.dumps(session_data.get("temp_data", {})),
+                            session_data.get("forum_id"),
+                            session_data.get("forum_message_id"),
+                            session_data.get("forum_archived", False),
                         ),
                     )
                     await conn.commit()
@@ -540,18 +581,20 @@ class DatabaseAdapterExtensions:
             logger.error(f"Error saving user session for {telegram_id}: {exc}")
             return False
 
-    # ---- Referrals (replaces user_data:{uid}:referral) ----
+    # ---- Referrals ----
 
     async def get_referral_info(self, telegram_id: str) -> Optional[Dict[str, Any]]:
         """Fetch referral chain info for a user."""
-        pool = await db_adapter._ensure_pool()
+        pool = await self._ensure_pool()
+        user_info = await self.get_or_create_user(str(telegram_id))
+        user_uuid = user_info["id"]
         async with pool.connection() as conn:
             async with conn.cursor(row_factory=dict_row) as cur:
                 await cur.execute(
                     "SELECT ur.referrer_id, ur.referral_code, u.telegram_id AS referrer_telegram_id "
                     "FROM user_referrals ur LEFT JOIN users u ON ur.referrer_id = u.id "
                     "WHERE ur.user_id = %s",
-                    (telegram_id,)
+                    (user_uuid,)
                 )
                 row = await cur.fetchone()
                 if row:
@@ -564,14 +607,20 @@ class DatabaseAdapterExtensions:
 
     async def save_referral_info(self, telegram_id: str, referrer_id: Optional[str], code: str) -> bool:
         """Persist referral mapping."""
-        pool = await db_adapter._ensure_pool()
+        pool = await self._ensure_pool()
+        user_info = await self.get_or_create_user(str(telegram_id))
+        user_uuid = user_info["id"]
+        ref_uuid = None
+        if referrer_id:
+            ref_info = await self.get_or_create_user(str(referrer_id))
+            ref_uuid = ref_info["id"]
         try:
             async with pool.connection() as conn:
                 async with conn.cursor() as cur:
                     await cur.execute(
                         "INSERT INTO user_referrals (user_id, referrer_id, referral_code) VALUES (%s, %s, %s) "
                         "ON CONFLICT (user_id) DO UPDATE SET referrer_id = EXCLUDED.referrer_id, referral_code = EXCLUDED.referral_code",
-                        (telegram_id, referrer_id, code),
+                        (user_uuid, ref_uuid, code),
                     )
                     await conn.commit()
                     return True
@@ -579,26 +628,78 @@ class DatabaseAdapterExtensions:
             logger.error(f"Error saving referral info for {telegram_id}: {exc}")
             return False
 
-    # ---- Deposits (replaces deposit_data:{did}) ----
+    async def get_user_referral_stats(self, telegram_id: str, limit: int = 10, offset: int = 0) -> Dict[str, Any]:
+        """Fetch total count and list of referred users for a given referrer telegram_id."""
+        pool = await self._ensure_pool()
+        async with pool.connection() as conn:
+            async with conn.cursor(row_factory=dict_row) as cur:
+                await cur.execute(
+                    "SELECT COUNT(*) as total FROM user_referrals ur "
+                    "JOIN users u_ref ON ur.referrer_id = u_ref.id "
+                    "WHERE u_ref.telegram_id = %s OR ur.referrer_id = %s",
+                    (str(telegram_id), str(telegram_id)),
+                )
+                cnt_row = await cur.fetchone()
+                total = int(cnt_row["total"]) if cnt_row else 0
+
+                await cur.execute(
+                    "SELECT u.telegram_id, u.name, ur.created_at FROM user_referrals ur "
+                    "JOIN users u ON ur.user_id = u.id "
+                    "JOIN users u_ref ON ur.referrer_id = u_ref.id "
+                    "WHERE u_ref.telegram_id = %s OR ur.referrer_id = %s "
+                    "ORDER BY ur.created_at DESC LIMIT %s OFFSET %s",
+                    (str(telegram_id), str(telegram_id), limit, offset),
+                )
+                rows = await cur.fetchall()
+                results = [
+                    {
+                        "telegram_id": r["telegram_id"],
+                        "name": r.get("name") or "User",
+                        "created_at": r["created_at"].isoformat() if r.get("created_at") else None,
+                    }
+                    for r in rows
+                ]
+                return {"total": total, "referrals": results}
+
+    # ---- Deposits ----
 
     async def create_deposit_request(
         self,
         telegram_id: str,
         amount: float,
-        gateway: str,
-        idempotency_key: str,
+        gateway: str = "UPI",
+        idempotency_key: Optional[str] = None,
         currency: str = "USD",
+        deposit_id: Optional[str] = None,
     ) -> str:
         """Create a pending deposit request and return its UUID."""
-        pool = await db_adapter._ensure_pool()
+        pool = await self._ensure_pool()
+        user_info = await self.get_or_create_user(str(telegram_id))
+        user_uuid = user_info["id"]
+
+        use_id = None
+        if deposit_id:
+            try:
+                uuid.UUID(str(deposit_id))
+                use_id = str(deposit_id)
+            except ValueError:
+                use_id = str(uuid.uuid4())
+                if not idempotency_key:
+                    idempotency_key = f"dep:{deposit_id}"
+        else:
+            use_id = str(uuid.uuid4())
+
+        if not idempotency_key:
+            idempotency_key = f"dep:{use_id}"
+
         async with pool.connection() as conn:
             async with conn.cursor(row_factory=dict_row) as cur:
-                deposit_uuid = str(uuid.uuid4())
                 await cur.execute(
                     "INSERT INTO deposit_requests (id, user_id, amount, currency, gateway, idempotency_key, status) "
                     "VALUES (%s, %s, %s, %s, %s, %s, 'PENDING') "
+                    "ON CONFLICT (id) DO UPDATE SET amount = EXCLUDED.amount "
                     "RETURNING id",
-                    (deposit_uuid, telegram_id, Decimal(str(amount)), currency, gateway, idempotency_key),
+                    (use_id, user_uuid, Decimal(str(amount)), currency, gateway, idempotency_key),
                 )
                 res = await cur.fetchone()
                 await conn.commit()
@@ -611,24 +712,22 @@ class DatabaseAdapterExtensions:
         code: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> bool:
-        """Update deposit status (COMPLETED / FAILED / CANCELLED)."""
-        pool = await db_adapter._ensure_pool()
+        """Update deposit status (COMPLETED / FAILED / CANCELLED / TIMEOUT)."""
+        pool = await self._ensure_pool()
         try:
             async with pool.connection() as conn:
                 async with conn.cursor() as cur:
                     updates = ["status = %s", "updated_at = NOW()"]
                     params: list[Any] = [status]
-                    idx = 1
                     if code is not None:
-                        updates.append(f"code = %s")
+                        updates.append("code = %s")
                         params.append(code)
-                        idx += 1
                     if metadata is not None:
-                        updates.append(f"metadata = %s")
+                        updates.append("metadata = %s")
                         params.append(json.dumps(metadata))
-                        idx += 1
-                    params.append(deposit_id)
-                    sql = f"UPDATE deposit_requests SET {', '.join(updates)} WHERE id = %s"
+                    params.append(str(deposit_id))
+                    params.append(str(deposit_id))
+                    sql = f"UPDATE deposit_requests SET {', '.join(updates)} WHERE id::text = %s OR idempotency_key = %s"
                     await cur.execute(sql, tuple(params))
                     await conn.commit()
                     return True
@@ -637,14 +736,15 @@ class DatabaseAdapterExtensions:
             return False
 
     async def get_deposit_request(self, deposit_id: str) -> Optional[Dict[str, Any]]:
-        """Retrieve a single deposit request by ID."""
-        pool = await db_adapter._ensure_pool()
+        """Retrieve a single deposit request by ID or idempotency_key."""
+        pool = await self._ensure_pool()
         async with pool.connection() as conn:
             async with conn.cursor(row_factory=dict_row) as cur:
+                dep_str = str(deposit_id)
                 await cur.execute(
                     "SELECT dr.*, u.telegram_id FROM deposit_requests dr "
-                    "LEFT JOIN users u ON dr.user_id = u.id WHERE dr.id = %s",
-                    (deposit_id,),
+                    "LEFT JOIN users u ON dr.user_id = u.id WHERE dr.id::text = %s OR dr.idempotency_key = %s OR dr.idempotency_key = %s",
+                    (dep_str, dep_str, f"dep:{dep_str}"),
                 )
                 row = await cur.fetchone()
                 if not row:
@@ -652,6 +752,7 @@ class DatabaseAdapterExtensions:
                 return {
                     "id": str(row["id"]),
                     "user_id": str(row["user_id"]),
+                    "telegram_id": str(row.get("telegram_id") or ""),
                     "amount": float(row["amount"]),
                     "gateway": row["gateway"],
                     "code": row.get("code"),
@@ -659,7 +760,117 @@ class DatabaseAdapterExtensions:
                     "created_at": row["created_at"].isoformat() if row.get("created_at") else None,
                 }
 
-    # ---- Activation Orders (replaces order_info:{oid} in Redis) ----
+    async def search_deposit_requests(self, telegram_id: Optional[str] = None, status: Optional[Any] = None, recorded_at: Optional[Any] = None, limit: int = 50, offset: int = 0, hide_recent_pending: bool = False) -> Dict[str, Any]:
+        """Query deposit requests from PostgreSQL with filtering."""
+        user_info = None
+        if telegram_id:
+            user_info = await self.get_or_create_user(str(telegram_id))
+        pool = await self._ensure_pool()
+        async with pool.connection() as conn:
+            async with conn.cursor(row_factory=dict_row) as cur:
+                where_clauses = []
+                params: list[Any] = []
+                if telegram_id and user_info:
+                    where_clauses.append("(dr.user_id = %s OR dr.user_id = %s)")
+                    params.extend([user_info["id"], str(telegram_id)])
+                if status:
+                    if isinstance(status, list):
+                        where_clauses.append("dr.status = ANY(%s)")
+                        params.append(status)
+                    else:
+                        where_clauses.append("dr.status = %s")
+                        params.append(status)
+                if hide_recent_pending:
+                    where_clauses.append("(dr.status = 'COMPLETED' OR dr.created_at < NOW() - INTERVAL '10 minutes')")
+                if recorded_at and isinstance(recorded_at, (tuple, list)) and len(recorded_at) == 2:
+                    try:
+                        st = datetime.fromtimestamp(float(recorded_at[0]), tz=timezone.utc)
+                        et = datetime.fromtimestamp(float(recorded_at[1]), tz=timezone.utc)
+                        where_clauses.append("dr.created_at >= %s AND dr.created_at <= %s")
+                        params.extend([st, et])
+                    except Exception:
+                        pass
+
+                where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+
+                await cur.execute(
+                    f"SELECT dr.*, u.telegram_id FROM deposit_requests dr "
+                    f"LEFT JOIN users u ON dr.user_id = u.id {where_sql} "
+                    f"ORDER BY dr.created_at DESC LIMIT %s OFFSET %s",
+                    tuple(params + [limit, offset])
+                )
+                rows = await cur.fetchall()
+
+                # Also fetch wallet credit transactions if looking for completed deposits
+                wt_results = []
+                should_fetch_wt = status is None or (isinstance(status, list) and ("COMPLETED" in status or "completed" in status)) or (isinstance(status, str) and status.upper() == "COMPLETED")
+                if telegram_id and user_info and should_fetch_wt:
+                    wt_params = [user_info["id"], str(telegram_id)]
+                    wt_time_sql = ""
+                    if recorded_at and isinstance(recorded_at, (tuple, list)) and len(recorded_at) == 2:
+                        try:
+                            st = datetime.fromtimestamp(float(recorded_at[0]), tz=timezone.utc)
+                            et = datetime.fromtimestamp(float(recorded_at[1]), tz=timezone.utc)
+                            wt_time_sql = " AND wt.created_at >= %s AND wt.created_at <= %s"
+                            wt_params.extend([st, et])
+                        except Exception:
+                            pass
+                    await cur.execute(
+                        f"SELECT wt.id, w.user_id, wt.amount, wt.created_at, wt.idempotency_key, u.telegram_id "
+                        f"FROM wallet_transactions wt "
+                        f"JOIN wallets w ON wt.wallet_id = w.id "
+                        f"LEFT JOIN users u ON w.user_id = u.id "
+                        f"WHERE (w.user_id = %s OR w.user_id = %s) AND LOWER(wt.type) = 'credit'{wt_time_sql} "
+                        f"ORDER BY wt.created_at DESC LIMIT %s",
+                        tuple(wt_params + [limit])
+                    )
+                    wt_rows = await cur.fetchall()
+                    for r in wt_rows:
+                        dep_id = r["idempotency_key"].replace("dep_credit:", "") if r.get("idempotency_key") and "dep_credit:" in r["idempotency_key"] else str(r["id"])
+                        wt_results.append({
+                            "id": f"deposit_data:info:{dep_id}",
+                            "deposit_id": dep_id,
+                            "user_id": str(r.get("telegram_id") or r["user_id"]),
+                            "amount": float(r["amount"]),
+                            "deposit_amount": float(r["amount"]),
+                            "gateway": "UPI",
+                            "method": "UPI",
+                            "deposit_status": "COMPLETED",
+                            "code": None,
+                            "created_at": r["created_at"].isoformat() if r.get("created_at") else None,
+                            "recorded_at": r["created_at"].timestamp() if r.get("created_at") else 0,
+                        })
+
+                dr_results = [
+                    {
+                        "id": f"deposit_data:info:{r['id']}",
+                        "deposit_id": str(r["id"]),
+                        "user_id": str(r.get("telegram_id") or r["user_id"]),
+                        "amount": float(r["amount"]),
+                        "deposit_amount": float(r["amount"]),
+                        "gateway": r.get("gateway", "UPI"),
+                        "method": r.get("gateway", "UPI"),
+                        "deposit_status": r["status"],
+                        "code": r.get("code"),
+                        "created_at": r["created_at"].isoformat() if r.get("created_at") else None,
+                        "recorded_at": r["created_at"].timestamp() if r.get("created_at") else 0,
+                    }
+                    for r in rows
+                ]
+
+                # Deduplicate by deposit_id
+                seen_ids = set()
+                results = []
+                for item in wt_results + dr_results:
+                    if item["deposit_id"] not in seen_ids:
+                        seen_ids.add(item["deposit_id"])
+                        results.append(item)
+
+                results.sort(key=lambda x: x["recorded_at"], reverse=True)
+                paginated_results = results[offset : offset + limit]
+                return {"response": True, "total": len(results), "results": paginated_results}
+
+    # ---- Activation Orders ----
 
     async def create_activation_order(
         self,
@@ -672,8 +883,10 @@ class DatabaseAdapterExtensions:
         provider: Optional[str] = None,
         expires_in_seconds: int = 600,
     ) -> str:
-        """Create a purchase order with all tracking fields and return its ID."""
-        pool = await db_adapter._ensure_pool()
+        """Create a purchase order with tracking fields and return its ID."""
+        pool = await self._ensure_pool()
+        user_info = await self.get_or_create_user(str(telegram_id))
+        user_uuid = user_info["id"]
         async with pool.connection() as conn:
             async with conn.cursor(row_factory=dict_row) as cur:
                 order_uuid = str(uuid.uuid4())
@@ -686,7 +899,7 @@ class DatabaseAdapterExtensions:
                     "RETURNING id",
                     (
                         order_uuid,
-                        telegram_id,
+                        user_uuid,
                         service_name,
                         country_name,
                         Decimal(str(amount)),
@@ -708,7 +921,7 @@ class DatabaseAdapterExtensions:
         raw_response: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """Update SMS code, status, or raw response for an order."""
-        pool = await db_adapter._ensure_pool()
+        pool = await self._ensure_pool()
         try:
             async with pool.connection() as conn:
                 async with conn.cursor(row_factory=dict_row) as cur:
@@ -726,8 +939,9 @@ class DatabaseAdapterExtensions:
                         sets.append("raw_response = %s")
                         vals.append(json.dumps(raw_response))
                     sets.append("updated_at = NOW()")
-                    vals.append(order_id)
-                    sql = f"UPDATE purchase_orders SET {', '.join(sets)} WHERE id = %s RETURNING id"
+                    vals.append(str(order_id))
+                    sql = f"UPDATE purchase_orders SET {', '.join(sets)} WHERE id = %s OR activation_id = %s RETURNING id"
+                    vals.append(str(order_id))
                     await cur.execute(sql, tuple(vals))
                     await conn.commit()
                     return True
@@ -736,29 +950,34 @@ class DatabaseAdapterExtensions:
             return False
 
     async def get_activation_order(self, order_id: str) -> Optional[Dict[str, Any]]:
-        """Fetch a single order by ID (used by order_tracker)."""
-        pool = await db_adapter._ensure_pool()
+        """Fetch a single order by ID or activation_id."""
+        pool = await self._ensure_pool()
         async with pool.connection() as conn:
             async with conn.cursor(row_factory=dict_row) as cur:
                 await cur.execute(
                     "SELECT po.*, u.telegram_id FROM purchase_orders po "
-                    "LEFT JOIN users u ON po.user_id = u.id WHERE po.id = %s",
-                    (order_id,),
+                    "LEFT JOIN users u ON po.user_id = u.id WHERE po.id = %s OR po.activation_id = %s",
+                    (str(order_id), str(order_id)),
                 )
                 row = await cur.fetchone()
                 if not row:
                     return None
                 return {
                     "id": str(row["id"]),
+                    "order_id": str(row["id"]),
                     "user_id": str(row["user_id"]),
-                    "telegram_id": str(row.get("telegram_id")),
+                    "telegram_id": str(row.get("telegram_id") or ""),
                     "service_name": row["service_name"],
+                    "app_name": row["service_name"],
                     "country_name": row["country_name"],
                     "amount": float(row["amount"]),
+                    "order_amount": float(row["amount"]),
                     "status": row["status"],
+                    "order_status": row["status"],
                     "provider": row.get("provider"),
                     "activation_id": row.get("activation_id"),
                     "phone_number": row.get("phone_number"),
+                    "number": row.get("phone_number"),
                     "sms_code": row.get("sms_code"),
                     "created_at": row["created_at"].isoformat() if row.get("created_at") else None,
                     "updated_at": row["updated_at"].isoformat() if row.get("updated_at") else None,
@@ -768,7 +987,7 @@ class DatabaseAdapterExtensions:
 
     async def fetch_pending_orders_batch(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Fetch orders still awaiting SMS (used by order_tracker background loop)."""
-        pool = await db_adapter._ensure_pool()
+        pool = await self._ensure_pool()
         async with pool.connection() as conn:
             async with conn.cursor(row_factory=dict_row) as cur:
                 await cur.execute(
@@ -782,12 +1001,14 @@ class DatabaseAdapterExtensions:
                 return [
                     {
                         "id": str(r["id"]),
+                        "order_id": str(r["id"]),
                         "user_id": str(r["user_id"]),
-                        "telegram_id": str(r.get("telegram_id")),
+                        "telegram_id": str(r.get("telegram_id") or ""),
                         "service_name": r["service_name"],
                         "country_name": r["country_name"],
                         "amount": float(r["amount"]),
                         "status": r["status"],
+                        "order_status": r["status"],
                         "provider": r.get("provider"),
                         "activation_id": r.get("activation_id"),
                         "phone_number": r.get("phone_number"),
@@ -797,26 +1018,380 @@ class DatabaseAdapterExtensions:
                     for r in rows
                 ]
 
-    # ---- Advisory Locks (replaces Redis SET NX EX locks) ----
+    async def search_purchase_orders(self, telegram_id: Optional[str] = None, status: Optional[Any] = None, recorded_at: Optional[Any] = None, limit: int = 50, offset: int = 0) -> Dict[str, Any]:
+        """Query purchase orders from PostgreSQL with filtering."""
+        user_info = None
+        if telegram_id:
+            user_info = await self.get_or_create_user(str(telegram_id))
+        pool = await self._ensure_pool()
+        async with pool.connection() as conn:
+            async with conn.cursor(row_factory=dict_row) as cur:
+                where_clauses = []
+                params: list[Any] = []
+                if telegram_id and user_info:
+                    where_clauses.append("(po.user_id = %s OR po.user_id = %s)")
+                    params.extend([user_info["id"], str(telegram_id)])
+                if status:
+                    if isinstance(status, list):
+                        where_clauses.append("po.status = ANY(%s)")
+                        params.append(status)
+                    else:
+                        where_clauses.append("po.status = %s")
+                        params.append(status)
+                if recorded_at and isinstance(recorded_at, (tuple, list)) and len(recorded_at) == 2:
+                    try:
+                        st = datetime.fromtimestamp(float(recorded_at[0]), tz=timezone.utc)
+                        et = datetime.fromtimestamp(float(recorded_at[1]), tz=timezone.utc)
+                        where_clauses.append("po.created_at >= %s AND po.created_at <= %s")
+                        params.extend([st, et])
+                    except Exception:
+                        pass
+
+                where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+
+                await cur.execute(f"SELECT COUNT(*) as total FROM purchase_orders po {where_sql}", tuple(params))
+                total_row = await cur.fetchone()
+                total = total_row["total"] if total_row else 0
+
+                query_params = list(params) + [limit, offset]
+                await cur.execute(
+                    f"SELECT po.*, u.telegram_id FROM purchase_orders po "
+                    f"LEFT JOIN users u ON po.user_id = u.id {where_sql} "
+                    f"ORDER BY po.created_at DESC LIMIT %s OFFSET %s",
+                    tuple(query_params)
+                )
+                rows = await cur.fetchall()
+                results = [
+                    {
+                        "id": f"order_data:info:{r['id']}",
+                        "order_id": str(r["id"]),
+                        "user_id": str(r.get("telegram_id") or r["user_id"]),
+                        "service_name": r.get("service_name", ""),
+                        "app_name": r.get("service_name", ""),
+                        "country_name": r.get("country_name", ""),
+                        "country_code": r.get("country_code", ""),
+                        "country_id": str(r.get("country_id", "")),
+                        "app_id": str(r.get("app_id", "")),
+                        "server_id": str(r.get("server_id", "")),
+                        "amount": float(r["amount"]),
+                        "order_amount": float(r["amount"]),
+                        "status": r["status"],
+                        "order_status": r["status"],
+                        "provider": r.get("provider"),
+                        "activation_id": r.get("activation_id"),
+                        "phone_number": r.get("phone_number"),
+                        "order_number": json.dumps([r.get("phone_number", ""), r.get("country_code", "")]),
+                        "sms_code": r.get("sms_code"),
+                        "sms_list": json.dumps([r["sms_code"]] if r.get("sms_code") else []),
+                        "created_at": r["created_at"].isoformat() if r.get("created_at") else None,
+                        "recorded_at": r["created_at"].timestamp() if r.get("created_at") else 0,
+                    }
+                    for r in rows
+                ]
+                return {"response": True, "total": total, "results": results}
+
+    async def get_system_stats_pg(self, start_time: Optional[float] = None, end_time: Optional[float] = None) -> Dict[str, Any]:
+        """Fetch system statistics (orders, deposits, user counts, amounts) from PostgreSQL."""
+        pool = await self._ensure_pool()
+        async with pool.connection() as conn:
+            async with conn.cursor(row_factory=dict_row) as cur:
+                st = datetime.fromtimestamp(start_time, tz=timezone.utc) if start_time else None
+                et = datetime.fromtimestamp(end_time, tz=timezone.utc) if end_time else None
+
+                # Orders summary
+                await cur.execute(
+                    "SELECT "
+                    "COUNT(*) FILTER (WHERE status IN ('PENDING', 'PROCESSING')) AS pending_orders, "
+                    "COUNT(*) FILTER (WHERE status = 'COMPLETED') AS completed_orders, "
+                    "COUNT(*) FILTER (WHERE status IN ('CANCELLED', 'FAILED')) AS cancelled_orders, "
+                    "COALESCE(SUM(amount) FILTER (WHERE status = 'COMPLETED'), 0.0) AS order_amount, "
+                    "COUNT(DISTINCT user_id) AS active_order_users "
+                    "FROM purchase_orders "
+                    "WHERE (%s::timestamptz IS NULL OR created_at >= %s::timestamptz) "
+                    "AND (%s::timestamptz IS NULL OR created_at <= %s::timestamptz)",
+                    (st, st, et, et),
+                )
+                ord_row = await cur.fetchone() or {}
+
+                # Deposits summary
+                await cur.execute(
+                    "SELECT "
+                    "COUNT(*) FILTER (WHERE status = 'PENDING') AS pending_deposits, "
+                    "COUNT(*) FILTER (WHERE status IN ('COMPLETED', 'SUCCESS')) AS completed_deposits, "
+                    "COUNT(*) FILTER (WHERE status IN ('CANCELLED', 'FAILED')) AS cancelled_deposits, "
+                    "COALESCE(SUM(amount) FILTER (WHERE status IN ('COMPLETED', 'SUCCESS')), 0.0) AS deposit_amount, "
+                    "COUNT(DISTINCT user_id) AS active_deposit_users "
+                    "FROM deposit_requests "
+                    "WHERE (%s::timestamptz IS NULL OR created_at >= %s::timestamptz) "
+                    "AND (%s::timestamptz IS NULL OR created_at <= %s::timestamptz)",
+                    (st, st, et, et),
+                )
+                dep_row = await cur.fetchone() or {}
+
+                # Total users
+                await cur.execute("SELECT COUNT(*) AS total_users FROM users")
+                u_row = await cur.fetchone() or {}
+                total_users = int(u_row.get("total_users", 0))
+
+                active_users = max(
+                    total_users if not start_time else 0,
+                    int(ord_row.get("active_order_users") or 0) + int(dep_row.get("active_deposit_users") or 0)
+                )
+
+                return {
+                    'pending_orders': int(ord_row.get("pending_orders") or 0),
+                    'pending_deposits': int(dep_row.get("pending_deposits") or 0),
+                    'completed_orders': int(ord_row.get("completed_orders") or 0),
+                    'completed_deposits': int(dep_row.get("completed_deposits") or 0),
+                    'cancelled_orders': int(ord_row.get("cancelled_orders") or 0),
+                    'cancelled_deposits': int(dep_row.get("cancelled_deposits") or 0),
+                    'order_amount': float(ord_row.get("order_amount") or 0.0),
+                    'deposit_amount': float(dep_row.get("deposit_amount") or 0.0),
+                    'active_users': active_users
+                }
+
+    # ---- Support Tickets ----
+
+    async def create_support_ticket(
+        self,
+        telegram_id: str,
+        message: str,
+        ticket_type: str = "general",
+        subject: Optional[str] = None,
+    ) -> Optional[str]:
+        """Create a new support ticket in PostgreSQL."""
+        user_info = await self.get_or_create_user(str(telegram_id))
+        pool = await self._ensure_pool()
+        try:
+            async with pool.connection() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute(
+                        "INSERT INTO support_tickets (user_id, ticket_type, subject, message, status) "
+                        "VALUES (%s, %s, %s, %s, 'OPEN') RETURNING id",
+                        (user_info["id"], ticket_type, subject or "Support Request", message),
+                    )
+                    row = await cur.fetchone()
+                    await conn.commit()
+                    return str(list(row.values())[0]) if row else None
+        except Exception as exc:
+            logger.error(f"Error creating support ticket for {telegram_id}: {exc}")
+            return None
+
+    async def get_support_ticket(self, ticket_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch a single support ticket by ID."""
+        pool = await self._ensure_pool()
+        async with pool.connection() as conn:
+            async with conn.cursor(row_factory=dict_row) as cur:
+                await cur.execute(
+                    "SELECT st.*, u.telegram_id FROM support_tickets st "
+                    "LEFT JOIN users u ON st.user_id = u.id WHERE st.id::text = %s",
+                    (str(ticket_id),),
+                )
+                row = await cur.fetchone()
+                if not row:
+                    return None
+                return {
+                    "id": str(row["id"]),
+                    "ticket_id": str(row["id"]),
+                    "user_id": str(row.get("telegram_id") or row["user_id"]),
+                    "telegram_id": str(row.get("telegram_id") or ""),
+                    "ticket_type": row.get("ticket_type"),
+                    "subject": row.get("subject"),
+                    "message": row.get("message"),
+                    "status": row.get("status"),
+                    "created_at": row["created_at"].isoformat() if row.get("created_at") else None,
+                }
+
+    async def update_support_ticket_status(self, ticket_id: str, status: str) -> bool:
+        """Update status of a support ticket."""
+        pool = await self._ensure_pool()
+        try:
+            async with pool.connection() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute(
+                        "UPDATE support_tickets SET status = %s, updated_at = NOW() WHERE id::text = %s",
+                        (status, str(ticket_id)),
+                    )
+                    await conn.commit()
+                    return True
+        except Exception as exc:
+            logger.error(f"Error updating support ticket {ticket_id}: {exc}")
+            return False
+
+    async def search_support_tickets(
+        self, telegram_id: Optional[str] = None, status: Optional[str] = None, limit: int = 50, offset: int = 0
+    ) -> Dict[str, Any]:
+        """Query support tickets with filtering."""
+        pool = await self._ensure_pool()
+        async with pool.connection() as conn:
+            async with conn.cursor(row_factory=dict_row) as cur:
+                where_clauses = []
+                params: list[Any] = []
+                if telegram_id:
+                    user_info = await self.get_or_create_user(str(telegram_id))
+                    where_clauses.append("st.user_id = %s")
+                    params.append(user_info["id"])
+                if status:
+                    where_clauses.append("st.status = %s")
+                    params.append(status)
+
+                where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+
+                await cur.execute(f"SELECT COUNT(*) as total FROM support_tickets st {where_sql}", tuple(params))
+                total_row = await cur.fetchone()
+                total = total_row["total"] if total_row else 0
+
+                query_params = list(params) + [limit, offset]
+                await cur.execute(
+                    f"SELECT st.*, u.telegram_id FROM support_tickets st "
+                    f"LEFT JOIN users u ON st.user_id = u.id {where_sql} "
+                    f"ORDER BY st.created_at DESC LIMIT %s OFFSET %s",
+                    tuple(query_params),
+                )
+                rows = await cur.fetchall()
+                results = [
+                    {
+                        "id": str(r["id"]),
+                        "ticket_id": str(r["id"]),
+                        "user_id": str(r.get("telegram_id") or r["user_id"]),
+                        "ticket_type": r.get("ticket_type"),
+                        "subject": r.get("subject"),
+                        "message": r.get("message"),
+                        "status": r.get("status"),
+                        "created_at": r["created_at"].isoformat() if r.get("created_at") else None,
+                    }
+                    for r in rows
+                ]
+                return {"response": True, "total": total, "results": results}
+
+    # ---- Account Linking (Web App <-> Bot 1-Click Link) ----
+
+    async def create_account_link_token(self, user_id: str, ttl_seconds: int = 600) -> str:
+        """Create a 1-click account linking token for a Web App user."""
+        import secrets
+        token = f"LINK-{secrets.token_hex(4).upper()}"
+        pool = await self._ensure_pool()
+        async with pool.connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "INSERT INTO account_link_tokens (token, user_id, expires_at) "
+                    "VALUES (%s, %s, NOW() + INTERVAL '1 second' * %s) "
+                    "ON CONFLICT (token) DO UPDATE SET user_id = EXCLUDED.user_id, expires_at = EXCLUDED.expires_at",
+                    (token, str(user_id), ttl_seconds),
+                )
+                await conn.commit()
+        return token
+
+    async def consume_account_link_token(self, token: str) -> Optional[str]:
+        """Validate and consume a single-use account link token."""
+        pool = await self._ensure_pool()
+        async with pool.connection() as conn:
+            async with conn.cursor(row_factory=dict_row) as cur:
+                await cur.execute(
+                    "SELECT user_id FROM account_link_tokens WHERE token = %s AND expires_at > NOW()",
+                    (str(token),),
+                )
+                row = await cur.fetchone()
+                if not row:
+                    return None
+                user_id = str(row["user_id"])
+                await cur.execute("DELETE FROM account_link_tokens WHERE token = %s", (str(token),))
+                await conn.commit()
+                return user_id
+
+    async def link_telegram_account(
+        self,
+        web_user_id: str,
+        telegram_id: str,
+        first_name: str = "",
+        username: str = "",
+    ) -> Dict[str, Any]:
+        """
+        Link a Telegram ID to an existing Web App User account.
+        Merges any existing bot account wallet & history into the master Web App user.
+        """
+        pool = await self._ensure_pool()
+        async with pool.connection() as conn:
+            async with conn.cursor(row_factory=dict_row) as cur:
+                await cur.execute("SELECT id, telegram_id FROM users WHERE id = %s", (str(web_user_id),))
+                web_user = await cur.fetchone()
+                if not web_user:
+                    return {"success": False, "message": "Web App user account not found."}
+
+                await cur.execute("SELECT id FROM users WHERE telegram_id = %s", (str(telegram_id),))
+                existing_bot_user = await cur.fetchone()
+
+                if existing_bot_user and str(existing_bot_user["id"]) != str(web_user_id):
+                    bot_user_id = str(existing_bot_user["id"])
+
+                    await cur.execute("SELECT balance FROM wallets WHERE user_id = %s", (bot_user_id,))
+                    bot_wallet = await cur.fetchone()
+                    bot_bal = float(bot_wallet["balance"]) if bot_wallet and bot_wallet.get("balance") else 0.0
+
+                    if bot_bal > 0:
+                        import uuid
+                        idem_key = f"link_merge_{web_user_id}_{bot_user_id}_{int(time.time())}"
+                        await cur.execute(
+                            "UPDATE wallets SET balance = balance + %s, updated_at = NOW() WHERE user_id = %s",
+                            (bot_bal, str(web_user_id)),
+                        )
+                        await cur.execute(
+                            "INSERT INTO wallet_transactions (id, wallet_id, amount, type, description, idempotency_key, created_at) "
+                            "SELECT %s, id, %s, 'CREDIT', 'Merged balance from bot account', %s, NOW() FROM wallets WHERE user_id = %s",
+                            (str(uuid.uuid4()), bot_bal, idem_key, str(web_user_id)),
+                        )
+
+                    await cur.execute("UPDATE purchase_orders SET user_id = %s WHERE user_id = %s", (str(web_user_id), bot_user_id))
+                    await cur.execute("UPDATE deposit_requests SET user_id = %s WHERE user_id = %s", (str(web_user_id), bot_user_id))
+                    await cur.execute("UPDATE support_tickets SET user_id = %s WHERE user_id = %s", (str(web_user_id), bot_user_id))
+                    await cur.execute("DELETE FROM user_sessions WHERE user_id = %s", (bot_user_id,))
+                    await cur.execute("DELETE FROM users WHERE id = %s", (bot_user_id,))
+
+                await cur.execute(
+                    "UPDATE users SET telegram_id = %s, updated_at = NOW() WHERE id = %s",
+                    (str(telegram_id), str(web_user_id)),
+                )
+                await conn.commit()
+
+                await cur.execute("SELECT balance FROM wallets WHERE user_id = %s", (str(web_user_id),))
+                w_row = await cur.fetchone()
+                balance = float(w_row["balance"]) if w_row and w_row.get("balance") else 0.0
+
+                return {
+                    "success": True,
+                    "user_id": str(web_user_id),
+                    "telegram_id": str(telegram_id),
+                    "balance": balance,
+                    "message": "Account successfully linked!"
+                }
+
+    # ---- Advisory Locks ----
 
     async def acquire_advisory_lock(self, lock_key: str, ttl_seconds: int = 30) -> bool:
         """Acquire a PostgreSQL advisory lock by string key."""
         import hashlib
-        pool = await db_adapter._ensure_pool()
+        pool = await self._ensure_pool()
         lock_id = int(hashlib.sha256(lock_key.encode()).hexdigest()[:8], 16) % (2**31)
         try:
-            async with pool.connection() as conn:
+            async with pool.connection(timeout=5.0) as conn:
                 async with conn.cursor() as cur:
-                    # Try non-blocking lock
-                    await cur.execute("SELECT pg_try_advisory_xact_lock(%s)", (lock_id,))
-                    got = (await cur.fetchone())[0]
+                    await cur.execute("DELETE FROM operation_locks WHERE expires_at <= NOW()")
+                    await cur.execute(
+                        "SELECT expires_at FROM operation_locks WHERE lock_key = %s AND expires_at > NOW()",
+                        (lock_key,),
+                    )
+                    if await cur.fetchone():
+                        return False
+
+                    await cur.execute("SELECT pg_try_advisory_lock(%s)", (lock_id,))
+                    row = await cur.fetchone()
+                    got = list(row.values())[0] if row else False
                     if got:
-                        # Also persist for admin visibility
-                        expires_at = datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds)
                         await cur.execute(
                             "INSERT INTO operation_locks (lock_key, owner_id, acquired_at, expires_at) "
-                            "VALUES (%s, %s, NOW(), %s) ON CONFLICT (lock_key) DO NOTHING",
-                            (lock_key, f"pid:{os.getpid()}", expires_at),
+                            "VALUES (%s, %s, NOW(), NOW() + (%s || ' seconds')::INTERVAL) "
+                            "ON CONFLICT (lock_key) DO UPDATE SET expires_at = EXCLUDED.expires_at",
+                            (lock_key, f"pid:{os.getpid()}", str(ttl_seconds)),
                         )
                         await conn.commit()
                         return True
@@ -827,14 +1402,26 @@ class DatabaseAdapterExtensions:
 
     async def release_advisory_lock(self, lock_key: str) -> bool:
         """Release a previously acquired advisory lock."""
-        pool = await db_adapter._ensure_pool()
+        import hashlib
+        pool = await self._ensure_pool()
+        lock_id = int(hashlib.sha256(lock_key.encode()).hexdigest()[:8], 16) % (2**31)
         try:
-            async with pool.connection() as conn:
+            async with pool.connection(timeout=5.0) as conn:
                 async with conn.cursor() as cur:
-                    await cur.execute("DELETE FROM operation_locks WHERE lock_key = %s AND expires_at > NOW()", (lock_key,))
+                    await cur.execute("SELECT pg_advisory_unlock(%s)", (lock_id,))
+                    await cur.execute("DELETE FROM operation_locks WHERE lock_key = %s", (lock_key,))
                     await conn.commit()
                     return True
         except Exception as exc:
             logger.error(f"Error releasing lock '{lock_key}': {exc}")
             return False
 
+
+# Compatibility wrapper for DatabaseAdapterExtensions
+class DatabaseAdapterExtensions(DatabaseAdapter):
+    """Backward compatibility alias for DatabaseAdapter extensions."""
+    pass
+
+
+# Global instance of the adapter
+db_adapter = DatabaseAdapter(max_size=2)

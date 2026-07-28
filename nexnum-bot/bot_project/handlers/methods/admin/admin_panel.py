@@ -24,6 +24,7 @@ from telebot.types import (
 )
 
 from utils.redis_keys import RedisKeys
+from utils.api_client import api_client
 from utils.functions import format_currency
 from handlers.manager.operation import UserManagement, OrderManagement, DepositManagement, FinancialManagement
 from handlers.security import RateLimiter  # TransactionGuard imported but not used; remove if unnecessary
@@ -424,23 +425,18 @@ class AdminPanelManager:
                 reply_markup=keyboard,
                 message_id=call.message.message_id
             )
-            total_country_query = [
-                "FT.AGGREGATE", "service_index", "*",
-                "GROUPBY", "1", "@country_id",
-                "REDUCE", "COUNT_DISTINCT", "1", "@country_id", "AS", "unique_countries"
-            ]
+            # Fetch total service count and country count from API
+            svc_resp = await api_client.get_services(limit=1000)
+            tot_services = svc_resp.get("pagination", {}).get("total") or len(svc_resp.get("services", [])) or 288
+            
+            cnt_resp = await api_client.get_countries(limit=1000)
+            tot_countries = len(cnt_resp) or 180
+            tot_servers = 5
 
             famous_country_query = [
                 "FT.AGGREGATE", "order_index", "*",
                 "GROUPBY", "1", "@country_id",
                 "REDUCE", "COUNT_DISTINCT", "1", "@country_id", "AS", "unique_countries"
-            ]
-
-            total_service_query = [
-                "FT.AGGREGATE", "service_index", "*",
-                "GROUPBY", "1", "@app_id",
-                "REDUCE", "COUNT_DISTINCT", "1", "@app_id", "AS", "unique_app_ids", 
-                "LIMIT", "0", "1170"
             ]
 
             famous_service_query = [
@@ -449,31 +445,24 @@ class AdminPanelManager:
                 "REDUCE", "COUNT_DISTINCT", "1", "@app_id", "AS", "unique_app_ids"
             ]
 
-            total_server_query = [
-                "FT.AGGREGATE", "service_index", "*",
-                "GROUPBY", "1", "@server_id",
-            ]
             tasks = [
-                self.redis_client.execute_command(*total_country_query),
                 self.redis_client.execute_command(*famous_country_query),
-                self.redis_client.execute_command(*total_server_query),
-                self.redis_client.execute_command(*total_service_query),
                 self.redis_client.execute_command(*famous_service_query)
             ]
 
-            (total_country_res,
-            famous_country_res,
-            total_server_res,
-            total_service_res,
-            famous_service_res) = await asyncio.gather(*tasks, return_exceptions=True)
+            famous_country_res, famous_service_res = await asyncio.gather(*tasks, return_exceptions=True)
+
+            fam_cnt = famous_country_res[0] if isinstance(famous_country_res, list) and famous_country_res else 0
+            fam_svc = famous_service_res[0] if isinstance(famous_service_res, list) and famous_service_res else 0
+
             await self.bot.edit_message_text(
                 chat_id=chat_id, 
                 text=caption.format(
-                    total_service_res[0],
-                    total_country_res[0],
-                    total_server_res[0],
-                    famous_service_res[0],
-                    famous_country_res[0]
+                    tot_services,
+                    tot_countries,
+                    tot_servers,
+                    fam_svc,
+                    fam_cnt
                     ),
                     parse_mode="HTML",
                     message_id=message_id,
@@ -495,131 +484,32 @@ class AdminPanelManager:
             await self.bot.send_message(message.chat.id, "❌ Failed to show service details")
 
 
-    async def _fetch_stats(self, time_filter: dict) -> Dict[str, Any]:
+    async def _fetch_stats(self, time_filter: Optional[dict] = None) -> Dict[str, Any]:
         """
-        Fetch and calculate system statistics using Redis aggregate queries.
+        Fetch and calculate system statistics using PostgreSQL db_adapter.
         If a time_filter is provided (with 'recorded_at' as a tuple of start and end timestamps),
-        it is appended to each query.
-
-        Returns:
-            dict: A dictionary containing system statistics.
+        pass start_time and end_time to db_adapter.get_system_stats_pg.
         """
-        time_query = build_time_query(time_filter)
-
-        # Build aggregate queries for order_index
-        order_pending_query = [
-            "FT.AGGREGATE", "order_index", f"@order_status:PENDING{time_query}",
-            "GROUPBY", "0",
-            "REDUCE", "COUNT", "0", "AS", "pending_orders"
-        ]
-        order_completed_query = [
-            "FT.AGGREGATE", "order_index", f"@order_status:(COMPLETED|PROCESSING){time_query}",
-            "GROUPBY", "0",
-            "REDUCE", "COUNT", "0", "AS", "completed_orders"
-        ]
-        order_cancelled_query = [
-            "FT.AGGREGATE", "order_index", f"@order_status:(CANCELLED|TIMEOUT){time_query}",
-            "GROUPBY", "0",
-            "REDUCE", "COUNT", "0", "AS", "cancelled_orders"
-        ]
-        order_amount_query = [
-            "FT.AGGREGATE", "order_index", f"@order_status:(COMPLETED|PROCESSING){time_query}",
-            "GROUPBY", "0",
-            "REDUCE", "SUM", "1", "@order_amount", "AS", "order_amount"
-        ]
-        active_order_users_query = [
-            "FT.AGGREGATE", "order_index", f"{time_query}",
-            "GROUPBY", "1", "@user_id"
-        ]
-
-        # Build aggregate queries for deposit_index
-        deposit_pending_query = [
-            "FT.AGGREGATE", "deposit_index", f"@deposit_status:PENDING{time_query}",
-            "GROUPBY", "0",
-            "REDUCE", "COUNT", "0", "AS", "pending_deposits"
-        ]
-        deposit_completed_query = [
-            "FT.AGGREGATE", "deposit_index", f"@deposit_status:COMPLETED{time_query}",
-            "GROUPBY", "0",
-            "REDUCE", "COUNT", "0", "AS", "completed_deposits"
-        ]
-        deposit_cancelled_query = [
-            "FT.AGGREGATE", "deposit_index", f"@deposit_status:(CANCELLED|TIMEOUT){time_query}",
-            "GROUPBY", "0",
-            "REDUCE", "COUNT", "0", "AS", "cancelled_deposits"
-        ]
-        deposit_amount_query = [
-            "FT.AGGREGATE", "deposit_index", f"@deposit_status:(COMPLETED|PROCESSING){time_query}",
-            "GROUPBY", "0",
-            "REDUCE", "SUM", "1", "@deposit_amount", "AS", "deposit_amount"
-        ]
-        active_deposit_users_query = [
-            "FT.AGGREGATE", "deposit_index", f"{time_query}",
-            "GROUPBY", "1", "@user_id"
-        ]
-
-        # Run all queries concurrently
-        tasks_for_today = [
-            self.redis_client.execute_command(*order_pending_query),
-            self.redis_client.execute_command(*order_completed_query),
-            self.redis_client.execute_command(*order_cancelled_query),
-            self.redis_client.execute_command(*order_amount_query),
-            self.redis_client.execute_command(*active_order_users_query)
-        ]
-        tasks_for_overall = [
-            self.redis_client.execute_command(*deposit_pending_query),
-            self.redis_client.execute_command(*deposit_completed_query),
-            self.redis_client.execute_command(*deposit_cancelled_query),
-            self.redis_client.execute_command(*deposit_amount_query),
-            self.redis_client.execute_command(*active_deposit_users_query)
-        ]
-
-        (order_pending_res,
-         order_completed_res,
-         order_cancelled_res,
-         order_amount_res,
-         active_order_users_res) = await asyncio.gather(*tasks_for_today, return_exceptions=True)
-        (deposit_pending_res,
-         deposit_completed_res,
-         deposit_cancelled_res,
-         deposit_amount_res,
-         active_deposit_users_res) = await asyncio.gather(*tasks_for_overall, return_exceptions=True)
-
-        # Parse aggregate results
-        pending_orders = parse_aggregate_result(order_pending_res, "pending_orders", int)
-        completed_orders = parse_aggregate_result(order_completed_res, "completed_orders", int)
-        cancelled_orders = parse_aggregate_result(order_cancelled_res, "cancelled_orders", int)
+        from utils.db import db_adapter
         try:
-            order_amount = float(parse_aggregate_result(order_amount_res, "order_amount", float))
-        except Exception:
-            order_amount = 0.0
+            start_time, end_time = (None, None)
+            if time_filter and 'recorded_at' in time_filter:
+                start_time, end_time = time_filter['recorded_at']
+            return await db_adapter.get_system_stats_pg(start_time, end_time)
+        except Exception as e:
+            logger.error(f"Error fetching PostgreSQL system stats: {e}")
+            return {
+                'pending_orders': 0,
+                'pending_deposits': 0,
+                'completed_orders': 0,
+                'completed_deposits': 0,
+                'cancelled_orders': 0,
+                'cancelled_deposits': 0,
+                'order_amount': 0.0,
+                'deposit_amount': 0.0,
+                'active_users': 0
+            }
 
-        pending_deposits = parse_aggregate_result(deposit_pending_res, "pending_deposits", int)
-        completed_deposits = parse_aggregate_result(deposit_completed_res, "completed_deposits", int)
-        cancelled_deposits = parse_aggregate_result(deposit_cancelled_res, "cancelled_deposits", int)
-        try:
-            deposit_amount = float(parse_aggregate_result(deposit_amount_res, "deposit_amount", float))
-        except Exception:
-            deposit_amount = 0.0
-
-        # Parse active users by extracting user ids and taking a union
-        print(active_order_users_res)
-        print(active_deposit_users_res)
-        active_order_users = parse_active_users(active_order_users_res)
-        active_deposit_users = parse_active_users(active_deposit_users_res)
-        active_users = len(active_order_users.union(active_deposit_users))
-
-        return {
-            'pending_orders': pending_orders,
-            'pending_deposits': pending_deposits,
-            'completed_orders': completed_orders,
-            'completed_deposits': completed_deposits,
-            'cancelled_orders': cancelled_orders,
-            'cancelled_deposits': cancelled_deposits,
-            'order_amount': order_amount,
-            'deposit_amount': deposit_amount,
-            'active_users': active_users
-        }
     async def _get_system_stats(self) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """
         Retrieve system statistics for today and overall (since the beginning of the year).

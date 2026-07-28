@@ -287,42 +287,32 @@ async def main():
     
     # Create tasks for both the bot and the periodic updater
     async with bot.initialize_services():
-        update_task = None
         polling_task = None
         try:
             # Register handlers
             await bot.register_handlers()
 
-            # Start periodic update
-            try:
-                from handlers.manager.auto_updater import periodic_update
-            except ImportError:
-                from bot_project.handlers.manager.auto_updater import periodic_update
-            update_task = asyncio.create_task(periodic_update(update=True, bot=bot.bot))
-
-            # Polling mode: clear webhook and run polling concurrently
+            # Polling mode: clear webhook and run polling
             await bot.bot.delete_webhook()
             polling_task = asyncio.create_task(bot.bot.polling(non_stop=True, timeout=60))
-            await asyncio.gather(polling_task, update_task)
+            await polling_task
         except Exception as e:
             logger = await get_async_logger()
             await logger.error(f"Startup error: {e}")
         finally:
-            # Cancel any still-running background tasks before tearing down
-            for _task in (update_task, polling_task):
-                if _task is not None and not _task.done():
-                    _task.cancel()
+            # Cancel polling task before tearing down
+            if polling_task is not None and not polling_task.done():
+                polling_task.cancel()
+                try:
+                    await polling_task
+                except (asyncio.CancelledError, Exception) as _ce:
                     try:
-                        await _task
-                    except (asyncio.CancelledError, Exception) as _ce:
-                        try:
-                            _logger = await get_async_logger()
-                            await _logger.info(f"Background task cancelled during shutdown: {_ce}")
-                        except Exception:
-                            pass
+                        _logger = await get_async_logger()
+                        await _logger.info(f"Background task cancelled during shutdown: {_ce}")
+                    except Exception:
+                        pass
 
 if __name__ == "__main__":
-    from handlers.manager.auto_updater import periodic_update
     try:
         asyncio.run(main())
     except KeyboardInterrupt:

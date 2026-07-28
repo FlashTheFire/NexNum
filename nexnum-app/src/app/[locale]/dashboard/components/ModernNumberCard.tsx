@@ -103,7 +103,7 @@ export function ModernNumberCard({
                                 <img
                                     alt={countryName}
                                     className="w-full h-full rounded-full object-cover shadow-sm ring-1 ring-white/10"
-                                    src={countryIconUrl || '/assets/flags/un.svg'}
+                                    src={countryIconUrl || '/assets/icons/flags/un.svg'}
                                 />
                             </div>
                         </div>

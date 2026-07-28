@@ -36,13 +36,8 @@ export function withHeartbeat<TArgs extends any[], TResult>(
     return async (...args: TArgs): Promise<TResult> => {
         try {
             const result = await fn(...args)
-            recordHeartbeat(workerName)
             return result
         } catch (err) {
-            // Record heartbeat even on failure — a worker that runs but always
-            // errors is making forward progress; we want zombie-detection to
-            // trigger ONLY when the worker is completely silent.
-            recordHeartbeat(workerName)
             const msg = err instanceof Error ? err.message : String(err)
             logger.error(`[${workerName}] Tick failed (heartbeat still recorded)`, {
                 context: 'WORKER_HEARTBEAT',
@@ -50,6 +45,8 @@ export function withHeartbeat<TArgs extends any[], TResult>(
                 error: msg
             })
             throw err
+        } finally {
+            recordHeartbeat(workerName)
         }
     }
 }

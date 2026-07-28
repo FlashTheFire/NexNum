@@ -1,18 +1,18 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/core/db'
-import { verifyAuth } from '@/lib/auth/jwt'
+import { getCurrentUser } from '@/lib/auth/jwt'
 import { v4 as uuidv4 } from 'uuid'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: Request) {
     try {
-        const payload = await verifyAuth(request)
-        if (!payload || !payload.id) {
+        const payload = await getCurrentUser(request.headers)
+        if (!payload || !payload.userId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
-        const userId = payload.id
+        const userId = payload.userId
         const shortCode = `link_${uuidv4().replace(/-/g, '').substring(0, 10)}`
         const expiresAt = new Date(Date.now() + 10 * 60 * 1000) // 10 minutes TTL
 

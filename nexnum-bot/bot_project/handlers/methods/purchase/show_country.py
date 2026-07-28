@@ -10,7 +10,8 @@ from telebot.async_telebot import AsyncTeleBot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, Message, ForceReply
 from utils.functions import setup_logger, small_caps
 from utils.redis_manager import redis_manager, RedisManager
-from utils.config import SERVICE_INDEX, COMMISSION, ORDER_INDEX
+from utils.config import COMMISSION, ORDER_INDEX
+from utils.api_client import api_client
 from utils.cache_manager import CacheManager, CachePrefix, cache_manager
 from redis.commands.search.query import Query
 from handlers.security import RateLimiter, InputValidator, TransactionGuard
@@ -67,7 +68,7 @@ class UserCountryManagement:
 
     async def validate_country_request(self, user_id: str, app_id: str, server_id: str, page: int = 1) -> Dict[str, Any]:
         try:
-            if not (self.input_validator.validate_user_id(user_id) and app_id.isdigit() and server_id.isdigit() and page >= 1):
+            if not (self.input_validator.validate_user_id(user_id) and app_id and page >= 1):
                 return {"valid": False, "error": "🚫 Iɴᴠᴀʟɪᴅ Rᴇǫᴜᴇsᴛ Pᴀʀᴀᴍᴇᴛᴇʀs"}
 
             return {"valid": True}
@@ -120,63 +121,49 @@ class UserCountryManagement:
             if cached:
                 return cached
 
-            # Build aggregation command
-            aggregation_query = [
-                "FT.AGGREGATE", SERVICE_INDEX, query_str,
-                "GROUPBY", groupby_num, *fields,
-                "REDUCE", "MIN", "1", "@app_price", "AS", "MIN_PRICE",
-                "REDUCE", "SUM", "1", "@app_count", "AS", "TOTAL_STOCK",
-                "SORTBY", "2", "@MIN_PRICE", sort_by,
-                "LIMIT", "0", str(limit)
-            ]
+            # Resolve service info to get exact service code/name
+            svc_resp = await api_client.get_services(limit=500)
+            svc_list = svc_resp.get("services", [])
+            clean_id = str(app_id).lower().replace("-", " ")
+            target_svc = next((
+                s for s in svc_list
+                if str(s.get("id", "")).lower() == clean_id
+                or str(s.get("code", "")).lower() == clean_id
+                or str(s.get("name", "")).lower() == clean_id
+                or str(s.get("code", "")).lower().replace(" ", "-") == str(app_id).lower()
+                or str(s.get("name", "")).lower().replace(" ", "-") == str(app_id).lower()
+            ), None)
 
-            # Run and get rows
-            rows = await self.user_manager._run_aggregate_cursor(aggregation_query, SERVICE_INDEX)
-            if not rows:
+            svc_param = target_svc.get("code") or target_svc.get("name") if target_svc else clean_id
+            items = await api_client.get_countries(service=svc_param, limit=limit or 200)
+            if not items and target_svc and target_svc.get("name"):
+                items = await api_client.get_countries(service=target_svc.get("name"), limit=limit or 200)
+            if not items:
+                items = await api_client.get_countries(limit=limit or 200)
+            if not items:
                 return None
-
-            # Load country metadata
-            whole_country_data = await redis_client.json().get('main_data:details:country_data') or {}
 
             docs = []
             server_ids = set()
 
-            # Process all rows
-            for row in rows:
-                row_dict = {
-                    (row[i].decode() if isinstance(row[i], bytes) else row[i]):
-                    (row[i + 1].decode() if isinstance(row[i + 1], bytes) else row[i + 1])
-                    for i in range(0, len(row), 2)
-                }
-
-                try:
-                    price = float(row_dict.get("MIN_PRICE", 0))
-                    count = int(row_dict.get("TOTAL_STOCK", 0))
-                except ValueError:
-                    continue
-
-                cid = row_dict.get("country_id", "")
-                info = whole_country_data.get(cid, {})
-                country_code = info.get('country_code', '')
-                country_name = info.get('country_name', '')
-
-                # Parse server_id
-                raw_sid = row_dict.get("server_id", "")
-                try:
-                    sid = int(raw_sid)
-                except (ValueError, TypeError):
-                    sid = raw_sid
+            for item in items:
+                cid = str(item.get("id") or item.get("countryCode") or "1")
+                cname = str(item.get("name") or item.get("countryName") or "Unknown")
+                ccode = str(item.get("code") or item.get("flag") or "")
+                price = float(item.get("price") or item.get("pointPrice") or 0.0)
+                stock = int(item.get("stock") or item.get("totalStock") or 0)
+                sid = item.get("serverId", 1)
                 server_ids.add(sid)
 
                 docs.append({
                     'country_id': cid,
-                    'country_name': country_name,
-                    'country_code': country_code,
-                    'app_name': row_dict.get("app_name", ""),
+                    'country_name': cname,
+                    'country_code': ccode,
+                    'app_name': str(item.get("serviceName") or app_id),
                     'app_price': price,
-                    'app_count': count,
-                    'app_id': app_id,
-                    'is_show_country': row_dict.get("is_show_country", False),
+                    'app_count': stock,
+                    'app_id': str(app_id),
+                    'is_show_country': True,
                     'server_id': sid
                 })
 
@@ -203,7 +190,7 @@ class UserCountryManagement:
             return result
 
         except Exception as e:
-            print(f"Aggregation query error in country_search: {e}")
+            logger.error(f"Aggregation query error in country_search: {e}")
             return None
 
     async def generate_buttons(
@@ -360,7 +347,7 @@ class UserCountryManagement:
                 if not await self._acquire_transaction_lock(guard, transaction_key, message):
                     return
                 try:
-                    if not app_id.isdigit():
+                    if not app_id:
                         await self.bot.reply_to(message, "🚫 Iɴᴠᴀʟɪᴅ Aᴘᴘ ID")
                         return
                 except Exception as e:
@@ -424,7 +411,7 @@ class UserCountryManagement:
                 if not await self._acquire_transaction_lock(guard, transaction_key, message):
                     return
                 try:
-                    if not app_id.isdigit():
+                    if not app_id:
                         await self.bot.reply_to(message, "🚫 Iɴᴠᴀʟɪᴅ Aᴘᴘ ID")
                         return
                 except Exception as e:
@@ -525,7 +512,7 @@ class UserCountryManagement:
     
     async def is_country_save(self, app_id: str=None, country_id: str=None, is_show: bool=False, server_id: str=None, field: str=None, new_status: str=None):
         """
-        Searches Redis for keys matching the pattern 'service_data:{country_id}:*:{app_id}'
+        Searches Redis for keys matching the pattern 'quote:{country_id}:*:{app_id}'
         and updates each hash field ('is_show_app', 'is_show_server', 'is_show_country') to "True"
         if is_admin is True; otherwise "False".
         Returns a list of keys if found, or None.
@@ -537,7 +524,7 @@ class UserCountryManagement:
         if not app_id:
             app_id = '*'
 
-        pattern = f"service_data:{country_id}:{server_id}:{app_id}"
+        pattern = f"quote:{country_id}:{server_id}:{app_id}"
         # If your Redis client is async, use await here; otherwise adjust accordingly.
         keys = await self.redis_client.keys(pattern)
         if not new_status:
@@ -810,15 +797,29 @@ class UserCountryManagement:
                     text += f"{f' @country_id:{country_id}' if country_id else ''}{f' @server_id:{server_id}' if server_id else ''}"
 
                 
-            total_query = [
-                "FT.AGGREGATE", SERVICE_INDEX, f"@app_id:{app_id}{text}",
-                "GROUPBY", "1", "@app_id",
-                "REDUCE", "FIRST_VALUE", "1", "@app_name", "AS", "app_name",
-                "REDUCE", "FIRST_VALUE", "1", "@app_code", "AS", "app_code",
-                "REDUCE", "FIRST_VALUE", "1", "@app_price", "AS", "app_price",
-                "REDUCE", "COUNT_DISTINCT", "1", "@server_id", "AS", "total_servers",
-                "REDUCE", "COUNT_DISTINCT", "1", "@country_id", "AS", "total_countries"
+            # Fetch service info from API instead of SERVICE_INDEX RediSearch
+            svc_resp = await api_client.get_services(limit=500)
+            svc_list = svc_resp.get("services", [])
+            clean_id = str(app_id).lower().replace("-", " ")
+            target_svc = next((
+                s for s in svc_list
+                if str(s.get("id", "")).lower() == clean_id
+                or str(s.get("code", "")).lower() == clean_id
+                or str(s.get("name", "")).lower() == clean_id
+                or str(s.get("code", "")).lower().replace(" ", "-") == str(app_id).lower()
+                or str(s.get("name", "")).lower().replace(" ", "-") == str(app_id).lower()
+            ), None)
+
+            app_name_val = target_svc.get("name", "Unknown") if target_svc else "Unknown"
+            app_code_val = target_svc.get("code", "code") if target_svc else "code"
+            app_price_val = str(target_svc.get("lowestPrice", 1.0)) if target_svc else "1.0"
+            tot_servers = str(target_svc.get("providerCount", 1)) if target_svc else "1"
+            tot_countries = str(target_svc.get("countryCount", 1)) if target_svc else "1"
+
+            total_country_res = [
+                ["app_name", app_name_val, "app_code", app_code_val, "app_price", app_price_val, "total_servers", tot_servers, "total_countries", tot_countries]
             ]
+
             order_query = [
                 "FT.AGGREGATE", ORDER_INDEX, f"@order_status:(COMPLETED|PROCESSING) @app_id:{app_id}{text}",
                 "GROUPBY", "0",
@@ -830,23 +831,12 @@ class UserCountryManagement:
                 "GROUPBY", "0",
                 "REDUCE", "COUNT", "0", "AS", "total_cancelled_orders"
             ]
-            server_query = None
-            if not country_id:
-                server_query = [
-                    "FT.AGGREGATE", SERVICE_INDEX, f"@app_id:{app_id}{text}",
-                    "LOAD", "1", "@is_show_server",
-                    "GROUPBY", "1", "@server_id",
-                    "REDUCE", "FIRST_VALUE", "1", "@is_show_server", "AS", "is_show_server"
-                ]
 
             tasks = [
-                self.user_manager._run_aggregate_cursor(total_query, SERVICE_INDEX),
                 self.user_manager._run_aggregate_cursor(order_query, ORDER_INDEX),
                 self.user_manager._run_aggregate_cursor(cancel_query, ORDER_INDEX)
             ]
-            if server_query:
-                tasks.append(self.user_manager._run_aggregate_cursor(server_query, SERVICE_INDEX))
-            total_country_res, order_res, cancel_res, *rest = await asyncio.gather(*tasks, return_exceptions=True)
+            order_res, cancel_res = await asyncio.gather(*tasks, return_exceptions=True)
 
             # ─── PROCESS TOTAL_COUNTRY_RES ────────────────────────────────────────────
             if not isinstance(total_country_res, list) or len(total_country_res) < 1:
@@ -1016,7 +1006,7 @@ class UserCountryManagement:
                 await self.bot.answer_callback_query(call.id, "⚠️ Sʏsᴛᴇᴍ Eʀʀᴏʀ", show_alert=True)
 
     async def register_handlers(self, bot: AsyncTeleBot) -> None:
-        @bot.message_handler(regexp=r'^/Buy_\d+')
+        @bot.message_handler(regexp=r'^/Buy_[\w\-]+$')
         async def handle_buy_command(message: Message):
             try:
                 process_task = partial(self.process_buy_command, message)

@@ -403,10 +403,13 @@ export class CentralRegistry {
   }
 
   private static async seedNewCountryIfNeeded(result: { id: number; name: string; code: string }): Promise<void> {
+    const code = (result.code || '').trim().toUpperCase()
+    if (!code) return
+
     await (prisma as any).canonicalCountry.upsert({
-      where: { canonicalCode: result.code.toUpperCase() },
+      where: { canonicalCode: code },
       create: {
-        canonicalCode: result.code.toUpperCase(),
+        canonicalCode: code,
         canonicalName: result.name,
         displayName: { en: result.name },
         aliases: [],
@@ -417,10 +420,7 @@ export class CentralRegistry {
   }
 
   private static tryResolveIso(rawName: string): string | null {
-    // ponytail: naive 2-3 char uppercase extraction.
-    // Covers common cases like "US", "GB", "IN" passed as raw input.
-    // Upgrade: ISO-3166 lookup table if false-positives appear.
-    const match = rawName.trim().match(/^[A-Z]{2,3}$/)
+    const match = rawName.trim().match(/^[A-Za-z]{2}$/)
     return match ? match[0].toUpperCase() : null
   }
 

@@ -424,81 +424,81 @@ const useDemoSounds = (isMuted: boolean) => {
 
 // Demo services data - Real mock data from API with price/stock for sorting
 const demoServices = [
-    { id: "ig", name: "Instagram + Threads", iconUrl: "/assets/icons/services/ig", flags: ["/assets/flags/bz.svg", "/assets/flags/cn.svg", "/assets/flags/bb.svg"], currencyPrices: { points: 56, USD: 0.56, INR: 46.5 }, totalStock: 10247007 },
-    { id: "tw", name: "Twitter / X", iconUrl: "/assets/icons/services/tw", flags: ["/assets/flags/bb.svg", "/assets/flags/bh.svg", "/assets/flags/us.svg"], currencyPrices: { points: 55, USD: 0.55, INR: 45.6 }, totalStock: 8795558 },
-    { id: "vi", name: "Viber", iconUrl: "/assets/icons/services/vi", flags: ["/assets/flags/bb.svg", "/assets/flags/gh.svg", "/assets/flags/dj.svg"], currencyPrices: { points: 52, USD: 0.52, INR: 43.1 }, totalStock: 8483903 },
-    { id: "fb", name: "Facebook", iconUrl: "/assets/icons/services/fb", flags: ["/assets/flags/ao.svg", "/assets/flags/ar.svg", "/assets/flags/ky.svg"], currencyPrices: { points: 56, USD: 0.56, INR: 46.5 }, totalStock: 4228604 },
-    { id: "ki", name: "99app", iconUrl: "/assets/icons/services/ki", flags: ["/assets/flags/ir.svg", "/assets/flags/cn.svg", "/assets/flags/ky.svg"], currencyPrices: { points: 52, USD: 0.52, INR: 43.1 }, totalStock: 4027934 },
-    { id: "li", name: "Baidu", iconUrl: "/assets/icons/services/li", flags: ["/assets/flags/eg.svg", "/assets/flags/la.svg", "/assets/flags/jp.svg"], currencyPrices: { points: 52, USD: 0.52, INR: 43.1 }, totalStock: 3273795 },
-    { id: "fr", name: "Dana", iconUrl: "/assets/icons/services/fr", flags: ["/assets/flags/af.svg", "/assets/flags/bb.svg", "/assets/flags/vn.svg"], currencyPrices: { points: 52, USD: 0.52, INR: 43.1 }, totalStock: 3265921 },
-    { id: "ju", name: "Indomaret", iconUrl: "/assets/icons/services/ju", flags: ["/assets/flags/af.svg", "/assets/flags/bb.svg", "/assets/flags/vn.svg"], currencyPrices: { points: 52, USD: 0.52, INR: 43.1 }, totalStock: 3238345 },
-    { id: "dr", name: "Openai", iconUrl: "/assets/icons/services/dr", flags: ["/assets/flags/al.svg", "/assets/flags/bb.svg", "/assets/flags/ao.svg"], currencyPrices: { points: 61, USD: 0.61, INR: 50.6 }, totalStock: 3016239 },
-    { id: "ni", name: "Gojek", iconUrl: "/assets/icons/services/ni", flags: ["/assets/flags/af.svg", "/assets/flags/nl.svg", "/assets/flags/vn.svg"], currencyPrices: { points: 52, USD: 0.52, INR: 43.1 }, totalStock: 2968343 },
-    { id: "wr", name: "Walmart", iconUrl: "/assets/icons/services/wr", flags: ["/assets/flags/hu.svg", "/assets/flags/bb.svg", "/assets/flags/nl.svg"], currencyPrices: { points: 52, USD: 0.52, INR: 43.1 }, totalStock: 2967304 },
-    { id: "mo", name: "Bumble", iconUrl: "/assets/icons/services/mo", flags: ["/assets/flags/af.svg", "/assets/flags/kw.svg", "/assets/flags/cy.svg"], currencyPrices: { points: 52, USD: 0.52, INR: 43.1 }, totalStock: 2415716 },
-    { id: "df", name: "Happn", iconUrl: "/assets/icons/services/df", flags: ["/assets/flags/cn.svg", "/assets/flags/kw.svg", "/assets/flags/eg.svg"], currencyPrices: { points: 52, USD: 0.52, INR: 43.1 }, totalStock: 2106814 },
-    { id: "afz", name: "Klarna", iconUrl: "/assets/icons/services/afz", flags: ["/assets/flags/tw.svg", "/assets/flags/la.svg", "/assets/flags/gh.svg"], currencyPrices: { points: 52, USD: 0.52, INR: 43.1 }, totalStock: 1812645 },
-    { id: "abk", name: "Gmx", iconUrl: "/assets/icons/services/abk", flags: ["/assets/flags/cn.svg", "/assets/flags/cg.svg", "/assets/flags/bh.svg"], currencyPrices: { points: 54, USD: 0.54, INR: 44.8 }, totalStock: 1644670 },
-    { id: "wx", name: "Apple", iconUrl: "/assets/icons/services/wx", flags: ["/assets/flags/ph.svg", "/assets/flags/do.svg", "/assets/flags/td.svg"], currencyPrices: { points: 57, USD: 0.57, INR: 47.3 }, totalStock: 1541695 },
-    { id: "mm", name: "Microsoft", iconUrl: "/assets/icons/services/mm", flags: ["/assets/flags/do.svg", "/assets/flags/in.svg", "/assets/flags/gh.svg"], currencyPrices: { points: 54, USD: 0.54, INR: 44.8 }, totalStock: 1498160 },
-    { id: "yw", name: "Grindr", iconUrl: "/assets/icons/services/yw", flags: ["/assets/flags/dz.svg", "/assets/flags/bh.svg", "/assets/flags/bo.svg"], currencyPrices: { points: 51, USD: 0.51, INR: 42.3 }, totalStock: 1092477 },
-    { id: "pm", name: "Aol", iconUrl: "/assets/icons/services/pm", flags: ["/assets/flags/dz.svg", "/assets/flags/do.svg", "/assets/flags/bd.svg"], currencyPrices: { points: 51, USD: 0.51, INR: 42.3 }, totalStock: 1258407 },
-    { id: "xt", name: "Flipkart", iconUrl: "/assets/icons/services/xt", flags: ["/assets/flags/hu.svg", "/assets/flags/bb.svg", "/assets/flags/in.svg"], currencyPrices: { points: 52, USD: 0.52, INR: 43.1 }, totalStock: 248511 },
-    { id: "hp", name: "Meesho", iconUrl: "/assets/icons/services/hp", flags: ["/assets/flags/hu.svg", "/assets/flags/bb.svg", "/assets/flags/in.svg"], currencyPrices: { points: 52, USD: 0.52, INR: 43.1 }, totalStock: 176076 },
-    { id: "ds", name: "Discord", iconUrl: "/assets/icons/services/ds", flags: ["/assets/flags/al.svg", "/assets/flags/dz.svg", "/assets/flags/do.svg"], currencyPrices: { points: 55, USD: 0.55, INR: 45.6 }, totalStock: 1876448 },
-    { id: "nf", name: "Netflix", iconUrl: "/assets/icons/services/netflix.svg", flags: ["/assets/flags/ma.svg", "/assets/flags/na.svg", "/assets/flags/au.svg"], currencyPrices: { points: 51, USD: 0.51, INR: 42.3 }, totalStock: 1532407 },
-    { id: "acz", name: "Claude", iconUrl: "/assets/icons/services/claude.svg", flags: ["/assets/flags/cn.svg", "/assets/flags/kw.svg", "/assets/flags/ao.svg"], currencyPrices: { points: 52, USD: 0.52, INR: 43.1 }, totalStock: 615218 },
+    { id: "ig", name: "Instagram + Threads", iconUrl: "/assets/icons/services/ig", flags: ["/assets/icons/flags/bz.svg", "/assets/icons/flags/cn.svg", "/assets/icons/flags/bb.svg"], currencyPrices: { points: 56, USD: 0.56, INR: 46.5 }, totalStock: 10247007 },
+    { id: "tw", name: "Twitter / X", iconUrl: "/assets/icons/services/tw", flags: ["/assets/icons/flags/bb.svg", "/assets/icons/flags/bh.svg", "/assets/icons/flags/us.svg"], currencyPrices: { points: 55, USD: 0.55, INR: 45.6 }, totalStock: 8795558 },
+    { id: "vi", name: "Viber", iconUrl: "/assets/icons/services/vi", flags: ["/assets/icons/flags/bb.svg", "/assets/icons/flags/gh.svg", "/assets/icons/flags/dj.svg"], currencyPrices: { points: 52, USD: 0.52, INR: 43.1 }, totalStock: 8483903 },
+    { id: "fb", name: "Facebook", iconUrl: "/assets/icons/services/fb", flags: ["/assets/icons/flags/ao.svg", "/assets/icons/flags/ar.svg", "/assets/icons/flags/ky.svg"], currencyPrices: { points: 56, USD: 0.56, INR: 46.5 }, totalStock: 4228604 },
+    { id: "ki", name: "99app", iconUrl: "/assets/icons/services/ki", flags: ["/assets/icons/flags/ir.svg", "/assets/icons/flags/cn.svg", "/assets/icons/flags/ky.svg"], currencyPrices: { points: 52, USD: 0.52, INR: 43.1 }, totalStock: 4027934 },
+    { id: "li", name: "Baidu", iconUrl: "/assets/icons/services/li", flags: ["/assets/icons/flags/eg.svg", "/assets/icons/flags/la.svg", "/assets/icons/flags/jp.svg"], currencyPrices: { points: 52, USD: 0.52, INR: 43.1 }, totalStock: 3273795 },
+    { id: "fr", name: "Dana", iconUrl: "/assets/icons/services/fr", flags: ["/assets/icons/flags/af.svg", "/assets/icons/flags/bb.svg", "/assets/icons/flags/vn.svg"], currencyPrices: { points: 52, USD: 0.52, INR: 43.1 }, totalStock: 3265921 },
+    { id: "ju", name: "Indomaret", iconUrl: "/assets/icons/services/ju", flags: ["/assets/icons/flags/af.svg", "/assets/icons/flags/bb.svg", "/assets/icons/flags/vn.svg"], currencyPrices: { points: 52, USD: 0.52, INR: 43.1 }, totalStock: 3238345 },
+    { id: "dr", name: "Openai", iconUrl: "/assets/icons/services/dr", flags: ["/assets/icons/flags/al.svg", "/assets/icons/flags/bb.svg", "/assets/icons/flags/ao.svg"], currencyPrices: { points: 61, USD: 0.61, INR: 50.6 }, totalStock: 3016239 },
+    { id: "ni", name: "Gojek", iconUrl: "/assets/icons/services/ni", flags: ["/assets/icons/flags/af.svg", "/assets/icons/flags/nl.svg", "/assets/icons/flags/vn.svg"], currencyPrices: { points: 52, USD: 0.52, INR: 43.1 }, totalStock: 2968343 },
+    { id: "wr", name: "Walmart", iconUrl: "/assets/icons/services/wr", flags: ["/assets/icons/flags/hu.svg", "/assets/icons/flags/bb.svg", "/assets/icons/flags/nl.svg"], currencyPrices: { points: 52, USD: 0.52, INR: 43.1 }, totalStock: 2967304 },
+    { id: "mo", name: "Bumble", iconUrl: "/assets/icons/services/mo", flags: ["/assets/icons/flags/af.svg", "/assets/icons/flags/kw.svg", "/assets/icons/flags/cy.svg"], currencyPrices: { points: 52, USD: 0.52, INR: 43.1 }, totalStock: 2415716 },
+    { id: "df", name: "Happn", iconUrl: "/assets/icons/services/df", flags: ["/assets/icons/flags/cn.svg", "/assets/icons/flags/kw.svg", "/assets/icons/flags/eg.svg"], currencyPrices: { points: 52, USD: 0.52, INR: 43.1 }, totalStock: 2106814 },
+    { id: "afz", name: "Klarna", iconUrl: "/assets/icons/services/afz", flags: ["/assets/icons/flags/tw.svg", "/assets/icons/flags/la.svg", "/assets/icons/flags/gh.svg"], currencyPrices: { points: 52, USD: 0.52, INR: 43.1 }, totalStock: 1812645 },
+    { id: "abk", name: "Gmx", iconUrl: "/assets/icons/services/abk", flags: ["/assets/icons/flags/cn.svg", "/assets/icons/flags/cg.svg", "/assets/icons/flags/bh.svg"], currencyPrices: { points: 54, USD: 0.54, INR: 44.8 }, totalStock: 1644670 },
+    { id: "wx", name: "Apple", iconUrl: "/assets/icons/services/wx", flags: ["/assets/icons/flags/ph.svg", "/assets/icons/flags/do.svg", "/assets/icons/flags/td.svg"], currencyPrices: { points: 57, USD: 0.57, INR: 47.3 }, totalStock: 1541695 },
+    { id: "mm", name: "Microsoft", iconUrl: "/assets/icons/services/mm", flags: ["/assets/icons/flags/do.svg", "/assets/icons/flags/in.svg", "/assets/icons/flags/gh.svg"], currencyPrices: { points: 54, USD: 0.54, INR: 44.8 }, totalStock: 1498160 },
+    { id: "yw", name: "Grindr", iconUrl: "/assets/icons/services/yw", flags: ["/assets/icons/flags/dz.svg", "/assets/icons/flags/bh.svg", "/assets/icons/flags/bo.svg"], currencyPrices: { points: 51, USD: 0.51, INR: 42.3 }, totalStock: 1092477 },
+    { id: "pm", name: "Aol", iconUrl: "/assets/icons/services/pm", flags: ["/assets/icons/flags/dz.svg", "/assets/icons/flags/do.svg", "/assets/icons/flags/bd.svg"], currencyPrices: { points: 51, USD: 0.51, INR: 42.3 }, totalStock: 1258407 },
+    { id: "xt", name: "Flipkart", iconUrl: "/assets/icons/services/xt", flags: ["/assets/icons/flags/hu.svg", "/assets/icons/flags/bb.svg", "/assets/icons/flags/in.svg"], currencyPrices: { points: 52, USD: 0.52, INR: 43.1 }, totalStock: 248511 },
+    { id: "hp", name: "Meesho", iconUrl: "/assets/icons/services/hp", flags: ["/assets/icons/flags/hu.svg", "/assets/icons/flags/bb.svg", "/assets/icons/flags/in.svg"], currencyPrices: { points: 52, USD: 0.52, INR: 43.1 }, totalStock: 176076 },
+    { id: "ds", name: "Discord", iconUrl: "/assets/icons/services/ds", flags: ["/assets/icons/flags/al.svg", "/assets/icons/flags/dz.svg", "/assets/icons/flags/do.svg"], currencyPrices: { points: 55, USD: 0.55, INR: 45.6 }, totalStock: 1876448 },
+    { id: "nf", name: "Netflix", iconUrl: "/assets/icons/services/netflix.svg", flags: ["/assets/icons/flags/ma.svg", "/assets/icons/flags/na.svg", "/assets/icons/flags/au.svg"], currencyPrices: { points: 51, USD: 0.51, INR: 42.3 }, totalStock: 1532407 },
+    { id: "acz", name: "Claude", iconUrl: "/assets/icons/services/claude.svg", flags: ["/assets/icons/flags/cn.svg", "/assets/icons/flags/kw.svg", "/assets/icons/flags/ao.svg"], currencyPrices: { points: 52, USD: 0.52, INR: 43.1 }, totalStock: 615218 },
 ];;
 
 const demoCountries = [
-    { id: "iraq", name: "Iraq", code: "iraq", flagUrl: "/assets/flags/iq.svg", currencyPrices: { points: 56, USD: 0.56, INR: 46.5 }, totalStock: 1165 },
-    { id: "china", name: "China", code: "china", flagUrl: "/assets/flags/cn.svg", currencyPrices: { points: 57, USD: 0.57, INR: 47.3 }, totalStock: 11865 },
-    { id: "australia", name: "Australia", code: "australia", flagUrl: "/assets/flags/au.svg", currencyPrices: { points: 58, USD: 0.58, INR: 48.1 }, totalStock: 18741 },
-    { id: "argentina", name: "Argentina", code: "argentina", flagUrl: "/assets/flags/ar.svg", currencyPrices: { points: 60, USD: 0.60, INR: 49.8 }, totalStock: 1506 },
-    { id: "brazil", name: "Brazil", code: "brazil", flagUrl: "/assets/flags/br.svg", currencyPrices: { points: 61, USD: 0.61, INR: 50.6 }, totalStock: 481866 },
-    { id: "hungary", name: "Hungary", code: "hungary", flagUrl: "/assets/flags/hu.svg", currencyPrices: { points: 61, USD: 0.61, INR: 50.6 }, totalStock: 70060 },
-    { id: "india", name: "India", code: "india", flagUrl: "/assets/flags/in.svg", currencyPrices: { points: 61, USD: 0.61, INR: 50.6 }, totalStock: 60203 },
-    { id: "bolivia", name: "Bolivia", code: "bolivia", flagUrl: "/assets/flags/bo.svg", currencyPrices: { points: 61, USD: 0.61, INR: 50.6 }, totalStock: 30226 },
-    { id: "barbados", name: "Barbados", code: "barbados", flagUrl: "/assets/flags/bb.svg", currencyPrices: { points: 61, USD: 0.61, INR: 50.6 }, totalStock: 9120 },
-    { id: "new-zealand", name: "New Zealand", code: "new-zealand", flagUrl: "/assets/flags/nz.svg", currencyPrices: { points: 61, USD: 0.61, INR: 50.6 }, totalStock: 5412 },
-    { id: "angola", name: "Angola", code: "angola", flagUrl: "/assets/flags/ao.svg", currencyPrices: { points: 61, USD: 0.61, INR: 50.6 }, totalStock: 1360 },
-    { id: "albania", name: "Albania", code: "albania", flagUrl: "/assets/flags/al.svg", currencyPrices: { points: 61, USD: 0.61, INR: 50.6 }, totalStock: 1209 },
-    { id: "anguilla", name: "Anguilla", code: "anguilla", flagUrl: "/assets/flags/ai.svg", currencyPrices: { points: 61, USD: 0.61, INR: 50.6 }, totalStock: 1121 },
-    { id: "botswana", name: "Botswana", code: "botswana", flagUrl: "/assets/flags/bw.svg", currencyPrices: { points: 61, USD: 0.61, INR: 50.6 }, totalStock: 1120 },
-    { id: "bahamas", name: "Bahamas", code: "bahamas", flagUrl: "/assets/flags/bs.svg", currencyPrices: { points: 61, USD: 0.61, INR: 50.6 }, totalStock: 1118 },
-    { id: "aruba", name: "Aruba", code: "aruba", flagUrl: "/assets/flags/aw.svg", currencyPrices: { points: 61, USD: 0.61, INR: 50.6 }, totalStock: 1085 },
-    { id: "somalia", name: "Somalia", code: "somalia", flagUrl: "/assets/flags/so.svg", currencyPrices: { points: 61, USD: 0.61, INR: 50.6 }, totalStock: 1063 },
-    { id: "serbia", name: "Serbia", code: "serbia", flagUrl: "/assets/flags/rs.svg", currencyPrices: { points: 61, USD: 0.61, INR: 50.6 }, totalStock: 1052 },
-    { id: "chad", name: "Chad", code: "chad", flagUrl: "/assets/flags/td.svg", currencyPrices: { points: 61, USD: 0.61, INR: 50.6 }, totalStock: 1021 },
-    { id: "brunei-darussalam", name: "Brunei Darussalam", code: "brunei-darussalam", flagUrl: "/assets/flags/bn.svg", currencyPrices: { points: 61, USD: 0.61, INR: 50.6 }, totalStock: 1008 },
-    { id: "montserrat", name: "Montserrat", code: "montserrat", flagUrl: "/assets/flags/ms.svg", currencyPrices: { points: 61, USD: 0.61, INR: 50.6 }, totalStock: 996 },
-    { id: "hong-kong", name: "Hong Kong", code: "hong-kong", flagUrl: "/assets/flags/hk.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 30643 },
-    { id: "netherlands", name: "Netherlands", code: "netherlands", flagUrl: "/assets/flags/nl.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 27863 },
-    { id: "united-states", name: "United States", code: "united-states", flagUrl: "/assets/flags/us.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 15325 },
-    { id: "israel", name: "Israel", code: "israel", flagUrl: "/assets/flags/il.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1111 },
-    { id: "iceland", name: "Iceland", code: "iceland", flagUrl: "/assets/flags/is.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1110 },
-    { id: "belize", name: "Belize", code: "belize", flagUrl: "/assets/flags/bz.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1105 },
-    { id: "zimbabwe", name: "Zimbabwe", code: "zimbabwe", flagUrl: "/assets/flags/zw.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1103 },
-    { id: "montenegro", name: "Montenegro", code: "montenegro", flagUrl: "/assets/flags/me.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1100 },
-    { id: "sweden", name: "Sweden", code: "sweden", flagUrl: "/assets/flags/se.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 2076 },
-    { id: "latvia", name: "Latvia", code: "latvia", flagUrl: "/assets/flags/lv.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1091 },
-    { id: "saint-vincent", name: "Saint Vincent", code: "saint-vincent", flagUrl: "/assets/flags/vc.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1090 },
-    { id: "kazakhstan", name: "Kazakhstan", code: "kazakhstan", flagUrl: "/assets/flags/kz.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1090 },
-    { id: "guatemala", name: "Guatemala", code: "guatemala", flagUrl: "/assets/flags/gt.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1090 },
-    { id: "guadeloupe", name: "Guadeloupe", code: "guadeloupe", flagUrl: "/assets/flags/gp.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1086 },
-    { id: "croatia", name: "Croatia", code: "croatia", flagUrl: "/assets/flags/hr.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1084 },
-    { id: "burundi", name: "Burundi", code: "burundi", flagUrl: "/assets/flags/bi.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1084 },
-    { id: "reunion", name: "Reunion", code: "reunion", flagUrl: "/assets/flags/re.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1082 },
-    { id: "nepal", name: "Nepal", code: "nepal", flagUrl: "/assets/flags/np.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1080 },
-    { id: "taiwan", name: "Taiwan", code: "taiwan", flagUrl: "/assets/flags/tw.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1074 },
-    { id: "armenia", name: "Armenia", code: "armenia", flagUrl: "/assets/flags/am.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1074 },
-    { id: "swaziland", name: "Swaziland", code: "swaziland", flagUrl: "/assets/flags/sz.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1072 },
-    { id: "uzbekistan", name: "Uzbekistan", code: "uzbekistan", flagUrl: "/assets/flags/uz.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1070 },
-    { id: "cambodia", name: "Cambodia", code: "cambodia", flagUrl: "/assets/flags/kh.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1787 },
-    { id: "oman", name: "Oman", code: "oman", flagUrl: "/assets/flags/om.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1064 },
-    { id: "sao-tome-and-principe", name: "Sao Tome And Principe", code: "sao-tome-and-principe", flagUrl: "/assets/flags/st.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1053 },
-    { id: "czech-republic", name: "Czech Republic", code: "czech-republic", flagUrl: "/assets/flags/cz.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1376 },
-    { id: "venezuela", name: "Venezuela", code: "venezuela", flagUrl: "/assets/flags/ve.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1048 },
+    { id: "iraq", name: "Iraq", code: "iraq", flagUrl: "/assets/icons/flags/iq.svg", currencyPrices: { points: 56, USD: 0.56, INR: 46.5 }, totalStock: 1165 },
+    { id: "china", name: "China", code: "china", flagUrl: "/assets/icons/flags/cn.svg", currencyPrices: { points: 57, USD: 0.57, INR: 47.3 }, totalStock: 11865 },
+    { id: "australia", name: "Australia", code: "australia", flagUrl: "/assets/icons/flags/au.svg", currencyPrices: { points: 58, USD: 0.58, INR: 48.1 }, totalStock: 18741 },
+    { id: "argentina", name: "Argentina", code: "argentina", flagUrl: "/assets/icons/flags/ar.svg", currencyPrices: { points: 60, USD: 0.60, INR: 49.8 }, totalStock: 1506 },
+    { id: "brazil", name: "Brazil", code: "brazil", flagUrl: "/assets/icons/flags/br.svg", currencyPrices: { points: 61, USD: 0.61, INR: 50.6 }, totalStock: 481866 },
+    { id: "hungary", name: "Hungary", code: "hungary", flagUrl: "/assets/icons/flags/hu.svg", currencyPrices: { points: 61, USD: 0.61, INR: 50.6 }, totalStock: 70060 },
+    { id: "india", name: "India", code: "india", flagUrl: "/assets/icons/flags/in.svg", currencyPrices: { points: 61, USD: 0.61, INR: 50.6 }, totalStock: 60203 },
+    { id: "bolivia", name: "Bolivia", code: "bolivia", flagUrl: "/assets/icons/flags/bo.svg", currencyPrices: { points: 61, USD: 0.61, INR: 50.6 }, totalStock: 30226 },
+    { id: "barbados", name: "Barbados", code: "barbados", flagUrl: "/assets/icons/flags/bb.svg", currencyPrices: { points: 61, USD: 0.61, INR: 50.6 }, totalStock: 9120 },
+    { id: "new-zealand", name: "New Zealand", code: "new-zealand", flagUrl: "/assets/icons/flags/nz.svg", currencyPrices: { points: 61, USD: 0.61, INR: 50.6 }, totalStock: 5412 },
+    { id: "angola", name: "Angola", code: "angola", flagUrl: "/assets/icons/flags/ao.svg", currencyPrices: { points: 61, USD: 0.61, INR: 50.6 }, totalStock: 1360 },
+    { id: "albania", name: "Albania", code: "albania", flagUrl: "/assets/icons/flags/al.svg", currencyPrices: { points: 61, USD: 0.61, INR: 50.6 }, totalStock: 1209 },
+    { id: "anguilla", name: "Anguilla", code: "anguilla", flagUrl: "/assets/icons/flags/ai.svg", currencyPrices: { points: 61, USD: 0.61, INR: 50.6 }, totalStock: 1121 },
+    { id: "botswana", name: "Botswana", code: "botswana", flagUrl: "/assets/icons/flags/bw.svg", currencyPrices: { points: 61, USD: 0.61, INR: 50.6 }, totalStock: 1120 },
+    { id: "bahamas", name: "Bahamas", code: "bahamas", flagUrl: "/assets/icons/flags/bs.svg", currencyPrices: { points: 61, USD: 0.61, INR: 50.6 }, totalStock: 1118 },
+    { id: "aruba", name: "Aruba", code: "aruba", flagUrl: "/assets/icons/flags/aw.svg", currencyPrices: { points: 61, USD: 0.61, INR: 50.6 }, totalStock: 1085 },
+    { id: "somalia", name: "Somalia", code: "somalia", flagUrl: "/assets/icons/flags/so.svg", currencyPrices: { points: 61, USD: 0.61, INR: 50.6 }, totalStock: 1063 },
+    { id: "serbia", name: "Serbia", code: "serbia", flagUrl: "/assets/icons/flags/rs.svg", currencyPrices: { points: 61, USD: 0.61, INR: 50.6 }, totalStock: 1052 },
+    { id: "chad", name: "Chad", code: "chad", flagUrl: "/assets/icons/flags/td.svg", currencyPrices: { points: 61, USD: 0.61, INR: 50.6 }, totalStock: 1021 },
+    { id: "brunei-darussalam", name: "Brunei Darussalam", code: "brunei-darussalam", flagUrl: "/assets/icons/flags/bn.svg", currencyPrices: { points: 61, USD: 0.61, INR: 50.6 }, totalStock: 1008 },
+    { id: "montserrat", name: "Montserrat", code: "montserrat", flagUrl: "/assets/icons/flags/ms.svg", currencyPrices: { points: 61, USD: 0.61, INR: 50.6 }, totalStock: 996 },
+    { id: "hong-kong", name: "Hong Kong", code: "hong-kong", flagUrl: "/assets/icons/flags/hk.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 30643 },
+    { id: "netherlands", name: "Netherlands", code: "netherlands", flagUrl: "/assets/icons/flags/nl.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 27863 },
+    { id: "united-states", name: "United States", code: "united-states", flagUrl: "/assets/icons/flags/us.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 15325 },
+    { id: "israel", name: "Israel", code: "israel", flagUrl: "/assets/icons/flags/il.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1111 },
+    { id: "iceland", name: "Iceland", code: "iceland", flagUrl: "/assets/icons/flags/is.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1110 },
+    { id: "belize", name: "Belize", code: "belize", flagUrl: "/assets/icons/flags/bz.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1105 },
+    { id: "zimbabwe", name: "Zimbabwe", code: "zimbabwe", flagUrl: "/assets/icons/flags/zw.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1103 },
+    { id: "montenegro", name: "Montenegro", code: "montenegro", flagUrl: "/assets/icons/flags/me.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1100 },
+    { id: "sweden", name: "Sweden", code: "sweden", flagUrl: "/assets/icons/flags/se.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 2076 },
+    { id: "latvia", name: "Latvia", code: "latvia", flagUrl: "/assets/icons/flags/lv.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1091 },
+    { id: "saint-vincent", name: "Saint Vincent", code: "saint-vincent", flagUrl: "/assets/icons/flags/vc.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1090 },
+    { id: "kazakhstan", name: "Kazakhstan", code: "kazakhstan", flagUrl: "/assets/icons/flags/kz.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1090 },
+    { id: "guatemala", name: "Guatemala", code: "guatemala", flagUrl: "/assets/icons/flags/gt.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1090 },
+    { id: "guadeloupe", name: "Guadeloupe", code: "guadeloupe", flagUrl: "/assets/icons/flags/gp.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1086 },
+    { id: "croatia", name: "Croatia", code: "croatia", flagUrl: "/assets/icons/flags/hr.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1084 },
+    { id: "burundi", name: "Burundi", code: "burundi", flagUrl: "/assets/icons/flags/bi.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1084 },
+    { id: "reunion", name: "Reunion", code: "reunion", flagUrl: "/assets/icons/flags/re.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1082 },
+    { id: "nepal", name: "Nepal", code: "nepal", flagUrl: "/assets/icons/flags/np.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1080 },
+    { id: "taiwan", name: "Taiwan", code: "taiwan", flagUrl: "/assets/icons/flags/tw.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1074 },
+    { id: "armenia", name: "Armenia", code: "armenia", flagUrl: "/assets/icons/flags/am.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1074 },
+    { id: "swaziland", name: "Swaziland", code: "swaziland", flagUrl: "/assets/icons/flags/sz.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1072 },
+    { id: "uzbekistan", name: "Uzbekistan", code: "uzbekistan", flagUrl: "/assets/icons/flags/uz.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1070 },
+    { id: "cambodia", name: "Cambodia", code: "cambodia", flagUrl: "/assets/icons/flags/kh.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1787 },
+    { id: "oman", name: "Oman", code: "oman", flagUrl: "/assets/icons/flags/om.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1064 },
+    { id: "sao-tome-and-principe", name: "Sao Tome And Principe", code: "sao-tome-and-principe", flagUrl: "/assets/icons/flags/st.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1053 },
+    { id: "czech-republic", name: "Czech Republic", code: "czech-republic", flagUrl: "/assets/icons/flags/cz.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1376 },
+    { id: "venezuela", name: "Venezuela", code: "venezuela", flagUrl: "/assets/icons/flags/ve.svg", currencyPrices: { points: 63, USD: 0.63, INR: 52.3 }, totalStock: 1048 },
 ];;
 
 const demoOperators = [
@@ -1254,7 +1254,7 @@ export default function DemoPage() {
                                             isSelected ? "border-[hsl(var(--neon-lime))]" : "border-white/10"
                                         )}>
                                             <img
-                                                src={country.flagUrl || `/assets/flags/un.svg`}
+                                                src={country.flagUrl || `/assets/icons/flags/un.svg`}
                                                 className="w-full h-full object-cover"
                                                 alt={country.name}
                                             />
@@ -1278,12 +1278,12 @@ export default function DemoPage() {
                                             isSelected ? "bg-[hsl(var(--neon-lime)/0.1)]" : "bg-white/[0.03] group-hover:bg-white/[0.06]"
                                         )}>
                                             <div className="text-[8px] uppercase tracking-wider text-gray-500 font-medium leading-tight">From</div>
-                                            <PriceDisplay 
-                                                currencyPrices={country.currencyPrices} 
+                                            <PriceDisplay
+                                                currencyPrices={country.currencyPrices}
                                                 className={cn(
                                                     "text-sm font-bold tabular-nums leading-tight",
                                                     isSelected ? "text-[hsl(var(--neon-lime))]" : "text-white group-hover:text-[hsl(var(--neon-lime))]"
-                                                )} 
+                                                )}
                                             />
                                         </div>
                                     </motion.div>
@@ -1605,9 +1605,9 @@ export default function DemoPage() {
                                     <div className="grid grid-cols-2 gap-2 relative z-10 mb-2">
                                         <div className="px-2 py-1.5 rounded-lg bg-black/40 border border-white/5">
                                             <span className="text-[8px] text-zinc-500 uppercase tracking-wider block">Price</span>
-                                            <PriceDisplay 
-                                                currencyPrices={provider.currencyPrices} 
-                                                className="text-sm font-bold text-white" 
+                                            <PriceDisplay
+                                                currencyPrices={provider.currencyPrices}
+                                                className="text-sm font-bold text-white"
                                             />
                                         </div>
                                         <div className="px-2 py-1.5 rounded-lg bg-black/40 border border-white/5">
