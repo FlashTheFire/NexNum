@@ -2187,28 +2187,16 @@ export class DynamicProvider implements SmsProvider {
         const cacheKey = `provider:prices:${this.name}:${countryCode || 'all'}:${serviceCode || 'all'}`
 
         return cacheGet(cacheKey, async () => {
-
-
             const params: Record<string, string> = {}
             if (countryCode) params.country = countryCode
             if (serviceCode) params.service = serviceCode
 
             const response = await this.request('getPrices', params)
-
-            // Use parseResponse to respect mapping configuration
             const items = this.parseResponse(response, 'getPrices')
 
-            // Load settings and apply intelligent operator selection.
-            // 5s process-level memoization so a burst of getPrices calls for the
-            // same provider doesn't hit systemSettings.findUnique 200× per sync.
-            const { SettingsService } = await import('@/lib/settings')
-            const settings = await getSettingsCached(SettingsService)
-
-            // Helper: coerce a raw item into a PriceData, preserving zero stock counts for candidate engine
             const toPriceData = (item: any, fallbackCountry: string, fallbackService: string): PriceData | null => {
                 const cost = Number(item.cost ?? item.price ?? 0)
                 const count = Math.max(0, Number(item.count ?? item.qty ?? 0))
-                // Drop invalid/zero cost offers (prevent $0 indexing)
                 if (!Number.isFinite(cost) || cost <= 0) return null
                 return {
                     country: String(item.country || fallbackCountry || ''),
@@ -2219,10 +2207,58 @@ export class DynamicProvider implements SmsProvider {
                 }
             }
 
-            // Return ALL parsed operator records for candidate engine processing
-            return items
+            const parsedItems = items
                 .map((item: any) => toPriceData(item, countryCode || '', serviceCode || ''))
                 .filter((p: PriceData | null): p is PriceData => p !== null)
+
+            // Group parsed operator items by (country, service)
+            const groups = new Map<string, PriceData[]>()
+            for (const p of parsedItems) {
+                const key = `${p.country}:${p.service}`
+                if (!groups.has(key)) groups.set(key, [])
+                groups.get(key)!.push(p)
+            }
+
+            const defaultOp = (this.config.options as any)?.defaultOperator || (this.config as any)?.defaultOperator
+
+            const results: PriceData[] = []
+            for (const [, group] of groups) {
+                if (group.length === 0) continue
+
+                // Sort candidates by cost ascending
+                group.sort((a, b) => a.cost - b.cost)
+
+                // Select base/canonical candidate:
+                // Match configured default operator if present; otherwise use operator with highest stock
+                let baseCandidate = defaultOp ? group.find(i => i.operator === defaultOp) : undefined
+                if (!baseCandidate) {
+                    baseCandidate = [...group].sort((a, b) => b.count - a.count)[0] || group[0]
+                }
+
+                const baseCost = baseCandidate.cost
+
+                // Filter purchaseCandidates: Keep ONLY candidates whose cost <= base provider cost!
+                const purchaseCandidates = group
+                    .filter(c => c.cost <= baseCost)
+                    .map(c => ({
+                        country: c.country,
+                        service: c.service,
+                        operator: c.operator,
+                        cost: c.cost,
+                        count: c.count
+                    }))
+
+                results.push({
+                    country: baseCandidate.country,
+                    service: baseCandidate.service,
+                    operator: baseCandidate.operator,
+                    cost: baseCandidate.cost,
+                    count: baseCandidate.count,
+                    purchaseCandidates
+                })
+            }
+
+            return results
         }, CACHE_TTL.PRICES)
     }
 

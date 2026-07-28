@@ -1033,7 +1033,8 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                     const candidatesList: any[] = []
                     let totalGroupStock = 0
 
-                    for (const item of items) {
+                    const candidateItems = item.purchaseCandidates && item.purchaseCandidates.length > 0 ? item.purchaseCandidates : [item]
+                    for (const item of candidateItems) {
                         const rawCostNum = Number(item.cost)
                         const pricing = PricingService.compute({
                             rawCost: rawCostNum,
