@@ -24,6 +24,7 @@ FROM deps AS builder
 WORKDIR /app
 
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_OPTIONS="--max-old-space-size=2560"
 ENV JWT_SECRET=placeholder_for_build_must_be_32_chars_long
 ENV ENCRYPTION_KEY=placeholder_for_build_must_be_32_chars_long
 ENV HOME=/tmp

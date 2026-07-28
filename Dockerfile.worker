@@ -24,7 +24,6 @@ WORKDIR /app
 
 COPY nexnum-app/src ./src
 COPY nexnum-app/messages ./messages
-COPY nexnum-app/public ./public
 COPY nexnum-app/prisma.config.ts nexnum-app/tsconfig.json ./
 
 RUN --mount=type=cache,target=/root/.npm npm prune --omit=dev --legacy-peer-deps
@@ -46,7 +45,6 @@ COPY --from=builder --chown=worker:nodejs /app/package.json ./
 COPY --from=builder --chown=worker:nodejs /app/src ./src
 COPY --from=builder --chown=worker:nodejs /app/prisma ./prisma
 COPY --from=builder --chown=worker:nodejs /app/prisma.config.ts ./prisma.config.ts
-COPY --from=builder --chown=worker:nodejs /app/public ./public
 COPY --from=builder --chown=worker:nodejs /app/tsconfig.json ./tsconfig.json
 
 USER root
