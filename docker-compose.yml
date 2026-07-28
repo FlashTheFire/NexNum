@@ -131,7 +131,7 @@ services:
   # Redis (Production)
   # ============================================
   redis:
-    image: redis/redis-stack-server:latest
+    image: redis:7-alpine
     container_name: nexnum-redis
     environment:
       REDIS_ARGS: "--requirepass ${REDIS_PASSWORD:-strongpassword} --save 900 1"
@@ -167,7 +167,7 @@ services:
   # MeiliSearch (Production)
   # ============================================
   meilisearch:
-    image: getmeili/meilisearch:v1.12
+    image: getmeili/meilisearch:v1.12.0
     container_name: nexnum-meilisearch
     environment:
       MEILI_MASTER_KEY: ${MEILISEARCH_API_KEY:-masterkey}
