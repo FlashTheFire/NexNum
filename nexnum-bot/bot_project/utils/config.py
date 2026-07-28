@@ -49,7 +49,7 @@ APP_IMAGE_LIST = {
 }
 # Payment Gateway Configuration
 PAYMENT_GATEWAY_API = os.getenv("PAYMENT_GATEWAY_API", "https://api.payment-gateway.com/v1")
-PAYMENT_GATEWAY_API_KEY = get_required_env("PAYMENT_GATEWAY_API_KEY")
+PAYMENT_GATEWAY_API_KEY = os.getenv("PAYMENT_GATEWAY_API_KEY", "dummy_gateway_key")
 
 PAYMENT_GATEWAY = {
     'endpoint': f'{PAYMENT_GATEWAY_API}/charges',
@@ -75,9 +75,21 @@ BATCH_SIZE = int(os.getenv("BATCH_SIZE", 100))
 ENV_FILE = os.getenv("ENV_FILE", ".env")
 
 
-CHANNEL_ID = get_required_env("CHANNEL_ID")
-BOT_TOKEN = get_required_env("BOT_TOKEN")
-ADMIN_ID = int(get_required_env("ADMIN_ID"))
+BOT_TOKEN = os.getenv("BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or ""
+if not BOT_TOKEN:
+    print("Error: Required environment variable BOT_TOKEN or TELEGRAM_BOT_TOKEN is not set")
+    sys.exit(1)
+
+CHANNEL_ID = os.getenv("CHANNEL_ID") or os.getenv("TELEGRAM_ADMIN_CHANNEL") or ""
+if not CHANNEL_ID:
+    print("Error: Required environment variable CHANNEL_ID or TELEGRAM_ADMIN_CHANNEL is not set")
+    sys.exit(1)
+
+_admin_id_raw = os.getenv("ADMIN_ID") or os.getenv("TELEGRAM_ADMIN_ID") or "0"
+try:
+    ADMIN_ID = int(_admin_id_raw)
+except ValueError:
+    ADMIN_ID = 0
 ADMIN_PHONE = os.getenv("ADMIN_PHONE")
 
 ENABLE_TELETHON = os.getenv("ENABLE_TELETHON", "false").lower() == "true"
