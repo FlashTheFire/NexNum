@@ -35,6 +35,9 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
 # Copy complete bot application code
 COPY nexnum-bot /app
 
+# Healthcheck: Verify python bot process is active
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 CMD pgrep -f "python" || exit 1
+
 # Wait for Redis, then start the bot in production polling mode
 ENTRYPOINT ["/usr/local/bin/wait-for-it.sh", "redis:6379", "--"]
 CMD ["python", "bot_project/main.py"]

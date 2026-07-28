@@ -56,4 +56,6 @@ USER worker
 ENV HOME=/home/worker
 ENV npm_config_cache=/home/worker/.npm
 
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 CMD pgrep -f "node" || exit 1
+
 ENTRYPOINT ["node", "--import", "tsx", "-r", "dotenv/config", "src/worker-entry.ts"]
