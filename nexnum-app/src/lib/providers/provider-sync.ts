@@ -1150,10 +1150,12 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                     allOffersMap.set(offerId, {
                         id: offerId,
                         provider: provider.name,
+                        countryCode: canonicalCtyCode,
                         providerCountryCode: countryCode,
                         countryName: canonicalCtyName,
                         countryId: resolvedCtyId ?? 0,
                         countryIcon: getCountryFlagUrlSync(canonicalCtyName) || getCountryFlagUrlSync(sample.country || country?.name || '') || '',
+                        serviceCode: canonicalSvcCode,
                         providerServiceCode: serviceCode,
                         serviceName: canonicalSvcName,
                         serviceId: resolvedSvcId ?? 0,

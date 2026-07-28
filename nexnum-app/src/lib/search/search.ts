@@ -141,9 +141,11 @@ export interface OfferDocument {
     serviceId?: number;    // FK to ServiceLookup.serviceId
     countryId?: number;    // FK to CountryLookup.countryId
 
-    // === Display Names (Mirrored for fast search) ===
+    // === Display Names & Codes (Mirrored for fast search) ===
     serviceName: string;   // Canonical Name (e.g. "WhatsApp")
     countryName: string;   // Canonical Name (e.g. "India")
+    serviceCode: string;   // Canonical Code (e.g. "whatsapp", "discord")
+    countryCode: string;   // Canonical Code (e.g. "spain", "india")
 
     // === RAW PROVIDER CODES (For Purchase API) ===
     providerServiceCode: string;  // e.g. "wa", "tg" - VERBATIM from provider API
