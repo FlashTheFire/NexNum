@@ -4,7 +4,10 @@ import '../globals.css'
 
 const inter = Inter({ subsets: ['latin'] })
 
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://nx1.in'
+
 export const metadata = {
+    metadataBase: new URL(baseUrl),
     title: 'NexNum API Documentation',
     description: 'Interactive API documentation for NexNum Public API v1'
 }
