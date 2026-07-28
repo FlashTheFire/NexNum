@@ -38,8 +38,8 @@ if [ -n "$DATABASE_URL" ]; then
         export DATABASE_URL="$DIRECT_URL"
     fi
 
-    echo "[STARTUP] Checking database schema status..."
-    timeout 30 npx prisma migrate deploy 2>/dev/null || timeout 30 npx prisma db push --accept-data-loss 2>/dev/null || echo "[STARTUP] Database schema active in Supabase. Proceeding to server startup..."
+    echo "[STARTUP] Checking database schema status and sync..."
+    timeout 30 npx prisma db push --accept-data-loss || timeout 30 npx prisma migrate deploy || echo "[STARTUP] Database schema active in Supabase. Proceeding to server startup..."
 
     # Restore original DATABASE_URL for runtime
     if [ -n "$ORIG_DATABASE_URL" ]; then

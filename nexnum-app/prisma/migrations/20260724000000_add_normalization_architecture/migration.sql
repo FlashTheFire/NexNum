@@ -50,9 +50,16 @@ CREATE INDEX idx_cc_is_verified_active ON canonical_countries(is_verified, is_ac
 CREATE INDEX idx_cc_name_trgm ON canonical_countries USING gin(canonical_name gin_trgm_ops);
 
 -- ============================================================
--- MatchMethod enum
+-- MatchMethod enum (Prisma double-quoted + lowercase)
 -- ============================================================
-CREATE TYPE match_method AS ENUM ('AUTO_ALIAS', 'AUTO_FUZZY', 'AUTO_NEW', 'MANUAL');
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'MatchMethod') THEN
+    CREATE TYPE "MatchMethod" AS ENUM ('AUTO_ALIAS', 'AUTO_FUZZY', 'AUTO_NEW', 'MANUAL');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'match_method') THEN
+    CREATE TYPE match_method AS ENUM ('AUTO_ALIAS', 'AUTO_FUZZY', 'AUTO_NEW', 'MANUAL');
+  END IF;
+END $$;
 
 -- ============================================================
 -- Provider Service Mappings
@@ -63,7 +70,7 @@ CREATE TABLE "provider_service_mappings" (
   provider_service_id TEXT NOT NULL REFERENCES provider_services(id) ON DELETE CASCADE,
   canonical_service_id INTEGER NOT NULL REFERENCES canonical_services(id) ON DELETE RESTRICT,
   confidence          FLOAT NOT NULL DEFAULT 0,
-  match_method        match_method NOT NULL DEFAULT 'AUTO_ALIAS',
+  match_method        "MatchMethod" NOT NULL DEFAULT 'AUTO_ALIAS',
   is_verified         BOOLEAN NOT NULL DEFAULT false,
   reviewed_by_id      TEXT REFERENCES users(id),
   reviewed_at         TIMESTAMPTZ,
@@ -77,14 +84,22 @@ CREATE INDEX idx_psm_confidence ON provider_service_mappings(confidence);
 CREATE INDEX idx_psm_match_method ON provider_service_mappings(match_method);
 
 -- ============================================================
--- ReviewEntityType enum
+-- ReviewEntityType & ReviewStatus enums
 -- ============================================================
-CREATE TYPE review_entity_type AS ENUM ('SERVICE', 'COUNTRY');
-
--- ============================================================
--- ReviewStatus enum
--- ============================================================
-CREATE TYPE review_status AS ENUM ('PENDING', 'APPROVED', 'REJECTED', 'CREATE_NEW');
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'ReviewEntityType') THEN
+    CREATE TYPE "ReviewEntityType" AS ENUM ('SERVICE', 'COUNTRY');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'review_entity_type') THEN
+    CREATE TYPE review_entity_type AS ENUM ('SERVICE', 'COUNTRY');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'ReviewStatus') THEN
+    CREATE TYPE "ReviewStatus" AS ENUM ('PENDING', 'APPROVED', 'REJECTED', 'CREATE_NEW');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'review_status') THEN
+    CREATE TYPE review_status AS ENUM ('PENDING', 'APPROVED', 'REJECTED', 'CREATE_NEW');
+  END IF;
+END $$;
 
 -- ============================================================
 -- Mapping Review Queue

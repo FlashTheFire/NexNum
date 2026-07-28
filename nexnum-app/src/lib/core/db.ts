@@ -39,7 +39,7 @@ function createPrismaClient(url?: string): PrismaClient {
     const poolMax = (() => {
         const raw = parseInt(process.env.PG_POOL_MAX ?? '', 10)
         if (Number.isFinite(raw) && raw > 0) return raw
-        return isProduction ? 10 : 10
+        return isProduction ? 3 : 5
     })()
     const poolMin = isProduction ? 1 : 0
     // Identify this service in pg_stat_activity so we can see who's hot.
