@@ -175,6 +175,8 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
     const freshPrice = Number(currentOffer.pointPrice ?? currentOffer.price ?? 0)
     const serviceName = currentOffer.serviceName
     const countryName = currentOffer.countryName
+    const resolvedCountryCode = String(currentOffer.countryCode || currentOffer.providerCountryCode || countryCode || countryInput || 'unknown')
+    const resolvedServiceCode = String(currentOffer.serviceCode || currentOffer.providerServiceCode || serviceCode || serviceInput || 'unknown')
     let providerName = currentOffer.provider || 'unknown'
 
     logger.info('[PURCHASE_OFFER_RESOLVED] Offer resolved successfully', {
@@ -297,7 +299,7 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
                     price: new Prisma.Decimal(freshPrice),
                     state: 'RESERVED',
                     serviceName,
-                    countryCode: currentOffer.countryCode,
+                    countryCode: resolvedCountryCode,
                     countryName,
                     operatorId: operatorId || null,
                     providerId: providerName,
@@ -422,9 +424,9 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
                     phoneCountryCode: parsedPhone.countryCode || null,
                     phoneNationalNumber: parsedPhone.nationalNumber || null,
                     countryName,
-                    countryCode: currentOffer.countryCode,
+                    countryCode: resolvedCountryCode,
                     serviceName,
-                    serviceCode: currentOffer.serviceCode,
+                    serviceCode: resolvedServiceCode,
                     price: freshPrice,
                     providerCost: providerResult!.rawPrice || 0,
                     profit: freshPrice - (providerResult!.rawPrice || 0),
