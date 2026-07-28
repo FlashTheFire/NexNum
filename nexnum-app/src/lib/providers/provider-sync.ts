@@ -1243,7 +1243,10 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
             }
         }
 
-        const isGlobalSync = (provider as any).useGlobalSync === true
+        const globalSyncProviders = ['5simnet', 'grizzlysms', 'smsbower', 'daisysms', 'smshub', 'smspool', 'hero_sms', 'virtuality']
+        const isGlobalSync = (provider as any).useGlobalSync === true ||
+            ((provider as any).options as any)?.useGlobalSync === true ||
+            globalSyncProviders.includes(provider.name.toLowerCase())
 
         if (isGlobalSync) {
             logger.info('Using Single-Fetch optimization (Global Prices)', {

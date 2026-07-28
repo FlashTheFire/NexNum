@@ -544,13 +544,6 @@ export class DynamicProvider implements SmsProvider {
                     average: `${avg.toFixed(0)}ms`,
                     deviation: `${((latencyMs / avg) - 1) * 100}%`
                 })
-
-                // QUARANTINE: If 3 out of last 5 requests exceed the threshold, open breaker
-                const spikes = history.filter(l => l > threshold).length
-                if (spikes >= 3) {
-                    logger.error(`[DynamicProvider:${this.name}] ☣️ Industrial Anomaly Quarantine: Tripping circuit due to chronic latency volatility`)
-                    this.getBreaker().open()
-                }
             }
         }
     }
