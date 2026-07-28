@@ -1077,17 +1077,14 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                     }
                     const finalCandidatesList = Array.from(dedupedCandidatesMap.values())
 
-                    // Deterministic sorting: Primary = pointPrice asc, Secondary = candidateId asc
-                    finalCandidatesList.sort((a, b) => {
-                        if (a.pointPrice !== b.pointPrice) return a.pointPrice - b.pointPrice
-                        return a.candidateId.localeCompare(b.candidateId)
-                    })
-
-                    finalCandidatesList.forEach((c, idx) => { c.priority = idx + 1 })
-                    totalGroupStock = finalCandidatesList.reduce((acc, c) => acc + c.stock, 0)
-
                     // Select canonical offer details (cheapest with stock > 0, else absolute cheapest)
                     const canonicalCandidate = finalCandidatesList.find(c => c.stock > 0) || finalCandidatesList[0]
+
+                    // PRICE CAP GUARDRAIL: Filter out any candidates whose cost exceeds the canonical offer price!
+                    // This prevents loss/negative margin by ensuring failover never attempts candidates more expensive than what the user was charged.
+                    const cappedCandidatesList = finalCandidatesList.filter(c => c.pointPrice <= canonicalCandidate.pointPrice)
+                    cappedCandidatesList.forEach((c, idx) => { c.priority = idx + 1 })
+                    totalGroupStock = cappedCandidatesList.reduce((acc, c) => acc + c.stock, 0)
 
                     const offerId = `${provider.name}_${countryCode}_${serviceCode}`.toLowerCase().replace(/[^a-z0-9_]/g, '')
 
@@ -1158,7 +1155,7 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                         pointPrice: canonicalCandidate.pointPrice,
                         rawPrice: canonicalCandidate.rawPrice,
                         currencyPrices,
-                        purchaseCandidates: finalCandidatesList,
+                        purchaseCandidates: cappedCandidatesList,
                         stock: totalGroupStock,
                         lastSyncedAt: Date.now(),
                         isActive: isActive

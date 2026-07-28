@@ -1654,6 +1654,18 @@ export class DynamicProvider implements SmsProvider {
                 const candidateLockKey = `lock:candidate:${candidateId}`
                 const lockToken = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
 
+                // Price Ceiling Guardrail: Never attempt candidates whose price exceeds the user's expected/purchased price
+                const maxAllowedPrice = options?.expectedPrice || (options?.maxPrice ? Number(options.maxPrice) : null)
+                if (maxAllowedPrice !== null && candidate.pointPrice > maxAllowedPrice) {
+                    logger.debug(`[CandidateEngine:${this.name}] Skipping candidate exceeding price ceiling`, {
+                        candidateId,
+                        candidatePrice: candidate.pointPrice,
+                        maxAllowedPrice
+                    })
+                    attemptLogs.push(`${opName}(PRICE_EXCEEDED)`)
+                    continue
+                }
+
                 // 2. Check Candidate Circuit Breaker (Quarantine in Redis)
                 try {
                     const isQuarantined = await redis.get(quarantineKey)
