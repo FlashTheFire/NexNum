@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge"
 import { DashboardBackground } from "./dashboard-background"
 import { DashboardNumberCard } from "./DashboardNumberCard"
 import { PriceDisplay, BalanceDisplay } from "@/components/common/PriceDisplay"
+import { TelegramLinkCard } from "@/components/user/TelegramLinkCard"
 
 // Quick Actions Configuration
 
@@ -125,6 +126,9 @@ export function MobileDashboard() {
 
 
                 </header>
+
+                {/* Telegram Link Callout Card */}
+                <TelegramLinkCard telegramId={(user as any)?.telegramId} username={(user as any)?.username} />
 
                 {/* 2. Hero Card (3.5D CSS Effect) */}
                 {/* 2. Enhanced Hero Card (Premium Mobile) */}

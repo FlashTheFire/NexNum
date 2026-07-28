@@ -22,6 +22,7 @@ import { useAuthStore } from "@/stores/authStore"
 import { DashboardBackground } from "./dashboard-background"
 import { ModernNumberCard } from "./ModernNumberCard"
 import { BalanceDisplay, PriceDisplay } from "@/components/common/PriceDisplay"
+import { TelegramLinkCard } from "@/components/user/TelegramLinkCard"
 
 
 
@@ -125,6 +126,9 @@ export function DesktopDashboard() {
                         </Link>
                     </motion.div>
                 </div>
+
+                {/* Telegram Connection & Account Status Banner */}
+                <TelegramLinkCard telegramId={(user as any)?.telegramId} username={(user as any)?.username} />
 
                 {/* 2. Stats Grid (High Density) */}
                 <motion.div
