@@ -90,21 +90,25 @@ class UserStartManager:
 
     async def _create_welcome_keyboard(self) -> InlineKeyboardMarkup:
         keyboard = InlineKeyboardMarkup()
+        webapp_url = os.getenv("WEBAPP_URL", "https://nexnum.app")
         keyboard.row(
-            InlineKeyboardButton("🛒 Sᴇʀᴠɪᴄᴇs", switch_inline_query_current_chat=""),
-            InlineKeyboardButton("🔥 Tᴏᴘ Sᴇʀᴠɪᴄᴇs", callback_data="USER:TOPSERVICE")
+            InlineKeyboardButton("🌐 Dᴀsʜʙᴏᴀʀᴅ", web_app=types.WebAppInfo(url=webapp_url)),
+            InlineKeyboardButton("🛒 Sᴇʀᴠɪᴄᴇs", switch_inline_query_current_chat="")
         )
         keyboard.row(
-            InlineKeyboardButton("👨‍💻 Wᴀʟʟᴇᴛ", callback_data="USER:WALLET"),
-            InlineKeyboardButton("💰 Rᴇᴄʜᴀʀɢᴇ", callback_data="USER:DEPOSIT")
+            InlineKeyboardButton("🔥 Tᴏᴘ Sᴇʀᴠɪᴄᴇs", callback_data="USER:TOPSERVICE"),
+            InlineKeyboardButton("👨‍💻 Wᴀʟʟᴇᴛ", callback_data="USER:WALLET")
         )
         keyboard.row(
-            InlineKeyboardButton("🔗 Rᴇғғᴇʀᴀʟ", callback_data="USER:REFFERAL"),
-            InlineKeyboardButton("📑 Hɪsᴛᴏʀʏ", callback_data="USER:HISTORY")
+            InlineKeyboardButton("💰 Rᴇᴄʜᴀʀɢᴇ", callback_data="USER:DEPOSIT"),
+            InlineKeyboardButton("🔗 Rᴇғғᴇʀᴀʟ", callback_data="USER:REFFERAL")
         )
         keyboard.row(
-            InlineKeyboardButton("⁉️ Hᴇʟᴘ", callback_data="USER:SUPPORT"),
+            InlineKeyboardButton("📑 Hɪsᴛᴏʀʏ", callback_data="USER:HISTORY"),
             InlineKeyboardButton("⚙️ Sᴇᴛᴛɪɴɢs", callback_data="USER:SETTINGS:CURRENCY")
+        )
+        keyboard.row(
+            InlineKeyboardButton("⁉️ Hᴇʟᴘ / Lɪɴᴋ", callback_data="USER:SUPPORT")
         )
         return keyboard
 
