@@ -83,10 +83,20 @@ CREATE TABLE IF NOT EXISTS "user_referrals" (
 CREATE UNIQUE INDEX IF NOT EXISTS "user_referrals_referral_code_key" ON "user_referrals"("referral_code");
 CREATE INDEX IF NOT EXISTS "user_referrals_referrer_id_idx" ON "user_referrals"("referrer_id");
 
--- AddTable: user_sessions (for Prisma UserSession model)
+-- AddTable: user_sessions (shared by Prisma UserSession model + Bot session queries)
 CREATE TABLE IF NOT EXISTS "user_sessions" (
     "user_id" TEXT NOT NULL,
     "data" JSONB NOT NULL DEFAULT '{}',
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "selected_country_id" INTEGER,
+    "selected_service_code" VARCHAR(50),
+    "menu_state" JSONB DEFAULT '{}'::jsonb,
+    "temp_data" JSONB DEFAULT '{}'::jsonb,
+    "last_activity" TIMESTAMPTZ DEFAULT NOW(),
+    "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "forum_id" INTEGER,
+    "forum_message_id" INTEGER,
+    "forum_archived" BOOLEAN DEFAULT FALSE,
     CONSTRAINT "user_sessions_pkey" PRIMARY KEY ("user_id")
 );
+
+CREATE INDEX IF NOT EXISTS "idx_user_sessions_last_activity" ON "user_sessions" ("last_activity");
