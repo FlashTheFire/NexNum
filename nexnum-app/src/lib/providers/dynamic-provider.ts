@@ -1652,6 +1652,7 @@ export class DynamicProvider implements SmsProvider {
                 const candidateId = candidate.candidateId || `${this.name}:${countryCode}:${serviceCode}:${opName}`.toLowerCase()
                 const quarantineKey = `quarantine:candidate:${candidateId}`
                 const candidateLockKey = `lock:candidate:${candidateId}`
+                const lockToken = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
 
                 // 2. Check Candidate Circuit Breaker (Quarantine in Redis)
                 try {
@@ -1662,9 +1663,8 @@ export class DynamicProvider implements SmsProvider {
                         continue
                     }
 
-                    // 3. Concurrency Protection: Try short 2s distributed candidate lock to prevent race collision
-                    // If locked by a parallel purchase request, skip to next available candidate
-                    const lockAcquired = await (redis as any).set(candidateLockKey, '1', 'EX', 2, 'NX')
+                    // 3. Concurrency Protection: Try short 2s distributed candidate lock using owner token
+                    const lockAcquired = await (redis as any).set(candidateLockKey, lockToken, 'EX', 2, 'NX')
                     if (!lockAcquired && candidates.length > 1) {
                         logger.debug(`[CandidateEngine:${this.name}] Candidate locked by parallel request, trying next: ${candidateId}`)
                         attemptLogs.push(`${opName}(LOCKED)`)
@@ -1717,7 +1717,17 @@ export class DynamicProvider implements SmsProvider {
                     })
                     // Continue to next candidate
                 } finally {
-                    try { await redis.del(candidateLockKey) } catch {}
+                    try {
+                        // Atomic compare-and-delete Lua script: Release lock ONLY if token matches owner
+                        const luaScript = `
+                            if redis.call("get", KEYS[1]) == ARGV[1] then
+                                return redis.call("del", KEYS[1])
+                            else
+                                return 0
+                            end
+                        `
+                        await (redis as any).eval(luaScript, 1, candidateLockKey, lockToken)
+                    } catch {}
                 }
             }
 
