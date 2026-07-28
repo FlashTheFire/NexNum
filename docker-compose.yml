@@ -134,7 +134,7 @@ services:
     image: redis:7-alpine
     container_name: nexnum-redis
     environment:
-      REDIS_ARGS: "--requirepass ${REDIS_PASSWORD:-strongpassword} --save 900 1"
+      REDIS_ARGS: "--requirepass ${REDIS_PASSWORD} --save 900 1"
     volumes:
       - redis_data:/data
     restart: unless-stopped
@@ -143,7 +143,7 @@ services:
     ports:
       - "127.0.0.1:6379:6379"
     healthcheck:
-      test: [ "CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-strongpassword}", "ping" ]
+      test: [ "CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -170,7 +170,7 @@ services:
     image: getmeili/meilisearch:v1.12.0
     container_name: nexnum-meilisearch
     environment:
-      MEILI_MASTER_KEY: ${MEILISEARCH_API_KEY:-masterkey}
+      MEILI_MASTER_KEY: ${MEILISEARCH_API_KEY}
       MEILI_ENV: development
       MEILI_NO_ANALYTICS: true
     volumes:
@@ -199,19 +199,19 @@ services:
     environment:
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-strongpassword}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
       DATABASE_URL: ${DATABASE_URL}
       NEXNUM_API_URL: http://nexnum-app:3000
       ENABLE_PROVIDER_SYNC: ${ENABLE_PROVIDER_SYNC:-true}
-      NEXNUM_API_KEY: ${NEXNUM_API_KEY:-9da2cb070956a4466cefffa033a18bb90485fc3f1dc8c5ac1bfad4651f377a86}
-      SUPPORT_AI_API_KEY: ${SUPPORT_AI_API_KEY:-sk-kTVlkRa5qCMsH1qaBnG7CtL6I9HU3q2WKwyL1CRyLV4ukXDp}
+      NEXNUM_API_KEY: ${NEXNUM_API_KEY}
+      SUPPORT_AI_API_KEY: ${SUPPORT_AI_API_KEY}
       BOT_TOKEN: ${BOT_TOKEN}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-${BOT_TOKEN}}
       ADMIN_ID: ${ADMIN_ID}
       CHANNEL_ID: ${CHANNEL_ID}
       TELEGRAM_ADMIN_CHANNEL: ${TELEGRAM_ADMIN_CHANNEL:-${CHANNEL_ID}}
       PUBLIC_APP_URL: ${PUBLIC_APP_URL:-${NEXT_PUBLIC_APP_URL}}
-      PAYMENT_GATEWAY_API_KEY: ${PAYMENT_GATEWAY_API_KEY:-dummy_gateway_key}
+      PAYMENT_GATEWAY_API_KEY: ${PAYMENT_GATEWAY_API_KEY}
     env_file:
       - .env
     depends_on:
