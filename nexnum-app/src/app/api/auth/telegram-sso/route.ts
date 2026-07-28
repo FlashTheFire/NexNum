@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/core/db'
 import crypto from 'crypto'
-import jwt from 'jsonwebtoken'
-
-const JWT_SECRET = process.env.JWT_SECRET || 'nexnum-secure-jwt-secret-key-2026'
+import { generateToken } from '@/lib/auth/jwt'
 
 /**
  * Validates Telegram Mini App initData HMAC-SHA256 signature
@@ -80,20 +78,22 @@ export async function POST(request: NextRequest) {
                     telegramId,
                     wallet: {
                         create: {
-                            balance: 0,
-                            currency: 'USD'
+                            balance: 0
                         }
                     }
                 }
             })
         }
 
-        // Generate JWT Auth Token
-        const token = jwt.sign(
-            { userId: user.id, email: user.email, role: user.role },
-            JWT_SECRET,
-            { expiresIn: '7d' }
-        )
+        // Generate JWT Auth Token using project standard jose helper
+        const token = await generateToken({
+            userId: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+            emailVerified: user.emailVerified,
+            version: user.tokenVersion
+        })
 
         const response = NextResponse.json({
             success: true,
