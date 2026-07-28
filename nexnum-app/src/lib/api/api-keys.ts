@@ -197,7 +197,10 @@ export async function validateApiKey(rawKey: string, requestIp?: string): Promis
 
     // 3. Populate Cache (TTL: 5 minutes)
     try {
-        await redis.set(cacheKey, JSON.stringify(apiKey), 'EX', 300)
+        const serialized = JSON.stringify(apiKey, (_, value) =>
+            typeof value === 'bigint' ? value.toString() : value
+        )
+        await redis.set(cacheKey, serialized, 'EX', 300)
     } catch (err) {
         const e = err instanceof Error ? err : new Error(String(err))
         logger.warn('[Auth:Cache] Failed to populate cache', { error: e.message, code: (err as any)?.code })

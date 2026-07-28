@@ -38,8 +38,8 @@ function createPrismaClient(url?: string): PrismaClient {
     // Override with PG_POOL_MAX to tune per-service if you scale differently.
     const poolMax = (() => {
         const raw = parseInt(process.env.PG_POOL_MAX ?? '', 10)
-        if (Number.isFinite(raw) && raw > 0) return Math.min(raw, isProduction ? 5 : 10)
-        return isProduction ? 4 : 5
+        if (Number.isFinite(raw) && raw > 0) return raw
+        return isProduction ? 10 : 10
     })()
     const poolMin = isProduction ? 1 : 0
     // Identify this service in pg_stat_activity so we can see who's hot.
@@ -73,13 +73,10 @@ function createPrismaClient(url?: string): PrismaClient {
     })()
 
     // Connection-acquisition timeout.
-    // Default 3s was too tight for the free-tier session pooler during burst
-    // batches, but the right fix is concurrency caps (see provider-sync and
-    // service-aggregates). Override via PG_CONNECT_TIMEOUT_MS to tune.
     const connectionTimeoutMs = (() => {
         const raw = parseInt(process.env.PG_CONNECT_TIMEOUT_MS ?? '', 10)
         if (Number.isFinite(raw) && raw > 0) return raw
-        return isProduction ? 8_000 : 10_000
+        return isProduction ? 20_000 : 30_000
     })()
 
     const pool = new Pool({
