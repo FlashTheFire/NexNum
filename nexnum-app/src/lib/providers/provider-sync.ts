@@ -934,8 +934,9 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
 
         // Filter counters — declared in the outer scope so the countries
         // sync, services sync, and price-indexing loop all share them.
+        let filteredUnlistedCountryCount = 0
+        let filteredUnlistedServiceCount = 0
 
-            // Track valid country external IDs / codes / names / canonical codes from getCountriesList()
             // Track valid country external IDs / codes / names / canonical codes from getCountriesList()
             const validCountryCodes = new Set<string>()
             const addCleanCountry = (val: string) => {
@@ -1009,7 +1010,8 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                         countryCodeToNumeric.has(cleanCty)
 
                     if (validCountryCodes.size > 0 && countryCode && !isValidCty) {
-                        logger.warn(`[SYNC] Skipping price: country code/ID '${countryCode}' not present in getCountriesList()`, {
+                        filteredUnlistedCountryCount++
+                        logger.debug(`[SYNC] Skipping price: country code/ID '${countryCode}' not present in catalog whitelist`, {
                             context: 'SYNC',
                             provider: provider.name,
                             country: countryCode,
@@ -1027,7 +1029,8 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                         serviceCodeToNumeric.has(cleanSvc)
 
                     if (validServiceCodes.size > 0 && p.service && !isValidSvc) {
-                        logger.warn(`[SYNC] Skipping price: service code '${p.service}' not present in getServicesList()`, {
+                        filteredUnlistedServiceCount++
+                        logger.debug(`[SYNC] Skipping price: service code '${p.service}' not present in catalog whitelist`, {
                             context: 'SYNC',
                             provider: provider.name,
                             country: countryCode,
