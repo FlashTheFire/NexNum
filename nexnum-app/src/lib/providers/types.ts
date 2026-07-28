@@ -39,6 +39,7 @@ export interface NumberResult {
     countryName?: string
     serviceCode: string
     serviceName?: string
+    operator?: string
     price: number | null
     rawPrice?: number | null // New: Raw cost from provider (before markups)
     expiresAt: Date

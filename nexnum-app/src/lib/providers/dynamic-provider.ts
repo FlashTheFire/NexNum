@@ -46,11 +46,13 @@ export type UniversalErrorType =
     | 'BAD_KEY'            // Invalid API key
     | 'BAD_SERVICE'        // Invalid service code
     | 'BAD_COUNTRY'        // Invalid country code
+    | 'BAD_OPERATOR'       // Invalid operator or server code
     | 'NO_ACTIVATION'      // Activation ID not found
     | 'ACTIVATION_EXPIRED' // Activation has expired
     | 'ACTIVATION_CANCELLED' // Activation was cancelled
     | 'RATE_LIMITED'       // Too many requests
     | 'SERVER_ERROR'       // Provider server error
+    | 'TIMEOUT'            // Provider API request timed out
     | 'WAITING'            // Waiting for SMS (not an error, status)
     | 'RECEIVED'           // SMS received (not an error, status)
     | 'UNKNOWN_ERROR'      // Fallback for unrecognized errors
