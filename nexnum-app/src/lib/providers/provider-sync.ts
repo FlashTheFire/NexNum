@@ -449,7 +449,7 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
             })
             const dbCountries = await prisma.providerCountry.findMany({
                 where: { providerId: provider.id },
-                select: { id: true, externalId: true, name: true, flagUrl: true, isActive: true }
+                select: { id: true, externalId: true, code: true, name: true, flagUrl: true, isActive: true }
             })
 
             // VALIDATION: Check for stale data (countries with 'Unknown' names or missing phoneCode)
@@ -468,6 +468,9 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                     countryVisibilityMap.set(c.externalId, c.isActive)
                     countryNameMap.set(c.externalId, c.name)
                     countries.push({ code: c.externalId, name: c.name, flagUrl: c.flagUrl })
+                    if (c.code && c.code !== c.externalId) {
+                        countries.push({ code: c.code, name: c.name, flagUrl: c.flagUrl })
+                    }
                 })
                 countriesCount = dbCountries.length
 
@@ -997,10 +1000,15 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                     // Do NOT filter out zero stock (p.count <= 0) here — providers count fluctuates rapidly!
                     const countryCode = p.country || currentCountryCode
 
-                    // STRICT FILTER: skip offers whose country is not present in getCountriesList()
+                    // STRICT FILTER: skip offers whose country is not present in getCountriesList() or Central Registry
                     const normCty = String(countryCode).toLowerCase().trim()
                     const cleanCty = normCty.replace(/[^a-z0-9]/g, '')
-                    if (validCountryCodes.size > 0 && countryCode && !validCountryCodes.has(normCty) && !validCountryCodes.has(cleanCty)) {
+                    const isValidCty = validCountryCodes.has(normCty) ||
+                        validCountryCodes.has(cleanCty) ||
+                        countryCodeToNumeric.has(normCty) ||
+                        countryCodeToNumeric.has(cleanCty)
+
+                    if (validCountryCodes.size > 0 && countryCode && !isValidCty) {
                         logger.warn(`[SYNC] Skipping price: country code/ID '${countryCode}' not present in getCountriesList()`, {
                             context: 'SYNC',
                             provider: provider.name,
@@ -1010,10 +1018,15 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                         continue
                     }
 
-                    // STRICT FILTER: skip offers whose service code is not present in getServicesList()
+                    // STRICT FILTER: skip offers whose service code is not present in getServicesList() or Central Registry
                     const normSvc = String(p.service).toLowerCase().trim()
                     const cleanSvc = normSvc.replace(/[^a-z0-9]/g, '')
-                    if (validServiceCodes.size > 0 && p.service && !validServiceCodes.has(normSvc) && !validServiceCodes.has(cleanSvc)) {
+                    const isValidSvc = validServiceCodes.has(normSvc) ||
+                        validServiceCodes.has(cleanSvc) ||
+                        serviceCodeToNumeric.has(normSvc) ||
+                        serviceCodeToNumeric.has(cleanSvc)
+
+                    if (validServiceCodes.size > 0 && p.service && !isValidSvc) {
                         logger.warn(`[SYNC] Skipping price: service code '${p.service}' not present in getServicesList()`, {
                             context: 'SYNC',
                             provider: provider.name,
