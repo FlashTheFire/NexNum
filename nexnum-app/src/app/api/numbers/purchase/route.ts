@@ -147,9 +147,10 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
             service: serviceName,
             country: countryName
         })
+        const statusCode = eligibility.code === 'E_INSUFFICIENT_FUNDS' ? 400 : (eligibility.code === 'E_VELOCITY_LIMIT' ? 429 : 403)
         return ResponseFactory.error(
             eligibility.reason || 'User not eligible',
-            403,
+            statusCode,
             eligibility.code || 'E_INELIGIBLE',
             {
                 currentBalance: eligibility.details.currentBalance,

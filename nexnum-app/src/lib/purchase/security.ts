@@ -97,48 +97,48 @@ export async function checkUserEligibility(
     userId: string,
     requiredAmount: number
 ): Promise<EligibilityResult> {
+    // 1. Fetch user status, balance, and daily spend upfront in parallel
+    const [user, balance, dailySpend] = await Promise.all([
+        prisma.user.findUnique({
+            where: { id: userId },
+            select: { isBanned: true }
+        }),
+        WalletService.getBalance(userId),
+        getDailySpend(userId)
+    ])
+
+    const dailySpendRemaining = Math.max(0, CONFIG.DAILY_SPEND_LIMIT - dailySpend)
+
     const details = {
-        isBanned: false,
-        hasSufficientBalance: false,
-        currentBalance: 0,
+        isBanned: user?.isBanned ?? false,
+        hasSufficientBalance: balance >= requiredAmount,
+        currentBalance: balance,
         requiredAmount: requiredAmount,
-        dailySpendRemaining: 0,
+        dailySpendRemaining: dailySpendRemaining,
         purchaseVelocityOk: false
     }
-
-    // 1. Check if user is banned
-    const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { isBanned: true }
-    })
 
     if (!user) {
         return { eligible: false, reason: 'User not found', code: 'E_ACCOUNT_BANNED', details }
     }
 
-    details.isBanned = user.isBanned
     if (user.isBanned) {
         return { eligible: false, reason: 'Account is suspended', code: 'E_ACCOUNT_BANNED', details }
     }
 
-    // 2. Check wallet balance
-    const balance = await WalletService.getBalance(userId)
-    details.hasSufficientBalance = balance >= requiredAmount
-    details.currentBalance = balance
-    details.requiredAmount = requiredAmount
-
     if (!details.hasSufficientBalance) {
-        return { eligible: false, reason: 'Insufficient balance', code: 'E_INSUFFICIENT_FUNDS', details }
+        return {
+            eligible: false,
+            reason: `Insufficient balance. Required: ${requiredAmount}, Current: ${balance}`,
+            code: 'E_INSUFFICIENT_FUNDS',
+            details
+        }
     }
-
-    // 3. Check daily spend limit
-    const dailySpend = await getDailySpend(userId)
-    details.dailySpendRemaining = Math.max(0, CONFIG.DAILY_SPEND_LIMIT - dailySpend)
 
     if (dailySpend + requiredAmount > CONFIG.DAILY_SPEND_LIMIT) {
         return {
             eligible: false,
-            reason: `Daily spend limit reached. Remaining: $${details.dailySpendRemaining.toFixed(2)}`,
+            reason: `Daily spend limit reached. Remaining: $${dailySpendRemaining.toFixed(2)}`,
             code: 'E_DAILY_LIMIT',
             details
         }
