@@ -29,11 +29,13 @@ export async function refreshAllServiceAggregatesImpl() {
         // This addresses the "Sync Race Condition Protection" by ensuring deletes/indexes are processed.
         logger.info('[AGGREGATES] Draining MeiliSearch task queue for consistency...');
         const tasks = await meili.tasks.getTasks({ statuses: ['enqueued', 'processing'] as any });
-        if (tasks.results.length > 0) {
-            const taskIds = tasks.results.map((t: any) => t.taskUid);
-            const { waitForTasks } = await import('./search');
-            await waitForTasks(taskIds);
-            logger.debug(`Drained ${taskIds.length} pending MeiliSearch tasks.`, { context: 'AGGREGATES' });
+        if (tasks.results && tasks.results.length > 0) {
+            const taskIds = tasks.results.map((t: any) => t.uid ?? t.taskUid).filter((id: any) => typeof id === 'number');
+            if (taskIds.length > 0) {
+                const { waitForTasks } = await import('./search');
+                await waitForTasks(taskIds);
+                logger.debug(`Drained ${taskIds.length} pending MeiliSearch tasks.`, { context: 'AGGREGATES' });
+            }
         }
 
         const index = meili.index(INDEXES.OFFERS)

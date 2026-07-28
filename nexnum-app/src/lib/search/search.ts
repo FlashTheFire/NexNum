@@ -1429,8 +1429,9 @@ export async function indexOffers(offers: OfferDocument[], indexName: string = I
         })
 
         const task = await index.addDocuments(normalizedOffers, { primaryKey: 'id' })
-        logger.info('Queued offers for indexing', { context: 'SEARCH', count: normalizedOffers.length, taskUid: task.taskUid })
-        return task.taskUid
+        const uid = task.taskUid ?? (task as any).uid
+        logger.info('Queued offers for indexing', { context: 'SEARCH', count: normalizedOffers.length, taskUid: uid })
+        return uid
     } catch (error: any) {
         logger.error('Failed to index offers', { context: 'SEARCH', error: error.message })
         return undefined
@@ -1450,8 +1451,9 @@ export async function swapShadowToPrimary(shadowIndexName: string, primaryIndexN
         const task = await (meili as any).swapIndexes([
             { indexes: [shadowIndexName, primaryIndexName] }
         ]);
+        const uid = task.taskUid ?? (task as any).uid
 
-        logger.info(`[SEARCH] Atomic swap queued (task ${task.taskUid})`);
+        logger.info(`[SEARCH] Atomic swap queued (task ${uid})`);
 
         // 2. Resilient Polling with Backoff
         let delay = 1000;
@@ -1460,7 +1462,7 @@ export async function swapShadowToPrimary(shadowIndexName: string, primaryIndexN
         const start = Date.now();
 
         while (Date.now() - start < timeout) {
-            const success = await waitForTask(task.taskUid, 5000);
+            const success = await waitForTask(uid, 5000);
             if (success) {
                 logger.info(`[SEARCH] Atomic swap successful.`);
 
@@ -1478,7 +1480,7 @@ export async function swapShadowToPrimary(shadowIndexName: string, primaryIndexN
             delay = Math.min(delay * 1.5, maxDelay);
         }
 
-        throw new Error(`Swap task ${task.taskUid} timed out after ${timeout}ms`);
+        throw new Error(`Swap task ${uid} timed out after ${timeout}ms`);
 
     } catch (error: any) {
         logger.error('[SEARCH] Atomic swap critical failure:', { error });
@@ -1493,8 +1495,9 @@ export async function deleteOffersByProvider(provider: string): Promise<number |
     try {
         const index = meili.index(INDEXES.OFFERS)
         const task = await index.deleteDocuments({ filter: `provider = '${provider}'` })
-        logger.info(`🗑️ Queued deletion for provider: ${provider}`, { context: 'SEARCH', taskUid: task.taskUid })
-        return task.taskUid
+        const uid = task.taskUid ?? (task as any).uid
+        logger.info(`🗑️ Queued deletion for provider: ${provider}`, { context: 'SEARCH', taskUid: uid })
+        return uid
     } catch (error: any) {
         logger.error('Failed to delete offers', { context: 'SEARCH', provider, error: error.message })
         return undefined
@@ -1518,7 +1521,8 @@ export async function getIndexStats(): Promise<{ offers: number; lastSync?: numb
 /**
  * Wait for a task to complete
  */
-export async function waitForTask(taskUid: number, timeoutMs = 60000): Promise<boolean> {
+export async function waitForTask(taskUid: number | undefined | null, timeoutMs = 60000): Promise<boolean> {
+    if (taskUid == null || typeof taskUid !== 'number') return true
     try {
         await meili.tasks.waitForTask(taskUid, { timeout: timeoutMs, interval: 1000 })
         return true
@@ -1531,13 +1535,14 @@ export async function waitForTask(taskUid: number, timeoutMs = 60000): Promise<b
 /**
  * Wait for multiple tasks to complete
  */
-export async function waitForTasks(taskUids: number[], timeoutMs = 60000): Promise<boolean> {
-    if (taskUids.length === 0) return true
+export async function waitForTasks(taskUids: (number | undefined | null)[], timeoutMs = 60000): Promise<boolean> {
+    const validUids = (taskUids || []).filter((uid): uid is number => typeof uid === 'number' && !isNaN(uid))
+    if (validUids.length === 0) return true
     try {
-        await Promise.all(taskUids.map(uid => meili.tasks.waitForTask(uid, { timeout: timeoutMs, interval: 1000 })))
+        await Promise.all(validUids.map(uid => meili.tasks.waitForTask(uid, { timeout: timeoutMs, interval: 1000 })))
         return true
     } catch (error: any) {
-        logger.error('One or more MeiliSearch tasks failed', { context: 'SEARCH', taskUids, error: error.message })
+        logger.error('One or more MeiliSearch tasks failed', { context: 'SEARCH', taskUids: validUids, error: error.message })
         return false
     }
 }
