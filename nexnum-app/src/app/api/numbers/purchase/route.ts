@@ -45,8 +45,27 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
 
     const user = await getCurrentUser(request.headers)
     if (!user) {
+        logger.warn('[PURCHASE_UNAUTHORIZED] Purchase attempt without valid authorization header', { correlationId })
         return ResponseFactory.error('Unauthorized', 401)
     }
+
+    logger.info('[PURCHASE_INIT] Purchase request received', {
+        context: 'PURCHASE',
+        correlationId,
+        userId: user.userId,
+        body: {
+            countryCode: body?.countryCode,
+            serviceCode: body?.serviceCode,
+            countryId: body?.countryId,
+            serviceId: body?.serviceId,
+            operatorId: body?.operatorId,
+            provider: body?.provider,
+            idempotencyKey: body?.idempotencyKey,
+            useBestRoute: body?.useBestRoute,
+            currency: body?.currency,
+            maxPrice: body?.maxPrice
+        }
+    })
 
     // ============================================
     // PHASE 1: INPUT VALIDATION
@@ -63,6 +82,12 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
     })
 
     if (!validation.valid || !validation.sanitized) {
+        logger.warn('[PURCHASE_VALIDATION_FAIL] Input validation failed', {
+            context: 'PURCHASE',
+            correlationId,
+            userId: user.userId,
+            errors: validation.errors
+        })
         return ResponseFactory.error(validation.errors[0] || 'Validation failed', 400)
     }
 
@@ -76,6 +101,14 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
             select: { id: true, status: true }
         })
         if (existing) {
+            logger.info('[PURCHASE_IDEMPOTENT_REPLAY] Replaying existing purchase order', {
+                context: 'PURCHASE',
+                correlationId,
+                userId: user.userId,
+                idempotencyKey,
+                purchaseOrderId: existing.id,
+                status: existing.status
+            })
             return ResponseFactory.success({
                 idempotentReplay: true,
                 purchaseOrderId: existing.id,
@@ -112,11 +145,31 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
 
     if (mode === 'direct') {
         currentOffer = await getOfferForPurchase(serviceInput, countryInput, operatorId ? parseInt(operatorId, 10) : undefined, resolvedProvider)
-        if (!currentOffer) return ResponseFactory.error('Offer not available', 404, 'E_OFFER_NOT_FOUND')
+        if (!currentOffer) {
+            logger.warn('[PURCHASE_OFFER_NOT_FOUND] Offer not available for requested provider', {
+                context: 'PURCHASE',
+                correlationId,
+                userId: user.userId,
+                serviceInput,
+                countryInput,
+                operatorId,
+                resolvedProvider
+            })
+            return ResponseFactory.error('Offer not available', 404, 'E_OFFER_NOT_FOUND')
+        }
     } else {
         // Best Route: Get baseline from lowest available offer
         currentOffer = await getOfferForPurchase(serviceInput, countryInput, undefined, undefined)
-        if (!currentOffer) return ResponseFactory.error('No providers available for this route', 404, 'E_NO_ROUTE')
+        if (!currentOffer) {
+            logger.warn('[PURCHASE_NO_ROUTE] No active provider routes available', {
+                context: 'PURCHASE',
+                correlationId,
+                userId: user.userId,
+                serviceInput,
+                countryInput
+            })
+            return ResponseFactory.error('No providers available for this route', 404, 'E_NO_ROUTE')
+        }
     }
 
     const freshPrice = Number(currentOffer.pointPrice ?? currentOffer.price ?? 0)
@@ -124,8 +177,28 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
     const countryName = currentOffer.countryName
     let providerName = currentOffer.provider || 'unknown'
 
+    logger.info('[PURCHASE_OFFER_RESOLVED] Offer resolved successfully', {
+        context: 'PURCHASE',
+        correlationId,
+        userId: user.userId,
+        mode,
+        providerName,
+        serviceName,
+        countryName,
+        freshPrice,
+        stock: currentOffer.stock,
+        candidatesCount: currentOffer.purchaseCandidates?.length || 0
+    })
+
     // Check Max Price Constraint strictly
     if (maxPrice !== undefined && freshPrice > maxPrice) {
+        logger.warn('[PURCHASE_PRICE_EXCEEDED] Fresh offer price exceeds maxPrice ceiling', {
+            context: 'PURCHASE',
+            correlationId,
+            userId: user.userId,
+            freshPrice,
+            maxPrice
+        })
         return ResponseFactory.error(
             `Price ${freshPrice} exceeds your limit of ${maxPrice}`,
             400,
@@ -140,10 +213,15 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
 
     const eligibility = await checkUserEligibility(user.userId, freshPrice)
     if (!eligibility.eligible) {
-        logger.warn(`[PURCHASE] Eligibility denied for user ${user.userId}: ${eligibility.reason}`, {
+        logger.warn(`[PURCHASE_ELIGIBILITY_DENIED] Eligibility denied for user ${user.userId}: ${eligibility.reason}`, {
+            context: 'PURCHASE',
+            correlationId,
+            userId: user.userId,
             code: eligibility.code,
-            details: eligibility.details,
+            reason: eligibility.reason,
+            currentBalance: eligibility.details.currentBalance,
             requiredAmount: freshPrice,
+            dailySpendRemaining: eligibility.details.dailySpendRemaining,
             service: serviceName,
             country: countryName
         })
@@ -160,14 +238,37 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
         )
     }
 
+    logger.info('[PURCHASE_ELIGIBILITY_PASSED] User eligibility verified', {
+        context: 'PURCHASE',
+        correlationId,
+        userId: user.userId,
+        currentBalance: eligibility.details.currentBalance,
+        requiredAmount: freshPrice,
+        dailySpendRemaining: eligibility.details.dailySpendRemaining
+    })
+
     // ============================================
     // PHASE 4: ATOMIC LOCK
     // ============================================
 
     const lockResult = await acquireAtomicPurchaseLock(user.userId)
-    if (!lockResult.acquired) return ResponseFactory.error('Purchase already in progress', 429, 'E_LOCK_CONTENTION')
+    if (!lockResult.acquired) {
+        logger.warn('[PURCHASE_LOCK_CONFLICT] Atomic purchase lock contention', {
+            context: 'PURCHASE',
+            correlationId,
+            userId: user.userId,
+            reason: lockResult.reason
+        })
+        return ResponseFactory.error('Purchase already in progress', 429, 'E_LOCK_CONTENTION')
+    }
     lockAcquired = true
     lockToken = lockResult.token
+    logger.info('[PURCHASE_LOCK_ACQUIRED] Atomic purchase lock acquired', {
+        context: 'PURCHASE',
+        correlationId,
+        userId: user.userId,
+        lockToken
+    })
 
     try {
         // ============================================
@@ -210,12 +311,31 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
         }, { timeout: 30000 })
 
         reservedAmount = freshPrice
+        logger.info('[PURCHASE_RESERVE_SUCCESS] Funds reserved and pending order created', {
+            context: 'PURCHASE',
+            correlationId,
+            userId: user.userId,
+            purchaseOrderId,
+            activationId,
+            reservedAmount: freshPrice
+        })
 
         // ============================================
         // PHASE 6: CALL PROVIDER (with Fallback for Best Route)
         // ============================================
 
         const startProvider = Date.now()
+        logger.info('[PURCHASE_PROVIDER_CALL_START] Dispatching request to provider', {
+            context: 'PURCHASE',
+            correlationId,
+            userId: user.userId,
+            providerName,
+            mode,
+            providerCountryCode: currentOffer.providerCountryCode,
+            providerServiceCode: currentOffer.providerServiceCode,
+            expectedPrice: freshPrice
+        })
+
         try {
             if (mode === 'best_route') {
                 const { SmartSmsRouter } = await import('@/lib/providers/smart-router')
@@ -240,10 +360,30 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
             purchase_duration_seconds.labels('provider_call', providerName, countryName).observe(dur)
             provider_api_calls_total.labels(providerName, 'getNumber', 'success').inc()
 
+            logger.info('[PURCHASE_PROVIDER_CALL_SUCCESS] Provider returned activation number', {
+                context: 'PURCHASE',
+                correlationId,
+                userId: user.userId,
+                providerName,
+                phoneNumber: providerResult!.phoneNumber,
+                activationId: providerResult!.activationId,
+                providerCost: providerResult!.rawPrice,
+                durationMs: Math.round(dur * 1000)
+            })
+
         } catch (providerErr: any) {
             const dur = (Date.now() - startProvider) / 1000
             purchase_duration_seconds.labels('provider_call', providerName, countryName).observe(dur)
             provider_api_calls_total.labels(providerName, 'getNumber', 'error').inc()
+
+            logger.error('[PURCHASE_PROVIDER_CALL_FAIL] Provider request failed, rolling back reserved funds', {
+                context: 'PURCHASE',
+                correlationId,
+                userId: user.userId,
+                providerName,
+                error: providerErr.message,
+                durationMs: Math.round(dur * 1000)
+            })
 
             // Rollback
             await prisma.$transaction(async (tx) => {
@@ -325,11 +465,29 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
         await releaseAtomicPurchaseLock(user.userId, lockToken)
         emitStateUpdate(user.userId, 'all', 'number_purchased').catch(err => logger.warn('[PURCHASE] emitStateUpdate failed', { error: err }))
 
+        logger.info('[PURCHASE_COMPLETE] Purchase completed successfully', {
+            context: 'PURCHASE',
+            correlationId,
+            userId: user.userId,
+            numberId: resultNumber.id,
+            phoneNumber: resultNumber.phoneNumber,
+            providerName,
+            freshPrice,
+            providerCost: providerResult!.rawPrice || 0,
+            profit: resultNumber.profit
+        })
+
         return ResponseFactory.success({ number: resultNumber })
 
     } catch (err: unknown) {
         const error = err as Error
-        logger.error(`[PURCHASE] Critical Error`, { error: error.message, correlationId })
+        logger.error(`[PURCHASE_CRITICAL_FAIL] Critical error in purchase flow`, {
+            context: 'PURCHASE',
+            correlationId,
+            userId: user.userId,
+            error: error.message,
+            stack: error.stack
+        })
         if (lockAcquired) await releaseAtomicPurchaseLock(user.userId, lockToken)
 
         // Basic cleanup
@@ -339,7 +497,7 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
                 await prisma.purchaseOrder.update({ where: { id: purchaseOrderId }, data: { status: 'FAILED' } })
                 if (activationId) await prisma.activation.update({ where: { id: activationId }, data: { state: 'FAILED' } })
             } catch (e) {
-                logger.warn('[PURCHASE] Cleanup rollback failed', { error: e, purchaseOrderId, correlationId })
+                logger.warn('[PURCHASE_CLEANUP_FAIL] Cleanup rollback failed', { error: e, purchaseOrderId, correlationId })
             }
         }
 
