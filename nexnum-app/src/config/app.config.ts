@@ -93,10 +93,10 @@ export const PricingConfig = {
     defaultMarkup: parseFloat(process.env.DEFAULT_MARKUP_PERCENT || '20'),
 
     /** Minimum price in USD */
-    minPrice: parseFloat(process.env.MIN_PRICE_USD || '0.10'),
+    minPrice: parseFloat(process.env.MIN_PRICE_USD || '0.0001'),
 
     /** Maximum price in USD */
-    maxPrice: parseFloat(process.env.MAX_PRICE_USD || '50.00'),
+    maxPrice: parseFloat(process.env.MAX_PRICE_USD || '500.00'),
 
     /** Currency precision (decimal places) */
     precision: parseInt(process.env.PRICE_PRECISION || '2', 10),
