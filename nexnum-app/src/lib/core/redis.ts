@@ -204,6 +204,21 @@ export async function cacheInvalidatePattern(pattern: string): Promise<number> {
 }
 
 /**
+ * Safe JSON stringify helper that handles BigInt, Decimal, and Date objects cleanly.
+ */
+export function safeJsonStringify(data: any): string {
+    return JSON.stringify(data, (_, value) => {
+        if (typeof value === 'bigint') {
+            return value.toString()
+        }
+        if (value && typeof value === 'object' && typeof value.toFixed === 'function') {
+            return value.toString()
+        }
+        return value
+    })
+}
+
+/**
  * Cache set with TTL
  */
 export async function cacheSet<T>(
@@ -212,7 +227,7 @@ export async function cacheSet<T>(
     ttlSeconds: number = 300
 ): Promise<void> {
     try {
-        const stringified = typeof value === 'string' ? value : JSON.stringify(value)
+        const stringified = typeof value === 'string' ? value : safeJsonStringify(value)
         await redis.set(key, stringified, 'EX', ttlSeconds)
     } catch (error) {
         logger.warn('Redis cache set error', { context: 'CORE', key, error: (error as any).message })
