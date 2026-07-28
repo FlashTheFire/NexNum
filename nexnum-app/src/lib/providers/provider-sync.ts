@@ -145,7 +145,8 @@ async function downloadImageToLocal(url: string, destPath: string, bannedSet?: S
 // ============================================
 
 export async function verifyAssetIntegrity(): Promise<{ removed: number, scanned: number }> {
-    const ICONS_DIR = path.join(process.cwd(), 'public/assets/icons/services');
+    const ICONS_DIR = `${process.cwd()}/public/assets/icons/services`;
+    const getIconFilePath = (fileName: string) => `${ICONS_DIR}/${fileName}`;
     let removed = 0;
     let scanned = 0;
 
@@ -166,7 +167,7 @@ export async function verifyAssetIntegrity(): Promise<{ removed: number, scanned
             file.toLowerCase().endsWith('.png.png') ||
             file.toLowerCase().endsWith('.jpg.jpg')) {
             try {
-                fs.unlinkSync(path.join(ICONS_DIR, file));
+                fs.unlinkSync(getIconFilePath(file));
                 removed++;
                 logger.debug('Removed double extension artifact', {
                     context: 'ASSET_CLEAN',
@@ -215,7 +216,7 @@ export async function verifyAssetIntegrity(): Promise<{ removed: number, scanned
                     file,
                     keeping: keep
                 });
-                try { fs.unlinkSync(path.join(ICONS_DIR, file)) } catch { }
+                try { fs.unlinkSync(getIconFilePath(file)) } catch { }
                 removed++;
             }
         }
@@ -224,7 +225,7 @@ export async function verifyAssetIntegrity(): Promise<{ removed: number, scanned
     // Checking individual file integrity
     const remainingFiles = fs.readdirSync(ICONS_DIR); // Re-read
     for (const file of remainingFiles) {
-        const filePath = path.join(ICONS_DIR, file);
+        const filePath = getIconFilePath(file);
         try {
             const stats = fs.statSync(filePath);
             if (stats.size === 0) {
