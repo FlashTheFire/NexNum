@@ -65,10 +65,34 @@ class DatabaseAdapter:
             except RuntimeError:
                 self._pool_loop = None
             logger.info("Successfully initialized PostgreSQL connection pool.")
+            await self.ensure_bot_schema()
             return True
         except Exception as e:
             logger.error(f"Failed to initialize PostgreSQL pool: {e}", exc_info=True)
             self.pool = None
+            return False
+
+    async def ensure_bot_schema(self) -> bool:
+        """
+        Executes bot schema initialization (001_redis_to_pg.sql) to create
+        user_sessions, deposit_requests, support_tickets, etc. if missing in DB.
+        """
+        if not self.pool:
+            return False
+        sql_file = _bot_project_dir / "migrations" / "001_redis_to_pg.sql"
+        if not sql_file.exists():
+            logger.warning(f"Bot schema migration file not found at {sql_file}")
+            return False
+        try:
+            sql_script = sql_file.read_text(encoding="utf-8")
+            async with self.pool.connection() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute(sql_script)
+                await conn.commit()
+            logger.info("Successfully verified/created bot PostgreSQL schema tables (user_sessions, etc.).")
+            return True
+        except Exception as e:
+            logger.error(f"Error executing bot schema initialization: {e}", exc_info=True)
             return False
 
     async def close_pool(self) -> None:
