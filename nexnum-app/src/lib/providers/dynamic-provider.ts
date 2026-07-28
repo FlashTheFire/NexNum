@@ -1447,10 +1447,15 @@ export class DynamicProvider implements SmsProvider {
      * Get static countries from provider configuration if present
      */
     private getStaticCountries(): Country[] | null {
-        const mappings = this.config.mappings as any
-        const endpoints = this.config.endpoints as any
+        const mappings = (this.config.mappings || {}) as any
+        const endpoints = (this.config.endpoints || {}) as any
 
-        const rawList = mappings?.staticCatalog?.countries ||
+        let staticCatalog = mappings?.staticCatalog
+        if (typeof staticCatalog === 'string') {
+            try { staticCatalog = JSON.parse(staticCatalog) } catch { }
+        }
+
+        const rawList = staticCatalog?.countries ||
             mappings?.staticCountries ||
             endpoints?.staticCountries ||
             mappings?.staticLists?.countries ||
@@ -1469,8 +1474,8 @@ export class DynamicProvider implements SmsProvider {
 
         return items.map((i) => ({
             ...i,
-            code: String(i.code ?? i.id ?? ''),
-            name: String(i.name ?? ''),
+            code: String(i.code ?? i.id ?? i.externalId ?? ''),
+            name: String(i.name ?? i.countryName ?? ''),
             flagUrl: typeof i.flagUrl === 'string' ? i.flagUrl : undefined
         })).filter(c => Boolean(c.code && c.name))
     }
@@ -1479,10 +1484,15 @@ export class DynamicProvider implements SmsProvider {
      * Get static services from provider configuration if present
      */
     private getStaticServices(countryCode?: string | number): Service[] | null {
-        const mappings = this.config.mappings as any
-        const endpoints = this.config.endpoints as any
+        const mappings = (this.config.mappings || {}) as any
+        const endpoints = (this.config.endpoints || {}) as any
 
-        const rawList = mappings?.staticCatalog?.services ||
+        let staticCatalog = mappings?.staticCatalog
+        if (typeof staticCatalog === 'string') {
+            try { staticCatalog = JSON.parse(staticCatalog) } catch { }
+        }
+
+        const rawList = staticCatalog?.services ||
             mappings?.staticServices ||
             endpoints?.staticServices ||
             mappings?.staticLists?.services ||
@@ -1499,10 +1509,10 @@ export class DynamicProvider implements SmsProvider {
 
         if (!Array.isArray(items) || items.length === 0) return null
 
-        return items.filter(s => Boolean(s.code && s.name)).map(s => ({
+        return items.filter(s => Boolean((s.code || s.id || s.externalId) && (s.name || s.serviceName))).map(s => ({
             ...s,
-            code: String(s.code ?? s.id ?? ''),
-            name: String(s.name ?? ''),
+            code: String(s.code ?? s.id ?? s.externalId ?? ''),
+            name: String(s.name ?? s.serviceName ?? ''),
             iconUrl: typeof s.iconUrl === 'string' ? s.iconUrl : undefined
         }))
     }

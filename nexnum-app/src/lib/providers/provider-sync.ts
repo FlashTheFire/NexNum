@@ -932,19 +932,44 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
         // Filter counters — declared in the outer scope so the countries
         // sync, services sync, and price-indexing loop all share them.
 
-            // Track valid country external IDs / codes from getCountriesList()
+            // Track valid country external IDs / codes / names / canonical codes from getCountriesList()
             const validCountryCodes = new Set<string>()
             for (const c of countries) {
-                if (c.code != null) {
-                    validCountryCodes.add(String(c.code).toLowerCase())
+                if (c.code != null && String(c.code).trim()) {
+                    const codeStr = String(c.code).toLowerCase().trim()
+                    validCountryCodes.add(codeStr)
+                    const iso = getCountryIsoCode(c.code)?.toLowerCase()
+                    if (iso) validCountryCodes.add(iso)
+                }
+                if ((c as any).id != null) {
+                    validCountryCodes.add(String((c as any).id).toLowerCase().trim())
+                }
+                if (c.name != null && String(c.name).trim()) {
+                    const nameStr = String(c.name).toLowerCase().trim()
+                    validCountryCodes.add(nameStr)
+                    const cName = getCanonicalName(c.name).toLowerCase()
+                    if (cName) validCountryCodes.add(cName)
+                    const cCode = generateCanonicalCode(cName)
+                    if (cCode) validCountryCodes.add(cCode)
                 }
             }
 
-            // Track valid service codes from getServicesList()
+            // Track valid service codes / names / canonical codes from getServicesList()
             const validServiceCodes = new Set<string>()
             for (const s of services) {
-                if (s.code != null) {
-                    validServiceCodes.add(String(s.code).toLowerCase())
+                if (s.code != null && String(s.code).trim()) {
+                    const codeStr = String(s.code).toLowerCase().trim()
+                    validServiceCodes.add(codeStr)
+                    const cCode = generateCanonicalCode(codeStr)
+                    if (cCode) validServiceCodes.add(cCode)
+                }
+                if (s.name != null && String(s.name).trim()) {
+                    const nameStr = String(s.name).toLowerCase().trim()
+                    validServiceCodes.add(nameStr)
+                    const cName = getCanonicalName(s.name).toLowerCase()
+                    if (cName) validServiceCodes.add(cName)
+                    const cCode = generateCanonicalCode(cName)
+                    if (cCode) validServiceCodes.add(cCode)
                 }
             }
 
