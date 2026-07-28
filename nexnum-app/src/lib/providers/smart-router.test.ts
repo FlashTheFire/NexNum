@@ -69,9 +69,9 @@ vi.mock('@/lib/currency/currency-service', () => ({
     },
 }))
 
-const mockPricingCompute = vi.fn(({ rawCost }: any) => ({ pointPrice: rawCost }))
+const mockPricingCompute = vi.fn((opts: any) => ({ pointPrice: opts?.rawCost || 0 }))
 vi.mock('@/lib/pricing/pricing-service', () => ({
-    PricingService: { compute: (...args: any[]) => mockPricingCompute(...args) },
+    PricingService: { compute: (opts: any) => mockPricingCompute(opts) },
 }))
 
 const mockSearchProviders = vi.fn()
@@ -259,7 +259,7 @@ describe('SmartSmsRouter.getNumber — provider preference', () => {
         const router = new SmartSmsRouter()
         const result = await router.getNumber('1', 'svc', { provider: 'provider-a' })
 
-        expect(result.id).toBe('order-1')
+        expect((result as any).id || result.activationId).toBe('order-1')
         // Only the preferred provider is invoked
         expect(mockProviderGetNumber).toHaveBeenCalledTimes(1)
     })

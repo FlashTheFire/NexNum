@@ -79,7 +79,7 @@ export interface PriceData {
     operator?: string
     cost: number
     count: number
-    purchaseCandidates?: PurchaseCandidate[]
+    purchaseCandidates?: any[]
 }
 
 export interface StatusResult {

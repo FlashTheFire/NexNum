@@ -98,7 +98,7 @@ describe('checkBrowser', () => {
         })
         const result = checkBrowser(headers)
         // Still passes (not a hard fail), but signals.hasClientHints is false
-        expect(result.signals.hasClientHints).toBe(false)
+        expect((result.signals as any).hasClientHints).toBe(false)
     })
 
     it('penalizes Chrome UA when Client Hints explicitly say a different browser', () => {

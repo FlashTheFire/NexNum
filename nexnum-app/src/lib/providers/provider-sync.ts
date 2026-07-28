@@ -1033,7 +1033,15 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                     const candidatesList: any[] = []
                     let totalGroupStock = 0
 
-                    const candidateItems = item.purchaseCandidates && item.purchaseCandidates.length > 0 ? item.purchaseCandidates : [item]
+                    const candidateItems: any[] = []
+                    for (const groupItem of items) {
+                        if ((groupItem as any).purchaseCandidates && (groupItem as any).purchaseCandidates.length > 0) {
+                            candidateItems.push(...(groupItem as any).purchaseCandidates)
+                        } else {
+                            candidateItems.push(groupItem)
+                        }
+                    }
+
                     for (const item of candidateItems) {
                         const rawCostNum = Number(item.cost)
                         const pricing = PricingService.compute({

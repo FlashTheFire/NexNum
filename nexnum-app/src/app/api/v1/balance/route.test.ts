@@ -68,7 +68,7 @@ describe('GET /api/v1/balance', () => {
         })
         vi.mocked(getCachedBalance).mockResolvedValue({
             balance: 5000,
-            currency: 'USD',
+            currency: 'POINTS' as any,
             displayAmount: 1.0,
             displayCurrency: 'USD',
             fromCache: false,
@@ -90,7 +90,7 @@ describe('GET /api/v1/balance', () => {
         })
         vi.mocked(getCachedBalance).mockResolvedValue({
             balance: 1234,
-            currency: 'INR',
+            currency: 'POINTS' as any,
             displayAmount: 83.0,
             displayCurrency: 'INR',
             fromCache: true,
@@ -110,7 +110,7 @@ describe('GET /api/v1/balance', () => {
         })
         vi.mocked(getCachedBalance).mockResolvedValue({
             balance: 0,
-            currency: 'USD',
+            currency: 'POINTS' as any,
             displayAmount: 0,
             displayCurrency: 'USD',
             fromCache: false,
@@ -141,7 +141,7 @@ describe('GET /api/v1/balance', () => {
         })
         vi.mocked(getCachedBalance).mockResolvedValue({
             balance: 1,
-            currency: 'USD',
+            currency: 'POINTS' as any,
             displayAmount: 0,
             displayCurrency: 'USD',
             fromCache: false,

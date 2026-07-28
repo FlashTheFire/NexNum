@@ -2219,7 +2219,7 @@ export class DynamicProvider implements SmsProvider {
                 groups.get(key)!.push(p)
             }
 
-            const defaultOp = (this.config.options as any)?.defaultOperator || (this.config as any)?.defaultOperator
+            const defaultOp = (this.config as any).options?.defaultOperator || (this.config as any).defaultOperator
 
             const results: PriceData[] = []
             for (const [, group] of groups) {
