@@ -203,16 +203,32 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       NEXNUM_API_URL: http://nexnum-app:3000
       ENABLE_PROVIDER_SYNC: ${ENABLE_PROVIDER_SYNC:-true}
-      NEXNUM_API_KEY: ${NEXNUM_API_KEY:-nxn_live_-YbCKi0hkPq1W4PQfn_GRAYUMYfdUYkr}
+      NEXNUM_API_KEY: ${NEXNUM_API_KEY:-9da2cb070956a4466cefffa033a18bb90485fc3f1dc8c5ac1bfad4651f377a86}
       SUPPORT_AI_API_KEY: ${SUPPORT_AI_API_KEY:-sk-kTVlkRa5qCMsH1qaBnG7CtL6I9HU3q2WKwyL1CRyLV4ukXDp}
+      BOT_TOKEN: ${BOT_TOKEN}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-${BOT_TOKEN}}
+      ADMIN_ID: ${ADMIN_ID}
+      CHANNEL_ID: ${CHANNEL_ID}
+      TELEGRAM_ADMIN_CHANNEL: ${TELEGRAM_ADMIN_CHANNEL:-${CHANNEL_ID}}
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-${NEXT_PUBLIC_APP_URL}}
     env_file:
       - .env
     depends_on:
       nexnum-app:
         condition: service_healthy
       redis:
-        condition: service_started
-        required: false
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "python3", "-c", "import sys, socket; s = socket.socket(); s.connect(('redis', 6379)); sys.exit(0)" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
 
 # ============================================
 # Volumes

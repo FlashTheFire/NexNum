@@ -661,8 +661,9 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                 const iconsDir = path.join(process.cwd(), 'public/assets/icons/services');
 
                 if (fs.existsSync(iconsDir)) {
+                    const localFilesSet = new Set(fs.readdirSync(iconsDir));
                     for (const ext of ['.svg', '.webp', '.png', '.jpg', '.jpeg']) {
-                        if (fs.existsSync(path.join(iconsDir, `${canonKey}${ext}`))) {
+                        if (localFilesSet.has(`${canonKey}${ext}`)) {
                             finalExt = ext;
                             foundLocal = true;
                             break;
@@ -1121,8 +1122,9 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                             let foundLocal = false
 
                             if (fs.existsSync(iconsDir)) {
+                                const localFilesSet = new Set(fs.readdirSync(iconsDir));
                                 for (const ext of ['.svg', '.webp', '.png', '.jpg', '.jpeg']) {
-                                    if (fs.existsSync(path.join(iconsDir, `${canonKey}${ext}`))) {
+                                    if (localFilesSet.has(`${canonKey}${ext}`)) {
                                         finalExt = ext
                                         foundLocal = true
                                         break
