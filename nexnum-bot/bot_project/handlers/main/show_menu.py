@@ -22,6 +22,7 @@ import os
 from dotenv import load_dotenv
 
 from utils.redis_manager import redis_manager
+from utils.db import db_adapter
 from utils.config import START_PAGE, ADMIN_ID, ENV_FILE, CHANNEL_ID as CONFIG_CHANNEL_ID
 from utils.functions import decode_base62
 from handlers.manager.operation import UserManagement, FinancialManagement, get_async_logger
