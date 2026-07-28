@@ -1050,7 +1050,6 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                         const opStr = item.operator != null ? String(item.operator) : 'default'
                         const candidateId = `${provider.name}:${countryCode}:${serviceCode}:${opStr}`.toLowerCase()
                         const stockCount = Math.max(0, Number(item.count) || 0)
-                        totalGroupStock += stockCount
 
                         candidatesList.push({
                             candidateId,
@@ -1061,18 +1060,34 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                             rawPrice: Number(pricing.rawCost.toFixed(6)),
                             pointPrice: Number(pricing.pointPrice),
                             stock: stockCount,
+                            candidateScore: 1.0,
                             priority: 0 // Will set after sorting
                         })
                     }
 
                     if (!candidatesList.length) continue
 
-                    // Sort candidates strictly by pointPrice ascending (cheapest first)
-                    candidatesList.sort((a, b) => a.pointPrice - b.pointPrice)
-                    candidatesList.forEach((c, idx) => { c.priority = idx + 1 })
+                    // Deduplicate candidates by candidateId (keep lowest price if duplicate candidateId occurs)
+                    const dedupedCandidatesMap = new Map<string, typeof candidatesList[0]>()
+                    for (const cand of candidatesList) {
+                        const existingCand = dedupedCandidatesMap.get(cand.candidateId)
+                        if (!existingCand || cand.pointPrice < existingCand.pointPrice) {
+                            dedupedCandidatesMap.set(cand.candidateId, cand)
+                        }
+                    }
+                    const finalCandidatesList = Array.from(dedupedCandidatesMap.values())
+
+                    // Deterministic sorting: Primary = pointPrice asc, Secondary = candidateId asc
+                    finalCandidatesList.sort((a, b) => {
+                        if (a.pointPrice !== b.pointPrice) return a.pointPrice - b.pointPrice
+                        return a.candidateId.localeCompare(b.candidateId)
+                    })
+
+                    finalCandidatesList.forEach((c, idx) => { c.priority = idx + 1 })
+                    totalGroupStock = finalCandidatesList.reduce((acc, c) => acc + c.stock, 0)
 
                     // Select canonical offer details (cheapest with stock > 0, else absolute cheapest)
-                    const canonicalCandidate = candidatesList.find(c => c.stock > 0) || candidatesList[0]
+                    const canonicalCandidate = finalCandidatesList.find(c => c.stock > 0) || finalCandidatesList[0]
 
                     const offerId = `${provider.name}_${countryCode}_${serviceCode}`.toLowerCase().replace(/[^a-z0-9_]/g, '')
 
@@ -1143,7 +1158,7 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                         pointPrice: canonicalCandidate.pointPrice,
                         rawPrice: canonicalCandidate.rawPrice,
                         currencyPrices,
-                        purchaseCandidates: candidatesList,
+                        purchaseCandidates: finalCandidatesList,
                         stock: totalGroupStock,
                         lastSyncedAt: Date.now(),
                         isActive: isActive

@@ -70,6 +70,7 @@ export interface PurchaseCandidate {
     pointPrice: number           // System sell price in Points
     stock: number                // Reported count (UI display hint only)
     priority: number             // Sequence priority (1 = best)
+    candidateScore?: number      // Score metric for ranking (Phase 1 default: 1.0)
 }
 
 export interface PriceData {

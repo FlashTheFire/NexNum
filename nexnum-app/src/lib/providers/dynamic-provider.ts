@@ -1623,8 +1623,9 @@ export class DynamicProvider implements SmsProvider {
 
 
     async getNumber(countryCode: string | number, serviceCode: string | number, options?: { operator?: string; maxPrice?: string | number; purchaseCandidates?: any[]; expectedPrice?: number; provider?: string }): Promise<NumberResult> {
-        // Feature Flag: CHECK PURCHASE_CANDIDATE_ENGINE (default: enabled)
-        const isCandidateEngineEnabled = process.env.PURCHASE_CANDIDATE_ENGINE !== 'false'
+        // Feature Flag: CHECK PURCHASE_CANDIDATE_ENGINE (default: opt-in enabled unless set to 'false')
+        const flagVal = process.env.PURCHASE_CANDIDATE_ENGINE
+        const isCandidateEngineEnabled = flagVal === 'true' || flagVal === undefined || flagVal === '1'
         const candidates = (isCandidateEngineEnabled && options?.purchaseCandidates && options.purchaseCandidates.length > 0)
             ? options.purchaseCandidates
             : null
@@ -1637,7 +1638,7 @@ export class DynamicProvider implements SmsProvider {
             const attemptLogs: string[] = []
 
             for (const candidate of candidates) {
-                // 1. Check overall 15s timeout budget
+                // 1. Check overall 15s timeout budget strictly
                 if (Date.now() - overallStartTime > OVERALL_TIMEOUT_MS) {
                     logger.warn(`[CandidateEngine:${this.name}] Purchase candidate loop exceeded 15s overall budget`, {
                         countryCode,
@@ -1650,6 +1651,7 @@ export class DynamicProvider implements SmsProvider {
                 const opName = candidate.operator || 'default'
                 const candidateId = candidate.candidateId || `${this.name}:${countryCode}:${serviceCode}:${opName}`.toLowerCase()
                 const quarantineKey = `quarantine:candidate:${candidateId}`
+                const candidateLockKey = `lock:candidate:${candidateId}`
 
                 // 2. Check Candidate Circuit Breaker (Quarantine in Redis)
                 try {
@@ -1657,6 +1659,15 @@ export class DynamicProvider implements SmsProvider {
                     if (isQuarantined) {
                         logger.debug(`[CandidateEngine:${this.name}] Skipping quarantined candidate: ${candidateId}`)
                         attemptLogs.push(`${opName}(QUARANTINED)`)
+                        continue
+                    }
+
+                    // 3. Concurrency Protection: Try short 2s distributed candidate lock to prevent race collision
+                    // If locked by a parallel purchase request, skip to next available candidate
+                    const lockAcquired = await (redis as any).set(candidateLockKey, '1', 'EX', 2, 'NX')
+                    if (!lockAcquired && candidates.length > 1) {
+                        logger.debug(`[CandidateEngine:${this.name}] Candidate locked by parallel request, trying next: ${candidateId}`)
+                        attemptLogs.push(`${opName}(LOCKED)`)
                         continue
                     }
                 } catch {
@@ -1693,7 +1704,7 @@ export class DynamicProvider implements SmsProvider {
                     attemptLogs.push(`${opName}(${errorType})`)
 
                     // Record failure telemetry and check for quarantine threshold (>=5 consecutive failures)
-                    this.recordCandidateTelemetryAsync(candidateId, false, latencyMs, errorType)
+                    this.recordCandidateTelemetryAsync(candidateId, false, latencyMs, errorType, err.message)
 
                     if (!isRetryable && err.isPermanent) {
                         // Non-retryable permanent error (e.g. BAD_KEY) — throw immediately
@@ -1705,6 +1716,8 @@ export class DynamicProvider implements SmsProvider {
                         error: err.message
                     })
                     // Continue to next candidate
+                } finally {
+                    try { await redis.del(candidateLockKey) } catch {}
                 }
             }
 
@@ -1718,7 +1731,7 @@ export class DynamicProvider implements SmsProvider {
     /**
      * Asynchronously record candidate performance telemetry in Redis with 30-day TTL and trigger quarantine if >= 5 consecutive failures
      */
-    private async recordCandidateTelemetryAsync(candidateId: string, isSuccess: boolean, latencyMs: number, errorType: string) {
+    private async recordCandidateTelemetryAsync(candidateId: string, isSuccess: boolean, latencyMs: number, errorType: string, failureReason?: string) {
         try {
             const metricsKey = `metrics:purchaseCandidate:${candidateId}`
             const quarantineKey = `quarantine:candidate:${candidateId}`
@@ -1727,19 +1740,25 @@ export class DynamicProvider implements SmsProvider {
             if (isSuccess) {
                 // Reset consecutive failures and update success stats
                 await redis.del(quarantineKey)
+                const attempts = await redis.hincrby(metricsKey, 'totalAttempts', 1)
+                const success = await redis.hincrby(metricsKey, 'successfulPurchases', 1)
+                const rollingRate = attempts > 0 ? (success / attempts) * 100 : 100
+
                 await redis.hset(metricsKey, {
                     candidateId,
                     consecutiveFailures: 0,
+                    avgLatencyMs: Math.round(latencyMs),
+                    rollingSuccessRate: Number(rollingRate.toFixed(2)),
                     lastSuccessAt: new Date().toISOString(),
                     lastSeenAt: new Date().toISOString()
                 })
-                await redis.hincrby(metricsKey, 'totalAttempts', 1)
-                await redis.hincrby(metricsKey, 'successfulPurchases', 1)
                 await redis.expire(metricsKey, TTL_30_DAYS)
             } else {
                 // Increment failure stats
                 const consecutive = await redis.hincrby(metricsKey, 'consecutiveFailures', 1)
-                await redis.hincrby(metricsKey, 'totalAttempts', 1)
+                const attempts = await redis.hincrby(metricsKey, 'totalAttempts', 1)
+                const successVal = Number(await redis.hget(metricsKey, 'successfulPurchases') || 0)
+                const rollingRate = attempts > 0 ? (successVal / attempts) * 100 : 0
 
                 if (errorType === 'TIMEOUT') await redis.hincrby(metricsKey, 'timeoutCount', 1)
                 else if (errorType === 'NO_NUMBERS') await redis.hincrby(metricsKey, 'noNumbersCount', 1)
@@ -1747,7 +1766,10 @@ export class DynamicProvider implements SmsProvider {
 
                 await redis.hset(metricsKey, {
                     candidateId,
+                    avgLatencyMs: Math.round(latencyMs),
+                    rollingSuccessRate: Number(rollingRate.toFixed(2)),
                     lastFailureType: errorType,
+                    lastFailureReason: failureReason || errorType,
                     lastFailureAt: new Date().toISOString(),
                     lastSeenAt: new Date().toISOString()
                 })
