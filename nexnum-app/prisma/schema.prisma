@@ -210,8 +210,8 @@ model SupportTicket {
 }
 
 model UserReferral {
-  telegramId         String    @id @default("") @map("telegram_id")
-  id                 String?   @map("id")
+  userId             String    @id @map("user_id")
+  telegramId         String?   @map("telegram_id")
   referralCode       String?   @unique @map("referral_code")
   referrerId         String?   @map("referrer_id")
   totalEarnings      Decimal?  @default(0.0) @map("total_earnings") @db.Decimal(12, 2)

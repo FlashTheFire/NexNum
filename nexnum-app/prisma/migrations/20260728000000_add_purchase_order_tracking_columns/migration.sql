@@ -67,17 +67,17 @@ CREATE TABLE IF NOT EXISTS "support_tickets" (
 
 CREATE INDEX IF NOT EXISTS "support_tickets_user_id_created_at_idx" ON "support_tickets"("user_id", "created_at");
 
--- AddTable: user_referrals (for Prisma UserReferral model)
+-- AddTable: user_referrals (PK=user_id to match bot's ON CONFLICT (user_id))
 CREATE TABLE IF NOT EXISTS "user_referrals" (
-    "telegram_id" TEXT NOT NULL,
-    "id" TEXT,
+    "user_id" TEXT NOT NULL,
+    "telegram_id" TEXT,
     "referral_code" TEXT,
     "referrer_id" TEXT,
     "total_earnings" DECIMAL(12,2) DEFAULT 0.0,
     "total_referred_count" INTEGER DEFAULT 0,
     "created_at" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3),
-    CONSTRAINT "user_referrals_pkey" PRIMARY KEY ("telegram_id")
+    CONSTRAINT "user_referrals_pkey" PRIMARY KEY ("user_id")
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS "user_referrals_referral_code_key" ON "user_referrals"("referral_code");
@@ -100,3 +100,25 @@ CREATE TABLE IF NOT EXISTS "user_sessions" (
 );
 
 CREATE INDEX IF NOT EXISTS "idx_user_sessions_last_activity" ON "user_sessions" ("last_activity");
+
+-- AddTable: account_link_tokens (for Prisma AccountLinkToken model + bot link_via_code)
+CREATE TABLE IF NOT EXISTS "account_link_tokens" (
+    "token" VARCHAR(64) NOT NULL,
+    "user_id" TEXT NOT NULL,
+    "expires_at" TIMESTAMPTZ NOT NULL,
+    "created_at" TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT "account_link_tokens_pkey" PRIMARY KEY ("token")
+);
+
+CREATE INDEX IF NOT EXISTS "idx_account_link_tokens_expires" ON "account_link_tokens" ("expires_at");
+
+-- AddTable: operation_locks (bot advisory lock persistence)
+CREATE TABLE IF NOT EXISTS "operation_locks" (
+    "lock_key" VARCHAR(255) NOT NULL,
+    "owner_id" VARCHAR(255) NOT NULL,
+    "acquired_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    "expires_at" TIMESTAMPTZ NOT NULL,
+    CONSTRAINT "operation_locks_pkey" PRIMARY KEY ("lock_key")
+);
+
+CREATE INDEX IF NOT EXISTS "idx_operation_locks_expires" ON "operation_locks" ("expires_at");

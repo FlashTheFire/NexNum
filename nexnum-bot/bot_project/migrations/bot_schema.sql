@@ -55,9 +55,21 @@ END $$;
 CREATE INDEX IF NOT EXISTS idx_user_sessions_last_activity
     ON user_sessions (last_activity);
 
--- ---------------------------------------------------------------------------
--- 2. USER REFERRALS
--- ---------------------------------------------------------------------------
+-- If user_referrals was created with old PK (telegram_id), migrate to user_id PK
+DO $$
+BEGIN
+    -- Check if the table exists AND has telegram_id as PK (old schema)
+    IF EXISTS (
+        SELECT 1 FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name
+        WHERE tc.table_name = 'user_referrals' AND tc.constraint_type = 'PRIMARY KEY'
+        AND kcu.column_name = 'telegram_id'
+    ) THEN
+        -- Old schema: PK was telegram_id. Drop and let CREATE TABLE below recreate with user_id PK.
+        DROP TABLE user_referrals;
+    END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS user_referrals (
     user_id              VARCHAR(255) PRIMARY KEY,
     telegram_id          VARCHAR(255),

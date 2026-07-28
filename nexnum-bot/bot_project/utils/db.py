@@ -492,18 +492,9 @@ class DatabaseAdapter:
 
         async with pool.connection() as conn:
             async with conn.cursor(row_factory=dict_row) as cur:
+                # Use the canonical account_link_tokens table (created by bot_schema.sql / Prisma migration)
                 await cur.execute(
-                    "CREATE TABLE IF NOT EXISTS account_links ("
-                    "id UUID PRIMARY KEY DEFAULT gen_random_uuid(), "
-                    "code VARCHAR(64) UNIQUE NOT NULL, "
-                    "user_id UUID REFERENCES users(id) ON DELETE CASCADE, "
-                    "expires_at TIMESTAMPTZ NOT NULL, "
-                    "created_at TIMESTAMPTZ DEFAULT NOW()"
-                    ")"
-                )
-                
-                await cur.execute(
-                    "SELECT user_id, expires_at FROM account_links WHERE code = %s AND expires_at > NOW()",
+                    "SELECT user_id FROM account_link_tokens WHERE token = %s AND expires_at > NOW()",
                     (code,)
                 )
                 link_row: Any = await cur.fetchone()
@@ -518,7 +509,7 @@ class DatabaseAdapter:
                 )
                 user_row: Any = await cur.fetchone()
 
-                await cur.execute("DELETE FROM account_links WHERE code = %s", (code,))
+                await cur.execute("DELETE FROM account_link_tokens WHERE token = %s", (code,))
                 await conn.commit()
 
                 self._user_cache.pop(tg_id_str, None)
