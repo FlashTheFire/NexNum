@@ -126,8 +126,12 @@ export default function BuyPage() {
 
             await fetchBalance()
             toast.dismiss(toastId)
-            toast.success("Success!", { description: `${provider.serviceName} number is ready.` })
-            router.push(`/sms/${result.number?.id || ''}`)
+            const createdNumberId = result.number?.id || (result as any).data?.number?.id || (result as any).data?.id || ''
+            if (createdNumberId) {
+                router.push(`/sms/${createdNumberId}`)
+            } else {
+                router.push('/sms')
+            }
         } catch (error: any) {
             toast.dismiss(toastId)
 
