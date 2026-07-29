@@ -348,9 +348,9 @@ export async function GET(request: Request) {
                 <button class="modal-close" onclick="closeModal()">✖</button>
             </div>
             <div class="modal-tabs">
-                <button id="tab-softFiltered" class="tab-btn active" onclick="switchTab('softFiltered')">ℹ️ Soft-Filtered Unlisted Services (Sample)</button>
-                <button id="tab-meiliOffers" class="tab-btn" onclick="switchTab('meiliOffers')">📦 Transformed Offers (Sample)</button>
-                <button id="tab-rawApi" class="tab-btn" onclick="switchTab('rawApi')">📡 Raw API Pairs (Sample)</button>
+                <button id="tab-softFiltered" class="tab-btn active" onclick="switchTab('softFiltered')">ℹ️ Soft-Filtered Unlisted Services</button>
+                <button id="tab-meiliOffers" class="tab-btn" onclick="switchTab('meiliOffers')">📦 Transformed Offers</button>
+                <button id="tab-rawApi" class="tab-btn" onclick="switchTab('rawApi')">📡 Raw API Pairs</button>
             </div>
             <div class="modal-body">
                 <pre id="jsonViewer" class="json-code-box"></pre>
@@ -749,13 +749,11 @@ export async function GET(request: Request) {
 
                         if (!isValidSvc) {
                             unlistedServiceCount++
-                            if (sampleSoftFilteredOffers.length < 10) {
-                                sampleSoftFilteredOffers.push({
-                                    unlistedServiceCode: serviceCode,
-                                    unlistedCountryCode: countryCode,
-                                    rawPriceItem: p
-                                } as any)
-                            }
+                            sampleSoftFilteredOffers.push({
+                                unlistedServiceCode: serviceCode,
+                                unlistedCountryCode: countryCode,
+                                rawPriceItem: p
+                            } as any)
                             continue
                         }
 
@@ -882,13 +880,7 @@ export async function GET(request: Request) {
                             lastSyncedAt: Date.now()
                         }
 
-                        if (!isValidSvc && sampleSoftFilteredOffers.length < 10) {
-                            sampleSoftFilteredOffers.push(offerDoc)
-                        }
-                        if (sampleTransformedOffers.length < 10) {
-                            sampleTransformedOffers.push(offerDoc)
-                        }
-
+                        sampleTransformedOffers.push(offerDoc)
                         allOffersMap.set(offerDoc.id, offerDoc)
                     }
 
@@ -921,16 +913,16 @@ export async function GET(request: Request) {
 
                     sendEvent('samples', {
                         softFiltered: sampleSoftFilteredOffers,
-                        transformed: sampleTransformedOffers,
-                        raw: rawPrices.slice(0, 10)
+                        transformed: finalOffersList,
+                        raw: rawPrices
                     })
 
                     // STEP 7: PRINT EXECUTIVE HTML SUMMARY CARD AT END
                     if (isHtml) {
                         const scriptDataHtml = `<script>
                             window.SAMPLE_SOFT_FILTERED = ${JSON.stringify(sampleSoftFilteredOffers)};
-                            window.SAMPLE_TRANSFORMED = ${JSON.stringify(sampleTransformedOffers)};
-                            window.SAMPLE_RAW = ${JSON.stringify(rawPrices.slice(0, 10))};
+                            window.SAMPLE_TRANSFORMED = ${JSON.stringify(finalOffersList)};
+                            window.SAMPLE_RAW = ${JSON.stringify(rawPrices)};
                         </script>`
                         send(scriptDataHtml)
 
@@ -938,7 +930,7 @@ export async function GET(request: Request) {
 <div class="report-card">
     <div class="report-header">
         <span>📊 DATA PIPELINE RETENTION AUDIT REPORT: ${provider.name.toUpperCase()}</span>
-        <button class="btn btn-primary" style="font-size:11px;padding:5px 12px;" onclick="openModal('softFiltered')">🔍 Inspect Sample JSON (indent=4)</button>
+        <button class="btn btn-primary" style="font-size:11px;padding:5px 12px;" onclick="openModal('softFiltered')">🔍 Inspect Full JSON (indent=4)</button>
     </div>
     <div style="display:flex;justify-content:space-between;font-weight:600;font-size:14px;">
         <span>Retention Score</span>
