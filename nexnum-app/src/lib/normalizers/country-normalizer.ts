@@ -22,12 +22,20 @@ const FLAG_BASE = "/assets/icons/flags"
 // Name -> ISO map (Generated from universal countries-metadata.json)
 // New format: { code, name: { en, ar, ... }, region, subRegion, latitude, longitude }
 const NAME_TO_ISO: Record<string, string> = {}
+const ISO_TO_NAME: Record<string, string> = {}
 countriesMetadata.forEach(c => {
     // Use English name as the primary key
     if (c.name?.en && c.code) {
         NAME_TO_ISO[c.name.en.toLowerCase()] = c.code.toLowerCase()
+        ISO_TO_NAME[c.code.toLowerCase()] = c.name.en
     }
 })
+
+export function getCountryNameFromIso(iso: string): string | undefined {
+    if (!iso) return undefined
+    const lower = iso.toLowerCase().trim()
+    return ISO_TO_NAME[lower] || undefined
+}
 
 
 
