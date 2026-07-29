@@ -224,13 +224,58 @@ export async function GET(request: Request) {
             margin-top: 20px;
             box-shadow: 0 10px 30px -10px rgba(67, 56, 202, 0.4);
         }
-        .report-header { font-size: 16px; font-weight: 700; color: #a5b4fc; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+        .report-header { font-size: 16px; font-weight: 700; color: #a5b4fc; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
         .progress-bar-bg { background: #1e293b; height: 12px; border-radius: 6px; overflow: hidden; margin: 12px 0 20px 0; border: 1px solid #334155; }
         .progress-bar-fill { height: 100%; background: linear-gradient(90deg, #38bdf8, #4ade80); transition: width 0.5s ease; }
         .report-table { width: 100%; border-collapse: collapse; margin-top: 12px; }
         .report-table th, .report-table td { padding: 10px 14px; text-align: left; border-bottom: 1px solid #1e293b; }
         .report-table th { color: var(--text-secondary); font-size: 11px; text-transform: uppercase; }
         .report-table td { font-size: 13px; }
+        .clickable-row { cursor: pointer; transition: background 0.15s ease; }
+        .clickable-row:hover { background: rgba(56, 189, 248, 0.08) !important; }
+
+        /* Modal Inspector Styles */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(3, 7, 18, 0.85); backdrop-filter: blur(8px);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 9999; padding: 24px;
+        }
+        .modal-content {
+            background: #0f172a; border: 1px solid #38bdf8; border-radius: 14px;
+            width: 90vw; max-width: 1100px; max-height: 85vh;
+            display: flex; flex-direction: column;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8); overflow: hidden;
+        }
+        .modal-header {
+            background: #1e293b; padding: 16px 24px;
+            display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 1px solid #334155;
+        }
+        .modal-close {
+            background: transparent; border: none; color: #9ca3af;
+            font-size: 20px; cursor: pointer; padding: 4px 8px; border-radius: 4px;
+        }
+        .modal-close:hover { color: #fff; background: rgba(255, 255, 255, 0.1); }
+        .modal-tabs {
+            display: flex; gap: 8px; background: #090d16; padding: 12px 24px;
+            border-bottom: 1px solid #1e293b; overflow-x: auto;
+        }
+        .tab-btn {
+            background: #1e293b; border: 1px solid #334155; color: #9ca3af;
+            padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;
+            white-space: nowrap;
+        }
+        .tab-btn.active { background: #0284c7; color: #fff; border-color: #38bdf8; }
+        .modal-body { padding: 20px; overflow-y: auto; flex: 1; background: #070a12; }
+        .json-code-box {
+            color: #38bdf8; font-size: 12px; font-family: 'JetBrains Mono', monospace;
+            white-space: pre-wrap; word-break: break-all; line-height: 1.6;
+        }
+        .modal-footer {
+            padding: 14px 24px; background: #1e293b; border-top: 1px solid #334155;
+            display: flex; justify-content: flex-end; gap: 12px;
+        }
     </style>
 </head>
 <body>
@@ -253,10 +298,10 @@ export async function GET(request: Request) {
                     <option value="grizzlysms" ${providerParam === 'grizzlysms' ? 'selected' : ''}>GrizzlySMS</option>
                     <option value="smshub" ${providerParam === 'smshub' ? 'selected' : ''}>SMSHub</option>
                     <option value="smsactivate" ${providerParam === 'smsactivate' ? 'selected' : ''}>SMS-Activate</option>
-                    <option value="all" ${providerParam === 'all' ? 'selected' : ''}>ALL Providers</option>
+                    <option value="all" ${providerParam === 'all' ? 'selected' : ''}>⚡ All Active Providers</option>
                 </select>
                 <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;">
-                    <input type="checkbox" id="clearOldCheck" ${clearOld ? 'checked' : ''} /> Clear Old
+                    <input type="checkbox" id="clearOldCheck" ${clearOld ? 'checked' : ''} /> Clear Old Data
                 </label>
                 <button class="btn btn-primary" onclick="runSync()">▶ Run Sync</button>
                 <button class="btn" onclick="clearTerminal()">🧹 Clear</button>
@@ -272,15 +317,15 @@ export async function GET(request: Request) {
             </div>
             <div class="stat-card">
                 <div class="stat-label">Indexed Documents</div>
-                <div id="stat-indexed" class="stat-value purple">-</div>
+                <div id="stat-indexed" class="stat-value green">-</div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">Data Retention Rate</div>
-                <div id="stat-retention" class="stat-value green">-</div>
+                <div id="stat-retention" class="stat-value amber">-</div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">Active Stock ( >0 )</div>
-                <div id="stat-stock" class="stat-value amber">-</div>
+                <div id="stat-stock" class="stat-value purple">-</div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">Execution Time</div>
@@ -292,9 +337,77 @@ export async function GET(request: Request) {
         <div id="terminal" class="terminal"></div>
     </div>
 
+    <!-- Interactive JSON Inspector Modal (Indent=4) -->
+    <div id="jsonModal" class="modal-overlay" style="display:none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div style="font-weight:700;font-size:15px;color:#38bdf8;display:flex;align-items:center;gap:8px;">
+                    <span>🔍 MeiliSearch Document Inspector</span>
+                    <span style="font-size:11px;background:rgba(56,189,248,0.15);color:#38bdf8;padding:2px 8px;border-radius:4px;border:1px solid rgba(56,189,248,0.3);">indent = 4</span>
+                </div>
+                <button class="modal-close" onclick="closeModal()">✖</button>
+            </div>
+            <div class="modal-tabs">
+                <button id="tab-softFiltered" class="tab-btn active" onclick="switchTab('softFiltered')">ℹ️ Soft-Filtered Unlisted Services (Sample)</button>
+                <button id="tab-meiliOffers" class="tab-btn" onclick="switchTab('meiliOffers')">📦 Transformed Offers (Sample)</button>
+                <button id="tab-rawApi" class="tab-btn" onclick="switchTab('rawApi')">📡 Raw API Pairs (Sample)</button>
+            </div>
+            <div class="modal-body">
+                <pre id="jsonViewer" class="json-code-box"></pre>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="copyModalJson()">📋 Copy JSON (indent=4)</button>
+                <button class="btn" onclick="closeModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const term = document.getElementById('terminal');
         let autoScroll = true;
+
+        let currentModalTab = 'softFiltered';
+
+        function openModal(tabKey) {
+            currentModalTab = tabKey || 'softFiltered';
+            switchTab(currentModalTab);
+            document.getElementById('jsonModal').style.display = 'flex';
+        }
+
+        function closeModal() {
+            document.getElementById('jsonModal').style.display = 'none';
+        }
+
+        function switchTab(tabKey) {
+            currentModalTab = tabKey;
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            const activeBtn = document.getElementById('tab-' + tabKey);
+            if (activeBtn) activeBtn.classList.add('active');
+            renderModalData();
+        }
+
+        function renderModalData() {
+            let data = [];
+            if (currentModalTab === 'softFiltered') data = window.SAMPLE_SOFT_FILTERED || [];
+            else if (currentModalTab === 'meiliOffers') data = window.SAMPLE_TRANSFORMED || [];
+            else if (currentModalTab === 'rawApi') data = window.SAMPLE_RAW || [];
+
+            const jsonText = (data && data.length > 0)
+                ? JSON.stringify(data, null, 4)
+                : '// No sample JSON documents collected for this category yet.';
+            document.getElementById('jsonViewer').innerText = jsonText;
+        }
+
+        function copyModalJson() {
+            const text = document.getElementById('jsonViewer').innerText;
+            navigator.clipboard.writeText(text);
+            alert('JSON data (indent=4) copied to clipboard!');
+        }
+
+        // Dismiss modal on Escape key
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeModal();
+        });
 
         function runSync() {
             const provider = document.getElementById('providerSelect').value;
@@ -337,8 +450,7 @@ export async function GET(request: Request) {
             term.appendChild(div);
             if (autoScroll) term.scrollTop = term.scrollHeight;
         }
-    </script>
-`
+    </script>`
                     controller.enqueue(encoder.encode(initialHtml))
                 }
             }
@@ -534,8 +646,11 @@ export async function GET(request: Request) {
                         fixedMarkup: Number(provider.fixedMarkup) || 0.0,
                     }
 
+                    const sampleSoftFilteredOffers: OfferDocument[] = []
+                    const sampleTransformedOffers: OfferDocument[] = []
+
                     // Group price records by (countryCode, serviceCode)
-                    const groupedPrices = new Map<string, any[]>()
+                    const groupedPrices = new Map<string, { priceItems: any[]; isValidSvc: boolean }>()
                     for (const p of rawPrices) {
                         const countryCode = p.country || ''
                         const serviceCode = p.service || ''
@@ -570,12 +685,12 @@ export async function GET(request: Request) {
                         }
 
                         const groupKey = `${normCty}_${normSvc}`
-                        if (!groupedPrices.has(groupKey)) groupedPrices.set(groupKey, [])
-                        groupedPrices.get(groupKey)!.push(p)
+                        if (!groupedPrices.has(groupKey)) groupedPrices.set(groupKey, { priceItems: [], isValidSvc })
+                        groupedPrices.get(groupKey)!.priceItems.push(p)
                     }
 
                     // Process grouped offers
-                    for (const [, priceItems] of groupedPrices.entries()) {
+                    for (const [, { priceItems, isValidSvc }] of groupedPrices.entries()) {
                         const sample = priceItems[0]
                         const countryCode = sample.country
                         const serviceCode = sample.service
@@ -676,6 +791,13 @@ export async function GET(request: Request) {
                             lastSyncedAt: Date.now()
                         }
 
+                        if (!isValidSvc && sampleSoftFilteredOffers.length < 10) {
+                            sampleSoftFilteredOffers.push(offerDoc)
+                        }
+                        if (sampleTransformedOffers.length < 10) {
+                            sampleTransformedOffers.push(offerDoc)
+                        }
+
                         allOffersMap.set(offerDoc.id, offerDoc)
                     }
 
@@ -708,10 +830,18 @@ export async function GET(request: Request) {
 
                     // STEP 7: PRINT EXECUTIVE HTML SUMMARY CARD AT END
                     if (isHtml) {
+                        const scriptDataHtml = `<script>
+                            window.SAMPLE_SOFT_FILTERED = ${JSON.stringify(sampleSoftFilteredOffers)};
+                            window.SAMPLE_TRANSFORMED = ${JSON.stringify(sampleTransformedOffers)};
+                            window.SAMPLE_RAW = ${JSON.stringify(rawPrices.slice(0, 10))};
+                        </script>`
+                        send(scriptDataHtml)
+
                         const reportCardHtml = `
 <div class="report-card">
     <div class="report-header">
         <span>📊 DATA PIPELINE RETENTION AUDIT REPORT: ${provider.name.toUpperCase()}</span>
+        <button class="btn btn-primary" style="font-size:11px;padding:5px 12px;" onclick="openModal('softFiltered')">🔍 Inspect Sample JSON (indent=4)</button>
     </div>
     <div style="display:flex;justify-content:space-between;font-weight:600;font-size:14px;">
         <span>Retention Score</span>
@@ -726,48 +856,57 @@ export async function GET(request: Request) {
                 <th>Pipeline Stage</th>
                 <th>Offer Count</th>
                 <th>Status / Impact</th>
+                <th>Action</th>
             </tr>
         </thead>
         <tbody>
-            <tr>
+            <tr class="clickable-row" onclick="openModal('rawApi')">
                 <td>Stage 1: Raw API Pairs Received</td>
                 <td><b>${rawPairsCount.toLocaleString()}</b></td>
                 <td><span class="tag-info">INPUT</span></td>
+                <td><button class="btn" style="font-size:10px;padding:2px 8px;" onclick="event.stopPropagation();openModal('rawApi')">🔍 Raw JSON</button></td>
             </tr>
-            <tr>
+            <tr class="clickable-row" onclick="openModal('rawApi')">
                 <td>Stage 2: Parsed PriceData Objects</td>
                 <td><b>${rawPrices.length.toLocaleString()}</b></td>
                 <td><span class="tag-info">PARSED</span></td>
+                <td><button class="btn" style="font-size:10px;padding:2px 8px;" onclick="event.stopPropagation();openModal('rawApi')">🔍 Parsed JSON</button></td>
             </tr>
-            <tr>
+            <tr class="clickable-row" onclick="openModal('meiliOffers')">
                 <td>Stage 3: Transformed & Indexed Offers</td>
                 <td><b>${finalOffersList.length.toLocaleString()}</b></td>
                 <td><span class="tag-success">RETAINED (${retentionRateNum}%)</span></td>
+                <td><button class="btn" style="font-size:10px;padding:2px 8px;" onclick="event.stopPropagation();openModal('meiliOffers')">🔍 Indexed JSON</button></td>
             </tr>
-            <tr>
+            <tr class="clickable-row" onclick="openModal('meiliOffers')">
                 <td>📦 Active In-Stock Offers (stock &gt; 0)</td>
                 <td><b>${stockGtZeroCount.toLocaleString()}</b></td>
                 <td><span class="tag-success">READY FOR PURCHASE</span></td>
+                <td><button class="btn" style="font-size:10px;padding:2px 8px;" onclick="event.stopPropagation();openModal('meiliOffers')">🔍 View Sample</button></td>
             </tr>
             <tr>
                 <td>📦 Zero-Stock Restock Offers (stock = 0)</td>
                 <td><b>${stockZeroCount.toLocaleString()}</b></td>
                 <td><span class="tag-warn">AUTO-RESTOCK WATCH</span></td>
+                <td>-</td>
             </tr>
             <tr>
                 <td>🛑 Price Out-of-Bounds (&lt;$${PricingConfig.minPrice} / &gt;$${PricingConfig.maxPrice})</td>
                 <td><b>${priceOutOfBoundsCount.toLocaleString()}</b></td>
                 <td>${priceOutOfBoundsCount > 0 ? '<span class="tag-error">FILTERED BY MIN_PRICE_USD</span>' : '<span class="tag-success">CLEAN (0 DROPPED)</span>'}</td>
+                <td>-</td>
             </tr>
-            <tr>
+            <tr class="clickable-row" onclick="openModal('softFiltered')" style="background: rgba(56, 189, 248, 0.05);">
                 <td>ℹ️ Soft-Filtered Unlisted Services</td>
                 <td><b>${unlistedServiceCount.toLocaleString()}</b></td>
                 <td><span class="tag-success">AUTO-INCLUDED (0 DROPPED)</span></td>
+                <td><button class="btn btn-primary" style="font-size:10px;padding:3px 10px;background:#0284c7;" onclick="event.stopPropagation();openModal('softFiltered')">🔍 Inspect Unlisted JSON (indent=4)</button></td>
             </tr>
             <tr>
                 <td>❌ Dropped Unresolvable Names</td>
                 <td><b>${(noCountryNameCount + noServiceNameCount).toLocaleString()}</b></td>
                 <td>${(noCountryNameCount + noServiceNameCount) > 0 ? '<span class="tag-error">MISSING LOOKUP</span>' : '<span class="tag-success">100% MATCHED</span>'}</td>
+                <td>-</td>
             </tr>
         </tbody>
     </table>
