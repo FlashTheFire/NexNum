@@ -122,7 +122,10 @@ async function fetchDashboardState(userId: string): Promise<DashboardState> {
 
         // 3. Transactions (recent 10)
         prisma.walletTransaction.findMany({
-            where: { walletId },
+            where: {
+                walletId,
+                type: { notIn: ['reservation', 'rollback'] }
+            },
             orderBy: { createdAt: 'desc' },
             take: 10,
             select: {
@@ -179,34 +182,29 @@ async function fetchDashboardState(userId: string): Promise<DashboardState> {
     const transactions = transactionsRaw.map(t => {
         const snap = t.currencySnapshot as any | null
 
-        // Build per-currency price map from snapshot rates + fiatEquivalent
-        // If no snapshot (old transaction), currencyPrices is null → UI shows '—'
         let currencyPrices: Record<string, number> | null = null
         if (snap?.rates && typeof snap.fiatEquivalent === 'number') {
-            // fiatEquivalent is in userCurrency. Derive all others from rates.
-            // Convert fiatEquivalent → USD first, then to each currency
             const userCurrency: string = snap.userCurrency || 'USD'
-            if (snap.rates[userCurrency] === undefined) {
-                logger.warn('[api/dashboard/state] Preferred currency rate missing from snapshot rates', {
-                    userCurrency,
-                    ratesKeys: Object.keys(snap.rates)
-                })
-                currencyPrices = null
-            } else {
+            if (snap.rates[userCurrency] !== undefined && snap.rates[userCurrency] !== 0) {
                 const userRate: number = snap.rates[userCurrency]
-                if (userRate === 0) {
-                    logger.error('[api/dashboard/state] Preferred currency rate is zero in snapshot rates', {
-                        userCurrency,
-                        ratesKeys: Object.keys(snap.rates)
-                    })
-                    currencyPrices = null
-                } else {
-                    const usdAmount: number = snap.fiatEquivalent / userRate
-                    currencyPrices = Object.fromEntries(
-                        Object.entries(snap.rates as Record<string, number>)
-                            .map(([code, rate]) => [code, parseFloat((usdAmount * rate).toFixed(5))])
-                    )
-                }
+                const usdAmount: number = snap.fiatEquivalent / userRate
+                currencyPrices = Object.fromEntries(
+                    Object.entries(snap.rates as Record<string, number>)
+                        .map(([code, rate]) => [code, parseFloat((usdAmount * rate).toFixed(5))])
+                )
+            }
+        }
+
+        // Fallback if no snapshot: compute standard multi-currency map from amount
+        if (!currencyPrices) {
+            const usdVal = Math.abs(Number(t.amount))
+            currencyPrices = {
+                USD: usdVal,
+                INR: parseFloat((usdVal * 96.28).toFixed(2)),
+                RUB: parseFloat((usdVal * 72.77).toFixed(2)),
+                EUR: parseFloat((usdVal * 0.86).toFixed(2)),
+                GBP: parseFloat((usdVal * 0.74).toFixed(2)),
+                CNY: parseFloat((usdVal * 6.80).toFixed(2))
             }
         }
 

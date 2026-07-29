@@ -289,16 +289,30 @@ export const useGlobalStore = create<GlobalState>()(
                         set({ isLoadingTransactions: false })
                         return
                     }
-                    const transactions: Transaction[] = (result.data.transactions || []).map((t: Record<string, unknown>) => ({
-                        id: t.id as string,
-                        type: t.type as Transaction['type'],
-                        amount: Math.abs(t.amount as number),
-                        currencyPrices: t.currencyPrices as Record<string, number> | undefined,
-                        date: t.createdAt as string,
-                        createdAt: t.createdAt as string,
-                        status: 'completed' as const,
-                        description: (t.description as string) || '',
-                    }))
+                    const rawList = result.data.transactions || []
+                    const transactions: Transaction[] = rawList
+                        .filter((t: Record<string, unknown>) => !['reservation', 'rollback'].includes(t.type as string))
+                        .map((t: Record<string, unknown>) => {
+                            const amt = Math.abs(Number(t.amount) || 0)
+                            const prices = (t.currencyPrices as Record<string, number>) || {
+                                USD: amt,
+                                INR: parseFloat((amt * 96.28).toFixed(2)),
+                                RUB: parseFloat((amt * 72.77).toFixed(2)),
+                                EUR: parseFloat((amt * 0.86).toFixed(2)),
+                                GBP: parseFloat((amt * 0.74).toFixed(2)),
+                                CNY: parseFloat((amt * 6.80).toFixed(2))
+                            }
+                            return {
+                                id: t.id as string,
+                                type: t.type as Transaction['type'],
+                                amount: amt,
+                                currencyPrices: prices,
+                                date: t.createdAt as string,
+                                createdAt: t.createdAt as string,
+                                status: 'completed' as const,
+                                description: (t.description as string) || '',
+                            }
+                        })
                     set({ transactions, isLoadingTransactions: false })
                 })
             },

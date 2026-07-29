@@ -219,7 +219,7 @@ const TransactionCard = ({ tx, index }: TransactionCardProps) => {
                         </div>
                         <div className="col-span-3 text-right">
                             <span className={cn("font-bold font-mono text-lg block", amountColor)}>
-                                {isCredit ? "+" : "-"}<PriceDisplay currencyPrices={tx.currencyPrices || { points: Math.abs(tx.amount) }} />
+                                {isCredit ? "+" : "-"}<PriceDisplay currencyPrices={tx.currencyPrices || { USD: Math.abs(tx.amount) }} />
                             </span>
                             <span className={cn(
                                 "text-[10px] uppercase font-bold tracking-wider flex items-center justify-end gap-1 mt-0.5",
@@ -250,7 +250,7 @@ const TransactionCard = ({ tx, index }: TransactionCardProps) => {
                     </div>
                     <div className="text-right">
                         <p className={cn("font-bold font-mono text-sm", amountColor)}>
-                            {isCredit ? "+" : "-"}<PriceDisplay currencyPrices={tx.currencyPrices || { points: Math.abs(tx.amount) }} />
+                            {isCredit ? "+" : "-"}<PriceDisplay currencyPrices={tx.currencyPrices || { USD: Math.abs(tx.amount) }} />
                         </p>
                         <p className={cn(
                             "text-[10px] font-medium uppercase tracking-wide",
@@ -392,6 +392,7 @@ export default function HistoryPage() {
     // Filter Logic
     const filteredTransactions = useMemo(() => {
         return transactions.filter((tx) => {
+            if (['reservation', 'rollback'].includes(tx.type)) return false
             const matchesSearch = tx.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 tx.id.toLowerCase().includes(searchTerm.toLowerCase())
             const matchesType = filterType === "all" || tx.type === filterType
@@ -407,16 +408,19 @@ export default function HistoryPage() {
     }, [filteredTransactions, currentPage])
 
     // Stats Calculation
-    const stats = useMemo(() => ({
-        spent: transactions.filter(t => t.type === "purchase").reduce((acc, curr) => acc + Math.abs(curr.amount), 0),
-        deposited: transactions.filter(t => t.type === "topup").reduce((acc, curr) => acc + curr.amount, 0),
-        count: transactions.length,
-        thisMonth: transactions.filter(t => {
-            const txDate = new Date(t.createdAt)
-            const now = new Date()
-            return txDate.getMonth() === now.getMonth() && txDate.getFullYear() === now.getFullYear()
-        }).length
-    }), [transactions])
+    const stats = useMemo(() => {
+        const cleanTxs = transactions.filter(t => !['reservation', 'rollback'].includes(t.type))
+        return {
+            spent: cleanTxs.filter(t => t.type === "purchase").reduce((acc, curr) => acc + Math.abs(curr.amount), 0),
+            deposited: cleanTxs.filter(t => ['topup', 'manual_credit', 'deposit'].includes(t.type)).reduce((acc, curr) => acc + Math.abs(curr.amount), 0),
+            count: cleanTxs.length,
+            thisMonth: cleanTxs.filter(t => {
+                const txDate = new Date(t.createdAt)
+                const now = new Date()
+                return txDate.getMonth() === now.getMonth() && txDate.getFullYear() === now.getFullYear()
+            }).length
+        }
+    }, [transactions])
 
     const handleExport = () => {
         const csv = [
@@ -542,7 +546,7 @@ export default function HistoryPage() {
                                 <>
                                     <StatCard
                                         title="Total Deposited"
-                                        value={<PriceDisplay currencyPrices={typeof stats.deposited === 'number' ? { points: stats.deposited } : (stats.deposited as any)} />}
+                                        value={<PriceDisplay currencyPrices={{ USD: stats.deposited }} />}
                                         icon={<ArrowDownRight className="h-5 w-5 md:h-6 md:w-6" />}
                                         colorScheme="emerald"
                                         index={0}
@@ -550,7 +554,7 @@ export default function HistoryPage() {
                                     />
                                     <StatCard
                                         title="Total Spent"
-                                        value={<PriceDisplay currencyPrices={typeof stats.spent === 'number' ? { points: stats.spent } : (stats.spent as any)} />}
+                                        value={<PriceDisplay currencyPrices={{ USD: stats.spent }} />}
                                         icon={<ArrowUpRight className="h-5 w-5 md:h-6 md:w-6" />}
                                         colorScheme="rose"
                                         index={1}
