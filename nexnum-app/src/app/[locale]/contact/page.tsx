@@ -20,13 +20,13 @@ export default function ContactPage() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <a href="mailto:support@nexnum.in" className="bg-white/[0.02] border border-white/5 p-6 rounded-2xl flex items-center gap-4 hover:border-emerald-500/40 transition-colors group">
+                    <a href="mailto:support@nx1.in" className="bg-white/[0.02] border border-white/5 p-6 rounded-2xl flex items-center gap-4 hover:border-emerald-500/40 transition-colors group">
                         <div className="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
                             <Mail className="h-6 w-6" />
                         </div>
                         <div>
                             <p className="font-bold text-sm text-white group-hover:text-emerald-400">Email Support</p>
-                            <p className="text-xs text-white/50">support@nexnum.in</p>
+                            <p className="text-xs text-white/50">support@nx1.in</p>
                         </div>
                     </a>
 

@@ -21,7 +21,7 @@ const DEFAULT_TENANT: TenantConfig = {
     brandName: 'NexNum',
     title: 'NexNum – Premium Virtual Phone Numbers & SMS Verification',
     description: 'Instant virtual phone numbers for SMS verification across 50+ countries. High throughput, multi-provider routing & instant OTP receiving.',
-    supportEmail: 'support@nexnum.in',
+    supportEmail: 'support@nx1.in',
     themeColor: '#10b981',
     isPrimary: true
 }

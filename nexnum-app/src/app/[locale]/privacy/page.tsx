@@ -63,7 +63,7 @@ export default function PrivacyPolicyPage() {
                             <CheckCircle2 className="h-5 w-5 text-emerald-400" /> 4. Contact Security Officer
                         </h2>
                         <p>
-                            If you have questions regarding privacy compliance or data protection requests, please reach out to our security officer at <a href="mailto:security@nexnum.in" className="text-emerald-400 underline">security@nexnum.in</a>.
+                            If you have questions regarding privacy compliance or data protection requests, please reach out to our security officer at <a href="mailto:security@nx1.in" className="text-emerald-400 underline">security@nx1.in</a>.
                         </p>
                     </section>
                 </div>
