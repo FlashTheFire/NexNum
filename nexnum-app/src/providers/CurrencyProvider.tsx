@@ -121,35 +121,28 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
      * Computes conversion dynamically using predefined rates if specific currency is missing.
      */
     const formatFromPrices = useCallback((prices?: Record<string, number>): string => {
-        if (!prices || typeof prices !== 'object') return '$0.00'
+        if (!prices) return '--'
 
         const targetCurrency = (!preferredCurrency || preferredCurrency === 'POINTS') ? 'USD' : preferredCurrency
         const currencyData = currencies?.[targetCurrency] || DEFAULT_CURRENCIES[targetCurrency]
         const symbol = currencyData?.symbol || '$'
         const rate = currencyData?.rate || 1
 
-        if (targetCurrency in prices && typeof prices[targetCurrency] === 'number') {
+        if (targetCurrency in prices) {
             const val = prices[targetCurrency]
             return `${symbol}${formatActualDecimal(val)}`
         }
 
-        // Fallback: Dynamic offline calculation if USD is present
-        if ('USD' in prices && typeof prices['USD'] === 'number') {
+        // Fallback: Dynamic offline calculation if the specific currency is missing from prices
+        if ('USD' in prices) {
             const usdVal = prices['USD']
             const converted = usdVal * rate
             return `${symbol}${formatActualDecimal(converted)}`
         }
 
-        // Fallback: Check for 'points' or any numeric value
-        if ('points' in prices && typeof prices['points'] === 'number') {
-            const pointsVal = prices['points']
-            const converted = pointsVal * rate
-            return `${symbol}${formatActualDecimal(converted)}`
-        }
-
         // Search for any other currency to base calculation off of
         for (const [code, val] of Object.entries(prices)) {
-            if (typeof val === 'number' && !isNaN(val)) {
+            if (code !== 'points' && typeof val === 'number') {
                 const sourceCurrencyData = currencies?.[code] || DEFAULT_CURRENCIES[code]
                 const sourceRate = sourceCurrencyData?.rate || 1
                 const converted = (val / sourceRate) * rate
@@ -157,7 +150,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
             }
         }
 
-        return '$0.00'
+        return '--'
     }, [preferredCurrency, currencies, settings])
 
     /**
