@@ -1,48 +1,34 @@
 import { MetadataRoute } from 'next'
-import { searchAdminCountries, searchAdminServices } from '@/lib/search/search'
-import { normalizeServiceName, normalizeCountryName } from '@/lib/normalizers/service-identity'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://nx1.in'
-
-    // 1. Static Routes
-    const staticRoutes = [
+    const locales = ['en', 'zh', 'es', 'hi', 'ru', 'tr', 'ar', 'pt', 'fr']
+    const publicPaths = [
         '',
-        '/login',
-        '/signup',
-        '/pricing',
-        '/terms',
+        '/about',
+        '/contact',
+        '/coverage',
+        '/legal',
         '/privacy',
-        '/blog',
-        '/api-docs',
-    ].map((route) => ({
-        url: `${baseUrl}${route}`,
-        lastModified: new Date(),
-        changeFrequency: 'daily' as const,
-        priority: 1.0,
-    }))
+        '/terms',
+        '/login',
+        '/register',
+        '/services'
+    ]
 
-    /*
-    // 2. Dynamic Countries
-    const countryResult = await searchAdminCountries('', { limit: 1000 })
-    const countryRoutes = countryResult.items
-        .map((country: any) => ({
-            url: `${baseUrl}/sms/${normalizeCountryName(country.canonicalName)}`,
-            lastModified: new Date(country.lastSyncedAt),
-            changeFrequency: 'hourly' as const,
-            priority: 0.8,
-        }))
+    const routes: MetadataRoute.Sitemap = []
 
-    // 3. Dynamic Services
-    const serviceResult = await searchAdminServices('', { limit: 1000 })
-    const serviceRoutes = serviceResult.items.map((service: any) => ({
-        url: `${baseUrl}/sms/service/${normalizeServiceName(service.canonicalName)}`,
-        lastModified: new Date(),
-        changeFrequency: 'hourly' as const,
-        priority: 0.7,
-    }))
+    // 1. Root & Localized Base Pages (e.g. https://nx1.in/en/about)
+    for (const locale of locales) {
+        for (const path of publicPaths) {
+            routes.push({
+                url: `${baseUrl}/${locale}${path}`,
+                lastModified: new Date(),
+                changeFrequency: path === '' ? 'hourly' : 'weekly',
+                priority: path === '' ? 1.0 : 0.8,
+            })
+        }
+    }
 
-    return [...staticRoutes, ...countryRoutes, ...serviceRoutes]
-    */
-    return [...staticRoutes]
+    return routes
 }
