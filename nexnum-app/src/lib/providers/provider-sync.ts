@@ -1205,9 +1205,10 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                             dedupedCandidatesMap.set(cand.candidateId, cand)
                         }
                     }
-                    const finalCandidatesList = Array.from(dedupedCandidatesMap.values())
+                    // Sort candidates by pointPrice ascending so cheapest candidate is prioritized
+                    const finalCandidatesList = Array.from(dedupedCandidatesMap.values()).sort((a, b) => a.pointPrice - b.pointPrice)
 
-                    // Select canonical offer details (cheapest with stock > 0, else absolute cheapest)
+                    // Select canonical offer details (cheapest in-stock candidate first)
                     const canonicalCandidate = finalCandidatesList.find(c => c.stock > 0) || finalCandidatesList[0]
 
                     // PRICE CAP GUARDRAIL: Filter out any candidates whose cost exceeds the canonical offer price!
