@@ -41,10 +41,10 @@ export async function runActivePollerTick(): Promise<ActivePollerSummary> {
 
         const now = Date.now()
 
-        // 2. Filter Tier 1 (Rush Window: age <= 120 seconds or initial attempts)
+        // 2. Filter Active Stream Orders (High-Speed Window: active lifetime <= 1200 seconds / 20 mins)
         const tier1Orders = activeOrders.filter(order => {
             const ageSeconds = (now - (order.createdAt || now)) / 1000
-            return ageSeconds <= 120
+            return ageSeconds <= 1200
         })
 
         if (tier1Orders.length === 0) {

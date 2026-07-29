@@ -31,7 +31,15 @@ export async function runMasterWorker(): Promise<MasterWorkerResult> {
     const results: Partial<MasterWorkerResult> = {}
 
     try {
-        // PRIORITY 1: CORE TELEPHONY OPERATIONS
+        // PRIORITY 1: TELEPHONY POLLING (MUST RUN FIRST WITH ZERO DELAY)
+        try {
+            results.inbox = await processInboxBatch(50)
+        } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e)
+            logger.error('Inbox Polling Failure', { context: 'MASTER', error: msg })
+            errors.push(`Inbox: ${msg}`)
+        }
+
         try {
             results.outbox = await processActivationOutbox(20)
         } catch (e: unknown) {
@@ -40,21 +48,15 @@ export async function runMasterWorker(): Promise<MasterWorkerResult> {
             errors.push(`Outbox: ${msg}`)
         }
 
-        try {
-            results.searchSync = await processOutboxEvents(20)
-        } catch (e: unknown) {
+        // PRIORITY 2: SEARCH INDEX SYNC (NON-BLOCKING ASYNC BACKGROUND TASK)
+        // Execute Search Sync asynchronously so heavy MeiliSearch batch updates (10s+)
+        // never block core telephony polling ticks.
+        processOutboxEvents(20).then((syncRes) => {
+            results.searchSync = syncRes
+        }).catch((e: unknown) => {
             const msg = e instanceof Error ? e.message : String(e)
-            logger.error('Search Sync Failure', { context: 'MASTER', error: msg })
-            errors.push(`SearchSync: ${msg}`)
-        }
-
-        try {
-            results.inbox = await processInboxBatch(50)
-        } catch (e: unknown) {
-            const msg = e instanceof Error ? e.message : String(e)
-            logger.error('Inbox Polling Failure', { context: 'MASTER', error: msg })
-            errors.push(`Inbox: ${msg}`)
-        }
+            logger.error('Search Sync Non-Blocking Failure', { context: 'MASTER', error: msg })
+        })
 
         // PRIORITY 2: USER ENGAGEMENT
         try {
