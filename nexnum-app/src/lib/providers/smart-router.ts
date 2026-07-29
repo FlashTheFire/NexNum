@@ -461,7 +461,9 @@ export class SmartSmsRouter implements SmsProvider {
 
                 // Record failure (with country facet)
                 const latency = Date.now() - startTime
-                const mappedErrorType = isPermanent ? 'SYSTEMIC' : (errorType === 'TIMEOUT' ? 'TIMEOUT' : 'TRANSIENT')
+                const mappedErrorType = (errorType === 'NO_BALANCE' || errorType === 'NO_NUMBERS' || isNoStock)
+                    ? 'NO_STOCK'
+                    : (isPermanent ? 'SYSTEMIC' : (errorType === 'TIMEOUT' ? 'TIMEOUT' : 'TRANSIENT'))
                 await healthMonitor.recordRequest(provider.config.id, false, latency, countryCode, mappedErrorType)
 
                 logger.warn(`SmartRouter: Purchase failed on ${provider.name}: ${e.message}`, {

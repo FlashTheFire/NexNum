@@ -70,7 +70,7 @@ export class HealthMonitor {
         success: boolean,
         latency?: number,
         country?: string | number,
-        errorType?: 'SYSTEMIC' | 'TRANSIENT' | 'TIMEOUT'
+        errorType?: 'SYSTEMIC' | 'TRANSIENT' | 'TIMEOUT' | 'NO_STOCK' | 'NO_BALANCE'
     ): Promise<void> {
         const now = Date.now()
         const countryKey = country ? String(country) : 'GLOBAL'
@@ -232,6 +232,18 @@ export class HealthMonitor {
     // ============================================
 
     private async handleFailure(providerId: string, errorType?: string): Promise<void> {
+        // Out-of-stock and account balance conditions are inventory events, not server downtime.
+        // They should failover gracefully without locking down the whole provider service.
+        if (errorType === 'NO_STOCK' || errorType === 'NO_BALANCE') {
+            await redis.set(
+                `health:${providerId}:lastError`,
+                `${new Date().toISOString()} - ${errorType}`,
+                'EX',
+                3600
+            )
+            return
+        }
+
         // Increment consecutive failures
         const failures = await redis.incr(`health:${providerId}:failures`)
         const retryCount = await redis.incr(`health:${providerId}:retryCount`)

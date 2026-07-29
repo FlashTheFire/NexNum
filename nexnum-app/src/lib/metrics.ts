@@ -325,6 +325,7 @@ export const multi_sms_sequences_total = register('nexnum_multi_sms_sequences_to
 export const sms_delivery_latency_seconds = register('nexnum_sms_delivery_latency_seconds', () => new Histogram({
     name: 'nexnum_sms_delivery_latency_seconds',
     help: 'Latency of SMS delivery',
+    labelNames: ['provider', 'service'],
     buckets: [1, 5, 10, 30, 60],
     registers: [registry]
 }))
