@@ -657,10 +657,19 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
     const handleSave = async () => {
         setIsSaving(true)
         try {
+            const parsedMappings = safeParse(formData.mappings) || {}
+            const parsedStaticCatalog = safeParse(formData.staticCatalog) || { countries: [], services: [] }
+
+            const finalMappings = {
+                ...parsedMappings,
+                staticCatalog: parsedStaticCatalog
+            }
+
             const body: any = {
                 ...formData,
-                endpoints: JSON.parse(formData.endpoints),
-                mappings: JSON.parse(formData.mappings)
+                endpoints: safeParse(formData.endpoints) || {},
+                mappings: finalMappings,
+                staticCatalog: parsedStaticCatalog
             }
             if (!formData.authKey) delete body.authKey
 

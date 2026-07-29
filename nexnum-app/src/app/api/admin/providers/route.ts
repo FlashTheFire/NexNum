@@ -151,6 +151,14 @@ export async function POST(req: Request) {
             }
         })
 
+        const finalMappings = typeof mappings === 'object' && mappings !== null ? { ...mappings } : {}
+        if (body.staticCatalog) {
+            try {
+                const parsedStatic = typeof body.staticCatalog === 'string' ? JSON.parse(body.staticCatalog) : body.staticCatalog
+                finalMappings.staticCatalog = parsedStatic
+            } catch {}
+        }
+
         const provider = await prisma.provider.create({
             data: {
                 name,
@@ -161,7 +169,7 @@ export async function POST(req: Request) {
                 authHeader: body.authHeader,
                 authQueryParam: body.authQueryParam,
                 endpoints: endpoints || {},
-                mappings: mappings || {},
+                mappings: finalMappings,
                 description: body.description,
                 logoUrl: body.logoUrl,
                 websiteUrl: body.websiteUrl,

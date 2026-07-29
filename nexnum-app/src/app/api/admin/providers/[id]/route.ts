@@ -74,6 +74,7 @@ const ProviderUpdateSchema = z.object({
     // JSON Fields
     endpoints: z.any().optional(),
     mappings: z.any().optional(),
+    staticCatalog: z.any().optional(),
     // Logic Flags
     useGlobalSync: z.boolean().optional(),
     normalizationMode: z.string().optional(),
@@ -118,6 +119,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
             authQueryParam,
             endpoints,
             mappings,
+            staticCatalog,
             normalizationMode,
             useGlobalSync
         } = validation.data
@@ -183,7 +185,23 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         if (encryptedKey !== undefined) updateData.authKey = encryptedKey
 
         if (endpoints !== undefined) updateData.endpoints = endpoints
-        if (mappings !== undefined) updateData.mappings = mappings
+
+        if (mappings !== undefined || staticCatalog !== undefined) {
+            const currentProvider = await prisma.provider.findUnique({ where: { id }, select: { mappings: true } })
+            const baseMappings = mappings !== undefined ? mappings : (currentProvider?.mappings || {})
+            const parsedBase = typeof baseMappings === 'object' && baseMappings !== null ? baseMappings : {}
+            
+            if (staticCatalog !== undefined) {
+                const parsedStatic = typeof staticCatalog === 'string' ? (JSON.parse(staticCatalog) || {}) : staticCatalog
+                updateData.mappings = {
+                    ...parsedBase,
+                    staticCatalog: parsedStatic
+                }
+            } else {
+                updateData.mappings = baseMappings
+            }
+        }
+
         if (normalizationMode !== undefined) updateData.normalizationMode = normalizationMode
         if (useGlobalSync !== undefined) updateData.useGlobalSync = useGlobalSync
 
