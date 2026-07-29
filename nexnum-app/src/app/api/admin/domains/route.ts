@@ -17,7 +17,7 @@ export async function GET(req: Request) {
         const domains = (settings as any)?.metadata?.domains || [
             {
                 id: 'dom_1',
-                domain: 'nx1.in',
+                domain: 'nexnum.in',
                 status: 'ACTIVE',
                 sslStatus: 'VALID',
                 isPrimary: true,
@@ -25,7 +25,7 @@ export async function GET(req: Request) {
             },
             {
                 id: 'dom_2',
-                domain: 'socket.nx1.in',
+                domain: 'socket.nexnum.in',
                 status: 'ACTIVE',
                 sslStatus: 'VALID',
                 isPrimary: false,

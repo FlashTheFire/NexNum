@@ -15,13 +15,47 @@ export default async function proxy(request: NextRequest) {
     const { pathname } = request.nextUrl
 
     // ──────────────────────────────────────────────────
-    // MULTI-DOMAIN TENANT RESOLUTION (Super CEO Architecture)
-    // Injects x-tenant-domain header for downstream tenant-aware rendering
+    // MULTI-DOMAIN TENANT RESOLUTION & CANONICAL 301 REDIRECT
     // ──────────────────────────────────────────────────
-    const host = request.headers.get('host') || 'nx1.in'
+    const rawHost = request.headers.get('host') || 'nexnum.in'
+    const cleanHost = rawHost.split(':')[0].toLowerCase()
     const protocol = request.nextUrl.protocol || 'https:'
-    request.headers.set('x-tenant-domain', host)
-    request.headers.set('x-tenant-url', `${protocol}//${host}`)
+
+    // Primary Brand Domain
+    const PRIMARY_DOMAIN = 'nexnum.in'
+
+    // Non-primary domains that should 301 redirect to primary domain (preserving path and query)
+    const REDIRECT_DOMAINS = [
+        'nx1.in', 'www.nx1.in',
+        'nextnum.in', 'www.nextnum.in',
+        'nexn.in', 'www.nexn.in',
+        'nextnumber.in', 'www.nextnumber.in',
+        'www.nexnum.in'
+    ]
+
+    // Internal / Infrastructure hosts that MUST NOT be redirected (prevents Docker/Coolify loops)
+    const isInternalHost = 
+        cleanHost === 'localhost' ||
+        cleanHost === '127.0.0.1' ||
+        cleanHost.startsWith('socket.') ||
+        cleanHost.endsWith('.sslip.io') ||
+        cleanHost.endsWith('.internal') ||
+        cleanHost === 'nexnum-app' ||
+        cleanHost === 'nexnum-socket'
+
+    // 301 Permanent Redirect to primary domain for brand consolidation & SEO link juice transfer
+    if (!isInternalHost && REDIRECT_DOMAINS.includes(cleanHost)) {
+        const targetUrl = new URL(request.nextUrl.pathname + request.nextUrl.search, `https://${PRIMARY_DOMAIN}`)
+        const redirectResponse = NextResponse.redirect(targetUrl, 301)
+        
+        // Preserve proxy headers
+        redirectResponse.headers.set('X-Forwarded-Host', cleanHost)
+        redirectResponse.headers.set('X-Forwarded-Proto', protocol.replace(':', ''))
+        return redirectResponse
+    }
+
+    request.headers.set('x-tenant-domain', cleanHost)
+    request.headers.set('x-tenant-url', `${protocol}//${cleanHost}`)
 
     // Skip proxy for API routes and static assets
     if (pathname.startsWith('/api') || pathname.startsWith('/_next') || pathname.includes('.')) {
@@ -101,7 +135,7 @@ export default async function proxy(request: NextRequest) {
     attachSecurityHeaders(response);
 
     // Attach multi-domain tenant header to response
-    response.headers.set('x-tenant-domain', host);
+    response.headers.set('x-tenant-domain', cleanHost);
 
     return response;
 }

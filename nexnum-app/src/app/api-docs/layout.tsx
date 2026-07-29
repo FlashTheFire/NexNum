@@ -4,7 +4,7 @@ import '../globals.css'
 
 const inter = Inter({ subsets: ['latin'] })
 
-const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://nx1.in'
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://nexnum.in'
 
 export const metadata = {
     metadataBase: new URL(baseUrl),

@@ -30,7 +30,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
     const { locale } = await params;
     const headersList = await headers();
-    const host = headersList.get('x-tenant-domain') || headersList.get('host') || 'nx1.in';
+    const host = headersList.get('x-tenant-domain') || headersList.get('host') || 'nexnum.in';
     const protocol = headersList.get('x-forwarded-proto') || 'https';
     const baseUrl = `${protocol}://${host}`;
 
@@ -70,7 +70,7 @@ export async function generateMetadata({
             "instagram verification",
             "openai verification"
         ],
-        authors: [{ name: "NexNum", url: "https://nx1.in" }],
+        authors: [{ name: "NexNum", url: "https://nexnum.in" }],
         creator: "NexNum",
         publisher: "NexNum",
         applicationName: "NexNum",

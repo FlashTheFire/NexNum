@@ -7,7 +7,7 @@ import { setRequestLocale } from 'next-intl/server'
 
 export const dynamic = 'force-dynamic'
 
-const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://nx1.in'
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://nexnum.in'
 
 export const metadata: Metadata = {
     metadataBase: new URL(baseUrl),

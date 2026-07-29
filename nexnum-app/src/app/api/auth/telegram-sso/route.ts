@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
 
         if (!user) {
             // Auto-register new user via Telegram SSO
-            const placeholderEmail = `tg_${telegramId}@telegram.nx1.in`
+            const placeholderEmail = `tg_${telegramId}@telegram.nexnum.in`
             const randomPassword = crypto.randomBytes(32).toString('hex')
 
             user = await prisma.user.create({

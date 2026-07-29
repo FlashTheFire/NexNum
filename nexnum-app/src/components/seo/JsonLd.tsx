@@ -2,7 +2,7 @@ interface JsonLdProps {
     data?: Record<string, any>
 }
 
-const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://nx1.in'
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://nexnum.in'
 
 export default function JsonLd({ data }: JsonLdProps) {
     const socialLinks = [
@@ -38,7 +38,7 @@ export default function JsonLd({ data }: JsonLdProps) {
             '@context': 'https://schema.org',
             '@type': 'Organization',
             name: 'NexNum',
-            alternateName: ['NexNum', 'nexnum', 'NexNum SMS', 'nx1.in'],
+            alternateName: ['NexNum', 'nexnum', 'NexNum SMS', 'nexnum.in'],
             url: baseUrl,
             logo: `${baseUrl}/icon.svg`,
             sameAs: socialLinks,
@@ -48,7 +48,7 @@ export default function JsonLd({ data }: JsonLdProps) {
             '@context': 'https://schema.org',
             '@type': 'WebSite',
             name: 'NexNum',
-            alternateName: ['NexNum Platform', 'nx1.in'],
+            alternateName: ['NexNum Platform', 'nexnum.in'],
             url: baseUrl,
             potentialAction: {
                 '@type': 'SearchAction',

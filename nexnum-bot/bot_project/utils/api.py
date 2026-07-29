@@ -13,10 +13,10 @@ load_dotenv()
 
 
 SMS_PROVIDERS = {
-    "nx1.in": os.getenv("NEXNUM_API_KEY", None),
+    "nexnum.in": os.getenv("NEXNUM_API_KEY", None),
 }
 SMS_PROVIDERS_ID = {
-    "1": {"url": "nx1.in", "api_key": os.getenv("NEXNUM_API_KEY", None)},
+    "1": {"url": "nexnum.in", "api_key": os.getenv("NEXNUM_API_KEY", None)},
 }
 SMS_PROVIDERS_MANAGEMENT = {
     'NexNumManager', '1',

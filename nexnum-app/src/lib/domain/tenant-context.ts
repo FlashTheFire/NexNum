@@ -17,11 +17,11 @@ export interface TenantConfig {
 }
 
 const DEFAULT_TENANT: TenantConfig = {
-    domain: 'nx1.in',
+    domain: 'nexnum.in',
     brandName: 'NexNum',
     title: 'NexNum – Premium Virtual Phone Numbers & SMS Verification',
     description: 'Instant virtual phone numbers for SMS verification across 50+ countries. High throughput, multi-provider routing & instant OTP receiving.',
-    supportEmail: 'support@nx1.in',
+    supportEmail: 'support@nexnum.in',
     themeColor: '#10b981',
     isPrimary: true
 }
@@ -32,7 +32,7 @@ export function getTenantFromHost(hostHeader?: string | null): TenantConfig {
     const cleanHost = hostHeader.split(':')[0].toLowerCase()
 
     // Match domain or return fallback default
-    if (cleanHost === 'nx1.in' || cleanHost === 'www.nx1.in') {
+    if (cleanHost === 'nexnum.in' || cleanHost === 'www.nexnum.in' || cleanHost === 'nx1.in' || cleanHost === 'www.nx1.in') {
         return DEFAULT_TENANT
     }
 

@@ -1,7 +1,7 @@
 import { MetadataRoute } from 'next'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://nx1.in'
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://nexnum.in'
     const locales = ['en', 'zh', 'es', 'hi', 'ru', 'tr', 'ar', 'pt', 'fr']
     const publicPaths = [
         '',
@@ -18,7 +18,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
     const routes: MetadataRoute.Sitemap = []
 
-    // 1. Root & Localized Base Pages (e.g. https://nx1.in/en/about)
+    // 1. Root & Localized Base Pages (e.g. https://nexnum.in/en/about)
     for (const locale of locales) {
         for (const path of publicPaths) {
             routes.push({
