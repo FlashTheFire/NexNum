@@ -20,13 +20,21 @@ export const viewport: Viewport = {
     initialScale: 1,
 }
 
+import { headers } from 'next/headers';
+import { getTenantFromHost } from '@/lib/domain/tenant-context';
+
 export async function generateMetadata({
     params
 }: {
     params: Promise<{ locale: string }>;
 }): Promise<Metadata> {
     const { locale } = await params;
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://nx1.in';
+    const headersList = await headers();
+    const host = headersList.get('x-tenant-domain') || headersList.get('host') || 'nx1.in';
+    const protocol = headersList.get('x-forwarded-proto') || 'https';
+    const baseUrl = `${protocol}://${host}`;
+
+    const tenant = getTenantFromHost(host);
 
     const currentLocale = ALL_LOCALES.includes(locale) ? locale : 'en';
     const canonicalUrl = `${baseUrl}/${currentLocale}`;
@@ -40,8 +48,8 @@ export async function generateMetadata({
     return {
         metadataBase: new URL(baseUrl),
         title: {
-            default: "NexNum – Virtual Phone Numbers for SMS Verification",
-            template: "%s | NexNum"
+            default: tenant.title,
+            template: `%s | ${tenant.brandName}`
         },
         description: "NexNum is the premier platform for instant virtual phone numbers, temporary SMS verifications, and online numbers for WhatsApp, Telegram, Google, Discord, TikTok, Instagram, OpenAI and 500+ services with instant OTP delivery.",
         keywords: [
