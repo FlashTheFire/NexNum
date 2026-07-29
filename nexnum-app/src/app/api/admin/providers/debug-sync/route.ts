@@ -494,10 +494,12 @@ export async function GET(request: Request) {
                 const standardRates = rates as Record<string, number>
                 const pointsRate = Number(systemSettings.pointsRate)
 
-                // Pre-cache DB Lookups
+                // Pre-cache DB Lookups including Canonical Services & Countries with Aliases
                 send(`[INFO] Pre-loading Central Service & Country Registry lookups from PostgreSQL...`)
                 const allServiceIds = await prisma.serviceLookup.findMany({ select: { serviceCode: true, serviceName: true, serviceId: true } })
                 const allCountryIds = await prisma.countryLookup.findMany({ select: { countryCode: true, countryName: true, countryId: true } })
+                const canonicalServices = await prisma.canonicalService.findMany({ select: { canonicalCode: true, canonicalName: true, aliases: true, id: true } })
+                const canonicalCountries = await prisma.canonicalCountry.findMany({ select: { canonicalCode: true, canonicalName: true, aliases: true, id: true } })
 
                 const serviceCodeToNumeric = new Map<string, number>()
                 const serviceMap = new Map<string, string>()
@@ -509,6 +511,22 @@ export async function GET(request: Request) {
                     setIfAbsent(s.serviceCode.toLowerCase(), s.serviceId)
                     setIfAbsent(s.serviceName.toLowerCase(), s.serviceId)
                     setIfAbsent(generateCanonicalCode(s.serviceName), s.serviceId)
+                }
+
+                // Load Canonical Service Aliases (e.g. "ds" -> "Discord", "tg" -> "Telegram")
+                for (const cs of canonicalServices) {
+                    const cName = cs.canonicalName
+                    const cId = cs.id
+                    const aliasesArr = Array.isArray(cs.aliases) ? cs.aliases : []
+                    for (const aliasItem of [cs.canonicalCode, ...aliasesArr]) {
+                        if (!aliasItem) continue
+                        const aLower = String(aliasItem).toLowerCase().trim()
+                        if (!serviceMap.has(aLower)) serviceMap.set(aLower, cName)
+                        if (!serviceCodeToNumeric.has(aLower)) serviceCodeToNumeric.set(aLower, cId)
+                        const aClean = aLower.replace(/[^a-z0-9]/g, '')
+                        if (aClean && !serviceMap.has(aClean)) serviceMap.set(aClean, cName)
+                        if (aClean && !serviceCodeToNumeric.has(aClean)) serviceCodeToNumeric.set(aClean, cId)
+                    }
                 }
 
                 const countryCodeToNumeric = new Map<string, number>()
@@ -524,7 +542,23 @@ export async function GET(request: Request) {
                     setIfAbsent(normalizeCountryName(c.countryName).toLowerCase(), c.countryId)
                 }
 
-                send(`[SUCCESS] Loaded ${allServiceIds.length} central services and ${allCountryIds.length} country mappings from DB.`)
+                // Load Canonical Country Aliases (e.g. "6" -> "Indonesia", "22" -> "India", "36" -> "United Kingdom")
+                for (const cc of canonicalCountries) {
+                    const cName = cc.canonicalName
+                    const cId = cc.id
+                    const aliasesArr = Array.isArray(cc.aliases) ? cc.aliases : []
+                    for (const aliasItem of [cc.canonicalCode, ...aliasesArr]) {
+                        if (!aliasItem) continue
+                        const aLower = String(aliasItem).toLowerCase().trim()
+                        if (!countryNameMap.has(aLower)) countryNameMap.set(aLower, cName)
+                        if (!countryCodeToNumeric.has(aLower)) countryCodeToNumeric.set(aLower, cId)
+                        const aClean = aLower.replace(/[^a-z0-9]/g, '')
+                        if (aClean && !countryNameMap.has(aClean)) countryNameMap.set(aClean, cName)
+                        if (aClean && !countryCodeToNumeric.has(aClean)) countryCodeToNumeric.set(aClean, cId)
+                    }
+                }
+
+                send(`[SUCCESS] Loaded ${allServiceIds.length} central services, ${allCountryIds.length} countries, ${canonicalServices.length} canonical service aliases, and ${canonicalCountries.length} country aliases from DB.`)
 
                 // Sync each provider
                 for (const provider of targetProviders) {
@@ -573,6 +607,37 @@ export async function GET(request: Request) {
                         send(`[INFO] getServicesList(): ${services.length} static services returned`)
                     } catch (e: any) {
                         send(`[WARN] getServicesList(): Failed/Skipped (${e.message})`)
+                    }
+
+                    // Map dynamic metadata returned by getCountriesList() and getServicesList()
+                    for (const c of countries) {
+                        if (!c) continue
+                        const cName = c.name || c.displayName || ''
+                        if (!cName) continue
+                        if (c.id != null) {
+                            const idStr = String(c.id).toLowerCase().trim()
+                            countryNameMap.set(idStr, cName)
+                            const clean = idStr.replace(/[^a-z0-9]/g, '')
+                            if (clean) countryNameMap.set(clean, cName)
+                        }
+                        if (c.code != null) {
+                            const codeStr = String(c.code).toLowerCase().trim()
+                            countryNameMap.set(codeStr, cName)
+                            const clean = codeStr.replace(/[^a-z0-9]/g, '')
+                            if (clean) countryNameMap.set(clean, cName)
+                        }
+                    }
+
+                    for (const s of services) {
+                        if (!s) continue
+                        const sName = s.name || s.displayName || ''
+                        if (!sName) continue
+                        if (s.code != null) {
+                            const codeStr = String(s.code).toLowerCase().trim()
+                            serviceMap.set(codeStr, sName)
+                            const clean = codeStr.replace(/[^a-z0-9]/g, '')
+                            if (clean) serviceMap.set(clean, sName)
+                        }
                     }
 
                     // Build whitelist sets

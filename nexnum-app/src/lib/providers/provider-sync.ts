@@ -462,6 +462,8 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
         // Visibility maps: externalId -> isActive (for filtering hidden items from MeiliSearch)
         const countryVisibilityMap = new Map<string, boolean>()
         const serviceVisibilityMap = new Map<string, boolean>()
+        const countryNameMap = new Map<string, string>()
+        const serviceMap = new Map<string, string>()
 
         if (skipMetadataSync) {
             logger.info('Using existing DB metadata for sync', {
@@ -868,12 +870,16 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
             })
         }
 
-        // Pre-cache numeric IDs for search indexing
+        // Pre-cache numeric IDs & Canonical Services/Countries with Aliases for search indexing
         const allServiceIds = await prisma.serviceLookup.findMany({ select: { serviceCode: true, serviceName: true, serviceId: true } })
         const allCountryIds = await prisma.countryLookup.findMany({ select: { countryCode: true, countryName: true, countryId: true } })
+        const canonicalServices = await prisma.canonicalService.findMany({ select: { canonicalCode: true, canonicalName: true, aliases: true, id: true } })
+        const canonicalCountries = await prisma.canonicalCountry.findMany({ select: { canonicalCode: true, canonicalName: true, aliases: true, id: true } })
 
         const serviceCodeToNumeric = new Map<string, number>()
         for (const s of allServiceIds) {
+            serviceMap.set(s.serviceCode, s.serviceName)
+            serviceMap.set(s.serviceCode.toLowerCase(), s.serviceName)
             const setIfAbsent = (k: string, id: number) => { if (k && !serviceCodeToNumeric.has(k)) serviceCodeToNumeric.set(k, id) }
             setIfAbsent(s.serviceCode, s.serviceId)
             setIfAbsent(s.serviceCode.toLowerCase(), s.serviceId)
@@ -882,9 +888,27 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
             setIfAbsent(generateCanonicalCode(s.serviceCode), s.serviceId)
         }
 
+        // Load Canonical Service Aliases (e.g. "ds" -> "Discord", "tg" -> "Telegram")
+        for (const cs of canonicalServices) {
+            const cName = cs.canonicalName
+            const cId = cs.id
+            const aliasesArr = Array.isArray(cs.aliases) ? cs.aliases : []
+            for (const aliasItem of [cs.canonicalCode, ...aliasesArr]) {
+                if (!aliasItem) continue
+                const aLower = String(aliasItem).toLowerCase().trim()
+                if (!serviceMap.has(aLower)) serviceMap.set(aLower, cName)
+                if (!serviceCodeToNumeric.has(aLower)) serviceCodeToNumeric.set(aLower, cId)
+                const aClean = aLower.replace(/[^a-z0-9]/g, '')
+                if (aClean && !serviceMap.has(aClean)) serviceMap.set(aClean, cName)
+                if (aClean && !serviceCodeToNumeric.has(aClean)) serviceCodeToNumeric.set(aClean, cId)
+            }
+        }
+
         const countryCodeToNumeric = new Map<string, number>()
         const countryIdToNumeric = new Map<string, number>()
         for (const c of allCountryIds) {
+            countryNameMap.set(c.countryCode, c.countryName)
+            countryNameMap.set(c.countryCode.toLowerCase(), c.countryName)
             const setIfAbsent = (k: string, id: number) => { if (k && !countryCodeToNumeric.has(k)) countryCodeToNumeric.set(k, id) }
             setIfAbsent(c.countryCode, c.countryId)
             setIfAbsent(c.countryCode.toLowerCase(), c.countryId)
@@ -895,6 +919,22 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
 
             const idKey = String(c.countryId)
             if (idKey && !countryIdToNumeric.has(idKey)) countryIdToNumeric.set(idKey, c.countryId)
+        }
+
+        // Load Canonical Country Aliases (e.g. "6" -> "Indonesia", "22" -> "India", "36" -> "United Kingdom")
+        for (const cc of canonicalCountries) {
+            const cName = cc.canonicalName
+            const cId = cc.id
+            const aliasesArr = Array.isArray(cc.aliases) ? cc.aliases : []
+            for (const aliasItem of [cc.canonicalCode, ...aliasesArr]) {
+                if (!aliasItem) continue
+                const aLower = String(aliasItem).toLowerCase().trim()
+                if (!countryNameMap.has(aLower)) countryNameMap.set(aLower, cName)
+                if (!countryCodeToNumeric.has(aLower)) countryCodeToNumeric.set(aLower, cId)
+                const aClean = aLower.replace(/[^a-z0-9]/g, '')
+                if (aClean && !countryNameMap.has(aClean)) countryNameMap.set(aClean, cName)
+                if (aClean && !countryCodeToNumeric.has(aClean)) countryCodeToNumeric.set(aClean, cId)
+            }
         }
 
         // 3. Sync Prices (DEEP SEARCH ENGINE) - Always use Dynamic Engine
@@ -971,20 +1011,24 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
             }
 
             for (const c of countries) {
+                if (!c) continue
+                const cName = c.name || (c as any).displayName || ''
+                if ((c as any).id != null) {
+                    const idStr = String((c as any).id).toLowerCase().trim()
+                    if (cName) countryNameMap.set(idStr, cName)
+                    addCleanCountry(idStr)
+                }
                 if (c.code != null && String(c.code).trim()) {
-                    addCleanCountry(String(c.code))
+                    const codeStr = String(c.code).toLowerCase().trim()
+                    if (cName) countryNameMap.set(codeStr, cName)
+                    addCleanCountry(codeStr)
                     const iso = getCountryIsoCode(c.code)
                     if (iso) addCleanCountry(iso)
                 }
-                if ((c as any).id != null) {
-                    addCleanCountry(String((c as any).id))
-                }
-                if (c.name != null && String(c.name).trim()) {
-                    addCleanCountry(String(c.name))
-                    const cName = getCanonicalName(c.name)
-                    if (cName) addCleanCountry(cName)
-                    const cCode = generateCanonicalCode(cName)
-                    if (cCode) addCleanCountry(cCode)
+                if (cName) {
+                    addCleanCountry(cName)
+                    const cCanonName = getCanonicalName(cName)
+                    if (cCanonName) addCleanCountry(cCanonName)
                 }
             }
 
@@ -999,17 +1043,19 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
             }
 
             for (const s of services) {
+                if (!s) continue
+                const sName = s.name || (s as any).displayName || ''
                 if (s.code != null && String(s.code).trim()) {
-                    addCleanService(String(s.code))
-                    const cCode = generateCanonicalCode(String(s.code))
+                    const codeStr = String(s.code).toLowerCase().trim()
+                    if (sName) serviceMap.set(codeStr, sName)
+                    addCleanService(codeStr)
+                    const cCode = generateCanonicalCode(codeStr)
                     if (cCode) addCleanService(cCode)
                 }
-                if (s.name != null && String(s.name).trim()) {
-                    addCleanService(String(s.name))
-                    const cName = getCanonicalName(s.name)
+                if (sName) {
+                    addCleanService(sName)
+                    const cName = getCanonicalName(sName)
                     if (cName) addCleanService(cName)
-                    const cCode = generateCanonicalCode(cName)
-                    if (cCode) addCleanService(cCode)
                 }
             }
 
