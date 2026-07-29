@@ -461,6 +461,8 @@ export async function actionSetStatus(
                 }).catch(() => { })
             }
         }
+        const { ActiveOrderStream } = await import('@/lib/activation/active-order-stream')
+        ActiveOrderStream.removeActiveOrder(params.id).catch(() => { })
         responseCode = 'ACCESS_ACTIVATION'
     } else {
         // -1: cancel and refund (only if not already finalized)
@@ -497,6 +499,8 @@ export async function actionSetStatus(
                 }).catch(() => { })
             }
         }
+        const { ActiveOrderStream } = await import('@/lib/activation/active-order-stream')
+        ActiveOrderStream.removeActiveOrder(params.id).catch(() => { })
         responseCode = 'ACCESS_CANCEL'
     }
 

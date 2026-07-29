@@ -112,8 +112,8 @@ export async function runActivePollerTick(): Promise<ActivePollerSummary> {
                     }
                 }
 
-                // Remove from active stream so we don't re-poll completed number
-                await ActiveOrderStream.removeActiveOrder(res.activationId)
+                // Keep active order in Redis stream so subsequent SMS messages (e.g. 2nd/3rd OTPs after setStatus=3)
+                // continue to receive high-speed sub-3s polling for full order lifetime.
             } else if (['COMPLETED', 'CANCELLED', 'EXPIRED', 'REFUNDED'].includes(res.status)) {
                 // Terminal state clean up
                 await ActiveOrderStream.removeActiveOrder(res.activationId)

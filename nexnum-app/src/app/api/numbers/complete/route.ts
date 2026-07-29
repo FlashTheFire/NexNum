@@ -90,7 +90,11 @@ export const POST = apiHandler(async (request, { body }) => {
         return n
     })
 
-    // 5. Emit Update to Frontend
+    // 5. Emit Update & Clean up Active Stream
+    if (number.activationId) {
+        const { ActiveOrderStream } = await import('@/lib/activation/active-order-stream')
+        ActiveOrderStream.removeActiveOrder(number.activationId).catch(err => logger.warn('[Numbers/complete] removeActiveOrder failed', { error: err }))
+    }
     emitStateUpdate(user.userId, 'numbers', 'completed').catch(err => logger.warn('[Numbers/complete] emitStateUpdate failed', { error: err }))
 
     return NextResponse.json({
