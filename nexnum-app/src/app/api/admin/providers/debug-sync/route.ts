@@ -717,8 +717,17 @@ export async function GET(request: Request) {
                         let totalGroupStock = 0
                         const candidatesList: any[] = []
 
-                        for (const item of priceItems) {
-                            const rawCostNum = Number(item.cost)
+                        const candidateItems: any[] = []
+                        for (const groupItem of priceItems) {
+                            if ((groupItem as any).purchaseCandidates && (groupItem as any).purchaseCandidates.length > 0) {
+                                candidateItems.push(...(groupItem as any).purchaseCandidates)
+                            } else {
+                                candidateItems.push(groupItem)
+                            }
+                        }
+
+                        for (const item of candidateItems) {
+                            const rawCostNum = Number(item.cost || item.rawCost)
                             const pricing = PricingService.compute({
                                 rawCost: rawCostNum,
                                 providerCurrency,
@@ -735,7 +744,7 @@ export async function GET(request: Request) {
                                 continue
                             }
 
-                            const stockCount = Math.max(0, Number(item.count || 0))
+                            const stockCount = Math.max(0, Number(item.count || item.stock || 0))
                             totalGroupStock += stockCount
 
                             const operatorName = (item.operator && String(item.operator).trim()) ? String(item.operator).trim() : 'any'
@@ -743,8 +752,8 @@ export async function GET(request: Request) {
                                 candidateId: `${provider.name}_${canonicalCtyCode}_${canonicalSvcCode}_${operatorName}`,
                                 provider: provider.name,
                                 operator: operatorName,
-                                providerServiceCode: String(item.service),
-                                providerCountryCode: String(item.country),
+                                providerServiceCode: String(item.service || serviceCode),
+                                providerCountryCode: String(item.country || countryCode),
                                 pointPrice: pricing.pointPrice,
                                 rawCost: rawCostNum,
                                 rawCurrency: providerCurrency,
@@ -766,6 +775,8 @@ export async function GET(request: Request) {
                         if (totalGroupStock > 0) stockGtZeroCount++
                         else stockZeroCount++
 
+                        const allCurrencyPrices = await currencyService.pointsToAllFiat(bestCandidate.pointPrice)
+
                         const offerDoc: OfferDocument = {
                             id: `${provider.name}_${canonicalCtyCode}_${canonicalSvcCode}`,
                             provider: provider.name,
@@ -780,7 +791,7 @@ export async function GET(request: Request) {
                             pointPrice: bestCandidate.pointPrice,
                             rawPrice: bestCandidate.rawCost,
                             currencyPrices: {
-                                USD: bestCandidate.sellUsd,
+                                ...allCurrencyPrices,
                                 POINTS: bestCandidate.pointPrice
                             },
                             purchaseCandidates: candidatesList,
