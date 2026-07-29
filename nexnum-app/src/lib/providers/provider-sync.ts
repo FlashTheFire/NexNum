@@ -1099,9 +1099,18 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                         serviceVisibilityMap.get(serviceCode.toLowerCase()) !== false
                     const isActive = isCountryVisible && isServiceVisible
 
-                    let svcName = (serviceMap.get(serviceCode) || serviceMap.get(serviceCode.toLowerCase()) || sample.service || serviceCode || '').trim()
+                    let svcName = (serviceMap.get(serviceCode) || serviceMap.get(serviceCode.toLowerCase()) || '').trim()
                     if (!svcName) {
-                        svcName = `Service ${serviceCode}`
+                        const candidateName = getCanonicalName(sample.service || serviceCode)
+                        if (candidateName && !/^\d+$/.test(candidateName) && candidateName.toLowerCase() !== 'unknown') {
+                            svcName = candidateName
+                        }
+                    }
+
+                    // GUARD: Drop unknown or pure numeric service codes (e.g. "35") if unresolvable to a real service name
+                    if (!svcName || svcName.toLowerCase() === 'unknown' || /^\d+$/.test(svcName)) {
+                        noServiceNameCount++
+                        continue
                     }
 
                     let rawCountryName = (countryNameMap.get(countryCode) || countryNameMap.get(String(countryCode)) || '').trim()
@@ -1109,14 +1118,9 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                         const cNum = Number(countryCode)
                         if (Number.isSafeInteger(cNum) && countryIdToName.has(cNum)) {
                             rawCountryName = countryIdToName.get(cNum)!
-                        }
-                    }
-
-                    // Fallback 1: Check if countryCode is a 2-letter ISO code e.g. "in" -> "India"
-                    if (!rawCountryName || /^\d+$/.test(rawCountryName) || rawCountryName.toLowerCase() === 'unknown') {
-                        const fromIso = getCountryNameFromIso(countryCode)
-                        if (fromIso) {
-                            rawCountryName = fromIso
+                        } else {
+                            const fromIso = getCountryNameFromIso(countryCode)
+                            if (fromIso) rawCountryName = fromIso
                         }
                     }
 
@@ -1133,12 +1137,13 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                         }
                     }
 
-                    // Fallback 2: If still unresolvable numeric or code e.g. "9999", generate clean title name
-                    if (!rawCountryName || rawCountryName.toLowerCase() === 'unknown') {
-                        rawCountryName = /^\d+$/.test(String(countryCode)) ? `Country ${countryCode}` : String(countryCode)
-                    }
-
                     const resolvedCountryName = rawCountryName
+
+                    // GUARD: Drop unknown or pure numeric country codes (e.g. "9999") if unresolvable to a real country
+                    if (!resolvedCountryName || resolvedCountryName.toLowerCase() === 'unknown' || /^\d+$/.test(resolvedCountryName)) {
+                        noCountryNameCount++
+                        continue
+                    }
 
                     const canonicalCtyName = normalizeCountryName(resolvedCountryName)
                     const canonicalSvcName = getCanonicalName(svcName)
