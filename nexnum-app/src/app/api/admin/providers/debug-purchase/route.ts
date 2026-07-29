@@ -235,9 +235,10 @@ export async function GET(request: Request) {
                     <option value="smsactivate" ${providerParam === 'smsactivate' ? 'selected' : ''}>SMS-Activate</option>
                     <option value="smart" ${providerParam === 'smart' ? 'selected' : ''}>SmartRouter (Auto Best)</option>
                 </select>
-                <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;">
-                    <input type="checkbox" id="liveBuyCheck" ${!isDryRun ? 'checked' : ''} /> Live Buy
-                </label>
+                <select id="modeSelect" class="select-input" style="border-color:${isDryRun ? '#fbbf24' : '#4ade80'};color:${isDryRun ? '#fbbf24' : '#4ade80'};font-weight:bold;">
+                    <option value="dry_run" ${isDryRun ? 'selected' : ''}>🛡️ Mode: DRY RUN (Simulated)</option>
+                    <option value="live_buy" ${!isDryRun ? 'selected' : ''}>⚡ Mode: LIVE BUY (Real Upstream Order)</option>
+                </select>
                 <button class="btn btn-primary" onclick="runDebug()">▶ Test Purchase</button>
                 <button class="btn" onclick="clearTerminal()">🧹 Clear</button>
                 <button class="btn" onclick="copyLogs()">📋 Copy Logs</button>
@@ -280,7 +281,7 @@ export async function GET(request: Request) {
             const country = document.getElementById('countryInput').value;
             const service = document.getElementById('serviceInput').value;
             const provider = document.getElementById('providerSelect').value;
-            const mode = document.getElementById('liveBuyCheck').checked ? 'live_buy' : 'dry_run';
+            const mode = document.getElementById('modeSelect').value;
             window.location.href = '/api/admin/providers/debug-purchase?country=' + country + '&service=' + service + '&provider=' + provider + '&mode=' + mode;
         }
 
