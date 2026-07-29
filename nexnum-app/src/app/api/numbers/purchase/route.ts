@@ -145,8 +145,31 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
 
     if (mode === 'direct') {
         currentOffer = await getOfferForPurchase(serviceInput, countryInput, operatorId ? parseInt(operatorId, 10) : undefined, resolvedProvider)
+        if (!currentOffer && resolvedProvider) {
+            // AUTO-FALLBACK: Selected provider has no stock → try ANY provider with stock
+            logger.warn('[PURCHASE_PROVIDER_NO_STOCK] Selected provider has no stock, trying fallback', {
+                context: 'PURCHASE',
+                correlationId,
+                userId: user.userId,
+                serviceInput,
+                countryInput,
+                resolvedProvider
+            })
+            currentOffer = await getOfferForPurchase(serviceInput, countryInput, undefined, undefined)
+            if (currentOffer) {
+                logger.info('[PURCHASE_FALLBACK_FOUND] Auto-routed to alternative provider', {
+                    context: 'PURCHASE',
+                    correlationId,
+                    userId: user.userId,
+                    originalProvider: resolvedProvider,
+                    fallbackProvider: currentOffer.provider,
+                    stock: currentOffer.stock
+                })
+                mode = 'fallback'
+            }
+        }
         if (!currentOffer) {
-            logger.warn('[PURCHASE_OFFER_NOT_FOUND] Offer not available for requested provider', {
+            logger.warn('[PURCHASE_OFFER_NOT_FOUND] No providers available for this route', {
                 context: 'PURCHASE',
                 correlationId,
                 userId: user.userId,

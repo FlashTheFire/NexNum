@@ -112,8 +112,7 @@ export default function BuyPage() {
 
         const toastId = toast.loading("Reserving number...")
         try {
-            // Pass provider name as restricted provider (Phase 11: Backend strictly uses this)
-            // If Best Route, provider must be undefined, and we pass options
+            // Pass provider displayName — backend resolves to internal slug
             const providerName = provider.isBestRoute ? undefined : provider.displayName;
             const options = provider.isBestRoute ? { useBestRoute: true, maxPrice: provider.maxPrice } : undefined;
 
