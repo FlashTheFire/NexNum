@@ -2089,8 +2089,17 @@ export class DynamicProvider implements SmsProvider {
     // ═══════════════════════════════════════════════════════════════════════
 
     async setCancel(activationId: string): Promise<void> {
-        const response = await this.request('setCancel', { id: activationId })
-        this.checkForErrors(response, 'setCancel', (this.config.mappings as any)?.setCancel)
+        const endpoints = (this.config.endpoints || {}) as Record<string, EndpointConfig>
+        if (endpoints?.setCancel) {
+            const response = await this.request('setCancel', { id: activationId, status: '8' })
+            this.checkForErrors(response, 'setCancel', (this.config.mappings as any)?.setCancel)
+            return
+        }
+        if (endpoints?.setStatus) {
+            const response = await this.request('setStatus', { id: activationId, status: '8' })
+            this.checkForErrors(response, 'setStatus', (this.config.mappings as any)?.setStatus)
+            return
+        }
     }
 
     /** @deprecated Use setCancel instead */
@@ -2104,27 +2113,51 @@ export class DynamicProvider implements SmsProvider {
      * This method exposed internal provider logic and is now disallowed
      */
     async setStatus(activationId: string, status: string | number): Promise<any> {
-        try {
-            const response = await this.request('setStatus', { id: activationId, status: String(status) })
-            const items = this.parseResponse(response, 'setStatus')
-            const mapped = items[0] || {}
+        const endpoints = (this.config.endpoints || {}) as Record<string, EndpointConfig>
+        if (endpoints?.setStatus) {
+            try {
+                const response = await this.request('setStatus', { id: activationId, status: String(status) })
+                const items = this.parseResponse(response, 'setStatus')
+                const mapped = items[0] || {}
 
-            return {
-                raw: response.data,
-                parsed: mapped,
-                success: true
+                return {
+                    raw: response.data,
+                    parsed: mapped,
+                    success: true
+                }
+            } catch (e: any) {
+                if (e.message?.includes('404')) {
+                    return { raw: null, parsed: {}, success: false, error: e.message }
+                }
+                throw e
             }
-        } catch (e: any) {
-            if (e.message?.includes('404')) {
-                return { raw: null, parsed: {}, success: false, error: e.message }
-            }
-            throw e
         }
+
+        // Universal fallbacks to specific action methods if setStatus isn't directly defined
+        const stStr = String(status)
+        if (stStr === '3' || stStr === 'retry') {
+            return this.setResendCode(activationId)
+        } else if (stStr === '8' || stStr === 'cancelled') {
+            return this.setCancel(activationId)
+        } else if (stStr === '6' || stStr === 'completed') {
+            return this.setComplete(activationId)
+        }
+
+        throw new Error(`Endpoint setStatus is not configured for provider '${this.name}'`)
     }
 
     async setResendCode(activationId: string): Promise<void> {
-        const response = await this.request('setResendCode', { id: activationId })
-        this.checkForErrors(response, 'setResendCode', (this.config.mappings as any)?.setResendCode)
+        const endpoints = (this.config.endpoints || {}) as Record<string, EndpointConfig>
+        if (endpoints?.setResendCode) {
+            const response = await this.request('setResendCode', { id: activationId, status: '3' })
+            this.checkForErrors(response, 'setResendCode', (this.config.mappings as any)?.setResendCode)
+            return
+        }
+        if (endpoints?.setStatus) {
+            const response = await this.request('setStatus', { id: activationId, status: '3' })
+            this.checkForErrors(response, 'setStatus', (this.config.mappings as any)?.setStatus)
+            return
+        }
     }
 
     /** @deprecated Use setResendCode instead */
@@ -2133,22 +2166,18 @@ export class DynamicProvider implements SmsProvider {
         return this.setResendCode(activationId)
     }
 
-    /**
-     * Mark activation as complete (NEW - API Standardization v2.0)
-     * Uses setStatus with status 6 (Complete) or dedicated endpoint
-     */
     async setComplete(activationId: string): Promise<void> {
-        const endpoints = this.config.endpoints as Record<string, any>
-
-        // Prefer dedicated setComplete endpoint if configured
-        if (endpoints['setComplete']) {
-            const response = await this.request('setComplete', { id: activationId })
+        const endpoints = (this.config.endpoints || {}) as Record<string, EndpointConfig>
+        if (endpoints?.setComplete) {
+            const response = await this.request('setComplete', { id: activationId, status: '6' })
             this.checkForErrors(response, 'setComplete', (this.config.mappings as any)?.setComplete)
             return
         }
-
-        // Fallback: use setStatus with status 6 (Complete activation)
-        await this.setStatus(activationId, 6)
+        if (endpoints?.setStatus) {
+            const response = await this.request('setStatus', { id: activationId, status: '6' })
+            this.checkForErrors(response, 'setStatus', (this.config.mappings as any)?.setStatus)
+            return
+        }
     }
 
 
