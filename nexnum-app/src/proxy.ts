@@ -108,8 +108,8 @@ export default async function proxy(request: NextRequest) {
 
 function attachSecurityHeaders(response: NextResponse) {
     response.headers.set('X-DNS-Prefetch-Control', 'on')
-    const IS_SECURE = process.env.NEXT_PUBLIC_APP_URL?.startsWith('https://') || false
-    if (IS_SECURE) {
+    const IS_PROD = process.env.NODE_ENV === 'production'
+    if (IS_PROD) {
         response.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload')
     }
     response.headers.set('X-XSS-Protection', '1; mode=block')
@@ -120,6 +120,7 @@ function attachSecurityHeaders(response: NextResponse) {
 
     const csp = [
         "default-src 'self'",
+        "upgrade-insecure-requests",
         "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://js.hcaptcha.com https://challenges.cloudflare.com https://*.sentry.io https://*.vercel-insights.com",
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
         "font-src 'self' data: https://fonts.gstatic.com",
