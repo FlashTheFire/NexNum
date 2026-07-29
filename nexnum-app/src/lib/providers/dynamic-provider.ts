@@ -1440,10 +1440,11 @@ export class DynamicProvider implements SmsProvider {
      * Get static countries from provider configuration if present
      */
     private getStaticCountries(): Country[] | null {
+        const config = (this.config || {}) as any
         const mappings = (this.config.mappings || {}) as any
         const endpoints = (this.config.endpoints || {}) as any
 
-        let staticCatalog = mappings?.staticCatalog
+        let staticCatalog = config?.staticCatalog || mappings?.staticCatalog
         if (typeof staticCatalog === 'string') {
             try { staticCatalog = JSON.parse(staticCatalog) } catch { }
         }
@@ -1477,10 +1478,11 @@ export class DynamicProvider implements SmsProvider {
      * Get static services from provider configuration if present
      */
     private getStaticServices(countryCode?: string | number): Service[] | null {
+        const config = (this.config || {}) as any
         const mappings = (this.config.mappings || {}) as any
         const endpoints = (this.config.endpoints || {}) as any
 
-        let staticCatalog = mappings?.staticCatalog
+        let staticCatalog = config?.staticCatalog || mappings?.staticCatalog
         if (typeof staticCatalog === 'string') {
             try { staticCatalog = JSON.parse(staticCatalog) } catch { }
         }

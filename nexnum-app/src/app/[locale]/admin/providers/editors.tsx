@@ -366,15 +366,15 @@ export function MappingEditor({ mappings, onChange }: { mappings: any, onChange:
 }
 
 export function StaticCatalogEditor({
-    mappings,
+    staticCatalog,
     onChange
 }: {
-    mappings: any,
-    onChange: (newMappings: any) => void
+    staticCatalog: any,
+    onChange: (newCatalog: any) => void
 }) {
-    const staticCatalog = mappings?.staticCatalog || {}
-    const countriesStr = JSON.stringify(staticCatalog.countries || mappings?.staticCountries || [], null, 2)
-    const servicesStr = JSON.stringify(staticCatalog.services || mappings?.staticServices || [], null, 2)
+    const catalog = typeof staticCatalog === 'string' ? (safeParse(staticCatalog) || {}) : (staticCatalog || {})
+    const countriesStr = JSON.stringify(catalog.countries || [], null, 2)
+    const servicesStr = JSON.stringify(catalog.services || [], null, 2)
 
     const [countriesJson, setCountriesJson] = useState(countriesStr)
     const [servicesJson, setServicesJson] = useState(servicesStr)
@@ -399,11 +399,8 @@ export function StaticCatalogEditor({
             setErrorMsg(null)
 
             onChange({
-                ...mappings,
-                staticCatalog: {
-                    countries: parsedCountries,
-                    services: parsedServices
-                }
+                countries: parsedCountries,
+                services: parsedServices
             })
         } catch (e: any) {
             setErrorMsg(e.message)

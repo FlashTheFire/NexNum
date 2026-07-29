@@ -39,6 +39,7 @@ interface Provider {
     priority: number
     endpoints: any
     mappings: any
+    staticCatalog?: any
     providerType?: string // rest, hybrid, sms-activate
     lastTest?: { success: boolean; testedAt: string; responseTime: number; responseData?: string; error?: string } | null
     syncCount: number
@@ -493,6 +494,7 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
         authQueryParam: '', authHeader: '',
         endpoints: '{\n  "getCountriesList": { "method": "GET", "path": "" }\n}',
         mappings: '{\n  "getCountriesList": { "type": "json_object", "rootPath": "$" }\n}',
+        staticCatalog: '{\n  "countries": [],\n  "services": []\n}',
         isActive: false, priority: 0, providerType: 'rest',
         priceMultiplier: '1.0', fixedMarkup: '0.00', currency: 'USD',
         useGlobalSync: false,
@@ -548,6 +550,7 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
                 authHeader: (provider as any).authHeader || '',
                 endpoints: JSON.stringify(provider.endpoints || {}, null, 2),
                 mappings: JSON.stringify(provider.mappings || {}, null, 2),
+                staticCatalog: JSON.stringify((provider as any).staticCatalog || (provider.mappings as any)?.staticCatalog || { countries: [], services: [] }, null, 2),
                 isActive: provider.isActive,
                 priority: provider.priority,
                 providerType: provider.providerType || 'rest',
@@ -2000,8 +2003,18 @@ function ProviderSheet({ provider, isCreating, onClose, onRefresh }: any) {
 
                         {/* STEP 3: Static Catalog Fallback (JSON) */}
                         <StaticCatalogEditor
-                            mappings={safeParse(formData.mappings)}
-                            onChange={(newMappings) => setFormData({ ...formData, mappings: JSON.stringify(newMappings, null, 2) })}
+                            staticCatalog={safeParse(formData.staticCatalog || (safeParse(formData.mappings) as any)?.staticCatalog)}
+                            onChange={(newCatalog) => {
+                                const currentMappings = safeParse(formData.mappings) || {}
+                                if ('staticCatalog' in currentMappings) {
+                                    delete currentMappings.staticCatalog
+                                }
+                                setFormData({
+                                    ...formData,
+                                    staticCatalog: JSON.stringify(newCatalog, null, 2),
+                                    mappings: JSON.stringify(currentMappings, null, 2)
+                                })
+                            }}
                         />
 
                         {/* Bottom spacer */}
