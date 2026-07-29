@@ -3,9 +3,17 @@ import { AuthGuard } from '@/lib/auth/guard'
 import { isSyncNeeded, getLastSyncInfo } from '@/lib/providers/provider-sync'
 import { logAdminAction, getClientIP } from '@/lib/core/auditLog'
 import { queue, QUEUES } from '@/lib/core/queue'
+import { GET as debugSyncGET } from '@/app/api/admin/providers/debug-sync/route'
 
-// GET - Get sync status and info (ADMIN ONLY)
+// GET - Get sync status or trigger debug streaming sync if debug=true
 export async function GET(request: Request) {
+  const url = new URL(request.url)
+  const isDebug = url.searchParams.get('debug') === 'true' || url.searchParams.get('stream') === 'true'
+
+  if (isDebug) {
+    return debugSyncGET(request)
+  }
+
   try {
     const { error } = await AuthGuard.requireAdmin()
     if (error) return error

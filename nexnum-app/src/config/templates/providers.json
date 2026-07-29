@@ -246,18 +246,21 @@
                 }
             },
             "getPrices": {
-                "path": "$",
-                "type": "dictionary",
+                "type": "json_dictionary",
                 "nestingLevels": {
                     "providersKey": "providers",
                     "extractOperators": true
                 },
                 "fields": {
-                    "country": "$parentKey",
-                    "service": "$key",
+                    "country": "$atDepth:0",
+                    "service": "$atDepth:1",
                     "operator": "$operatorKey",
-                    "cost": "price|cost",
+                    "cost": "price.$first|price|cost",
                     "count": "count|quantity"
+                },
+                "transform": {
+                    "cost": "number",
+                    "count": "number"
                 }
             }
         }
