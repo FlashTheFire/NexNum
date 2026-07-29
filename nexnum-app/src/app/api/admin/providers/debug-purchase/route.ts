@@ -475,10 +475,17 @@ export async function GET(request: Request) {
 
                         send(`[INFO] Attempting Candidate #${i + 1}/${candidatesList.length} (operator='${candOp}', stock=${cand.stock})...`)
 
-                        // Construct upstream URL
-                        const baseUrl = targetProvider.baseUrl || 'http://api1.5sim.net'
-                        const path = getNumberEndpoint?.path || '/stubs/handler_api.php'
+                        // Construct upstream URL safely (handling absolute endpoint paths)
+                        const rawBase = targetProvider.baseUrl?.trim() || ''
+                        const path = (getNumberEndpoint?.path || '/stubs/handler_api.php').trim()
                         const apiKey = targetProvider.apiKey || 'REDACTED_KEY'
+
+                        let fullBaseUrl = ''
+                        if (path.startsWith('http://') || path.startsWith('https://')) {
+                            fullBaseUrl = path
+                        } else {
+                            fullBaseUrl = rawBase ? `${rawBase.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}` : path
+                        }
 
                         const queryParams = new URLSearchParams({
                             action: 'getNumber',
@@ -488,8 +495,9 @@ export async function GET(request: Request) {
                             api_key: apiKey
                         })
 
-                        const fullUrl = `${baseUrl}${path}?${queryParams.toString()}`
-                        const maskedUrl = fullUrl.replace(apiKey, apiKey.substring(0, 6) + '***')
+                        const separator = fullBaseUrl.includes('?') ? '&' : '?'
+                        const fullUrl = `${fullBaseUrl}${separator}${queryParams.toString()}`
+                        const maskedUrl = fullUrl.replace(apiKey, apiKey.length > 6 ? apiKey.substring(0, 6) + '***' : 'REDACT***')
                         lastUpstreamUrl = maskedUrl
 
                         send(`   - Request URL: GET ${maskedUrl}`)

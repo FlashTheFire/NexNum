@@ -677,7 +677,10 @@ export async function GET(request: Request) {
                             serviceCodeToNumeric.has(normSvc) ||
                             serviceCodeToNumeric.has(cleanSvc)
 
-                        if (!isValidSvc) unlistedServiceCount++
+                        if (!isValidSvc) {
+                            unlistedServiceCount++
+                            continue
+                        }
 
                         if (!Number.isFinite(p.cost) || p.cost <= 0) {
                             zeroCostCount++
@@ -695,8 +698,8 @@ export async function GET(request: Request) {
                         const countryCode = sample.country
                         const serviceCode = sample.service
 
-                        let svcName = (serviceMap.get(serviceCode) || serviceMap.get(serviceCode.toLowerCase()) || sample.service || serviceCode || '').trim()
-                        if (!svcName) {
+                        let svcName = (serviceMap.get(serviceCode) || serviceMap.get(serviceCode.toLowerCase()) || '').trim()
+                        if (!svcName || svcName.toLowerCase() === 'unknown' || /^\d+$/.test(svcName)) {
                             noServiceNameCount++
                             if (sampleUnresolvedServices.length < 5) sampleUnresolvedServices.push(serviceCode)
                             continue

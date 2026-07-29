@@ -1100,15 +1100,15 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                     const isActive = isCountryVisible && isServiceVisible
 
                     let svcName = (serviceMap.get(serviceCode) || serviceMap.get(serviceCode.toLowerCase()) || '').trim()
+
+                    // STRICT DROP: Drop all unlisted / soft-filtered services not explicitly registered in central ServiceLookup database
                     if (!svcName) {
-                        const candidateName = getCanonicalName(sample.service || serviceCode)
-                        if (candidateName && !/^\d+$/.test(candidateName) && candidateName.toLowerCase() !== 'unknown') {
-                            svcName = candidateName
-                        }
+                        noServiceNameCount++
+                        continue
                     }
 
                     // GUARD: Drop unknown or pure numeric service codes (e.g. "35") if unresolvable to a real service name
-                    if (!svcName || svcName.toLowerCase() === 'unknown' || /^\d+$/.test(svcName)) {
+                    if (svcName.toLowerCase() === 'unknown' || /^\d+$/.test(svcName)) {
                         noServiceNameCount++
                         continue
                     }
