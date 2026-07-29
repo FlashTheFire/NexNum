@@ -1170,9 +1170,9 @@ export async function getOfferForPurchase(
             const filters = [
                 `serviceId = ${serviceInput}`,
                 `countryId = ${countryInput}`,
-                'stock > 0',
                 'isActive = true'
             ]
+            // skip stock filter — cached stock may be stale, upstream API decides
             if (operatorId) filters.push(`operatorId = ${operatorId}`)
             if (provider) filters.push(`provider = "${provider}"`)
 
@@ -1262,7 +1262,9 @@ export async function getOfferForPurchase(
         }
 
         // STEP 3: Build filter and find offer
-        let filter = `serviceName = "${serviceNameToFilter}" AND countryName = "${countryNameToFilter}" AND stock > 0`
+        // No stock filter — MeiliSearch stock is cached/synced, not live.
+        // The upstream provider API determines real-time availability during purchase.
+        let filter = `serviceName = "${serviceNameToFilter}" AND countryName = "${countryNameToFilter}"`
 
         if (operatorId !== undefined) {
             filter += ` AND operator = "${operatorId}"` // Map numeric ID to string operator field if needed, or remove check if operatorId is obsolete
