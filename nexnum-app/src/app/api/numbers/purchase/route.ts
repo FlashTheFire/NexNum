@@ -345,7 +345,14 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
                 // Pass maxPrice (in POINTS) to smart router
                 const result = await smartRouter.purchaseWithBestRoute(countryInput, serviceInput, maxPrice)
 
-                if (!result.success) throw new Error(`Best route failed: ${result.attemptsLog.map((a: any) => `${a.provider}: ${a.error}`).join(', ')}`)
+                if (!result.success) {
+                    logger.warn('[PURCHASE_BEST_ROUTE_EXHAUSTED] All best-route providers failed', {
+                        context: 'PURCHASE',
+                        correlationId,
+                        attemptsLog: result.attemptsLog
+                    })
+                    throw new Error('No numbers available right now. Please try again shortly.')
+                }
 
                 providerResult = result.number || null
                 providerName = result.provider || providerName
@@ -402,8 +409,13 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
             })
 
             await releaseAtomicPurchaseLock(user.userId, lockToken)
-            const providerError = providerErr as Error
-            return ResponseFactory.error(providerError.message || 'Provider unavailable', 503, 'E_PROVIDER_FAIL')
+
+            // Return a clean, user-friendly error — never leak internal provider names or debug info
+            return ResponseFactory.error(
+                'No numbers available right now. Please try again shortly.',
+                503,
+                'E_NO_NUMBERS'
+            )
         }
 
         if (!providerResult) {

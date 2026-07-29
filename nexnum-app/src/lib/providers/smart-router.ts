@@ -399,7 +399,7 @@ export class SmartSmsRouter implements SmsProvider {
         expectedPrice?: number;  // The price user selected from offers
     }): Promise<NumberResult> {
         let providers = await this.getHealthyProviders() // Use healthy providers only
-        if (providers.length === 0) throw new Error("No healthy providers available")
+        if (providers.length === 0) throw new Error('No numbers available right now. Please try again shortly.')
 
         const providerPreference = options?.provider
         const expectedPrice = options?.expectedPrice
@@ -460,19 +460,23 @@ export class SmartSmsRouter implements SmsProvider {
                 const isPermanent = e.isPermanent ?? false
 
                 // Record failure (with country facet)
+                // Treat UNKNOWN errors as NO_STOCK — these are almost always stock-out responses
+                // from providers that don't return structured error types. They are inventory events,
+                // NOT server downtime, and must NOT trip the circuit breaker.
                 const latency = Date.now() - startTime
-                const mappedErrorType = (errorType === 'NO_BALANCE' || errorType === 'NO_NUMBERS' || isNoStock)
+                const mappedErrorType = (errorType === 'NO_BALANCE' || errorType === 'NO_NUMBERS' || errorType === 'UNKNOWN' || isNoStock)
                     ? 'NO_STOCK'
                     : (isPermanent ? 'SYSTEMIC' : (errorType === 'TIMEOUT' ? 'TIMEOUT' : 'TRANSIENT'))
                 await healthMonitor.recordRequest(provider.config.id, false, latency, countryCode, mappedErrorType)
 
                 logger.warn(`SmartRouter: Purchase failed on ${provider.name}: ${e.message}`, {
                     errorType,
+                    mappedErrorType,
                     isNoStock,
                     isPermanent
                 })
 
-                checkedProviders.push(`${provider.name}(${errorType})`)
+                checkedProviders.push(provider.name)
 
                 // If it's a permanent error (BAD_KEY, etc.), don't try other providers.
                 // UNLESS it's NO_BALANCE - that's "permanent" for the provider but "retryable" for the system.
@@ -501,7 +505,14 @@ export class SmartSmsRouter implements SmsProvider {
             }
         }
 
-        throw new Error(`All healthy providers failed to purchase number. Checked: ${checkedProviders.join(', ')}`)
+        // Log detailed internal info but throw a user-friendly message
+        logger.warn('All providers exhausted for purchase attempt', {
+            context: 'ROUTER',
+            checkedProviders,
+            countryCode,
+            serviceCode
+        })
+        throw new Error('No numbers available right now. Please try again shortly.')
     }
 
     async getStatus(activationId: string): Promise<StatusResult> {
