@@ -12,15 +12,15 @@
         "endpoints": {
             "getCountriesList": {
                 "method": "GET",
-                "path": "https://5sim.net/v1/guest/countries"
+                "path": "/guest/countries"
             },
             "getServicesList": {
                 "method": "GET",
-                "path": "https://5sim.net/v1/guest/products/any/any"
+                "path": "/guest/products/any/any"
             },
             "getNumber": {
                 "method": "GET",
-                "path": "https://5sim.net/v1/user/buy/activation/$country/$operator/$product",
+                "path": "/user/buy/activation/{country}/{operator}/{product}",
                 "queryParams": {
                     "forwarding": "$forwarding",
                     "number": "$forwardingNumber",
@@ -32,19 +32,31 @@
             },
             "getStatus": {
                 "method": "GET",
-                "path": "https://5sim.net/v1/user/check/$id"
+                "path": "/user/check/{id}"
+            },
+            "setStatus": {
+                "method": "GET",
+                "path": "/user/check/{id}"
+            },
+            "setResendCode": {
+                "method": "GET",
+                "path": "/user/resend/{id}"
+            },
+            "setComplete": {
+                "method": "GET",
+                "path": "/user/finish/{id}"
             },
             "setCancel": {
                 "method": "GET",
-                "path": "https://5sim.net/v1/user/cancel/$id"
+                "path": "/user/cancel/{id}"
             },
             "getBalance": {
                 "method": "GET",
-                "path": "https://5sim.net/v1/user/profile"
+                "path": "/user/profile"
             },
             "getPrices": {
                 "method": "GET",
-                "path": "https://5sim.net/v1/guest/prices",
+                "path": "/guest/prices",
                 "queryParams": {
                     "country": "$country",
                     "product": "$service"
@@ -160,46 +172,86 @@
         "endpoints": {
             "getCountriesList": {
                 "method": "GET",
-                "path": "https://api.grizzlysms.com/stubs/handler_api.php?action=getCountries&api_key={authKey}"
+                "path": "/stubs/handler_api.php",
+                "queryParams": {
+                    "action": "getCountries"
+                }
             },
             "getServicesList": {
                 "method": "GET",
-                "path": "https://api.grizzlysms.com/stubs/handler_api.php?action=getServicesList&country={country}&lang=en&api_key={authKey}"
+                "path": "/stubs/handler_api.php",
+                "queryParams": {
+                    "action": "getServicesList",
+                    "country": "$country",
+                    "lang": "en"
+                }
             },
             "getNumber": {
                 "method": "GET",
-                "path": "https://api.grizzlysms.com/stubs/handler_api.php?action=getNumberV2&service={service}&country={country}&api_key={authKey}"
+                "path": "/stubs/handler_api.php",
+                "queryParams": {
+                    "action": "getNumberV2",
+                    "service": "$service",
+                    "country": "$country",
+                    "operator": "$operator"
+                }
             },
             "getStatus": {
                 "method": "GET",
-                "path": "https://api.grizzlysms.com/stubs/handler_api.php?action=getStatus&id={id}&api_key={authKey}"
+                "path": "/stubs/handler_api.php",
+                "queryParams": {
+                    "action": "getStatus",
+                    "id": "$id"
+                }
             },
             "setStatus": {
                 "method": "GET",
-                "path": "https://api.grizzlysms.com/stubs/handler_api.php?action=setStatus&id={id}&status={status}&api_key={authKey}"
+                "path": "/stubs/handler_api.php",
+                "queryParams": {
+                    "action": "setStatus",
+                    "id": "$id",
+                    "status": "$status"
+                }
             },
             "setResendCode": {
                 "method": "GET",
-                "path": "https://api.grizzlysms.com/stubs/handler_api.php?action=setStatus&id={id}&status=3&api_key={authKey}"
+                "path": "/stubs/handler_api.php",
+                "queryParams": {
+                    "action": "setStatus",
+                    "id": "$id",
+                    "status": "3"
+                }
             },
             "setComplete": {
                 "method": "GET",
-                "path": "https://api.grizzlysms.com/stubs/handler_api.php?action=setStatus&id={id}&status=6&api_key={authKey}"
+                "path": "/stubs/handler_api.php",
+                "queryParams": {
+                    "action": "setStatus",
+                    "id": "$id",
+                    "status": "6"
+                }
             },
             "setCancel": {
                 "method": "GET",
-                "path": "https://api.grizzlysms.com/stubs/handler_api.php?action=setStatus&id={id}&status=8&api_key={authKey}"
+                "path": "/stubs/handler_api.php",
+                "queryParams": {
+                    "action": "setStatus",
+                    "id": "$id",
+                    "status": "8"
+                }
             },
             "getBalance": {
                 "method": "GET",
-                "path": "https://api.grizzlysms.com/stubs/handler_api.php?action=getBalance&api_key={authKey}"
+                "path": "/stubs/handler_api.php",
+                "queryParams": {
+                    "action": "getBalance"
+                }
             },
             "getPrices": {
                 "method": "GET",
-                "path": "https://api.grizzlysms.com/stubs/handler_api.php",
+                "path": "/stubs/handler_api.php",
                 "queryParams": {
                     "action": "getPricesV3",
-                    "api_key": "{authKey}",
                     "country": "$country",
                     "service": "$service"
                 }
@@ -461,27 +513,79 @@
         "endpoints": {
             "getCountriesList": {
                 "method": "GET",
-                "path": "https://hero-sms.com/stubs/handler_api.php?action=getCountries&api_key={authKey}"
+                "path": "/stubs/handler_api.php",
+                "queryParams": {
+                    "action": "getCountries"
+                }
             },
             "getServicesList": {
                 "method": "GET",
-                "path": "https://hero-sms.com/stubs/handler_api.php?action=getServicesList&country={country}&lang=en&api_key={authKey}"
+                "path": "/stubs/handler_api.php",
+                "queryParams": {
+                    "action": "getServicesList",
+                    "country": "$country",
+                    "lang": "en"
+                }
             },
             "getNumber": {
                 "method": "GET",
-                "path": "https://hero-sms.com/stubs/handler_api.php?action=getNumber&service={service}&country={country}&api_key={authKey}"
+                "path": "/stubs/handler_api.php",
+                "queryParams": {
+                    "action": "getNumber",
+                    "service": "$service",
+                    "country": "$country"
+                }
             },
             "getStatus": {
                 "method": "GET",
-                "path": "https://hero-sms.com/stubs/handler_api.php?action=getStatus&id={id}&api_key={authKey}"
+                "path": "/stubs/handler_api.php",
+                "queryParams": {
+                    "action": "getStatus",
+                    "id": "$id"
+                }
+            },
+            "setStatus": {
+                "method": "GET",
+                "path": "/stubs/handler_api.php",
+                "queryParams": {
+                    "action": "setStatus",
+                    "id": "$id",
+                    "status": "$status"
+                }
+            },
+            "setResendCode": {
+                "method": "GET",
+                "path": "/stubs/handler_api.php",
+                "queryParams": {
+                    "action": "setStatus",
+                    "id": "$id",
+                    "status": "3"
+                }
+            },
+            "setComplete": {
+                "method": "GET",
+                "path": "/stubs/handler_api.php",
+                "queryParams": {
+                    "action": "setStatus",
+                    "id": "$id",
+                    "status": "6"
+                }
             },
             "setCancel": {
                 "method": "GET",
-                "path": "https://hero-sms.com/stubs/handler_api.php?action=setStatus&id={id}&status=8&api_key={authKey}"
+                "path": "/stubs/handler_api.php",
+                "queryParams": {
+                    "action": "setStatus",
+                    "id": "$id",
+                    "status": "8"
+                }
             },
             "getBalance": {
                 "method": "GET",
-                "path": "https://hero-sms.com/stubs/handler_api.php?action=getBalance&api_key={authKey}"
+                "path": "/stubs/handler_api.php",
+                "queryParams": {
+                    "action": "getBalance"
+                }
             }
         },
         "mappings": {
