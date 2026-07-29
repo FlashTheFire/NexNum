@@ -183,7 +183,7 @@ export const provider_health_status = register('nexnum_provider_health_status', 
 export const provider_health_success_rate = register('nexnum_provider_health_success_rate', () => new Gauge({
     name: 'nexnum_provider_health_success_rate',
     help: 'Success rate of provider health checks',
-    labelNames: ['provider'],
+    labelNames: ['provider', 'country'],
     registers: [registry]
 }))
 
