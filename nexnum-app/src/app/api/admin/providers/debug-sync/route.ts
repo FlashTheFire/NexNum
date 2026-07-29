@@ -53,6 +53,12 @@ export async function GET(request: Request) {
                 }
             }
 
+            const sendEvent = (event: string, payload: any) => {
+                if (isHtml) {
+                    controller.enqueue(encoder.encode(`<script>handleEvent(${JSON.stringify(event)}, ${JSON.stringify(payload)});</script>\n`))
+                }
+            }
+
             const sendHeader = () => {
                 if (isHtml) {
                     const initialHtml = `<!DOCTYPE html>
@@ -62,66 +68,274 @@ export async function GET(request: Request) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NexNum Enterprise Provider Sync Debugger</title>
     <style>
+        :root {
+            --bg-color: #0b0f19;
+            --panel-bg: #111827;
+            --border-color: #1f2937;
+            --accent-blue: #38bdf8;
+            --accent-purple: #c084fc;
+            --success-green: #4ade80;
+            --warning-amber: #fbbf24;
+            --error-red: #f87171;
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+        }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
-            background-color: #0d1117;
-            color: #c9d1d9;
-            font-family: 'JetBrains Mono', 'Fira Code', 'Segoe UI', monospace;
-            padding: 20px;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, monospace;
+            padding: 24px;
             font-size: 13px;
             line-height: 1.6;
         }
+        .container { max-width: 1400px; margin: 0 auto; }
+        
+        /* Top Navigation Header */
         .header {
-            background: linear-gradient(135deg, #1f2937, #111827);
-            border: 1px solid #374151;
-            padding: 16px 20px;
-            border-radius: 8px;
+            background: linear-gradient(135deg, #1e293b, #0f172a);
+            border: 1px solid var(--border-color);
+            padding: 20px 24px;
+            border-radius: 12px;
             margin-bottom: 20px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
         }
-        .title { color: #60a5fa; font-size: 18px; font-weight: bold; margin-bottom: 6px; }
-        .subtitle { color: #9ca3af; font-size: 12px; }
-        .terminal {
-            background-color: #161b22;
-            border: 1px solid #30363d;
-            border-radius: 8px;
+        .brand { display: flex; align-items: center; gap: 12px; }
+        .logo-icon {
+            background: linear-gradient(135deg, #38bdf8, #818cf8);
+            color: #000;
+            font-weight: 900;
+            font-size: 18px;
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 15px rgba(56, 189, 248, 0.4);
+        }
+        .title { color: var(--text-primary); font-size: 20px; font-weight: 700; letter-spacing: -0.5px; }
+        .subtitle { color: var(--text-secondary); font-size: 12px; margin-top: 2px; }
+        .pulse-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(74, 222, 128, 0.1);
+            border: 1px solid rgba(74, 222, 128, 0.3);
+            color: var(--success-green);
+            padding: 4px 10px;
+            border-radius: 9999px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .pulse-dot {
+            width: 8px;
+            height: 8px;
+            background-color: var(--success-green);
+            border-radius: 50%;
+            box-shadow: 0 0 8px var(--success-green);
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.85); } }
+
+        /* Toolbar Controls */
+        .toolbar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid var(--border-color);
+            padding: 8px 12px;
+            border-radius: 10px;
+            flex-wrap: wrap;
+        }
+        .select-input, .btn {
+            background: #1e293b;
+            border: 1px solid #334155;
+            color: var(--text-primary);
+            padding: 8px 14px;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 12px;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+        .select-input:focus, .btn:hover { border-color: var(--accent-blue); background: #334155; cursor: pointer; }
+        .btn-primary { background: #0284c7; color: #fff; border-color: #38bdf8; font-weight: 600; }
+        .btn-primary:hover { background: #0369a1; box-shadow: 0 0 12px rgba(56, 189, 248, 0.3); }
+
+        /* Stats Counter Bar */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
             padding: 16px;
-            min-height: 500px;
-            max-height: 80vh;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+            transition: transform 0.2s ease;
+        }
+        .stat-card:hover { transform: translateY(-2px); border-color: #374151; }
+        .stat-label { color: var(--text-secondary); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+        .stat-value { font-size: 22px; font-weight: 700; color: var(--text-primary); }
+        .stat-value.blue { color: var(--accent-blue); }
+        .stat-value.green { color: var(--success-green); }
+        .stat-value.amber { color: var(--warning-amber); }
+        .stat-value.purple { color: var(--accent-purple); }
+
+        /* Terminal Window */
+        .terminal {
+            background: #090d16;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            min-height: 520px;
+            max-height: 75vh;
             overflow-y: auto;
             white-space: pre-wrap;
-            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
+            box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.6);
+            font-size: 13px;
+            line-height: 1.7;
         }
-        .log-line { margin-bottom: 4px; }
-        .accent { color: #38bdf8; font-weight: bold; }
-        .success { color: #4ade80; font-weight: bold; }
-        .warn { color: #fbbf24; font-weight: bold; }
-        .error { color: #f87171; font-weight: bold; }
-        .table-header { color: #a78bfa; font-weight: bold; }
+        .log-line { margin-bottom: 4px; display: flex; gap: 8px; flex-wrap: wrap; }
+        
+        /* Syntax Colors */
+        .tag-info { background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 6px; border-radius: 4px; font-weight: 600; font-size: 11px; }
+        .tag-step { background: rgba(192, 132, 252, 0.15); color: #c084fc; border: 1px solid rgba(192, 132, 252, 0.3); padding: 2px 6px; border-radius: 4px; font-weight: 600; font-size: 11px; }
+        .tag-success { background: rgba(74, 222, 128, 0.15); color: #4ade80; border: 1px solid rgba(74, 222, 128, 0.3); padding: 2px 6px; border-radius: 4px; font-weight: 600; font-size: 11px; }
+        .tag-warn { background: rgba(251, 191, 36, 0.15); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.3); padding: 2px 6px; border-radius: 4px; font-weight: 600; font-size: 11px; }
+        .tag-error { background: rgba(248, 113, 113, 0.15); color: #f87171; border: 1px solid rgba(248, 113, 113, 0.3); padding: 2px 6px; border-radius: 4px; font-weight: 600; font-size: 11px; }
+
+        /* Report Summary Card */
+        .report-card {
+            background: linear-gradient(135deg, #1e1b4b, #0f172a);
+            border: 1px solid #4338ca;
+            border-radius: 12px;
+            padding: 24px;
+            margin-top: 20px;
+            box-shadow: 0 10px 30px -10px rgba(67, 56, 202, 0.4);
+        }
+        .report-header { font-size: 16px; font-weight: 700; color: #a5b4fc; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+        .progress-bar-bg { background: #1e293b; height: 12px; border-radius: 6px; overflow: hidden; margin: 12px 0 20px 0; border: 1px solid #334155; }
+        .progress-bar-fill { height: 100%; background: linear-gradient(90deg, #38bdf8, #4ade80); transition: width 0.5s ease; }
+        .report-table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+        .report-table th, .report-table td { padding: 10px 14px; text-align: left; border-bottom: 1px solid #1e293b; }
+        .report-table th { color: var(--text-secondary); font-size: 11px; text-transform: uppercase; }
+        .report-table td { font-size: 13px; }
     </style>
 </head>
 <body>
-    <div class="header">
-        <div class="title">⚡ NexNum Provider Sync & Pricing Loss Debugger</div>
-        <div class="subtitle">Target Provider: <span class="accent">${providerParam.toUpperCase()}</span> | Clear Old Data: <span class="warn">${clearOld ? 'YES' : 'NO'}</span> | Mode: <span class="success">Live SSE Stream</span></div>
+    <div class="container">
+        <!-- Top Nav -->
+        <div class="header">
+            <div class="brand">
+                <div class="logo-icon">⚡</div>
+                <div>
+                    <div class="title">NexNum Provider Sync Console</div>
+                    <div class="subtitle">Live Deep Search & Pricing Retention Diagnostic Pipeline</div>
+                </div>
+            </div>
+            <div class="toolbar">
+                <div class="pulse-badge">
+                    <span class="pulse-dot"></span> Live SSE Stream
+                </div>
+                <select id="providerSelect" class="select-input">
+                    <option value="5simnet" ${providerParam === '5simnet' ? 'selected' : ''}>5Simnet</option>
+                    <option value="grizzlysms" ${providerParam === 'grizzlysms' ? 'selected' : ''}>GrizzlySMS</option>
+                    <option value="smshub" ${providerParam === 'smshub' ? 'selected' : ''}>SMSHub</option>
+                    <option value="smsactivate" ${providerParam === 'smsactivate' ? 'selected' : ''}>SMS-Activate</option>
+                    <option value="all" ${providerParam === 'all' ? 'selected' : ''}>ALL Providers</option>
+                </select>
+                <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;">
+                    <input type="checkbox" id="clearOldCheck" ${clearOld ? 'checked' : ''} /> Clear Old
+                </label>
+                <button class="btn btn-primary" onclick="runSync()">▶ Run Sync</button>
+                <button class="btn" onclick="clearTerminal()">🧹 Clear</button>
+                <button class="btn" onclick="copyLogs()">📋 Copy Logs</button>
+            </div>
+        </div>
+
+        <!-- Live Metric Cards -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Raw API Pairs</div>
+                <div id="stat-raw" class="stat-value blue">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Indexed Documents</div>
+                <div id="stat-indexed" class="stat-value purple">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Data Retention Rate</div>
+                <div id="stat-retention" class="stat-value green">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Active Stock ( >0 )</div>
+                <div id="stat-stock" class="stat-value amber">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Execution Time</div>
+                <div id="stat-duration" class="stat-value">-</div>
+            </div>
+        </div>
+
+        <!-- Live Terminal Window -->
+        <div id="terminal" class="terminal"></div>
     </div>
-    <div id="terminal" class="terminal"></div>
+
     <script>
         const term = document.getElementById('terminal');
+        let autoScroll = true;
+
+        function runSync() {
+            const provider = document.getElementById('providerSelect').value;
+            const clearOld = document.getElementById('clearOldCheck').checked;
+            window.location.href = '/api/admin/providers/debug-sync?provider=' + provider + '&clearOld=' + clearOld;
+        }
+
+        function clearTerminal() {
+            term.innerHTML = '';
+        }
+
+        function copyLogs() {
+            navigator.clipboard.writeText(term.innerText);
+            alert('Logs copied to clipboard!');
+        }
+
+        function handleEvent(event, payload) {
+            if (event === 'stats') {
+                if (payload.rawApiPairs != null) document.getElementById('stat-raw').innerText = payload.rawApiPairs.toLocaleString();
+                if (payload.validOffers != null) document.getElementById('stat-indexed').innerText = payload.validOffers.toLocaleString();
+                if (payload.retentionRate != null) document.getElementById('stat-retention').innerText = payload.retentionRate + '%';
+                if (payload.stockGtZeroCount != null) document.getElementById('stat-stock').innerText = payload.stockGtZeroCount.toLocaleString();
+                if (payload.durationMs != null) document.getElementById('stat-duration').innerText = payload.durationMs.toLocaleString() + 'ms';
+            }
+        }
+
         function appendLog(msg) {
             const div = document.createElement('div');
             div.className = 'log-line';
-            
-            let formatted = msg
-                .replace(/([✅🟢✨])/g, '<span class="success">$1</span>')
-                .replace(/([⚠️🟡⚡])/g, '<span class="warn">$1</span>')
-                .replace(/([❌🔴💥])/g, '<span class="error">$1</span>')
-                .replace(/(\\[SYNC[^\\]]*\\])/g, '<span class="accent">$1</span>')
-                .replace(/(=== [^=]+ ===)/g, '<span class="table-header">$1</span>');
-                
-            div.innerHTML = formatted;
+
+            // Clean format replacements
+            let content = msg
+                .replace(/^\[INFO\]/g, '<span class="tag-info">INFO</span>')
+                .replace(/^\[STEP\]/g, '<span class="tag-step">STEP</span>')
+                .replace(/^\[SUCCESS\]/g, '<span class="tag-success">SUCCESS</span>')
+                .replace(/^\[WARN\]/g, '<span class="tag-warn">WARN</span>')
+                .replace(/^\[ERROR\]/g, '<span class="tag-error">ERROR</span>');
+
+            div.innerHTML = content;
             term.appendChild(div);
-            term.scrollTop = term.scrollHeight;
+            if (autoScroll) term.scrollTop = term.scrollHeight;
         }
     </script>
 `
@@ -133,8 +347,8 @@ export async function GET(request: Request) {
                 sendHeader()
 
                 const startTime = Date.now()
-                send(`🚀 [${new Date().toISOString()}] Initializing Debug Sync Session...`)
-                send(`🔍 Environment Settings: minPrice=$${PricingConfig.minPrice} USD, maxPrice=$${PricingConfig.maxPrice} USD`)
+                send(`[INFO] Initializing Debug Sync Session at ${new Date().toLocaleTimeString()}...`)
+                send(`[INFO] Active Environment Bounds: minPrice=$${PricingConfig.minPrice} USD, maxPrice=$${PricingConfig.maxPrice} USD`)
 
                 // 1. Fetch Target Providers
                 let targetProviders: any[] = []
@@ -154,12 +368,12 @@ export async function GET(request: Request) {
                 }
 
                 if (targetProviders.length === 0) {
-                    send(`❌ ERROR: No active provider matching '${providerParam}' was found in Database!`)
+                    send(`[ERROR] No active provider matching '${providerParam}' was found in Database!`)
                     controller.close()
                     return
                 }
 
-                send(`✅ Found ${targetProviders.length} target provider(s): ${targetProviders.map(p => p.name).join(', ')}`)
+                send(`[SUCCESS] Loaded ${targetProviders.length} target provider(s): ${targetProviders.map(p => p.name.toUpperCase()).join(', ')}`)
 
                 // Pre-cache currency rates & settings
                 const currencyService = getCurrencyService()
@@ -168,8 +382,8 @@ export async function GET(request: Request) {
                 const standardRates = rates as Record<string, number>
                 const pointsRate = Number(systemSettings.pointsRate)
 
-                // Pre-cache DB Lookups (5,500+ services, 650+ countries)
-                send(`📚 Pre-loading Central Service & Country Registry lookups from PostgreSQL...`)
+                // Pre-cache DB Lookups
+                send(`[INFO] Pre-loading Central Service & Country Registry lookups from PostgreSQL...`)
                 const allServiceIds = await prisma.serviceLookup.findMany({ select: { serviceCode: true, serviceName: true, serviceId: true } })
                 const allCountryIds = await prisma.countryLookup.findMany({ select: { countryCode: true, countryName: true, countryId: true } })
 
@@ -198,45 +412,45 @@ export async function GET(request: Request) {
                     setIfAbsent(normalizeCountryName(c.countryName).toLowerCase(), c.countryId)
                 }
 
-                send(`✅ Loaded ${allServiceIds.length} services and ${allCountryIds.length} countries from DB lookups.`)
+                send(`[SUCCESS] Loaded ${allServiceIds.length} central services and ${allCountryIds.length} country mappings from DB.`)
 
                 // Sync each provider
                 for (const provider of targetProviders) {
                     const pStart = Date.now()
                     send(`\n========================================================================================`)
-                    send(`🔄 STARTING DIAGNOSTIC TRACE FOR PROVIDER: [${provider.name.toUpperCase()}]`)
+                    send(`[STEP] STARTING DIAGNOSTIC TRACE FOR PROVIDER: ${provider.name.toUpperCase()}`)
                     send(`========================================================================================`)
 
                     // STEP 1: CLEAR OLD DATA IN MEILISEARCH IF REQUESTED
                     if (clearOld) {
-                        send(`🧹 Step 1: Clearing existing documents in MeiliSearch for provider '${provider.name}'...`)
+                        send(`[STEP 1] Clearing existing documents in MeiliSearch for provider '${provider.name}'...`)
                         try {
                             const index = meili.index(INDEXES.OFFERS)
                             if (providerParam === 'all') {
                                 const task = await index.deleteAllDocuments()
-                                send(`✅ Sent deleteAllDocuments request to MeiliSearch (Task UID: ${task.taskUid})`)
+                                send(`[SUCCESS] Sent deleteAllDocuments request to MeiliSearch (Task UID: ${task.taskUid})`)
                             } else {
                                 const task = await index.deleteDocuments({ filter: `provider = "${provider.name}"` })
-                                send(`✅ Sent deleteDocuments request for filter 'provider = "${provider.name}"' (Task UID: ${task.taskUid})`)
+                                send(`[SUCCESS] Sent deleteDocuments request for filter 'provider = "${provider.name}"' (Task UID: ${task.taskUid})`)
                             }
                         } catch (e: any) {
-                            send(`⚠️ MeiliSearch Clear Warning: ${e.message}`)
+                            send(`[WARN] MeiliSearch Clear Warning: ${e.message}`)
                         }
                     }
 
                     // STEP 2: INSTANTIATE DYNAMIC PROVIDER
-                    send(`📡 Step 2: Initializing DynamicProvider instance...`)
+                    send(`[STEP 2] Initializing DynamicProvider instance...`)
                     const dynamicProvider = new DynamicProvider(provider as any)
 
                     // STEP 3: FETCH METADATA (COUNTRIES & SERVICES)
-                    send(`🌐 Step 3: Fetching Static Metadata (getCountriesList & getServicesList)...`)
+                    send(`[STEP 3] Fetching Static Metadata (getCountriesList & getServicesList)...`)
                     let countries: any[] = []
                     let services: any[] = []
                     try {
                         countries = await dynamicProvider.getCountriesList()
-                        send(`   - getCountriesList(): ${countries.length} countries returned`)
+                        send(`[INFO] getCountriesList(): ${countries.length} countries returned`)
                     } catch (e: any) {
-                        send(`   - getCountriesList(): Failed/Skipped (${e.message})`)
+                        send(`[WARN] getCountriesList(): Failed/Skipped (${e.message})`)
                     }
 
                     try {
@@ -244,9 +458,9 @@ export async function GET(request: Request) {
                         if ((!services || services.length === 0) && countries.length > 0) {
                             services = await dynamicProvider.getServicesList(countries[0].code)
                         }
-                        send(`   - getServicesList(): ${services.length} static services returned`)
+                        send(`[INFO] getServicesList(): ${services.length} static services returned`)
                     } catch (e: any) {
-                        send(`   - getServicesList(): Failed/Skipped (${e.message})`)
+                        send(`[WARN] getServicesList(): Failed/Skipped (${e.message})`)
                     }
 
                     // Build whitelist sets
@@ -268,27 +482,29 @@ export async function GET(request: Request) {
                         }
                     }
 
-                    send(`✅ Whitelist sets built: ${validCountryCodes.size} country keys, ${validServiceCodes.size} service keys`)
+                    send(`[SUCCESS] Whitelist sets built: ${validCountryCodes.size} country keys, ${validServiceCodes.size} service keys`)
 
                     // STEP 4: FETCH RAW PRICES
-                    send(`⚡ Step 4: Fetching live prices from Upstream Provider...`)
+                    send(`[STEP 4] Fetching live prices from Upstream Provider API...`)
                     const apiFetchStart = Date.now()
                     let rawPrices: any[] = []
                     try {
                         rawPrices = await dynamicProvider.getPrices()
-                        send(`✅ Raw Price Fetch completed in ${Date.now() - apiFetchStart}ms. Total PriceData objects parsed: ${rawPrices.length}`)
+                        send(`[SUCCESS] Raw Price Fetch completed in ${Date.now() - apiFetchStart}ms. Total PriceData objects parsed: ${rawPrices.length}`)
                     } catch (e: any) {
-                        send(`❌ Upstream Price Fetch Error: ${e.message}`)
+                        send(`[ERROR] Upstream Price Fetch Error: ${e.message}`)
                         continue
                     }
 
                     if (rawPrices.length === 0) {
-                        send(`⚠️ Provider returned 0 price entries! Check provider balance or API configuration.`)
+                        send(`[WARN] Provider returned 0 price entries! Check provider balance or API configuration.`)
                         continue
                     }
 
+                    sendEvent('stats', { rawApiPairs: rawPrices.length })
+
                     // STEP 5: PIPELINE TRACE & TRANSFORMATION AUDIT
-                    send(`📊 Step 5: Auditing Offer Transformation Pipeline (Raw -> MeiliSearch Documents)...`)
+                    send(`[STEP 5] Auditing Offer Transformation Pipeline (Raw API -> MeiliSearch Documents)...`)
 
                     let rawPairsCount = rawPrices.length
                     let zeroCostCount = 0
@@ -464,10 +680,10 @@ export async function GET(request: Request) {
                     }
 
                     const finalOffersList = Array.from(allOffersMap.values())
-                    send(`✅ Step 5 Completed: Transformed raw data into ${finalOffersList.length} unique MeiliSearch Offer Documents.`)
+                    send(`[SUCCESS] Step 5 Completed: Transformed raw data into ${finalOffersList.length.toLocaleString()} unique MeiliSearch Offer Documents.`)
 
                     // STEP 6: MEILISEARCH INDEXING
-                    send(`🚀 Step 6: Indexing ${finalOffersList.length} documents into MeiliSearch index '${INDEXES.OFFERS}'...`)
+                    send(`[STEP 6] Indexing ${finalOffersList.length.toLocaleString()} documents into MeiliSearch index '${INDEXES.OFFERS}'...`)
                     const index = meili.index(INDEXES.OFFERS)
                     const chunkSize = 5000
                     let indexedCount = 0
@@ -476,58 +692,104 @@ export async function GET(request: Request) {
                         const chunk = finalOffersList.slice(i, i + chunkSize)
                         const task = await index.addDocuments(chunk)
                         indexedCount += chunk.length
-                        send(`   - Enqueued chunk ${Math.floor(i / chunkSize) + 1}/${Math.ceil(finalOffersList.length / chunkSize)} (${chunk.length} docs, Task UID: ${task.taskUid})`)
+                        send(`[INFO] Enqueued chunk ${Math.floor(i / chunkSize) + 1}/${Math.ceil(finalOffersList.length / chunkSize)} (${chunk.length} docs, Task UID: ${task.taskUid})`)
                     }
 
                     const pDuration = Date.now() - pStart
+                    const retentionRateNum = rawPairsCount > 0 ? Number(((finalOffersList.length / rawPairsCount) * 100).toFixed(2)) : 100.0
 
-                    // STEP 7: PRINT DIAGNOSTIC SUMMARY TABLE
-                    const stats: SyncAuditStats = {
-                        provider: provider.name,
+                    sendEvent('stats', {
                         rawApiPairs: rawPairsCount,
-                        parsedPriceObjects: rawPrices.length,
                         validOffers: finalOffersList.length,
-                        indexedDocuments: indexedCount,
-                        zeroCostCount,
-                        unlistedCountryCount,
-                        unlistedServiceCount,
-                        noCountryNameCount,
-                        noServiceNameCount,
-                        priceOutOfBoundsCount,
+                        retentionRate: retentionRateNum,
                         stockGtZeroCount,
-                        stockZeroCount,
                         durationMs: pDuration
+                    })
+
+                    // STEP 7: PRINT EXECUTIVE HTML SUMMARY CARD AT END
+                    if (isHtml) {
+                        const reportCardHtml = `
+<div class="report-card">
+    <div class="report-header">
+        <span>📊 DATA PIPELINE RETENTION AUDIT REPORT: ${provider.name.toUpperCase()}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-weight:600;font-size:14px;">
+        <span>Retention Score</span>
+        <span style="color: ${retentionRateNum >= 90 ? 'var(--success-green)' : (retentionRateNum >= 50 ? 'var(--warning-amber)' : 'var(--error-red)')}">${retentionRateNum}%</span>
+    </div>
+    <div class="progress-bar-bg">
+        <div class="progress-bar-fill" style="width: ${retentionRateNum}%; background: ${retentionRateNum >= 90 ? 'linear-gradient(90deg, #38bdf8, #4ade80)' : 'linear-gradient(90deg, #fbbf24, #f87171)'}"></div>
+    </div>
+    <table class="report-table">
+        <thead>
+            <tr>
+                <th>Pipeline Stage</th>
+                <th>Offer Count</th>
+                <th>Status / Impact</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Stage 1: Raw API Pairs Received</td>
+                <td><b>${rawPairsCount.toLocaleString()}</b></td>
+                <td><span class="tag-info">INPUT</span></td>
+            </tr>
+            <tr>
+                <td>Stage 2: Parsed PriceData Objects</td>
+                <td><b>${rawPrices.length.toLocaleString()}</b></td>
+                <td><span class="tag-info">PARSED</span></td>
+            </tr>
+            <tr>
+                <td>Stage 3: Transformed & Indexed Offers</td>
+                <td><b>${finalOffersList.length.toLocaleString()}</b></td>
+                <td><span class="tag-success">RETAINED (${retentionRateNum}%)</span></td>
+            </tr>
+            <tr>
+                <td>📦 Active In-Stock Offers (stock &gt; 0)</td>
+                <td><b>${stockGtZeroCount.toLocaleString()}</b></td>
+                <td><span class="tag-success">READY FOR PURCHASE</span></td>
+            </tr>
+            <tr>
+                <td>📦 Zero-Stock Restock Offers (stock = 0)</td>
+                <td><b>${stockZeroCount.toLocaleString()}</b></td>
+                <td><span class="tag-warn">AUTO-RESTOCK WATCH</span></td>
+            </tr>
+            <tr>
+                <td>🛑 Price Out-of-Bounds (&lt;$${PricingConfig.minPrice} / &gt;$${PricingConfig.maxPrice})</td>
+                <td><b>${priceOutOfBoundsCount.toLocaleString()}</b></td>
+                <td>${priceOutOfBoundsCount > 0 ? '<span class="tag-error">FILTERED BY MIN_PRICE_USD</span>' : '<span class="tag-success">CLEAN (0 DROPPED)</span>'}</td>
+            </tr>
+            <tr>
+                <td>ℹ️ Soft-Filtered Unlisted Services</td>
+                <td><b>${unlistedServiceCount.toLocaleString()}</b></td>
+                <td><span class="tag-success">AUTO-INCLUDED (0 DROPPED)</span></td>
+            </tr>
+            <tr>
+                <td>❌ Dropped Unresolvable Names</td>
+                <td><b>${(noCountryNameCount + noServiceNameCount).toLocaleString()}</b></td>
+                <td>${(noCountryNameCount + noServiceNameCount) > 0 ? '<span class="tag-error">MISSING LOOKUP</span>' : '<span class="tag-success">100% MATCHED</span>'}</td>
+            </tr>
+        </tbody>
+    </table>
+</div>`
+                        send(reportCardHtml)
+                    } else {
+                        send(`\n========================================================================================`)
+                        send(`                   DATA PIPELINE RETENTION AUDIT REPORT: ${provider.name.toUpperCase()}`)
+                        send(`========================================================================================`)
+                        send(`📊 Stage 1: Raw API Pairs Received  ......................... ${rawPairsCount.toLocaleString()}`)
+                        send(`📊 Stage 2: Transformed Offer Documents .................... ${finalOffersList.length.toLocaleString()}`)
+                        send(`✨ DATA RETENTION RATE: ${retentionRateNum}% (${finalOffersList.length.toLocaleString()} / ${rawPairsCount.toLocaleString()} offers retained)`)
+                        send(`🛑 Price Out-of-Bounds (<$${PricingConfig.minPrice} / >$${PricingConfig.maxPrice}): .. ${priceOutOfBoundsCount.toLocaleString()}`)
+                        send(`⏱️ Total Provider Sync Duration: ............................. ${pDuration}ms`)
+                        send(`========================================================================================\n`)
                     }
-
-                    const retentionRate = rawPairsCount > 0 ? ((finalOffersList.length / rawPairsCount) * 100).toFixed(2) : '100.00'
-
-                    send(`\n========================================================================================`)
-                    send(`                   DATA PIPELINE RETENTION AUDIT REPORT: ${provider.name.toUpperCase()}`)
-                    send(`========================================================================================`)
-                    send(`📊 Stage 1: Raw API Pairs Received  ......................... ${stats.rawApiPairs.toLocaleString()}`)
-                    send(`📊 Stage 2: Parsed PriceData Objects ........................ ${stats.parsedPriceObjects.toLocaleString()}`)
-                    send(`📊 Stage 3: Transformed Offer Documents .................... ${stats.validOffers.toLocaleString()}`)
-                    send(`📊 Stage 4: Enqueued to MeiliSearch ......................... ${stats.indexedDocuments.toLocaleString()}`)
-                    send(`----------------------------------------------------------------------------------------`)
-                    send(`✨ DATA RETENTION RATE: ${retentionRate}% (${stats.validOffers.toLocaleString()} / ${stats.rawApiPairs.toLocaleString()} offers retained)`)
-                    send(`----------------------------------------------------------------------------------------`)
-                    send(`📦 Active In-Stock Offers (stock > 0): ........................ ${stats.stockGtZeroCount.toLocaleString()}`)
-                    send(`📦 Zero-Stock Restock Offers (stock = 0): ...................... ${stats.stockZeroCount.toLocaleString()}`)
-                    send(`----------------------------------------------------------------------------------------`)
-                    send(`ℹ️ Soft-Filtered Unlisted Countries (Auto-Included): .......... ${stats.unlistedCountryCount.toLocaleString()}`)
-                    send(`ℹ️ Soft-Filtered Unlisted Services (Auto-Included): ........... ${stats.unlistedServiceCount.toLocaleString()}`)
-                    send(`🛑 Dropped Invalid/Zero Cost (cost <= 0): .................... ${stats.zeroCostCount.toLocaleString()}`)
-                    send(`🛑 Dropped Price Out-of-Bounds (<$${PricingConfig.minPrice} / >$${PricingConfig.maxPrice}): .. ${stats.priceOutOfBoundsCount.toLocaleString()}`)
-                    send(`❌ Dropped Unresolvable Country Names: ....................... ${stats.noCountryNameCount.toLocaleString()} ${sampleUnresolvedCountries.length ? '(Samples: ' + sampleUnresolvedCountries.join(', ') + ')' : ''}`)
-                    send(`❌ Dropped Unresolvable Service Names: ....................... ${stats.noServiceNameCount.toLocaleString()} ${sampleUnresolvedServices.length ? '(Samples: ' + sampleUnresolvedServices.join(', ') + ')' : ''}`)
-                    send(`⏱️ Total Provider Sync Duration: ............................. ${pDuration}ms`)
-                    send(`========================================================================================\n`)
                 }
 
-                send(`✨ [${new Date().toISOString()}] FULL DIAGNOSTIC SYNC COMPLETE IN ${Date.now() - startTime}ms.`)
+                send(`[SUCCESS] FULL DIAGNOSTIC SYNC COMPLETE IN ${Date.now() - startTime}ms.`)
                 controller.close()
             } catch (error: any) {
-                send(`❌ FATAL ERROR DURING DIAGNOSTIC SYNC: ${error.stack || error.message || error}`)
+                send(`[ERROR] FATAL ERROR DURING DIAGNOSTIC SYNC: ${error.stack || error.message || error}`)
                 controller.close()
             }
         }
