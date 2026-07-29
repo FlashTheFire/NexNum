@@ -137,6 +137,7 @@ export async function refreshAllServiceAggregatesImpl() {
             const nowIso = new Date().toISOString();
 
             try {
+                const ids = chunk.map(() => crypto.randomUUID());
                 const codes = chunk.map(s => s.serviceCode);
                 const names = chunk.map(s => s.serviceName);
                 const prices = chunk.map(s => s.lowestPrice.toString());
@@ -147,6 +148,7 @@ export async function refreshAllServiceAggregatesImpl() {
 
                 await prisma.$executeRaw`
                     INSERT INTO "service_aggregates" (
+                        "id",
                         "service_code",
                         "service_name",
                         "lowest_price",
@@ -156,6 +158,7 @@ export async function refreshAllServiceAggregatesImpl() {
                         "last_updated_at"
                     )
                     SELECT
+                        src."id",
                         src."service_code",
                         src."service_name",
                         src."lowest_price"::numeric(8,2),
@@ -164,6 +167,7 @@ export async function refreshAllServiceAggregatesImpl() {
                         src."provider_count",
                         src."last_updated_at"::timestamptz
                     FROM unnest(
+                        ${ids}::text[],
                         ${codes}::text[],
                         ${names}::text[],
                         ${prices}::text[],
@@ -172,6 +176,7 @@ export async function refreshAllServiceAggregatesImpl() {
                         ${providerCounts}::int[],
                         ${updatedAts}::text[]
                     ) AS src(
+                        "id",
                         "service_code",
                         "service_name",
                         "lowest_price",
