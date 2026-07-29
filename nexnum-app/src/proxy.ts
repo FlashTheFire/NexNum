@@ -14,6 +14,15 @@ const intlMiddleware = createMiddleware(routing);
 export default async function proxy(request: NextRequest) {
     const { pathname } = request.nextUrl
 
+    // ──────────────────────────────────────────────────
+    // MULTI-DOMAIN TENANT RESOLUTION (Super CEO Architecture)
+    // Injects x-tenant-domain header for downstream tenant-aware rendering
+    // ──────────────────────────────────────────────────
+    const host = request.headers.get('host') || 'nx1.in'
+    const protocol = request.nextUrl.protocol || 'https:'
+    request.headers.set('x-tenant-domain', host)
+    request.headers.set('x-tenant-url', `${protocol}//${host}`)
+
     // Skip proxy for API routes and static assets
     if (pathname.startsWith('/api') || pathname.startsWith('/_next') || pathname.includes('.')) {
         const response = NextResponse.next();
@@ -90,6 +99,9 @@ export default async function proxy(request: NextRequest) {
 
     // Attach Security Headers to the i18n response
     attachSecurityHeaders(response);
+
+    // Attach multi-domain tenant header to response
+    response.headers.set('x-tenant-domain', host);
 
     return response;
 }
