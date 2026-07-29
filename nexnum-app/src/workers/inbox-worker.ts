@@ -366,13 +366,11 @@ export async function processInboxBatch(batchSize = CONFIG.BATCH_SIZE): Promise<
                     await syncNumberAndActivation(number.id, number.activationId, 'received', 'RECEIVED', numberCorrelationId)
                 }
 
-                // Request next SMS (status=3 / ACCESS_RETRY_GET) so provider listens for subsequent OTPs (OTP #2, #3, etc.)
-                try {
-                    if (typeof smsProvider.setResendCode === 'function') {
-                        await smsProvider.setResendCode(number.activationId)
-                    }
-                } catch (_retryErr: unknown) {
-                    // Non-fatal if provider does not require explicit retry status
+                // Request next SMS asynchronously (non-blocking) so provider listens for subsequent OTPs
+                if (typeof smsProvider.setResendCode === 'function' && number.activationId) {
+                    smsProvider.setResendCode(number.activationId).catch((_retryErr: unknown) => {
+                        // Non-fatal if provider does not require explicit retry status
+                    })
                 }
 
                 // Notify user

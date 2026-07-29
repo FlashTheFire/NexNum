@@ -63,11 +63,15 @@ export class ZombieDetector {
      * Returns a list of workers that have either never heartbeated or
      * whose last heartbeat is older than their threshold.
      */
-    detect(heartbeats: HeartbeatMap, now: number = Date.now()): ZombieResult[] {
+    detect(heartbeats: HeartbeatMap, now: number = Date.now(), serviceStartTime?: number): ZombieResult[] {
         const zombies: ZombieResult[] = []
         for (const w of this.workers) {
             const last = heartbeats[w.name]
             if (last === undefined) {
+                // Startup Grace Period: If process started recently, don't flag missing 1st heartbeat as zombie
+                if (serviceStartTime && (now - serviceStartTime) < Math.max(w.thresholdMs * 2, 600_000)) {
+                    continue
+                }
                 zombies.push({ worker: w, ageMs: Infinity, hasHeartbeat: false })
                 continue
             }

@@ -142,6 +142,16 @@ export async function startQueueWorker() {
         });
         await queue.schedule(QUEUES.MASTER_WORKER, '* * * * *', {});
 
+        // JOB: Tier 1 High-Frequency Active Poller Loop (3-second ultra-low latency OTP delivery)
+        const { runActivePollerTick } = await import('./workers/active-poller')
+        setInterval(async () => {
+            try {
+                await runActivePollerTick()
+            } catch (_tickErr: unknown) {
+                // Background interval safety catch
+            }
+        }, 3000)
+
         // JOB: Smart Sync Scheduler (Daily)
         const { syncAllProviders, verifyAssetIntegrity } = await import('./lib/providers/provider-sync');
         await queue.work(QUEUES.SCHEDULED_SYNC, async () => {

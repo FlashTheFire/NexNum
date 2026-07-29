@@ -467,6 +467,19 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
         await releaseAtomicPurchaseLock(user.userId, lockToken)
         emitStateUpdate(user.userId, 'all', 'number_purchased').catch(err => logger.warn('[PURCHASE] emitStateUpdate failed', { error: err }))
 
+        // Register in Zero-DB Redis Active Stream for instant 3s Tier 1 polling
+        const { ActiveOrderStream } = await import('@/lib/activation/active-order-stream')
+        ActiveOrderStream.addActiveOrder({
+            numberId: resultNumber.id,
+            activationId: providerResult!.activationId,
+            userId: user.userId,
+            provider: providerName,
+            phoneNumber: resultNumber.phoneNumber,
+            countryCode: resolvedCountryCode,
+            serviceCode: resolvedServiceCode,
+            createdAt: Date.now()
+        }).catch(streamErr => logger.warn('[PURCHASE] ActiveOrderStream add failed', { error: streamErr }))
+
         logger.info('[PURCHASE_COMPLETE] Purchase completed successfully', {
             context: 'PURCHASE',
             correlationId,
