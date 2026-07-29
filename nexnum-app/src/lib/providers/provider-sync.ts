@@ -363,7 +363,6 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
 
     try {
         // Pre-load ALL service names AND IDs from ServiceLookup table for fallback
-        // OPTIMIZATION: Include serviceId and build lookup map for batch resolution
         const allServiceLookups = await prisma.serviceLookup.findMany({
             select: { serviceCode: true, serviceName: true, serviceId: true }
         })
@@ -372,11 +371,35 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
         allServiceLookups.forEach(s => {
             serviceMap.set(s.serviceCode, s.serviceName)
             serviceMap.set(s.serviceCode.toLowerCase(), s.serviceName)
-            serviceIdLookup.set(s.serviceCode, s.serviceId)
+            serviceMap.set(s.serviceName.toLowerCase(), s.serviceName)
+            if (s.serviceId != null) {
+                serviceIdLookup.set(s.serviceCode, s.serviceId)
+                serviceMap.set(String(s.serviceId), s.serviceName)
+            }
         })
-        logger.info('Pre-loaded service names from lookup table', {
+
+        // Pre-load ALL country names AND IDs from CountryLookup table for numeric ID resolution (e.g. "22" -> "India")
+        const allCountryLookups = await prisma.countryLookup.findMany({
+            select: { countryCode: true, countryName: true, countryId: true }
+        })
+        const countryIdToName = new Map<number, string>()
+        const countryIdToCode = new Map<number, string>()
+
+        allCountryLookups.forEach(c => {
+            countryNameMap.set(c.countryCode, c.countryName)
+            countryNameMap.set(c.countryCode.toLowerCase(), c.countryName)
+            countryNameMap.set(c.countryName.toLowerCase(), c.countryName)
+            if (c.countryId != null) {
+                countryIdToName.set(c.countryId, c.countryName)
+                countryIdToCode.set(c.countryId, c.countryCode)
+                countryNameMap.set(String(c.countryId), c.countryName)
+            }
+        })
+
+        logger.info('Pre-loaded service & country registries from lookup tables', {
             context: 'SYNC',
-            count: allServiceLookups.length
+            serviceCount: allServiceLookups.length,
+            countryCount: allCountryLookups.length
         })
 
         // Update status to syncing
@@ -1082,8 +1105,26 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                         continue
                     }
 
-                    const resolvedCountryName = (countryNameMap.get(countryCode) || sample.country || country?.name || '').trim()
-                    if (!resolvedCountryName || resolvedCountryName.toLowerCase() === 'unknown') {
+                    let rawCountryName = (countryNameMap.get(countryCode) || countryNameMap.get(String(countryCode)) || '').trim()
+                    if (!rawCountryName || rawCountryName.toLowerCase() === 'unknown' || /^\d+$/.test(rawCountryName)) {
+                        const cNum = Number(countryCode)
+                        if (Number.isSafeInteger(cNum) && countryIdToName.has(cNum)) {
+                            rawCountryName = countryIdToName.get(cNum)!
+                        }
+                    }
+
+                    if (!rawCountryName) {
+                        rawCountryName = (sample.country || country?.name || '').trim()
+                    }
+                    if (/^\d+$/.test(rawCountryName)) {
+                        const cNum = Number(rawCountryName)
+                        if (Number.isSafeInteger(cNum) && countryIdToName.has(cNum)) {
+                            rawCountryName = countryIdToName.get(cNum)!
+                        }
+                    }
+
+                    const resolvedCountryName = rawCountryName
+                    if (!resolvedCountryName || resolvedCountryName.toLowerCase() === 'unknown' || /^\d+$/.test(resolvedCountryName)) {
                         noCountryNameCount++
                         continue
                     }
@@ -1193,7 +1234,7 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                         providerCountryCode: countryCode,
                         countryName: canonicalCtyName,
                         countryId: resolvedCtyId ?? 0,
-                        countryIcon: getCountryFlagUrlSync(canonicalCtyName) || getCountryFlagUrlSync(sample.country || country?.name || '') || '',
+                        countryIcon: getCountryFlagUrlSync(canonicalCtyName) || getCountryFlagUrlSync(canonicalCtyCode) || getCountryFlagUrlSync(sample.country || country?.name || '') || '',
                         serviceCode: canonicalSvcCode,
                         providerServiceCode: serviceCode,
                         serviceName: canonicalSvcName,
