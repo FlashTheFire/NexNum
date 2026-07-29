@@ -74,9 +74,15 @@ export const POST = apiHandler(async (request, { body }) => {
         })
 
         // Complete the activation
-        if (number.activationId) {
-            await tx.activation.update({
-                where: { id: number.activationId },
+        if (number.activationId || number.id) {
+            await tx.activation.updateMany({
+                where: {
+                    OR: [
+                        { id: number.activationId || '' },
+                        { providerActivationId: number.activationId || '' },
+                        { numberId: number.id }
+                    ]
+                },
                 data: { state: 'RECEIVED' }
             })
         }

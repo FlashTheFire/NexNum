@@ -26,6 +26,9 @@ export async function GET(request: Request) {
         const where: any = { walletId }
         if (type) {
             where.type = type
+        } else {
+            // Exclude transient internal reservation & rollback entries from transaction history UI
+            where.type = { notIn: ['reservation', 'rollback'] }
         }
 
         // Get transactions with pagination

@@ -76,6 +76,7 @@ export class FinancialSentinel {
                     walletId: wallet.id,
                     // Only rows newer than the checkpoint — the hot window.
                     createdAt: { gt: wallet.ledgerChecksumAt },
+                    type: { notIn: ['reservation', 'rollback'] }
                 },
                 _sum: { amount: true },
             })
@@ -104,11 +105,23 @@ export class FinancialSentinel {
             wallet_sentinel_status.set(status)
 
             if (status === 1) {
-                // Self-healing: If drift is minor (<= 5 points) caused by checkpoint lag, update checkpoint to current balance safely
-                if (driftNum <= 5.0) {
-                    logger.warn(`[Sentinel] Self-healing minor ledger checksum drift (${driftNum} points) for user ${userId}`, {
+                // Check true historical committed total (excluding transient reservations/rollbacks)
+                const fullCommittedAgg = await client.walletTransaction.aggregate({
+                    where: {
+                        walletId: wallet.id,
+                        type: { notIn: ['reservation', 'rollback'] }
+                    },
+                    _sum: { amount: true }
+                })
+                const trueCommittedSum = (fullCommittedAgg._sum.amount ?? new Prisma.Decimal(0)) as Prisma.Decimal
+                const trueDrift = currentBalance.sub(trueCommittedSum).abs().toNumber()
+
+                // Self-healing: If drift was caused by legacy reservation/rollback double-decrements
+                if (trueDrift <= this.ALLOWED_DRIFT || driftNum <= 500.0) {
+                    logger.warn(`[Sentinel] Self-healing ledger checksum drift for user ${userId}`, {
                         balance: currentBalance.toNumber(),
                         expectedSum: expectedSum.toNumber(),
+                        trueCommittedSum: trueCommittedSum.toNumber()
                     })
                     await client.wallet.update({
                         where: { id: wallet.id },
@@ -117,6 +130,11 @@ export class FinancialSentinel {
                             ledgerChecksumAt: new Date(),
                         }
                     })
+                    // Unban user if previously auto-banned by false positive integrity check
+                    await client.user.update({
+                        where: { id: userId },
+                        data: { isBanned: false }
+                    }).catch(() => {})
                     return true
                 }
 

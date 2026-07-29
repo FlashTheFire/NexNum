@@ -124,9 +124,6 @@ export class WalletService {
                 }
             })
 
-            // 9. Advance sentinel checkpoint (reservation is a negative amount pending commit)
-            await FinancialSentinel.updateCheckpoint(wallet.id, decAmount.negated(), transaction.createdAt, client)
-
             return { walletId: wallet.id, transaction }
         }
 
@@ -324,9 +321,6 @@ export class WalletService {
                     currencySnapshot: currencySnapshot as any,
                 }
             })
-
-            // 6. Advance sentinel checkpoint (rollback is a positive credit to reserved)
-            await FinancialSentinel.updateCheckpoint(wallet.id, decAmount, transaction.createdAt, client)
 
             wallet_transactions_total.labels('purchase_rollback', 'success').inc()
 
