@@ -12,18 +12,18 @@
  * and all resolution goes through the AliasRegistry class below.
  */
 
-import metadata from '@/data/metadata.json'
+import { COUNTRY_NAME_MAP } from './country-normalizer'
 
-// ── Legacy in-memory maps (dual-read, used until Phase 3 cleanup) ─
+// ── Dynamic in-memory maps (populated dynamically from DB CanonicalService) ─
 
-export const SERVICE_OVERRIDES = metadata.serviceOverrides as Record<string, {
+export const SERVICE_OVERRIDES: Record<string, {
     displayName: string;
     slugAliases?: string[];
     iconUrl?: string;
-}>
+}> = {}
 
-export const POPULAR_SERVICES = metadata.popularServices
-export const COUNTRY_NAME_MAP = metadata.countryNameMap
+export const POPULAR_SERVICES: string[] = ['telegram', 'whatsapp', 'google', 'instagram', 'facebook', 'tiktok', 'tinder', 'twitter', 'uber']
+export { COUNTRY_NAME_MAP }
 
 // Compatibility Maps
 export const CANONICAL_SERVICE_NAME_MAP: Record<string, string> = {}
@@ -33,20 +33,6 @@ export const CANONICAL_SERVICE_ICONS: Record<string, string> = {}
 const DISPLAY_NAME_TO_KEY: Record<string, string> = {}
 export const NUMERIC_ID_TO_SERVICE: Record<number, string> = {}
 export const NUMERIC_ID_TO_COUNTRY: Record<number, string> = {}
-
-for (const [key, config] of Object.entries(SERVICE_OVERRIDES)) {
-    CANONICAL_SERVICE_NAME_MAP[key.toLowerCase()] = config.displayName
-    CANONICAL_DISPLAY_NAMES[key] = config.displayName
-    DISPLAY_NAME_TO_KEY[config.displayName.toLowerCase()] = key
-    if (config.slugAliases) {
-        for (const alias of config.slugAliases) {
-            CANONICAL_SERVICE_NAMES[alias] = key
-        }
-    }
-    if (config.iconUrl) {
-        CANONICAL_SERVICE_ICONS[key] = config.iconUrl
-    }
-}
 
 // ── Exports from country-normalizer ────────────────────────────────
 

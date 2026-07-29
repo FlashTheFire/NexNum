@@ -1,9 +1,6 @@
 import { SERVICE_OVERRIDES, normalizeServiceName, generateCanonicalCode } from './service-identity'
-import metadata from '@/data/metadata.json'
 
-// Use stop words from metadata
-// Use stop words from metadata
-const STOP_WORDS = new Set((metadata as any).searchConfig?.stopWords || [
+const STOP_WORDS = new Set([
     "the", "a", "an", "in", "on", "at", "for", "to", "of", "and", "sms", "verification", "code", "verify"
 ]);
 

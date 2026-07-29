@@ -1,12 +1,16 @@
-import metadata from '@/data/metadata.json'
 import countriesMetadata from '@/data/countries-metadata.json'
 
 /**
  * Country Name Normalizer & Phone Code Lookup
  */
 
-// Country Name Mapping (Aliases)
-export const COUNTRY_NAME_MAP: Record<string, string> = metadata.countryNameMap
+// Dynamic Country Name Mapping (Aliases) built from universal ISO countries metadata
+export const COUNTRY_NAME_MAP: Record<string, string> = {}
+countriesMetadata.forEach(c => {
+    if (c.name?.en) {
+        COUNTRY_NAME_MAP[c.name.en.toLowerCase()] = c.name.en
+    }
+})
 
 // Variant patterns (virtual, numbered versions)
 const VARIANT_PATTERN = /^(.+?)\s*\((?:virtual|v|[0-9]+)\)$/i

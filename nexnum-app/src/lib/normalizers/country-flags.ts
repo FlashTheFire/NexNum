@@ -1,7 +1,7 @@
 /**
  * Country Flag Lookup
  * 
- * Uses the local metadata.json (via country-normalizer) for reliable ISO code resolution.
+ * Uses universal ISO 3166-1 country lookup for reliable ISO code resolution.
  * Returns circle-flags SVG URLs for display.
  */
 
