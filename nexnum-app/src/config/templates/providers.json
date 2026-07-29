@@ -375,13 +375,40 @@
                     "id": "$id"
                 }
             },
+            "setStatus": {
+                "method": "GET",
+                "path": "https://smsbower.online/stubs/handler_api.php",
+                "queryParams": {
+                    "action": "setStatus",
+                    "id": "$id",
+                    "status": "$status"
+                }
+            },
+            "setResendCode": {
+                "method": "GET",
+                "path": "https://smsbower.online/stubs/handler_api.php",
+                "queryParams": {
+                    "action": "setStatus",
+                    "id": "$id",
+                    "status": "3"
+                }
+            },
+            "setComplete": {
+                "method": "GET",
+                "path": "https://smsbower.online/stubs/handler_api.php",
+                "queryParams": {
+                    "action": "setStatus",
+                    "id": "$id",
+                    "status": "6"
+                }
+            },
             "setCancel": {
                 "method": "GET",
                 "path": "https://smsbower.online/stubs/handler_api.php",
                 "queryParams": {
                     "action": "setStatus",
-                    "status": "8",
-                    "id": "$id"
+                    "id": "$id",
+                    "status": "8"
                 }
             },
             "getBalance": {
