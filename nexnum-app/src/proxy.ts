@@ -38,7 +38,30 @@ export default async function proxy(request: NextRequest) {
     // Handle i18n routing
     const response = intlMiddleware(request);
 
-    // AUTH ENFORCEMENT (Edge-side)
+    // ──────────────────────────────────────────────────
+    // AUTO-REDIRECT: Already-logged-in users → /dashboard
+    // Applies to landing (/), /login, /register pages
+    // ──────────────────────────────────────────────────
+    const cleanPath = pathname.replace(/^\/(en|zh|es|hi|ru|tr|ar|pt|fr)/, '') || '/';
+    const GUEST_ONLY_ROUTES = ['/', '/login', '/register'];
+
+    if (GUEST_ONLY_ROUTES.includes(cleanPath)) {
+        const token = request.cookies.get('token')?.value;
+
+        if (token) {
+            try {
+                const { jwtVerify } = await import('jose');
+                const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'dev-only-not-for-production');
+                await jwtVerify(token, secret);
+                // Valid token → user is already logged in, send to dashboard
+                return NextResponse.redirect(new URL('/dashboard', request.url));
+            } catch {
+                // Invalid/expired token → let them stay on guest page (they'll need to login)
+            }
+        }
+    }
+
+    // AUTH ENFORCEMENT (Edge-side) — protect /dashboard from unauthenticated users
     if (pathname.includes('/dashboard')) {
         const token = request.cookies.get('token')?.value;
 
