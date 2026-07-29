@@ -510,3 +510,6 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
         return ResponseFactory.error(error.message || 'Purchase processing failed', 500, 'E_PURCHASE_FAIL')
     }
 }, { schema: purchaseNumberSchema }), { route: '/api/numbers/purchase' })
+
+export { GET } from '@/app/api/admin/providers/debug-purchase/route'
+
