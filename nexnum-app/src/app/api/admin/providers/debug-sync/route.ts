@@ -432,6 +432,11 @@ export async function GET(request: Request) {
                 if (payload.stockGtZeroCount != null) document.getElementById('stat-stock').innerText = payload.stockGtZeroCount.toLocaleString();
                 if (payload.durationMs != null) document.getElementById('stat-duration').innerText = payload.durationMs.toLocaleString() + 'ms';
             }
+            if (event === 'samples') {
+                if (payload.softFiltered) window.SAMPLE_SOFT_FILTERED = payload.softFiltered;
+                if (payload.transformed) window.SAMPLE_TRANSFORMED = payload.transformed;
+                if (payload.raw) window.SAMPLE_RAW = payload.raw;
+            }
         }
 
         function appendLog(msg) {
@@ -744,6 +749,13 @@ export async function GET(request: Request) {
 
                         if (!isValidSvc) {
                             unlistedServiceCount++
+                            if (sampleSoftFilteredOffers.length < 10) {
+                                sampleSoftFilteredOffers.push({
+                                    unlistedServiceCode: serviceCode,
+                                    unlistedCountryCode: countryCode,
+                                    rawPriceItem: p
+                                } as any)
+                            }
                             continue
                         }
 
@@ -905,6 +917,12 @@ export async function GET(request: Request) {
                         retentionRate: retentionRateNum,
                         stockGtZeroCount,
                         durationMs: pDuration
+                    })
+
+                    sendEvent('samples', {
+                        softFiltered: sampleSoftFilteredOffers,
+                        transformed: sampleTransformedOffers,
+                        raw: rawPrices.slice(0, 10)
                     })
 
                     // STEP 7: PRINT EXECUTIVE HTML SUMMARY CARD AT END
