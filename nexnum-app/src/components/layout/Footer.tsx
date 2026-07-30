@@ -50,14 +50,14 @@ export default function Footer() {
                     </div>
 
                     <div>
-                        <h3 className="font-semibold mb-4">{t('connect.title')}</h3>
+                        <h3 className="font-semibold mb-4">{t.has('connect.title') ? t('connect.title') : 'Connect'}</h3>
                         <ul className="space-y-2 text-sm text-muted-foreground">
-                            <li><a href={t('socialLinks.twitter')} target="_blank" rel="noopener noreferrer" className="hover:text-primary">{t('connect.twitter')}</a></li>
-                            <li><a href={t('socialLinks.github')} target="_blank" rel="noopener noreferrer" className="hover:text-primary">{t('connect.github')}</a></li>
-                            <li><a href={t('socialLinks.discord')} target="_blank" rel="noopener noreferrer" className="hover:text-primary">{t('connect.discord')}</a></li>
-                            <li><a href={t('socialLinks.instagram')} target="_blank" rel="noopener noreferrer" className="hover:text-primary">{t('connect.instagram')}</a></li>
-                            <li><a href={t('socialLinks.youtube')} target="_blank" rel="noopener noreferrer" className="hover:text-primary">{t('connect.youtube')}</a></li>
-                            <li><Link href="/contact" className="hover:text-primary">{t('connect.contactUs')}</Link></li>
+                            <li><a href={t.has('socialLinks.twitter') ? t('socialLinks.twitter') : "https://x.com/TheNexNum"} target="_blank" rel="noopener noreferrer" className="hover:text-primary">{t.has('connect.twitter') ? t('connect.twitter') : 'Twitter'}</a></li>
+                            <li><a href={t.has('socialLinks.github') ? t('socialLinks.github') : "https://github.com/nexnum"} target="_blank" rel="noopener noreferrer" className="hover:text-primary">{t.has('connect.github') ? t('connect.github') : 'GitHub'}</a></li>
+                            <li><a href={t.has('socialLinks.discord') ? t('socialLinks.discord') : "https://discord.gg/fZs296Kgue"} target="_blank" rel="noopener noreferrer" className="hover:text-primary">{t.has('connect.discord') ? t('connect.discord') : 'Discord'}</a></li>
+                            <li><a href={t.has('socialLinks.instagram') ? t('socialLinks.instagram') : "https://www.instagram.com/thenexnum"} target="_blank" rel="noopener noreferrer" className="hover:text-primary">{t.has('connect.instagram') ? t('connect.instagram') : 'Instagram'}</a></li>
+                            <li><a href={t.has('socialLinks.youtube') ? t('socialLinks.youtube') : "https://www.youtube.com/@TheNexNum"} target="_blank" rel="noopener noreferrer" className="hover:text-primary">{t.has('connect.youtube') ? t('connect.youtube') : 'YouTube'}</a></li>
+                            <li><Link href="/contact" className="hover:text-primary">{t.has('connect.contactUs') ? t('connect.contactUs') : 'Contact Us'}</Link></li>
                         </ul>
                     </div>
                 </div>

@@ -131,11 +131,11 @@
             "contactUs": "联系我们"
         },
         "socialLinks": {
-            "twitter": "Twitter",
-            "github": "GitHub",
-            "discord": "Discord",
-            "instagram": "Instagram",
-            "youtube": "YouTube"
+            "twitter": "https://x.com/TheNexNum",
+            "github": "https://github.com/nexnum",
+            "discord": "https://discord.gg/fZs296Kgue",
+            "instagram": "https://www.instagram.com/thenexnum",
+            "youtube": "https://www.youtube.com/@TheNexNum"
         }
     },
     "auth": {

@@ -126,7 +126,16 @@
             "twitter": "Twitter",
             "github": "GitHub",
             "discord": "Discord",
-            "contactUs": "Contáctanos"
+            "instagram": "Instagram",
+            "youtube": "YouTube",
+            "contactUs": "Contacto"
+        },
+        "socialLinks": {
+            "twitter": "https://x.com/TheNexNum",
+            "github": "https://github.com/nexnum",
+            "discord": "https://discord.gg/fZs296Kgue",
+            "instagram": "https://www.instagram.com/thenexnum",
+            "youtube": "https://www.youtube.com/@TheNexNum"
         }
     },
     "auth": {
