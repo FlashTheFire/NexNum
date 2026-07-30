@@ -11,11 +11,19 @@ if (process.env.NODE_ENV === 'production') {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
 }
 
+let isWorkerStarted = false
+
 /**
  * Main Worker Entry Point
  * Handles registration and execution of all background jobs.
  */
 export async function startQueueWorker() {
+    if (isWorkerStarted) {
+        logger.debug('[WORKER] Worker service already started, skipping duplicate initialization', { context: 'WORKER' })
+        return
+    }
+    isWorkerStarted = true
+
     logger.box('Initializing Worker Services');
 
     try {
@@ -77,10 +85,12 @@ export async function startQueueWorker() {
             }
         });
 
-        // Catch listen/bind errors so the worker doesn't silently continue without a health endpoint.
+        // Catch listen/bind errors so the worker doesn't crash the main application process if port is in use.
         healthServer.on('error', (err: NodeJS.ErrnoException) => {
-            logger.error('Health server failed to start', { context: 'WORKER', healthPort, error: err.message, code: err.code });
-            process.exit(1);
+            logger.warn('Health server port unavailable or error', { context: 'WORKER', healthPort, error: err.message, code: err.code });
+            if (err.code !== 'EADDRINUSE' && process.env.NEXT_RUNTIME !== 'nodejs') {
+                process.exit(1);
+            }
         });
 
         healthServer.listen(healthPort, () => {
