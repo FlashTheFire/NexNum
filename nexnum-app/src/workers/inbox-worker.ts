@@ -27,6 +27,7 @@ import {
     getRateLimitConfig
 } from '@/lib/sms/security'
 import { getNextPollDelay } from '@/lib/activation/adaptive-poll-strategy'
+import { ActiveOrderStream } from '@/lib/activation/active-order-stream'
 import { smsAudit } from '@/lib/sms/audit'
 import { WorkersConfig } from '@/config'
 import crypto from 'crypto'
@@ -228,6 +229,14 @@ export async function processInboxBatch(batchSize = CONFIG.BATCH_SIZE): Promise<
             await smsAudit.logPollStarted(number.id, number.activationId || '', numberCorrelationId)
 
             if (!number.activationId) {
+                result.skipped++
+                return
+            }
+
+            // SAFETY-NET: Skip if Tier-1 Active Poller is already handling this activation.
+            // The inbox-worker only processes orders that have fallen out of the Redis stream.
+            const isTier1Active = await ActiveOrderStream.isActive(number.activationId)
+            if (isTier1Active) {
                 result.skipped++
                 return
             }

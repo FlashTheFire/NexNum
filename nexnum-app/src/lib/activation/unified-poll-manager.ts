@@ -1,32 +1,9 @@
 /**
- * Unified Poll Manager
+ * Unified Poll Manager [@deprecated]
  * 
- * Production-ready SMS polling engine that combines:
- * - Adaptive polling (phase-based intervals + jitter)
- * - Batch polling (provider grouping + chunking)
- * 
- * Architecture:
- * ┌─────────────────────────────────────────────────────────────────────┐
- * │                      UnifiedPollManager                             │
- * │                                                                     │
- * │  ┌─────────────────────────┐    ┌────────────────────────────────┐ │
- * │  │   Adaptive Strategy     │    │      Batch Executor            │ │
- * │  │                         │    │                                │ │
- * │  │  • 6 pre-SMS phases     │    │  • Group by provider           │ │
- * │  │  • 3 post-SMS phases    │    │  • Chunk into batches          │ │
- * │  │  • ±30% jitter          │    │  • Parallel execution          │ │
- * │  │  • Circuit breaker      │    │  • Fallback to individual      │ │
- * │  └─────────────────────────┘    └────────────────────────────────┘ │
- * │                                                                     │
- * │  ┌─────────────────────────┐    ┌────────────────────────────────┐ │
- * │  │   Metrics & Observability│   │      Health Monitoring         │ │
- * │  │                         │    │                                │ │
- * │  │  • Poll duration        │    │  • Active orders count         │ │
- * │  │  • API calls saved      │    │  • Batch efficiency            │ │
- * │  │  • Items per batch      │    │  • Error rates                 │ │
- * │  │  • Provider breakdown   │    │  • Phase distribution          │ │
- * │  └─────────────────────────┘    └────────────────────────────────┘ │
- * └─────────────────────────────────────────────────────────────────────┘
+ * NOTE: This implementation has been DEPRECATED in favor of Tier-1 `active-poller.ts`
+ * paired with `ActiveOrderStream` (zero-DB in-memory adaptive Redis stream).
+ * Active orders are polled with sub-3s frequency respecting per-activation adaptive intervals.
  */
 
 import { prisma } from '@/lib/core/db'
@@ -267,12 +244,17 @@ export class UnifiedPollManager {
 
             // Calculate next poll via StateEngine
             const nextPollCount = item.pollAttempt + 1
-            const nextPollTime = AdaptivePollStrategy.getNextPollTime(nextPollCount)
+            const decision = AdaptivePollStrategy.getNextPollDelay({
+                orderAgeSeconds: item.orderAgeSeconds || 0,
+                smsCount: item.smsCount || 0,
+                pollAttempt: nextPollCount
+            })
+            const nextPollTime = new Date(Date.now() + (decision.delaySeconds * 1000))
 
             pipeline.zadd(pollIndex, nextPollTime.getTime(), item.activationId)
 
             // Track distribution
-            const phase = AdaptivePollStrategy.getPhaseInfo(nextPollCount)?.name || 'unknown'
+            const phase = decision.phase
             phaseDist[phase] = (phaseDist[phase] || 0) + 1
         }
 

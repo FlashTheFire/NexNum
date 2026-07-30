@@ -142,15 +142,25 @@ export async function startQueueWorker() {
         });
         await queue.schedule(QUEUES.MASTER_WORKER, '* * * * *', {});
 
-        // JOB: Tier 1 High-Frequency Active Poller Loop (3-second ultra-low latency OTP delivery)
+        // JOB: Tier 1 High-Frequency Active Poller Loop (3-second target with drift control)
         const { runActivePollerTick } = await import('./workers/active-poller')
-        setInterval(async () => {
+        let pollerActive = true
+        orchestrator.onShutdown(() => { pollerActive = false })
+
+        const runPollerLoop = async () => {
+            if (!pollerActive) return
+            const start = Date.now()
             try {
                 await runActivePollerTick()
             } catch (_tickErr: unknown) {
                 // Background interval safety catch
             }
-        }, 3000)
+            if (!pollerActive) return
+            const elapsed = Date.now() - start
+            const nextDelay = Math.max(500, 3000 - elapsed)
+            setTimeout(runPollerLoop, nextDelay)
+        }
+        runPollerLoop()
 
         // JOB: Smart Sync Scheduler (Daily)
         const { syncAllProviders, verifyAssetIntegrity } = await import('./lib/providers/provider-sync');

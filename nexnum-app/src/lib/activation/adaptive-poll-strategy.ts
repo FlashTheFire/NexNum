@@ -1,10 +1,12 @@
 /**
  * Adaptive Polling Strategy (Industrial Edition)
  * 
+ * Single source of truth for SMS polling interval calculation.
  * Professional polling cycle that adapts based on:
  * 1. Order age (time since purchase)
- * 2. Order state (waiting vs has SMS)
- * 3. SMS history (how many received)
+ * 2. Order state (waiting for 1st SMS vs waiting for subsequent SMS)
+ * 3. Time elapsed since last SMS (if post-SMS)
+ * 4. Circuit breaker & error backoff state
  */
 
 // ============================================================================
@@ -24,6 +26,7 @@ export interface PollContext {
     pollAttempt: number
     circuitOpen?: boolean
     lastPollError?: boolean
+    timeSinceLastSmsSeconds?: number
 }
 
 export interface PollDecision {
@@ -62,34 +65,9 @@ const POST_SMS_PHASES: PhaseConfig[] = [
 // ============================================================================
 
 export class AdaptivePollStrategy {
-    private static readonly MONITOR_PHASES: PollStrategyPhase[] = [
-        { name: 'initial', minPollCount: 0, maxPollCount: 5, intervalSeconds: 5 },
-        { name: 'early', minPollCount: 6, maxPollCount: 20, intervalSeconds: 10 },
-        { name: 'standard', minPollCount: 21, maxPollCount: 50, intervalSeconds: 30 },
-        { name: 'extended', minPollCount: 51, maxPollCount: 100, intervalSeconds: 60 },
-        { name: 'long_tail', minPollCount: 101, maxPollCount: null, intervalSeconds: 120 }
-    ]
-
-    static getNextInterval(pollCount: number): number {
-        const phase = this.MONITOR_PHASES.find(p =>
-            pollCount >= p.minPollCount && (p.maxPollCount === null || pollCount <= p.maxPollCount)
-        )
-        return phase ? phase.intervalSeconds : 60
-    }
-
-    static getNextPollTime(currentPollCount: number): Date {
-        const interval = this.getNextInterval(currentPollCount)
-        return new Date(Date.now() + interval * 1000)
-    }
-
-    static getPhaseInfo(pollCount: number): PollStrategyPhase | null {
-        return this.MONITOR_PHASES.find(p =>
-            pollCount >= p.minPollCount && (p.maxPollCount === null || pollCount <= p.maxPollCount)
-        ) || null
-    }
 
     static getNextPollDelay(context: PollContext): PollDecision {
-        const { orderAgeSeconds, smsCount, pollAttempt, circuitOpen, lastPollError } = context
+        const { orderAgeSeconds, smsCount, pollAttempt, circuitOpen, lastPollError, timeSinceLastSmsSeconds } = context
 
         if (circuitOpen) {
             const backoffDelay = Math.min(30, Math.pow(2, Math.min(pollAttempt, 5)))
@@ -109,8 +87,13 @@ export class AdaptivePollStrategy {
             }
         }
 
-        const strategy = smsCount > 0 ? POST_SMS_PHASES : PRE_SMS_PHASES
-        const ageReference = smsCount > 0 ? (pollAttempt * 5) : orderAgeSeconds
+        const isPostSms = smsCount > 0
+        const strategy = isPostSms ? POST_SMS_PHASES : PRE_SMS_PHASES
+
+        // For post-SMS, reference time is seconds since the last SMS arrived (or 0 if just arrived)
+        const ageReference = isPostSms
+            ? (timeSinceLastSmsSeconds !== undefined ? timeSinceLastSmsSeconds : 0)
+            : orderAgeSeconds
 
         const phaseConfig = strategy.find(p => ageReference <= p.maxAge) || strategy[strategy.length - 1]
         const cycleIndex = pollAttempt % phaseConfig.cycle.length
@@ -133,7 +116,7 @@ export class AdaptivePollStrategy {
     }
 
     static describeStrategy(): string {
-        return "Industrial Adaptive Polling Strategy"
+        return "Industrial Age-Based Adaptive Polling Strategy"
     }
 }
 

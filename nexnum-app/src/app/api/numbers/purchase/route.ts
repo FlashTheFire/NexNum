@@ -486,6 +486,7 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
             activationId: providerResult!.activationId,
             userId: user.userId,
             provider: providerName,
+            providerId: providerName, // Provider name used as ID throughout the system
             phoneNumber: resultNumber.phoneNumber,
             countryCode: resolvedCountryCode,
             serviceCode: resolvedServiceCode,
