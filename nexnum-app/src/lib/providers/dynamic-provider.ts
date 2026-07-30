@@ -616,21 +616,43 @@ export class DynamicProvider implements SmsProvider {
         // ───────────────────────────────────────────────────────────────────────
         // ARRAY / COLLECTION ACCESSORS
         // ───────────────────────────────────────────────────────────────────────
-        ['$firstKey',        (o, _ctx) => { const k = Object.keys(o); return k.length ? k[0] : undefined }],
-        ['$firstValue',      (o, _ctx) => { const k = Object.keys(o); return k.length ? o[k[0]] : undefined }],
-        ['$first',           (o, _ctx) => Array.isArray(o) ? o[0] : (typeof o === 'object' ? Object.values(o)[0] : o)],
-        ['$lastKey',         (o, _ctx) => { const k = Object.keys(o); return k.length ? k[k.length - 1] : undefined }],
-        ['$lastValue',       (o, _ctx) => { const k = Object.keys(o); return k.length ? o[k[k.length - 1]] : undefined }],
-        ['$last',            (o, _ctx) => Array.isArray(o) ? o[o.length - 1] : (typeof o === 'object' ? Object.values(o).pop() : o)],
-        ['$values',          (o, _ctx) => Object.values(o)],
-        ['$keys',            (o, _ctx) => Object.keys(o)],
-        ['$length',          (o, _ctx) => Array.isArray(o) ? o.length : Object.keys(o).length],
-        ['$count',           (o, _ctx) => Array.isArray(o) ? o.length : Object.keys(o).length],
-        ['$sum',             (o, _ctx) => Array.isArray(o) ? o.reduce((a, v) => a + (Number(v) || 0), 0) : 0],
-        ['$avg',             (o, _ctx) => { if (!Array.isArray(o) || !o.length) return 0; return o.reduce((a, v) => a + (Number(v) || 0), 0) / o.length }],
-        ['$average',         (o, _ctx) => { if (!Array.isArray(o) || !o.length) return 0; return o.reduce((a, v) => a + (Number(v) || 0), 0) / o.length }],
-        ['$min',             (o, _ctx) => { if (!Array.isArray(o) || !o.length) return undefined; return Math.min(...o.map(Number).filter(n => !isNaN(n))) }],
-        ['$max',             (o, _ctx) => { if (!Array.isArray(o) || !o.length) return undefined; return Math.max(...o.map(Number).filter(n => !isNaN(n))) }],
+        // ───────────────────────────────────────────────────────────────────────
+        // ARRAY / COLLECTION ACCESSORS
+        // ───────────────────────────────────────────────────────────────────────
+        ['$firstKey',        (o, _ctx) => { const k = typeof o === 'object' && o !== null ? Object.keys(o) : []; return k.length ? k[0] : undefined }],
+        ['$firstValue',      (o, _ctx) => { const k = typeof o === 'object' && o !== null ? Object.keys(o) : []; return k.length ? o[k[0]] : undefined }],
+        ['$first',           (o, _ctx) => Array.isArray(o) ? o[0] : (typeof o === 'object' && o !== null ? Object.values(o)[0] : o)],
+        ['$lastKey',         (o, _ctx) => { const k = typeof o === 'object' && o !== null ? Object.keys(o) : []; return k.length ? k[k.length - 1] : undefined }],
+        ['$lastValue',       (o, _ctx) => { const k = typeof o === 'object' && o !== null ? Object.keys(o) : []; return k.length ? o[k[k.length - 1]] : undefined }],
+        ['$last',            (o, _ctx) => Array.isArray(o) ? o[o.length - 1] : (typeof o === 'object' && o !== null ? Object.values(o).pop() : o)],
+        ['$values',          (o, _ctx) => typeof o === 'object' && o !== null ? Object.values(o) : []],
+        ['$keys',            (o, _ctx) => typeof o === 'object' && o !== null ? Object.keys(o) : []],
+        ['$length',          (o, _ctx) => Array.isArray(o) ? o.length : (typeof o === 'object' && o !== null ? Object.keys(o).length : 0)],
+        ['$count',           (o, _ctx) => Array.isArray(o) ? o.length : (typeof o === 'object' && o !== null ? Object.keys(o).length : 0)],
+        ['$sum',             (o, _ctx) => {
+            const vals = Array.isArray(o) ? o : (typeof o === 'object' && o !== null ? Object.values(o) : [])
+            return vals.reduce((a, v) => a + (Number(v) || 0), 0)
+        }],
+        ['$avg',             (o, _ctx) => {
+            const vals = Array.isArray(o) ? o : (typeof o === 'object' && o !== null ? Object.values(o) : [])
+            if (!vals.length) return 0
+            return vals.reduce((a, v) => a + (Number(v) || 0), 0) / vals.length
+        }],
+        ['$average',         (o, _ctx) => {
+            const vals = Array.isArray(o) ? o : (typeof o === 'object' && o !== null ? Object.values(o) : [])
+            if (!vals.length) return 0
+            return vals.reduce((a, v) => a + (Number(v) || 0), 0) / vals.length
+        }],
+        ['$min',             (o, _ctx) => {
+            const vals = Array.isArray(o) ? o : (typeof o === 'object' && o !== null ? Object.values(o) : [])
+            if (!vals.length) return undefined
+            return Math.min(...vals.map(Number).filter(n => !isNaN(n)))
+        }],
+        ['$max',             (o, _ctx) => {
+            const vals = Array.isArray(o) ? o : (typeof o === 'object' && o !== null ? Object.values(o) : [])
+            if (!vals.length) return undefined
+            return Math.max(...vals.map(Number).filter(n => !isNaN(n)))
+        }],
         ['$unique',          (o, _ctx) => Array.isArray(o) ? [...new Set(o)] : o],
         ['$flatten',         (o, _ctx) => Array.isArray(o) ? o.flat(Infinity) : o],
         ['$reverse',         (o, _ctx) => Array.isArray(o) ? [...o].reverse() : o],
@@ -705,7 +727,7 @@ export class DynamicProvider implements SmsProvider {
 
     /**
      * Extract nested value from object by path "data.user.id"
-     * Supports: dot-notation, fallback chains (a|b|c), and registered accessors ($first, $sum, etc.)
+     * Supports: dot-notation, fallback chains (a|b|c), dynamic bracket keys ([fieldName]), and registered accessors ($first, $sum, etc.)
      */
     private getValue(obj: any, path: string, context: any = {}): any {
         if (!path || path === '$') return obj
@@ -724,6 +746,15 @@ export class DynamicProvider implements SmsProvider {
         // Traverse dot-notation path, applying accessors at each segment
         return path.split('.').reduce((current, segment) => {
             if (current === undefined || current === null) return undefined
+
+            // Dynamic bracket key lookup: e.g. priceMap.[minPrice] evaluates minPrice on root obj
+            if (segment.startsWith('[') && segment.endsWith(']')) {
+                const innerField = segment.slice(1, -1)
+                const dynamicKey = this.getValue(obj, innerField, context)
+                if (dynamicKey !== undefined && dynamicKey !== null) {
+                    return current[String(dynamicKey)]
+                }
+            }
 
             // Check for parameterized accessor: $slice:0:2, $replace:a:b, etc.
             const paramMatch = segment.match(/^(\$[^:]+):(.+)$/)
