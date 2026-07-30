@@ -1905,11 +1905,8 @@ export class DynamicProvider implements SmsProvider {
     }
 
     async getStatus(activationId: string): Promise<StatusResult> {
-
-
-
-
-        const response = await this.request('getStatus', { id: activationId })
+        const rawId = this.cleanActivationId(activationId)
+        const response = await this.request('getStatus', { id: rawId })
         const mappingKey = 'getStatus'
         const mappings = this.config.mappings as Record<string, MappingConfig>
         const mapConfig = mappings[mappingKey]
@@ -2086,12 +2083,21 @@ export class DynamicProvider implements SmsProvider {
         return chunks
     }
 
+    /**
+     * Helper: Clean provider prefix from activation ID (e.g. "grizzlysms:31646611" -> "31646611")
+     */
+    private cleanActivationId(id: string): string {
+        if (!id) return id
+        return id.includes(':') ? id.split(':').slice(1).join(':') : id
+    }
+
     // ═══════════════════════════════════════════════════════════════════════
     // ACTION METHODS (set*) - API Standardization v2.0
     // ═══════════════════════════════════════════════════════════════════════
 
     async setCancel(activationId: string): Promise<void> {
-        const response = await this.request('setCancel', { id: activationId })
+        const rawId = this.cleanActivationId(activationId)
+        const response = await this.request('setCancel', { id: rawId })
         this.checkForErrors(response, 'setCancel', (this.config.mappings as any)?.setCancel)
     }
 
@@ -2102,8 +2108,9 @@ export class DynamicProvider implements SmsProvider {
     }
 
     async setStatus(activationId: string, status: string | number): Promise<any> {
+        const rawId = this.cleanActivationId(activationId)
         try {
-            const response = await this.request('setStatus', { id: activationId, status: String(status) })
+            const response = await this.request('setStatus', { id: rawId, status: String(status) })
             const items = this.parseResponse(response, 'setStatus')
             const mapped = items[0] || {}
 
@@ -2121,7 +2128,8 @@ export class DynamicProvider implements SmsProvider {
     }
 
     async setResendCode(activationId: string): Promise<void> {
-        const response = await this.request('setResendCode', { id: activationId })
+        const rawId = this.cleanActivationId(activationId)
+        const response = await this.request('setResendCode', { id: rawId })
         this.checkForErrors(response, 'setResendCode', (this.config.mappings as any)?.setResendCode)
     }
 
@@ -2132,7 +2140,8 @@ export class DynamicProvider implements SmsProvider {
     }
 
     async setComplete(activationId: string): Promise<void> {
-        const response = await this.request('setComplete', { id: activationId })
+        const rawId = this.cleanActivationId(activationId)
+        const response = await this.request('setComplete', { id: rawId })
         this.checkForErrors(response, 'setComplete', (this.config.mappings as any)?.setComplete)
     }
 

@@ -28,6 +28,30 @@ export interface ActivePollerSummary {
     errors: string[]
 }
 
+// In-memory provider cache (60s TTL) to prevent DB pool exhaustion during active polling
+const providerCache = new Map<string, { provider: any; expiresAt: number }>()
+
+async function getCachedProvider(providerKey: string): Promise<any> {
+    const cached = providerCache.get(providerKey)
+    if (cached && cached.expiresAt > Date.now()) {
+        return cached.provider
+    }
+
+    const provider = await prisma.provider.findFirst({
+        where: {
+            OR: [
+                { id: providerKey },
+                { name: providerKey }
+            ]
+        }
+    })
+
+    if (provider) {
+        providerCache.set(providerKey, { provider, expiresAt: Date.now() + 60000 })
+    }
+    return provider
+}
+
 /**
  * Executes a single high-speed active poller tick.
  * Only polls activations that are DUE based on their per-activation nextPollAt.
@@ -83,15 +107,12 @@ async function pollSingleActivation(order: ActiveOrderData, summary: ActivePolle
     try {
         summary.polledCount++
 
-        // 1. Resolve provider adapter
-        const provider = await prisma.provider.findFirst({
-            where: {
-                OR: [
-                    ...(order.providerId ? [{ id: order.providerId }, { name: order.providerId }] : []),
-                    ...(order.provider ? [{ name: order.provider }] : [])
-                ]
-            }
-        })
+        // 1. Resolve provider adapter (with in-memory caching to protect DB connection pool)
+        const providerKey = order.providerId || order.provider
+        let provider: any = null
+        if (providerKey) {
+            provider = await getCachedProvider(providerKey)
+        }
 
         if (!provider) {
             logger.warn(`[ActivePoller] Provider not found for activation #${order.activationId}`, {
@@ -149,21 +170,40 @@ async function pollSingleActivation(order: ActiveOrderData, summary: ActivePolle
             }
         }
 
-        // 4. Process messages
+        // 4. Process messages with deduplication
         const messages = statusResult?.messages ?? []
         let newSmsCount = order.smsCount || 0
         let lastSmsAt = order.lastSmsAt || 0
+        let hasNewSms = false
 
         if (messages.length > 0) {
             for (const msg of messages) {
+                const msgContent = msg.content || msg.text || (msg.code ? `Your verification code is: ${msg.code}` : 'Message received')
+                const msgCode = msg.code || null
+
+                // Check for existing message to prevent duplicate insertion
+                const existing = await prisma.smsMessage.findFirst({
+                    where: {
+                        numberId: order.numberId,
+                        OR: [
+                            ...(msgCode ? [{ code: msgCode }] : []),
+                            { content: msgContent }
+                        ]
+                    }
+                })
+
+                if (existing) {
+                    continue // Already processed, skip duplicate
+                }
+
                 try {
                     // DB insertion
                     await prisma.smsMessage.create({
                         data: {
                             numberId: order.numberId,
                             sender: msg.code ? 'Verification Service' : 'SMS System',
-                            content: msg.content || msg.text || (msg.code ? `Your verification code is: ${msg.code}` : 'Message received'),
-                            code: msg.code || null,
+                            content: msgContent,
+                            code: msgCode,
                             receivedAt: new Date()
                         }
                     })
@@ -173,8 +213,8 @@ async function pollSingleActivation(order: ActiveOrderData, summary: ActivePolle
                         event: 'sms.received',
                         numberId: order.numberId,
                         activationId: order.activationId,
-                        code: msg.code,
-                        content: msg.content || msg.text,
+                        code: msgCode,
+                        content: msgContent,
                         receivedAt: new Date().toISOString()
                     })
                     await redis.publish('sms:received', pubSubPayload)
@@ -182,14 +222,14 @@ async function pollSingleActivation(order: ActiveOrderData, summary: ActivePolle
                     summary.messagesReceived++
                     newSmsCount++
                     lastSmsAt = Date.now()
+                    hasNewSms = true
 
-                    logger.success(`[ActivePoller] OTP RECEIVED #${order.activationId}: Code ${msg.code}`, {
+                    logger.success(`[ActivePoller] OTP RECEIVED #${order.activationId}: Code ${msgCode}`, {
                         context: 'ACTIVE_POLLER',
                         activationId: order.activationId,
-                        code: msg.code
+                        code: msgCode
                     })
                 } catch (dbErr: any) {
-                    // Skip duplicates silently (P2002 = unique constraint)
                     if (dbErr.code !== 'P2002') {
                         logger.error(`[ActivePoller] Error saving message for #${order.activationId}`, {
                             context: 'ACTIVE_POLLER',
@@ -199,15 +239,17 @@ async function pollSingleActivation(order: ActiveOrderData, summary: ActivePolle
                 }
             }
 
-            // Update number status to 'received' in DB (non-blocking)
-            prisma.number.updateMany({
-                where: { activationId: order.activationId, status: 'active' },
-                data: { status: 'received', updatedAt: new Date() }
-            }).catch(() => { })
+            if (hasNewSms) {
+                // Update number status to 'received' in DB
+                await prisma.number.updateMany({
+                    where: { activationId: order.activationId, status: 'active' },
+                    data: { status: 'received', updatedAt: new Date() }
+                }).catch(() => { })
 
-            // Request next SMS from provider (setStatus=3 equivalent, non-blocking)
-            if (typeof (adapter as any).setResendCode === 'function') {
-                (adapter as any).setResendCode(order.activationId).catch(() => { })
+                // Request next SMS from provider using clean raw numeric ID (setStatus=3 equivalent)
+                if (typeof (adapter as any).setResendCode === 'function') {
+                    (adapter as any).setResendCode(rawId).catch(() => { })
+                }
             }
         }
 
@@ -234,7 +276,7 @@ async function pollSingleActivation(order: ActiveOrderData, summary: ActivePolle
         })
 
         // Also update the DB record for the inbox-worker safety-net
-        prisma.number.updateMany({
+        await prisma.number.updateMany({
             where: { activationId: order.activationId },
             data: {
                 pollCount: pollAttempt,
