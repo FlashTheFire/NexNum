@@ -1187,46 +1187,68 @@ export class DynamicProvider implements SmsProvider {
             }
 
             // 1. Providers Check + Required Field Filter
-            if (providersKey && value[providersKey]) {
+            const isDirectProvidersObj = Boolean(providersKey && key === providersKey && typeof value === 'object' && value !== null)
+            const providersObj = isDirectProvidersObj ? value : (providersKey && value && typeof value === 'object' ? value[providersKey] : undefined)
+
+            if (providersObj && typeof providersObj === 'object') {
                 if (isDebug) {
                     logger.debug('Found providersKey, extracting providers', {
                         context: 'DEBUG_MAPPING',
                         providersKey,
-                        key
+                        key,
+                        isDirectProvidersObj
                     })
                 }
-                const providersObj = value[providersKey]
                 for (const [providerKey, providerData] of Object.entries(providersObj as Record<string, any>)) {
-                    if (typeof providerData === 'object' && providerData !== null) {
-                        // NEW: Check required field if configured OR default
-                        if (requiredField && providerData[requiredField] === undefined) {
-                            if (isDebug) {
-                                logger.debug('Skipping provider - missing required field', {
-                                    context: 'DEBUG_MAPPING',
-                                    providerKey,
-                                    requiredField
-                                })
-                            }
-                            continue
-                        }
-
-                        // Build operator-level context
-                        const operatorContext = {
-                            ...enhancedContext,
-                            operatorKey: providerKey,
-                            depth: currentDepth + 1,
-                            ancestors: [...currentAncestors, key, providerKey],
-                            path: `${currentAncestors.join('.')}.${key}.${providerKey}`.replace(/^\./, ''),
-                            isLeaf: true
-                        }
-
-                        const mapped = this.mapFields(providerData, this.resolveEffectiveFields(providerData, mapConfig), operatorContext)
-                        // Always set service from outer key (the actual service code)
-                        mapped.service = key
-                        // Set operator from providerKey if not already mapped
-                        if (!mapped.operator) mapped.operator = providerKey
-                        results.push(mapped)
+                    const isObj = typeof providerData === 'object' && providerData !== null
+                    const targetData = isObj ? providerData : {
+                        count: providerData,
+                        qty: providerData,
+                        stock: providerData,
+                        cost: providerKey,
+                        price: providerKey,
+                        value: providerData,
+                        operator: providerKey,
+                        provider_id: providerKey
                     }
+
+                    // Check required field ONLY if explicitly configured in nestingLevels
+                    if (isObj && requiredField && nestingConfig?.requiredField && providerData[requiredField] === undefined) {
+                        if (isDebug) {
+                            logger.debug('Skipping provider - missing required field', {
+                                context: 'DEBUG_MAPPING',
+                                providerKey,
+                                requiredField
+                            })
+                        }
+                        continue
+                    }
+
+                    // Build operator-level context
+                    const operatorContext = {
+                        ...enhancedContext,
+                        operatorKey: providerKey,
+                        depth: currentDepth + 1,
+                        ancestors: [...currentAncestors, key, providerKey],
+                        path: `${currentAncestors.join('.')}.${key}.${providerKey}`.replace(/^\./, ''),
+                        isLeaf: true
+                    }
+
+                    const mapped = this.mapFields(targetData, this.resolveEffectiveFields(targetData, mapConfig), operatorContext)
+
+                    // Fallback context fields from parent container (e.g. countryId, serviceCode from parent)
+                    if (!mapped.country && enhancedContext.parentValue?.countryId) mapped.country = String(enhancedContext.parentValue.countryId)
+                    if (!mapped.country && enhancedContext.parentValue?.countryName) mapped.countryName = String(enhancedContext.parentValue.countryName)
+                    if (!mapped.country && enhancedContext.parentValue?.country) mapped.country = String(enhancedContext.parentValue.country)
+
+                    if (!mapped.service && enhancedContext.parentValue?.serviceCode) mapped.service = String(enhancedContext.parentValue.serviceCode)
+                    if (!mapped.service && enhancedContext.parentValue?.serviceName) mapped.serviceName = String(enhancedContext.parentValue.serviceName)
+                    if (!mapped.service && enhancedContext.parentValue?.service) mapped.service = String(enhancedContext.parentValue.service)
+                    if (!mapped.service && key !== providersKey) mapped.service = key
+
+                    if (!mapped.operator) mapped.operator = providerKey
+
+                    results.push(mapped)
                 }
                 continue
             }
@@ -2263,18 +2285,14 @@ export class DynamicProvider implements SmsProvider {
                     baseCandidate = [...group].sort((a, b) => b.count - a.count)[0] || group[0]
                 }
 
-                const baseCost = baseCandidate.cost
-
-                // Filter purchaseCandidates: Keep ONLY candidates whose cost <= base provider cost!
-                const purchaseCandidates = group
-                    .filter(c => c.cost <= baseCost)
-                    .map(c => ({
-                        country: c.country,
-                        service: c.service,
-                        operator: c.operator,
-                        cost: c.cost,
-                        count: c.count
-                    }))
+                // purchaseCandidates: Include ALL candidates sorted by cost ascending
+                const purchaseCandidates = group.map(c => ({
+                    country: c.country,
+                    service: c.service,
+                    operator: c.operator,
+                    cost: c.cost,
+                    count: c.count
+                }))
 
                 results.push({
                     country: baseCandidate.country,
