@@ -46,6 +46,25 @@ export default function JsonLd({ data }: JsonLdProps) {
         },
         {
             '@context': 'https://schema.org',
+            '@type': 'LocalBusiness',
+            name: 'NexNum',
+            description: 'Virtual phone numbers for OTP verification and SMS verification in India.',
+            url: baseUrl,
+            logo: `${baseUrl}/icon.svg`,
+            priceRange: '₹₹',
+            address: {
+                '@type': 'PostalAddress',
+                addressCountry: 'IN'
+            },
+            areaServed: {
+                '@type': 'Country',
+                name: 'India'
+            },
+            paymentAccepted: ['UPI', 'Credit Card', 'Debit Card', 'Net Banking'],
+            openingHours: 'Mo-Su 00:00-23:59'
+        },
+        {
+            '@context': 'https://schema.org',
             '@type': 'WebSite',
             name: 'NexNum',
             alternateName: ['NexNum Platform', 'nexnum.in'],

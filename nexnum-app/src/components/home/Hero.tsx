@@ -91,11 +91,11 @@ export default function Hero() {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.5 }}
                     >
-                        {/* Main headline - Mobile */}
-                        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight leading-[1.15]">
-                            <span className="text-white">Secure SMS</span>{" "}
-                            <span className="text-[hsl(var(--neon-lime))] neon-text-glow">Verification</span>
-                        </h1>
+                        {/* Mobile sub-headline */}
+                        <p className="text-2xl sm:text-3xl font-extrabold tracking-tight leading-[1.15]">
+                            <span className="text-white">Instant Virtual Numbers &</span>{" "}
+                            <span className="text-[hsl(var(--neon-lime))] neon-text-glow">OTP Verification</span>
+                        </p>
                     </motion.div>
                 </div>
 
@@ -123,14 +123,14 @@ export default function Hero() {
                                 </span>
                             </motion.div>
 
-                            {/* Main headline - Desktop */}
-                            <h1 className="text-5xl lg:text-6xl xl:text-7xl font-extrabold tracking-tight mb-4 leading-[1.05]">
+                            {/* Main headline - Single H1 Tag */}
+                            <h1 className="text-4xl lg:text-5xl xl:text-6xl font-extrabold tracking-tight mb-4 leading-[1.08]">
                                 <span className="inline-block text-white text-3d-effect">
-                                    {t('title1')}
+                                    India’s Top Platform for Instant
                                 </span>
                                 <br />
                                 <span className="text-[hsl(var(--neon-lime))] neon-text-glow">
-                                    {t('title2')}
+                                    Virtual Numbers & OTP Verification
                                 </span>
                             </h1>
 

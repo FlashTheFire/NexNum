@@ -7,6 +7,7 @@ import CTA from "@/components/home/CTA";
 import MobileActionBar from "@/components/common/MobileActionBar";
 import ServiceTicker from "@/components/home/ServiceTicker";
 import { GlobalCoverageMap } from "@/components/home/GlobalCoverageMap";
+import SeoContent from "@/components/home/SeoContent";
 import { setRequestLocale } from 'next-intl/server';
 
 export default async function Home({ params }: { params: Promise<{ locale: string }> }) {
@@ -18,6 +19,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
             <main className="flex-1">
                 <Hero />
                 <ServiceTicker />
+                <SeoContent />
                 {/* <Features /> */}
                 <GlobalCoverageMap />
                 <FAQ />

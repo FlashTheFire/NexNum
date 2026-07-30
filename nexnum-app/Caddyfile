@@ -36,8 +36,8 @@
     }
 }
 
-# Optional: Global Redirect (Only when DOMAIN_NAME is set to a real domain)
-# We handle this inside the main block normally, but if we need a www redirect:
-# www.{$DOMAIN_NAME} {
-#     redir https://{$DOMAIN_NAME}{uri}
-# }
+# ── Coolify WWW to Non-WWW 301 Permanent Redirect ──
+www.{$DOMAIN_NAME:nexnum.in} {
+    redir https://{$DOMAIN_NAME:nexnum.in}{uri} permanent
+}
+
