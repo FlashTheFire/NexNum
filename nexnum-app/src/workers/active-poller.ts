@@ -59,7 +59,7 @@ export async function runActivePollerTick(): Promise<ActivePollerSummary> {
         await limitConcurrency(pollPromises.map(p => () => p), 10)
 
         const duration = Date.now() - startTime
-        if (summary.messagesReceived > 0 || summary.polledCount > 5) {
+        if (summary.messagesReceived > 0 || summary.polledCount > 0) {
             logger.info(`[ActivePoller] Tick: ${summary.polledCount} polled, ${summary.messagesReceived} SMS in ${duration}ms`, {
                 context: 'ACTIVE_POLLER',
                 duration,
@@ -84,28 +84,42 @@ async function pollSingleActivation(order: ActiveOrderData, summary: ActivePolle
         summary.polledCount++
 
         // 1. Resolve provider adapter
-        const provider = order.providerId
-            ? await prisma.provider.findUnique({ where: { id: order.providerId } })
-            : await prisma.provider.findFirst({ where: { name: order.provider } })
+        const provider = await prisma.provider.findFirst({
+            where: {
+                OR: [
+                    ...(order.providerId ? [{ id: order.providerId }, { name: order.providerId }] : []),
+                    ...(order.provider ? [{ name: order.provider }] : [])
+                ]
+            }
+        })
 
         if (!provider) {
+            logger.warn(`[ActivePoller] Provider not found for activation #${order.activationId}`, {
+                context: 'ACTIVE_POLLER',
+                providerId: order.providerId,
+                providerName: order.provider
+            })
             // Schedule retry in 10s if provider not found
             await ActiveOrderStream.updatePollSchedule(order.activationId, Date.now() + 10000)
             summary.errors.push(`Provider not found for activation #${order.activationId}`)
             return
         }
 
-        // 2. Call provider getStatus
+        // 2. Call provider getStatus with raw numeric activation ID
         const adapter = getProviderAdapter(provider)
         if (!adapter.getStatus) {
             await ActiveOrderStream.updatePollSchedule(order.activationId, Date.now() + 30000)
             return
         }
 
+        const rawId = order.activationId.includes(':')
+            ? order.activationId.split(':').slice(1).join(':')
+            : order.activationId
+
         let statusResult: any
         try {
             statusResult = await Promise.race([
-                adapter.getStatus(order.activationId),
+                adapter.getStatus(rawId),
                 new Promise<never>((_, reject) =>
                     setTimeout(() => reject(new Error('Provider timeout')), 15000)
                 )
@@ -117,6 +131,10 @@ async function pollSingleActivation(order: ActiveOrderData, summary: ActivePolle
                 order.activationId,
                 Date.now() + (errorDelay * 1000)
             )
+            logger.error(`[ActivePoller] getStatus failed for #${order.activationId}`, {
+                context: 'ACTIVE_POLLER',
+                error: providerErr.message
+            })
             summary.errors.push(`Activation #${order.activationId}: ${providerErr.message}`)
             return
         }

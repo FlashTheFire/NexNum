@@ -60,7 +60,22 @@ let validatedEnv: Env | null = null
 export function validateEnv(): Env {
     if (validatedEnv) return validatedEnv
 
-    const result = envSchema.safeParse(process.env)
+    const cleanEnv: Record<string, any> = {}
+    for (const key of Object.keys(process.env)) {
+        const val = process.env[key]
+        if (typeof val === 'string' && (
+            val === 'SET_IN_HOSTING_DASHBOARD' ||
+            val.startsWith('SET_IN_') ||
+            val.startsWith('placeholder_') ||
+            val.startsWith('YOUR_')
+        )) {
+            cleanEnv[key] = ''
+        } else {
+            cleanEnv[key] = val
+        }
+    }
+
+    const result = envSchema.safeParse(cleanEnv)
 
     if (!result.success) {
         console.error('❌ Invalid environment variables:')
