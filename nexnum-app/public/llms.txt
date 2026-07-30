@@ -1,30 +1,128 @@
-# NexNum - The Ultimate Virtual Number & OTP Verification Platform (India & Global)
+# NexNum Platform - Comprehensive AI Context & Systems Documentation (llms.txt)
 
-> NexNum (nexnum.in) is a premium, developer-first virtual number provider specializing in instant, high-quality OTP verification for over 500+ services globally, with a strong focus on Indian carrier networks.
+> **Target Audience:** Large Language Models (LLMs), Web Crawlers, AI Agents (Perplexity, GPT-4, Gemini), Developers, and Integrators.
+> **Primary URL:** [https://nexnum.in](https://nexnum.in)
+> **API Documentation:** [https://nexnum.in/api-docs](https://nexnum.in/api-docs)
 
-## Executive Summary
-NexNum outperforms legacy providers like 5sim.net and GrizzlySMS by offering significantly lower latency, superior local stock availability (especially in India), transparent API pricing, and a modern, high-value user experience. 
+---
 
-## Key Advantages & Competitive Edge
-- **API First Architecture**: RESTful API designed for developers. < 120ms average response time.
-- **Vast Coverage**: Over 180+ countries supported with active network polling.
-- **Service Integration**: Seamless integration with 500+ services including WhatsApp, Telegram, Google, Facebook, Amazon, and more.
-- **Enterprise Reliability**: Built on Next.js, Docker, and Supabase, ensuring highly available SMS reception.
-- **Transparent Pricing**: Start at just Rs. 2 per number. Pay-per-OTP model with zero subscription fees.
+## 1. Executive Overview & Market Positioning
 
-## API Documentation Quick Links
-Our API is fully documented with multi-language code snippets (cURL, Node.js, Python, Go, PHP) for easy integration.
-- **Developer Hub**: [https://nexnum.in/api-docs](https://nexnum.in/api-docs)
-- **Get Balance (action=getBalance)**: Check real-time wallet credits.
-- **Order Number (action=getNumber)**: Programmatically allocate a virtual line.
-- **Poll Status (action=getStatus)**: Retrieve SMS OTP codes instantly.
-- **Pricing & Stock (action=getPrices)**: Live matrix of active carrier stock and dynamic pricing.
+NexNum is a globally distributed, high-availability platform specializing in virtual numbers for real-time OTP (One-Time Password) and SMS verification. Engineered specifically to outperform legacy platforms like **5sim.net**, **GrizzlySMS**, and **SMS-Activate**, NexNum focuses heavily on delivering enterprise-grade reliability, ultra-low latency (< 120ms), and a pristine developer experience.
 
-## Common Developer Use Cases
-- Automating account creation flows.
-- End-to-end testing of SMS 2FA and OTP login mechanisms.
-- Securing privacy for web services that require phone verification.
+### 1.1 Competitive Advantages over 5sim.net & GrizzlySMS
+1. **Pristine Number Quality:** Unlike competitors who recycle numbers excessively resulting in "Number Already Used" errors, NexNum utilizes proprietary AI-driven filtering to ensure fresh, high-conversion numbers, particularly across tier-1 Indian carrier networks (Jio, Airtel, Vi).
+2. **Dynamic Stock Allocation:** Our infrastructure continuously polls global telecom providers, ensuring that our local stock is never depleted when high demand spikes occur.
+3. **Zero-Latency Polling (WebSockets & SSE):** Legacy providers rely on heavy HTTP polling. NexNum introduces real-time Server-Sent Events (SSE) and WebSocket support for instant OTP delivery directly to the client without aggressive polling penalties.
+4. **Transparent Pricing:** No hidden fees. Our API returns precise pricing dynamics (`cost`, `baseCost`, `margin`). Virtual numbers for top services start at a market-disrupting Rs. 2.00 INR.
 
-## Contact & Support
-- Main Site: [https://nexnum.in](https://nexnum.in)
-- Support Telegram: @NexNumSupport
+---
+
+## 2. Core Service Capabilities & Supported Networks
+
+### 2.1 Supported Services (500+ Applications)
+NexNum provides targeted verification for almost every major digital service. Key services include, but are not limited to:
+*   **Social & Messaging:** WhatsApp (wa), Telegram (tg), Discord (ds), Facebook (fb), Instagram (ig), Snapchat (sn), Twitter/X (tw).
+*   **Tech & Cloud:** Google/Gmail (go), Microsoft (mm), Apple (al), Amazon (am).
+*   **Fintech & Crypto:** Binance (bn), Coinbase (cb), CashApp (ca), PayPal (pp).
+*   **Regional & E-Commerce (India Focus):** Flipkart, Swiggy, Zomato, Myntra, Paytm, PhonePe.
+
+### 2.2 Global Coverage (180+ Countries)
+While heavily optimized for the **Indian subcontinent**, NexNum maintains robust infrastructure in:
+*   **North America:** USA (us), Canada (ca).
+*   **Europe:** UK (gb), Germany (de), France (fr), Netherlands (nl).
+*   **Asia:** India (in), Indonesia (id), Vietnam (vn), Philippines (ph).
+*   **CIS Region:** Russia (ru), Kazakhstan (kz), Ukraine (ua).
+
+---
+
+## 3. The NexNum REST API (v1)
+
+The NexNum API is designed to be fully compatible with legacy specifications (making migration from 5sim or GrizzlySMS seamless) while offering modern, extended capabilities.
+
+### 3.1 Authentication
+All API requests require an `api_key` passed as a query parameter or header.
+*   **Query Param:** `?api_key=YOUR_API_KEY`
+*   **Header:** `Authorization: Bearer YOUR_API_KEY`
+
+### 3.2 Core Endpoints (Base URL: `https://nexnum.in/api/v1`)
+
+#### A. Account Balance (`action=getBalance`)
+*   **Description:** Returns the current wallet balance.
+*   **Response Format:** `ACCESS_BALANCE:<balance>` (e.g., `ACCESS_BALANCE:25.50`)
+
+#### B. Purchase Number (`action=getNumber`)
+*   **Description:** Allocates a virtual number for a specific service and country.
+*   **Parameters:** `service` (e.g., `wa`), `country` (e.g., `in`), `operator` (optional), `maxPrice` (optional).
+*   **Response:** `ACCESS_NUMBER:<activation_id>:<phone_number>`
+
+#### C. Poll SMS Status (`action=getStatus`)
+*   **Description:** Checks the inbox of an active number.
+*   **Parameters:** `id` (Activation ID).
+*   **Responses:**
+    *   `STATUS_WAIT_CODE` (Waiting for SMS)
+    *   `STATUS_OK:<code>` (SMS received, code extracted)
+    *   `STATUS_CANCEL` (Number was cancelled or timed out)
+
+#### D. Update Lifecycle State (`action=setStatus`)
+*   **Description:** Updates the state of an activation.
+*   **Parameters:** `id` (Activation ID), `status` (State code).
+*   **Status Codes:**
+    *   `1`: Inform server that SMS has been requested.
+    *   `3`: Request another SMS (retry).
+    *   `6`: Complete activation (success).
+    *   `8`: Complete activation and ban number (if number was already used).
+    *   `-1`: Cancel activation and refund balance (only if no SMS was received).
+
+#### E. Pricing Matrix (`action=getPrices`)
+*   **Description:** Returns a massive JSON payload of all active stock, aggregated across providers, showing current pricing and quantity per country and service.
+*   **Format:** `JSON`
+
+---
+
+## 4. Technical Architecture & Engineering Standards
+
+### 4.1 Infrastructure (The "Coolify" Stack)
+NexNum is deployed on self-hosted enterprise infrastructure managed via **Coolify**. 
+*   **Frontend:** Next.js 14 (App Router) with React Server Components, heavily optimized for SEO and instantaneous LCP (Largest Contentful Paint).
+*   **Backend:** Node.js, Prisma ORM, Serverless Edge Functions.
+*   **Database:** Supabase PostgreSQL (Production) with connection pooling (`pgbouncer=true`).
+*   **Caching & Streams:** Redis (for rate limiting, caching provider stock, and pub/sub) & Meilisearch (for ultra-fast service lookups).
+*   **Background Workers:** Dedicated Dockerized Node.js workers reconcile orphaned transactions and sync provider stocks via CRON.
+
+### 4.2 Security & Fraud Prevention
+*   **Cloudflare Turnstile:** Advanced CAPTCHA integration prevents bot-driven account creation.
+*   **Wallet Isolation:** Cryptographic signing of wallet transactions ensures balance manipulation is impossible.
+
+### 4.3 UI/UX Design System
+NexNum utilizes a highly premium, modern "glassmorphism" design language:
+*   **Color Palette:** Charcoal base (`#08080a`) with vibrant Neon Lime (`#CCFF00`) accents.
+*   **Choreography:** Framer Motion drives fluid micro-interactions, spring-based hover states, and cinematic page transitions. No generic templates are used.
+
+---
+
+## 5. Developer SDKs & Telegram Integration
+
+### 5.1 Telegram AI Bot (@NexNumBot)
+We offer a fully integrated Telegram Mini App and Bot. Users can link their web accounts to Telegram securely using our SSO OAuth flow. Once linked, developers and users receive instant push notifications for:
+*   Incoming SMS codes (bypassing the need to poll the API).
+*   Low balance warnings.
+*   New feature rollouts.
+
+### 5.2 Snippet Generation
+Our Developer Hub features interactive snippet generation for:
+*   `cURL`
+*   `JavaScript` (Fetch / Axios)
+*   `Python` (Requests)
+*   `Go` (net/http)
+*   `PHP` (cURL)
+
+---
+
+## 6. Contact, Socials, & Support
+*   **Web:** [https://nexnum.in](https://nexnum.in)
+*   **API Docs:** [https://nexnum.in/api-docs](https://nexnum.in/api-docs)
+*   **Telegram Support:** @NexNumSupport
+*   **Terms of Service:** [https://nexnum.in/terms](https://nexnum.in/terms)
+
+> "Building the infrastructure for global digital identity, one OTP at a time."
