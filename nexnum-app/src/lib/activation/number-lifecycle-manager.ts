@@ -587,18 +587,54 @@ class NumberLifecycleManager {
                 return { action: 'complete' as const, reason: 'has_sms' }
             }
 
-            // No SMS - cancel at provider and refund
-            try {
-                if (number.activationId) {
-                    await smsProvider.setCancel(number.activationId)
+            // No local SMS — attempt provider cancellation first before refunding
+            let cancelSuccess = false
+            if (number.activationId) {
+                const rawId = number.activationId.includes(':')
+                    ? number.activationId.split(':').slice(1).join(':')
+                    : number.activationId
+
+                try {
+                    await smsProvider.setCancel(rawId)
+                    cancelSuccess = true
+                } catch (e: any) {
+                    logger.warn('[Lifecycle] Provider cancel failed/rejected on timeout, querying getStatus for late SMS...', {
+                        numberId,
+                        rawId,
+                        error: e.message
+                    })
+
+                    // Provider rejected cancel — check if SMS arrived at the last second!
+                    try {
+                        const statusResult = await smsProvider.getStatus(rawId)
+                        if (statusResult?.messages && statusResult.messages.length > 0) {
+                            for (const msg of statusResult.messages) {
+                                await tx.smsMessage.create({
+                                    data: {
+                                        numberId: number.id,
+                                        sender: msg.code ? 'Verification Service' : 'SMS System',
+                                        content: msg.content || (msg as any).text || (msg.code ? `Your verification code is: ${msg.code}` : 'Message received'),
+                                        code: msg.code || null,
+                                        receivedAt: new Date()
+                                    }
+                                }).catch(() => {})
+                            }
+
+                            await tx.number.update({
+                                where: { id: number.id },
+                                data: { status: 'completed' }
+                            })
+
+                            logger.info('[Lifecycle] Number rescued from timeout refund by late provider SMS!', { numberId, rawId })
+                            return { action: 'complete' as const, reason: 'rescued_by_late_sms' }
+                        }
+                    } catch (statusErr: any) {
+                        logger.error('[Lifecycle] getStatus check failed after cancel error', { numberId, error: statusErr.message })
+                    }
                 }
-            } catch (e) {
-                logger.warn('[Lifecycle] Provider cancel failed, still refunding', {
-                    numberId,
-                    error: e
-                })
             }
 
+            // Provider cancellation succeeded (or confirmed no SMS) — mark cancelled and refund
             await tx.number.update({
                 where: { id: number.id },
                 data: { status: 'cancelled' },
@@ -614,6 +650,12 @@ class NumberLifecycleManager {
                     `refund_timeout_${number.id}`,
                     tx
                 )
+            }
+
+            // Remove from Tier 1 poller active stream
+            if (number.activationId) {
+                const { ActiveOrderStream } = await import('@/lib/activation/active-order-stream')
+                ActiveOrderStream.removeActiveOrder(number.activationId).catch(() => {})
             }
 
             return { action: 'refund' as const, reason: 'timeout_no_sms' }

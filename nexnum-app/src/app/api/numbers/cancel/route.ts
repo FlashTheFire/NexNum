@@ -68,22 +68,64 @@ export const POST = apiHandler(async (request, { body }) => {
 
     console.log(`[CANCEL] Cancelling number ${numberId} (${number.phoneNumber}) for user ${user.userId}`)
 
-    // 2. Call Provider Cancel
-    try {
-        if (number.activationId) {
-            await smsProvider.cancelNumber(number.activationId)
-            console.log(`[CANCEL] Provider cancellation successful`)
-        } else {
-            console.warn(`[CANCEL] No activation ID found for number ${numberId}, skipping provider cancel`)
+    // 2. Attempt Provider Cancel
+    if (number.activationId) {
+        const rawId = number.activationId.includes(':')
+            ? number.activationId.split(':').slice(1).join(':')
+            : number.activationId
+
+        try {
+            if (smsProvider.setCancel) {
+                await smsProvider.setCancel(rawId)
+            } else {
+                await smsProvider.cancelNumber(rawId)
+            }
+            console.log(`[CANCEL] Provider cancellation successful for ${rawId}`)
+        } catch (err: any) {
+            console.warn(`[CANCEL] Provider cancel rejected/failed for ${rawId}:`, err.message)
+
+            // Cancellation failed — fetch getStatus to check if an OTP/SMS code arrived on provider side!
+            try {
+                const statusResult = await smsProvider.getStatus(rawId)
+                if (statusResult?.messages && statusResult.messages.length > 0) {
+                    // SMS code was received! Do NOT refund — save message and mark number received!
+                    for (const msg of statusResult.messages) {
+                        await prisma.smsMessage.create({
+                            data: {
+                                numberId: number.id,
+                                sender: msg.code ? 'Verification Service' : 'SMS System',
+                                content: msg.content || (msg as any).text || (msg.code ? `Your verification code is: ${msg.code}` : 'Message received'),
+                                code: msg.code || null,
+                                receivedAt: new Date()
+                            }
+                        }).catch(() => {})
+                    }
+
+                    await prisma.number.update({
+                        where: { id: numberId },
+                        data: { status: 'received' }
+                    })
+
+                    emitStateUpdate(user.userId, 'all', 'sms_received').catch(() => {})
+
+                    return NextResponse.json({
+                        error: 'Cannot cancel: SMS Code was received from provider. Service fulfilled.',
+                        status: 'received'
+                    }, { status: 400 })
+                }
+            } catch (statusErr: any) {
+                console.error(`[CANCEL] Fallback getStatus check failed:`, statusErr.message)
+            }
+
+            // If no SMS code was found and error indicates already cancelled/expired, allow local cleanup & refund
+            const errMsg = String(err.message || '').toLowerCase()
+            const isAlreadyCancelledOrExpired = errMsg.includes('not found') || errMsg.includes('already') || errMsg.includes('bad_key') || errMsg.includes('no_key') || errMsg.includes('expired')
+            if (!isAlreadyCancelledOrExpired) {
+                return NextResponse.json({
+                    error: `Provider rejected cancellation: ${err.message || 'Unknown provider error'}`
+                }, { status: 400 })
+            }
         }
-    } catch (err: any) {
-        // Some providers error if already cancelled. We should double check status?
-        console.warn(`[CANCEL] Provider cancel warning:`, err.message)
-        // We continue? Or abort?
-        // If provider says "activation not found" or "already cancelled", we should proceed to mark local as cancelled.
-        // But if provider says "cannot cancel", we should STOP.
-        // Assuming smsProvider throws generic errors currently.
-        // Todo: Refine provider error types.
     }
 
     // 3. Refund & Update DB (Transaction)
@@ -117,6 +159,12 @@ export const POST = apiHandler(async (request, { body }) => {
         await emitStateUpdate(user.userId, 'numbers', `Order cancelled: ${numberId}`)
 
         console.log(`[CANCEL] Refund successful for ${numberId}`)
+
+        // Remove from ActiveOrderStream so Tier 1 poller stops polling this activation
+        if (number.activationId) {
+            const { ActiveOrderStream } = await import('@/lib/activation/active-order-stream')
+            ActiveOrderStream.removeActiveOrder(number.activationId).catch(() => {})
+        }
 
         // NEW: Record Stats for Health Monitor
         // Rule: Only count as "Failure" if user waited > 2 minutes.

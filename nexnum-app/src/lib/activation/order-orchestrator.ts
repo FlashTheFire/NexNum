@@ -363,19 +363,60 @@ export class OrderOrchestrator {
             if (number?.activationId) {
                 const { getProviderAdapter } = await import('@/lib/providers/provider-factory')
                 const provider = await prisma.provider.findFirst({
-                    where: { name: number.provider || '' }
+                    where: {
+                        OR: [
+                            ...(number.provider ? [{ name: number.provider }, { id: number.provider }] : [])
+                        ]
+                    }
                 })
 
                 if (provider) {
                     const adapter = getProviderAdapter(provider)
+                    const rawId = number.activationId.includes(':')
+                        ? number.activationId.split(':').slice(1).join(':')
+                        : number.activationId
+
                     try {
                         if (adapter.setCancel) {
-                            await adapter.setCancel(number.activationId)
+                            await adapter.setCancel(rawId)
                         } else if (adapter.cancelNumber) {
-                            await adapter.cancelNumber(number.activationId)
+                            await adapter.cancelNumber(rawId)
                         }
-                    } catch (e) {
-                        logger.warn('[OrderOrchestrator] Provider cancel failed, continuing', { orderId, error: e })
+                    } catch (e: any) {
+                        logger.warn('[OrderOrchestrator] Provider cancel failed/rejected, checking for late SMS...', { orderId, rawId, error: e.message })
+
+                        if (adapter.getStatus) {
+                            try {
+                                const statusResult = await adapter.getStatus(rawId)
+                                if (statusResult?.messages && statusResult.messages.length > 0) {
+                                    for (const msg of statusResult.messages) {
+                                        await prisma.smsMessage.create({
+                                            data: {
+                                                numberId: number.id,
+                                                sender: msg.code ? 'Verification Service' : 'SMS System',
+                                                content: msg.content || (msg as any).text || (msg.code ? `Your verification code is: ${msg.code}` : 'Message received'),
+                                                code: msg.code || null,
+                                                receivedAt: new Date()
+                                            }
+                                        }).catch(() => {})
+                                    }
+
+                                    await prisma.number.update({
+                                        where: { id: number.id },
+                                        data: { status: 'received' }
+                                    })
+                                    await prisma.activation.update({
+                                        where: { id: orderId },
+                                        data: { state: 'RECEIVED' }
+                                    })
+
+                                    logger.info(`[OrderOrchestrator] Late SMS rescued order ${orderId}!`, { rawId })
+                                    return { success: false, error: 'SMS code was already delivered by provider. Order marked as received.' }
+                                }
+                            } catch (statusErr: any) {
+                                logger.error('[OrderOrchestrator] getStatus check failed after cancel error', { error: statusErr.message })
+                            }
+                        }
                     }
                 }
             }
@@ -391,6 +432,11 @@ export class OrderOrchestrator {
                     where: { id: number.id },
                     data: { status: 'cancelled' }
                 })
+
+                if (number.activationId) {
+                    const { ActiveOrderStream } = await import('@/lib/activation/active-order-stream')
+                    ActiveOrderStream.removeActiveOrder(number.activationId).catch(() => {})
+                }
             }
 
             // 3. Process refund
