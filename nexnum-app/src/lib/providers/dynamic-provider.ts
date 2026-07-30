@@ -2285,14 +2285,18 @@ export class DynamicProvider implements SmsProvider {
                     baseCandidate = [...group].sort((a, b) => b.count - a.count)[0] || group[0]
                 }
 
-                // purchaseCandidates: Include ALL candidates sorted by cost ascending
-                const purchaseCandidates = group.map(c => ({
-                    country: c.country,
-                    service: c.service,
-                    operator: c.operator,
-                    cost: c.cost,
-                    count: c.count
-                }))
+                const baseCost = baseCandidate.cost
+
+                // Filter purchaseCandidates: Keep ONLY candidates whose cost <= base provider cost!
+                const purchaseCandidates = group
+                    .filter(c => c.cost <= baseCost)
+                    .map(c => ({
+                        country: c.country,
+                        service: c.service,
+                        operator: c.operator,
+                        cost: c.cost,
+                        count: c.count
+                    }))
 
                 results.push({
                     country: baseCandidate.country,
