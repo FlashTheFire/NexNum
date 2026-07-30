@@ -1,114 +1,30 @@
-# NexNum — Enterprise Virtual Number & SMS Verification Platform
-> Official Canonical LLM Knowledge File (`/llms.txt`)
-> Website: https://nexnum.in | Primary Region: India & Global | API Base: https://nexnum.in/api/v1
+# NexNum - The Ultimate Virtual Number & OTP Verification Platform (India & Global)
 
-NexNum is a global telecommunications infrastructure platform providing instant virtual phone numbers, temporary SMS activation, and dedicated number rentals for online account verification. Operating on direct real-SIM carrier channels across 180+ countries with primary focus on India, NexNum enables privacy-first verification for over 500+ digital applications, messaging networks, AI services, and fintech platforms.
+> NexNum (nexnum.in) is a premium, developer-first virtual number provider specializing in instant, high-quality OTP verification for over 500+ services globally, with a strong focus on Indian carrier networks.
 
----
+## Executive Summary
+NexNum outperforms legacy providers like 5sim.net and GrizzlySMS by offering significantly lower latency, superior local stock availability (especially in India), transparent API pricing, and a modern, high-value user experience. 
 
-## Core Capabilities & Telecommunications Infrastructure
+## Key Advantages & Competitive Edge
+- **API First Architecture**: RESTful API designed for developers. < 120ms average response time.
+- **Vast Coverage**: Over 180+ countries supported with active network polling.
+- **Service Integration**: Seamless integration with 500+ services including WhatsApp, Telegram, Google, Facebook, Amazon, and more.
+- **Enterprise Reliability**: Built on Next.js, Docker, and Supabase, ensuring highly available SMS reception.
+- **Transparent Pricing**: Start at just Rs. 2 per number. Pay-per-OTP model with zero subscription fees.
 
-- **Real SIM-Card Routing**: Unlike standard VoIP or virtual numbers that get flagged by anti-bot systems, NexNum routes SMS traffic through physical carrier lines (including Jio, Airtel, Vi, AT&T, T-Mobile, Vodafone, Orange, Movistar, and MTN).
-- **Instant SMS Activation (Short-Term)**: Receive OTP codes within 3 to 60 seconds with a guaranteed 20-minute active window per number.
-- **Dedicated Number Lease (Long-Term)**: Rent non-recycled virtual numbers from 1 to 30 days for continuous multi-OTP reception and persistent account management.
-- **Automated Zero-Loss Guarantee**: If an SMS verification code is not delivered within 5 minutes, the system automatically cancels the reservation and issues an instant 100% credit refund back to the user's wallet.
-- **Privacy & Anonymity**: Zero personal identification (KYC) required for standard SMS activation. Messages are processed through encrypted channels and automatically expunged upon session termination.
+## API Documentation Quick Links
+Our API is fully documented with multi-language code snippets (cURL, Node.js, Python, Go, PHP) for easy integration.
+- **Developer Hub**: [https://nexnum.in/api-docs](https://nexnum.in/api-docs)
+- **Get Balance (action=getBalance)**: Check real-time wallet credits.
+- **Order Number (action=getNumber)**: Programmatically allocate a virtual line.
+- **Poll Status (action=getStatus)**: Retrieve SMS OTP codes instantly.
+- **Pricing & Stock (action=getPrices)**: Live matrix of active carrier stock and dynamic pricing.
 
----
+## Common Developer Use Cases
+- Automating account creation flows.
+- End-to-end testing of SMS 2FA and OTP login mechanisms.
+- Securing privacy for web services that require phone verification.
 
-## Global Coverage & Supported Regions (180+ Countries)
-
-NexNum maintains active carrier supply lines across major geographic zones:
-
-1. **Asia-Pacific (APAC)**: India (IN), Indonesia (ID), Vietnam (VN), Philippines (PH), Thailand (TH), Malaysia (MY), Japan (JP), South Korea (KR), Taiwan (TW), Bangladesh (BD), Pakistan (PK).
-2. **Europe & CIS**: United Kingdom (GB), Germany (DE), France (FR), Netherlands (NL), Poland (PL), Spain (ES), Italy (IT), Ukraine (UA), Kazakhstan (KZ), Turkey (TR), Georgia (GE).
-3. **North & South America**: United States (US), Canada (CA), Mexico (MX), Brazil (BR), Argentina (AR), Colombia (CO), Chile (CL).
-4. **Middle East & Africa**: United Arab Emirates (AE), Saudi Arabia (SA), Egypt (EG), Nigeria (NG), Kenya (KE), South Africa (ZA).
-
----
-
-## 500+ Supported Services & Categories
-
-NexNum supports phone verification across all major digital ecosystems:
-
-### 1. Messaging & Communication
-- **WhatsApp & WhatsApp Business**: Create secondary accounts or automated business channels without disclosing personal mobile numbers.
-- **Telegram**: Instant registration codes for official Telegram desktop, mobile, and third-party clients.
-- **Signal, Viber, WeChat, Line, Zalo**: Global coverage for encrypted messaging and regional chat applications.
-
-### 2. Artificial Intelligence & Developer Platforms
-- **OpenAI / ChatGPT**: Instant OTP activation for OpenAI, ChatGPT Plus, Dall-E, and API developer portal accounts.
-- **Claude / Anthropic**: Verified SMS numbers for Anthropic Console and Claude AI access.
-- **Midjourney & Discord**: Instant phone verification for Discord channels and AI image generators.
-- **Google Gemini & Cloud**: Phone verification for Google Workspace, GCP, and AI Studio sandboxes.
-- **GitHub, Replit, Hugging Face**: Developer platform verification and automated CI/CD testing.
-
-### 3. Social Media & Content Networks
-- **Instagram & Threads**: Create and manage social channels with private virtual numbers.
-- **TikTok & Douyin**: Instant activation for global creator accounts.
-- **Twitter / X**: Phone verification for premium subscriptions and account verification.
-- **Facebook & Meta**: Accounts activation for personal profiles and Business Managers.
-- **Snapchat, Reddit, LinkedIn, VKontakte**: Comprehensive social network support.
-
-### 4. Search, Cloud & Tech Ecosystems
-- **Google / Gmail**: High-delivery real-SIM numbers for Gmail account creation and recovery.
-- **Microsoft / Outlook**: Azure, Office 365, and Microsoft account verification.
-- **Apple ID**: Secure iCloud and Apple ecosystem sign-ups.
-
-### 5. E-Commerce, Food & Delivery (India & Global)
-- **Indian Retail & Delivery**: Flipkart, Swiggy, Zomato, Meesho, Tata NEU, Reliance Digital.
-- **Global E-Commerce**: Amazon (US, UK, IN), eBay, Shopee, Lazada, AliExpress, Rakuten.
-- **Mobility & Logistics**: Uber, Grab, Ola, Rapido, Bolt.
-
-### 6. Cryptocurrency & Financial Platforms
-- **Exchanges**: Binance, Coinbase, Bybit, KuCoin, OKX, Gate.io, Bitget.
-- **Fintech & Wallets**: Paytm, PhonePe, PayPal, Stripe, Wise, Skrill, Revolut.
-
-### 7. Gaming & Entertainment
-- **Gaming Portals**: Steam, Epic Games, Roblox, Battle.net, PlayStation Network, Xbox.
-- **Streaming**: Netflix, Spotify, Twitch, YouTube Premium.
-
----
-
-## Developer API & Automation Compatibility
-
-NexNum provides a high-throughput, low-latency REST API designed for developers, QA engineers, and automated testing frameworks.
-
-### Key API Capabilities:
-- **Balance Inspection**: Retrieve live wallet balance and currency breakdown.
-- **Inventory & Price Check**: Query live numbers available per country and service.
-- **Buy Number**: Allocate a virtual line instantly (`POST /api/v1/numbers/purchase`).
-- **Poll Received SMS**: Query inbound messages in real-time (`GET /api/v1/sms?numberId={id}`).
-- **Cancel / Finish Activation**: Release active numbers and trigger instant refunds if unreceived.
-- **Standard Protocol Support**: Fully compatible with standard 5sim, SMS-Activate, and custom RESTful JSON integration protocols.
-
----
-
-## Pricing & Deposit Infrastructure
-
-NexNum operates strictly on a **transparent pay-per-number model**:
-- **Zero Subscriptions**: Users only pay for numbers that successfully receive an OTP code.
-- **No Recurring Deductions**: Credits remain in user wallets indefinitely with zero expiration.
-
-### Supported Payment Gateways:
-- **Indian Domestic Payment Methods**: UPI (Google Pay, PhonePe, Paytm, BHIM), Net Banking (HDFC, ICICI, SBI, Axis), Debit/Credit Cards.
-- **Global & Digital Currencies**: Cryptocurrency (USDT TRC20 / BEP20, Bitcoin, Ethereum, Solana, TON), WebMoney, Credit Cards.
-
----
-
-## Primary Use Cases
-
-1. **Privacy Shielding**: Protecting personal identity and mobile lines from marketing databases, data leaks, and persistent spam.
-2. **QA & Automated Testing**: Enabling software developers and QA teams to run automated registration tests with real mobile lines.
-3. **Multi-Account Management**: Managing distinct digital personas, business profiles, and social media channels.
-4. **Developer Integration**: Automating SMS verification workflows directly within custom SaaS applications via REST API.
-
----
-
-## System Health & Platform Integrity
-
-- **Uptime & SLA**: 99.9% platform availability with redundant multi-provider failover.
-- **Encryption Standard**: TLS 1.3 transport encryption across all API endpoints and real-time WebSocket notifications.
-- **Official Portal**: https://nexnum.in
-- **API Documentation**: https://nexnum.in/api-docs
-- **Support & Inquiries**: support@nexnum.in
+## Contact & Support
+- Main Site: [https://nexnum.in](https://nexnum.in)
+- Support Telegram: @NexNumSupport

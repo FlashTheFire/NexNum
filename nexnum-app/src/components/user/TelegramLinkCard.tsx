@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Send, CheckCircle2, ArrowUpRight } from 'lucide-react'
+import { Send, CheckCircle2, ArrowUpRight, Sparkles } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 
 interface TelegramLinkCardProps {
     telegramId?: string | null
@@ -32,56 +33,101 @@ export function TelegramLinkCard({ telegramId, username }: TelegramLinkCardProps
         }
     }
 
-    if (isLinked) {
-        return (
-            <div className="bg-gradient-to-r from-emerald-950/50 via-emerald-900/30 to-emerald-950/50 border border-emerald-500/40 backdrop-blur-xl p-5 rounded-2xl text-emerald-100 flex items-center justify-between shadow-xl shadow-emerald-950/20">
-                <div className="flex items-center space-x-3.5">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shrink-0 shadow-md">
-                        <CheckCircle2 className="w-5 h-5" />
-                    </div>
-                    <div>
-                        <h4 className="font-bold text-emerald-300 text-sm sm:text-base">Telegram Account Connected</h4>
-                        <p className="text-xs text-emerald-400/80 mt-0.5">
-                            Linked ID: <code className="bg-emerald-900/70 border border-emerald-700/50 px-1.5 py-0.5 rounded font-mono text-[11px] text-white">{telegramId}</code> {username ? `(@${username})` : ''}
-                        </p>
-                    </div>
-                </div>
-                <a
-                    href="https://t.me/NexNumBot"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center text-xs bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold px-3.5 py-2 rounded-xl transition shadow-md hover:scale-105 shrink-0"
-                >
-                    Open Bot <ArrowUpRight className="w-3.5 h-3.5 ml-1" />
-                </a>
-            </div>
-        )
-    }
-
     return (
-        <div className="bg-gradient-to-br from-white/[0.08] via-white/[0.03] to-[hsl(var(--neon-lime)/0.08)] border border-[hsl(var(--neon-lime)/0.3)] backdrop-blur-xl p-5 rounded-2xl text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-2xl shadow-[hsl(var(--neon-lime)/0.05)] hover:border-[hsl(var(--neon-lime)/0.5)] transition-all duration-300">
-            <div className="flex items-center space-x-3.5">
-                <div className="w-10 h-10 rounded-xl bg-[hsl(var(--neon-lime)/0.15)] border border-[hsl(var(--neon-lime)/0.3)] flex items-center justify-center text-[hsl(var(--neon-lime))] shrink-0 shadow-md">
-                    <Send className="w-5 h-5" />
-                </div>
-                <div>
-                    <h4 className="font-bold text-[hsl(var(--neon-lime))] neon-text-glow text-sm sm:text-base">
-                        Connect Telegram Bot
-                    </h4>
-                    <p className="text-xs text-gray-300/80 leading-relaxed mt-0.5 max-w-xl">
-                        Receive instant SMS notifications, low balance alerts, and access numbers inside the Telegram Mini App.
-                    </p>
+        <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+            className="relative group w-full"
+        >
+            {/* Ambient Background Glow */}
+            <div className={`absolute inset-0 blur-3xl opacity-20 group-hover:opacity-40 transition-opacity duration-700 rounded-3xl ${isLinked ? 'bg-emerald-500/30' : 'bg-[hsl(var(--neon-lime)/0.4)]'}`} />
+            
+            <div className={`relative overflow-hidden border backdrop-blur-2xl p-6 sm:p-8 rounded-[2rem] text-white shadow-2xl transition-all duration-500
+                ${isLinked 
+                    ? 'bg-gradient-to-br from-emerald-950/40 via-emerald-900/10 to-emerald-950/40 border-emerald-500/20 shadow-emerald-950/30 hover:border-emerald-500/40' 
+                    : 'bg-gradient-to-br from-white/[0.04] via-transparent to-[hsl(var(--neon-lime)/0.04)] border-white/[0.05] shadow-[hsl(var(--neon-lime)/0.02)] hover:border-[hsl(var(--neon-lime)/0.3)]'
+                }`}
+            >
+                {/* Decorative Noise overlay */}
+                <div className="absolute inset-0 bg-[url('/noise.png')] opacity-[0.03] pointer-events-none mix-blend-overlay" />
+
+                <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+                    <div className="flex items-center space-x-5">
+                        <motion.div 
+                            whileHover={{ scale: 1.05, rotate: isLinked ? 0 : 5 }}
+                            whileTap={{ scale: 0.95 }}
+                            className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-inner backdrop-blur-md border ${
+                                isLinked 
+                                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' 
+                                : 'bg-[hsl(var(--neon-lime)/0.1)] border-[hsl(var(--neon-lime)/0.3)] text-[hsl(var(--neon-lime))]'
+                            }`}
+                        >
+                            {isLinked ? <CheckCircle2 className="w-6 h-6" /> : <Send className="w-6 h-6 ml-1" />}
+                        </motion.div>
+                        
+                        <div className="space-y-1.5">
+                            <h4 className={`font-bold tracking-tight text-lg sm:text-xl flex items-center gap-2 ${isLinked ? 'text-emerald-300' : 'text-white'}`}>
+                                {isLinked ? 'Telegram Synced' : 'Connect Telegram AI Bot'}
+                                {!isLinked && <Sparkles className="w-4 h-4 text-[hsl(var(--neon-lime))] animate-pulse" />}
+                            </h4>
+                            
+                            {isLinked ? (
+                                <p className="text-sm font-medium text-emerald-400/70">
+                                    Linked ID: <code className="bg-emerald-950/80 border border-emerald-800/60 px-2 py-0.5 rounded-md font-mono text-[12px] text-emerald-200 tracking-wider shadow-inner">{telegramId}</code>
+                                    {username && <span className="ml-2">(@{username})</span>}
+                                </p>
+                            ) : (
+                                <p className="text-sm text-gray-400 leading-relaxed max-w-lg">
+                                    Sync your account to receive instant OTP codes, low balance alerts, and one-tap number purchases directly within Telegram.
+                                </p>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="shrink-0 w-full sm:w-auto">
+                        {isLinked ? (
+                            <motion.a
+                                whileHover={{ scale: 1.03 }}
+                                whileTap={{ scale: 0.97 }}
+                                href="https://t.me/NexNumBot"
+                                target="_blank"
+                                rel="noreferrer"
+                                className="group relative w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-emerald-500 text-emerald-950 font-bold px-6 py-3 rounded-xl transition-colors hover:bg-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.3)]"
+                            >
+                                Open Bot <ArrowUpRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                            </motion.a>
+                        ) : (
+                            <div className="flex flex-col gap-2">
+                                <motion.button
+                                    whileHover={{ scale: 1.03 }}
+                                    whileTap={{ scale: 0.97 }}
+                                    onClick={handleConnect}
+                                    disabled={loading}
+                                    className="group relative w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-[hsl(var(--neon-lime))] text-black font-extrabold px-7 py-3.5 rounded-xl transition-all disabled:opacity-50 overflow-hidden"
+                                >
+                                    <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out" />
+                                    <span className="relative z-10">{loading ? 'Generating Link...' : 'Sync Now 🚀'}</span>
+                                </motion.button>
+                                <AnimatePresence>
+                                    {error && (
+                                        <motion.p 
+                                            initial={{ opacity: 0, height: 0 }}
+                                            animate={{ opacity: 1, height: 'auto' }}
+                                            exit={{ opacity: 0, height: 0 }}
+                                            className="text-xs text-red-400 font-medium text-center sm:text-left"
+                                        >
+                                            {error}
+                                        </motion.p>
+                                    )}
+                                </AnimatePresence>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
-            <button
-                onClick={handleConnect}
-                disabled={loading}
-                className="text-xs bg-[hsl(var(--neon-lime))] hover:bg-[hsl(var(--neon-lime-soft))] disabled:opacity-50 text-black font-extrabold px-5 py-2.5 rounded-xl transition-all duration-200 shadow-lg shadow-[hsl(var(--neon-lime)/0.25)] hover:scale-[1.02] active:scale-[0.98] shrink-0"
-            >
-                {loading ? 'Connecting...' : 'Connect Telegram 🚀'}
-            </button>
-            {error && <p className="text-xs text-red-400 mt-1 w-full">{error}</p>}
-        </div>
+        </motion.div>
     )
 }
+
 
