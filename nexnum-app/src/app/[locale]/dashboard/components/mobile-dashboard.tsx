@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { DashboardBackground } from "./dashboard-background"
 import { DashboardNumberCard } from "./DashboardNumberCard"
+import { NumberCardSkeleton } from "./ModernNumberCard"
 import { PriceDisplay, BalanceDisplay } from "@/components/common/PriceDisplay"
 import { TelegramLinkCard } from "@/components/user/TelegramLinkCard"
 
@@ -31,14 +32,16 @@ import { TelegramLinkCard } from "@/components/user/TelegramLinkCard"
 
 export function MobileDashboard() {
     const { user } = useAuthStore()
-    const { userProfile, activeNumbers, transactions, totalSpent, totalDeposited } = useGlobalStore()
+    const { userProfile, activeNumbers, isLoadingNumbers, transactions, totalSpent, totalDeposited } = useGlobalStore()
     const [scrolled, setScrolled] = useState(false)
     const [activeCardIndex, setActiveCardIndex] = useState(0)
+    const [isMounted, setIsMounted] = useState(false)
     const scrollContainerRef = useRef<HTMLDivElement>(null)
     const [now, setNow] = useState(Date.now())
     const { formatFromBalance, formatFromPrices } = useCurrency()
 
     useEffect(() => {
+        setIsMounted(true)
         const interval = setInterval(() => setNow(Date.now()), 1000)
         return () => clearInterval(interval)
     }, [])
@@ -291,7 +294,13 @@ export function MobileDashboard() {
                         </Link>
                     </div>
 
-                    {activeNumbers.length > 0 ? (
+                    {(!isMounted || isLoadingNumbers) ? (
+                        <div className="flex gap-4 overflow-x-auto pb-2 snap-x hide-scrollbar">
+                            {[...Array(3)].map((_, i) => (
+                                <NumberCardSkeleton key={i} index={i} className="snap-center shrink-0 w-[250px] h-[140px]" />
+                            ))}
+                        </div>
+                    ) : activeNumbers.length > 0 ? (
                         <>
                             <div
                                 ref={scrollContainerRef}
