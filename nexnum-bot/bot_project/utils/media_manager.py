@@ -168,3 +168,93 @@ async def send_or_cached_media(
             logger.info(f"Persisted media file_id for '{media_key}' in Redis & DB: {extracted_file_id}")
 
     return sent_msg
+
+async def edit_or_cached_media(
+    bot: AsyncTeleBot,
+    chat_id: Union[int, str],
+    message_id: int,
+    media_key: str,
+    file_source: Any,
+    caption: Optional[str] = None,
+    parse_mode: str = "HTML",
+    reply_markup: Optional[Any] = None,
+    media_type: str = "photo"
+) -> Optional[Message]:
+    """
+    Edits message media using sub-millisecond cached file_id string, automatically uploading
+    and caching local file paths or URLs if cache misses or source file changes.
+    """
+    if not isinstance(file_source, str):
+        media_obj = prepare_input_media(file_source, caption=caption, parse_mode=parse_mode, media_type=media_type)
+        return await bot.edit_message_media(media=media_obj, chat_id=chat_id, message_id=message_id, reply_markup=reply_markup)
+
+    redis_key = f"bot_media_cache:{media_key}"
+    sig_key = f"bot_media_cache:{media_key}:sig"
+    current_sig = _get_source_signature(file_source)
+
+    cached_file_id: Optional[str] = None
+    cached_sig: Optional[str] = None
+
+    if redis_manager.redis_client:
+        try:
+            val = await redis_manager.redis_client.get(redis_key)
+            sig_val = await redis_manager.redis_client.get(sig_key)
+            if val:
+                cached_file_id = val.decode('utf-8') if isinstance(val, bytes) else str(val)
+            if sig_val:
+                cached_sig = sig_val.decode('utf-8') if isinstance(sig_val, bytes) else str(sig_val)
+        except Exception:
+            pass
+
+    if not cached_file_id:
+        try:
+            cached_session = await db_adapter.get_user_session("GLOBAL_MEDIA_CACHE") or {}
+            cached_file_id = cached_session.get(f"media_file_id:{media_key}")
+            cached_sig = cached_session.get(f"media_sig:{media_key}")
+        except Exception:
+            pass
+
+    if cached_file_id and cached_sig and cached_sig != current_sig:
+        cached_file_id = None
+
+    # 1. Fast Path: If cached file_id exists, edit message using cached file_id string
+    if cached_file_id:
+        try:
+            media_obj = prepare_input_media(cached_file_id, caption=caption, parse_mode=parse_mode, media_type=media_type)
+            return await bot.edit_message_media(media=media_obj, chat_id=chat_id, message_id=message_id, reply_markup=reply_markup)
+        except Exception as e:
+            logger.warning(f"Edit with cached file_id '{cached_file_id}' failed ({e}). Re-uploading media source...")
+            cached_file_id = None
+
+    # 2. Slow Path: Upload local file / URL to Telegram and edit message
+    media_obj = prepare_input_media(file_source, caption=caption, parse_mode=parse_mode, media_type=media_type)
+    edited_msg = await bot.edit_message_media(media=media_obj, chat_id=chat_id, message_id=message_id, reply_markup=reply_markup)
+
+    # 3. Extract generated file_id and store in Redis & PostgreSQL
+    if edited_msg:
+        extracted_file_id = None
+        if getattr(edited_msg, "photo", None):
+            extracted_file_id = edited_msg.photo[-1].file_id
+        elif getattr(edited_msg, "video", None):
+            extracted_file_id = edited_msg.video.file_id
+        elif getattr(edited_msg, "animation", None):
+            extracted_file_id = edited_msg.animation.file_id
+        elif getattr(edited_msg, "document", None):
+            extracted_file_id = edited_msg.document.file_id
+
+        if extracted_file_id:
+            if redis_manager.redis_client:
+                try:
+                    await redis_manager.redis_client.set(redis_key, extracted_file_id)
+                    await redis_manager.redis_client.set(sig_key, current_sig)
+                except Exception:
+                    pass
+            try:
+                cached_session = await db_adapter.get_user_session("GLOBAL_MEDIA_CACHE") or {}
+                cached_session[f"media_file_id:{media_key}"] = extracted_file_id
+                cached_session[f"media_sig:{media_key}"] = current_sig
+                await db_adapter.save_user_session("GLOBAL_MEDIA_CACHE", cached_session)
+            except Exception:
+                pass
+
+    return edited_msg

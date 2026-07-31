@@ -30,10 +30,11 @@ export async function GET(request: Request) {
         const sortBy = searchParams.get('sort') as 'name' | 'pointPrice' | 'stock' | undefined
 
         const result = await getServiceAggregates({ query, page, limit, sortBy })
+        const items = result?.items || []
 
         return NextResponse.json({
             success: true,
-            services: result.items.map(s => ({
+            services: items.map(s => ({
                 code: s.serviceCode,
                 name: s.serviceName,
                 lowestPrice: Number(s.lowestPrice),
@@ -43,10 +44,10 @@ export async function GET(request: Request) {
                 lastUpdatedAt: s.lastUpdatedAt
             })),
             pagination: {
-                page: result.page,
-                limit: result.limit,
-                total: result.total,
-                totalPages: result.limit > 0 ? Math.ceil(result.total / result.limit) : 1
+                page: result?.page || page,
+                limit: result?.limit || limit,
+                total: result?.total || 0,
+                totalPages: (result?.limit || 0) > 0 ? Math.ceil((result?.total || 0) / result.limit) : 1
             }
         }, {
             headers: {

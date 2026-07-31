@@ -31,7 +31,7 @@ from telebot.types import (
 )
 
 
-from utils.media_manager import prepare_input_media
+from utils.media_manager import prepare_input_media, edit_or_cached_media
 
 # Local imports – ensure these modules are available in your project.
 from utils.redis_keys import RedisKeys
@@ -39,10 +39,7 @@ from redis import WatchError
 from utils.functions import AfterMin, format_currency, qr_code, encode_order_id, decode_barcode_id
 from handlers.manager.operation import UserManagement, OrderManagement, DepositManagement
 from handlers.security import RateLimiter, TransactionGuard
-from utils.config import DEPOSIT_TIMEOUT, INR_RATE, PAYMENT_GATEWAY_API, PAYMENT_GATEWAY_API_KEY
-from utils.redis_manager import redis_manager, RedisManager
-from utils.cache_manager import cache_manager, CachePrefix
-from utils.config import LOADING_GIF, MIN_DEPOSIT
+from utils.config import DEPOSIT_TIMEOUT, INR_RATE, PAYMENT_GATEWAY_API, PAYMENT_GATEWAY_API_KEY, DEPOSIT_PAGE, LOADING_GIF, MIN_DEPOSIT
 from redis.asyncio.client import Redis
 import string
 from functools import lru_cache, partial
@@ -174,26 +171,21 @@ class ShowDepositManager:
                 "<code>(💎)</code>"
             )
 
-            media = prepare_input_media(
-                media_source=DEPOSIT_PAGE,
+            await edit_or_cached_media(
+                bot=self.bot,
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                media_key="deposit_main_page",
+                file_source=DEPOSIT_PAGE,
                 caption=caption,
-                parse_mode='HTML'
-            )
-
-            await asyncio.gather(
-                self.bot.edit_message_media(
-                    media=media,
-                    chat_id=call.message.chat.id,
-                    message_id=call.message.message_id,
-                    reply_markup=keyboard
-                ),
+                parse_mode="HTML",
+                reply_markup=keyboard,
+                media_type="photo"
             )
         except Exception as e:
-            await asyncio.gather(
-                #await logg_error(f"QR deposit handler error: {e}"),
-                self.bot.answer_callback_query(
-                    call.id, "🚫 Failed to process QR deposit", show_alert=True
-                )
+            logging.error(f"QR deposit handler error: {e}", exc_info=True)
+            await self.bot.answer_callback_query(
+                call.id, "🚫 Failed to process QR deposit", show_alert=True
             )
 
     async def _build_deposit_data(self, data: Dict, deposit_id: str) -> Dict:
