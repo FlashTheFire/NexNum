@@ -1400,8 +1400,12 @@ export class DynamicProvider implements SmsProvider {
             const sep = mapConfig.separator || ':'
             return lines.map(line => {
                 const parts = line.split(sep)
+                const source: Record<string, string> = {}
+                parts.forEach((p, idx) => { source[String(idx)] = p.trim() })
+
+                const fields = this.resolveEffectiveFields(source, mapConfig)
                 const item: any = {}
-                for (const [field, indexStr] of Object.entries(mapConfig.fields)) {
+                for (const [field, indexStr] of Object.entries(fields)) {
                     const idx = parseInt(indexStr)
                     if (!isNaN(idx) && parts[idx]) {
                         item[field] = parts[idx].trim()
@@ -2406,11 +2410,17 @@ export class DynamicProvider implements SmsProvider {
      * Helper: Resolve effective fields based on conditional logic
      */
     private resolveEffectiveFields(item: any, mapConfig: MappingConfig): Record<string, string> {
-        let effectiveFields = mapConfig.fields
+        let effectiveFields = { ...(mapConfig.fields || {}) }
         if (mapConfig.conditionalFields) {
             for (const [path, fields] of Object.entries(mapConfig.conditionalFields)) {
                 // Check if the condition path exists and is truthy in the item
-                if (this.getValue(item, path)) {
+                const val = this.getValue(item, path)
+                const directVal = (typeof item === 'object' && item !== null) ? item[path] : undefined
+                const isMatched = (val !== undefined && val !== null && val !== false && val !== '')
+                    || (directVal !== undefined && directVal !== null && directVal !== false && directVal !== '')
+                    || (typeof item === 'object' && item !== null && Object.values(item).includes(path))
+
+                if (isMatched) {
                     effectiveFields = { ...effectiveFields, ...fields }
                 }
             }
