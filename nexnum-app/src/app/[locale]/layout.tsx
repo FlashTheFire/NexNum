@@ -45,8 +45,11 @@ export async function generateMetadata({
     }
     languageAlternates['x-default'] = `${baseUrl}/en`;
 
+    const envSiteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL
+    const validBaseUrl = envSiteUrl || (host && !host.includes('localhost') ? `${protocol}://${host}` : 'https://nexnum.is')
+
     return {
-        metadataBase: new URL(baseUrl),
+        metadataBase: new URL(validBaseUrl),
         title: {
             default: "Buy Virtual Number for OTP in India | Instant SMS Verification | NexNum",
             template: `%s | ${tenant.brandName}`
