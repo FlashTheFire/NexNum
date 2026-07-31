@@ -800,7 +800,22 @@ export class DynamicProvider implements SmsProvider {
         const checkString = checkValue.trim()
         if (!checkString || checkString.length > 500) return
 
-        // 2. LAYER 1: Mapping-specific patterns (High priority)
+        // 2. LAYER 0: ConditionalFields Mapped Errors
+        if (mapConfig) {
+            try {
+                const parsed = this.parseResponse(response, mappingKey)
+                const mapped = parsed[0]
+                if (mapped && (mapped.error || ['NO_NUMBERS', 'NO_BALANCE', 'BAD_KEY', 'NO_ACTIVATION', 'BAD_STATUS', 'SERVICE_UNAVAILABLE_REGION'].includes(String(mapped.status)))) {
+                    const errType = (mapped.status || 'PROVIDER_ERROR') as UniversalErrorType
+                    const errMsg = String(mapped.error || mapped.status || checkString)
+                    throw new ProviderError(errType, errMsg, checkString)
+                }
+            } catch (err) {
+                if (err instanceof ProviderError) throw err
+            }
+        }
+
+        // 3. LAYER 1: Mapping-specific patterns (High priority)
         if (mapConfig?.errorPatterns) {
             for (const [errorType, pattern] of Object.entries(mapConfig.errorPatterns)) {
                 if (this.matchesErrorPattern(checkString, pattern)) {
