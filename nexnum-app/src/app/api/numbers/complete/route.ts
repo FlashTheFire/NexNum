@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { smsProvider } from '@/lib/providers'
 import { emitStateUpdate } from '@/lib/events/emitters/state-emitter'
 import { logger } from '@/lib/core/logger'
+import { captureError, addBreadcrumb } from '@/lib/monitoring/sentry'
 
 const completeNumberSchema = z.object({
     numberId: z.string().uuid('Invalid number ID'),
@@ -19,6 +20,8 @@ export const POST = apiHandler(async (request, { body }) => {
 
     if (!body) return NextResponse.json({ error: 'Missing request body' }, { status: 400 })
     const { numberId } = body
+
+    addBreadcrumb('lifecycle', 'Complete activation requested', { numberId, userId: user.userId })
 
     // 2. Fetch Active Number
     const number = await prisma.number.findUnique({

@@ -45,6 +45,7 @@ import { WalletService } from '@/lib/wallet/wallet'
 import { PaymentError } from '@/lib/payment/payment-errors'
 import { hasPermission } from './api-keys'
 import { logger } from '@/lib/core/logger'
+import { captureError, addBreadcrumb } from '@/lib/monitoring/sentry'
 import { redis } from '@/lib/core/redis'
 import {
     validatePurchaseInput,
@@ -487,8 +488,9 @@ export async function actionSetStatus(
                     await invalidateBalanceCache(ctx.userId)
                 }
             } catch (e) {
-                logger.warn('[V1 setStatus] refund failed', { error: (e as Error)?.message })
-            }
+            logger.warn('[V1 setStatus] refund failed', { error: (e as Error)?.message })
+            captureError(e as Error, { context: 'V1_SET_STATUS_REFUND', id: params.id, userId: ctx.userId })
+        }
             // Best-effort upstream cancel
             try {
                 await smsProvider.setCancel?.(params.id)

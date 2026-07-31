@@ -7,6 +7,7 @@ import { WalletService } from '@/lib/wallet/wallet'
 import { z } from 'zod'
 import { emitStateUpdate } from '@/lib/events/emitters/state-emitter'
 import { logger } from '@/lib/core/logger'
+import { captureError, addBreadcrumb } from '@/lib/monitoring/sentry'
 
 const cancelSchema = z.object({
     numberId: z.string().uuid(),
@@ -187,6 +188,7 @@ export const POST = apiHandler(async (request, { body }) => {
 
     } catch (err: any) {
         console.error(`[CANCEL] DB Transaction failed:`, err)
+        captureError(err, { context: 'CANCEL', numberId, userId: user.userId })
         return NextResponse.json({ error: 'Cancellation failed internally' }, { status: 500 })
     }
 

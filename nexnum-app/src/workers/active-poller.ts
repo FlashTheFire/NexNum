@@ -18,6 +18,7 @@ import { getNextPollDelay } from '@/lib/activation/adaptive-poll-strategy'
 import { prisma } from '@/lib/core/db'
 import { redis } from '@/lib/core/redis'
 import { logger } from '@/lib/core/logger'
+import { captureError, addBreadcrumb } from '@/lib/monitoring/sentry'
 import { getProviderAdapter } from '@/lib/providers/provider-factory'
 
 export interface ActivePollerSummary {
@@ -229,12 +230,17 @@ async function pollSingleActivation(order: ActiveOrderData, summary: ActivePolle
                         activationId: order.activationId,
                         code: msgCode
                     })
+                    addBreadcrumb('sms', 'OTP SMS received by ActivePoller', {
+                        activationId: order.activationId,
+                        code: msgCode
+                    })
                 } catch (dbErr: any) {
                     if (dbErr.code !== 'P2002') {
                         logger.error(`[ActivePoller] Error saving message for #${order.activationId}`, {
                             context: 'ACTIVE_POLLER',
                             error: dbErr.message
                         })
+                        captureError(dbErr, { context: 'ACTIVE_POLLER', activationId: order.activationId })
                     }
                 }
             }
