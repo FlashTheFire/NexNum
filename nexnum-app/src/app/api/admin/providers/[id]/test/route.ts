@@ -111,19 +111,19 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
                 if (!params.id) throw new Error('Activation ID required')
                 if (!engine.setCancel) throw new Error('setCancel is not supported by this provider')
                 await engine.setCancel(params.id)
-                result = { success: true, message: 'Number cancelled' }
+                result = { success: true, message: 'Number cancelled', rawResponse: (engine as any).lastRawResponse }
                 break
             case 'setResendCode':
                 if (!params.id) throw new Error('Activation ID required')
                 if (!engine.setResendCode) throw new Error('setResendCode is not supported by this provider')
                 await engine.setResendCode(params.id)
-                result = { success: true, message: 'Next SMS requested' }
+                result = { success: true, message: 'Next SMS requested', rawResponse: (engine as any).lastRawResponse }
                 break
             case 'setComplete':
                 if (!params.id) throw new Error('Activation ID required')
                 if (!engine.setComplete) throw new Error('setComplete is not supported by this provider')
                 await engine.setComplete(params.id)
-                result = { success: true, message: 'Activation marked complete' }
+                result = { success: true, message: 'Activation marked complete', rawResponse: (engine as any).lastRawResponse }
                 break
             case 'cancelNumber':
                 // Backward compatibility alias

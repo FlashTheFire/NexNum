@@ -805,7 +805,7 @@ export class DynamicProvider implements SmsProvider {
             try {
                 const parsed = this.parseResponse(response, mappingKey)
                 const mapped = parsed[0]
-                if (mapped && (mapped.error || ['NO_NUMBERS', 'NO_BALANCE', 'BAD_KEY', 'NO_ACTIVATION', 'BAD_STATUS', 'SERVICE_UNAVAILABLE_REGION'].includes(String(mapped.status)))) {
+                if (mapped && (mapped.error || ['NO_NUMBERS', 'NO_BALANCE', 'BAD_KEY', 'NO_ACTIVATION', 'BAD_STATUS', 'EARLY_CANCEL_DENIED', 'SERVICE_UNAVAILABLE_REGION'].includes(String(mapped.status)))) {
                     const errType = (mapped.status || 'PROVIDER_ERROR') as UniversalErrorType
                     const errMsg = String(mapped.error || mapped.status || checkString)
                     throw new ProviderError(errType, errMsg, checkString)
@@ -815,7 +815,17 @@ export class DynamicProvider implements SmsProvider {
             }
         }
 
-        // 3. LAYER 1: Mapping-specific patterns (High priority)
+        // 3. LAYER 0.5: Direct Standard Provider Error Code Match
+        const standardErrorCodes = [
+            'BAD_KEY', 'NO_KEY', 'NO_NUMBERS', 'NO_BALANCE', 'NO_ACTIVATION',
+            'BAD_STATUS', 'EARLY_CANCEL_DENIED', 'BAD_ACTION', 'ERROR_SQL',
+            'SERVICE_UNAVAILABLE_REGION', 'BANNED'
+        ]
+        if (standardErrorCodes.includes(checkString)) {
+            throw new ProviderError(checkString as UniversalErrorType, `Provider error: ${checkString}`, checkString)
+        }
+
+        // 4. LAYER 1: Mapping-specific patterns (High priority)
         if (mapConfig?.errorPatterns) {
             for (const [errorType, pattern] of Object.entries(mapConfig.errorPatterns)) {
                 if (this.matchesErrorPattern(checkString, pattern)) {
