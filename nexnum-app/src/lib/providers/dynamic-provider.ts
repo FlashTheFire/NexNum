@@ -1687,7 +1687,7 @@ export class DynamicProvider implements SmsProvider {
     }
 
 
-    async getNumber(countryCode: string | number, serviceCode: string | number, options?: { operator?: string; maxPrice?: string | number; purchaseCandidates?: any[]; expectedPrice?: number; provider?: string }): Promise<NumberResult> {
+    async getNumber(countryCode: string | number, serviceCode: string | number, options?: { operator?: string; maxPrice?: string | number; providerIds?: string; exceptProviderIds?: string; purchaseCandidates?: any[]; expectedPrice?: number; provider?: string }): Promise<NumberResult> {
         // Feature Flag: CHECK PURCHASE_CANDIDATE_ENGINE (default: opt-in enabled unless set to 'false')
         const flagVal = process.env.PURCHASE_CANDIDATE_ENGINE
         const isCandidateEngineEnabled = flagVal === 'true' || flagVal === undefined || flagVal === '1'
@@ -1757,7 +1757,9 @@ export class DynamicProvider implements SmsProvider {
                     const singleResult = await Promise.race([
                         this.executeSingleGetNumber(countryCode, serviceCode, {
                             operator: candidate.operator || options?.operator,
-                            maxPrice: options?.maxPrice
+                            maxPrice: options?.maxPrice,
+                            providerIds: options?.providerIds,
+                            exceptProviderIds: options?.exceptProviderIds
                         }),
                         new Promise<never>((_, reject) =>
                             setTimeout(() => reject(new ProviderError('TIMEOUT', `Candidate timeout after ${PER_CANDIDATE_TIMEOUT_MS}ms`)), PER_CANDIDATE_TIMEOUT_MS)
@@ -1876,7 +1878,7 @@ export class DynamicProvider implements SmsProvider {
     /**
      * Single getNumber HTTP request execution logic
      */
-    private async executeSingleGetNumber(countryCode: string | number, serviceCode: string | number, options?: { operator?: string; maxPrice?: string | number }): Promise<NumberResult> {
+    private async executeSingleGetNumber(countryCode: string | number, serviceCode: string | number, options?: { operator?: string; maxPrice?: string | number; providerIds?: string; exceptProviderIds?: string }): Promise<NumberResult> {
         // Resolve identifiers to provider-specific codes
         const [externalCountry, externalService] = await Promise.all([
             this.resolveExternalId('country', countryCode),
@@ -1892,6 +1894,8 @@ export class DynamicProvider implements SmsProvider {
         // Add optional params if provided
         if (options?.operator) params.operator = options.operator
         if (options?.maxPrice) params.maxPrice = String(options.maxPrice)
+        if (options?.providerIds) params.providerIds = String(options.providerIds)
+        if (options?.exceptProviderIds) params.exceptProviderIds = String(options.exceptProviderIds)
 
         const response = await this.request('getNumber', params)
         const items = this.parseResponse(response, 'getNumber')
@@ -2007,6 +2011,63 @@ export class DynamicProvider implements SmsProvider {
                     id: String(stableId),
                     sender: s.sender || s.from || 'System',
                     content: s.text || s.content || s.message || String(smsContent || ''),
+                    code: String(code),
+                    receivedAt: s.receivedAt ? new Date(s.receivedAt) : new Date()
+                }
+            }))
+        }
+
+        return { ...mapped, status, messages }
+    }
+
+    /**
+     * Fetch full SMS text for providers supporting getFullSms / getFullSmsText
+     */
+    async getFullSmsText(activationId: string): Promise<StatusResult> {
+        const rawId = this.cleanActivationId(activationId)
+        const endpoints = this.config.endpoints as Record<string, EndpointConfig>
+        const epKey = endpoints['getFullSmsText'] ? 'getFullSmsText' : (endpoints['getFullSms'] ? 'getFullSms' : 'getStatus')
+
+        const response = await this.request(epKey, { id: rawId })
+        const mappingKey = epKey
+        const mappings = this.config.mappings as Record<string, MappingConfig>
+        const mapConfig = mappings[epKey] || mappings['getStatus'] || {}
+
+        const items = this.parseResponse(response, epKey)
+        const mapped = items[0] || {}
+
+        let status: NumberStatus = 'pending'
+        const rawStatus = String(mapped.status || '').trim().toUpperCase()
+
+        if (mapConfig?.statusMapping) {
+            const statusMap = mapConfig.statusMapping as Record<string, NumberStatus>
+            const mappedStatus = statusMap[rawStatus] ||
+                statusMap[rawStatus.toLowerCase()] ||
+                statusMap[String(mapped.status)]
+
+            if (mappedStatus) {
+                status = mappedStatus
+            }
+        }
+
+        const messages = []
+        const smsContent = mapped.text || mapped.fullText || mapped.sms || mapped.content || mapped.message
+        const smsCode = mapped.code || mapped.pin || mapped.otp
+
+        if (smsContent || smsCode) {
+            const smsList = Array.isArray(smsContent) ? smsContent : [mapped]
+            messages.push(...smsList.filter(Boolean).map((s: any) => {
+                const code = s.code || smsCode || ''
+                const stableId = s.id || s.smsId || `sms_${activationId}_${code}`
+                const rawText = s.text || s.fullText || s.content || s.message || String(smsContent || '')
+                // Auto decode URL encoded spaces (+) if needed: "Your+Telegram+code+is+852508" -> "Your Telegram code is 852508"
+                const text = rawText.includes('+') && !rawText.includes(' ') ? rawText.replace(/\+/g, ' ') : rawText
+
+                return {
+                    ...s,
+                    id: String(stableId),
+                    sender: s.sender || s.from || 'System',
+                    content: text,
                     code: String(code),
                     receivedAt: s.receivedAt ? new Date(s.receivedAt) : new Date()
                 }
