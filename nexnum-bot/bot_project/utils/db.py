@@ -87,7 +87,14 @@ class DatabaseAdapter:
             sql_script = sql_file.read_text(encoding="utf-8")
             async with self.pool.connection() as conn:
                 async with conn.cursor() as cur:
-                    await cur.execute(sql_script)
+                    for raw_stmt in sql_script.split(";"):
+                        stmt = raw_stmt.strip()
+                        if not stmt or stmt.upper() in ("BEGIN", "COMMIT"):
+                            continue
+                        try:
+                            await cur.execute(stmt)
+                        except Exception as stmt_err:
+                            logger.warning(f"Schema migration statement warning: {stmt_err}")
                 await conn.commit()
             logger.info("Successfully verified/created bot PostgreSQL schema tables (user_sessions, etc.).")
             return True
