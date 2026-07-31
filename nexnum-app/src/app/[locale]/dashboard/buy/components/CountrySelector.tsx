@@ -53,8 +53,14 @@ interface Country {
 // Format stock count for display
 const formatStock = (stock: number | undefined): string => {
     if (!stock || stock === 0) return "0";
-    if (stock >= 1000000) return `${(stock / 1000000).toFixed(1)}M`;
-    if (stock >= 1000) return `${(stock / 1000).toFixed(1)}K`;
+    if (stock >= 1000000) {
+        const m = stock / 1000000;
+        return m % 1 === 0 ? `${m}M` : `${m.toFixed(1)}M`;
+    }
+    if (stock >= 1000) {
+        const k = stock / 1000;
+        return k % 1 === 0 ? `${k}K` : `${k.toFixed(1)}K`;
+    }
     return stock.toString();
 };
 

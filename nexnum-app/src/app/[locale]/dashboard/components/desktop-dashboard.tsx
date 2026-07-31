@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef } from "react"
+import { useRef, useState, useEffect } from "react"
 import Link from "next/link"
 import { useTranslations } from "next-intl"
 import { motion, useScroll, useTransform } from "framer-motion"
@@ -20,7 +20,7 @@ import { Badge } from "@/components/ui/badge"
 import { useGlobalStore } from "@/stores/appStore"
 import { useAuthStore } from "@/stores/authStore"
 import { DashboardBackground } from "./dashboard-background"
-import { ModernNumberCard } from "./ModernNumberCard"
+import { ModernNumberCard, NumberCardSkeleton } from "./ModernNumberCard"
 import { BalanceDisplay, PriceDisplay } from "@/components/common/PriceDisplay"
 import { TelegramLinkCard } from "@/components/user/TelegramLinkCard"
 
@@ -70,8 +70,13 @@ const MiniBarChart = ({ color, data }: { color: string, data?: number[] }) => {
 
 export function DesktopDashboard() {
     const { user } = useAuthStore()
-    const { userProfile, activeNumbers, transactions, usageSummary, totalSpent, totalDeposited } = useGlobalStore()
+    const { userProfile, activeNumbers, isLoadingNumbers, transactions, usageSummary, totalSpent, totalDeposited } = useGlobalStore()
+    const [isMounted, setIsMounted] = useState(false)
     const containerRef = useRef<HTMLDivElement>(null)
+
+    useEffect(() => {
+        setIsMounted(true)
+    }, [])
 
     const t = useTranslations('dashboard')
 
@@ -193,7 +198,13 @@ export function DesktopDashboard() {
                                 </Link>
                             </div>
                             <div className="p-5 flex-1 bg-[url('/assets/grid.svg')] bg-opacity-5">
-                                {activeNumbers.length > 0 ? (
+                                {(!isMounted || isLoadingNumbers) ? (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+                                        {[...Array(4)].map((_, i) => (
+                                            <NumberCardSkeleton key={i} index={i} className="h-[136px]" />
+                                        ))}
+                                    </div>
+                                ) : activeNumbers.length > 0 ? (
                                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
                                         {activeNumbers.slice(0, 8).map(num => (
                                             <ModernNumberCard

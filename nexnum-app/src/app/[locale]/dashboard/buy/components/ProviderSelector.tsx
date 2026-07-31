@@ -378,11 +378,11 @@ export default function ProviderSelector({
                                             {provider.serviceName}
                                         </p>
                                         {/* Replaced verified text with reliability logic if needed or keep both? Verified is strictly successRate > 70. Reliable is 'High'. Keep Verified as supplementary. */}
-                                        {isVerified && !isReliable && (
+                                        {/*{isVerified && !isReliable && (
                                             <span className="inline-flex items-center gap-0.5 text-[9px] text-green-400 font-medium mt-0.5">
                                                 <ShieldCheck className="w-2.5 h-2.5" /> Verified
                                             </span>
-                                        )}
+                                        )}*/}
 
                                     </div>
                                 </div>
@@ -411,10 +411,18 @@ export default function ProviderSelector({
                                                         provider.stock >= 100 ? "text-lime-400" :
                                                             provider.stock >= 10 ? "text-yellow-400" : "text-red-400"
                                             )}>
-                                                {provider.stock >= 100000 ? `${(provider.stock / 1000).toFixed(0)}K` :
-                                                    provider.stock >= 10000 ? `${(provider.stock / 1000).toFixed(1)}K` :
-                                                        provider.stock >= 1000 ? `${(provider.stock / 1000).toFixed(1)}K` :
-                                                            provider.stock.toLocaleString()}
+                                                {(() => {
+                                                    const s = provider.stock || 0;
+                                                    if (s >= 1000000) {
+                                                        const m = s / 1000000;
+                                                        return m % 1 === 0 ? `${m}M` : `${m.toFixed(1)}M`;
+                                                    }
+                                                    if (s >= 1000) {
+                                                        const k = s / 1000;
+                                                        return k % 1 === 0 ? `${k}K` : `${k.toFixed(1)}K`;
+                                                    }
+                                                    return s.toLocaleString();
+                                                })()}
                                             </span>
                                             {/* 5-segment stock bar for large ranges */}
                                             <div className="flex gap-px h-1.5 flex-1 max-w-[40px]">
