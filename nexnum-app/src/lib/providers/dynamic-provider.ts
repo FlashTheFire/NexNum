@@ -13,6 +13,7 @@ import { getTraceId } from '@/lib/api/request-context'
 import { redis, cacheGet, CACHE_KEYS, CACHE_TTL } from '@/lib/core/redis'
 import { CIRCUIT_OPTS } from '@/lib/core/circuit-breaker'
 import { trackProviderRequest } from '@/lib/metrics'
+import { captureError } from '@/lib/monitoring/sentry'
 
 declare let process: any
 declare let require: any
@@ -503,6 +504,7 @@ export class DynamicProvider implements SmsProvider {
                 error: error.message,
                 duration: `${duration}ms`
             })
+            captureError(error, { provider: this.name, endpointKey, duration })
 
             // Record failure latency (if timeout)
             if (error.message.toLowerCase().includes('timeout')) this.recordLatency(30000)

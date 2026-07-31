@@ -15,6 +15,7 @@ import { getCurrencyService, toSupportedCurrency } from '@/lib/currency/currency
 import { ResponseFactory } from '@/lib/api/response-factory'
 import { PaymentError } from '@/lib/payment/payment-errors'
 import { NumberResult } from '@/lib/providers/types'
+import { captureError } from '@/lib/monitoring/sentry'
 import {
     validatePurchaseInput,
     checkUserEligibility,
@@ -521,6 +522,7 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
             error: error.message,
             stack: error.stack
         })
+        captureError(error, { context: 'PURCHASE', correlationId, userId: user?.userId })
         if (lockAcquired) await releaseAtomicPurchaseLock(user.userId, lockToken)
 
         // Basic cleanup
