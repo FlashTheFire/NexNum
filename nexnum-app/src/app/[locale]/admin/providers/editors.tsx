@@ -18,6 +18,7 @@ export const ENDPOINT_METHODS = [
     'getPrices',
     'getNumber',
     'getStatus',
+    'getFullSmsText',
     'setResendCode',
     'setCancel',
     'setComplete'
@@ -28,15 +29,16 @@ export type EndpointMethod = typeof ENDPOINT_METHODS[number]
 /**
  * Method Parameters
  * - Required: authKey (all), country/service (context-dependent)
- * - Optional: maxPrice, operator
+ * - Optional: maxPrice, providerIds, exceptProviderIds, operator
  */
 export const METHOD_PARAMS: Record<EndpointMethod, string[]> = {
     getBalance: ['{authKey}'],
     getCountriesList: ['{service}', '{authKey}'],          // service: optional filter
     getServicesList: ['{country}', '{authKey}'],           // country: optional filter
     getPrices: ['{country}', '{service}', '{authKey}'],
-    getNumber: ['{country}', '{service}', '{maxPrice}', '{operator}', '{authKey}'],
+    getNumber: ['{country}', '{service}', '{maxPrice}', '{providerIds}', '{exceptProviderIds}', '{operator}', '{authKey}'],
     getStatus: ['{id}', '{authKey}'],
+    getFullSmsText: ['{id}', '{authKey}'],
     setResendCode: ['{id}', '{authKey}'],
     setCancel: ['{id}', '{authKey}'],
     setComplete: ['{id}', '{authKey}']
@@ -53,6 +55,7 @@ export const MAPPING_FIELDS: Record<EndpointMethod, string[]> = {
     getPrices: ['cost', 'count', 'country', 'service', 'operator'],
     getNumber: ['id', 'phone', 'price', 'country', 'service', 'operator'],
     getStatus: ['status', 'code'],
+    getFullSmsText: ['code', 'text', 'dateTime', 'status'],
     setResendCode: ['status'],
     setCancel: ['status'],
     setComplete: ['status']

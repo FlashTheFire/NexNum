@@ -591,17 +591,15 @@ export class SmartSmsRouter implements SmsProvider {
     }
 
     async setStatus(activationId: string, status: number | string): Promise<any> {
-        const [providerName, realId] = this.parseActivationId(activationId)
-
-        if (providerName && realId) {
-            const providers = await this.getActiveProviders()
-            const provider = providers.find(p => p.name === providerName)
-            if (provider) {
-                return provider.setStatus(realId, status)
-            }
+        const s = String(status)
+        if (s === '8' || s === '-1') {
+            return this.setCancel(activationId)
+        } else if (s === '6') {
+            return this.setComplete(activationId)
+        } else if (s === '3') {
+            return this.setResendCode(activationId)
         }
-
-        throw new Error("Could not set status: activation ID invalid or provider not found")
+        return
     }
 
     async setResendCode(activationId: string): Promise<void> {
@@ -617,6 +615,20 @@ export class SmartSmsRouter implements SmsProvider {
 
         // No fallback loop for actions that require specific provider knowledge
         throw new Error("Could not request next SMS: activation ID invalid or provider not found")
+    }
+
+    async setComplete(activationId: string): Promise<void> {
+        const [providerName, realId] = this.parseActivationId(activationId)
+
+        if (providerName && realId) {
+            const providers = await this.getActiveProviders()
+            const provider = providers.find(p => p.name === providerName)
+            if (provider && provider.setComplete) {
+                return provider.setComplete(realId)
+            }
+        }
+
+        throw new Error("Could not complete activation: activation ID invalid or provider not found")
     }
 
     /** @deprecated Use setResendCode instead */

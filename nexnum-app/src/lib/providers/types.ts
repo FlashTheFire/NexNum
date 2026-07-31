@@ -157,11 +157,5 @@ export interface SmsProvider {
 
     /** @deprecated Use setResendCode instead */
     nextSms?(activationId: string): Promise<void>
-
-    /**
-     * @deprecated Use setCancel or setComplete instead
-     * This method exposed internal provider logic and is now disallowed
-     */
-    setStatus?(activationId: string, status: number | string): Promise<any>
 }
 

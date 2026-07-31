@@ -125,14 +125,6 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
                 await engine.setComplete(params.id)
                 result = { success: true, message: 'Activation marked complete' }
                 break
-            case 'setStatus':
-                // @deprecated - Disallowed in v2.0 but kept for emergency debug
-                if (!params.id) throw new Error('Activation ID required')
-                if (!params.status) throw new Error('Status required')
-                const dynamicEngineForStatus = engine as DynamicProvider
-                const statusResult = await dynamicEngineForStatus.setStatus(params.id, params.status)
-                result = { success: true, message: 'Status updated (Deprecated)', response: statusResult }
-                break
             case 'cancelNumber':
                 // Backward compatibility alias
                 if (!params.id) throw new Error('Activation ID required')

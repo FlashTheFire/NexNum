@@ -54,7 +54,7 @@ export const POST = apiHandler(async (request, { body }) => {
             // Status 6 = ACTIVATION_COMPLETE in standard SMS protocols
             // SmartRouter expects "provider:id" format
             const compositeId = `${number.provider}:${activation.providerActivationId}`
-            await smsProvider.setStatus(compositeId, 6)
+            await smsProvider.setComplete(compositeId)
             providerSuccess = true
         }
     } catch (err) {

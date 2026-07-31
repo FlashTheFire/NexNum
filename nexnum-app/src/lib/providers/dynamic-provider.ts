@@ -2270,30 +2270,10 @@ export class DynamicProvider implements SmsProvider {
         this.checkForErrors(response, 'setCancel', (this.config.mappings as any)?.setCancel)
     }
 
-    /** @deprecated Use setCancel instead */
-    async cancelNumber(activationId: string): Promise<void> {
-        logger.warn('DEPRECATED: cancelNumber() called. Use setCancel() instead.', { provider: this.name })
-        return this.setCancel(activationId)
-    }
-
-    async setStatus(activationId: string, status: string | number): Promise<any> {
+    async setComplete(activationId: string): Promise<void> {
         const rawId = this.cleanActivationId(activationId)
-        try {
-            const response = await this.request('setStatus', { id: rawId, status: String(status) })
-            const items = this.parseResponse(response, 'setStatus')
-            const mapped = items[0] || {}
-
-            return {
-                raw: response.data,
-                parsed: mapped,
-                success: true
-            }
-        } catch (e: any) {
-            if (e.message?.includes('404')) {
-                return { raw: null, parsed: {}, success: false, error: e.message }
-            }
-            throw e
-        }
+        const response = await this.request('setComplete', { id: rawId })
+        this.checkForErrors(response, 'setComplete', (this.config.mappings as any)?.setComplete)
     }
 
     async setResendCode(activationId: string): Promise<void> {
@@ -2307,13 +2287,6 @@ export class DynamicProvider implements SmsProvider {
         logger.warn('DEPRECATED: nextSms() called. Use setResendCode() instead.', { provider: this.name })
         return this.setResendCode(activationId)
     }
-
-    async setComplete(activationId: string): Promise<void> {
-        const rawId = this.cleanActivationId(activationId)
-        const response = await this.request('setComplete', { id: rawId })
-        this.checkForErrors(response, 'setComplete', (this.config.mappings as any)?.setComplete)
-    }
-
 
     async getBalance(): Promise<number> {
 
