@@ -107,7 +107,7 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
                 // Get prices with optional country/service filters
                 // Always use the engine's getPrices method to ensure optimization logic is applied
                 const prices = await (engine as any).getPrices(params.country || undefined, params.service || undefined)
-                result = { count: prices.length, first: prices.slice(0, 5) }
+                result = { count: prices.length, first: prices.slice(0, 5), rawResponse: (engine as any).lastRawResponse }
                 break
             case 'setCancel':
                 if (!params.id) throw new Error('Activation ID required')

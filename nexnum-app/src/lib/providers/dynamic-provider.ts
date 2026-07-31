@@ -1359,65 +1359,56 @@ export class DynamicProvider implements SmsProvider {
 
     private parseTextResponse(text: string, mapConfig: MappingConfig): any[] {
         if (mapConfig.type === 'text_regex' && mapConfig.regex) {
-            const regex = new RegExp(mapConfig.regex, 'gm')
-            const results: any[] = []
-            let match
-            while ((match = regex.exec(text)) !== null) {
-                const item: any = {}
+            try {
+                const regex = new RegExp(mapConfig.regex, 'gm')
+                const results: any[] = []
+                let match
+                let maxIterations = 1000
 
-                // Construct a unify source object for field resolution
-                const source: any = { ...match.groups }
-                // Add indexed groups
-                match.forEach((val: string, idx: number) => { source[String(idx)] = val })
-
-                // Resolve fields dynamically (supports conditionalFields)
-                const fields = this.resolveEffectiveFields(source, mapConfig)
-
-                // Support for Named Capture Groups (Modern/Readable)
-                if (match.groups) {
-                    // Method A: Auto-map named groups if no explicit fields are defined
-                    if (!mapConfig.fields || Object.keys(mapConfig.fields).length === 0) {
-                        Object.assign(item, match.groups)
+                while ((match = regex.exec(text)) !== null && maxIterations-- > 0) {
+                    // Prevent infinite loop on zero-length matches
+                    if (match.index === regex.lastIndex) {
+                        regex.lastIndex++
                     }
-                    // Method B: Map specific fields to named groups
-                    else {
-                        for (const [targetField, sourceGroupStr] of Object.entries(fields)) {
-                            // Support fallback chains "price|cost"
-                            const possibleGroups = sourceGroupStr.split('|').map(s => s.trim())
-                            let value = undefined
 
-                            for (const groupName of possibleGroups) {
-                                // Try named group
-                                if (match.groups[groupName] !== undefined) {
-                                    value = match.groups[groupName]
-                                    break
-                                }
-                                // Try numbered group index
-                                const idx = parseInt(groupName)
-                                if (!isNaN(idx) && match[idx] !== undefined) {
-                                    value = match[idx]
-                                    break
-                                }
+                    const item: any = {}
+
+                    // Construct unified source object for field resolution
+                    const source: any = { ...match.groups }
+                    match.forEach((val: string, idx: number) => { source[String(idx)] = val })
+
+                    // Resolve fields dynamically (supports conditionalFields)
+                    const fields = this.resolveEffectiveFields(source, mapConfig)
+
+                    // Support for Named & Numbered Capture Groups + Fallback Chains ("1|4")
+                    for (const [targetField, sourceGroupStr] of Object.entries(fields)) {
+                        const possibleGroups = String(sourceGroupStr).split('|').map(s => s.trim())
+                        let value = undefined
+
+                        for (const groupName of possibleGroups) {
+                            if (match.groups && match.groups[groupName] !== undefined) {
+                                value = match.groups[groupName]
+                                break
                             }
-
-                            if (value !== undefined) {
-                                item[targetField] = value
+                            const idx = parseInt(groupName)
+                            if (!isNaN(idx) && match[idx] !== undefined) {
+                                value = match[idx]
+                                break
                             }
                         }
-                    }
-                }
-                // Fallback: Numbered Capture Groups
-                else {
-                    for (const [field, groupIndex] of Object.entries(fields)) {
-                        const idx = parseInt(groupIndex)
-                        if (!isNaN(idx) && match[idx]) {
-                            item[field] = match[idx]
+
+                        if (value !== undefined) {
+                            item[targetField] = value
                         }
                     }
+
+                    results.push(item)
                 }
-                results.push(item)
+                return results
+            } catch (err) {
+                logger.error('[DynamicProvider] Regex parsing error', { regex: mapConfig.regex, error: (err as Error)?.message })
+                return []
             }
-            return results
         }
 
         if (mapConfig.type === 'text_lines') {
