@@ -289,7 +289,8 @@ class UserWalletManagement:
         try:
             size = 165
             user_img = await asyncio.to_thread(Image.open, image_path)
-            user_img = user_img.convert("RGBA").resize((size, size), Image.LANCZOS)
+            resample_filter = getattr(Image, "Resampling", Image).LANCZOS
+            user_img = user_img.convert("RGBA").resize((size, size), resample_filter)
             mask = Image.new('L', (size, size), 0)
             draw = ImageDraw.Draw(mask)
             draw.ellipse((0, 0, size, size), fill=255)
@@ -331,8 +332,9 @@ class UserWalletManagement:
                                    image: BytesIO, caption: str, user_id: int, current_info: str):
         """Update display and cache new image asynchronously"""
         try:
+            input_media = prepare_input_media(image, caption=caption, parse_mode="HTML")
             msg = await self.bot.edit_message_media(
-                media=InputMediaPhoto(media=image, caption=caption, parse_mode="HTML"),
+                media=input_media,
                 chat_id=chat_id,
                 message_id=message_id,
                 reply_markup=keyboard
