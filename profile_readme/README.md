@@ -19,55 +19,48 @@
 
 ### 🛠️ Tech Stack & Skills
 
-<div align="center">
-
-#### **Frontend Development**
-![Next.js](https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=nextdotjs&logoColor=white)
-![React](https://img.shields.io/badge/React-61DAFB?style=for-the-badge&logo=react&logoColor=black)
-![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
-![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
-![Framer Motion](https://img.shields.io/badge/Framer_Motion-0055FF?style=for-the-badge&logo=framer&logoColor=white)
-
-#### **Backend & Databases**
-![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
-![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)
-![Prisma](https://img.shields.io/badge/Prisma-2D3748?style=for-the-badge&logo=prisma&logoColor=white)
-![Redis](https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&logo=redis&logoColor=white)
-![MeiliSearch](https://img.shields.io/badge/MeiliSearch-FF5A5F?style=for-the-badge&logo=meilisearch&logoColor=white)
-
-#### **DevOps & Infrastructure**
-![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)
-![Git](https://img.shields.io/badge/Git-F05032?style=for-the-badge&logo=git&logoColor=white)
-![Linux](https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)
-![Sentry](https://img.shields.io/badge/Sentry-362D59?style=for-the-badge&logo=sentry&logoColor=white)
-
-</div>
+<p align="center">
+  <img src="https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=nextdotjs&logoColor=white" alt="Next.js" />
+  <img src="https://img.shields.io/badge/React-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React" />
+  <img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white" alt="Tailwind" />
+  <img src="https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="Node.js" />
+  <img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python" />
+  <img src="https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL" />
+  <img src="https://img.shields.io/badge/Prisma-2D3748?style=for-the-badge&logo=prisma&logoColor=white" alt="Prisma" />
+  <img src="https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&logo=redis&logoColor=white" alt="Redis" />
+  <img src="https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" />
+  <img src="https://img.shields.io/badge/Git-F05032?style=for-the-badge&logo=git&logoColor=white" alt="Git" />
+</p>
 
 ---
 
 ### 📊 GitHub Activity & Statistics
 
-<div align="center">
+<p align="center">
+  <a href="https://github.com/FlashTheFire">
+    <img src="https://github-readme-stats.vercel.app/api?username=FlashTheFire&show_icons=true&theme=tokyonight&hide_border=true" alt="FlashTheFire Stats" />
+  </a>
+  <a href="https://github.com/FlashTheFire">
+    <img src="https://github-readme-stats.vercel.app/api/top-langs/?username=FlashTheFire&layout=compact&theme=tokyonight&hide_border=true" alt="Top Languages" />
+  </a>
+</p>
 
-<img src="https://github-readme-stats.vercel.app/api?username=FlashTheFire&show_icons=true&theme=dark&hide_border=true&title_color=00ff66&text_color=ffffff&icon_color=00ff66&bg_color=0a0a0c" alt="FlashTheFire GitHub Stats" width="49%" />
-<img src="https://github-readme-stats.vercel.app/api/top-langs/?username=FlashTheFire&layout=compact&theme=dark&hide_border=true&title_color=00ff66&text_color=ffffff&bg_color=0a0a0c" alt="Top Languages" width="49%" />
-
-<br /><br />
-
-<img src="https://github-readme-streak-stats.herokuapp.com/?user=FlashTheFire&theme=dark&hide_border=true&background=0A0A0C&stroke=00FF66&alarm=00FF66&fire=00FF66&ring=00FF66&currStreakNum=00FF66&sideNums=ffffff&sideTitle=00FF66" alt="FlashTheFire GitHub Streak" width="99%" />
-
-</div>
+<p align="center">
+  <a href="https://github.com/FlashTheFire">
+    <img src="https://streak-stats.demolab.com?user=FlashTheFire&theme=tokyonight&hide_border=true" alt="GitHub Streak" />
+  </a>
+</p>
 
 ---
 
 ### 🏆 GitHub Trophies
 
-<div align="center">
-
-<img src="https://github-profile-trophy.vercel.app/?username=FlashTheFire&theme=darkhub&column=6&no-bg=true" alt="FlashTheFire GitHub Trophies" />
-
-</div>
+<p align="center">
+  <a href="https://github.com/FlashTheFire">
+    <img src="https://github-profile-trophy.vercel.app/?username=FlashTheFire&theme=darkhub&no-frame=true&no-bg=true" alt="FlashTheFire Trophies" />
+  </a>
+</p>
 
 ---
 
@@ -81,6 +74,6 @@
 
 <div align="center">
 
-**⭐ From [FlashTheFire](https://github.com/FlashTheFire) with Passion & Code ⭐**
+**⭐ Built by [FlashTheFire](https://github.com/FlashTheFire) ⭐**
 
 </div>
