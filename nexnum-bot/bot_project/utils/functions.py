@@ -55,19 +55,25 @@ BASE = len(ALPHABET)
 # --------------------------------------------------------------------------
 # All functions are now asynchronous
 
-async def encode_order_id(order_id: int) -> str:
-    """Asynchronously encodes a non-negative integer order_id into a barcode string."""
+async def encode_order_id(order_id: Union[int, str]) -> str:
+    """Asynchronously encodes a non-negative integer order_id into a barcode string. Safe for UUID string IDs."""
     def _encode():
-        order_id_int = order_id
-        if order_id_int < 0:
-            raise ValueError("Order ID must be non-negative")
-        if order_id_int == 0:
-            return ALPHABET[0]
-        encoded = ""
-        while order_id_int > 0:
-            order_id_int, remainder = divmod(order_id_int, BASE)
-            encoded = ALPHABET[remainder] + encoded
-        return encoded
+        try:
+            val_str = str(order_id).strip()
+            if not val_str.isdigit():
+                return val_str
+            order_id_int = int(val_str)
+            if order_id_int < 0:
+                return val_str
+            if order_id_int == 0:
+                return ALPHABET[0]
+            encoded = ""
+            while order_id_int > 0:
+                order_id_int, remainder = divmod(order_id_int, BASE)
+                encoded = ALPHABET[remainder] + encoded
+            return encoded
+        except Exception:
+            return str(order_id)
     return await asyncio.to_thread(_encode)
 
 async def decode_barcode_id(barcode: str) -> int:
@@ -546,6 +552,8 @@ async def fetch_url_str(url: str) -> str:
         async with session.get(url) as response:
             return await response.text()
 async def fetch_image_from_url(url: str) -> Image.Image:
+    if url and os.path.exists(url):
+        return Image.open(url)
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as resp:
             resp.raise_for_status()

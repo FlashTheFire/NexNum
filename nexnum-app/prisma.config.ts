@@ -22,13 +22,7 @@ export default defineConfig({
     // The runtime pg.Pool in src/lib/core/db.ts still uses DATABASE_URL
     // (also the session-mode pooler) via the driver adapter.
     datasource: {
-        url: env("DATABASE_URL").includes("pgbouncer=true")
-            ? env("DATABASE_URL")
-            : (env("DATABASE_URL").includes("?")
-                ? `${env("DATABASE_URL")}&pgbouncer=true`
-                : `${env("DATABASE_URL")}?pgbouncer=true`),
-        // shadowDatabaseUrl is only required for `prisma migrate dev`.
-        // Optional for `migrate deploy` / `migrate reset` in production.
+        url: process.env.DIRECT_URL || process.env.DATABASE_URL_DIRECT || env("DATABASE_URL"),
         shadowDatabaseUrl: process.env.SHADOW_DATABASE_URL,
     },
     schema: "prisma/schema.prisma",

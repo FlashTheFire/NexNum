@@ -128,7 +128,7 @@ export function MobileDashboard() {
                 </header>
 
                 {/* Telegram Link Callout Card */}
-                <TelegramLinkCard telegramId={(user as any)?.telegramId} username={(user as any)?.username} />
+                {/* <TelegramLinkCard telegramId={(user as any)?.telegramId} username={(user as any)?.username} /> */}
 
                 {/* 2. Hero Card (3.5D CSS Effect) */}
                 {/* 2. Enhanced Hero Card (Premium Mobile) */}

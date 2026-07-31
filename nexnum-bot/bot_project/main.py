@@ -58,10 +58,7 @@ try:
 except ImportError:
     from bot_project.handlers.main import inline_query, message_handler, show_refferal, show_menu, top_services, show_wallet, show_support, support_management, external
 
-try:
-    from handlers.main.external import forward_manager, ForwardManager
-except ImportError:
-    from bot_project.handlers.main.external import forward_manager, ForwardManager
+
 
 try:
     from handlers.methods.purchase.order_tracker import init_managers as order_tracker_init, register_handlers as order_tracker_register, order_tracker
@@ -182,7 +179,6 @@ class TelegramBot:
             self.bot.order_manager = self.order_manager
             self.bot.deposit_manager = self.deposit_manager
             self.bot.aggregator = financial_mgr
-            self.forward_manager = forward_manager
 
             # Initialize trackers
             await self._initialize_trackers()
@@ -212,8 +208,6 @@ class TelegramBot:
             await deposit_tracker.stop()
         if self.bot:
             await self.bot.close_session()
-        if self.forward_manager:
-            await self.forward_manager.shutdown()
 
     async def register_handlers(self) -> bool:
         """Register all message handlers with the bot."""

@@ -46,7 +46,7 @@ export async function GET(request: Request) {
                 page: result.page,
                 limit: result.limit,
                 total: result.total,
-                totalPages: Math.ceil(result.total / result.limit)
+                totalPages: result.limit > 0 ? Math.ceil(result.total / result.limit) : 1
             }
         }, {
             headers: {

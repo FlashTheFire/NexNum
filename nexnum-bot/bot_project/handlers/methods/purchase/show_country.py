@@ -820,23 +820,33 @@ class UserCountryManagement:
                 ["app_name", app_name_val, "app_code", app_code_val, "app_price", app_price_val, "total_servers", tot_servers, "total_countries", tot_countries]
             ]
 
-            order_query = [
-                "FT.AGGREGATE", ORDER_INDEX, f"@order_status:(COMPLETED|PROCESSING) @app_id:{app_id}{text}",
-                "GROUPBY", "0",
-                "REDUCE", "SUM", "1", "@order_amount", "AS", "total_order_amount",
-                "REDUCE", "COUNT", "0", "AS", "total_orders"
-            ] 
-            cancel_query = [
-                "FT.AGGREGATE", ORDER_INDEX, f"@order_status:(CANCELLED|TIMEOUT) @app_id:{app_id}{text}",
-                "GROUPBY", "0",
-                "REDUCE", "COUNT", "0", "AS", "total_cancelled_orders"
-            ]
+            # Fetch order aggregates from PostgreSQL via db_adapter
+            sell_price = 0.0
+            total_success_orders = 0
+            total_cancelled = 0
 
-            tasks = [
-                self.user_manager._run_aggregate_cursor(order_query, ORDER_INDEX),
-                self.user_manager._run_aggregate_cursor(cancel_query, ORDER_INDEX)
-            ]
-            order_res, cancel_res = await asyncio.gather(*tasks, return_exceptions=True)
+            try:
+                from utils.db import db_adapter
+                pool = await db_adapter._ensure_pool()
+                async with pool.connection() as conn:
+                    async with conn.cursor(row_factory=dict_row) as cur:
+                        await cur.execute(
+                            "SELECT COALESCE(SUM(amount), 0) as total_amount, COUNT(*) as cnt "
+                            "FROM purchase_orders WHERE status IN ('COMPLETED', 'PROCESSING')"
+                        )
+                        success_row = await cur.fetchone()
+                        if success_row:
+                            sell_price = float(success_row.get("total_amount", 0.0))
+                            total_success_orders = int(success_row.get("cnt", 0))
+
+                        await cur.execute(
+                            "SELECT COUNT(*) as cnt FROM purchase_orders WHERE status IN ('CANCELLED', 'TIMEOUT')"
+                        )
+                        cancel_row = await cur.fetchone()
+                        if cancel_row:
+                            total_cancelled = int(cancel_row.get("cnt", 0))
+            except Exception as pg_e:
+                logger.warning(f"Error fetching order stats from PostgreSQL: {pg_e}")
 
             # ─── PROCESS TOTAL_COUNTRY_RES ────────────────────────────────────────────
             if not isinstance(total_country_res, list) or len(total_country_res) < 1:
@@ -855,33 +865,18 @@ class UserCountryManagement:
             app_code = result_dict.get("app_code", "Unknown").translate(await small_caps())
             app_price = result_dict.get("app_price", "0").translate(await small_caps())
 
-            country_data = await redis_manager.redis_client.json().get('main_data:details:country_data') or {}
+            country_data = {}
+            if redis_manager.redis_client:
+                try:
+                    country_data = await redis_manager.redis_client.json().get('main_data:details:country_data') or {}
+                except Exception:
+                    country_data = {}
             country_name = country_data.get(country_id, {}).get('country_name', '').translate(await small_caps())
             country_code = country_data.get(country_id, {}).get('country_code', '')
             total_servers = result_dict.get("total_servers", "0").translate(await small_caps())
             total_countries = result_dict.get("total_countries", "0").translate(await small_caps())
 
-            # Process order results with safety checks.
-            # Use defaults (0) if order_res doesn't have the expected indices.
-            try:
-                sell_price = float(order_res[1][1])
-            except (IndexError, ValueError, TypeError):
-                sell_price = 0.0
-
-            try:
-                total_success_orders = int(order_res[1][3])
-            except (IndexError, ValueError, TypeError):
-                total_success_orders = 0
-
-            try:
-                total_cancelled = int(cancel_res[1][1])
-            except (IndexError, ValueError, TypeError):
-                total_cancelled = 0
-
-            try:
-                total_orders = int(order_res[1][-1]) + total_cancelled  # If total_orders is the last element
-            except (IndexError, ValueError, TypeError):
-                total_orders = total_success_orders + total_cancelled  # Fallback
+            total_orders = total_success_orders + total_cancelled
 
 
             # Calculate product price and earned commission. If sell_price is 0, defaults remain 0.

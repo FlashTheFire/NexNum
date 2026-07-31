@@ -128,12 +128,16 @@ class UserStartManager:
         try:
             if request_type == "start":
                 try:
-                    await bot.send_photo(
+                    from utils.media_manager import send_or_cached_media
+                    await send_or_cached_media(
+                        bot=bot,
                         chat_id=chat_id,
-                        photo=START_PAGE,
+                        media_key="main_menu",
+                        file_source=START_PAGE,
                         caption=caption,
                         parse_mode="HTML",
-                        reply_markup=keyboard
+                        reply_markup=keyboard,
+                        media_type="photo"
                     )
                 except Exception as photo_err:
                     await async_logger.warn(f"Failed to send welcome photo ({photo_err}), falling back to text message")

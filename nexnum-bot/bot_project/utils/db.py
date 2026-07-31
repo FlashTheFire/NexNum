@@ -750,6 +750,22 @@ class DatabaseAdapter:
             logger.error(f"Error updating deposit {deposit_id}: {exc}")
             return False
 
+    async def delete_pending_deposit_request(self, deposit_id: str) -> bool:
+        """Delete a pending deposit request from PostgreSQL to prevent database bloat."""
+        pool = await self._ensure_pool()
+        try:
+            async with pool.connection() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute(
+                        "DELETE FROM deposit_requests WHERE (id::text = %s OR idempotency_key = %s) AND status = 'PENDING'",
+                        (str(deposit_id), f"dep:{deposit_id}")
+                    )
+                    await conn.commit()
+                    return True
+        except Exception as exc:
+            logger.error(f"Error deleting pending deposit request {deposit_id}: {exc}")
+            return False
+
     async def get_deposit_request(self, deposit_id: str) -> Optional[Dict[str, Any]]:
         """Retrieve a single deposit request by ID or idempotency_key."""
         pool = await self._ensure_pool()
@@ -1176,18 +1192,19 @@ class DatabaseAdapter:
     ) -> Optional[str]:
         """Create a new support ticket in PostgreSQL."""
         user_info = await self.get_or_create_user(str(telegram_id))
+        ticket_id = str(uuid.uuid4())
         pool = await self._ensure_pool()
         try:
             async with pool.connection() as conn:
                 async with conn.cursor() as cur:
                     await cur.execute(
-                        "INSERT INTO support_tickets (user_id, ticket_type, subject, message, status) "
-                        "VALUES (%s, %s, %s, %s, 'OPEN') RETURNING id",
-                        (user_info["id"], ticket_type, subject or "Support Request", message),
+                        "INSERT INTO support_tickets (id, user_id, ticket_type, subject, message, status) "
+                        "VALUES (%s, %s, %s, %s, %s, 'OPEN') RETURNING id",
+                        (ticket_id, user_info["id"], ticket_type, subject or "Support Request", message),
                     )
                     row = await cur.fetchone()
                     await conn.commit()
-                    return str(list(row.values())[0]) if row else None
+                    return str(list(row.values())[0]) if row else ticket_id
         except Exception as exc:
             logger.error(f"Error creating support ticket for {telegram_id}: {exc}")
             return None

@@ -767,15 +767,20 @@ class UserManagement:
     async def user_metrics_report(self, bot: AsyncTeleBot, method: str, user_id: str, channel_id: str, forum_id: Optional[str] = None) -> Optional[int]:
         await self._init_logger()
         try:
-            # Assume financial_summary_mgr is defined elsewhere
             data = await financial_mgr.get_user(user_id)
             if not data or not data.get('response'):
                 await self.logger.error("User data response indicated failure.")
                 return None
 
             if forum_id is None:
-                profile_key = f"user_data:{user_id}:profile:main"
-                forum_id = await self.redis_manager.redis_client.hget(profile_key, "forum_id")
+                session = await db_adapter.get_user_session(user_id) or {}
+                forum_id = session.get("forum_id")
+                if not forum_id and self.redis_manager:
+                    try:
+                        profile_key = f"user_data:{user_id}:profile:main"
+                        forum_id = await self.redis_manager.redis_client.hget(profile_key, "forum_id")
+                    except Exception:
+                        pass
 
             username = data['user_profile'][:15]
             metrics = data['metrics']
@@ -819,8 +824,14 @@ class UserManagement:
             
             try:
                 if method == 'edit_message_text':
-                    profile_key = f"user_data:{user_id}:profile:main"
-                    forum_message_id = await self.redis_manager.redis_client.hget(profile_key, "forum_message_id")
+                    session = await db_adapter.get_user_session(user_id) or {}
+                    forum_message_id = session.get("forum_message_id")
+                    if forum_message_id is None and self.redis_manager:
+                        try:
+                            profile_key = f"user_data:{user_id}:profile:main"
+                            forum_message_id = await self.redis_manager.redis_client.hget(profile_key, "forum_message_id")
+                        except Exception:
+                            pass
                     if forum_message_id is None:
                         await self.logger.error("Forum message ID is None.")
                         return None
@@ -848,6 +859,7 @@ class UserManagement:
                             )
                         except Exception as e:
                             print(f"Error pinning message: {str(e)}")
+                        await db_adapter.save_user_session(user_id, {"forum_message_id": result.message_id})
                 return result.message_id if result else None
             except Exception as e:
                 print(f"Error in user_metrics_report: {str(e)}")
@@ -861,8 +873,14 @@ class UserManagement:
         try:
             await self.logger.info(f"Sending order report for order_id: {order_id}, user_id: {user_id}")
             
-            profile_key = f"user_data:{user_id}:profile:main"
-            forum_id = await self.redis_manager.redis_client.hget(profile_key, "forum_id")
+            session = await db_adapter.get_user_session(user_id) or {}
+            forum_id = session.get("forum_id")
+            if not forum_id and self.redis_manager:
+                try:
+                    profile_key = f"user_data:{user_id}:profile:main"
+                    forum_id = await self.redis_manager.redis_client.hget(profile_key, "forum_id")
+                except Exception:
+                    pass
             await self.logger.info(f"Retrieved forum_id: {forum_id}")
 
             message = "<b>#Usᴇʀ_Oʀᴅᴇʀ_Dᴇᴛᴀɪʟs ❯</b>\n\n<b>Tʀᴀɴsᴀᴄᴛɪᴏɴ Dᴇᴛᴀɪʟs »</b>\n" if int(details.get('msg_id')) != int("0") else "<b>#Aᴘɪ_Oʀᴅᴇʀ_Dᴇᴛᴀɪʟs ❯</b>\n\n<b>Tʀᴀɴsᴀᴄᴛɪᴏɴ Dᴇᴛᴀɪʟs »</b>\n"
@@ -900,8 +918,14 @@ class UserManagement:
             
             try:
                 if method == 'edit_message_text':
-                    profile_key = f"{ORDER_INFO_PREFIX}info:{order_id}"
-                    forum_message_id = await self.redis_manager.redis_client.hget(profile_key, "forum_message_id")
+                    session = await db_adapter.get_user_session(user_id) or {}
+                    forum_message_id = session.get("forum_message_id")
+                    if forum_message_id is None and self.redis_manager:
+                        try:
+                            profile_key = f"{ORDER_INFO_PREFIX}info:{order_id}"
+                            forum_message_id = await self.redis_manager.redis_client.hget(profile_key, "forum_message_id")
+                        except Exception:
+                            pass
                     if forum_message_id is None:
                         await self.logger.error("Forum message ID is None.")
                         return None
@@ -923,9 +947,14 @@ class UserManagement:
                         parse_mode='HTML'
                     )
                     message_id = result.message_id if result else None
-                    order_info_key = f"{ORDER_INFO_PREFIX}info:{order_id}"
-                    await self.logger.info(f"Storing message_id: {message_id} for order: {order_id}")
-                    await self.redis_manager.redis_client.hset(order_info_key, "forum_message_id", message_id)
+                    if message_id:
+                        await db_adapter.save_user_session(user_id, {"forum_message_id": message_id})
+                        if self.redis_manager:
+                            try:
+                                order_info_key = f"{ORDER_INFO_PREFIX}info:{order_id}"
+                                await self.redis_manager.redis_client.hset(order_info_key, "forum_message_id", message_id)
+                            except Exception:
+                                pass
 
                 return result.message_id if result else None
             except Exception as e:
@@ -951,15 +980,27 @@ class UserManagement:
         result = await self._send_telegram_request('createForumTopic', payload)
         if result and result.get('ok'):
             forum_data = result.get('result')
-            profile_key = f"user_data:{user_id}:profile:main"
-            await self.redis_manager.redis_client.hset(profile_key, "forum_id", forum_data.get("message_thread_id"))
+            m_thread_id = forum_data.get("message_thread_id")
+            await db_adapter.save_user_session(user_id, {"forum_id": m_thread_id})
+            if self.redis_manager:
+                try:
+                    profile_key = f"user_data:{user_id}:profile:main"
+                    await self.redis_manager.redis_client.hset(profile_key, "forum_id", m_thread_id)
+                except Exception:
+                    pass
             return forum_data
         return None
 
     async def update_forum_topic(self, user_id: str, new_name: Optional[str] = None, new_icon_color: Optional[str] = None) -> Optional[dict]:
         await self._init_logger()
-        profile_key = f"user_data:{user_id}:profile:main"
-        forum_id = await self.redis_manager.redis_client.hget(profile_key, "forum_id")
+        session = await db_adapter.get_user_session(user_id) or {}
+        forum_id = session.get("forum_id")
+        if not forum_id and self.redis_manager:
+            try:
+                profile_key = f"user_data:{user_id}:profile:main"
+                forum_id = await self.redis_manager.redis_client.hget(profile_key, "forum_id")
+            except Exception:
+                pass
         if not forum_id:
             return None
 
@@ -976,19 +1017,23 @@ class UserManagement:
 
     async def list_forum_topics(self) -> dict:
         await self._init_logger()
-        pattern = "user_data:*:profile:main"
-        keys = await self.redis_manager.redis_client.keys(pattern)
         topics = {}
-        for key in keys:
-            forum_id = await self.redis_manager.redis_client.hget(key, "forum_id")
-            if forum_id:
-                topics[key] = {"forum_id": forum_id}
+        try:
+            pool = await db_adapter._ensure_pool()
+            async with pool.connection() as conn:
+                async with conn.cursor(row_factory=dict_row) as cur:
+                    await cur.execute("SELECT user_id, forum_id FROM user_sessions WHERE forum_id IS NOT NULL")
+                    rows = await cur.fetchall()
+                    for r in rows:
+                        topics[f"user_data:{r['user_id']}:profile:main"] = {"forum_id": r["forum_id"]}
+        except Exception as e:
+            await self.logger.error(f"Error listing forum topics from DB: {e}")
         return topics
 
     async def archive_forum_topic(self, user_id: str) -> Optional[dict]:
         await self._init_logger()
-        profile_key = f"user_data:{user_id}:profile:main"
-        forum_id = await self.redis_manager.redis_client.hget(profile_key, "forum_id")
+        session = await db_adapter.get_user_session(user_id) or {}
+        forum_id = session.get("forum_id")
         if not forum_id:
             return None
         
@@ -996,14 +1041,20 @@ class UserManagement:
         result = await self._send_telegram_request('closeForumTopic', payload)
         
         if result and result.get("ok"):
-            await self.redis_manager.redis_client.hset(profile_key, "forum_archived", "true")
+            await db_adapter.save_user_session(user_id, {"forum_archived": True})
+            if self.redis_manager:
+                try:
+                    profile_key = f"user_data:{user_id}:profile:main"
+                    await self.redis_manager.redis_client.hset(profile_key, "forum_archived", "true")
+                except Exception:
+                    pass
             return result.get("result")
         return None
 
     async def reopen_forum_topic(self, user_id: str) -> Optional[dict]:
         await self._init_logger()
-        profile_key = f"user_data:{user_id}:profile:main"
-        forum_id = await self.redis_manager.redis_client.hget(profile_key, "forum_id")
+        session = await db_adapter.get_user_session(user_id) or {}
+        forum_id = session.get("forum_id")
         if not forum_id:
             return None
         
@@ -1011,14 +1062,20 @@ class UserManagement:
         result = await self._send_telegram_request('reopenForumTopic', payload)
         
         if result and result.get("ok"):
-            await self.redis_manager.redis_client.hset(profile_key, "forum_archived", "false")
+            await db_adapter.save_user_session(user_id, {"forum_archived": False})
+            if self.redis_manager:
+                try:
+                    profile_key = f"user_data:{user_id}:profile:main"
+                    await self.redis_manager.redis_client.hset(profile_key, "forum_archived", "false")
+                except Exception:
+                    pass
             return result.get("result")
         return None
 
     async def get_forum_topic_details(self, user_id: str) -> dict:
         await self._init_logger()
-        profile_key = f"user_data:{user_id}:profile:main"
-        forum_id = await self.redis_manager.redis_client.hget(profile_key, "forum_id")
+        session = await db_adapter.get_user_session(user_id) or {}
+        forum_id = session.get("forum_id")
         return {"forum_id": forum_id}
     
     # -------------- User Management Async Methods --------------
@@ -1455,7 +1512,7 @@ class DepositManagement:
 
     @handle_redis_exceptions
     async def add_deposit_data(self, deposit_id: str, user_id: str, data: Dict[str, Any]) -> dict:
-        """Add a new deposit record in PostgreSQL."""
+        """Add a new deposit record in PostgreSQL and Redis with 15-min TTL."""
         try:
             amount = float(data.get('amount', 0.0) or data.get('deposit_amount', 0.0) or 0.0)
             gateway = str(data.get('gateway', data.get('payment_mode', 'UPI')))
@@ -1475,7 +1532,11 @@ class DepositManagement:
                     if redis_client:
                         deposit_info_key = f"{DEPOSIT_INFO_PREFIX}info:{deposit_id}"
                         data.setdefault('recorded_at', time.time())
+                        data.setdefault('deposit_status', 'PENDING')
+                        data.setdefault('user_id', str(user_id))
+                        data.setdefault('deposit_id', str(deposit_id))
                         await redis_client.hset(deposit_info_key, mapping={k: str(v) for k, v in data.items()})
+                        await redis_client.expire(deposit_info_key, 900)
                 except Exception:
                     pass
 
@@ -1486,7 +1547,7 @@ class DepositManagement:
 
     @handle_redis_exceptions
     async def get_deposit_data(self, deposit_id: str) -> dict:
-        """Retrieve deposit details from Redis and fallback to PostgreSQL."""
+        """Retrieve deposit details from Redis (0 DB load) and fallback to PostgreSQL."""
         await self._init_logger()
         try:
             if self.redis_manager:
@@ -1496,7 +1557,7 @@ class DepositManagement:
                         deposit_info_key = f"{DEPOSIT_INFO_PREFIX}info:{deposit_id}"
                         data = await redis_client.hgetall(deposit_info_key)
                         if data:
-                            res = {k: v for k, v in data.items()}
+                            res = {k: (v.decode('utf-8') if isinstance(v, bytes) else str(v)) for k, v in data.items()}
                             if 'user_id' in res:
                                 res['telegram_id'] = res['user_id']
                             return {'response': True, 'result': res}
@@ -1513,12 +1574,26 @@ class DepositManagement:
 
     @handle_redis_exceptions
     async def update_deposit_status(self, deposit_id: str, status: str) -> dict:
-        """Update the status of a deposit in PostgreSQL."""
+        """Update deposit status in PostgreSQL and Redis."""
         try:
             valid_statuses = ['PENDING', 'COMPLETED', 'CANCELLED', 'FAILED', 'TIMEOUT']
             if status not in valid_statuses:
                 return {'response': False, 'error': 'Invalid status'}
 
+            # On CANCELLED or TIMEOUT, delete the PENDING row from Supabase to prevent database bloat!
+            if status in ('CANCELLED', 'TIMEOUT'):
+                await db_adapter.delete_pending_deposit_request(str(deposit_id))
+                if self.redis_manager:
+                    try:
+                        redis_client = await self.ensure_connection()
+                        if redis_client:
+                            deposit_info_key = f"{DEPOSIT_INFO_PREFIX}info:{deposit_id}"
+                            await redis_client.delete(deposit_info_key)
+                    except Exception:
+                        pass
+                return {'response': True, 'message': f'Pending deposit {deposit_id} purged on {status}'}
+
+            # On COMPLETED / FAILED, update status in Supabase
             await db_adapter.update_deposit_status(str(deposit_id), status)
 
             if self.redis_manager:
@@ -1526,7 +1601,10 @@ class DepositManagement:
                     redis_client = await self.ensure_connection()
                     if redis_client:
                         deposit_info_key = f"{DEPOSIT_INFO_PREFIX}info:{deposit_id}"
-                        await redis_client.hset(deposit_info_key, 'deposit_status', status)
+                        if status == 'COMPLETED':
+                            await redis_client.delete(deposit_info_key)
+                        else:
+                            await redis_client.hset(deposit_info_key, 'deposit_status', status)
                 except Exception:
                     pass
 
@@ -1706,25 +1784,47 @@ class DepositManagement:
     @handle_redis_exceptions
     async def search_current_deposits(self, query_str: str = "*", sort_by: str = None, sort_asc: bool = True, limit: int = 10, offset: int = 0) -> dict:
         """
-        Search for current deposits using advanced filtering asynchronously.
+        Search for current pending deposits from Redis (0 DB load) with fallback.
         """
         await self._init_logger()
         try:
-            redis_client = await self.ensure_connection()
-            base_query = "(@deposit_status:(PENDING))"
-            if query_str != "*":
-                base_query += f" ({query_str})"
+            if self.redis_manager:
+                try:
+                    redis_client = await self.ensure_connection()
+                    if redis_client:
+                        try:
+                            base_query = "(@deposit_status:(PENDING))"
+                            if query_str != "*":
+                                base_query += f" ({query_str})"
+                            query = Query(base_query).paging(offset, limit)
+                            if sort_by:
+                                query.sort_by(sort_by, asc=sort_asc)
+                            results = await redis_client.ft(DEPOSIT_INFO_INDEX).search(query)
+                            deposits = await asyncio.gather(*[
+                                asyncio.create_task(self.process_deposit_doc(doc))
+                                for doc in results.docs
+                            ])
+                            return {'response': True, 'total': results.total, 'results': deposits}
+                        except Exception:
+                            # Fallback to scanning active deposit keys directly
+                            keys = []
+                            async for key in redis_client.scan_iter(match=f"{DEPOSIT_INFO_PREFIX}info:*"):
+                                keys.append(key)
+                            deposits = []
+                            for k in keys[offset:offset+limit]:
+                                data = await redis_client.hgetall(k)
+                                if data:
+                                    res = {k: (v.decode('utf-8') if isinstance(v, bytes) else str(v)) for k, v in data.items()}
+                                    if res.get("deposit_status", "PENDING") == "PENDING":
+                                        if 'user_id' in res:
+                                            res['telegram_id'] = res['user_id']
+                                        deposits.append(res)
+                            return {'response': True, 'total': len(keys), 'results': deposits}
+                except Exception:
+                    pass
 
-            query = Query(base_query).paging(offset, limit)
-            if sort_by:
-                query.sort_by(sort_by, asc=sort_asc)
-
-            results = await redis_client.ft(DEPOSIT_INFO_INDEX).search(query)
-            deposits = await asyncio.gather(*[
-                asyncio.create_task(self.process_deposit_doc(doc))
-                for doc in results.docs
-            ])
-            return {'response': True, 'total': results.total, 'results': deposits}
+            res = await db_adapter.search_deposit_requests(status="PENDING", limit=limit, offset=offset)
+            return {'response': True, 'total': res.get("total", 0), 'results': res.get("results", [])}
         except Exception as e:
             await self.logger.error(f"Error searching current deposits: {e}")
             return {'response': False, 'error': str(e)}

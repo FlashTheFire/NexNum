@@ -21,36 +21,16 @@ CREATE TABLE IF NOT EXISTS user_sessions (
     forum_archived        BOOLEAN      DEFAULT FALSE
 );
 
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'user_sessions' AND column_name = 'data') THEN
-        ALTER TABLE user_sessions ADD COLUMN data JSONB DEFAULT '{}'::jsonb;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'user_sessions' AND column_name = 'selected_country_id') THEN
-        ALTER TABLE user_sessions ADD COLUMN selected_country_id INTEGER;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'user_sessions' AND column_name = 'selected_service_code') THEN
-        ALTER TABLE user_sessions ADD COLUMN selected_service_code VARCHAR(50);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'user_sessions' AND column_name = 'menu_state') THEN
-        ALTER TABLE user_sessions ADD COLUMN menu_state JSONB DEFAULT '{}'::jsonb;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'user_sessions' AND column_name = 'temp_data') THEN
-        ALTER TABLE user_sessions ADD COLUMN temp_data JSONB DEFAULT '{}'::jsonb;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'user_sessions' AND column_name = 'last_activity') THEN
-        ALTER TABLE user_sessions ADD COLUMN last_activity TIMESTAMPTZ DEFAULT NOW();
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'user_sessions' AND column_name = 'forum_id') THEN
-        ALTER TABLE user_sessions ADD COLUMN forum_id INTEGER;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'user_sessions' AND column_name = 'forum_message_id') THEN
-        ALTER TABLE user_sessions ADD COLUMN forum_message_id INTEGER;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'user_sessions' AND column_name = 'forum_archived') THEN
-        ALTER TABLE user_sessions ADD COLUMN forum_archived BOOLEAN DEFAULT FALSE;
-    END IF;
-END $$;
+ALTER TABLE user_sessions ADD COLUMN IF NOT EXISTS data JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE user_sessions ADD COLUMN IF NOT EXISTS selected_country_id INTEGER;
+ALTER TABLE user_sessions ADD COLUMN IF NOT EXISTS selected_service_code VARCHAR(50);
+ALTER TABLE user_sessions ADD COLUMN IF NOT EXISTS menu_state JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE user_sessions ADD COLUMN IF NOT EXISTS temp_data JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE user_sessions ADD COLUMN IF NOT EXISTS last_activity TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE user_sessions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE user_sessions ADD COLUMN IF NOT EXISTS forum_id INTEGER;
+ALTER TABLE user_sessions ADD COLUMN IF NOT EXISTS forum_message_id INTEGER;
+ALTER TABLE user_sessions ADD COLUMN IF NOT EXISTS forum_archived BOOLEAN DEFAULT FALSE;
 
 CREATE INDEX IF NOT EXISTS idx_user_sessions_last_activity
     ON user_sessions (last_activity);
@@ -81,21 +61,10 @@ CREATE TABLE IF NOT EXISTS user_referrals (
     updated_at           TIMESTAMPTZ DEFAULT NOW()
 );
 
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'user_referrals' AND column_name = 'telegram_id') THEN
-        ALTER TABLE user_referrals ADD COLUMN telegram_id VARCHAR(255);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'user_referrals' AND column_name = 'total_earnings') THEN
-        ALTER TABLE user_referrals ADD COLUMN total_earnings NUMERIC(12,2) DEFAULT 0.0;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'user_referrals' AND column_name = 'total_referred_count') THEN
-        ALTER TABLE user_referrals ADD COLUMN total_referred_count INTEGER DEFAULT 0;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'user_referrals' AND column_name = 'updated_at') THEN
-        ALTER TABLE user_referrals ADD COLUMN updated_at TIMESTAMPTZ DEFAULT NOW();
-    END IF;
-END $$;
+ALTER TABLE user_referrals ADD COLUMN IF NOT EXISTS telegram_id VARCHAR(255);
+ALTER TABLE user_referrals ADD COLUMN IF NOT EXISTS total_earnings NUMERIC(12,2) DEFAULT 0.0;
+ALTER TABLE user_referrals ADD COLUMN IF NOT EXISTS total_referred_count INTEGER DEFAULT 0;
+ALTER TABLE user_referrals ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 
 CREATE INDEX IF NOT EXISTS idx_user_referrals_referrer
     ON user_referrals (referrer_id);
@@ -123,18 +92,15 @@ CREATE TABLE IF NOT EXISTS deposit_requests (
     updated_at       TIMESTAMPTZ DEFAULT NOW()
 );
 
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'deposit_requests' AND column_name = 'payment_gateway') THEN
-        ALTER TABLE deposit_requests ADD COLUMN payment_gateway VARCHAR(50);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'deposit_requests' AND column_name = 'transaction_code') THEN
-        ALTER TABLE deposit_requests ADD COLUMN transaction_code VARCHAR(100);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'deposit_requests' AND column_name = 'completed_at') THEN
-        ALTER TABLE deposit_requests ADD COLUMN completed_at TIMESTAMPTZ;
-    END IF;
-END $$;
+ALTER TABLE deposit_requests ADD COLUMN IF NOT EXISTS currency VARCHAR(10) DEFAULT 'USD';
+ALTER TABLE deposit_requests ADD COLUMN IF NOT EXISTS gateway VARCHAR(50) DEFAULT 'upi';
+ALTER TABLE deposit_requests ADD COLUMN IF NOT EXISTS payment_gateway VARCHAR(50);
+ALTER TABLE deposit_requests ADD COLUMN IF NOT EXISTS code VARCHAR(100);
+ALTER TABLE deposit_requests ADD COLUMN IF NOT EXISTS transaction_code VARCHAR(100);
+ALTER TABLE deposit_requests ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'PENDING';
+ALTER TABLE deposit_requests ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(255);
+ALTER TABLE deposit_requests ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE deposit_requests ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ;
 
 CREATE INDEX IF NOT EXISTS idx_deposit_requests_user
     ON deposit_requests (user_id, created_at DESC);
@@ -149,33 +115,14 @@ CREATE INDEX IF NOT EXISTS idx_deposit_requests_idempotency
 -- ---------------------------------------------------------------------------
 -- 4. PURCHASE ORDERS EXTENSION
 -- ---------------------------------------------------------------------------
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'purchase_orders' AND column_name = 'phone_number') THEN
-        ALTER TABLE purchase_orders ADD COLUMN phone_number VARCHAR(20);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'purchase_orders' AND column_name = 'sms_code') THEN
-        ALTER TABLE purchase_orders ADD COLUMN sms_code VARCHAR(50);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'purchase_orders' AND column_name = 'raw_response') THEN
-        ALTER TABLE purchase_orders ADD COLUMN raw_response JSONB DEFAULT '{}'::jsonb;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'purchase_orders' AND column_name = 'expires_at') THEN
-        ALTER TABLE purchase_orders ADD COLUMN expires_at TIMESTAMPTZ;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'purchase_orders' AND column_name = 'completed_at') THEN
-        ALTER TABLE purchase_orders ADD COLUMN completed_at TIMESTAMPTZ;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'purchase_orders' AND column_name = 'retry_count') THEN
-        ALTER TABLE purchase_orders ADD COLUMN retry_count INTEGER DEFAULT 0;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'purchase_orders' AND column_name = 'provider_name') THEN
-        ALTER TABLE purchase_orders ADD COLUMN provider_name VARCHAR(100);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'purchase_orders' AND column_name = 'service_type') THEN
-        ALTER TABLE purchase_orders ADD COLUMN service_type VARCHAR(50);
-    END IF;
-END $$;
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS phone_number VARCHAR(20);
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS sms_code VARCHAR(50);
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS raw_response JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ;
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS retry_count INTEGER DEFAULT 0;
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS provider_name VARCHAR(100);
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS service_type VARCHAR(50);
 
 CREATE INDEX IF NOT EXISTS idx_purchase_orders_user
     ON purchase_orders (user_id, created_at DESC);

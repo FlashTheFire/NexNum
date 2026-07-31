@@ -198,7 +198,7 @@ class HistoryManager:
         try:
             status = order_info.get('order_status', 'unknown').upper()
             valid_status = status if status in ['PENDING', 'PROCESSING', 'COMPLETED'] else 'unknown'
-            barcode_id = await encode_order_id(int(order_id))
+            barcode_id = await encode_order_id(order_id)
 
             keyboard = InlineKeyboardMarkup()
             buy_again_btn = InlineKeyboardButton(

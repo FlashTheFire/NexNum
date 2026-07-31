@@ -433,27 +433,24 @@ class AdminPanelManager:
             tot_countries = len(cnt_resp) or 180
             tot_servers = 5
 
-            famous_country_query = [
-                "FT.AGGREGATE", "order_index", "*",
-                "GROUPBY", "1", "@country_id",
-                "REDUCE", "COUNT_DISTINCT", "1", "@country_id", "AS", "unique_countries"
-            ]
+            fam_cnt = 0
+            fam_svc = 0
+            try:
+                from utils.db import db_adapter
+                pool = await db_adapter._ensure_pool()
+                async with pool.connection() as conn:
+                    async with conn.cursor(row_factory=dict_row) as cur:
+                        await cur.execute("SELECT COUNT(DISTINCT metadata->>'country_id') as cnt FROM purchase_orders")
+                        row_c = await cur.fetchone()
+                        if row_c:
+                            fam_cnt = int(row_c.get("cnt", 0))
 
-            famous_service_query = [
-                "FT.AGGREGATE", "order_index", "*",
-                "GROUPBY", "1", "@app_id",
-                "REDUCE", "COUNT_DISTINCT", "1", "@app_id", "AS", "unique_app_ids"
-            ]
-
-            tasks = [
-                self.redis_client.execute_command(*famous_country_query),
-                self.redis_client.execute_command(*famous_service_query)
-            ]
-
-            famous_country_res, famous_service_res = await asyncio.gather(*tasks, return_exceptions=True)
-
-            fam_cnt = famous_country_res[0] if isinstance(famous_country_res, list) and famous_country_res else 0
-            fam_svc = famous_service_res[0] if isinstance(famous_service_res, list) and famous_service_res else 0
+                        await cur.execute("SELECT COUNT(DISTINCT service_type) as cnt FROM purchase_orders")
+                        row_s = await cur.fetchone()
+                        if row_s:
+                            fam_svc = int(row_s.get("cnt", 0))
+            except Exception as e:
+                logger.warning(f"Error getting admin order stats from PG: {e}")
 
             await self.bot.edit_message_text(
                 chat_id=chat_id, 

@@ -128,7 +128,7 @@ export function DesktopDashboard() {
                 </div>
 
                 {/* Telegram Connection & Account Status Banner */}
-                <TelegramLinkCard telegramId={(user as any)?.telegramId} username={(user as any)?.username} />
+                {/* <TelegramLinkCard telegramId={(user as any)?.telegramId} username={(user as any)?.username} /> */}
 
                 {/* 2. Stats Grid (High Density) */}
                 <motion.div

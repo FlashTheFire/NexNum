@@ -26,6 +26,7 @@ import traceback
 from functools import partial
 from utils.redis_keys import RedisKeys
 from handlers.security import RateLimiter, InputValidator, TransactionGuard
+from utils.api_client import api_client
 
 
 # Configure logging
@@ -66,13 +67,39 @@ class TopServiceManager:
         try:
             service_key = 'main_data:details:service_data'
             # Initialize key atomically if it doesn't exist
-            await self.redis_client.json().set(service_key, '$', {}, nx=True)
+            if self.redis_client:
+                try:
+                    await self.redis_client.json().set(service_key, '$', {}, nx=True)
+                except Exception:
+                    pass
 
-            service_data = await self.redis_client.json().get(service_key)
+            service_data = None
+            if self.redis_client:
+                try:
+                    service_data = await self.redis_client.json().get(service_key)
+                except Exception:
+                    service_data = None
             
             if not service_data:
-                # logger.debug("No service data found in Redis (leaderboard is empty)")
-                return []
+                # Fallback to live API services when Redis cache is empty or unavailable
+                try:
+                    api_resp = await api_client.get_services(limit=50)
+                    services_list = api_resp.get("services", []) or api_resp.get("data", []) or []
+                    fallback_services = []
+                    for item in services_list:
+                        s_name = item.get("name", "Unknown")
+                        purchased = int(item.get("purchases", item.get("stock", 0)))
+                        logo_url = str(item.get("icon", item.get("logo_url", "")))
+                        server_id = str(item.get("server_id", "1"))
+                        country_url = str(item.get("country_url", ""))
+                        service_code = str(item.get("code", item.get("id", "")))
+                        country_id = str(item.get("country_id", "1"))
+                        app_id = str(item.get("id", service_code))
+                        fallback_services.append((s_name, purchased, logo_url, country_url, service_code, server_id, country_id, app_id))
+                    return sorted(fallback_services, key=lambda x: x[1], reverse=True)
+                except Exception as api_err:
+                    logging.warning(f"Failed API fallback in top_services: {api_err}")
+                    return []
                 
             services = []
             for service_id, data in service_data.items():

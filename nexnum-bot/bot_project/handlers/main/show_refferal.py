@@ -305,28 +305,18 @@ class ReferManagement:
             for idx, item in enumerate(ref_list, start=1 + offset):
                 member_id = item["telegram_id"]
                 name = item.get("name") or "User"
+                created_at = item.get("created_at")
+                if isinstance(created_at, str):
+                    time_str = created_at
+                    iso_ts = created_at
+                elif isinstance(created_at, datetime):
+                    time_str = created_at.strftime('%Y-%m-%d %H:%M:%S')
+                    iso_ts = created_at.isoformat()
+                else:
+                    time_str = "Recently"
+                    iso_ts = datetime.utcnow().isoformat()
 
-                # try to get user profile (small hgetall)
-                uname = None
-                try:
-                    profile_key = f"user_data:{member_id}:profile:main"
-                    pdata = await redis_manager.redis_client.hgetall(profile_key)
-                    if pdata:
-                        # redis-py may return dict of bytes
-                        if isinstance(pdata, dict):
-                            # try common fields
-                            fn = pdata.get("first_name") or pdata.get(b"first_name") or b""
-                            un = pdata.get("username") or pdata.get(b"username") or b""
-                            # decode
-                            fn = fn.decode() if isinstance(fn, (bytes, bytearray)) else str(fn)
-                            un = un.decode() if isinstance(un, (bytes, bytearray)) else str(un)
-                            uname = fn or (('@' + un) if un and un != "N/A" else None)
-                except Exception:
-                    uname = None
-
-                display_name = html.escape(uname) if uname else f"User {member_id}"
-                time_str = time_ago(ts)
-                iso_ts = datetime.fromtimestamp(ts).isoformat()
+                display_name = html.escape(name) if name else f"User {member_id}"
 
                 message_text = (
                     f"👤 <b>Referred User</b>\n"

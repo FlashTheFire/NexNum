@@ -689,35 +689,34 @@ class AISupportManagement:
             }
             # drop empty
             filters = {k: v for k, v in filters.items() if v not in (None, "", [], False)}
-        else:
-            if order_id:
-                order_key = f"order_data:info:{order_id}"
-                order_data = await self.redis_client.hgetall(order_key)
-                if order_data:
-                    return {"count": 1, "orders": [order_data]}
-
-        # 2) build query string
-        query_str = await self.build_query(filters)
-
-        # 3) compose FT.SEARCH
-        cmd: List[Any] = ["FT.SEARCH", ORDER_INFO_INDEX, query_str]
-        if fields:
-            cmd += ["RETURN", len(fields), *fields]
-        if sort_fields:
-            sort_parts: List[Any] = []
-            for spec in sort_fields:
-                rf = self.FIELD_MAP.get(spec["field"])
-                if rf:
-                    sort_parts += [f"{rf}", spec["direction"]]
-            if sort_parts:
-                cmd += ["SORTBY", *sort_parts]
-       
-        if limit:
-            cmd += ["LIMIT", 0, limit]
-
-        # 4) execute & parse
+        # 1) Try DB primary retrieval first
         try:
-            print(cmd)
+            from utils.db import db_adapter
+            if order_id:
+                single_order = await db_adapter.get_purchase_order(str(order_id))
+                if single_order:
+                    return {"count": 1, "orders": [single_order]}
+            
+            db_res = await db_adapter.search_purchase_orders(
+                telegram_id=str(user_id) if user_id else None,
+                status=order_status if order_status else None,
+                limit=limit or 50
+            )
+            if db_res and db_res.get("response"):
+                orders_list = db_res.get("orders", [])
+                return {"count": db_res.get("total", len(orders_list)), "orders": orders_list}
+        except Exception as db_e:
+            logger.warning(f"DB order search fallback in support_management: {db_e}")
+
+        # 2) Fallback to Redis only if DB returns empty and Redis is available
+        if not self.redis_client:
+            return {"count": 0, "orders": []}
+
+        try:
+            query_str = await self.build_query(filters if 'filters' in locals() else {})
+            cmd: List[Any] = ["FT.SEARCH", ORDER_INFO_INDEX, query_str]
+            if limit:
+                cmd += ["LIMIT", 0, limit]
             raw = await self.redis_client.execute_command(*cmd)
             total = raw[0] if raw else 0
             orders: List[Dict[str, Any]] = []
@@ -730,17 +729,7 @@ class AISupportManagement:
                     (fields_arr[i+1].decode() if isinstance(fields_arr[i+1], bytes) else fields_arr[i+1])
                     for i in range(0, len(fields_arr), 2)
                 }
-                # drop internals
-                for drop in (
-                    "forum_message_id","message_id","search_tags","valid_until",
-                    "order_id","last_updated","app_code","timeout",
-                    "last_sms","created_at","completed_at"
-                ):
-                    data.pop(drop, None)
-                if not include_history:
-                    data.pop("order_history", None)
                 orders.append(data)
-            print(colored(json.dumps(orders, indent=4), "green"))
             return {"count": total, "orders": orders}
 
         except ConnectionError as e:

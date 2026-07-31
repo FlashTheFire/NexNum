@@ -8,6 +8,7 @@ if str(_bot_project_dir) not in sys.path:
     sys.path.insert(0, str(_bot_project_dir))
 import os
 import sys
+from typing import Optional
 from dotenv import load_dotenv
 
 # Load unified root .env if present, followed by local .env
@@ -120,14 +121,45 @@ NEXNUM_API_KEY = os.getenv("NEXNUM_API_KEY", os.getenv("ADMIN_API_KEY", "nexnum_
 PUBLIC_APP_URL = os.getenv("NEXT_PUBLIC_APP_URL", os.getenv("PUBLIC_APP_URL", "https://nexnum.in")).rstrip("/")
 URL = os.getenv("URL", "")
 
-# Optional configurations with sensible defaults
-DEFAULT_BANNER_URL = "https://i.ibb.co/Wvh4R4yX/image-removebg-preview.png"
-START_PAGE = os.getenv("START_PAGE") or DEFAULT_BANNER_URL
-DEPOSIT_PAGE = os.getenv("DEPOSIT_PAGE") or DEFAULT_BANNER_URL
-REFERRAL_PAGE = os.getenv("REFERRAL_PAGE") or DEFAULT_BANNER_URL
-LOADING_GIF = os.getenv("LOADING_GIF") or DEFAULT_BANNER_URL
-WALLET_PAGE = os.getenv("WALLET_PAGE") or DEFAULT_BANNER_URL
-DEPOSIT_INR_QR_CODE = os.getenv("DEPOSIT_INR_QR_CODE", "https://i.postimg.cc/1thT9t0C/image.png")
+def resolve_asset_source(env_val: Optional[str], default_rel_path: str) -> str:
+    """
+    Universal asset resolver pointing to local image files in bot_project/images/general.
+    """
+    if env_val and os.path.exists(env_val):
+        return os.path.abspath(env_val)
+
+    filename = os.path.basename(default_rel_path)
+    candidates = [
+        os.path.abspath(os.path.join(_bot_project_dir, "images", "general", filename)),
+        os.path.abspath(os.path.join(_bot_project_dir, default_rel_path.lstrip("/"))),
+        os.path.abspath(os.path.join(_bot_project_dir.parent, default_rel_path.lstrip("/"))),
+        os.path.abspath(os.path.join(_bot_project_dir.parent.parent, "nexnum-app", "public", default_rel_path.lstrip("/"))),
+        f"/app/bot_project/images/general/{filename}",
+        f"/app/{default_rel_path.lstrip('/')}",
+        f"/app/public/{default_rel_path.lstrip('/')}",
+        f"/app/nexnum-app/public/{default_rel_path.lstrip('/')}"
+    ]
+
+    for path in candidates:
+        if os.path.exists(path):
+            return os.path.abspath(path)
+
+    if env_val and (env_val.startswith("http://") or env_val.startswith("https://")):
+        return env_val
+
+    fallback_default = os.path.abspath(os.path.join(_bot_project_dir, "images", "general", "start-home_page.jpg"))
+    return fallback_default if os.path.exists(fallback_default) else f"{PUBLIC_APP_URL}/{default_rel_path.lstrip('/')}"
+
+START_PAGE = resolve_asset_source(os.getenv("START_PAGE"), "bot_project/images/general/start-home_page.jpg")
+DEFAULT_BANNER_URL = START_PAGE
+DEPOSIT_PAGE = resolve_asset_source(os.getenv("DEPOSIT_PAGE"), "bot_project/images/general/deposit-main_page.jpg")
+REFERRAL_PAGE = resolve_asset_source(os.getenv("REFERRAL_PAGE"), "bot_project/images/general/start-home_page.jpg")
+LOADING_GIF = resolve_asset_source(os.getenv("LOADING_GIF"), "bot_project/images/general/deposit-load_page.gif")
+WALLET_PAGE = resolve_asset_source(os.getenv("WALLET_PAGE"), "bot_project/images/general/profile-main_page.png")
+DEPOSIT_INR_QR_CODE = resolve_asset_source(os.getenv("DEPOSIT_INR_QR_CODE"), "bot_project/images/general/deposit-inr-qr_code.jpeg")
+HISTORY_PAGE = resolve_asset_source(os.getenv("HISTORY_PAGE"), "bot_project/images/general/history-main_page.jpg")
+SUPPORT_PAGE = resolve_asset_source(os.getenv("SUPPORT_PAGE"), "bot_project/images/general/support-main_page.jpg")
+SETTINGS_PAGE = resolve_asset_source(os.getenv("SETTINGS_PAGE"), "bot_project/images/general/setting-currency.jpg")
 
 # Redis configuration (Optional - only required if in-memory cache/search is enabled)
 ENABLE_REDIS = os.getenv("ENABLE_REDIS", "true").lower() == "true"

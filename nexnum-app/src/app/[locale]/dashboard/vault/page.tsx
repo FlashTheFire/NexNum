@@ -1,303 +1,677 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo, useEffect, useRef } from "react"
 import Link from "next/link"
-import { motion, AnimatePresence } from "framer-motion"
+import { motion, AnimatePresence, useScroll, useTransform } from "framer-motion"
 import {
     Search,
     Filter,
+    Download,
     ArrowLeft,
+    ArrowRight,
     Clock,
-    Check,
+    CheckCircle2,
+    ChevronDown,
+    Phone,
+    Activity,
     Archive,
-    LayoutGrid,
-    AlertCircle,
-    XCircle
+    LayoutGrid
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { useGlobalStore } from "@/stores/appStore"
 import { cn } from "@/lib/utils/utils"
 import { DashboardBackground } from "../components/dashboard-background"
-import { VaultOrderCard, VaultOrderStatus } from "./components/VaultOrderCard"
+import { ModernNumberCard } from "../components/ModernNumberCard"
+import { toast } from "sonner"
 
-const ITEMS_PER_PAGE = 12;
+// ============================================
+// SKELETON COMPONENTS (EXACT MATCH TO HISTORY)
+// ============================================
+
+const SkeletonPulse = ({ className }: { className?: string }) => (
+    <div className={cn(
+        "animate-pulse bg-gradient-to-r from-white/[0.03] via-white/[0.08] to-white/[0.03] bg-[length:200%_100%] rounded",
+        className
+    )} style={{ animation: 'shimmer 1.5s infinite' }} />
+)
+
+const NumberCardSkeleton = ({ index }: { index: number }) => (
+    <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: index * 0.05, duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+        className="relative h-[148px] rounded-2xl bg-white/[0.02] border border-white/[0.04] overflow-hidden p-4"
+        style={{
+            clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 20px), calc(100% - 20px) 100%, 0 100%)'
+        }}
+    >
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.02] to-transparent animate-shimmer" />
+        <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+                <SkeletonPulse className="w-7 h-7 rounded-md" />
+                <div className="space-y-1.5">
+                    <SkeletonPulse className="h-4 w-24" />
+                    <SkeletonPulse className="h-3 w-16" />
+                </div>
+            </div>
+            <SkeletonPulse className="h-4 w-14 rounded-full" />
+        </div>
+        <div className="space-y-2 mt-4">
+            <SkeletonPulse className="h-6 w-36" />
+            <SkeletonPulse className="h-3 w-20" />
+        </div>
+    </motion.div>
+)
+
+const StatCardSkeleton = ({ index }: { index: number }) => (
+    <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ delay: index * 0.1, duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
+        className="relative rounded-2xl bg-white/[0.02] border border-white/[0.04] p-4 md:p-5 overflow-hidden"
+    >
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.02] to-transparent animate-shimmer" />
+        <div className="flex items-center justify-between">
+            <div className="space-y-2">
+                <SkeletonPulse className="h-3 w-20" />
+                <SkeletonPulse className="h-8 w-28" />
+            </div>
+            <SkeletonPulse className="w-10 h-10 rounded-xl" />
+        </div>
+    </motion.div>
+)
+
+// ============================================
+// DECORATIVE SVG ACCENTS (EXACT MATCH TO HISTORY)
+// ============================================
+
+const VectorAccents = () => (
+    <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        {/* Top-right circle accent */}
+        <svg className="absolute top-[15%] right-[5%] w-24 h-24 opacity-[0.06]" viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="45" fill="none" stroke="currentColor" strokeWidth="0.5" className="text-[hsl(var(--neon-lime))]" />
+            <circle cx="50" cy="50" r="30" fill="none" stroke="currentColor" strokeWidth="0.3" strokeDasharray="4 4" className="text-white" />
+        </svg>
+
+        {/* Left side dashed lines */}
+        <svg className="absolute left-[3%] top-[40%] w-16 h-32 opacity-[0.04]" viewBox="0 0 60 120">
+            <line x1="30" y1="0" x2="30" y2="120" stroke="currentColor" strokeWidth="1" strokeDasharray="8 8" className="text-white" />
+            <circle cx="30" cy="60" r="4" fill="currentColor" className="text-[hsl(var(--neon-lime))]" />
+        </svg>
+
+        {/* Bottom connector */}
+        <svg className="absolute bottom-[20%] right-[15%] w-40 h-20 opacity-[0.05]" viewBox="0 0 160 80">
+            <path d="M0 40 Q40 10, 80 40 T160 40" fill="none" stroke="currentColor" strokeWidth="1" className="text-white" />
+            <circle cx="80" cy="40" r="3" fill="currentColor" className="text-[hsl(var(--neon-lime))]" />
+        </svg>
+
+        {/* Floating dots pattern */}
+        <div className="absolute top-[60%] left-[8%] grid grid-cols-3 gap-2 opacity-[0.06]">
+            {[...Array(9)].map((_, i) => (
+                <div key={i} className="w-1 h-1 rounded-full bg-white" />
+            ))}
+        </div>
+    </div>
+)
+
+// ============================================
+// STAT CARD COMPONENT (EXACT MATCH TO HISTORY)
+// ============================================
+
+interface StatCardProps {
+    title: string
+    value: React.ReactNode
+    icon: React.ReactNode
+    colorScheme: 'emerald' | 'rose' | 'neutral' | 'lime'
+    index: number
+}
+
+const StatCard = ({ title, value, icon, colorScheme, index }: StatCardProps) => {
+    const colors = {
+        lime: {
+            border: 'border-[hsl(var(--neon-lime)/0.25)]',
+            bg: 'bg-[hsl(var(--neon-lime)/0.04)]',
+            iconBg: 'bg-[hsl(var(--neon-lime)/0.15)]',
+            iconColor: 'text-[hsl(var(--neon-lime))]',
+            titleColor: 'text-[hsl(var(--neon-lime))/0.9]',
+            gradient: 'from-[hsl(var(--neon-lime)/0.1)]'
+        },
+        emerald: {
+            border: 'border-emerald-500/20',
+            bg: 'bg-emerald-950/20',
+            iconBg: 'bg-emerald-500/15',
+            iconColor: 'text-emerald-400',
+            titleColor: 'text-emerald-400/80',
+            gradient: 'from-emerald-500/10'
+        },
+        rose: {
+            border: 'border-rose-500/20',
+            bg: 'bg-rose-950/20',
+            iconBg: 'bg-rose-500/15',
+            iconColor: 'text-rose-400',
+            titleColor: 'text-rose-400/80',
+            gradient: 'from-rose-500/10'
+        },
+        neutral: {
+            border: 'border-white/[0.06]',
+            bg: 'bg-white/[0.02]',
+            iconBg: 'bg-white/[0.05]',
+            iconColor: 'text-white/60',
+            titleColor: 'text-white/50',
+            gradient: 'from-white/[0.02]'
+        }
+    }
+
+    const c = colors[colorScheme]
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ delay: index * 0.1, duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
+            whileHover={{ scale: 1.02, y: -2 }}
+            className="group"
+        >
+            <Card className={cn("relative overflow-hidden backdrop-blur-xl transition-all duration-300", c.border, c.bg)}>
+                {/* Hover gradient overlay */}
+                <div className={cn(
+                    "absolute inset-0 bg-gradient-to-br to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500",
+                    c.gradient
+                )} />
+
+                {/* Corner accent */}
+                <svg className="absolute -top-2 -right-2 w-12 h-12 opacity-10 group-hover:opacity-20 transition-opacity" viewBox="0 0 48 48">
+                    <circle cx="24" cy="24" r="20" fill="none" stroke="currentColor" strokeWidth="0.5" className={c.iconColor} />
+                </svg>
+
+                <CardContent className="p-4 md:p-5 flex items-center justify-between relative">
+                    <div>
+                        <p className={cn("text-[10px] md:text-xs font-medium mb-1 uppercase tracking-wider", c.titleColor)}>
+                            {title}
+                        </p>
+                        <p className="text-xl md:text-3xl font-bold text-white font-mono">{value}</p>
+                    </div>
+                    <motion.div
+                        className={cn("h-10 w-10 md:h-12 md:w-12 rounded-xl md:rounded-2xl flex items-center justify-center", c.iconBg)}
+                        whileHover={{ rotate: 5 }}
+                        transition={{ type: "spring", stiffness: 300 }}
+                    >
+                        <div className={c.iconColor}>
+                            {icon}
+                        </div>
+                    </motion.div>
+                </CardContent>
+            </Card>
+        </motion.div>
+    )
+}
+
+// ============================================
+// MAIN VAULT PAGE COMPONENT
+// ============================================
 
 export default function VaultPage() {
-    const { activeNumbers } = useGlobalStore()
-    const [searchQuery, setSearchQuery] = useState("")
+    const { activeNumbers, isLoadingNumbers, fetchNumbers } = useGlobalStore()
+    const [searchTerm, setSearchTerm] = useState("")
+    const [filterType, setFilterType] = useState<"all" | "active" | "completed" | "expired">("all")
     const [isFilterOpen, setIsFilterOpen] = useState(false)
-    const [selectedCountry, setSelectedCountry] = useState<string | null>(null)
-    const [selectedService, setSelectedService] = useState<string | null>(null)
-    const [selectedStatus, setSelectedStatus] = useState<'all' | VaultOrderStatus>('all')
     const [currentPage, setCurrentPage] = useState(1)
+    const [isStatsOpen, setIsStatsOpen] = useState(true)
     const [isMounted, setIsMounted] = useState(false)
+    const itemsPerPage = 12
+
+    const containerRef = useRef<HTMLDivElement>(null)
+    const { scrollY } = useScroll()
+    const headerOpacity = useTransform(scrollY, [0, 100], [1, 0.95])
 
     useEffect(() => {
         setIsMounted(true)
-    }, [])
+        if (fetchNumbers) {
+            fetchNumbers()
+        }
+    }, [fetchNumbers])
 
-    // Unified List Logic
+    const isLoading = isLoadingNumbers || !isMounted
+
+    // Process all numbers & derive current status
     const allNumbers = useMemo(() => {
         if (!isMounted) return []
-
         const now = Date.now()
 
-        return activeNumbers
-            .filter(num => num && num.id && num.number && num.expiresAt)
+        return (activeNumbers || [])
+            .filter(num => num && num.id && num.number)
             .map(num => {
-                const expiresAt = new Date(num.expiresAt).getTime()
-                let status: VaultOrderStatus = 'active';
+                const expiresAt = num.expiresAt ? new Date(num.expiresAt).getTime() : 0
+                let calculatedStatus = num.status || 'active'
 
-                if (isNaN(expiresAt) || expiresAt <= now) {
-                    if ((num.smsCount || 0) > 0) {
-                        status = 'completed';
+                if (num.status === 'cancelled' || (num as any).status === 'refunded') {
+                    calculatedStatus = 'expired'
+                } else if (isNaN(expiresAt) || expiresAt <= now) {
+                    if ((num.smsCount || 0) > 0 || num.latestSms || ((num as any).smsMessages && (num as any).smsMessages.length > 0)) {
+                        calculatedStatus = 'completed'
                     } else {
-                        status = 'expired';
+                        calculatedStatus = 'expired'
                     }
                 }
 
-                // If explicitly cancelled/refunded in future (placeholder logic if you have a status field)
-                // if (num.status === 'refunded') status = 'refunded';
-
-                return { ...num, currentStatus: status }
+                return { ...num, currentStatus: calculatedStatus }
             })
             .sort((a, b) => {
-                // Sort by purchase time desc (newest first)
-                // Fallback to ID if purchasedAt missing
-                const dateA = a.purchasedAt ? new Date(a.purchasedAt).getTime() : 0;
-                const dateB = b.purchasedAt ? new Date(b.purchasedAt).getTime() : 0;
-                return dateB - dateA;
-            });
+                const dateA = a.purchasedAt ? new Date(a.purchasedAt).getTime() : 0
+                const dateB = b.purchasedAt ? new Date(b.purchasedAt).getTime() : 0
+                return dateB - dateA
+            })
     }, [activeNumbers, isMounted])
-
-    // Filter Options
-    const uniqueCountries = useMemo(() =>
-        Array.from(new Set(allNumbers.map(n => n.countryName))).filter(Boolean),
-        [allNumbers]
-    )
-    const uniqueServices = useMemo(() =>
-        Array.from(new Set(allNumbers.map(n => n.serviceName))).filter(Boolean),
-        [allNumbers]
-    )
 
     // Filter Logic
     const filteredNumbers = useMemo(() => {
-        return allNumbers.filter(num => {
-            // Status Filter
-            if (selectedStatus !== 'all' && num.currentStatus !== selectedStatus) return false;
-
-            // Search
-            const q = searchQuery.toLowerCase();
+        return allNumbers.filter((num) => {
             const matchesSearch =
-                !q ||
-                num.number.toLowerCase().includes(q) ||
-                (num.serviceName || '').toLowerCase().includes(q) ||
-                (num.countryName || '').toLowerCase().includes(q);
+                num.number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (num.serviceName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (num.countryName || '').toLowerCase().includes(searchTerm.toLowerCase())
 
-            // Dropdown Filters
-            const matchesCountry = selectedCountry ? num.countryName === selectedCountry : true;
-            const matchesService = selectedService ? num.serviceName === selectedService : true;
+            if (filterType === "all") return matchesSearch
+            if (filterType === "active") return matchesSearch && num.currentStatus === 'active'
+            if (filterType === "completed") return matchesSearch && num.currentStatus === 'completed'
+            if (filterType === "expired") return matchesSearch && (num.currentStatus === 'expired' || num.currentStatus === 'cancelled')
 
-            return matchesSearch && matchesCountry && matchesService;
+            return matchesSearch
         })
-    }, [allNumbers, searchQuery, selectedCountry, selectedService, selectedStatus])
+    }, [allNumbers, searchTerm, filterType])
 
-    // Stats
-    const stats = useMemo(() => ({
-        all: allNumbers.length,
-        active: allNumbers.filter(n => n.currentStatus === 'active').length,
-        completed: allNumbers.filter(n => n.currentStatus === 'completed').length,
-        expired: allNumbers.filter(n => n.currentStatus === 'expired').length
-    }), [allNumbers]);
+    // Stats Calculation
+    const stats = useMemo(() => {
+        return {
+            total: allNumbers.length,
+            active: allNumbers.filter(n => n.currentStatus === 'active').length,
+            completed: allNumbers.filter(n => n.currentStatus === 'completed').length,
+            expired: allNumbers.filter(n => n.currentStatus === 'expired' || n.currentStatus === 'cancelled').length
+        }
+    }, [allNumbers])
 
     // Pagination
-    const totalPages = Math.ceil(filteredNumbers.length / ITEMS_PER_PAGE)
+    const totalPages = Math.ceil(filteredNumbers.length / itemsPerPage) || 1
     const paginatedNumbers = useMemo(() => {
-        const start = (currentPage - 1) * ITEMS_PER_PAGE
-        return filteredNumbers.slice(start, start + ITEMS_PER_PAGE)
+        const startIndex = (currentPage - 1) * itemsPerPage
+        return filteredNumbers.slice(startIndex, startIndex + itemsPerPage)
     }, [filteredNumbers, currentPage])
 
-    // Handlers
-    const handleStatusChange = (status: typeof selectedStatus) => {
-        setSelectedStatus(status);
-        setCurrentPage(1);
-    }
+    // Export CSV Handler (Matches History page export pattern)
+    const handleExportCSV = () => {
+        if (filteredNumbers.length === 0) {
+            toast.error("No numbers to export")
+            return
+        }
 
-    const clearFilters = () => {
-        setSelectedCountry(null)
-        setSelectedService(null)
-        setSearchQuery("")
-        setCurrentPage(1)
+        const headers = ["Phone Number", "Service", "Country", "Status", "SMS Count", "Expires At"]
+        const csvRows = [
+            headers.join(","),
+            ...filteredNumbers.map(n => [
+                `"${n.number}"`,
+                `"${n.serviceName || ''}"`,
+                `"${n.countryName || ''}"`,
+                `"${n.currentStatus}"`,
+                n.smsCount || 0,
+                `"${n.expiresAt || ''}"`
+            ].join(","))
+        ]
+
+        const blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement("a")
+        a.href = url
+        a.download = `nexnum_vault_export_${new Date().toISOString().slice(0, 10)}.csv`
+        a.click()
+        toast.success("Exported to CSV!")
     }
 
     return (
-        <div className="relative min-h-screen pb-20 overflow-x-hidden">
+        <div ref={containerRef} className="relative min-h-screen pb-20 overflow-x-hidden">
             <DashboardBackground />
+            <VectorAccents />
 
-            <div className="relative z-30 container mx-auto px-4 md:px-6 max-w-7xl pt-6 animate-in fade-in duration-700">
+            {/* Shimmer keyframe */}
+            <style jsx global>{`
+                @keyframes shimmer {
+                    0% { background-position: 200% 0; }
+                    100% { background-position: -200% 0; }
+                }
+                .animate-shimmer {
+                    animation: shimmer 2s infinite linear;
+                    background-size: 200% 100%;
+                }
+            `}</style>
 
-                {/* Header Section */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-                    <div className="flex items-center gap-4">
-                        <Link href="/dashboard" className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 hover:border-white/20 transition-all group">
-                            <ArrowLeft className="w-5 h-5 text-zinc-400 group-hover:text-white" />
-                        </Link>
-                        <div>
-                            <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-                                Number Vault
-                                <span className="flex items-center justify-center px-2.5 py-0.5 rounded-full bg-zinc-800 border border-zinc-700 text-xs text-zinc-300 font-mono font-bold">
-                                    {allNumbers.length}
-                                </span>
-                            </h1>
-                            <p className="text-sm text-zinc-500 mt-0.5">Manage all your active and past numbers</p>
+            <div className="relative z-10 container mx-auto px-4 md:px-6 max-w-7xl pt-6 md:pt-8">
+
+                {/* Premium Sticky Header (Exact match to History) */}
+                <motion.div
+                    style={{ opacity: headerOpacity }}
+                    className="sticky top-[4px] md:top-4 z-40 bg-[#0a0a0c]/95 backdrop-blur-xl border-b border-white/[0.04] py-3 -mx-4 px-4 md:mx-0 md:bg-[#0a0a0c]/80 md:border md:rounded-2xl md:px-6 md:py-4 mb-6 shadow-2xl shadow-black/20"
+                >
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <Link href="/dashboard" className="p-2 hover:bg-white/[0.06] rounded-xl transition-colors group">
+                                <ArrowLeft className="w-4 h-4 text-white/60 group-hover:text-[hsl(var(--neon-lime))] transition-colors" />
+                            </Link>
+                            <div className="flex items-center gap-3">
+                                <motion.div
+                                    className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-[hsl(var(--neon-lime))] to-[hsl(var(--neon-lime)/0.7)] text-black shadow-lg shadow-[hsl(var(--neon-lime)/0.3)]"
+                                    whileHover={{ scale: 1.05, rotate: -5 }}
+                                    transition={{ type: "spring", stiffness: 400 }}
+                                >
+                                    <Phone className="w-5 h-5" />
+                                </motion.div>
+                                <div>
+                                    <h1 className="text-lg md:text-xl font-bold text-white">
+                                        Number <span className="text-[hsl(var(--neon-lime))]">Vault</span>
+                                    </h1>
+                                    <p className="text-xs text-white/40 hidden md:block">Secure activation history & live SMS verifications</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleExportCSV}
+                                    className="bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.06] hover:border-white/[0.1] rounded-xl h-9 px-3 gap-2 text-white/70 hover:text-white transition-all text-xs"
+                                >
+                                    <Download className="h-4 w-4" />
+                                    <span className="hidden md:inline">Export CSV</span>
+                                </Button>
+                            </motion.div>
                         </div>
                     </div>
+                </motion.div>
 
-                    {/* Controls */}
-                    <div className="flex items-center gap-2 w-full md:w-auto">
-                        <div className="relative flex-1 md:w-64 group">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 group-focus-within:text-white transition-colors" />
-                            <Input
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                placeholder="Search number, service..."
-                                className="pl-9 bg-zinc-900/50 border-white/10 focus:border-[hsl(var(--neon-lime))] rounded-xl"
-                            />
-                        </div>
-                        <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => setIsFilterOpen(!isFilterOpen)}
-                            className={cn(
-                                "rounded-xl border-white/10 bg-zinc-900/50 hover:bg-zinc-800",
-                                (isFilterOpen || selectedCountry || selectedService) && "border-[hsl(var(--neon-lime))] text-[hsl(var(--neon-lime))]"
-                            )}
-                        >
-                            <Filter className="w-4 h-4" />
-                        </Button>
+                {/* Stats Toggle (Mobile) */}
+                <div className="flex items-center justify-between md:hidden mb-4">
+                    <div className="flex items-center gap-2">
+                        <Activity className="w-4 h-4 text-[hsl(var(--neon-lime))]" />
+                        <p className="text-sm font-medium text-white/60">Overview</p>
                     </div>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setIsStatsOpen(!isStatsOpen)}
+                        className="h-8 gap-2 text-white/40 hover:text-white hover:bg-white/[0.05] rounded-lg"
+                    >
+                        {isStatsOpen ? "Hide" : "Show"}
+                        <motion.div animate={{ rotate: isStatsOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                            <ChevronDown className="h-4 w-4" />
+                        </motion.div>
+                    </Button>
                 </div>
 
-                {/* Filter Panel */}
+                {/* Stats Grid */}
                 <AnimatePresence>
-                    {isFilterOpen && (
+                    {(isStatsOpen || typeof window !== 'undefined' && window.innerWidth >= 768) && (
                         <motion.div
                             initial={{ height: 0, opacity: 0 }}
                             animate={{ height: "auto", opacity: 1 }}
                             exit={{ height: 0, opacity: 0 }}
-                            className="bg-zinc-900/40 border border-white/10 rounded-xl p-4 mb-6 overflow-hidden"
+                            transition={{ duration: 0.3 }}
+                            className={cn("grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6", !isStatsOpen && "hidden md:grid")}
                         >
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2 block">Country</label>
-                                    <div className="flex flex-wrap gap-2">
-                                        <button
-                                            onClick={() => setSelectedCountry(null)}
-                                            className={cn("px-3 py-1 rounded-lg text-xs transition-colors", !selectedCountry ? "bg-white/20 text-white" : "bg-white/5 text-zinc-400 hover:text-white")}
-                                        >All</button>
-                                        {uniqueCountries.map(c => (
-                                            <button
-                                                key={c}
-                                                onClick={() => setSelectedCountry(selectedCountry === c ? null : c)}
-                                                className={cn("px-3 py-1 rounded-lg text-xs transition-colors", selectedCountry === c ? "bg-[hsl(var(--neon-lime))] text-black font-bold" : "bg-white/5 text-zinc-400 hover:text-white")}
-                                            >{c}</button>
-                                        ))}
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2 block">Service</label>
-                                    <div className="flex flex-wrap gap-2">
-                                        <button
-                                            onClick={() => setSelectedService(null)}
-                                            className={cn("px-3 py-1 rounded-lg text-xs transition-colors", !selectedService ? "bg-white/20 text-white" : "bg-white/5 text-zinc-400 hover:text-white")}
-                                        >All</button>
-                                        {uniqueServices.map(s => (
-                                            <button
-                                                key={s}
-                                                onClick={() => setSelectedService(selectedService === s ? null : s)}
-                                                className={cn("px-3 py-1 rounded-lg text-xs transition-colors capitalize", selectedService === s ? "bg-[hsl(var(--neon-lime))] text-black font-bold" : "bg-white/5 text-zinc-400 hover:text-white")}
-                                            >{s}</button>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                            {(selectedCountry || selectedService) && (
-                                <button onClick={clearFilters} className="mt-4 text-xs flex items-center gap-1 text-red-400 hover:text-red-300">
-                                    <XCircle className="w-3 h-3" /> Clear Filters
-                                </button>
+                            {isLoading ? (
+                                <>
+                                    <StatCardSkeleton index={0} />
+                                    <StatCardSkeleton index={1} />
+                                    <StatCardSkeleton index={2} />
+                                    <StatCardSkeleton index={3} />
+                                </>
+                            ) : (
+                                <>
+                                    <StatCard
+                                        title="SMS Delivered"
+                                        value={stats.completed}
+                                        icon={<CheckCircle2 className="h-5 w-5 md:h-6 md:w-6" />}
+                                        colorScheme="emerald"
+                                        index={0}
+                                    />
+                                    <StatCard
+                                        title="Expired / Cancelled"
+                                        value={stats.expired}
+                                        icon={<Archive className="h-5 w-5 md:h-6 md:w-6" />}
+                                        colorScheme="rose"
+                                        index={1}
+                                    />
+                                    <StatCard
+                                        title="Total Registrations"
+                                        value={stats.total}
+                                        icon={<LayoutGrid className="h-5 w-5 md:h-6 md:w-6" />}
+                                        colorScheme="neutral"
+                                        index={2}
+                                    />
+                                    <StatCard
+                                        title="Active Verifications"
+                                        value={stats.active}
+                                        icon={<Clock className="h-5 w-5 md:h-6 md:w-6" />}
+                                        colorScheme="neutral"
+                                        index={3}
+                                    />
+                                </>
                             )}
                         </motion.div>
                     )}
                 </AnimatePresence>
 
-                {/* Status Tabs */}
-                <div className="flex overflow-x-auto pb-4 mb-2 gap-2 hide-scrollbar">
-                    {[
-                        { id: 'all', label: 'All Orders', icon: LayoutGrid, count: stats.all },
-                        { id: 'active', label: 'Active', icon: Clock, count: stats.active },
-                        { id: 'completed', label: 'Completed', icon: Check, count: stats.completed },
-                        { id: 'expired', label: 'Expired', icon: Archive, count: stats.expired },
-                    ].map((tab) => {
-                        const Icon = tab.icon;
-                        const isActive = selectedStatus === tab.id;
-                        return (
-                            <button
-                                key={tab.id}
-                                onClick={() => handleStatusChange(tab.id as any)}
+                {/* Search & Filter Bar */}
+                <Card className="border-white/[0.04] bg-white/[0.02] backdrop-blur-xl sticky top-[80px] md:top-[100px] z-30 shadow-xl shadow-black/10 mb-6">
+                    <CardContent className="p-2 md:p-3">
+                        <div className="flex flex-row items-center gap-2">
+                            <div className="relative flex-1">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30" />
+                                <Input
+                                    placeholder="Search number, service, country..."
+                                    value={searchTerm}
+                                    onChange={(e) => {
+                                        setSearchTerm(e.target.value)
+                                        setCurrentPage(1)
+                                    }}
+                                    className="pl-10 h-10 md:h-11 bg-transparent border-transparent focus-visible:ring-0 focus-visible:bg-white/[0.03] transition-all rounded-xl placeholder:text-white/30 text-sm text-white"
+                                />
+                            </div>
+
+                            {/* Desktop Filter Pills */}
+                            <div className="hidden md:flex gap-1 px-1">
+                                {(["all", "active", "completed", "expired"] as const).map((type) => (
+                                    <motion.button
+                                        key={type}
+                                        onClick={() => {
+                                            setFilterType(type)
+                                            setCurrentPage(1)
+                                        }}
+                                        whileHover={{ scale: 1.02 }}
+                                        whileTap={{ scale: 0.98 }}
+                                        className={cn(
+                                            "px-4 h-9 text-xs font-medium capitalize rounded-xl transition-all flex items-center gap-1.5",
+                                            filterType === type
+                                                ? "bg-[hsl(var(--neon-lime))] text-black font-bold"
+                                                : "text-white/50 hover:text-white hover:bg-white/[0.05]"
+                                        )}
+                                    >
+                                        <span>{type === "all" ? "All Activations" : type === "active" ? "Active" : type === "completed" ? "Completed" : "Expired"}</span>
+                                    </motion.button>
+                                ))}
+                            </div>
+
+                            {/* Mobile Filter Button */}
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setIsFilterOpen(!isFilterOpen)}
                                 className={cn(
-                                    "flex items-center gap-2 px-4 py-2.5 rounded-xl border transition-all whitespace-nowrap",
-                                    isActive
-                                        ? "bg-white/10 border-white/20 text-white shadow-lg shadow-black/20"
-                                        : "bg-transparent border-transparent text-zinc-500 hover:text-zinc-300 hover:bg-white/5"
+                                    "h-10 w-10 rounded-xl transition-all md:hidden",
+                                    isFilterOpen ? "bg-[hsl(var(--neon-lime))] text-black" : "text-white/50 hover:bg-white/[0.05]"
                                 )}
                             >
-                                <Icon className={cn("w-4 h-4", isActive && tab.id === 'active' ? "text-[hsl(var(--neon-lime))]" : "")} />
-                                <span className="text-sm font-medium">{tab.label}</span>
-                                <span className={cn(
-                                    "px-1.5 py-0.5 rounded-md text-[10px] font-bold min-w-[20px] text-center",
-                                    isActive ? "bg-white/20 text-white" : "bg-white/5 text-zinc-600"
-                                )}>
-                                    {tab.count}
-                                </span>
-                            </button>
-                        );
-                    })}
+                                <Filter className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    </CardContent>
+
+                    {/* Mobile Filters Dropdown */}
+                    <AnimatePresence>
+                        {isFilterOpen && (
+                            <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: "auto", opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                className="overflow-hidden border-t border-white/[0.04] md:hidden"
+                            >
+                                <div className="p-3 flex flex-wrap gap-2">
+                                    {(["all", "active", "completed", "expired"] as const).map((type) => (
+                                        <Button
+                                            key={type}
+                                            variant={filterType === type ? "default" : "ghost"}
+                                            size="sm"
+                                            onClick={() => {
+                                                setFilterType(type)
+                                                setCurrentPage(1)
+                                            }}
+                                            className={cn(
+                                                "h-8 text-xs rounded-lg capitalize",
+                                                filterType === type
+                                                    ? "bg-[hsl(var(--neon-lime))] text-black font-bold"
+                                                    : "text-white/50 hover:text-white"
+                                            )}
+                                        >
+                                            {type === "all" ? "All Activations" : type}
+                                        </Button>
+                                    ))}
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </Card>
+
+                {/* Number Cards Grid (ModernNumberCard Integration) */}
+                <div className="space-y-4">
+                    <AnimatePresence mode="wait">
+                        {isLoading ? (
+                            <motion.div
+                                key="skeleton"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4"
+                            >
+                                {[...Array(8)].map((_, i) => (
+                                    <NumberCardSkeleton key={i} index={i} />
+                                ))}
+                            </motion.div>
+                        ) : paginatedNumbers.length === 0 ? (
+                            <motion.div
+                                key="empty"
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="text-center py-20 bg-white/[0.01] border border-white/[0.04] rounded-3xl backdrop-blur-xl"
+                            >
+                                <motion.div
+                                    className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-white/[0.03] flex items-center justify-center border border-white/[0.05]"
+                                    whileHover={{ rotate: 5, scale: 1.05 }}
+                                >
+                                    <Phone className="h-8 w-8 text-white/20" />
+                                </motion.div>
+                                <p className="text-lg font-semibold text-white/80 mb-2">No numbers found in Vault</p>
+                                <p className="text-sm text-white/40 max-w-sm mx-auto mb-6">
+                                    {searchTerm || filterType !== "all"
+                                        ? "Try adjusting your search query or filter tabs."
+                                        : "You don't have any active or past virtual number activations."}
+                                </p>
+                                {(searchTerm || filterType !== "all") ? (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => {
+                                            setSearchTerm("")
+                                            setFilterType("all")
+                                        }}
+                                        className="text-[hsl(var(--neon-lime))] hover:text-[hsl(var(--neon-lime))]"
+                                    >
+                                        Reset Filters
+                                    </Button>
+                                ) : (
+                                    <Link href="/dashboard/buy">
+                                        <Button className="h-10 px-6 rounded-xl bg-[hsl(var(--neon-lime))] text-black font-bold hover:bg-[hsl(72,100%,60%)] shadow-lg shadow-[hsl(var(--neon-lime)/0.2)]">
+                                            Get Virtual Number
+                                        </Button>
+                                    </Link>
+                                )}
+                            </motion.div>
+                        ) : (
+                            <motion.div
+                                key="list"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4"
+                            >
+                                {paginatedNumbers.map((num) => (
+                                    <ModernNumberCard
+                                        key={num.id}
+                                        id={num.id}
+                                        number={(num as any).phoneNumber || num.number}
+                                        countryCode={num.countryCode}
+                                        countryName={num.countryName}
+                                        countryIconUrl={num.countryIconUrl}
+                                        serviceName={num.serviceName}
+                                        serviceIconUrl={num.serviceIconUrl}
+                                        smsCount={num.smsCount}
+                                        expiresAt={num.expiresAt}
+                                        status={num.currentStatus}
+                                        className="h-[148px]"
+                                    />
+                                ))}
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </div>
 
-                {/* Grid Content */}
-                {paginatedNumbers.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                        <AnimatePresence mode="popLayout">
-                            {paginatedNumbers.map((num) => (
-                                <motion.div
-                                    key={num.id}
-                                    layout
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, scale: 0.98 }}
-                                    transition={{ duration: 0.15 }}
-                                >
-                                    <VaultOrderCard number={num} status={num.currentStatus} />
-                                </motion.div>
-                            ))}
-                        </AnimatePresence>
-                    </div>
-                ) : (
-                    <div className="flex flex-col items-center justify-center py-20 bg-zinc-900/20 border border-white/5 rounded-3xl mt-4">
-                        <div className="w-16 h-16 rounded-full bg-zinc-900 border border-white/10 flex items-center justify-center mb-4">
-                            <Search className="w-8 h-8 text-zinc-700" />
+                {/* Premium Pagination */}
+                {!isLoading && totalPages > 1 && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.3 }}
+                        className="flex items-center justify-center gap-3 pt-8 pb-4"
+                    >
+                        <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                            <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                disabled={currentPage === 1}
+                                className="h-11 w-11 rounded-xl bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.06] disabled:opacity-30"
+                            >
+                                <ArrowLeft className="h-4 w-4" />
+                            </Button>
+                        </motion.div>
+
+                        <div className="h-11 px-5 flex items-center justify-center rounded-xl bg-white/[0.02] border border-white/[0.06] backdrop-blur-md">
+                            <span className="text-sm font-medium text-white/50">
+                                Page <span className="text-white font-bold">{currentPage}</span> of <span className="text-white/70">{totalPages}</span>
+                            </span>
                         </div>
-                        <h3 className="text-lg font-bold text-white mb-1">No orders found</h3>
-                        <p className="text-sm text-zinc-500">Try adjusting your filters or status tabs</p>
-                        <Button
-                            variant="outline"
-                            className="mt-6 border-white/10 text-zinc-400 hover:text-white hover:bg-white/5"
-                            onClick={() => { clearFilters(); setSelectedStatus('all'); }}
-                        >
-                            Reset all filters
-                        </Button>
-                    </div>
+
+                        <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                            <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                disabled={currentPage === totalPages}
+                                className="h-11 w-11 rounded-xl bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.06] disabled:opacity-30"
+                            >
+                                <ArrowRight className="h-4 w-4" />
+                            </Button>
+                        </motion.div>
+                    </motion.div>
                 )}
             </div>
         </div>
