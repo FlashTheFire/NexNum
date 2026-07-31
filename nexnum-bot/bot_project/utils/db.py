@@ -86,9 +86,9 @@ class DatabaseAdapter:
         try:
             sql_script = sql_file.read_text(encoding="utf-8")
             async with self.pool.connection() as conn:
+                await conn.set_autocommit(True)
                 async with conn.cursor() as cur:
                     await cur.execute(sql_script)
-                await conn.commit()
             logger.info("Successfully verified/created bot PostgreSQL schema tables (user_sessions, etc.).")
             return True
         except Exception as e:

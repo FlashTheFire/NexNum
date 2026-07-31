@@ -87,15 +87,17 @@ class SupportManagement:
                 "<i>Fᴇᴇʟ Fʀᴇᴇ Tᴏ Cᴏɴᴛᴀᴄᴛ Us Fᴏʀ Aɴʏ Hᴇʟᴘ Oʀ Sᴜᴘᴘᴏʀᴛ...</i>"
             )
 
-            await bot.edit_message_media(
-                media=prepare_input_media(
-                    media_source=SUPPORT_PAGE,
-                    caption=caption,
-                    parse_mode='HTML'
-                ),
+            from utils.media_manager import edit_or_cached_media
+            await edit_or_cached_media(
+                bot=bot,
                 chat_id=chat_id,
                 message_id=message_id,
-                reply_markup=keyboard
+                media_key="support_main_page",
+                file_source=SUPPORT_PAGE,
+                caption=caption,
+                parse_mode='HTML',
+                reply_markup=keyboard,
+                media_type="photo"
             )
         except Exception as e:
             logger.error(f"Error handling support callback: {e}")

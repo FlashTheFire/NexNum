@@ -272,13 +272,40 @@ class UserStartManager:
             await bot.reply_to(message, "Service unavailable. Please try again later.")
             return
 
+        chat_id = message.chat.id
+        first_name = self.input_validator.sanitize_text(message.from_user.first_name)
+        username = self.input_validator.sanitize_text(message.from_user.username or "N/A")
         user_id = str(message.from_user.id)
         async_logger = await get_async_logger()
 
-        try:
-            first_name = self.input_validator.sanitize_text(message.from_user.first_name)
-            username = self.input_validator.sanitize_text(message.from_user.username or "N/A")
+        # 1. Instant Loading Screen (0ms perceptual response time)
+        dummy_caption = (
+            f"<b>Hᴇʟʟᴏ</b> {first_name} <b>!</b>\n\n"
+            f"<b>💰 Yᴏᴜʀ Bᴀʟᴀɴᴄᴇ :</b> <code>⩇⩇</code> 💎\n"
+            f"<b>📊 Tᴏᴛᴀʟ NᴜᴍʙᴇR Pᴜʀᴄʜᴀsᴇᴅ :</b> <code>⩇⩇</code>\n\n"
+            "<b>📌 Rᴀɴᴋ Hᴇʟᴘs Tᴏ Iɴᴄʀᴇᴀsᴇ Dɪsᴄᴏᴜɴᴛ Oɴ Sᴇʀᴠɪᴄᴇs...</b>"
+        )
+        keyboard = await self._create_welcome_keyboard()
 
+        loading_msg = None
+        try:
+            from utils.config import LOADING_GIF
+            from utils.media_manager import send_or_cached_media
+            loading_msg = await send_or_cached_media(
+                bot=bot,
+                chat_id=chat_id,
+                media_key="load_page_gif",
+                file_source=LOADING_GIF,
+                caption=dummy_caption,
+                parse_mode="HTML",
+                reply_markup=keyboard,
+                media_type="animation"
+            )
+        except Exception as e:
+            await async_logger.warn(f"Fast loading screen warning: {e}")
+
+        # 2. Process DB Queries & Deep Links in Background
+        try:
             # Check for Account Linking Deep Link (/start link_LINK-XXXXXX)
             if message.text:
                 parts = message.text.strip().split(maxsplit=1)
@@ -295,20 +322,33 @@ class UserStartManager:
                             )
                             if link_res.get("success"):
                                 bal = link_res.get("balance", 0.0)
-                                await bot.reply_to(
-                                    message,
+                                link_caption = (
                                     f"🎉 <b>Aᴄᴄᴏᴜɴᴛ Cᴏɴɴᴇᴄᴛᴇᴅ Sᴜᴄᴄᴇssғᴜʟʟʏ!</b>\n\n"
                                     f"Yᴏᴜʀ Tᴇʟᴇɢʀᴀᴍ Aᴄᴄᴏᴜɴᴛ (<code>{user_id}</code>) ɪs ɴᴏᴡ ʟɪɴᴋᴇᴅ ᴛᴏ ʏᴏᴜʀ NᴇxNᴜᴍ Wᴇʙ Aᴘᴘ ᴘʀᴏғɪʟᴇ.\n"
-                                    f"💰 <b>Sʜᴀʀᴇᴅ Wᴀʟʟᴇᴛ Bᴀʟᴀɴᴄᴇ:</b> <code>₹{bal:.2f}</code>",
-                                    parse_mode="HTML"
+                                    f"💰 <b>Sʜᴀʀᴇᴅ Wᴀʟʟᴇᴛ Bᴀʟᴀɴᴄᴇ:</b> <code>₹{bal:.2f}</code>"
                                 )
+                                if loading_msg:
+                                    from utils.media_manager import edit_or_cached_media
+                                    await edit_or_cached_media(
+                                        bot=bot,
+                                        chat_id=chat_id,
+                                        message_id=loading_msg.message_id,
+                                        media_key="main_menu",
+                                        file_source=START_PAGE,
+                                        caption=link_caption,
+                                        parse_mode="HTML",
+                                        reply_markup=keyboard,
+                                        media_type="photo"
+                                    )
+                                else:
+                                    await bot.reply_to(message, link_caption, parse_mode="HTML", reply_markup=keyboard)
                                 return
                         else:
-                            await bot.reply_to(
-                                message,
-                                "🚫 <b>Aᴄᴄᴏᴜɴᴛ Lɪɴᴋɪɴɢ Fᴀɪʟᴇᴅ:</b> Link token is invalid or has expired (valid for 10 mins).",
-                                parse_mode="HTML"
-                            )
+                            fail_caption = "🚫 <b>Aᴄᴄᴏᴜɴᴛ Lɪɴᴋɪɴɢ Fᴀɪʟᴇᴅ:</b> Link token is invalid or has expired."
+                            if loading_msg:
+                                await bot.edit_message_caption(chat_id=chat_id, message_id=loading_msg.message_id, caption=fail_caption, parse_mode="HTML")
+                            else:
+                                await bot.reply_to(message, fail_caption, parse_mode="HTML")
                             return
                     except Exception as le:
                         await async_logger.error(f"Error handling account link code: {le}")
@@ -316,55 +356,62 @@ class UserStartManager:
             data = await self.aggregator.get_user(user_id)
 
             if not data["response"]:
-                # New user flow with ref extraction
                 referred_by = await self._extract_referrer(message)
                 if referred_by == user_id:
-                    referred_by = None  # prevent self-referral
+                    referred_by = None
 
                 user_data = await self._create_new_user_data(
                     message, first_name, username, referred_by=referred_by
                 )
 
                 validation_result = self.input_validator.validate_user_data(user_data)
-                if not validation_result['valid']:
-                    await async_logger.error(f"Invalid user data: {validation_result.get('error')}")
-                    await bot.reply_to(message, "Failed to create account. Please try again later.")
-                    return
-
-                result = await self.user_manager.update_user_data(user_id, validation_result['data'])
-                if not result["response"]:
-                    await async_logger.error(f"Failed to create user: {result.get('error')}")
-                    await bot.reply_to(message, "Failed to create account. Please try again later.")
-                    return
-
-                # Record referral using only ZADD points:{referrer_id}
-                if referred_by:
-                    try:
-                        await self._record_referral(user_id, referred_by)
-                    except Exception as e:
-                        await async_logger.error(f"Referral recording error (non-fatal): {e}")
-
-                await bot.reply_to(message, f"Welcome, {first_name}! Your account has been created.")
-
+                if validation_result['valid']:
+                    await self.user_manager.update_user_data(user_id, validation_result['data'])
+                    if referred_by:
+                        try:
+                            await self._record_referral(user_id, referred_by)
+                        except Exception as e:
+                            await async_logger.error(f"Referral recording error: {e}")
+                data = await self.aggregator.get_user(user_id)
             else:
-                # existing user update
                 user_data = {
                     'first_name': str(first_name)[:50],
                     'username': str(username)[:50],
                     'last_updated': time.time()
                 }
+                await self.user_manager.update_user_data(user_id, user_data)
+                data = await self.aggregator.get_user(user_id)
 
-                update_result = await self.user_manager.update_user_data(user_id, user_data)
-                if not update_result["response"]:
-                    await async_logger.error(f"Failed to update user: {update_result.get('error')}")
-                    await bot.reply_to(message, "Error updating your profile. Please try again later.")
-                    return
+            # 3. Update Loading Screen to Final State with Real Metrics
+            current_balance = data.get("metrics", {}).get("current_balance", 0)
+            total_orders = data.get("metrics", {}).get("orders", {}).get("count", 0)
+            real_caption = await self._create_welcome_caption(first_name, current_balance, total_orders)
 
-            await self.handle_start_display(bot, message, data, "start")
+            if loading_msg:
+                from utils.media_manager import edit_or_cached_media
+                await edit_or_cached_media(
+                    bot=bot,
+                    chat_id=chat_id,
+                    message_id=loading_msg.message_id,
+                    media_key="main_menu",
+                    file_source=START_PAGE,
+                    caption=real_caption,
+                    parse_mode="HTML",
+                    reply_markup=keyboard,
+                    media_type="photo"
+                )
+            else:
+                await self.handle_start_display(bot, message, data, "start")
 
         except Exception as e:
             await async_logger.error(f"Error in handle_start_command: {e}")
-            await bot.reply_to(message, "An error occurred. Please try again later.")
+            if loading_msg:
+                try:
+                    await bot.edit_message_caption(chat_id=chat_id, message_id=loading_msg.message_id, caption="An error occurred. Please try again later.")
+                except Exception:
+                    pass
+            else:
+                await bot.reply_to(message, "An error occurred. Please try again later.")
 
     async def handle_start_callback(self, call: CallbackQuery) -> None:
         if not self._initialized or not call.from_user:
@@ -372,50 +419,79 @@ class UserStartManager:
             return
 
         user_id = str(call.from_user.id)
+        chat_id = call.message.chat.id
+        message_id = call.message.message_id
         async_logger = await get_async_logger()
+        first_name = self.input_validator.sanitize_text(call.from_user.first_name)
+        username = self.input_validator.sanitize_text(call.from_user.username or "N/A")
+
+        # 1. Answer callback & Edit with Instant Loading GIF
+        await self.bot.answer_callback_query(call.id)
+
+        dummy_caption = (
+            f"<b>Hᴇʟʟᴏ</b> {first_name} <b>!</b>\n\n"
+            f"<b>💰 Yᴏᴜʀ Bᴀʟᴀɴᴄᴇ :</b> <code>⩇⩇</code> 💎\n"
+            f"<b>📊 Tᴏᴛᴀʟ Nᴜᴍʙᴇʀ Pᴜʀᴄʜᴀsᴇᴅ :</b> <code>⩇⩇</code>\n\n"
+            "<b>📌 Rᴀɴᴋ Hᴇʟᴘs Tᴏ Iɴᴄʀᴇᴀsᴇ Dɪsᴄᴏᴜɴᴛ Oɴ Sᴇʀᴠɪᴄᴇs...</b>"
+        )
+        keyboard = await self._create_welcome_keyboard()
 
         try:
-            first_name = self.input_validator.sanitize_text(call.from_user.first_name)
-            username = self.input_validator.sanitize_text(call.from_user.username or "N/A")
+            from utils.config import LOADING_GIF
+            from utils.media_manager import edit_or_cached_media
+            await edit_or_cached_media(
+                bot=self.bot,
+                chat_id=chat_id,
+                message_id=message_id,
+                media_key="load_page_gif",
+                file_source=LOADING_GIF,
+                caption=dummy_caption,
+                parse_mode="HTML",
+                reply_markup=keyboard,
+                media_type="animation"
+            )
+        except Exception as e:
+            await async_logger.warn(f"Fast loading callback edit warning: {e}")
 
+        # 2. Fetch User Data in Background
+        try:
             data = await self.aggregator.get_user(user_id)
 
             if not data["response"]:
                 user_data = await self._create_new_user_data(call.message, first_name, username)
                 validation_result = self.input_validator.validate_user_data(user_data)
-                
-                if not validation_result['valid']:
-                    await async_logger.error(f"Invalid user data: {validation_result.get('error')}")
-                    await self.bot.answer_callback_query(call.id, "Failed to create account. Please try again later.")
-                    return
-
-                result = await self.user_manager.update_user_data(user_id, validation_result['data'])
-                if not result["response"]:
-                    await async_logger.error(f"Failed to create user: {result.get('error')}")
-                    await self.bot.answer_callback_query(call.id, "Failed to create account. Please try again later.")
-                    return
-
-                await self.bot.answer_callback_query(call.id, f"Welcome, {first_name}! Your account has been created.")
-
+                if validation_result['valid']:
+                    await self.user_manager.update_user_data(user_id, validation_result['data'])
+                data = await self.aggregator.get_user(user_id)
             else:
                 user_data = {
                     'first_name': str(first_name)[:50],
                     'username': str(username)[:50],
                     'last_updated': time.time()
                 }
-           
-                update_result = await self.user_manager.update_user_data(user_id, user_data)
-                if not update_result["response"]:
-                    await async_logger.error(f"Failed to update user: {update_result.get('error')}")
-                    await self.bot.answer_callback_query(call.id, "Error updating your profile. Please try again later.")
-                    return
+                await self.user_manager.update_user_data(user_id, user_data)
+                data = await self.aggregator.get_user(user_id)
 
-            await self.handle_start_display(self.bot, call.message, data, "edit")
-            await self.bot.answer_callback_query(call.id)
+            # 3. Edit Message with Real Data & START_PAGE Media
+            current_balance = data.get("metrics", {}).get("current_balance", 0)
+            total_orders = data.get("metrics", {}).get("orders", {}).get("count", 0)
+            real_caption = await self._create_welcome_caption(first_name, current_balance, total_orders)
+
+            from utils.media_manager import edit_or_cached_media
+            await edit_or_cached_media(
+                bot=self.bot,
+                chat_id=chat_id,
+                message_id=message_id,
+                media_key="main_menu",
+                file_source=START_PAGE,
+                caption=real_caption,
+                parse_mode="HTML",
+                reply_markup=keyboard,
+                media_type="photo"
+            )
 
         except Exception as e:
             await async_logger.error(f"Error in handle_start_callback: {e}")
-            await self.bot.answer_callback_query(call.id, "An error occurred. Please try again later.")
 
     # ----------------- Redis & Join Request Helper Methods -----------------
     async def _save_message_id(self, user_id: int, message_id: int) -> None:

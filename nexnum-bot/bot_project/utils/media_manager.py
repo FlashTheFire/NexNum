@@ -65,8 +65,15 @@ async def send_or_cached_media(
     High-performance media sender using Redis & PostgreSQL for sub-millisecond Telegram file_id lookup.
     Automatically invalidates cache if local image source file or URL changes.
     """
-    redis_key = f"bot_media_cache:{media_key}"
-    sig_key = f"bot_media_cache:{media_key}:sig"
+    # 0. Auto-detect media_type for .gif files first
+    if isinstance(file_source, str):
+        if file_source.lower().endswith('.gif'):
+            media_type = "animation"
+        elif file_source.lower().endswith(('.mp4', '.avi', '.mov')):
+            media_type = "video"
+
+    redis_key = f"bot_media_cache:{media_type}:{media_key}"
+    sig_key = f"bot_media_cache:{media_type}:{media_key}:sig"
     current_sig = _get_source_signature(file_source)
 
     cached_file_id: Optional[str] = None
@@ -88,8 +95,8 @@ async def send_or_cached_media(
     if not cached_file_id:
         try:
             cached_session = await db_adapter.get_user_session("GLOBAL_MEDIA_CACHE") or {}
-            cached_file_id = cached_session.get(f"media_file_id:{media_key}")
-            cached_sig = cached_session.get(f"media_sig:{media_key}")
+            cached_file_id = cached_session.get(f"media_file_id:{media_type}:{media_key}")
+            cached_sig = cached_session.get(f"media_sig:{media_type}:{media_key}")
         except Exception as pg_err:
             logger.warning(f"PostgreSQL lookup for '{media_key}' failed: {pg_err}")
 
@@ -116,7 +123,7 @@ async def send_or_cached_media(
     sent_msg = None
     if os.path.exists(file_source):
         with open(file_source, "rb") as f:
-            input_file = InputFile(f)
+            input_file = InputFile(f, file_name=os.path.basename(file_source))
             if media_type == "photo":
                 sent_msg = await bot.send_photo(chat_id, input_file, caption=caption, parse_mode=parse_mode, reply_markup=reply_markup)
             elif media_type == "video":
@@ -184,12 +191,14 @@ async def edit_or_cached_media(
     Edits message media using sub-millisecond cached file_id string, automatically uploading
     and caching local file paths or URLs if cache misses or source file changes.
     """
-    if not isinstance(file_source, str):
-        media_obj = prepare_input_media(file_source, caption=caption, parse_mode=parse_mode, media_type=media_type)
-        return await bot.edit_message_media(media=media_obj, chat_id=chat_id, message_id=message_id, reply_markup=reply_markup)
+    if isinstance(file_source, str):
+        if file_source.lower().endswith('.gif'):
+            media_type = "animation"
+        elif file_source.lower().endswith(('.mp4', '.avi', '.mov')):
+            media_type = "video"
 
-    redis_key = f"bot_media_cache:{media_key}"
-    sig_key = f"bot_media_cache:{media_key}:sig"
+    redis_key = f"bot_media_cache:{media_type}:{media_key}"
+    sig_key = f"bot_media_cache:{media_type}:{media_key}:sig"
     current_sig = _get_source_signature(file_source)
 
     cached_file_id: Optional[str] = None
@@ -209,8 +218,8 @@ async def edit_or_cached_media(
     if not cached_file_id:
         try:
             cached_session = await db_adapter.get_user_session("GLOBAL_MEDIA_CACHE") or {}
-            cached_file_id = cached_session.get(f"media_file_id:{media_key}")
-            cached_sig = cached_session.get(f"media_sig:{media_key}")
+            cached_file_id = cached_session.get(f"media_file_id:{media_type}:{media_key}")
+            cached_sig = cached_session.get(f"media_sig:{media_type}:{media_key}")
         except Exception:
             pass
 

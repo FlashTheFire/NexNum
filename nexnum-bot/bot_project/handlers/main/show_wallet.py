@@ -369,21 +369,20 @@ class UserWalletManagement:
     async def _show_loading_animation(self, chat_id: int, message_id: int, keyboard) -> None:
         """Display loading animation during data processing asynchronously"""
         try:
-            await self.bot.edit_message_media(
-                media=prepare_input_media(
-                    media_source=LOADING_GIF, 
-                    caption=self._get_loading_caption_template(), 
-                    parse_mode="HTML",
-                    media_type="animation"
-                ),
+            from utils.media_manager import edit_or_cached_media
+            await edit_or_cached_media(
+                bot=self.bot,
                 chat_id=chat_id,
                 message_id=message_id,
-                reply_markup=keyboard
+                media_key="load_page_gif",
+                file_source=LOADING_GIF,
+                caption=self._get_loading_caption_template(),
+                parse_mode="HTML",
+                reply_markup=keyboard,
+                media_type="animation"
             )
-            #loggging.debug("Loading animation displayed.")
         except Exception as e:
             pass
-            #loggging.error(f"Loading animation error: {e}")
 
     async def _get_user_wallet_data(self, user_id: str) -> Optional[dict]:
         """Retrieve and process user wallet data asynchronously"""

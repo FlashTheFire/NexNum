@@ -246,16 +246,17 @@ class ShowDepositManager:
                 "⏳ <b>Pᴀʏ Uɴᴅᴇʀ  »</b>  {} <b>[</b><code>{}</code> <code>Mɪɴ</code><b>]</b>\n\n"
                 "📌 <b>Sᴄᴀɴ Tʜɪs Qʀ Aɴᴅ Pᴀʏ Fʀᴏᴍ Aɴʏ Pᴀʏᴍᴇɴᴛ Aᴘᴘ.</b>"
             )
-            loading_msg = await self.bot.edit_message_media(
-                media=prepare_input_media(
-                    media_source=LOADING_GIF,
-                    caption=caption.format('⩇⩇', '⩇⩇', '⩇⩇⩇⩇⩇⩇⩇⩇⩇⩇⩇⩇', '⩇⩇:⩇⩇ Pᴍ', '⩇⩇'),
-                    parse_mode="HTML",
-                    media_type="animation"
-                ),
+            from utils.media_manager import edit_or_cached_media
+            loading_msg = await edit_or_cached_media(
+                bot=self.bot,
                 chat_id=call.message.chat.id,
                 message_id=call.message.message_id,
-                reply_markup=keyboard
+                media_key="load_page_gif",
+                file_source=LOADING_GIF,
+                caption=caption.format('⩇⩇', '⩇⩇', '⩇⩇⩇⩇⩇⩇⩇⩇⩇⩇⩇⩇', '⩇⩇:⩇⩇ Pᴍ', '⩇⩇'),
+                parse_mode="HTML",
+                reply_markup=keyboard,
+                media_type="animation"
             )
 
             server_id = 1

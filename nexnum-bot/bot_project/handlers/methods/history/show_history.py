@@ -301,7 +301,7 @@ class HistoryManager:
                 else:
                     # selection styling
                     if start_date and not end_date and ds == start_date:
-                        disp = get_circled_number(int(day))
+                        disp = get_circled_number(day)
                     elif start_date and end_date:
                         if ds == start_date:
                             disp = f'»{day}'
@@ -387,16 +387,17 @@ class HistoryManager:
                 f"📈 <b>Dᴇᴘᴏsɪᴛs  »</b>  <code>0.00</code> 💎  〚$ <code>0.00</code>〛\n\n"
                 "🏛️ <b>Yᴏᴜ Cᴀɴ Sᴇᴀʀᴄʜ Yᴏᴜʀ Tʀᴀɴsᴀᴄᴛɪᴏɴs Bʏ Dᴀᴛᴇ Aɴᴅ Tʏᴘᴇ. Tʜɪs Wɪʟʟ Hᴇʟᴘ Yᴏᴜ Eᴀsɪʟʏ Aɴᴀʟʏᴢᴇ Yᴏᴜʀ Fᴜᴛᴜʀᴇ Fɪɴᴀɴᴄᴇs..</b>"
             )
-            await self.bot.edit_message_media(
-                media=prepare_input_media(
-                    media_source=LOADING_GIF, 
-                    caption=caption,
-                    parse_mode="HTML",
-                    media_type="animation"
-                ),
+            from utils.media_manager import edit_or_cached_media
+            await edit_or_cached_media(
+                bot=self.bot,
                 chat_id=chat_id,
                 message_id=message_id,
-                reply_markup=keyboard
+                media_key="load_page_gif",
+                file_source=LOADING_GIF,
+                caption=caption,
+                parse_mode="HTML",
+                reply_markup=keyboard,
+                media_type="animation"
             )
         except Exception as e:
             logger.error(f"Error displaying loading animation: {e}")
@@ -450,15 +451,17 @@ class HistoryManager:
 
                     async def update_message():
                         try:
-                            await self.bot.edit_message_media(
-                                media=prepare_input_media(
-                                    media_source=HISTORY_PAGE,
-                                    caption=caption,
-                                    parse_mode='HTML'
-                                ),
+                            from utils.media_manager import edit_or_cached_media
+                            await edit_or_cached_media(
+                                bot=self.bot,
                                 chat_id=chat_id,
                                 message_id=message_id,
-                                reply_markup=keyboard
+                                media_key="history_main_page",
+                                file_source=HISTORY_PAGE,
+                                caption=caption,
+                                parse_mode='HTML',
+                                reply_markup=keyboard,
+                                media_type="photo"
                             )
                         except Exception as e:
                             logger.error(f"Error updating message: {e}")

@@ -77,21 +77,20 @@ class ReferManagement:
     async def _show_loading_animation(self, chat_id: int, message_id: int, keyboard, caption: str) -> None:
         """Display loading animation during data processing asynchronously"""
         try:
-            await self.bot.edit_message_media(
-                media=prepare_input_media(
-                    media_source=LOADING_GIF, 
-                    caption=caption,
-                    parse_mode="HTML",
-                    media_type="animation"
-                ),
+            from utils.media_manager import edit_or_cached_media
+            await edit_or_cached_media(
+                bot=self.bot,
                 chat_id=chat_id,
                 message_id=message_id,
-                reply_markup=keyboard
+                media_key="load_page_gif",
+                file_source=LOADING_GIF,
+                caption=caption,
+                parse_mode="HTML",
+                reply_markup=keyboard,
+                media_type="animation"
             )
-            #loggging.debug("Loading animation displayed.")
         except Exception as e:
             pass
-            #loggging.error(f"Loading animation error: {e}")
 
     async def referral_handle(self, bot: AsyncTeleBot, call, request_type="new"):
         chat_id = call.message.chat.id
