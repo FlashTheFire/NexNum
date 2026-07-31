@@ -31,6 +31,7 @@ from telebot.types import (
 )
 
 
+import logging
 from utils.media_manager import prepare_input_media, edit_or_cached_media
 
 # Local imports – ensure these modules are available in your project.
@@ -40,10 +41,12 @@ from utils.functions import AfterMin, format_currency, qr_code, encode_order_id,
 from handlers.manager.operation import UserManagement, OrderManagement, DepositManagement
 from handlers.security import RateLimiter, TransactionGuard
 from utils.config import DEPOSIT_TIMEOUT, INR_RATE, PAYMENT_GATEWAY_API, PAYMENT_GATEWAY_API_KEY, DEPOSIT_PAGE, LOADING_GIF, MIN_DEPOSIT
+from utils.redis_manager import redis_manager, RedisManager
+from utils.cache_manager import cache_manager, CachePrefix
 from redis.asyncio.client import Redis
 import string
 from functools import lru_cache, partial
-#logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 # ───────────────────────── constants & helpers ─────────────────────────────
 REDEEM_CODE_PREFIX    = "redeem_code:"
