@@ -1,20 +1,18 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
     Sparkles,
     RefreshCw,
     Clock,
+    ShieldCheck,
     Globe,
     Smartphone,
-    ShieldCheck,
-    RotateCcw,
-    ChevronDown,
-    HelpCircle,
-    Info
+    ChevronLeft,
+    ChevronRight,
+    HelpCircle
 } from "lucide-react"
-import { Card, CardContent } from "@/components/ui/card"
 import { cn } from "@/lib/utils/utils"
 
 interface SMSTroubleshootingCardProps {
@@ -22,132 +20,221 @@ interface SMSTroubleshootingCardProps {
 }
 
 export function SMSTroubleshootingCard({ className }: SMSTroubleshootingCardProps) {
-    const [isExpanded, setIsExpanded] = useState(true)
-
     const tips = [
         {
+            id: 1,
             icon: RefreshCw,
-            iconColor: "text-amber-400 bg-amber-500/10 border-amber-500/20",
-            title: "Auto-Refresh & Fast Copy",
-            description: "Messages auto-refresh every 10 seconds. Click on any received code to copy it instantly."
+            badge: "Instant Copy",
+            title: "Auto-Refresh Every 10s",
+            text: "Messages auto-refresh every 10s. Click on any verification code to copy it instantly to your clipboard.",
+            highlightColor: "text-[hsl(var(--neon-lime))]",
+            badgeBg: "bg-[hsl(var(--neon-lime)/0.15)] text-[hsl(var(--neon-lime))] border-[hsl(var(--neon-lime)/0.3)]"
         },
         {
+            id: 2,
             icon: Clock,
-            iconColor: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
-            title: "2-Minute OTP Rule & Instant Refund",
-            description: "If OTP doesn't arrive within 2 minutes, cancel the purchase to receive a 100% full refund immediately."
+            badge: "100% Refundable",
+            title: "2-Minute OTP Recommendation",
+            text: "If the OTP doesn't arrive within 2 minutes, we recommend cancelling the purchase and trying a new number.",
+            highlightColor: "text-amber-400",
+            badgeBg: "bg-amber-500/15 text-amber-300 border-amber-500/30"
         },
         {
-            icon: RotateCcw,
-            iconColor: "text-blue-400 bg-blue-500/10 border-blue-500/20",
-            title: "Re-send SMS Code",
-            description: "Try requesting the SMS message again inside the app or website you are registering for."
-        },
-        {
-            icon: Globe,
-            iconColor: "text-purple-400 bg-purple-500/10 border-purple-500/20",
-            title: "Matching IP & VPN Country",
-            description: "Ensure your IP address / VPN country matches the country of the phone number you bought."
-        },
-        {
-            icon: Smartphone,
-            iconColor: "text-cyan-400 bg-cyan-500/10 border-cyan-500/20",
-            title: "Switch Browser or Device",
-            description: "If verification fails, try using Incognito mode, a different web browser, or a different mobile device."
-        },
-        {
+            id: 3,
             icon: ShieldCheck,
-            iconColor: "text-lime-400 bg-lime-500/10 border-lime-500/20",
-            title: "Zero Risk Guarantee",
-            description: "You are only charged for successfully received SMS codes. No SMS = No Cost."
+            badge: "Zero Risk",
+            title: "Charged Only On Success",
+            text: "Don't worry, you are strictly charged for successful SMS receptions. No message received = 0 cost.",
+            highlightColor: "text-emerald-400",
+            badgeBg: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
+        },
+        {
+            id: 4,
+            icon: Globe,
+            badge: "Location Match",
+            title: "IP Address & Country Sync",
+            text: "Your IP address' country should match the country of the phone number bought. Be sure to use a matching Proxy or VPN.",
+            highlightColor: "text-cyan-400",
+            badgeBg: "bg-cyan-500/15 text-cyan-300 border-cyan-500/30"
+        },
+        {
+            id: 5,
+            icon: Smartphone,
+            badge: "Device Tip",
+            title: "Different Browser or Device",
+            text: "Can't receive SMS? Try requesting the message again, or use Incognito mode / a different browser or device for signing up.",
+            highlightColor: "text-purple-400",
+            badgeBg: "bg-purple-500/15 text-purple-300 border-purple-500/30"
         }
     ]
 
-    return (
-        <Card className={cn(
-            "relative overflow-hidden transition-all duration-300 border-amber-500/20",
-            "bg-gradient-to-br from-amber-500/[0.08] via-[#14161d]/80 to-[#0c0d11]/90",
-            "backdrop-blur-xl shadow-[0_8px_32px_rgba(245,158,11,0.06)] rounded-2xl",
-            className
-        )}>
-            {/* Top Glowing Ambient Border */}
-            <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-amber-500/40 to-transparent" />
+    const [currentIndex, setCurrentIndex] = useState(0)
+    const [isPaused, setIsPaused] = useState(false)
+    const [direction, setDirection] = useState(1) // 1 = forward, -1 = backward
 
-            <div className="p-4 md:p-5">
+    // 5-second auto scroll timer
+    useEffect(() => {
+        if (isPaused) return
+
+        const timer = setInterval(() => {
+            setDirection(1)
+            setCurrentIndex((prev) => (prev + 1) % tips.length)
+        }, 5000)
+
+        return () => clearInterval(timer)
+    }, [isPaused, tips.length])
+
+    const handleNext = () => {
+        setDirection(1)
+        setCurrentIndex((prev) => (prev + 1) % tips.length)
+    }
+
+    const handlePrev = () => {
+        setDirection(-1)
+        setCurrentIndex((prev) => (prev - 1 + tips.length) % tips.length)
+    }
+
+    const handleDotClick = (index: number) => {
+        setDirection(index > currentIndex ? 1 : -1)
+        setCurrentIndex(index)
+    }
+
+    const currentTip = tips[currentIndex]
+    const IconComponent = currentTip.icon
+
+    const slideVariants = {
+        enter: (dir: number) => ({
+            x: dir > 0 ? 40 : -40,
+            opacity: 0,
+            scale: 0.96
+        }),
+        center: {
+            x: 0,
+            opacity: 1,
+            scale: 1,
+            transition: { duration: 0.35, ease: [0.22, 1, 0.36, 1] }
+        },
+        exit: (dir: number) => ({
+            x: dir > 0 ? -40 : 40,
+            opacity: 0,
+            scale: 0.96,
+            transition: { duration: 0.25 }
+        })
+    }
+
+    return (
+        <div
+            onMouseEnter={() => setIsPaused(true)}
+            onMouseLeave={() => setIsPaused(false)}
+            className={cn(
+                "relative w-full rounded-2xl border overflow-hidden transition-all duration-300",
+                "bg-gradient-to-br from-[#13151a] to-[#0d0e12]",
+                "border-[hsl(var(--neon-lime)/0.25)] shadow-xl",
+                className
+            )}
+        >
+            {/* Top Glow Ambient Line */}
+            <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-[hsl(var(--neon-lime)/0.6)] to-transparent" />
+
+            <div className="p-4 md:p-5 space-y-4">
                 {/* Header Row */}
-                <div 
-                    onClick={() => setIsExpanded(!isExpanded)}
-                    className="flex items-center justify-between cursor-pointer select-none group"
-                >
-                    <div className="flex items-center gap-3">
-                        <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.2)] group-hover:scale-105 transition-transform">
-                            <Sparkles className="h-4.5 w-4.5" />
-                        </div>
-                        <div>
-                            <div className="flex items-center gap-2">
-                                <h4 className="text-sm font-bold text-amber-100 group-hover:text-white transition-colors">
-                                    Troubleshooting & OTP Guide
-                                </h4>
-                                <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold tracking-wide">
-                                    100% Refundable
-                                </span>
-                            </div>
-                            <p className="text-[11px] text-amber-500/70 mt-0.5">
-                                Can't receive SMS? Follow these quick tips
-                            </p>
-                        </div>
+                <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                        <span className="relative flex h-2.5 w-2.5">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[hsl(var(--neon-lime))] opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[hsl(var(--neon-lime))]"></span>
+                        </span>
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
+                            Troubleshooting Tips
+                        </h4>
                     </div>
 
-                    <div className="p-1.5 rounded-lg bg-white/5 border border-white/10 text-gray-400 group-hover:text-white group-hover:bg-white/10 transition-all">
-                        <ChevronDown className={cn("h-4 w-4 transition-transform duration-300", isExpanded && "rotate-180")} />
+                    {/* Floating Type Dots (Dynamic Indicator) */}
+                    <div className="flex items-center gap-1.5">
+                        {tips.map((tip, idx) => (
+                            <button
+                                key={tip.id}
+                                onClick={() => handleDotClick(idx)}
+                                aria-label={`Go to tip ${idx + 1}`}
+                                className={cn(
+                                    "h-2 rounded-full transition-all duration-300 outline-none focus-visible:ring-1 focus-visible:ring-[hsl(var(--neon-lime))]",
+                                    idx === currentIndex
+                                        ? "w-6 bg-[hsl(var(--neon-lime))] shadow-[0_0_10px_hsl(var(--neon-lime)/0.8)]"
+                                        : "w-2 bg-white/20 hover:bg-white/40"
+                                )}
+                            />
+                        ))}
                     </div>
                 </div>
 
-                {/* Collapsible Content */}
-                <AnimatePresence initial={false}>
-                    {isExpanded && (
+                {/* Main Tip Slide View (1 Tip at Once) */}
+                <div className="relative min-h-[90px] flex items-center">
+                    <AnimatePresence custom={direction} mode="wait">
                         <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: "auto" }}
-                            exit={{ opacity: 0, height: 0 }}
-                            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-                            className="overflow-hidden"
+                            key={currentTip.id}
+                            custom={direction}
+                            variants={slideVariants}
+                            initial="enter"
+                            animate="center"
+                            exit="exit"
+                            className="w-full flex items-start gap-3.5"
                         >
-                            <div className="pt-4 mt-3 border-t border-amber-500/10 grid grid-cols-1 md:grid-cols-2 gap-3">
-                                {tips.map((tip, idx) => {
-                                    const IconComponent = tip.icon
-                                    return (
-                                        <div 
-                                            key={idx}
-                                            className="p-3 rounded-xl bg-black/30 border border-white/5 hover:border-amber-500/20 hover:bg-black/50 transition-all group/item flex items-start gap-3"
-                                        >
-                                            <div className={cn("p-2 rounded-lg border shrink-0 mt-0.5 transition-transform group-hover/item:scale-110", tip.iconColor)}>
-                                                <IconComponent className="h-4 w-4" />
-                                            </div>
-                                            <div className="min-w-0 flex-1">
-                                                <h5 className="text-xs font-semibold text-gray-200 group-hover/item:text-white transition-colors leading-tight mb-1">
-                                                    {tip.title}
-                                                </h5>
-                                                <p className="text-[11px] text-gray-400 leading-normal">
-                                                    {tip.description}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    )
-                                })}
+                            {/* Icon Box */}
+                            <div className={cn(
+                                "p-3 rounded-xl border shrink-0 transition-all",
+                                "bg-[#1a1d24] border-white/10 shadow-md"
+                            )}>
+                                <IconComponent className={cn("h-5 w-5", currentTip.highlightColor)} />
                             </div>
 
-                            {/* Footer Notice */}
-                            <div className="mt-3 p-2.5 rounded-xl bg-amber-500/5 border border-amber-500/15 flex items-center gap-2.5">
-                                <Info className="h-4 w-4 text-amber-400 shrink-0" />
-                                <p className="text-[11px] text-amber-200/90 leading-tight">
-                                    <span className="font-semibold text-amber-300">Need a new number?</span> Click <span className="font-semibold text-white">"Next Number"</span> or cancel anytime before expiration for instant credit refund.
+                            {/* Text & Title */}
+                            <div className="min-w-0 flex-1 space-y-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <h5 className="text-sm font-semibold text-white leading-tight">
+                                        {currentTip.title}
+                                    </h5>
+                                    <span className={cn("px-2 py-0.5 rounded-full border text-[10px] font-bold tracking-wide", currentTip.badgeBg)}>
+                                        {currentTip.badge}
+                                    </span>
+                                </div>
+                                <p className="text-xs text-gray-400 leading-relaxed font-normal">
+                                    {currentTip.text}
                                 </p>
                             </div>
                         </motion.div>
-                    )}
-                </AnimatePresence>
+                    </AnimatePresence>
+                </div>
+
+                {/* Bottom Navigation & Auto-scroll Progress Indicator */}
+                <div className="flex items-center justify-between pt-2 border-t border-white/5 text-[11px] text-gray-500">
+                    <span className="flex items-center gap-1.5 font-medium">
+                        <span className="text-[hsl(var(--neon-lime))] font-bold">{currentIndex + 1}</span> / {tips.length} Tips
+                        {isPaused && (
+                            <span className="text-[10px] text-amber-400/80 bg-amber-500/10 px-1.5 py-0.5 rounded-md border border-amber-500/20 ml-1">
+                                Paused
+                            </span>
+                        )}
+                    </span>
+
+                    {/* Navigation Buttons */}
+                    <div className="flex items-center gap-1.5">
+                        <button
+                            onClick={handlePrev}
+                            className="p-1 rounded-lg bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                            aria-label="Previous tip"
+                        >
+                            <ChevronLeft className="h-4 w-4" />
+                        </button>
+                        <button
+                            onClick={handleNext}
+                            className="p-1 rounded-lg bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                            aria-label="Next tip"
+                        >
+                            <ChevronRight className="h-4 w-4" />
+                        </button>
+                    </div>
+                </div>
             </div>
-        </Card>
+        </div>
     )
 }
