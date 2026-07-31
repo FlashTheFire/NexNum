@@ -213,6 +213,8 @@ services:
       TELEGRAM_ADMIN_CHANNEL: ${TELEGRAM_ADMIN_CHANNEL:-${CHANNEL_ID}}
       PUBLIC_APP_URL: ${PUBLIC_APP_URL:-${NEXT_PUBLIC_APP_URL}}
       PAYMENT_GATEWAY_API_KEY: ${PAYMENT_GATEWAY_API_KEY:-dummy_gateway_key}
+      USE_WEBHOOK: ${USE_WEBHOOK:-false}
+      WEBHOOK_URL: ${WEBHOOK_URL:-}
     env_file:
       - .env
     ports:

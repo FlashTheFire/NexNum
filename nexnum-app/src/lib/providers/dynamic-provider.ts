@@ -957,8 +957,9 @@ export class DynamicProvider implements SmsProvider {
                     if (keys.length > 0 && typeof root[keys[0]] === 'object') {
                         return this.parseJsonDictionary(root, mapConfig, { mappingKey })
                     }
-                    // Single object
-                    return [this.mapFields(root, mapConfig.fields, { mappingKey })]
+                    // Single object - apply conditionalFields dynamically
+                    const fields = this.resolveEffectiveFields(root, mapConfig)
+                    return [this.mapFields(root, fields, { mappingKey })]
                 }
                 if (Array.isArray(root)) {
                     return this.parseJsonArray(root, mapConfig)
@@ -988,7 +989,10 @@ export class DynamicProvider implements SmsProvider {
 
     private parseJsonArray(arr: any[], mapConfig: MappingConfig): any[] {
         if (!Array.isArray(arr)) return []
-        return arr.map((item, index) => this.mapFields(item, mapConfig.fields, { index }))
+        return arr.map((item, index) => {
+            const fields = this.resolveEffectiveFields(item, mapConfig)
+            return this.mapFields(item, fields, { index })
+        })
     }
 
     /**
@@ -1007,9 +1011,10 @@ export class DynamicProvider implements SmsProvider {
                     return [{ [fieldName]: value[key] }]
                 }
             }
-            // If fields are specified, try to map them
-            if (mapConfig.fields && Object.keys(mapConfig.fields).length > 0) {
-                return [this.mapFields(value, mapConfig.fields, {})]
+            // If fields are specified, try to map them with conditional fields support
+            const fields = this.resolveEffectiveFields(value, mapConfig)
+            if (fields && Object.keys(fields).length > 0) {
+                return [this.mapFields(value, fields, {})]
             }
             return [value]
         }
@@ -1031,10 +1036,11 @@ export class DynamicProvider implements SmsProvider {
 
         const positionFields = mapConfig.positionFields || {}
 
-        // If no positionFields defined, use fields mapping with numeric keys
+        // If no positionFields defined, use fields mapping with numeric keys (supports conditionalFields)
+        const effectiveFields = this.resolveEffectiveFields(arr, mapConfig)
         const fieldMap = Object.keys(positionFields).length > 0
             ? positionFields
-            : mapConfig.fields
+            : effectiveFields
 
         return arrays.map(item => {
             const result: any = {}
@@ -1068,8 +1074,9 @@ export class DynamicProvider implements SmsProvider {
 
         for (const [key, value] of Object.entries(obj)) {
             if (typeof value === 'object' && value !== null) {
-                // Value is an object - merge key as ID field
-                const mapped = this.mapFields(value, mapConfig.fields || {}, { key, value })
+                // Value is an object - merge key as ID field & evaluate conditionalFields
+                const fields = this.resolveEffectiveFields(value, mapConfig)
+                const mapped = this.mapFields(value, fields || {}, { key, value })
                 mapped[keyField] = key
                 results.push(mapped)
             } else {
