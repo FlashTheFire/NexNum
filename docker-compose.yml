@@ -24,6 +24,8 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
+      PG_POOL_MAX: 20
+      NEXT_DISABLE_INTERNAL_WORKERS: "true"
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       MEILISEARCH_HOST: http://meilisearch:7700
       SOCKET_HOST: nexnum-socket
@@ -67,6 +69,8 @@ services:
       - 1.1.1.1
     environment:
       NODE_ENV: production
+      HEALTH_PORT: 3002
+      PG_POOL_MAX: 20
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       MEILISEARCH_HOST: http://meilisearch:7700
       TELEGRAM_BOT_TOKEN: ${BOT_TOKEN}
