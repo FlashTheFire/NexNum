@@ -87,14 +87,7 @@ class DatabaseAdapter:
             sql_script = sql_file.read_text(encoding="utf-8")
             async with self.pool.connection() as conn:
                 async with conn.cursor() as cur:
-                    for raw_stmt in sql_script.split(";"):
-                        stmt = raw_stmt.strip()
-                        if not stmt or stmt.upper() in ("BEGIN", "COMMIT"):
-                            continue
-                        try:
-                            await cur.execute(stmt)
-                        except Exception as stmt_err:
-                            logger.warning(f"Schema migration statement warning: {stmt_err}")
+                    await cur.execute(sql_script)
                 await conn.commit()
             logger.info("Successfully verified/created bot PostgreSQL schema tables (user_sessions, etc.).")
             return True
@@ -446,10 +439,22 @@ class DatabaseAdapter:
                 }
 
     async def get_financial_summary(self, telegram_id: str) -> Dict[str, Any]:
-        """Retrieve user financial metrics (balance, total deposits, total spent, order counts)."""
-        tg_id_str = telegram_id
-        pool = await self._ensure_pool()
+        """Retrieve user financial metrics (balance, total deposits, total spent, order counts) with sub-millisecond Redis caching."""
+        tg_id_str = str(telegram_id)
+        redis_key = f"user_fin_summary:{tg_id_str}"
 
+        # 1. Fast Path: Check Redis Cache (< 2ms)
+        try:
+            from .redis_manager import redis_manager
+            if redis_manager.redis_client:
+                cached_bytes = await redis_manager.redis_client.get(redis_key)
+                if cached_bytes:
+                    return json.loads(cached_bytes.decode('utf-8') if isinstance(cached_bytes, bytes) else str(cached_bytes))
+        except Exception as cache_err:
+            logger.debug(f"Redis lookup for financial summary failed: {cache_err}")
+
+        # 2. Database Fallback
+        pool = await self._ensure_pool()
         user_info = await self.get_or_create_user(tg_id_str)
         user_uuid = user_info['id']
 
@@ -472,7 +477,7 @@ class DatabaseAdapter:
                 )
                 ord_res: Any = await cur.fetchone() or {"order_sum": 0.0, "order_count": 0}
 
-                return {
+                summary = {
                     "response": True,
                     "full_name": user_info['name'],
                     "metrics": {
@@ -488,6 +493,25 @@ class DatabaseAdapter:
                         }
                     }
                 }
+
+                # 3. Store in Redis Cache (15s TTL)
+                try:
+                    from .redis_manager import redis_manager
+                    if redis_manager.redis_client:
+                        await redis_manager.redis_client.setex(redis_key, 15, json.dumps(summary))
+                except Exception:
+                    pass
+
+                return summary
+
+    async def invalidate_financial_summary(self, telegram_id: str) -> None:
+        """Purge financial summary cache for a user upon wallet or order state change."""
+        try:
+            from .redis_manager import redis_manager
+            if redis_manager.redis_client:
+                await redis_manager.redis_client.delete(f"user_fin_summary:{telegram_id}")
+        except Exception:
+            pass
 
     async def consume_account_link(self, code: str, telegram_id: str, name: Optional[str] = None) -> Dict[str, Any]:
         """
