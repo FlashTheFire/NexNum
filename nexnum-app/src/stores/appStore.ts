@@ -443,6 +443,12 @@ export const useGlobalStore = create<GlobalState>()(
             // Cancel number via API
             setCancel: async (id: string) => {
                 const result = await api.setCancel(id)
+                if (result.success) {
+                    set(state => ({
+                        activeNumbers: state.activeNumbers.map(n => n.id === id ? { ...n, status: 'cancelled' } : n)
+                    }))
+                    get().fetchBalance().catch(() => {})
+                }
                 return result
             },
 

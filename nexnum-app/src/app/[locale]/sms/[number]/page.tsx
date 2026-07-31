@@ -182,7 +182,7 @@ export default function SMSPage() {
     }, [displayNumber])
 
     const handleRefresh = async () => {
-        toast.promise(refresh(), {
+        toast.promise(fetchNumbers(), {
             loading: 'Checking for new messages...',
             success: 'Inbox updated',
             error: 'Failed to refresh'
@@ -246,12 +246,14 @@ export default function SMSPage() {
             const result = await setCancel(displayNumber.id)
 
             if (result.success) {
+                const refundVal = (result as any).data?.refundAmount !== undefined 
+                    ? (result as any).data.refundAmount 
+                    : displayNumber.price
                 toast.success('Number cancelled', {
-                    description: `Refund of $${Number(displayNumber.price || 0).toFixed(2)} processed`
+                    description: `Refund of $${Number(refundVal || 0).toFixed(2)} processed`
                 })
                 setShowCancelConfirm(false)
-                // Stay on page to show cancelled state
-                // router.push('/dashboard')
+                await fetchNumbers()
             } else {
                 toast.error('Failed to cancel', {
                     description: result.error || 'Please try again'
@@ -259,7 +261,7 @@ export default function SMSPage() {
             }
         } catch (err: any) {
             toast.error('Failed to cancel', {
-                description: err.message
+                description: err?.message || 'Failed to cancel number'
             })
         } finally {
             setIsCancelLoading(false)
@@ -278,6 +280,7 @@ export default function SMSPage() {
                 toast.success('Activation completed', {
                     description: 'Number marked as finished'
                 })
+                await fetchNumbers()
             } else {
                 toast.error('Failed to complete', {
                     description: result.error || 'Please try again'
@@ -285,7 +288,7 @@ export default function SMSPage() {
             }
         } catch (err: any) {
             toast.error('Failed to complete', {
-                description: err.message
+                description: err?.message || 'Failed to complete activation'
             })
         } finally {
             setIsCompleting(false)
