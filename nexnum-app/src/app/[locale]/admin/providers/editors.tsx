@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react"
 import { Input } from "@/components/ui/input"
-import { Globe, Search } from "lucide-react"
+import { Globe, Search, Plus, Trash2, Zap } from "lucide-react"
 
 // --- Types & Constants ---
 // API Standardization v2.0 - Universal Method Naming Convention
@@ -361,6 +361,112 @@ export function MappingEditor({ mappings, onChange }: { mappings: any, onChange:
                                 ))}
                             </tbody>
                         </table>
+                    </div>
+                </div>
+            </div>
+
+            {/* Conditional Fields Editor */}
+            <div className="space-y-2 pt-2 border-t border-white/5">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <Zap className="w-3.5 h-3.5 text-amber-400" />
+                        <label className="text-[10px] md:text-xs font-semibold text-white/70 uppercase tracking-wider">Conditional Response & Error Rules</label>
+                    </div>
+                    <span className="text-[9px] text-amber-400/80 bg-amber-400/10 border border-amber-400/20 px-2 py-0.5 rounded-full font-mono">
+                        Universal Rule Engine
+                    </span>
+                </div>
+
+                <div className="bg-black/30 rounded-xl border border-white/10 p-3 space-y-3">
+                    <p className="text-[10px] text-white/50">
+                        Map raw provider responses or error codes (e.g. <code className="text-amber-300">NO_NUMBERS</code>, <code className="text-amber-300">STATUS_OK</code>, <code className="text-amber-300">sms.code</code>) to internal status and error messages.
+                    </p>
+
+                    {/* Existing Conditional Rules */}
+                    {Object.entries(currentMapping.conditionalFields || {}).length > 0 ? (
+                        <div className="space-y-2">
+                            {Object.entries(currentMapping.conditionalFields || {}).map(([triggerKey, ruleObj]: [string, any]) => (
+                                <div key={triggerKey} className="flex flex-wrap md:flex-nowrap items-center gap-2 bg-white/5 p-2 rounded-lg border border-white/5 font-mono text-xs">
+                                    <div className="flex-1 min-w-[120px]">
+                                        <span className="text-[9px] text-white/40 block">TRIGGER KEY / CODE</span>
+                                        <span className="text-amber-300 font-bold">{triggerKey}</span>
+                                    </div>
+                                    <div className="flex-1 min-w-[120px]">
+                                        <span className="text-[9px] text-white/40 block">MAP STATUS</span>
+                                        <span className="text-emerald-400">{ruleObj?.status || 'N/A'}</span>
+                                    </div>
+                                    <div className="flex-2 min-w-[160px]">
+                                        <span className="text-[9px] text-white/40 block">ERROR MESSAGE</span>
+                                        <span className="text-rose-300">{ruleObj?.error || '-'}</span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        title="Remove rule"
+                                        onClick={() => {
+                                            const updated = { ...(currentMapping.conditionalFields || {}) }
+                                            delete updated[triggerKey]
+                                            setMapping({ conditionalFields: updated })
+                                        }}
+                                        className="p-1.5 rounded-md hover:bg-rose-500/20 text-rose-400 transition-colors"
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="text-[10px] text-white/30 italic text-center py-2 bg-white/[0.02] rounded-lg border border-dashed border-white/5">
+                            No conditional rules added. Default fields will be used.
+                        </div>
+                    )}
+
+                    {/* Add New Rule Form */}
+                    <div className="pt-2 border-t border-white/5 grid grid-cols-1 md:grid-cols-3 gap-2">
+                        <input
+                            id="cond-trigger-input"
+                            className="bg-black/50 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-white/30 font-mono focus:border-amber-500/50 outline-none"
+                            placeholder="Trigger (e.g. NO_NUMBERS)"
+                        />
+                        <input
+                            id="cond-status-input"
+                            className="bg-black/50 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-white/30 font-mono focus:border-amber-500/50 outline-none"
+                            placeholder="Status (e.g. NO_NUMBERS)"
+                        />
+                        <div className="flex gap-2">
+                            <input
+                                id="cond-error-input"
+                                className="w-full bg-black/50 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-white/30 font-mono focus:border-amber-500/50 outline-none"
+                                placeholder="Error (optional)"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const trigger = (document.getElementById('cond-trigger-input') as HTMLInputElement)?.value?.trim()
+                                    const status = (document.getElementById('cond-status-input') as HTMLInputElement)?.value?.trim()
+                                    const error = (document.getElementById('cond-error-input') as HTMLInputElement)?.value?.trim()
+                                    if (!trigger) return
+
+                                    const rule: any = {}
+                                    if (status) rule.status = status
+                                    if (error) rule.error = error
+
+                                    setMapping({
+                                        conditionalFields: {
+                                            ...(currentMapping.conditionalFields || {}),
+                                            [trigger]: rule
+                                        }
+                                    })
+
+                                    ;(document.getElementById('cond-trigger-input') as HTMLInputElement).value = ''
+                                    ;(document.getElementById('cond-status-input') as HTMLInputElement).value = ''
+                                    ;(document.getElementById('cond-error-input') as HTMLInputElement).value = ''
+                                }}
+                                className="px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/30 text-xs font-semibold flex items-center gap-1 shrink-0 transition-all"
+                            >
+                                <Plus className="w-3.5 h-3.5" />
+                                Add
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
