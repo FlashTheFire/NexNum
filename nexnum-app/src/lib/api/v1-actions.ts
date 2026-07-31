@@ -449,6 +449,11 @@ export async function actionSetStatus(
         responseCode = 'ACCESS_RETRY_GET'
     } else if (code === 6 || code === 8) {
         // Finalize: "complete" (6) or "number used" (8). Wallet already committed at purchase.
+        try {
+            await smsProvider.setComplete?.(params.id)
+        } catch (e) {
+            logger.warn('[V1 setStatus] provider completion call failed', { error: (e as Error)?.message })
+        }
         if (!finalStates.includes(number.status)) {
             await prisma.number.update({
                 where: { id: number.id },

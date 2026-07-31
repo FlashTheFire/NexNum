@@ -590,18 +590,6 @@ export class SmartSmsRouter implements SmsProvider {
         return this.setCancel(activationId)
     }
 
-    async setStatus(activationId: string, status: number | string): Promise<any> {
-        const s = String(status)
-        if (s === '8' || s === '-1') {
-            return this.setCancel(activationId)
-        } else if (s === '6') {
-            return this.setComplete(activationId)
-        } else if (s === '3') {
-            return this.setResendCode(activationId)
-        }
-        return
-    }
-
     async setResendCode(activationId: string): Promise<void> {
         const [providerName, realId] = this.parseActivationId(activationId)
 
