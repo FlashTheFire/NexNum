@@ -1360,16 +1360,16 @@ export class DynamicProvider implements SmsProvider {
     private parseTextResponse(text: string, mapConfig: MappingConfig): any[] {
         if (mapConfig.type === 'text_regex' && mapConfig.regex) {
             try {
-                const regex = new RegExp(mapConfig.regex, 'gm')
-                const results: any[] = []
-                let match
-                let maxIterations = 1000
+                const cleanText = String(text || '').trim()
+                if (!cleanText) return []
 
-                while ((match = regex.exec(text)) !== null && maxIterations-- > 0) {
-                    // Prevent infinite loop on zero-length matches
-                    if (match.index === regex.lastIndex) {
-                        regex.lastIndex++
-                    }
+                const lines = cleanText.split('\n').map(l => l.trim()).filter(Boolean)
+                const results: any[] = []
+
+                for (const line of lines) {
+                    const regex = new RegExp(mapConfig.regex, 'i')
+                    const match = regex.exec(line)
+                    if (!match) continue
 
                     const item: any = {}
 
