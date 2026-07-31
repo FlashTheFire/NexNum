@@ -87,9 +87,13 @@ export async function startQueueWorker() {
 
         // Catch listen/bind errors so the worker doesn't crash the main application process if port is in use.
         healthServer.on('error', (err: NodeJS.ErrnoException) => {
-            logger.warn('Health server port unavailable or error', { context: 'WORKER', healthPort, error: err.message, code: err.code });
-            if (err.code !== 'EADDRINUSE' && process.env.NEXT_RUNTIME !== 'nodejs') {
-                process.exit(1);
+            if (err.code === 'EADDRINUSE') {
+                logger.info(`Worker health server port ${healthPort} in use; skipping standalone HTTP listener`, { context: 'WORKER' });
+            } else {
+                logger.warn('Health server error', { context: 'WORKER', healthPort, error: err.message, code: err.code });
+                if (process.env.NEXT_RUNTIME !== 'nodejs') {
+                    process.exit(1);
+                }
             }
         });
 

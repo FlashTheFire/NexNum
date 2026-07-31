@@ -66,7 +66,32 @@ export class ProviderRequestBuilder {
     }
 
     /**
-     * Resolve Query Parameters including variable substitution ($var|fallback)
+     * Common variable alias mappings for robust template substitution
+     */
+    private static PARAM_ALIASES: Record<string, string[]> = {
+        country: ['country', 'countryCode', 'countryId', 'externalCountry'],
+        countryCode: ['countryCode', 'country', 'countryId', 'externalCountry'],
+        countryId: ['countryId', 'country', 'countryCode', 'externalCountry'],
+        service: ['service', 'serviceCode', 'serviceId', 'externalService'],
+        serviceCode: ['serviceCode', 'service', 'serviceId', 'externalService'],
+        serviceId: ['serviceId', 'service', 'serviceCode', 'externalService'],
+        operator: ['operator', 'operatorId', 'op'],
+        operatorId: ['operatorId', 'operator', 'op'],
+        maxPrice: ['maxPrice', 'max_price', 'expectedPrice'],
+        providerIds: ['providerIds', 'provider_ids'],
+        exceptProviderIds: ['exceptProviderIds', 'except_provider_ids'],
+    }
+
+    /**
+     * Internal JS control keys that must never be auto-appended to provider query strings
+     */
+    private static INTERNAL_CONTROL_KEYS = new Set([
+        'signal',
+        'purchaseCandidates'
+    ])
+
+    /**
+     * Resolve Query Parameters including variable substitution ($var, @var, {var}|fallback)
      */
     static resolveQueryParams(
         configParams: Record<string, string> | undefined,
@@ -84,12 +109,27 @@ export class ProviderRequestBuilder {
             for (const [paramName, template] of Object.entries(configParams)) {
                 if (typeof template !== 'string') continue
 
-                if (template.startsWith('$')) {
-                    // Variable substitution: $var1|var2|fallback
-                    const parts = template.substring(1).split('|').map(s => s.trim())
+                const isVariable = template.startsWith('$') || template.startsWith('@') || (template.startsWith('{') && template.endsWith('}'))
+
+                if (isVariable) {
+                    // Variable substitution: $var1|var2|fallback or @var1 or {var1}
+                    const cleanExpression = template.replace(/^[\$@\{]/, '').replace(/\}$/, '')
+                    const rawParts = cleanExpression.split('|').map(s => s.trim())
                     let resolved: string | undefined
 
-                    for (const varName of parts) {
+                    // Expand candidates with alias mappings
+                    const expandedVars: string[] = []
+                    for (const part of rawParts) {
+                        expandedVars.push(part)
+                        const aliases = this.PARAM_ALIASES[part]
+                        if (aliases) {
+                            for (const alias of aliases) {
+                                if (!expandedVars.includes(alias)) expandedVars.push(alias)
+                            }
+                        }
+                    }
+
+                    for (const varName of expandedVars) {
                         if (runtimeParams[varName] !== undefined && runtimeParams[varName] !== null) {
                             resolved = String(runtimeParams[varName])
                             handledKeys.add(varName)
@@ -115,8 +155,8 @@ export class ProviderRequestBuilder {
         // 3. Auto-append remaining runtime params for GET requests
         if (method === 'GET') {
             for (const [key, value] of Object.entries(runtimeParams)) {
-                // Skip if handled or special
-                if (handledKeys.has(key)) continue
+                // Skip if handled or internal control key
+                if (handledKeys.has(key) || this.INTERNAL_CONTROL_KEYS.has(key)) continue
                 // Skip if already set
                 if (query.has(key)) continue
 

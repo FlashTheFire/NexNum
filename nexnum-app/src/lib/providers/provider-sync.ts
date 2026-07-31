@@ -1000,75 +1000,75 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
         let filteredUnlistedCountryCount = 0
         let filteredUnlistedServiceCount = 0
 
-            // Track valid country external IDs / codes / names / canonical codes from getCountriesList()
-            const validCountryCodes = new Set<string>()
-            const addCleanCountry = (val: string) => {
-                if (!val) return
-                const lower = val.toLowerCase().trim()
-                validCountryCodes.add(lower)
-                const clean = lower.replace(/[^a-z0-9]/g, '')
-                if (clean) validCountryCodes.add(clean)
+        // Track valid country external IDs / codes / names / canonical codes from getCountriesList()
+        const validCountryCodes = new Set<string>()
+        const addCleanCountry = (val: string) => {
+            if (!val) return
+            const lower = val.toLowerCase().trim()
+            validCountryCodes.add(lower)
+            const clean = lower.replace(/[^a-z0-9]/g, '')
+            if (clean) validCountryCodes.add(clean)
+        }
+
+        for (const c of countries) {
+            if (!c) continue
+            const cName = c.name || (c as any).displayName || ''
+            if ((c as any).id != null) {
+                const idStr = String((c as any).id).toLowerCase().trim()
+                if (cName) countryNameMap.set(idStr, cName)
+                addCleanCountry(idStr)
             }
-
-            for (const c of countries) {
-                if (!c) continue
-                const cName = c.name || (c as any).displayName || ''
-                if ((c as any).id != null) {
-                    const idStr = String((c as any).id).toLowerCase().trim()
-                    if (cName) countryNameMap.set(idStr, cName)
-                    addCleanCountry(idStr)
-                }
-                if (c.code != null && String(c.code).trim()) {
-                    const codeStr = String(c.code).toLowerCase().trim()
-                    if (cName) countryNameMap.set(codeStr, cName)
-                    addCleanCountry(codeStr)
-                    const iso = getCountryIsoCode(c.code)
-                    if (iso) addCleanCountry(iso)
-                }
-                if (cName) {
-                    addCleanCountry(cName)
-                    const cCanonName = getCanonicalName(cName)
-                    if (cCanonName) addCleanCountry(cCanonName)
-                }
+            if (c.code != null && String(c.code).trim()) {
+                const codeStr = String(c.code).toLowerCase().trim()
+                if (cName) countryNameMap.set(codeStr, cName)
+                addCleanCountry(codeStr)
+                const iso = getCountryIsoCode(c.code)
+                if (iso) addCleanCountry(iso)
             }
-
-            // Track valid service codes / names / canonical codes from getServicesList()
-            const validServiceCodes = new Set<string>()
-            const addCleanService = (val: string) => {
-                if (!val) return
-                const lower = val.toLowerCase().trim()
-                validServiceCodes.add(lower)
-                const clean = lower.replace(/[^a-z0-9]/g, '')
-                if (clean) validServiceCodes.add(clean)
+            if (cName) {
+                addCleanCountry(cName)
+                const cCanonName = getCanonicalName(cName)
+                if (cCanonName) addCleanCountry(cCanonName)
             }
+        }
 
-            for (const s of services) {
-                if (!s) continue
-                const sName = s.name || (s as any).displayName || ''
-                if (s.code != null && String(s.code).trim()) {
-                    const codeStr = String(s.code).toLowerCase().trim()
-                    if (sName) serviceMap.set(codeStr, sName)
-                    addCleanService(codeStr)
-                    const cCode = generateCanonicalCode(codeStr)
-                    if (cCode) addCleanService(cCode)
-                }
-                if (sName) {
-                    addCleanService(sName)
-                    const cName = getCanonicalName(sName)
-                    if (cName) addCleanService(cName)
-                }
+        // Track valid service codes / names / canonical codes from getServicesList()
+        const validServiceCodes = new Set<string>()
+        const addCleanService = (val: string) => {
+            if (!val) return
+            const lower = val.toLowerCase().trim()
+            validServiceCodes.add(lower)
+            const clean = lower.replace(/[^a-z0-9]/g, '')
+            if (clean) validServiceCodes.add(clean)
+        }
+
+        for (const s of services) {
+            if (!s) continue
+            const sName = s.name || (s as any).displayName || ''
+            if (s.code != null && String(s.code).trim()) {
+                const codeStr = String(s.code).toLowerCase().trim()
+                if (sName) serviceMap.set(codeStr, sName)
+                addCleanService(codeStr)
+                const cCode = generateCanonicalCode(codeStr)
+                if (cCode) addCleanService(cCode)
             }
+            if (sName) {
+                addCleanService(sName)
+                const cName = getCanonicalName(sName)
+                if (cName) addCleanService(cName)
+            }
+        }
 
-            logger.info(`[SYNC:${provider.name}] Combined inputs loaded: ${countries.length} countries (getCountriesList), ${services.length} services (getServicesList)`, {
-                context: 'SYNC',
-                provider: provider.name,
-                countriesCount: countries.length,
-                servicesCount: services.length,
-                validCountryCodesCount: validCountryCodes.size,
-                validServiceCodesCount: validServiceCodes.size
-            })
+        logger.info(`[SYNC:${provider.name}] Combined inputs loaded: ${countries.length} countries (getCountriesList), ${services.length} services (getServicesList)`, {
+            context: 'SYNC',
+            provider: provider.name,
+            countriesCount: countries.length,
+            servicesCount: services.length,
+            validCountryCodesCount: validCountryCodes.size,
+            validServiceCodesCount: validServiceCodes.size
+        })
 
-            const processPrices = async (prices: PriceData[], country?: { code: string; name: string }) => {
+        const processPrices = async (prices: PriceData[], country?: { code: string; name: string }) => {
             const currentCountryCode = country?.code || ''
 
             // Group price records by (countryCode, serviceCode) to aggregate candidates into a single document per (provider, country, service)
@@ -1225,7 +1225,7 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
 
                         const opStr = item.operator != null ? String(item.operator) : 'default'
                         const candidateId = `${provider.name}:${countryCode}:${serviceCode}:${opStr}`.toLowerCase()
-                        const stockCount = Math.max(0, Number(item.count) || 0)
+                        const stockCount = Math.max(0, Number(item.count) || 1)
 
                         candidatesList.push({
                             candidateId,

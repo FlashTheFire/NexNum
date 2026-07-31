@@ -260,71 +260,191 @@
         "mappings": {
             "getCountriesList": {
                 "type": "json_array",
-                "rootPath": "$",
                 "fields": {
-                    "id": "id",
-                    "code": "id",
-                    "name": "eng"
+                    "code": "external_id",
+                    "name": "name"
                 }
             },
             "getServicesList": {
-                "type": "json_dictionary",
+                "type": "json_array",
                 "fields": {
-                    "id": "$key",
-                    "code": "$key",
-                    "name": "name",
-                    "price": "cost"
+                    "code": "external_id",
+                    "name": "name"
                 }
             },
             "getNumber": {
-                "type": "json_object",
+                "type": "text_regex",
+                "regex": "(ACCESS_NUMBER):?(\\d+)?:?(\\+?\\d+)?|(NO_NUMBERS|NO_BALANCE|BAD_KEY|SERVICE_UNAVAILABLE_REGION)",
                 "fields": {
-                    "id": "activationId",
-                    "phone": "phoneNumber",
-                    "price": "activationCost"
+                    "id": "2",
+                    "phone": "3",
+                    "status": "1|4"
+                },
+                "conditionalFields": {
+                    "BAD_KEY": {
+                        "error": "Invalid API key",
+                        "status": "BAD_KEY"
+                    },
+                    "NO_STOCK": {
+                        "error": "No numbers available",
+                        "status": "NO_STOCK"
+                    },
+                    "BAD_ACTION": {
+                        "error": "Invalid Action.",
+                        "status": "BAD_ACTION"
+                    },
+                    "NO_BALANCE": {
+                        "error": "Insufficient balance",
+                        "status": "NO_BALANCE"
+                    },
+                    "NO_NUMBERS": {
+                        "error": "No numbers available",
+                        "status": "NO_NUMBERS"
+                    },
+                    "ACCESS_NUMBER": {
+                        "status": "SUCCESS"
+                    },
+                    "SERVICE_UNAVAILABLE_REGION": {
+                        "error": "Access restricted from region",
+                        "status": "SERVICE_UNAVAILABLE_REGION"
+                    }
                 }
             },
             "getStatus": {
                 "type": "text_regex",
-                "regex": "STATUS_([A-Z_]+)(:?.*)?",
+                "regex": "(STATUS_WAIT_CODE|STATUS_WAIT_RETRY|STATUS_OK|STATUS_CANCEL|NO_ACTIVATION|BAD_KEY|BAD_STATUS):?(.*)?",
                 "fields": {
-                    "status": "1",
-                    "code": "2"
+                    "code": "2",
+                    "text": "2",
+                    "status": "1"
+                },
+                "conditionalFields": {
+                    "STATUS_OK": {
+                        "status": "RECEIVED"
+                    },
+                    "STATUS_WAIT_CODE": {
+                        "status": "PENDING"
+                    },
+                    "STATUS_WAIT_RETRY": {
+                        "status": "PENDING"
+                    },
+                    "STATUS_CANCEL": {
+                        "status": "CANCELLED"
+                    },
+                    "NO_ACTIVATION": {
+                        "status": "CANCELLED"
+                    },
+                    "BAD_STATUS": {
+                        "status": "CANCELLED"
+                    }
+                },
+                "statusMapping": {
+                    "STATUS_WAIT_CODE": "pending",
+                    "STATUS_WAIT_RETRY": "pending",
+                    "STATUS_CANCEL": "cancelled",
+                    "NO_ACTIVATION": "cancelled",
+                    "BAD_STATUS": "cancelled",
+                    "STATUS_OK": "received",
+                    "RECEIVED": "received"
                 }
             },
             "setCancel": {
                 "type": "text_regex",
-                "regex": "ACCESS_CANCEL",
+                "regex": "(ACCESS_CANCEL)|(NO_ACTIVATION|BAD_KEY|BAD_STATUS|ERROR_SQL)",
                 "fields": {
-                    "status": "0"
+                    "status": "1|2"
                 },
-                "errorPatterns": {
-                    "UNKNOWN_ERROR": "/BAD_ACTION|BAD_STATUS/"
+                "conditionalFields": {
+                    "BAD_KEY": {
+                        "error": "Invalid API key",
+                        "status": "BAD_KEY"
+                    },
+                    "BAD_STATUS": {
+                        "error": "Incorrect status",
+                        "status": "BAD_STATUS"
+                    },
+                    "ACCESS_CANCEL": {
+                        "status": "CANCELLED"
+                    },
+                    "NO_ACTIVATION": {
+                        "error": "Activation does not exist",
+                        "status": "NO_ACTIVATION"
+                    }
+                }
+            },
+            "setComplete": {
+                "type": "text_regex",
+                "regex": "(ACCESS_ACTIVATION)|(NO_ACTIVATION|BAD_KEY|BAD_STATUS|ERROR_SQL)",
+                "fields": {
+                    "status": "1|2"
+                },
+                "conditionalFields": {
+                    "BAD_KEY": {
+                        "error": "Invalid API key",
+                        "status": "BAD_KEY"
+                    },
+                    "NO_ACTIVATION": {
+                        "error": "Activation does not exist",
+                        "status": "NO_ACTIVATION"
+                    },
+                    "ACCESS_ACTIVATION": {
+                        "status": "COMPLETED"
+                    }
+                }
+            },
+            "setResendCode": {
+                "type": "text_regex",
+                "regex": "(ACCESS_RETRY_GET)|(NO_ACTIVATION|BAD_KEY|BAD_STATUS|ERROR_SQL)",
+                "fields": {
+                    "status": "1|2"
+                },
+                "conditionalFields": {
+                    "BAD_KEY": {
+                        "error": "Invalid API key",
+                        "status": "BAD_KEY"
+                    },
+                    "NO_ACTIVATION": {
+                        "error": "Activation does not exist",
+                        "status": "NO_ACTIVATION"
+                    },
+                    "ACCESS_RETRY_GET": {
+                        "status": "PENDING"
+                    }
                 }
             },
             "getBalance": {
                 "type": "text_regex",
-                "regex": "ACCESS_BALANCE:([\\d.]+)",
+                "regex": "ACCESS_BALANCE:(\\d+\\.?\\d*)|(BAD_KEY)",
                 "fields": {
+                    "status": "2",
                     "balance": "1"
+                },
+                "transform": {
+                    "balance": "number"
+                },
+                "conditionalFields": {
+                    "BAD_KEY": {
+                        "error": "Invalid API key",
+                        "status": "BAD_KEY"
+                    }
                 }
             },
             "getPrices": {
                 "type": "json_dictionary",
-                "nestingLevels": {
-                    "providersKey": "providers",
-                    "extractOperators": true
-                },
                 "fields": {
+                    "cost": "price.$first|price|cost|amount",
+                    "count": "count",
                     "country": "$atDepth:0",
                     "service": "$atDepth:1",
-                    "operator": "$operatorKey",
-                    "cost": "price.$first|price|cost",
-                    "count": "count|quantity"
+                    "operator": "$operatorKey|provider_id"
                 },
                 "transform": {
                     "cost": "number",
                     "count": "number"
+                },
+                "nestingLevels": {
+                    "providersKey": "providers",
+                    "extractOperators": true
                 }
             }
         }

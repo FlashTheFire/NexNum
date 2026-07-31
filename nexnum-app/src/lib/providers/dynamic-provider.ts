@@ -356,15 +356,31 @@ export class DynamicProvider implements SmsProvider {
             const breaker = this.getBreaker()
             let response: Response | undefined
 
+            // Combine caller signal (if provided) with max 30s timeout
+            const callerSignal = params.signal as AbortSignal | undefined
+            const fetchController = new AbortController()
+
+            if (callerSignal) {
+                if (callerSignal.aborted) {
+                    fetchController.abort(callerSignal.reason)
+                } else {
+                    callerSignal.addEventListener('abort', () => fetchController.abort(callerSignal.reason), { once: true })
+                }
+            }
+            const fetchTimeoutId = setTimeout(() => fetchController.abort(new Error('Request timeout after 30s')), 30000)
+
             try {
                 response = await breaker.fire(async () => {
                     // Retry Loop (Business Logic)
                     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+                        if (fetchController.signal.aborted) {
+                            throw fetchController.signal.reason || new Error('Request aborted')
+                        }
                         try {
                             const res = await fetch(urlObj!.toString(), {
                                 method: epConfig.method,
                                 headers,
-                                signal: AbortSignal.timeout(30000)
+                                signal: fetchController.signal
                             });
 
                             if (res.status === 429) {
@@ -406,11 +422,9 @@ export class DynamicProvider implements SmsProvider {
                     throw new Error(`Circuit Breaker OPEN for ${this.name}`)
                 }
 
-                // CRITICAL FIX: If this is a ProviderError (business error) that we threw in checkForErrors,
-                // it might have been caught by the circuit breaker if checkForErrors happened inside fire.
-                // But checkForErrors actually happens AFTER fire returns the response.
-                // Wait, I need to check WHERE checkForErrors is called.
                 throw breakerErr
+            } finally {
+                clearTimeout(fetchTimeoutId)
             }
 
             if (!response) throw new Error('Request failed')
@@ -805,7 +819,7 @@ export class DynamicProvider implements SmsProvider {
         // 2. LAYER 0: ConditionalFields Mapped Errors
         if (mapConfig) {
             try {
-                const parsed = this.parseResponse(response, mappingKey)
+                const parsed = this.parseResponse(response, mappingKey, true)
                 const mapped = parsed[0]
                 if (mapped && (mapped.error || ['NO_NUMBERS', 'NO_BALANCE', 'BAD_KEY', 'NO_ACTIVATION', 'BAD_STATUS', 'EARLY_CANCEL_DENIED', 'SERVICE_UNAVAILABLE_REGION'].includes(String(mapped.status)))) {
                     const errType = (mapped.status || 'PROVIDER_ERROR') as UniversalErrorType
@@ -869,12 +883,14 @@ export class DynamicProvider implements SmsProvider {
         return lowerStr === lowerPattern || lowerStr.includes(lowerPattern)
     }
 
-    private parseResponse(response: { type: string, data: any }, mappingKey: string): any[] {
+    private parseResponse(response: { type: string, data: any }, mappingKey: string, isErrorCheck: boolean = false): any[] {
         const mappings = this.config.mappings as Record<string, MappingConfig>
         const mapConfig = mappings[mappingKey]
 
-        // STEP 0: Check for error patterns BEFORE attempting to parse
-        this.checkForErrors(response, mappingKey, mapConfig)
+        // STEP 0: Check for error patterns BEFORE attempting to parse (only if not already in error check)
+        if (!isErrorCheck) {
+            this.checkForErrors(response, mappingKey, mapConfig)
+        }
 
         if (!mapConfig) {
             logger.warn('No mapping found for key, returning auto-parsed data', { context: 'DYNAMIC_PROVIDER', provider: this.name, mappingKey })
@@ -1720,8 +1736,8 @@ export class DynamicProvider implements SmsProvider {
         // If candidates list is present, run the Universal Purchase Candidate Engine Failover Loop
         if (candidates) {
             const overallStartTime = Date.now()
-            const OVERALL_TIMEOUT_MS = 15000 // 15s total operation ceiling
-            const PER_CANDIDATE_TIMEOUT_MS = 3000 // 3s per-candidate HTTP timeout
+            const OVERALL_TIMEOUT_MS = 25000 // 25s total operation ceiling
+            const PER_CANDIDATE_TIMEOUT_MS = 12000 // 12s per-candidate HTTP timeout
             const attemptLogs: string[] = []
 
             for (const candidate of candidates) {
@@ -1773,18 +1789,27 @@ export class DynamicProvider implements SmsProvider {
                     // Graceful fallback if Redis is down
                 }
 
+                const candidateController = new AbortController()
                 const candStartTime = Date.now()
+                let singleResultPromise: Promise<NumberResult> | null = null
+
                 try {
+                    singleResultPromise = this.executeSingleGetNumber(countryCode, serviceCode, {
+                        operator: candidate.operator || options?.operator,
+                        maxPrice: options?.maxPrice,
+                        providerIds: options?.providerIds,
+                        exceptProviderIds: options?.exceptProviderIds,
+                        signal: candidateController.signal
+                    })
+
                     // Attempt single candidate purchase with 3.0s timeout wrapper
                     const singleResult = await Promise.race([
-                        this.executeSingleGetNumber(countryCode, serviceCode, {
-                            operator: candidate.operator || options?.operator,
-                            maxPrice: options?.maxPrice,
-                            providerIds: options?.providerIds,
-                            exceptProviderIds: options?.exceptProviderIds
-                        }),
+                        singleResultPromise,
                         new Promise<never>((_, reject) =>
-                            setTimeout(() => reject(new ProviderError('TIMEOUT', `Candidate timeout after ${PER_CANDIDATE_TIMEOUT_MS}ms`)), PER_CANDIDATE_TIMEOUT_MS)
+                            setTimeout(() => {
+                                candidateController.abort(new Error(`Candidate timeout after ${PER_CANDIDATE_TIMEOUT_MS}ms`))
+                                reject(new ProviderError('TIMEOUT', `Candidate timeout after ${PER_CANDIDATE_TIMEOUT_MS}ms`))
+                            }, PER_CANDIDATE_TIMEOUT_MS)
                         )
                     ])
 
@@ -1798,6 +1823,18 @@ export class DynamicProvider implements SmsProvider {
                     }
 
                 } catch (err: any) {
+                    candidateController.abort(err)
+
+                    // Background Safety Net: If singleResultPromise resolves AFTER timeout, cancel the orphaned activation!
+                    if (singleResultPromise) {
+                        singleResultPromise.then(res => {
+                            if (res?.activationId) {
+                                logger.warn(`[CandidateEngine:${this.name}] Timed out candidate returned orphaned activation ${res.activationId}. Issuing safety setCancel...`)
+                                this.setCancel(res.activationId).catch(() => {})
+                            }
+                        }).catch(() => {})
+                    }
+
                     const latencyMs = Date.now() - candStartTime
                     const errorType = err.errorType || 'UNKNOWN'
                     const isRetryable = err.isRetryable ?? ['NO_NUMBERS', 'BAD_OPERATOR', 'NO_BALANCE', 'RATE_LIMITED', 'SERVER_ERROR', 'TIMEOUT'].includes(errorType)
@@ -1900,7 +1937,7 @@ export class DynamicProvider implements SmsProvider {
     /**
      * Single getNumber HTTP request execution logic
      */
-    private async executeSingleGetNumber(countryCode: string | number, serviceCode: string | number, options?: { operator?: string; maxPrice?: string | number; providerIds?: string; exceptProviderIds?: string }): Promise<NumberResult> {
+    private async executeSingleGetNumber(countryCode: string | number, serviceCode: string | number, options?: { operator?: string; maxPrice?: string | number; providerIds?: string; exceptProviderIds?: string; signal?: AbortSignal }): Promise<NumberResult> {
         // Resolve identifiers to provider-specific codes
         const [externalCountry, externalService] = await Promise.all([
             this.resolveExternalId('country', countryCode),
@@ -1908,7 +1945,7 @@ export class DynamicProvider implements SmsProvider {
         ])
 
         // Build params object with consistent naming
-        const params: Record<string, string> = {
+        const params: Record<string, any> = {
             country: externalCountry,
             service: externalService
         }
@@ -1918,13 +1955,26 @@ export class DynamicProvider implements SmsProvider {
         if (options?.maxPrice) params.maxPrice = String(options.maxPrice)
         if (options?.providerIds) params.providerIds = String(options.providerIds)
         if (options?.exceptProviderIds) params.exceptProviderIds = String(options.exceptProviderIds)
+        if (options?.signal) params.signal = options.signal
 
         const response = await this.request('getNumber', params)
-        const items = this.parseResponse(response, 'getNumber')
-        const mapped = items[0]
+        let items: any[] = []
+        try {
+            items = this.parseResponse(response, 'getNumber')
+        } catch {}
+
+        let mapped = items[0]
+
+        // Resilient Fallback: If mapping returned empty but raw response contains ACCESS_NUMBER:id:phone
+        if (!mapped && typeof response?.data === 'string') {
+            const accessMatch = response.data.match(/ACCESS_NUMBER[:\s]+(\d+)[:\s]+(\+?\d+)/i)
+            if (accessMatch) {
+                mapped = { activationId: accessMatch[1], phoneNumber: accessMatch[2] }
+            }
+        }
 
         if (!mapped) {
-            throw new Error(`Failed to parse number response. No data returned or mapping failed. Raw: ${JSON.stringify(this.lastRawResponse)}`)
+            throw new Error(`Failed to parse number response. No data returned or mapping failed. Raw: ${JSON.stringify(this.lastRawResponse || response?.data)}`)
         }
 
         // Check if conditionalFields mapped a provider error or error status
@@ -2009,6 +2059,7 @@ export class DynamicProvider implements SmsProvider {
 
         // Map status string to internal NumberStatus based STRICTLY on configuration
         let status: NumberStatus = 'pending'
+        const rawResponseStr = typeof response === 'string' ? response.toUpperCase() : ''
         const rawStatus = String(mapped.status || '').trim().toUpperCase()
 
         if (mapConfig?.statusMapping) {
@@ -2019,6 +2070,15 @@ export class DynamicProvider implements SmsProvider {
 
             if (mappedStatus) {
                 status = mappedStatus
+            }
+        }
+
+        // Safety fallback: Check raw response text for terminal status if status mapping didn't resolve it
+        if (status === 'pending') {
+            if (rawStatus.includes('CANCEL') || rawResponseStr.includes('STATUS_CANCEL') || rawResponseStr.includes('NO_ACTIVATION') || rawResponseStr.includes('BAD_STATUS')) {
+                status = 'cancelled'
+            } else if (rawStatus.includes('EXPIRE') || rawResponseStr.includes('EXPIRED')) {
+                status = 'expired'
             }
         }
 

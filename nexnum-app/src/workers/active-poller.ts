@@ -20,6 +20,7 @@ import { redis } from '@/lib/core/redis'
 import { logger } from '@/lib/core/logger'
 import { captureError, addBreadcrumb } from '@/lib/monitoring/sentry'
 import { getProviderAdapter } from '@/lib/providers/provider-factory'
+import { WalletService } from '@/lib/wallet/wallet'
 
 export interface ActivePollerSummary {
     totalActive: number
@@ -161,11 +162,48 @@ async function pollSingleActivation(order: ActiveOrderData, summary: ActivePolle
             return
         }
 
-        // 3. Check for terminal states
-        const status = statusResult?.status || 'pending'
-        if (['COMPLETED', 'CANCELLED', 'EXPIRED', 'REFUNDED', 'received', 'completed', 'cancelled', 'expired', 'refunded'].includes(status)) {
-            // Handle terminal lifecycle errors
-            if (['CANCELLED', 'EXPIRED', 'cancelled', 'expired'].includes(status)) {
+        // 3. Check for terminal states (including raw status strings like 'CANCEL', 'CANCELLED', 'STATUS_CANCEL')
+        const rawStatus = String(statusResult?.status || 'pending').toUpperCase()
+        const isTerminal = ['COMPLETED', 'CANCELLED', 'CANCEL', 'EXPIRED', 'REFUNDED', 'RECEIVED', 'STATUS_CANCEL', 'STATUS_CANCELLED'].includes(rawStatus)
+
+        if (isTerminal) {
+            if (['CANCELLED', 'CANCEL', 'EXPIRED', 'STATUS_CANCEL', 'STATUS_CANCELLED'].includes(rawStatus)) {
+                logger.info(`[ActivePoller] Removing canceled/expired order from active polling stream: #${order.activationId} (Status: ${rawStatus})`, {
+                    context: 'ACTIVE_POLLER',
+                    activationId: order.activationId,
+                    status: rawStatus
+                })
+
+                // Persist terminal state to PostgreSQL DB & refund if no messages received
+                const terminalStatus = rawStatus.includes('EXPIRE') ? 'expired' : 'cancelled'
+                const msgCount = (statusResult?.messages?.length || 0) || (await prisma.smsMessage.count({ where: { numberId: order.numberId } }))
+
+                try {
+                    await prisma.$transaction(async (tx) => {
+                        await tx.number.update({
+                            where: { id: order.numberId },
+                            data: { status: terminalStatus, updatedAt: new Date() }
+                        })
+
+                        if (msgCount === 0 && order.userId) {
+                            const numRecord = await tx.number.findUnique({ where: { id: order.numberId } })
+                            if (numRecord) {
+                                await WalletService.refund(
+                                    order.userId,
+                                    Number(numRecord.price),
+                                    'refund',
+                                    order.numberId,
+                                    `Refund: ${terminalStatus} ${order.serviceCode}`,
+                                    `poller_refund_${order.numberId}`,
+                                    tx
+                                )
+                            }
+                        }
+                    })
+                } catch (dbErr: any) {
+                    logger.error(`[ActivePoller] DB update/refund error for #${order.activationId}`, { error: dbErr.message })
+                }
+
                 await ActiveOrderStream.removeActiveOrder(order.activationId)
                 return
             }
