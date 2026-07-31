@@ -195,23 +195,28 @@ export default function SMSPage() {
 
         setIsNextLoading(true)
         try {
-            // Re-purchase uses store action, safe to use properties
+            const country = displayNumber.countryCode
+            const service = displayNumber.serviceCode || displayNumber.serviceName
+            const providerName = (displayNumber as any).provider || undefined
+
             const result = await purchaseNumber(
-                displayNumber.countryCode,
-                displayNumber.serviceCode || displayNumber.serviceName,
-                undefined // provider (optional)
+                country,
+                service,
+                providerName
             )
 
-            if (result.success && result.number) {
+            const boughtNumber = result.number || (result as any).data?.number
+
+            if (result.success && boughtNumber) {
                 toast.success('New number purchased!', {
-                    description: result.number.phoneNumber,
+                    description: boughtNumber.phoneNumber || (boughtNumber as any).number || '',
                     action: {
                         label: 'View',
-                        onClick: () => router.push(`/sms/${result.number!.id}`)
+                        onClick: () => router.push(`/sms/${boughtNumber.id}`)
                     }
                 })
-                // Navigate to the new number
-                router.push(`/sms/${result.number.id}`)
+                // Navigate to the newly purchased number page
+                router.push(`/sms/${boughtNumber.id}`)
             } else {
                 toast.error('Failed to get next number', {
                     description: result.error || 'Please try again'
@@ -219,7 +224,7 @@ export default function SMSPage() {
             }
         } catch (err: any) {
             toast.error('Failed to get next number', {
-                description: err.message
+                description: err?.message || 'Please try again'
             })
         } finally {
             setIsNextLoading(false)

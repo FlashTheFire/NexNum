@@ -417,6 +417,7 @@ export const useGlobalStore = create<GlobalState>()(
                             activeNumbers: state.activeNumbers.map(an => an.id === tempId ? realNumber : an)
                         }))
 
+                        return { success: true, number: result.data.number, data: result.data }
                     } else {
                         // Pass specific error structure for UI handling
                         const error = new Error(result.error || 'Purchase failed')
