@@ -29,7 +29,7 @@ import { cn } from "@/lib/utils/utils"
 import { useTranslations } from "next-intl"
 
 // Import new premium components
-import { SMSBackground, SMSNumberCard, SMSMessageCard } from "./components"
+import { SMSBackground, SMSNumberCard, SMSMessageCard, SMSTroubleshootingCard } from "./components"
 import { useSMS } from "@/hooks/use-sms"
 import { useSocketEvent } from "@/hooks/use-socket"
 import LoadingScreen from "@/components/ui/LoadingScreen"
@@ -516,20 +516,8 @@ export default function SMSPage() {
                                 </div>
                             </motion.div>
 
-                            <motion.div variants={fadeInLeft} className="hidden lg:block">
-                                <Card className="border-amber-500/10 bg-gradient-to-br from-amber-500/[0.02] to-transparent backdrop-blur-xl">
-                                    <CardContent className="p-5 flex gap-4">
-                                        <div className="p-2.5 h-fit rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-500">
-                                            <Sparkles className="h-4.5 w-4.5" />
-                                        </div>
-                                        <div>
-                                            <p className="text-sm font-medium text-amber-100 mb-1">{t('tips.label')}</p>
-                                            <p className="text-xs leading-relaxed text-amber-500/70">
-                                                {t('tips.content')}
-                                            </p>
-                                        </div>
-                                    </CardContent>
-                                </Card>
+                            <motion.div variants={fadeInLeft} className="pt-2">
+                                <SMSTroubleshootingCard />
                             </motion.div>
                         </div>
 
