@@ -119,11 +119,14 @@ export const POST = apiHandler(async (request, { body }) => {
             }
 
             // If no SMS code was found and error indicates already cancelled/expired, allow local cleanup & refund
-            const errMsg = String(err.message || '').toLowerCase()
+            const rawMsg = String(err.message || 'Provider rejected cancellation')
+            const cleanError = rawMsg.replace(/^Provider error:\s*/i, '')
+            const errMsg = rawMsg.toLowerCase()
             const isAlreadyCancelledOrExpired = errMsg.includes('not found') || errMsg.includes('already') || errMsg.includes('bad_key') || errMsg.includes('no_key') || errMsg.includes('expired')
+
             if (!isAlreadyCancelledOrExpired) {
                 return NextResponse.json({
-                    error: `Provider rejected cancellation: ${err.message || 'Unknown provider error'}`
+                    error: cleanError
                 }, { status: 400 })
             }
         }

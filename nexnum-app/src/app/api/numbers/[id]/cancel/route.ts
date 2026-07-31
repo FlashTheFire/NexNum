@@ -70,12 +70,51 @@ export async function POST(request: Request, { params }: RouteParams) {
         }
 
         // Cancel with provider
-        if (number.activationId) {
+        const rawId = number.activationId
+            ? (number.activationId.includes(':') ? number.activationId.split(':').slice(1).join(':') : number.activationId)
+            : ''
+
+        if (rawId) {
             try {
-                await smsProvider.cancelNumber(number.activationId)
-            } catch (e) {
-                console.error('Provider cancel error:', e)
-                // Continue anyway - we'll refund the user if provider fails to block it
+                if (smsProvider.setCancel) {
+                    await smsProvider.setCancel(rawId)
+                } else {
+                    await smsProvider.cancelNumber(rawId)
+                }
+                console.log(`[CANCEL] Provider cancellation successful for ${rawId}`)
+            } catch (e: any) {
+                console.warn(`[CANCEL] Provider cancel error for ${rawId}:`, e.message)
+
+                // Check if OTP arrived in the meantime
+                try {
+                    const statusResult = await smsProvider.getStatus(rawId)
+                    if (statusResult?.messages && statusResult.messages.length > 0) {
+                        for (const msg of statusResult.messages) {
+                            await prisma.smsMessage.create({
+                                data: {
+                                    numberId: number.id,
+                                    sender: msg.code ? 'Verification Service' : 'SMS System',
+                                    content: msg.content || (msg as any).text || (msg.code ? `Your verification code is: ${msg.code}` : 'Message received'),
+                                    code: msg.code || null,
+                                    receivedAt: new Date()
+                                }
+                            }).catch(() => {})
+                        }
+                        await prisma.number.update({ where: { id: number.id }, data: { status: 'received' } })
+                        return NextResponse.json({ error: 'Cannot cancel - SMS Code was received from provider.', status: 'received' }, { status: 400 })
+                    }
+                } catch {}
+
+                const rawMsg = String(e.message || 'Provider rejected cancellation')
+                const cleanError = rawMsg.replace(/^Provider error:\s*/i, '')
+                const errMsg = rawMsg.toLowerCase()
+                const isAlreadyCancelledOrExpired = errMsg.includes('not found') || errMsg.includes('already') || errMsg.includes('bad_key') || errMsg.includes('no_key') || errMsg.includes('expired')
+
+                if (!isAlreadyCancelledOrExpired) {
+                    return NextResponse.json({
+                        error: cleanError
+                    }, { status: 400 })
+                }
             }
         }
 

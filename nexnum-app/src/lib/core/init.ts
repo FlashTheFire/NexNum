@@ -74,8 +74,10 @@ export function validateEnvironment() {
             throw new Error('FROM_EMAIL is required in production');
         }
 
-        // Basic email format validation
-        const emailMatch = process.env.FROM_EMAIL.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/);
+        // Basic email format validation (supports plain email or "Name" <email@domain>)
+        const rawEmail = process.env.FROM_EMAIL.trim()
+        const targetAddress = rawEmail.includes('<') ? (rawEmail.match(/<([^>]+)>/)?.[1] || rawEmail) : rawEmail
+        const emailMatch = targetAddress.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/);
         if (!emailMatch) {
             console.warn(
                 'Warning: FROM_EMAIL does not appear to be a valid email address. ' +
