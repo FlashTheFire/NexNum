@@ -5,6 +5,7 @@ import { EventDispatcher } from '@/lib/core/event-dispatcher'
 import { FinancialSentinel } from './sentinel'
 import { PaymentError } from '@/lib/payment/payment-errors'
 import { logger } from '@/lib/core/logger'
+import { captureError, addBreadcrumb } from '@/lib/monitoring/sentry'
 import { WalletTransactionType } from './types'
 import { getCurrencyService } from '@/lib/currency/currency-service'
 

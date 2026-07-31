@@ -15,7 +15,7 @@ import { getCurrencyService, toSupportedCurrency } from '@/lib/currency/currency
 import { ResponseFactory } from '@/lib/api/response-factory'
 import { PaymentError } from '@/lib/payment/payment-errors'
 import { NumberResult } from '@/lib/providers/types'
-import { captureError } from '@/lib/monitoring/sentry'
+import { captureError, addBreadcrumb } from '@/lib/monitoring/sentry'
 import {
     validatePurchaseInput,
     checkUserEligibility,
@@ -94,6 +94,14 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
 
     const { countryCode, serviceCode, countryId, serviceId, operatorId, provider, idempotencyKey } = validation.sanitized
     const useBestRoute = body?.useBestRoute === true
+
+    addBreadcrumb('purchase', 'Purchase workflow initiated', {
+        correlationId,
+        userId: user.userId,
+        countryCode,
+        serviceCode,
+        provider
+    })
 
     // IDEMPOTENCY: Early-exit if this purchase was already processed
     if (idempotencyKey) {

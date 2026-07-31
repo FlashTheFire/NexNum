@@ -10,15 +10,17 @@ import * as Sentry from '@sentry/nextjs'
 import { logger } from '@/lib/core/logger'
 
 const SENTRY_DSN = process.env.NEXT_PUBLIC_SENTRY_DSN
+const getDsn = () => process.env.NEXT_PUBLIC_SENTRY_DSN || process.env.SENTRY_DSN
 
 export function initSentry() {
-    if (!SENTRY_DSN) {
+    const dsn = getDsn()
+    if (!dsn) {
         logger.warn('Sentry DSN not configured, error tracking disabled', { context: 'MONITORING' })
         return
     }
 
     Sentry.init({
-        dsn: SENTRY_DSN,
+        dsn: getDsn(),
         environment: process.env.NODE_ENV,
 
         // Performance Monitoring
@@ -64,7 +66,7 @@ export function initSentry() {
  * Capture error with context
  */
 export function captureError(error: Error, context?: Record<string, any>) {
-    if (!SENTRY_DSN) {
+    if (!getDsn()) {
         logger.error('Error captured (Sentry disabled)', { error: error.message, ...context })
         return
     }
@@ -81,7 +83,7 @@ export function captureError(error: Error, context?: Record<string, any>) {
  * Capture message for non-error events
  */
 export function captureMessage(message: string, level: 'info' | 'warning' | 'error' = 'info') {
-    if (!SENTRY_DSN) {
+    if (!getDsn()) {
         const logMethod = level === 'error' ? 'error' : (level === 'warning' ? 'warn' : 'info')
         logger[logMethod](message, { context: 'MONITORING' })
         return
@@ -94,7 +96,7 @@ export function captureMessage(message: string, level: 'info' | 'warning' | 'err
  * Set user context for error tracking
  */
 export function setUser(user: { id: string; email?: string; role?: string }) {
-    if (!SENTRY_DSN) return
+    if (!getDsn()) return
 
     Sentry.setUser({
         id: user.id,
@@ -108,7 +110,7 @@ export function setUser(user: { id: string; email?: string; role?: string }) {
  * Clear user context on logout
  */
 export function clearUser() {
-    if (!SENTRY_DSN) return
+    if (!getDsn()) return
     Sentry.setUser(null)
 }
 
@@ -116,7 +118,7 @@ export function clearUser() {
  * Add breadcrumb for debugging
  */
 export function addBreadcrumb(category: string, message: string, data?: Record<string, any>) {
-    if (!SENTRY_DSN) return
+    if (!getDsn()) return
 
     Sentry.addBreadcrumb({
         category,
