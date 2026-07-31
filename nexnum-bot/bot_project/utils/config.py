@@ -118,6 +118,14 @@ _raw_direct_url = os.getenv("DIRECT_URL", DATABASE_URL)
 DIRECT_URL = sanitize_db_url(_raw_direct_url)
 NEXNUM_API_URL = os.getenv("NEXNUM_API_URL", "http://nexnum-app:3000")
 NEXNUM_API_KEY = os.getenv("NEXNUM_API_KEY", os.getenv("ADMIN_API_KEY", "nexnum_admin_secret_key"))
+
+# Webhook Configuration
+USE_WEBHOOK = os.getenv("USE_WEBHOOK", "false").lower() == "true"
+WEBHOOK_URL = os.getenv("WEBHOOK_URL", "")
+WEBHOOK_PATH = os.getenv("WEBHOOK_PATH", "/api/bot-webhook")
+WEBHOOK_HOST = os.getenv("WEBHOOK_HOST", "0.0.0.0")
+WEBHOOK_PORT = int(os.getenv("WEBHOOK_PORT", "8080"))
+WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "nexnum_webhook_secret_key")
 PUBLIC_APP_URL = os.getenv("NEXT_PUBLIC_APP_URL", os.getenv("PUBLIC_APP_URL", "https://nexnum.in")).rstrip("/")
 URL = os.getenv("URL", "")
 

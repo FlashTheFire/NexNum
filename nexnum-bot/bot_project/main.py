@@ -274,6 +274,56 @@ class TelegramBot:
                 await logger.error(f"Polling failed on attempt {attempt + 1}: {e}")
                 await asyncio.sleep(5)
 
+    async def start_webhook(self) -> None:
+        """Start the bot using aiohttp web server in high-concurrency Webhook mode."""
+        from aiohttp import web
+        try:
+            from utils.config import USE_WEBHOOK, WEBHOOK_URL, WEBHOOK_PATH, WEBHOOK_HOST, WEBHOOK_PORT, WEBHOOK_SECRET
+        except ImportError:
+            from bot_project.utils.config import USE_WEBHOOK, WEBHOOK_URL, WEBHOOK_PATH, WEBHOOK_HOST, WEBHOOK_PORT, WEBHOOK_SECRET
+
+        app = web.Application()
+
+        async def handle_webhook(request: web.Request) -> web.Response:
+            secret_header = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
+            if WEBHOOK_SECRET and secret_header and secret_header != WEBHOOK_SECRET:
+                return web.Response(status=403, text="Forbidden")
+            try:
+                data = await request.json()
+                update = Update.de_json(data)
+                if update:
+                    asyncio.create_task(self.bot.process_new_updates([update]))
+                return web.Response(status=200, text="OK")
+            except Exception as err:
+                logger = await get_async_logger()
+                await logger.error(f"Error processing webhook update: {err}")
+                return web.Response(status=500, text="Error")
+
+        async def handle_health(request: web.Request) -> web.Response:
+            return web.Response(status=200, text="Bot Webhook Alive")
+
+        app.router.add_post(WEBHOOK_PATH, handle_webhook)
+        app.router.add_get("/health", handle_health)
+        app.router.add_get("/", handle_health)
+
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, host=WEBHOOK_HOST, port=WEBHOOK_PORT)
+        await site.start()
+
+        full_webhook_url = f"{WEBHOOK_URL.rstrip('/')}{WEBHOOK_PATH}"
+        logger = await get_async_logger()
+        await logger.info(f"Setting Telegram Webhook URL to: {full_webhook_url}")
+        await self.bot.set_webhook(
+            url=full_webhook_url,
+            secret_token=WEBHOOK_SECRET if WEBHOOK_SECRET else None,
+            drop_pending_updates=True
+        )
+        await logger.info(f"Webhook server running instantly on http://{WEBHOOK_HOST}:{WEBHOOK_PORT}{WEBHOOK_PATH}")
+
+        while True:
+            await asyncio.sleep(3600)
+
 
 async def main():
     """Entry point of the application."""
@@ -281,24 +331,35 @@ async def main():
     
     # Create tasks for both the bot and the periodic updater
     async with bot.initialize_services():
-        polling_task = None
+        bot_task = None
         try:
             # Register handlers
             await bot.register_handlers()
 
-            # Polling mode: clear webhook and run polling
-            await bot.bot.delete_webhook()
-            polling_task = asyncio.create_task(bot.bot.polling(non_stop=True, timeout=60))
-            await polling_task
+            try:
+                from utils.config import USE_WEBHOOK, WEBHOOK_URL
+            except ImportError:
+                from bot_project.utils.config import USE_WEBHOOK, WEBHOOK_URL
+
+            if USE_WEBHOOK and WEBHOOK_URL:
+                logger = await get_async_logger()
+                await logger.info("Launching bot in High-Performance Webhook Mode...")
+                bot_task = asyncio.create_task(bot.start_webhook())
+            else:
+                logger = await get_async_logger()
+                await logger.info("Launching bot in Polling Mode...")
+                await bot.bot.delete_webhook()
+                bot_task = asyncio.create_task(bot.bot.polling(non_stop=True, timeout=60))
+
+            await bot_task
         except Exception as e:
             logger = await get_async_logger()
             await logger.error(f"Startup error: {e}")
         finally:
-            # Cancel polling task before tearing down
-            if polling_task is not None and not polling_task.done():
-                polling_task.cancel()
+            if bot_task is not None and not bot_task.done():
+                bot_task.cancel()
                 try:
-                    await polling_task
+                    await bot_task
                 except (asyncio.CancelledError, Exception) as _ce:
                     try:
                         _logger = await get_async_logger()
