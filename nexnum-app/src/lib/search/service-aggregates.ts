@@ -365,7 +365,12 @@ export async function getServiceAggregates(options?: {
             }
         }, 600); // 10 minute cache for default list
 
-        return { ...cached, page, limit };
+        return { 
+            items: cached?.items || [], 
+            total: cached?.total || 0, 
+            page, 
+            limit 
+        };
     }
 
     let where: any = {}
