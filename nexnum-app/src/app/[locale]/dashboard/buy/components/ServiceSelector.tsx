@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils/utils";
 import { Check, Loader2, Server, SearchX, HelpCircle, Star } from "lucide-react";
@@ -437,10 +438,10 @@ export default function ServiceSelector({ selectedService, defaultSelected, onSe
                             </button>
 
                             {/* Quick Help Link - Mobile */}
-                            <a href="/support/new-service" className="flex items-center justify-center gap-1.5 mt-3 py-2 text-[11px] text-gray-400 hover:text-[hsl(var(--neon-lime))]">
+                            <Link href="/support/new-service" className="flex items-center justify-center gap-1.5 mt-3 py-2 text-[11px] text-gray-400 hover:text-[hsl(var(--neon-lime))]">
                                 <Server className="w-3 h-3" />
                                 <span>Request a new service</span>
-                            </a>
+                            </Link>
                         </div>
                     </div>
 
@@ -476,10 +477,10 @@ export default function ServiceSelector({ selectedService, defaultSelected, onSe
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                 </svg>
                             </button>
-                            <a href="/support/new-service" className="flex items-center justify-center gap-1.5 mt-3 py-2 text-xs text-gray-400 hover:text-[hsl(var(--neon-lime))]">
+                            <Link href="/support/new-service" className="flex items-center justify-center gap-1.5 mt-3 py-2 text-xs text-gray-400 hover:text-[hsl(var(--neon-lime))]">
                                 <Server className="w-3 h-3" />
                                 <span>Request a new service</span>
-                            </a>
+                            </Link>
                         </div>
                     </div>
                 </motion.div>

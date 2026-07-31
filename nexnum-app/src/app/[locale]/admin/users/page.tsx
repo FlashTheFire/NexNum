@@ -661,8 +661,8 @@ export default function UsersPage() {
         finally { setExporting(false) }
     }
 
-    const toggleRow = (id: string) => setExpandedRows(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n })
-    const toggleSelect = (id: string) => setSelectedUsers(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n })
+    const toggleRow = (id: string) => setExpandedRows(p => { const n = new Set(p); if (n.has(id)) { n.delete(id); } else { n.add(id); } return n; })
+    const toggleSelect = (id: string) => setSelectedUsers(p => { const n = new Set(p); if (n.has(id)) { n.delete(id); } else { n.add(id); } return n; })
     const toggleSelectAll = () => setSelectedUsers(p => p.size === users.length ? new Set() : new Set(users.map(u => u.id)))
     const handleSort = (f: SortField) => { setSortField(f); setSortOrder(p => sortField === f ? (p === 'asc' ? 'desc' : 'asc') : 'desc') }
     const hasActiveFilters = roleFilter || statusFilter || search

@@ -14,8 +14,8 @@ import { redis, cacheGet, CACHE_KEYS, CACHE_TTL } from '@/lib/core/redis'
 import { CIRCUIT_OPTS } from '@/lib/core/circuit-breaker'
 import { trackProviderRequest } from '@/lib/metrics'
 
-declare var process: any
-declare var require: any
+declare let process: any
+declare let require: any
 
 const MAX_RETRIES = 3;
 

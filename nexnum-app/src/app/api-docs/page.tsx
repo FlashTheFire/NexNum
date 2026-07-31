@@ -576,11 +576,11 @@ curl -X GET "https://nexnum.in/api/v1?action=getNumber&service=wa&country=in" \\
 
                             <div className="space-y-3 font-mono text-xs">
                                 <div className="p-3 rounded-xl bg-black/50 border border-white/10 text-gray-300">
-                                    <span className="text-purple-400 font-bold block mb-1">// Method 1: Authorization Header (Recommended)</span>
+                                    <span className="text-purple-400 font-bold block mb-1">Method 1: Authorization Header (Recommended)</span>
                                     Authorization: Bearer nx_live_98a72b10f...
                                 </div>
                                 <div className="p-3 rounded-xl bg-black/50 border border-white/10 text-gray-300">
-                                    <span className="text-purple-400 font-bold block mb-1">// Method 2: Query Parameter</span>
+                                    <span className="text-purple-400 font-bold block mb-1">Method 2: Query Parameter</span>
                                     GET https://nexnum.in/api/v1?action=getBalance&api_key=nx_live_98a72b10f...
                                 </div>
                             </div>
