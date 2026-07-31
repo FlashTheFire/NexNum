@@ -91,15 +91,17 @@ export async function POST(req: Request, source: { params: Promise<{ id: string 
                 if (!engine.getNumber) throw new Error('getNumber is not supported by this provider')
 
                 const dynamicEngine = engine as DynamicProvider
-                result = await dynamicEngine.getNumber(params.country, params.service, {
+                const numRes = await dynamicEngine.getNumber(params.country, params.service, {
                     operator: params.operator || undefined,
                     maxPrice: params.maxPrice || undefined
                 })
+                result = { ...numRes, rawResponse: dynamicEngine.lastRawResponse }
                 break
             case 'getStatus':
                 if (!params.id) throw new Error('Activation ID required')
                 if (!engine.getStatus) throw new Error('getStatus is not supported by this provider')
-                result = await engine.getStatus(params.id)
+                const statusRes = await engine.getStatus(params.id)
+                result = { ...statusRes, rawResponse: (engine as any).lastRawResponse }
                 break
             case 'getPrices':
                 // Get prices with optional country/service filters
