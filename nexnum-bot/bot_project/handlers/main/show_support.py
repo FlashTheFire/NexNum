@@ -18,6 +18,8 @@ from telebot.types import (
     CallbackQuery
 )
 
+from utils.config import SUPPORT_PAGE
+from utils.media_manager import prepare_input_media
 from handlers.manager.operation import UserManagement, OrderManagement
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -86,8 +88,8 @@ class SupportManagement:
             )
 
             await bot.edit_message_media(
-                media=InputMediaPhoto(
-                    media='https://i.postimg.cc/9QH9VNky/20240628-203445.jpg',
+                media=prepare_input_media(
+                    media_source=SUPPORT_PAGE,
                     caption=caption,
                     parse_mode='HTML'
                 ),

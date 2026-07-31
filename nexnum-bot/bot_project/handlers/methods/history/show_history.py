@@ -36,7 +36,8 @@ from handlers.manager.operation import (
 )
 from handlers.security import RateLimiter
 from utils.functions import small_caps, encode_order_id, decode_barcode_id, date_to_unix, large_caps, subscript_small_caps, time_ago
-from utils.config import LOADING_GIF, CHANNEL_ID
+from utils.config import LOADING_GIF, HISTORY_PAGE, CHANNEL_ID
+from utils.media_manager import prepare_input_media
 from redis.commands.search.query import Query
 from functools import partial
 from utils.redis_keys import RedisKeys
@@ -387,10 +388,11 @@ class HistoryManager:
                 "🏛️ <b>Yᴏᴜ Cᴀɴ Sᴇᴀʀᴄʜ Yᴏᴜʀ Tʀᴀɴsᴀᴄᴛɪᴏɴs Bʏ Dᴀᴛᴇ Aɴᴅ Tʏᴘᴇ. Tʜɪs Wɪʟʟ Hᴇʟᴘ Yᴏᴜ Eᴀsɪʟʏ Aɴᴀʟʏᴢᴇ Yᴏᴜʀ Fᴜᴛᴜʀᴇ Fɪɴᴀɴᴄᴇs..</b>"
             )
             await self.bot.edit_message_media(
-                media=InputMediaVideo(
-                    media=LOADING_GIF, 
+                media=prepare_input_media(
+                    media_source=LOADING_GIF, 
                     caption=caption,
-                    parse_mode="HTML"
+                    parse_mode="HTML",
+                    media_type="animation"
                 ),
                 chat_id=chat_id,
                 message_id=message_id,
@@ -449,8 +451,8 @@ class HistoryManager:
                     async def update_message():
                         try:
                             await self.bot.edit_message_media(
-                                media=InputMediaPhoto(
-                                    media='https://i.postimg.cc/HLWC80bf/20240628-092309.jpg',
+                                media=prepare_input_media(
+                                    media_source=HISTORY_PAGE,
                                     caption=caption,
                                     parse_mode='HTML'
                                 ),

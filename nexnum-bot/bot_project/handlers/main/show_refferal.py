@@ -19,6 +19,7 @@ from datetime import datetime
 import time
 import html
 from telebot.types import InputMediaVideo, Message, InlineQuery
+from utils.media_manager import prepare_input_media
 from utils.functions import create_keyboard, encode_base62, time_ago  # assumed async
 from utils.redis_manager import redis_manager
 from handlers.manager.operation import UserManagement, OrderManagement
@@ -65,7 +66,7 @@ class ReferManagement:
     ) -> None:
         try:
             await bot.edit_message_media(
-                media=InputMediaVideo(media=LOADING_GIF, caption=caption, parse_mode="HTML"),
+                media=prepare_input_media(media_source=LOADING_GIF, caption=caption, parse_mode="HTML", media_type="animation"),
                 chat_id=chat_id,
                 message_id=message_id,
                 reply_markup=keyboard
@@ -77,10 +78,11 @@ class ReferManagement:
         """Display loading animation during data processing asynchronously"""
         try:
             await self.bot.edit_message_media(
-                media=InputMediaVideo(
-                    media=LOADING_GIF, 
+                media=prepare_input_media(
+                    media_source=LOADING_GIF, 
                     caption=caption,
-                    parse_mode="HTML"
+                    parse_mode="HTML",
+                    media_type="animation"
                 ),
                 chat_id=chat_id,
                 message_id=message_id,

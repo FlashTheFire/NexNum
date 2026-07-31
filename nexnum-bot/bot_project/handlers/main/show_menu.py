@@ -21,6 +21,7 @@ from telebot.types import InputMediaPhoto, Message, CallbackQuery, InlineKeyboar
 import os
 from dotenv import load_dotenv
 
+from utils.media_manager import prepare_input_media
 from utils.redis_manager import redis_manager
 from utils.db import db_adapter
 from utils.config import START_PAGE, ADMIN_ID, ENV_FILE, CHANNEL_ID as CONFIG_CHANNEL_ID
@@ -159,8 +160,8 @@ class UserStartManager:
                 except Exception:
                     try:
                         await bot.edit_message_media(
-                            media=InputMediaPhoto(
-                                media=START_PAGE,
+                            media=prepare_input_media(
+                                media_source=START_PAGE,
                                 caption=caption,
                                 parse_mode="HTML"
                             ),

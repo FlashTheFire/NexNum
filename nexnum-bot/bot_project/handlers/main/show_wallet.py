@@ -13,6 +13,7 @@ import asyncio
 from PIL import Image, ImageDraw, ImageFont
 from io import BytesIO
 from telebot.types import InputMediaPhoto, InputMediaVideo, Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from utils.media_manager import prepare_input_media
 from utils.functions import create_keyboard, convert_points, get_tg_profile_photo
 from utils.redis_manager import redis_manager, RedisManager
 from handlers.manager.operation import FinancialManagement, UserManagement, OrderManagement, FinancialSummaryAggregator
@@ -367,10 +368,11 @@ class UserWalletManagement:
         """Display loading animation during data processing asynchronously"""
         try:
             await self.bot.edit_message_media(
-                media=InputMediaVideo(
-                    media=LOADING_GIF, 
+                media=prepare_input_media(
+                    media_source=LOADING_GIF, 
                     caption=self._get_loading_caption_template(), 
-                    parse_mode="HTML"
+                    parse_mode="HTML",
+                    media_type="animation"
                 ),
                 chat_id=chat_id,
                 message_id=message_id,

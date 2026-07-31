@@ -1,5 +1,6 @@
 import os
 import logging
+import hashlib
 from typing import Union, Optional, Any
 from telebot.async_telebot import AsyncTeleBot
 from telebot.types import Message, InputFile
@@ -8,6 +9,47 @@ from utils.redis_manager import redis_manager
 from utils.db import db_adapter
 
 logger = logging.getLogger("media_manager")
+
+import io
+from telebot.types import Message, InputFile, InputMediaPhoto, InputMediaVideo, InputMediaAnimation
+
+def _get_source_signature(file_source: str) -> str:
+    """Generate a unique signature for the media source based on path/URL and file modification time."""
+    try:
+        if os.path.exists(file_source):
+            mtime = os.path.getmtime(file_source)
+            size = os.path.getsize(file_source)
+            raw = f"{os.path.abspath(file_source)}:{mtime}:{size}"
+        else:
+            raw = str(file_source)
+        return hashlib.md5(raw.encode('utf-8')).hexdigest()
+    except Exception:
+        return hashlib.md5(str(file_source).encode('utf-8')).hexdigest()
+
+def prepare_input_media(media_source: Any, caption: Optional[str] = None, parse_mode: str = "HTML", media_type: str = "photo") -> Any:
+    """
+    Safely creates an InputMedia object (InputMediaPhoto, InputMediaVideo, InputMediaAnimation)
+    handling local file paths, InputFile objects, BytesIO, Telegram file_ids, and public URLs.
+    """
+    if isinstance(media_source, str) and os.path.exists(media_source):
+        with open(media_source, "rb") as f:
+            input_bytes = f.read()
+        input_obj = InputFile(io.BytesIO(input_bytes), file_name=os.path.basename(media_source))
+    else:
+        input_obj = media_source
+
+    if isinstance(media_source, str):
+        if media_source.lower().endswith(".gif"):
+            media_type = "animation"
+        elif media_source.lower().endswith((".mp4", ".avi", ".mov")):
+            media_type = "video"
+
+    if media_type == "animation":
+        return InputMediaAnimation(media=input_obj, caption=caption, parse_mode=parse_mode)
+    elif media_type == "video":
+        return InputMediaVideo(media=input_obj, caption=caption, parse_mode=parse_mode)
+    else:
+        return InputMediaPhoto(media=input_obj, caption=caption, parse_mode=parse_mode)
 
 async def send_or_cached_media(
     bot: AsyncTeleBot,
@@ -20,23 +62,25 @@ async def send_or_cached_media(
     media_type: str = "photo"
 ) -> Optional[Message]:
     """
-    High-performance media sender using Redis for sub-millisecond Telegram file_id lookup.
-    
-    Caching Flow:
-    1. Checks Redis (`bot_media_cache:{media_key}`) for ultra-fast response (<1ms).
-    2. Fallback to PostgreSQL `user_sessions` if Redis cache misses.
-    3. If not cached, uploads local file / URL, captures Telegram's generated file_id,
-       and stores it indefinitely in Redis and PostgreSQL.
+    High-performance media sender using Redis & PostgreSQL for sub-millisecond Telegram file_id lookup.
+    Automatically invalidates cache if local image source file or URL changes.
     """
     redis_key = f"bot_media_cache:{media_key}"
+    sig_key = f"bot_media_cache:{media_key}:sig"
+    current_sig = _get_source_signature(file_source)
+
     cached_file_id: Optional[str] = None
+    cached_sig: Optional[str] = None
 
     # 1. Check Redis Cache first
     if redis_manager.redis_client:
         try:
             val = await redis_manager.redis_client.get(redis_key)
+            sig_val = await redis_manager.redis_client.get(sig_key)
             if val:
                 cached_file_id = val.decode('utf-8') if isinstance(val, bytes) else str(val)
+            if sig_val:
+                cached_sig = sig_val.decode('utf-8') if isinstance(sig_val, bytes) else str(sig_val)
         except Exception as err:
             logger.warning(f"Redis lookup for '{media_key}' failed: {err}")
 
@@ -45,16 +89,16 @@ async def send_or_cached_media(
         try:
             cached_session = await db_adapter.get_user_session("GLOBAL_MEDIA_CACHE") or {}
             cached_file_id = cached_session.get(f"media_file_id:{media_key}")
-            # Repopulate Redis cache if found in PostgreSQL
-            if cached_file_id and redis_manager.redis_client:
-                try:
-                    await redis_manager.redis_client.set(redis_key, cached_file_id)
-                except Exception:
-                    pass
+            cached_sig = cached_session.get(f"media_sig:{media_key}")
         except Exception as pg_err:
             logger.warning(f"PostgreSQL lookup for '{media_key}' failed: {pg_err}")
 
-    # 3. Fast Path: Send via cached Telegram file_id
+    # 3. Cache Invalidation Check: If source file changed, purge stale file_id
+    if cached_file_id and cached_sig and cached_sig != current_sig:
+        logger.info(f"Media source for '{media_key}' changed. Invalidating cached file_id.")
+        cached_file_id = None
+
+    # 4. Fast Path: Send via cached Telegram file_id
     if cached_file_id:
         try:
             if media_type == "photo":
@@ -68,7 +112,7 @@ async def send_or_cached_media(
         except Exception as e:
             logger.warning(f"Cached file_id for '{media_key}' failed or expired ({e}). Re-uploading media source...")
 
-    # 4. Upload media via local file path or public URL
+    # 5. Upload media via local file path or public URL
     sent_msg = None
     if os.path.exists(file_source):
         with open(file_source, "rb") as f:
@@ -91,7 +135,7 @@ async def send_or_cached_media(
         else:
             sent_msg = await bot.send_document(chat_id, file_source, caption=caption, parse_mode=parse_mode, reply_markup=reply_markup)
 
-    # 5. Extract generated Telegram file_id and cache in Redis & PostgreSQL indefinitely
+    # 6. Extract generated Telegram file_id and cache in Redis & PostgreSQL indefinitely
     if sent_msg:
         extracted_file_id = None
         if getattr(sent_msg, "photo", None):
@@ -108,16 +152,18 @@ async def send_or_cached_media(
             if redis_manager.redis_client:
                 try:
                     await redis_manager.redis_client.set(redis_key, extracted_file_id)
+                    await redis_manager.redis_client.set(sig_key, current_sig)
                 except Exception as err:
-                    logger.warning(f"Failed to cache file_id in Redis: {err}")
+                    logger.warning(f"Failed to cache file_id in Redis for '{media_key}': {err}")
             
             # Store in PostgreSQL
             try:
-                await db_adapter.save_user_session("GLOBAL_MEDIA_CACHE", {
-                    f"media_file_id:{media_key}": extracted_file_id
-                })
-            except Exception as err:
-                logger.warning(f"Failed to cache file_id in PostgreSQL: {err}")
+                cached_session = await db_adapter.get_user_session("GLOBAL_MEDIA_CACHE") or {}
+                cached_session[f"media_file_id:{media_key}"] = extracted_file_id
+                cached_session[f"media_sig:{media_key}"] = current_sig
+                await db_adapter.save_user_session("GLOBAL_MEDIA_CACHE", cached_session)
+            except Exception as pg_err:
+                logger.warning(f"Failed to cache file_id in PostgreSQL for '{media_key}': {pg_err}")
 
             logger.info(f"Persisted media file_id for '{media_key}' in Redis & DB: {extracted_file_id}")
 

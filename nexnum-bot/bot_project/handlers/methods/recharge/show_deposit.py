@@ -31,6 +31,8 @@ from telebot.types import (
 )
 
 
+from utils.media_manager import prepare_input_media
+
 # Local imports – ensure these modules are available in your project.
 from utils.redis_keys import RedisKeys
 from redis import WatchError
@@ -172,8 +174,8 @@ class ShowDepositManager:
                 "<code>(💎)</code>"
             )
 
-            media = InputMediaPhoto(
-                media='https://i.postimg.cc/hGZ2G2v5/IMG-20240620-025944-733.jpg',
+            media = prepare_input_media(
+                media_source=DEPOSIT_PAGE,
                 caption=caption,
                 parse_mode='HTML'
             )
@@ -185,7 +187,6 @@ class ShowDepositManager:
                     message_id=call.message.message_id,
                     reply_markup=keyboard
                 ),
-                #await logg_info(f"QR deposit handled successfully for chat_id: {call.message.chat.id}")
             )
         except Exception as e:
             await asyncio.gather(
@@ -250,12 +251,12 @@ class ShowDepositManager:
                 "⏳ <b>Pᴀʏ Uɴᴅᴇʀ  »</b>  {} <b>[</b><code>{}</code> <code>Mɪɴ</code><b>]</b>\n\n"
                 "📌 <b>Sᴄᴀɴ Tʜɪs Qʀ Aɴᴅ Pᴀʏ Fʀᴏᴍ Aɴʏ Pᴀʏᴍᴇɴᴛ Aᴘᴘ.</b>"
             )
-            print("media", LOADING_GIF)
             loading_msg = await self.bot.edit_message_media(
-                media=InputMediaAnimation(
-                    media=LOADING_GIF, 
-                    caption=caption.format('⩇⩇', '⩇⩇', '⩇⩇⩇⩇⩇⩇⩇⩇⩇⩇⩇⩇', '⩇⩇:⩇⩇ Pᴍ', '⩇⩇'), 
-                    parse_mode="HTML"
+                media=prepare_input_media(
+                    media_source=LOADING_GIF,
+                    caption=caption.format('⩇⩇', '⩇⩇', '⩇⩇⩇⩇⩇⩇⩇⩇⩇⩇⩇⩇', '⩇⩇:⩇⩇ Pᴍ', '⩇⩇'),
+                    parse_mode="HTML",
+                    media_type="animation"
                 ),
                 chat_id=call.message.chat.id,
                 message_id=call.message.message_id,
@@ -274,11 +275,10 @@ class ShowDepositManager:
                 position = (729, 275)  # Leaves enough room for a 380x380 QR
                 size = 200
                 qr_image = await qr_code(deposit_id=deposit_id, size=size, position=position, radius=20)
-                print("qr_image", qr_image)
                 msg = await self.bot.edit_message_media(
-                    media=InputMediaPhoto(
-                        media=qr_image, 
-                        caption=caption.format(MIN_DEPOSIT, MIN_DEPOSIT, deposit_id, valid_until, int(DEPOSIT_TIMEOUT)), 
+                    media=prepare_input_media(
+                        media_source=qr_image,
+                        caption=caption.format(MIN_DEPOSIT, MIN_DEPOSIT, deposit_id, valid_until, int(DEPOSIT_TIMEOUT)),
                         parse_mode="HTML"
                     ),
                     chat_id=call.message.chat.id,
