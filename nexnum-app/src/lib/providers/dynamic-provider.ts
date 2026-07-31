@@ -1909,6 +1909,13 @@ export class DynamicProvider implements SmsProvider {
             throw new Error(`Failed to parse number response. No data returned or mapping failed. Raw: ${JSON.stringify(this.lastRawResponse)}`)
         }
 
+        // Check if conditionalFields mapped a provider error or error status
+        if (mapped.error || ['NO_NUMBERS', 'NO_BALANCE', 'BAD_KEY', 'SERVICE_UNAVAILABLE_REGION'].includes(String(mapped.status))) {
+            const errType = (mapped.status || 'NO_NUMBERS') as UniversalErrorType
+            const errMsg = String(mapped.error || mapped.status || 'Provider error')
+            throw new ProviderError(errType, errMsg)
+        }
+
         // Required Fields for NexNum Core
         const activationId = String(mapped.activationId || mapped.id || mapped.orderId || '')
         const phoneNumber = String(mapped.phoneNumber || mapped.phone || mapped.number || '')
