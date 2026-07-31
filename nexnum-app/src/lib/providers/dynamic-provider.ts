@@ -1979,12 +1979,10 @@ export class DynamicProvider implements SmsProvider {
         const mapped = items[0] || {}
 
         // Map status string to internal NumberStatus based STRICTLY on configuration
-        // Professional approach: No guesswork. If it's not mapped, it stays pending.
         let status: NumberStatus = 'pending'
         const rawStatus = String(mapped.status || '').trim().toUpperCase()
 
         if (mapConfig?.statusMapping) {
-            // Check case-insensitive
             const statusMap = mapConfig.statusMapping as Record<string, NumberStatus>
             const mappedStatus = statusMap[rawStatus] ||
                 statusMap[rawStatus.toLowerCase()] ||
@@ -1995,26 +1993,50 @@ export class DynamicProvider implements SmsProvider {
             }
         }
 
-        const messages = []
-        // Strict mapping for SMS content/code
-        const smsContent = mapped.sms || mapped.text || mapped.content || mapped.message
+        // Detect OTP code and raw SMS content
         const smsCode = mapped.code || mapped.pin || mapped.otp
+        let smsContent = mapped.sms || mapped.text || mapped.content || mapped.message
 
-        if (smsContent || smsCode) {
-            const smsList = Array.isArray(smsContent) ? smsContent : [mapped] // If not array, treat mapped object as single SMS context
-            messages.push(...smsList.filter(Boolean).map((s: any) => {
-                const code = s.code || smsCode || ''
-                const stableId = s.id || s.smsId || `sms_${activationId}_${code}`
+        if (smsCode || status === 'received') {
+            if (status === 'pending') status = 'received'
 
-                return {
-                    ...s, // Preserve all mapped fields in SMS object
-                    id: String(stableId),
-                    sender: s.sender || s.from || 'System',
-                    content: s.text || s.content || s.message || String(smsContent || ''),
-                    code: String(code),
-                    receivedAt: s.receivedAt ? new Date(s.receivedAt) : new Date()
+            // Check if provider supports getFullSmsText / getFullSms endpoint
+            const endpoints = (this.config.endpoints || {}) as Record<string, EndpointConfig>
+            const hasFullSmsEndpoint = !!(endpoints['getFullSmsText'] || endpoints['getFullSms'])
+
+            if (hasFullSmsEndpoint && (!smsContent || typeof smsContent === 'object')) {
+                try {
+                    const fullSmsResult = await this.getFullSmsText(activationId)
+                    const firstMsg = fullSmsResult.messages?.[0]
+                    if (firstMsg?.content) {
+                        smsContent = firstMsg.content
+                    }
+                } catch (e: any) {
+                    logger.debug(`[DynamicProvider:${this.name}] getFullSmsText attempt failed, falling back to mock text template`, { error: e.message })
                 }
-            }))
+            }
+
+            // Fallback mock text if full SMS text is missing or unavailable
+            if (smsCode && (!smsContent || typeof smsContent === 'object')) {
+                smsContent = `Your verification code is: ${smsCode}`
+            }
+        }
+
+        const messages = []
+        if (smsContent || smsCode) {
+            const rawText = typeof smsContent === 'string' ? smsContent : `Your verification code is: ${smsCode || ''}`
+            const text = rawText.includes('+') && !rawText.includes(' ') ? rawText.replace(/\+/g, ' ') : rawText
+            const code = String(smsCode || '')
+            const stableId = mapped.id || mapped.smsId || `sms_${activationId}_${code}`
+
+            messages.push({
+                ...mapped,
+                id: String(stableId),
+                sender: mapped.sender || mapped.from || 'System',
+                content: text,
+                code,
+                receivedAt: mapped.receivedAt ? new Date(mapped.receivedAt) : new Date()
+            })
         }
 
         return { ...mapped, status, messages }
