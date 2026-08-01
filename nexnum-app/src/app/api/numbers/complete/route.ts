@@ -8,6 +8,7 @@ import { smsProvider } from '@/lib/providers'
 import { emitStateUpdate } from '@/lib/events/emitters/state-emitter'
 import { logger } from '@/lib/core/logger'
 import { captureError, addBreadcrumb } from '@/lib/monitoring/sentry'
+import { getCurrencyService } from '@/lib/currency/currency-service'
 
 const completeNumberSchema = z.object({
     numberId: z.string().uuid('Invalid number ID'),
@@ -100,10 +101,16 @@ export const POST = apiHandler(async (request, { body }) => {
     }
     emitStateUpdate(user.userId, 'numbers', 'completed').catch(err => logger.warn('[Numbers/complete] emitStateUpdate failed', { error: err }))
 
+    const currencyPrices = await getCurrencyService().pointsToAllFiat(Number(updatedNumber.price))
+
     return NextResponse.json({
         success: true,
         message: 'Activation marked as complete',
-        number: updatedNumber
+        number: {
+            ...updatedNumber,
+            price: Number(updatedNumber.price),
+            currencyPrices
+        }
     })
 
 }, {

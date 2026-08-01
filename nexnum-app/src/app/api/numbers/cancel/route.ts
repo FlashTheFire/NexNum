@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { emitStateUpdate } from '@/lib/events/emitters/state-emitter'
 import { logger } from '@/lib/core/logger'
 import { captureError, addBreadcrumb } from '@/lib/monitoring/sentry'
+import { getCurrencyService } from '@/lib/currency/currency-service'
 
 const cancelSchema = z.object({
     numberId: z.string().uuid(),
@@ -185,7 +186,15 @@ export const POST = apiHandler(async (request, { body }) => {
         // PRODUCTION: Invalidate cache & emit WebSocket event for real-time UI update
         emitStateUpdate(user.userId, 'all', 'number_cancelled').catch(err => logger.warn('[Numbers/cancel] emitStateUpdate failed', { error: err }))
 
-        return NextResponse.json({ success: true, status: 'cancelled' })
+        const currencyRefundAmount = await getCurrencyService().pointsToAllFiat(Number(number.price))
+
+        return NextResponse.json({
+            success: true,
+            status: 'cancelled',
+            message: 'Number cancelled and refunded',
+            refundAmount: Number(number.price),
+            currencyRefundAmount,
+        })
 
     } catch (err: any) {
         console.error(`[CANCEL] DB Transaction failed:`, err)

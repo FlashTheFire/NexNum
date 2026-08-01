@@ -522,7 +522,15 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
             profit: resultNumber.profit
         })
 
-        return ResponseFactory.success({ number: resultNumber })
+        const currencyPrices = await getCurrencyService().pointsToAllFiat(Number(resultNumber.price))
+
+        return ResponseFactory.success({
+            number: {
+                ...resultNumber,
+                price: Number(resultNumber.price),
+                currencyPrices
+            }
+        })
 
     } catch (err: unknown) {
         const error = err as Error

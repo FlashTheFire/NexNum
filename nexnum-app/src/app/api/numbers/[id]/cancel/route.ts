@@ -3,6 +3,7 @@ import { prisma, ensureWallet } from '@/lib/core/db'
 import { getCurrentUser } from '@/lib/auth/jwt'
 import { smsProvider } from '@/lib/providers'
 import { WalletService } from '@/lib/wallet/wallet'
+import { getCurrencyService } from '@/lib/currency/currency-service'
 
 interface RouteParams {
     params: Promise<{ id: string }>
@@ -162,10 +163,13 @@ export async function POST(request: Request, { params }: RouteParams) {
             ActiveOrderStream.removeActiveOrder(number.activationId).catch(() => {})
         }
 
+        const currencyRefundAmount = await getCurrencyService().pointsToAllFiat(Number(number.price))
+
         return NextResponse.json({
             success: true,
             message: 'Number cancelled and refunded',
             refundAmount: Number(number.price),
+            currencyRefundAmount,
         })
 
     } catch (error) {

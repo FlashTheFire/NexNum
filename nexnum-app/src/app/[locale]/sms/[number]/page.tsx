@@ -34,6 +34,7 @@ import { useSMS } from "@/hooks/use-sms"
 import { useSocketEvent } from "@/hooks/use-socket"
 import LoadingScreen from "@/components/ui/LoadingScreen"
 import LanguageSwitcher from "@/components/common/LanguageSwitcher"
+import { useCurrency } from "@/providers/CurrencyProvider"
 
 const staggerContainer = {
     hidden: { opacity: 0 },
@@ -237,6 +238,8 @@ export default function SMSPage() {
         setShowCancelConfirm(true)
     }
 
+    const { formatFromPrices } = useCurrency()
+
     // Confirm Cancel - Actually cancel and refund
     const confirmCancel = async () => {
         if (!displayNumber) return
@@ -247,11 +250,12 @@ export default function SMSPage() {
             const result = await setCancel(displayNumber.id)
 
             if (result.success) {
-                const refundVal = (result as any).data?.refundAmount !== undefined
-                    ? (result as any).data.refundAmount
-                    : displayNumber.price
+                const currencyRefund = (result as any).data?.currencyRefundAmount || (result as any).currencyRefundAmount || displayNumber.currencyPrices
+                const refundMsg = currencyRefund
+                    ? `Refund of ${formatFromPrices(currencyRefund)} processed to your wallet balance.`
+                    : 'Refund processed to your wallet balance.'
                 toast.success('Number Cancelled', {
-                    description: `Refund of $${Number(refundVal || 0).toFixed(2)} processed to your wallet balance.`
+                    description: refundMsg
                 })
                 await fetchNumbers()
             } else {
