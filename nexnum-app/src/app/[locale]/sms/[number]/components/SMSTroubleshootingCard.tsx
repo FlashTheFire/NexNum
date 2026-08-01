@@ -3,14 +3,11 @@
 import React, { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
-    Sparkles,
     RefreshCw,
     Clock,
     ShieldCheck,
     Globe,
-    Smartphone,
-    ChevronLeft,
-    ChevronRight
+    Smartphone
 } from "lucide-react"
 import { cn } from "@/lib/utils/utils"
 
@@ -91,52 +88,52 @@ export function SMSTroubleshootingCard({ className }: SMSTroubleshootingCardProp
             className={cn(
                 "relative w-full rounded-2xl border overflow-hidden transition-all duration-300",
                 "bg-gradient-to-br from-[#13151a] via-[#101217] to-[#0d0e12]",
-                "border-[hsl(var(--neon-lime)/0.25)] shadow-xl",
+                "border-white/10 shadow-lg p-4 md:p-5",
                 className
             )}
         >
-            {/* Header & Floating Dots */}
-            <div className="p-4 md:p-5 pb-3 flex items-center justify-between border-b border-white/5">
-                <div className="flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-[hsl(var(--neon-lime))]" />
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-gray-300">
-                        Troubleshooting Tips
-                    </h4>
-                </div>
-
-                {/* Floating Type Dots Indicator */}
-                <div className="flex items-center gap-1.5">
-                    {tips.map((_, idx) => (
-                        <button
-                            key={idx}
-                            onClick={() => setCurrentIndex(idx)}
-                            aria-label={`Go to tip ${idx + 1}`}
-                            className={cn(
-                                "h-1.5 rounded-full transition-all duration-300 outline-none",
-                                idx === currentIndex
-                                    ? "w-5 bg-[hsl(var(--neon-lime))] shadow-[0_0_8px_hsl(var(--neon-lime)/0.6)]"
-                                    : "w-1.5 bg-white/20 hover:bg-white/40"
-                            )}
-                        />
-                    ))}
-                </div>
+            {/* Top Right Floating Dots */}
+            <div className="absolute top-4 right-4 z-20 flex items-center gap-1.5">
+                {tips.map((_, idx) => (
+                    <button
+                        key={idx}
+                        onClick={() => setCurrentIndex(idx)}
+                        aria-label={`Go to tip ${idx + 1}`}
+                        className={cn(
+                            "h-1.5 rounded-full transition-all duration-300 outline-none",
+                            idx === currentIndex
+                                ? "w-5 bg-[hsl(var(--neon-lime))] shadow-[0_0_8px_hsl(var(--neon-lime)/0.6)]"
+                                : "w-1.5 bg-white/20 hover:bg-white/40"
+                        )}
+                    />
+                ))}
             </div>
 
-            {/* Carousel Slide Area (One Tip at Once) */}
-            <div className="p-4 md:p-5 min-h-[95px] flex items-center">
+            {/* Swipeable Carousel Area (Touch Drag / Swipe Support) */}
+            <div className="relative min-h-[90px] flex items-center select-none">
                 <AnimatePresence mode="wait">
                     <motion.div
                         key={currentTip.id}
+                        drag="x"
+                        dragConstraints={{ left: 0, right: 0 }}
+                        dragElastic={0.2}
+                        onDragEnd={(_, info) => {
+                            if (info.offset.x < -40) {
+                                setCurrentIndex((prev) => (prev + 1) % tips.length)
+                            } else if (info.offset.x > 40) {
+                                setCurrentIndex((prev) => (prev - 1 + tips.length) % tips.length)
+                            }
+                        }}
                         initial={{ opacity: 0, x: 20 }}
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, x: -20 }}
                         transition={{ duration: 0.3, ease: "easeOut" }}
-                        className="w-full flex items-start gap-3.5"
+                        className="w-full flex items-start gap-3.5 cursor-grab active:cursor-grabbing touch-pan-y"
                     >
                         <div className="p-3 rounded-xl border shrink-0 bg-[#1a1d24] border-white/10 shadow-md">
                             <IconComponent className={cn("h-5 w-5", currentTip.highlightColor)} />
                         </div>
-                        <div className="min-w-0 flex-1 space-y-1">
+                        <div className="min-w-0 flex-1 space-y-1 pr-16">
                             <div className="flex items-center gap-2 flex-wrap">
                                 <h5 className="text-sm font-semibold text-white leading-tight">
                                     {currentTip.title}
@@ -151,29 +148,6 @@ export function SMSTroubleshootingCard({ className }: SMSTroubleshootingCardProp
                         </div>
                     </motion.div>
                 </AnimatePresence>
-            </div>
-
-            {/* Bottom Footer Controls */}
-            <div className="px-4 md:px-5 py-2.5 bg-black/20 border-t border-white/5 flex items-center justify-between text-[11px] text-gray-500">
-                <span className="font-medium">
-                    <span className="text-[hsl(var(--neon-lime))] font-bold">{currentIndex + 1}</span> / {tips.length} Tips
-                </span>
-                <div className="flex items-center gap-1">
-                    <button
-                        onClick={() => setCurrentIndex((prev) => (prev - 1 + tips.length) % tips.length)}
-                        className="p-1 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
-                        aria-label="Previous tip"
-                    >
-                        <ChevronLeft className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                        onClick={() => setCurrentIndex((prev) => (prev + 1) % tips.length)}
-                        className="p-1 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
-                        aria-label="Next tip"
-                    >
-                        <ChevronRight className="h-3.5 w-3.5" />
-                    </button>
-                </div>
             </div>
         </div>
     )
