@@ -105,7 +105,7 @@ export const SMSMessageCard = memo(function SMSMessageCard({ sms, index }: SMSMe
         if (otpCode) {
             navigator.clipboard.writeText(otpCode)
             setCopied(true)
-            toast.success("Code copied!", { description: otpCode })
+            toast.success("Verification Code Copied", { description: otpCode })
             setTimeout(() => setCopied(false), 2000)
         }
     }
@@ -113,7 +113,7 @@ export const SMSMessageCard = memo(function SMSMessageCard({ sms, index }: SMSMe
     const handleCopyFull = () => {
         navigator.clipboard.writeText(sms.text)
         setFullCopied(true)
-        toast.success("Message copied!")
+        toast.success("SMS Content Copied", { description: "Full message copied to clipboard." })
         setTimeout(() => setFullCopied(false), 2000)
     }
 

@@ -100,7 +100,9 @@ export default function SMSPage() {
         if (displayNumber && (data.numberId === displayNumber.id || data.phoneNumber === displayNumber.number)) {
             // Use reload (GET) instead of refresh (POST) to save provider API calls
             reload();
-            toast.success(t('inbox.newMessageReceived'));
+            toast.success('New SMS Code Received!', {
+                description: data.code ? `Verification Code: ${data.code}` : 'Check your inbox list below.'
+            });
         }
     });
 
@@ -138,7 +140,9 @@ export default function SMSPage() {
     // Handle Download History
     const handleDownload = () => {
         if (messages.length === 0) {
-            toast.error("No messages to download")
+            toast.info('No SMS Messages Available', {
+                description: 'Wait for a verification message to arrive before downloading.'
+            })
             return
         }
 
@@ -155,7 +159,9 @@ export default function SMSPage() {
         a.click()
         document.body.removeChild(a)
         URL.revokeObjectURL(url)
-        toast.success("Download started")
+        toast.success('SMS History Exported', {
+            description: `File saved as sms_history_${displayNumber?.number || 'number'}.txt`
+        })
         setIsMenuOpen(false)
     }
 
@@ -186,7 +192,7 @@ export default function SMSPage() {
         toast.promise(fetchNumbers(), {
             loading: 'Checking for new messages...',
             success: 'Inbox updated',
-            error: 'Failed to refresh'
+            error: 'Failed to refresh inbox'
         })
     }
 
@@ -209,8 +215,8 @@ export default function SMSPage() {
             const boughtNumber = result.number || (result as any).data?.number
 
             if (result.success && boughtNumber) {
-                toast.success('New number purchased!', {
-                    description: boughtNumber.phoneNumber || (boughtNumber as any).number || '',
+                toast.success('New Number Purchased', {
+                    description: `${boughtNumber.phoneNumber || ''} (${boughtNumber.serviceName || ''})`,
                     action: {
                         label: 'View',
                         onClick: () => router.push(`/sms/${boughtNumber.id}`)
@@ -219,13 +225,27 @@ export default function SMSPage() {
                 // Navigate to the newly purchased number page
                 router.push(`/sms/${boughtNumber.id}`)
             } else {
-                toast.error('Failed to get next number', {
-                    description: result.error || 'Please try again'
-                })
+                const rawError = result.error || 'Please try again'
+                const cleanError = String(rawError).replace(/^Provider error:\s*/i, '')
+                if (cleanError.includes('NO_NUMBERS') || cleanError.toLowerCase().includes('out of stock')) {
+                    toast.warning('Out of Numbers', {
+                        description: 'No numbers currently available for this service or region. Please try another provider or region.'
+                    })
+                } else if (cleanError.includes('NO_BALANCE') || cleanError.toLowerCase().includes('balance')) {
+                    toast.error('Insufficient Wallet Balance', {
+                        description: 'Please add funds to your wallet balance to purchase numbers.'
+                    })
+                } else {
+                    toast.error('Unable to Purchase Next Number', {
+                        description: cleanError
+                    })
+                }
             }
         } catch (err: any) {
-            toast.error('Failed to get next number', {
-                description: err?.message || 'Please try again'
+            const rawError = err?.message || 'Please try again'
+            const cleanError = String(rawError).replace(/^Provider error:\s*/i, '')
+            toast.error('Unable to Purchase Next Number', {
+                description: cleanError
             })
         } finally {
             setIsNextLoading(false)
@@ -305,18 +325,22 @@ export default function SMSPage() {
             const result = await completeNumber(displayNumber.id)
 
             if (result.success) {
-                toast.success('Activation completed', {
-                    description: 'Number marked as finished'
+                toast.success('Activation Marked as Complete', {
+                    description: 'The number has been successfully finished.'
                 })
                 await fetchNumbers()
             } else {
-                toast.error('Failed to complete', {
-                    description: result.error || 'Please try again'
+                const rawError = result.error || 'Please try again'
+                const cleanError = String(rawError).replace(/^Provider error:\s*/i, '')
+                toast.error('Unable to Complete Activation', {
+                    description: cleanError
                 })
             }
         } catch (err: any) {
-            toast.error('Failed to complete', {
-                description: err?.message || 'Failed to complete activation'
+            const rawError = err?.message || 'Failed to complete activation'
+            const cleanError = String(rawError).replace(/^Provider error:\s*/i, '')
+            toast.error('Unable to Complete Activation', {
+                description: cleanError
             })
         } finally {
             setIsCompleting(false)
