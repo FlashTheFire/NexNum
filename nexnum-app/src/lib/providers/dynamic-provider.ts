@@ -2059,7 +2059,14 @@ export class DynamicProvider implements SmsProvider {
 
         // Map status string to internal NumberStatus based STRICTLY on configuration
         let status: NumberStatus = 'pending'
-        const rawResponseStr = typeof response === 'string' ? response.toUpperCase() : ''
+
+        // Extract raw response text universally — response is always { type, data }
+        // For text responses, data is the raw string; for JSON, stringify it
+        const rawResponseStr = (() => {
+            if (typeof response?.data === 'string') return response.data.toUpperCase()
+            if (typeof response === 'string') return (response as string).toUpperCase()
+            try { return JSON.stringify(response?.data || '').toUpperCase() } catch { return '' }
+        })()
         const rawStatus = String(mapped.status || '').trim().toUpperCase()
 
         if (mapConfig?.statusMapping) {
@@ -2073,12 +2080,22 @@ export class DynamicProvider implements SmsProvider {
             }
         }
 
-        // Safety fallback: Check raw response text for terminal status if status mapping didn't resolve it
+        // Universal terminal status detection fallback
+        // Works for ALL dynamic providers regardless of regex/mapping config gaps
         if (status === 'pending') {
-            if (rawStatus.includes('CANCEL') || rawResponseStr.includes('STATUS_CANCEL') || rawResponseStr.includes('NO_ACTIVATION') || rawResponseStr.includes('BAD_STATUS')) {
+            const terminalCancelPatterns = ['CANCEL', 'STATUS_CANCEL', 'ACCESS_CANCEL', 'NO_ACTIVATION', 'BAD_STATUS', 'CANCELLED', 'CANCELED']
+            const terminalExpirePatterns = ['EXPIRE', 'EXPIRED', 'STATUS_EXPIRED', 'TIMEOUT']
+            const terminalReceivedPatterns = ['STATUS_OK', 'RECEIVED', 'ACCESS_ACTIVATION']
+
+            if (terminalCancelPatterns.some(p => rawStatus.includes(p) || rawResponseStr.includes(p))) {
                 status = 'cancelled'
-            } else if (rawStatus.includes('EXPIRE') || rawResponseStr.includes('EXPIRED')) {
+            } else if (terminalExpirePatterns.some(p => rawStatus.includes(p) || rawResponseStr.includes(p))) {
                 status = 'expired'
+            } else if (terminalReceivedPatterns.some(p => rawStatus.includes(p) || rawResponseStr.includes(p))) {
+                // Only promote to received if code/text data exists
+                if (mapped.code || mapped.text || mapped.sms) {
+                    status = 'received'
+                }
             }
         }
 

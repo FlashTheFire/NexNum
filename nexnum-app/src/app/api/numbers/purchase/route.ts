@@ -502,10 +502,12 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
             createdAt: Date.now()
         }).catch(streamErr => logger.warn('[PURCHASE] ActiveOrderStream add failed', { error: streamErr }))
 
-        // Fail-safe: Ensure background queue worker and active poller loop are running
-        import('@/worker-entry').then(({ startQueueWorker }) => {
-            startQueueWorker().catch(() => {})
-        }).catch(() => {})
+        // Fail-safe: Ensure background queue worker and active poller loop are running (only if not disabled for standalone worker container)
+        if (process.env.NEXT_DISABLE_INTERNAL_WORKERS !== 'true') {
+            import('@/worker-entry').then(({ startQueueWorker }) => {
+                startQueueWorker().catch(() => {})
+            }).catch(() => {})
+        }
 
         logger.info('[PURCHASE_COMPLETE] Purchase completed successfully', {
             context: 'PURCHASE',

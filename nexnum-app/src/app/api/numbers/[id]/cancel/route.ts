@@ -158,6 +158,12 @@ export async function POST(request: Request, { params }: RouteParams) {
             return NextResponse.json({ error: 'Refund processing failed' }, { status: 500 })
         }
 
+        // Remove from ActiveOrderStream so Tier 1 poller stops polling this activation
+        if (number.activationId) {
+            const { ActiveOrderStream } = await import('@/lib/activation/active-order-stream')
+            ActiveOrderStream.removeActiveOrder(number.activationId).catch(() => {})
+        }
+
         return NextResponse.json({
             success: true,
             message: 'Number cancelled and refunded',
