@@ -1,58 +1,68 @@
 import { prisma } from '../lib/core/db'
-import providersTemplate from '../config/templates/providers.json'
 
-async function restoreGrizzlySmsMapping() {
-    console.log('[RESTORE] Fetching GrizzlySMS template from providers.json...')
-    
-    const template = (providersTemplate as any)['grizzlysms']
-    if (!template) {
-        throw new Error('GrizzlySMS template not found in providers.json')
-    }
+async function restoreGrizzlySmsFromAuditLog() {
+    console.log('[RESTORE] Searching for historical GrizzlySMS provider mapping in Prisma AuditLog...')
 
-    const templateMappings = template.mappings
-    const templateEndpoints = template.endpoints
-
-    console.log('[RESTORE] Searching for GrizzlySMS provider in database...')
-    const provider = await prisma.provider.findFirst({
+    const auditLogs = await prisma.auditLog.findMany({
         where: {
-            name: { equals: 'grizzlysms', mode: 'insensitive' }
-        }
+            OR: [
+                { resourceId: '92567f6a-ba5d-4f8c-87ed-daf2be79e2bd' },
+                { resourceType: { contains: 'provider', mode: 'insensitive' } }
+            ]
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 50
     })
 
-    if (!provider) {
-        console.error('[RESTORE] GrizzlySMS provider not found in database!')
+    let selectedMeta: any = null
+    let selectedDate: string = ''
+
+    for (const log of auditLogs) {
+        const meta = log.metadata as any
+        if (meta && meta.mappings && meta.mappings.getNumber && meta.mappings.getPrices) {
+            selectedMeta = meta
+            selectedDate = log.createdAt.toISOString()
+            break
+        }
+    }
+
+    if (!selectedMeta) {
+        console.error('[RESTORE] Could not find rich historical AuditLog entry for GrizzlySMS!')
         process.exit(1)
     }
 
-    console.log(`[RESTORE] Found provider: ${provider.name} (ID: ${provider.id})`)
-    
-    // Preserve staticCatalog if existing, merge template mappings
-    const currentMappings = (provider.mappings as any) || {}
-    const updatedMappings = {
-        ...currentMappings,
-        ...templateMappings
+    console.log(`[RESTORE] Found rich AuditLog entry from ${selectedDate}`)
+
+    const provider = await prisma.provider.findFirst({
+        where: { name: { equals: 'grizzlysms', mode: 'insensitive' } }
+    })
+
+    if (!provider) {
+        console.error('[RESTORE] Provider grizzlysms not found!')
+        process.exit(1)
     }
 
-    const updatedProvider = await prisma.provider.update({
+    const updated = await prisma.provider.update({
         where: { id: provider.id },
         data: {
-            mappings: updatedMappings,
-            endpoints: templateEndpoints || provider.endpoints,
+            mappings: selectedMeta.mappings,
+            endpoints: selectedMeta.endpoints || provider.endpoints,
             updatedAt: new Date()
         }
     })
 
-    console.log('[RESTORE] ✅ Successfully restored GrizzlySMS mappings!')
-    console.log('[RESTORE] Restored Mappings:')
-    console.log(JSON.stringify(updatedProvider.mappings, null, 2))
+    console.log('[RESTORE] ✅ Successfully restored EXACT GrizzlySMS mappings & endpoints from Prisma AuditLog snapshot!')
+    console.log('Restored Endpoints:', Object.keys(updated.endpoints || {}))
+    console.log('Restored Mappings:', Object.keys(updated.mappings || {}))
+    console.log(JSON.stringify(updated.mappings, null, 2))
 }
 
-restoreGrizzlySmsMapping()
+restoreGrizzlySmsFromAuditLog()
     .then(() => {
-        console.log('[RESTORE] Complete.')
+        console.log('[RESTORE] Completed successfully.')
         process.exit(0)
     })
     .catch((err) => {
-        console.error('[RESTORE] Failed:', err)
+        console.error('[RESTORE] Error during restoration:', err)
         process.exit(1)
     })
