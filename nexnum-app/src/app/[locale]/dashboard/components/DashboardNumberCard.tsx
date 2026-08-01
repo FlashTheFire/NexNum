@@ -22,7 +22,6 @@ interface DashboardNumberCardProps {
     smsCount: number
     expiresAt: string
     status: string
-    price?: number
     currencyPrices?: Record<string, number>
     latestSms?: {
         content: string | null
@@ -46,7 +45,6 @@ export const DashboardNumberCard = memo(function DashboardNumberCard({
     smsCount,
     expiresAt,
     status,
-    price = 0,
     currencyPrices,
     latestSms,
     onSync
@@ -238,7 +236,7 @@ export const DashboardNumberCard = memo(function DashboardNumberCard({
                                 {serviceName.length > 10 ? serviceName.substring(0, 10) + '...' : serviceName}
                             </span>
                             <span className="text-xs font-mono text-gray-400/70 font-medium">
-                                <PriceDisplay currencyPrices={currencyPrices || { USD: (price || 0) / 100 }} />
+                                <PriceDisplay currencyPrices={currencyPrices} />
                             </span>
                             <span className="text-gray-600">|</span>
                             <span className="text-gray-400 flex items-center gap-1">

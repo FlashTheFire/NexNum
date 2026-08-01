@@ -411,7 +411,7 @@ export function MobileDashboard() {
                                                     <p className="text-xs text-gray-500 flex items-center gap-1.5">
                                                         {num.serviceName.length > 10 ? num.serviceName.substring(0, 10) + '...' : num.serviceName}
                                                         <span className="text-xs font-mono text-gray-400/70 font-medium">
-                                                            <PriceDisplay currencyPrices={num.currencyPrices || { USD: (num.price || 0) / 100 }} />
+                                                            <PriceDisplay currencyPrices={num.currencyPrices} />
                                                         </span>
                                                         • <span className="text-[hsl(var(--neon-lime))]">{num.smsCount || 0} SMS</span>
                                                     </p>

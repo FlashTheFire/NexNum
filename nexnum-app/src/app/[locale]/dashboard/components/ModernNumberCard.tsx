@@ -19,7 +19,6 @@ interface ModernNumberCardProps {
     smsCount: number
     expiresAt: string
     status: string
-    price?: number
     currencyPrices?: Record<string, number>
     className?: string
 }
@@ -35,7 +34,6 @@ export function ModernNumberCard({
     smsCount,
     expiresAt,
     status,
-    price = 0,
     currencyPrices,
     className
 }: ModernNumberCardProps) {
@@ -143,7 +141,7 @@ export function ModernNumberCard({
                         <div className="flex items-center gap-2">
                             <span className="text-[11px] text-gray-500 font-bold uppercase truncate max-w-[80px] opacity-80">{serviceName}</span>
                             <span className="text-xs font-mono text-gray-400/70 font-medium">
-                                <PriceDisplay currencyPrices={currencyPrices || { USD: (price || 0) / 100 }} />
+                                <PriceDisplay currencyPrices={currencyPrices} />
                             </span>
                             <span className="w-0.5 h-0.5 rounded-full bg-gray-700"></span>
                             <span className="text-[11px] text-[hsl(var(--neon-lime))] font-bold">{smsCount || 0} SMS</span>

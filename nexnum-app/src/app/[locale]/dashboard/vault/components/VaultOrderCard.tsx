@@ -150,7 +150,7 @@ export const VaultOrderCard = memo(({ number, status }: VaultOrderCardProps) => 
                                                 <ArrowUpRight className="w-3.5 h-3.5 text-zinc-500 opacity-0 group-hover:opacity-100 transition-opacity" />
                                             </h4>
                                             <span className="text-xs font-mono text-gray-400/70 font-medium">
-                                                <PriceDisplay currencyPrices={(number as any).currencyPrices || { USD: (number.price || 0) / 100 }} />
+                                                <PriceDisplay currencyPrices={(number as any).currencyPrices} />
                                             </span>
                                         </div>
                                         <p className="text-[11px] text-zinc-400 font-medium">
