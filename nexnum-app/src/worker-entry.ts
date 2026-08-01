@@ -194,11 +194,11 @@ export async function startQueueWorker() {
         await queue.work(QUEUES.PAYMENT_RECONCILE, async () => { await processReconciliationBatch(); });
         await queue.schedule(QUEUES.PAYMENT_RECONCILE, '*/15 * * * *', {});
 
-        // JOB: Search Aggregates Refresh (Every 5m)
+        // JOB: Search Aggregates Refresh (Every 15m)
         // Critical for "Search Services" API - keeps DB stats in sync with MeiliSearch
         const { refreshAllServiceAggregates } = await import('./lib/search/service-aggregates');
         await queue.work(QUEUES.SEARCH_AGGREGATES, async () => { await refreshAllServiceAggregates(); });
-        await queue.schedule(QUEUES.SEARCH_AGGREGATES, '*/5 * * * *', {});
+        await queue.schedule(QUEUES.SEARCH_AGGREGATES, '*/15 * * * *', {});
 
         // JOB: Provider Reliability Stats (Hourly)
         // Updates Success Rate based on recent order history

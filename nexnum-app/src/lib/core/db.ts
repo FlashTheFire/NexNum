@@ -76,19 +76,19 @@ function createPrismaClient(url?: string): PrismaClient {
     const connectionTimeoutMs = (() => {
         const raw = parseInt(process.env.PG_CONNECT_TIMEOUT_MS ?? '', 10)
         if (Number.isFinite(raw) && raw > 0) return raw
-        return isProduction ? 20_000 : 30_000
+        return 10_000 // 10s connection timeout
     })()
 
     const pool = new Pool({
         connectionString: normalized,
         max: poolMax,
         min: poolMin,
-        idleTimeoutMillis: 10_000,
+        idleTimeoutMillis: 15_000,
         connectionTimeoutMillis: connectionTimeoutMs,
-        maxUses: 1_000,
+        maxUses: 200,
         allowExitOnIdle: true,
         keepAlive: true,
-        keepAliveInitialDelayMillis: 5_000,
+        keepAliveInitialDelayMillis: 3_000,
         // Force SSL for remote databases
         ssl: isProduction ? {
             rejectUnauthorized: false,

@@ -28,20 +28,16 @@ const getRedisClient = (): Redis => {
             enableReadyCheck: !isBuilding, // Disable ready check during build
             lazyConnect: true,            // Don't connect until first command
             reconnectOnError(err) {
-                const targetError = 'READONLY';
-                if (err.message.includes(targetError)) {
+                const targetErrors = ['READONLY', 'ECONNREFUSED', 'ETIMEDOUT', 'CLOSED', 'ENOTFOUND', 'CONNECTION_BROKEN'];
+                if (targetErrors.some(e => err.message.toUpperCase().includes(e))) {
                     return true;
                 }
-                return false;
+                return true; // Always attempt reconnect on socket errors
             },
             retryStrategy(times) {
-                // Stop retrying after 3 times in non-production environments to prevent hangs
-                if (process.env.NODE_ENV !== 'production' && times > 3) {
-                    logger.warn('Max Redis retries reached. Proceeding without Redis.', { context: 'CORE' });
-                    return null; // Stop retrying
-                }
-                const delay = Math.min(times * 100, 3000);
-                return delay;
+                // Exponential backoff with random jitter (min 100ms, max 5000ms)
+                const delay = Math.min(100 * Math.pow(1.5, times), 5000) + Math.random() * 200;
+                return Math.floor(delay);
             }
         });
 
