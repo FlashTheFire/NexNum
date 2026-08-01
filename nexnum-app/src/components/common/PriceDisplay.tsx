@@ -14,7 +14,7 @@ interface PriceDisplayProps {
      * Pre-computed prices in all currencies. 
      * REQUIRED for Zero-Math Engine. 
      */
-    currencyPrices: Record<string, number>
+    currencyPrices?: Record<string, number>
 
     /** CSS class for styling */
     className?: string
@@ -43,6 +43,10 @@ export const PriceDisplay: React.FC<PriceDisplayProps> = ({
     compact
 }) => {
     const { formatFromPrices, isLoading } = useCurrency()
+
+    if (!currencyPrices) {
+        return null
+    }
 
     if (isLoading) {
         return (
