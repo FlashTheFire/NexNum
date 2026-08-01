@@ -138,7 +138,12 @@ export class ProviderRequestBuilder {
                     }
 
                     if (resolved !== undefined) {
-                        query.append(paramName, resolved)
+                        const isGenericOperator = paramName.toLowerCase() === 'operator' && 
+                            ['any', 'default', 'all'].includes(resolved.toLowerCase())
+
+                        if (!isGenericOperator) {
+                            query.append(paramName, resolved)
+                        }
                     }
                 } else {
                     // Static value
@@ -157,6 +162,8 @@ export class ProviderRequestBuilder {
             for (const [key, value] of Object.entries(runtimeParams)) {
                 // Skip if handled or internal control key
                 if (handledKeys.has(key) || this.INTERNAL_CONTROL_KEYS.has(key)) continue
+                // Skip generic operator values ('any', 'default', 'all')
+                if (key.toLowerCase() === 'operator' && ['any', 'default', 'all'].includes(String(value).toLowerCase())) continue
                 // Skip if already set
                 if (query.has(key)) continue
 
