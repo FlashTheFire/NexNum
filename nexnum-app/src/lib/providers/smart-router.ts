@@ -559,18 +559,20 @@ export class SmartSmsRouter implements SmsProvider {
     }
 
     async setCancel(activationId: string): Promise<void> {
-
         const [providerName, realId] = this.parseActivationId(activationId)
 
         if (providerName && realId) {
             const providers = await this.getActiveProviders()
-            const provider = providers.find(p => p.name === providerName)
+            const provider = providers.find(p => p.name.toLowerCase() === providerName.toLowerCase())
+            if (provider && provider.setCancel) {
+                return provider.setCancel(realId)
+            }
             if (provider) {
-                return provider.setCancel!(realId)
+                throw new Error(`Provider ${provider.name} does not support cancellation`)
             }
         }
 
-        // Fallback loop
+        // Fallback loop only when no provider prefix is present
         const providers = await this.getActiveProviders()
         for (const provider of providers) {
             try {

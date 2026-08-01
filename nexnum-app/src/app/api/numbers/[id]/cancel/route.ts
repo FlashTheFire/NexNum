@@ -69,25 +69,23 @@ export async function POST(request: Request, { params }: RouteParams) {
             )
         }
 
-        // Cancel with provider
-        const rawId = number.activationId
-            ? (number.activationId.includes(':') ? number.activationId.split(':').slice(1).join(':') : number.activationId)
-            : ''
+        // Cancel with provider using full activationId (preserves provider prefix)
+        const actId = number.activationId || ''
 
-        if (rawId) {
+        if (actId) {
             try {
                 if (smsProvider.setCancel) {
-                    await smsProvider.setCancel(rawId)
+                    await smsProvider.setCancel(actId)
                 } else {
-                    await smsProvider.cancelNumber(rawId)
+                    await smsProvider.cancelNumber(actId)
                 }
-                console.log(`[CANCEL] Provider cancellation successful for ${rawId}`)
+                console.log(`[CANCEL] Provider cancellation successful for ${actId}`)
             } catch (e: any) {
-                console.warn(`[CANCEL] Provider cancel error for ${rawId}:`, e.message)
+                console.warn(`[CANCEL] Provider cancel error for ${actId}:`, e.message)
 
                 // Check if OTP arrived in the meantime
                 try {
-                    const statusResult = await smsProvider.getStatus(rawId)
+                    const statusResult = await smsProvider.getStatus(actId)
                     if (statusResult?.messages && statusResult.messages.length > 0) {
                         for (const msg of statusResult.messages) {
                             await prisma.smsMessage.create({

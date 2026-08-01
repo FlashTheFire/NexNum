@@ -69,25 +69,23 @@ export const POST = apiHandler(async (request, { body }) => {
 
     console.log(`[CANCEL] Cancelling number ${numberId} (${number.phoneNumber}) for user ${user.userId}`)
 
-    // 2. Attempt Provider Cancel
+    // 2. Attempt Provider Cancel using full activationId (preserves provider prefix)
     if (number.activationId) {
-        const rawId = number.activationId.includes(':')
-            ? number.activationId.split(':').slice(1).join(':')
-            : number.activationId
+        const actId = number.activationId
 
         try {
             if (smsProvider.setCancel) {
-                await smsProvider.setCancel(rawId)
+                await smsProvider.setCancel(actId)
             } else {
-                await smsProvider.cancelNumber(rawId)
+                await smsProvider.cancelNumber(actId)
             }
-            console.log(`[CANCEL] Provider cancellation successful for ${rawId}`)
+            console.log(`[CANCEL] Provider cancellation successful for ${actId}`)
         } catch (err: any) {
-            console.warn(`[CANCEL] Provider cancel rejected/failed for ${rawId}:`, err.message)
+            console.warn(`[CANCEL] Provider cancel rejected/failed for ${actId}:`, err.message)
 
             // Cancellation failed — fetch getStatus to check if an OTP/SMS code arrived on provider side!
             try {
-                const statusResult = await smsProvider.getStatus(rawId)
+                const statusResult = await smsProvider.getStatus(actId)
                 if (statusResult?.messages && statusResult.messages.length > 0) {
                     // SMS code was received! Do NOT refund — save message and mark number received!
                     for (const msg of statusResult.messages) {
