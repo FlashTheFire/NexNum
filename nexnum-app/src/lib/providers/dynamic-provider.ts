@@ -1772,9 +1772,10 @@ export class DynamicProvider implements SmsProvider {
                 let singleResultPromise: Promise<NumberResult> | null = null
 
                 try {
+                    const effectiveMaxPrice = options?.maxPrice ?? candidate.rawCost ?? candidate.rawPrice ?? options?.expectedPrice
                     singleResultPromise = this.executeSingleGetNumber(countryCode, serviceCode, {
                         operator: candidate.operator || options?.operator,
-                        maxPrice: options?.maxPrice,
+                        maxPrice: effectiveMaxPrice,
                         providerIds: options?.providerIds,
                         exceptProviderIds: options?.exceptProviderIds,
                         signal: candidateController.signal

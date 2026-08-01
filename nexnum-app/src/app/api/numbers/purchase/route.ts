@@ -369,6 +369,7 @@ export const POST = withMetrics(apiHandler(async (request, { body }) => {
                 providerResult = await smsProvider.getNumber(currentOffer.providerCountryCode, currentOffer.providerServiceCode, {
                     provider: providerName,
                     expectedPrice: freshPrice,
+                    maxPrice: currentOffer.rawPrice || currentOffer.purchaseCandidates?.[0]?.rawCost,
                     purchaseCandidates: currentOffer.purchaseCandidates,
                     operator: currentOffer.operator
                 })
