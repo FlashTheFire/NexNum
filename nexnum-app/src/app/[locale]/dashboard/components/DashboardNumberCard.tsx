@@ -127,28 +127,33 @@ export const DashboardNumberCard = memo(function DashboardNumberCard({
                 <div className="p-5 flex flex-col gap-4">
                     {/* Header: Country & Status */}
                     <div className="flex items-center justify-between">
-                        <div className="relative w-10 h-10 flex-shrink-0">
-                            <div className="relative w-full h-full rounded-lg overflow-hidden transition-all duration-300 ring-1 ring-white/10 group-hover:scale-105">
-                                {serviceIconUrl ? (
+                        <div className="flex items-center gap-2.5">
+                            <div className="relative w-10 h-10 flex-shrink-0">
+                                <div className="relative w-full h-full rounded-lg overflow-hidden transition-all duration-300 ring-1 ring-white/10 group-hover:scale-105">
+                                    {serviceIconUrl ? (
+                                        <img
+                                            alt={serviceName}
+                                            className="w-full h-full object-contain filter brightness-110 contrast-110"
+                                            src={serviceIconUrl}
+                                        />
+                                    ) : (
+                                        <div className="w-full h-full bg-[#1A1D24] flex items-center justify-center text-gray-300 text-lg font-bold">
+                                            {serviceName?.charAt(0).toUpperCase()}
+                                        </div>
+                                    )}
+                                    <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none"></div>
+                                </div>
+                                <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-[#151518] overflow-hidden shadow-md z-20">
                                     <img
-                                        alt={serviceName}
-                                        className="w-full h-full object-contain filter brightness-110 contrast-110"
-                                        src={serviceIconUrl}
+                                        alt={countryName}
+                                        className="w-full h-full rounded-full object-cover shadow-sm ring-1 ring-white/10"
+                                        src={countryIconUrl || '/assets/icons/flags/un.svg'}
                                     />
-                                ) : (
-                                    <div className="w-full h-full bg-[#1A1D24] flex items-center justify-center text-gray-300 text-lg font-bold">
-                                        {serviceName?.charAt(0).toUpperCase()}
-                                    </div>
-                                )}
-                                <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none"></div>
+                                </div>
                             </div>
-                            <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-[#151518] overflow-hidden shadow-md z-20">
-                                <img
-                                    alt={countryName}
-                                    className="w-full h-full rounded-full object-cover shadow-sm ring-1 ring-white/10"
-                                    src={countryIconUrl || '/assets/icons/flags/un.svg'}
-                                />
-                            </div>
+                            <span className="text-xs font-mono text-gray-400/80 font-semibold tracking-tight">
+                                <PriceDisplay currencyPrices={currencyPrices} />
+                            </span>
                         </div>
 
                         <div className="flex items-center gap-2">
@@ -234,9 +239,6 @@ export const DashboardNumberCard = memo(function DashboardNumberCard({
                         <div className="flex items-center gap-2 text-sm">
                             <span className="text-[hsl(var(--neon-lime))] font-semibold">
                                 {serviceName.length > 10 ? serviceName.substring(0, 10) + '...' : serviceName}
-                            </span>
-                            <span className="text-xs font-mono text-gray-400/70 font-medium">
-                                <PriceDisplay currencyPrices={currencyPrices} />
                             </span>
                             <span className="text-gray-600">|</span>
                             <span className="text-gray-400 flex items-center gap-1">

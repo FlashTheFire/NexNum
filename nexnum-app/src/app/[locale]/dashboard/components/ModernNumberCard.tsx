@@ -89,27 +89,32 @@ export function ModernNumberCard({
                 {/* Content */}
                 <div className="relative z-10 flex flex-col justify-between h-full pb-0.5">
                     <div className="flex items-start justify-between">
-                        <div className="relative w-7 h-7 flex-shrink-0">
-                            <div className="relative w-full h-full rounded-md overflow-hidden transition-all duration-300 ring-1 ring-white/10 group-hover:scale-105">
-                                {serviceIconUrl ? (
+                        <div className="flex items-center gap-2">
+                            <div className="relative w-7 h-7 flex-shrink-0">
+                                <div className="relative w-full h-full rounded-md overflow-hidden transition-all duration-300 ring-1 ring-white/10 group-hover:scale-105">
+                                    {serviceIconUrl ? (
+                                        <img
+                                            alt={serviceName}
+                                            className="w-full h-full object-contain filter brightness-110 contrast-110"
+                                            src={serviceIconUrl}
+                                        />
+                                    ) : (
+                                        <div className="w-full h-full bg-[#1A1D24] flex items-center justify-center text-gray-300 text-xs font-bold">
+                                            {serviceName?.charAt(0).toUpperCase()}
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#151518] overflow-hidden shadow-md z-20">
                                     <img
-                                        alt={serviceName}
-                                        className="w-full h-full object-contain filter brightness-110 contrast-110"
-                                        src={serviceIconUrl}
+                                        alt={countryName}
+                                        className="w-full h-full rounded-full object-cover shadow-sm ring-1 ring-white/10"
+                                        src={countryIconUrl || '/assets/icons/flags/un.svg'}
                                     />
-                                ) : (
-                                    <div className="w-full h-full bg-[#1A1D24] flex items-center justify-center text-gray-300 text-xs font-bold">
-                                        {serviceName?.charAt(0).toUpperCase()}
-                                    </div>
-                                )}
+                                </div>
                             </div>
-                            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#151518] overflow-hidden shadow-md z-20">
-                                <img
-                                    alt={countryName}
-                                    className="w-full h-full rounded-full object-cover shadow-sm ring-1 ring-white/10"
-                                    src={countryIconUrl || '/assets/icons/flags/un.svg'}
-                                />
-                            </div>
+                            <span className="text-xs font-mono text-gray-400/80 font-semibold tracking-tight">
+                                <PriceDisplay currencyPrices={currencyPrices} />
+                            </span>
                         </div>
                         {/* Dynamic Status Badge */}
                         <div className="flex flex-col items-end gap-1">
@@ -140,9 +145,6 @@ export function ModernNumberCard({
                         <p className="text-xl font-mono font-bold text-white tracking-wide truncate transition-all group-hover:text-[hsl(var(--neon-lime))]">{number}</p>
                         <div className="flex items-center gap-2">
                             <span className="text-[11px] text-gray-500 font-bold uppercase truncate max-w-[80px] opacity-80">{serviceName}</span>
-                            <span className="text-xs font-mono text-gray-400/70 font-medium">
-                                <PriceDisplay currencyPrices={currencyPrices} />
-                            </span>
                             <span className="w-0.5 h-0.5 rounded-full bg-gray-700"></span>
                             <span className="text-[11px] text-[hsl(var(--neon-lime))] font-bold">{smsCount || 0} SMS</span>
                         </div>

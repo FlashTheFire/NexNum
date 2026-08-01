@@ -358,64 +358,65 @@ export function MobileDashboard() {
                                             {/* Content */}
                                             <div className="relative z-10">
                                                 <div className="flex items-start justify-between mb-3">
-                                                    <div className="relative w-8 h-8 flex-shrink-0">
-                                                        <div className="relative w-full h-full rounded-lg overflow-hidden transition-all duration-300 ring-1 ring-white/10 group-hover:scale-105">
-                                                            {num.serviceIconUrl ? (
-                                                                <img
-                                                                    alt={num.serviceName}
-                                                                    className="w-full h-full object-contain filter brightness-110 contrast-110"
-                                                                    src={num.serviceIconUrl}
-                                                                />
-                                                            ) : (
-                                                                <div className="w-full h-full bg-[#1A1D24] flex items-center justify-center text-gray-300 text-lg font-bold">
-                                                                    {num.serviceName?.charAt(0).toUpperCase()}
-                                                                </div>
-                                                            )}
-                                                            <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none"></div>
-                                                        </div>
-                                                        <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-[#151518] overflow-hidden shadow-md z-20">
-                                                            <img
-                                                                alt={num.countryName}
-                                                                className="w-full h-full rounded-full object-cover shadow-sm ring-1 ring-white/10"
-                                                                src={num.countryIconUrl || '/assets/icons/flags/un.svg'}
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                    {/* Dynamic Status Badge */}
-                                                    <div className="flex flex-col items-end">
-                                                        {(!num.status || !['received', 'expired', 'cancelled', 'completed', 'timeout'].includes(num.status)) && (
-                                                            <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-emerald-500/30 text-emerald-400 text-[10px] bg-emerald-500/10 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
-                                                                Aᴄᴛɪᴠᴇ
-                                                            </div>
-                                                        )}
-                                                        {(num.status === 'received' || num.status === 'completed') && (
-                                                            <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-emerald-500/30 text-emerald-400 text-[10px] bg-emerald-500/10 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
-                                                                Cᴏᴍᴘʟᴇᴛᴇᴅ
-                                                            </div>
-                                                        )}
-                                                        {(num.status === 'expired' || num.status === 'timeout') && (
-                                                            <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-orange-500/30 text-orange-400 text-[10px] bg-orange-500/10">
-                                                                Exᴘɪʀᴇᴅ
-                                                            </div>
-                                                        )}
-                                                        {num.status === 'cancelled' && (
-                                                            <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-red-500/30 text-red-400 text-[10px] bg-red-500/10">
-                                                                Cᴀɴᴄᴇʟʟᴇᴅ
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
+                                                     <div className="flex items-center gap-2.5">
+                                                         <div className="relative w-10 h-10 shrink-0">
+                                                             <div className="relative w-full h-full rounded-2xl bg-gradient-to-br from-white/[0.08] to-white/[0.02] border border-white/10 flex items-center justify-center p-2 shadow-inner overflow-hidden">
+                                                                 {num.serviceIconUrl ? (
+                                                                     <img
+                                                                         alt={num.serviceName}
+                                                                         className="w-full h-full object-contain filter brightness-110 contrast-110"
+                                                                         src={num.serviceIconUrl}
+                                                                     />
+                                                                 ) : (
+                                                                     <div className="w-full h-full bg-[#1A1D24] flex items-center justify-center text-gray-300 text-lg font-bold">
+                                                                         {num.serviceName?.charAt(0).toUpperCase()}
+                                                                     </div>
+                                                                 )}
+                                                                 <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none"></div>
+                                                             </div>
+                                                             <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-[#151518] overflow-hidden shadow-md z-20">
+                                                                 <img
+                                                                     alt={num.countryName}
+                                                                     className="w-full h-full rounded-full object-cover shadow-sm ring-1 ring-white/10"
+                                                                     src={num.countryIconUrl || '/assets/icons/flags/un.svg'}
+                                                                 />
+                                                             </div>
+                                                         </div>
+                                                         <span className="text-xs font-mono text-gray-400/80 font-semibold tracking-tight">
+                                                             <PriceDisplay currencyPrices={num.currencyPrices} />
+                                                         </span>
+                                                     </div>
+                                                     {/* Dynamic Status Badge */}
+                                                     <div className="flex flex-col items-end">
+                                                         {(!num.status || !['received', 'expired', 'cancelled', 'completed', 'timeout'].includes(num.status)) && (
+                                                             <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-emerald-500/30 text-emerald-400 text-[10px] bg-emerald-500/10 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
+                                                                 Aᴄᴛɪᴠᴇ
+                                                             </div>
+                                                         )}
+                                                         {(num.status === 'received' || num.status === 'completed') && (
+                                                             <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-emerald-500/30 text-emerald-400 text-[10px] bg-emerald-500/10 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
+                                                                 Cᴏᴍᴘʟᴇᴛᴇᴅ
+                                                             </div>
+                                                         )}
+                                                         {(num.status === 'expired' || num.status === 'timeout') && (
+                                                             <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-orange-500/30 text-orange-400 text-[10px] bg-orange-500/10">
+                                                                 Exᴘɪʀᴇᴅ
+                                                             </div>
+                                                         )}
+                                                         {num.status === 'cancelled' && (
+                                                             <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-red-500/30 text-red-400 text-[10px] bg-red-500/10">
+                                                                 Cᴀɴᴄᴇʟʟᴇᴅ
+                                                             </div>
+                                                         )}
+                                                     </div>
+                                                 </div>
 
-                                                <div className="space-y-1">
-                                                    <p className="text-xl font-mono font-medium text-white tracking-wide">{num.number}</p>
-                                                    <p className="text-xs text-gray-500 flex items-center gap-1.5">
-                                                        {num.serviceName.length > 10 ? num.serviceName.substring(0, 10) + '...' : num.serviceName}
-                                                        <span className="text-xs font-mono text-gray-400/70 font-medium">
-                                                            <PriceDisplay currencyPrices={num.currencyPrices} />
-                                                        </span>
-                                                        • <span className="text-[hsl(var(--neon-lime))]">{num.smsCount || 0} SMS</span>
-                                                    </p>
-                                                </div>
+                                                 <div className="space-y-1">
+                                                     <p className="text-xl font-mono font-medium text-white tracking-wide">{num.number}</p>
+                                                     <p className="text-xs text-gray-500 flex items-center gap-1.5">
+                                                         {num.serviceName.length > 10 ? num.serviceName.substring(0, 10) + '...' : num.serviceName} • <span className="text-[hsl(var(--neon-lime))]">{num.smsCount || 0} SMS</span>
+                                                     </p>
+                                                 </div>
                                             </div>
 
                                             {/* Cut corner highlight */}

@@ -143,16 +143,14 @@ export const VaultOrderCard = memo(({ number, status }: VaultOrderCardProps) => 
                                     <div className="w-8 h-8 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center p-1.5 shrink-0 group-hover:scale-105 transition-transform">
                                         <ServiceIcon id={serviceId} name={number.serviceName} className="w-full h-full object-contain" />
                                     </div>
+                                    <span className="text-xs font-mono text-gray-400/80 font-semibold tracking-tight">
+                                        <PriceDisplay currencyPrices={(number as any).currencyPrices} />
+                                    </span>
                                     <div>
-                                        <div className="flex items-center gap-2">
-                                            <h4 className="font-extrabold text-sm text-white capitalize leading-tight flex items-center gap-1.5">
-                                                {number.serviceName || 'Virtual Service'}
-                                                <ArrowUpRight className="w-3.5 h-3.5 text-zinc-500 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                            </h4>
-                                            <span className="text-xs font-mono text-gray-400/70 font-medium">
-                                                <PriceDisplay currencyPrices={(number as any).currencyPrices} />
-                                            </span>
-                                        </div>
+                                        <h4 className="font-extrabold text-sm text-white capitalize leading-tight flex items-center gap-1.5">
+                                            {number.serviceName || 'Virtual Service'}
+                                            <ArrowUpRight className="w-3.5 h-3.5 text-zinc-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                        </h4>
                                         <p className="text-[11px] text-zinc-400 font-medium">
                                             {number.countryName || 'Global'}
                                         </p>
