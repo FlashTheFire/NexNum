@@ -45,12 +45,13 @@ async function restoreGrizzlySmsFromAuditLog() {
     const mappings = selectedMeta.mappings || {}
     mappings.setCancel = {
         type: "text_regex",
-        regex: "(ACCESS_CANCEL|ACCESS_CANCEL_ALREADY)|(NO_ACTIVATION|BAD_KEY|BAD_STATUS|EARLY_CANCEL_DENIED|ERROR_SQL)",
+        regex: "(ACCESS_CANCEL|ACCESS_CANCEL_ALREADY)|(NO_ACTIVATION|BAD_KEY|BAD_ACTION|BAD_STATUS|EARLY_CANCEL_DENIED|ERROR_SQL)",
         fields: {
             status: "1|2"
         },
         conditionalFields: {
             BAD_KEY: { error: "Invalid API key", status: "BAD_KEY" },
+            BAD_ACTION: { error: "Invalid action or activation state", status: "BAD_ACTION" },
             BAD_STATUS: { error: "Incorrect status", status: "BAD_STATUS" },
             ACCESS_CANCEL: { status: "CANCELLED" },
             ACCESS_CANCEL_ALREADY: { status: "CANCELLED" },
