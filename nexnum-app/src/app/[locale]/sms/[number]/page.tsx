@@ -242,27 +242,51 @@ export default function SMSPage() {
         if (!displayNumber) return
 
         setIsCancelLoading(true)
+        setShowCancelConfirm(false)
         try {
             const result = await setCancel(displayNumber.id)
 
             if (result.success) {
-                const refundVal = (result as any).data?.refundAmount !== undefined 
-                    ? (result as any).data.refundAmount 
+                const refundVal = (result as any).data?.refundAmount !== undefined
+                    ? (result as any).data.refundAmount
                     : displayNumber.price
-                toast.success('Number cancelled', {
-                    description: `Refund of $${Number(refundVal || 0).toFixed(2)} processed`
+                toast.success('Number Cancelled', {
+                    description: `Refund of $${Number(refundVal || 0).toFixed(2)} processed to your wallet balance.`
                 })
-                setShowCancelConfirm(false)
                 await fetchNumbers()
             } else {
-                toast.error('Failed to cancel', {
-                    description: result.error || 'Please try again'
-                })
+                const rawError = result.error || 'Please try again'
+                const cleanError = String(rawError).replace(/^Provider error:\s*/i, '')
+                
+                if (cleanError.includes('2 minutes') || cleanError.includes('EARLY_CANCEL_DENIED') || cleanError.includes('cooldown') || cleanError.includes('waiting')) {
+                    toast.warning('Cooldown Period Active', {
+                        description: cleanError.includes('2 minutes') 
+                            ? 'Provider requires waiting 2 minutes after purchase before cancelling.'
+                            : cleanError
+                    })
+                } else if (cleanError.toLowerCase().includes('sms') || cleanError.toLowerCase().includes('received')) {
+                    toast.info('SMS Code Received', {
+                        description: cleanError
+                    })
+                } else {
+                    toast.error('Unable to Cancel Number', {
+                        description: cleanError
+                    })
+                }
             }
         } catch (err: any) {
-            toast.error('Failed to cancel', {
-                description: err?.message || 'Failed to cancel number'
-            })
+            const rawError = err?.message || 'Failed to cancel number'
+            const cleanError = String(rawError).replace(/^Provider error:\s*/i, '')
+
+            if (cleanError.includes('2 minutes') || cleanError.includes('EARLY_CANCEL_DENIED') || cleanError.includes('cooldown') || cleanError.includes('waiting')) {
+                toast.warning('Cooldown Period Active', {
+                    description: 'Provider requires waiting 2 minutes after purchase before cancelling.'
+                })
+            } else {
+                toast.error('Unable to Cancel Number', {
+                    description: cleanError
+                })
+            }
         } finally {
             setIsCancelLoading(false)
         }
@@ -750,18 +774,6 @@ export default function SMSPage() {
                                             background: rgba(255, 255, 255, 0.2);
                                         }
                                     `}</style>
-                                </CardContent>
-                            </Card>
-                        </motion.div>
-
-                        {/* Mobile Tip (visible only on mobile) */}
-                        <motion.div variants={fadeInLeft} className="lg:hidden">
-                            <Card className="border-amber-500/10 bg-amber-500/[0.02]">
-                                <CardContent className="p-4 flex items-center gap-3">
-                                    <Sparkles className="h-4 w-4 text-amber-500/70" />
-                                    <p className="text-xs text-amber-500/70">
-                                        Auto-refreshing every 10s • Click codes to copy
-                                    </p>
                                 </CardContent>
                             </Card>
                         </motion.div>
