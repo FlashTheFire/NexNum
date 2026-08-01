@@ -892,10 +892,7 @@ export async function GET(request: Request) {
                             providerCountryCode: String(countryCode),
                             pointPrice: bestCandidate.pointPrice,
                             rawPrice: bestCandidate.rawCost,
-                            currencyPrices: {
-                                ...allCurrencyPrices,
-                                POINTS: bestCandidate.pointPrice
-                            },
+                            currencyPrices: allCurrencyPrices,
                             purchaseCandidates: candidatesList,
                             stock: totalGroupStock,
                             operator: bestCandidate.operator,

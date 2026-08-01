@@ -1288,10 +1288,7 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
                         if (Number.isSafeInteger(sNum) && sNum >= 0) resolvedSvcId = sNum
                     }
 
-                    const currencyPrices = {
-                        ...(await currencyService.pointsToAllFiat(canonicalCandidate.pointPrice)),
-                        POINTS: canonicalCandidate.pointPrice
-                    }
+                    const currencyPrices = await currencyService.pointsToAllFiat(canonicalCandidate.pointPrice)
 
                     allOffersMap.set(offerId, {
                         id: offerId,

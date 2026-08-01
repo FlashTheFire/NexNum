@@ -266,7 +266,7 @@ export const SMSNumberCard = memo(function SMSNumberCard({
                             </div>
                             <div className="text-xl font-mono font-medium text-white">
                                 <PriceDisplay
-                                    currencyPrices={currencyPrices || { POINTS: price, USD: price / 100 }}
+                                    currencyPrices={currencyPrices || { USD: price / 100 }}
                                 />
                             </div>
                         </div>
