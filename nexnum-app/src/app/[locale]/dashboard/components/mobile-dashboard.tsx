@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { DashboardBackground } from "./dashboard-background"
 import { DashboardNumberCard } from "./DashboardNumberCard"
+import { PriceDisplay } from "@/components/common/PriceDisplay"
 import { NumberCardSkeleton } from "./ModernNumberCard"
 import { PriceDisplay, BalanceDisplay } from "@/components/common/PriceDisplay"
 import { TelegramLinkCard } from "@/components/user/TelegramLinkCard"
@@ -391,17 +392,31 @@ export function MobileDashboard() {
                                                         <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-emerald-500/30 text-emerald-400 text-[10px] bg-emerald-500/10 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
                                                             Cᴏᴍᴘʟᴇᴛᴇᴅ
                                                         </div>
-                                                    )}
-                                                    {(num.status === 'expired' || num.status === 'timeout') && (
-                                                        <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-orange-500/30 text-orange-400 text-[10px] bg-orange-500/10">
-                                                            Exᴘɪʀᴇᴅ
+                                                    <div className="flex flex-col items-end">
+                                                        {(!num.status || !['received', 'expired', 'cancelled', 'completed', 'timeout'].includes(num.status)) && (
+                                                            <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-emerald-500/30 text-emerald-400 text-[10px] bg-emerald-500/10 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
+                                                                Aᴄᴛɪᴠᴇ
+                                                            </div>
+                                                        )}
+                                                        {(num.status === 'received' || num.status === 'completed') && (
+                                                            <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-emerald-500/30 text-emerald-400 text-[10px] bg-emerald-500/10 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
+                                                                Cᴏᴍᴘʟᴇᴛᴇᴅ
+                                                            </div>
+                                                        )}
+                                                        {(num.status === 'expired' || num.status === 'timeout') && (
+                                                            <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-orange-500/30 text-orange-400 text-[10px] bg-orange-500/10">
+                                                                Exᴘɪʀᴇᴅ
+                                                            </div>
+                                                        )}
+                                                        {num.status === 'cancelled' && (
+                                                            <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-red-500/30 text-red-400 text-[10px] bg-red-500/10">
+                                                                Cᴀɴᴄᴇʟʟᴇᴅ
+                                                            </div>
+                                                        )}
+                                                        <div className="text-[10px] font-mono text-gray-400/60 font-medium tracking-tight opacity-75 mt-0.5">
+                                                            <PriceDisplay currencyPrices={num.currencyPrices || { USD: (num.price || 0) / 100 }} />
                                                         </div>
-                                                    )}
-                                                    {num.status === 'cancelled' && (
-                                                        <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-red-500/30 text-red-400 text-[10px] bg-red-500/10">
-                                                            Cᴀɴᴄᴇʟʟᴇᴅ
-                                                        </div>
-                                                    )}
+                                                    </div>
                                                 </div>
 
                                                 <div className="space-y-1">

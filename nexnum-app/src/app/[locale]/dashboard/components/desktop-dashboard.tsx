@@ -241,6 +241,8 @@ export function DesktopDashboard() {
                                                     smsCount={num.smsCount}
                                                     expiresAt={num.expiresAt}
                                                     status={num.status || 'active'}
+                                                    price={num.price}
+                                                    currencyPrices={num.currencyPrices}
                                                     className="h-[148px]"
                                                 />
                                             ))}

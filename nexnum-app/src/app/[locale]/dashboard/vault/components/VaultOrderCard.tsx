@@ -7,6 +7,7 @@ import { useState, useEffect, memo } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
+import { PriceDisplay } from "@/components/common/PriceDisplay";
 
 export type VaultOrderStatus = 'active' | 'completed' | 'expired' | 'refunded';
 
@@ -145,12 +146,17 @@ export const VaultOrderCard = memo(({ number, status }: VaultOrderCardProps) => 
                                     </div>
                                 </div>
 
-                                <div className={cn(
-                                    "flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11px] font-bold tracking-wide uppercase shrink-0",
-                                    style.badge
-                                )}>
-                                    <StatusIcon className="w-3 h-3" />
-                                    <span>{style.label}</span>
+                                <div className="flex flex-col items-end gap-1 shrink-0">
+                                    <div className={cn(
+                                        "flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11px] font-bold tracking-wide uppercase shrink-0",
+                                        style.badge
+                                    )}>
+                                        <StatusIcon className="w-3 h-3" />
+                                        <span>{style.label}</span>
+                                    </div>
+                                    <div className="text-[10px] font-mono font-medium text-gray-400/60 tracking-tight opacity-75 mt-0.5">
+                                        <PriceDisplay currencyPrices={(number as any).currencyPrices || { USD: (number.price || 0) / 100 }} />
+                                    </div>
                                 </div>
                             </div>
 

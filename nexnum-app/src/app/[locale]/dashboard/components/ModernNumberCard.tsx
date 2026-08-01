@@ -6,6 +6,8 @@ import { motion, AnimatePresence } from "framer-motion"
 import { cn } from "@/lib/utils/utils"
 import { useTranslations } from "next-intl"
 
+import { PriceDisplay } from '@/components/common/PriceDisplay'
+
 interface ModernNumberCardProps {
     id: string
     number: string
@@ -17,6 +19,8 @@ interface ModernNumberCardProps {
     smsCount: number
     expiresAt: string
     status: string
+    price?: number
+    currencyPrices?: Record<string, number>
     className?: string
 }
 
@@ -31,6 +35,8 @@ export function ModernNumberCard({
     smsCount,
     expiresAt,
     status,
+    price = 0,
+    currencyPrices,
     className
 }: ModernNumberCardProps) {
     const [now, setNow] = useState(Date.now())
@@ -129,6 +135,9 @@ export function ModernNumberCard({
                                     {t('cancelled')}
                                 </div>
                             )}
+                            <div className="text-[10px] font-mono text-gray-400/60 font-medium tracking-tight opacity-75 mt-0.5">
+                                <PriceDisplay currencyPrices={currencyPrices || { USD: (price || 0) / 100 }} />
+                            </div>
                         </div>
                     </div>
 

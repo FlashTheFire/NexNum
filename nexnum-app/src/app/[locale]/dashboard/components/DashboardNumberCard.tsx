@@ -9,6 +9,8 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils/utils'
 
+import { PriceDisplay } from "@/components/common/PriceDisplay"
+
 interface DashboardNumberCardProps {
     id: string
     number: string
@@ -20,6 +22,8 @@ interface DashboardNumberCardProps {
     smsCount: number
     expiresAt: string
     status: string
+    price?: number
+    currencyPrices?: Record<string, number>
     latestSms?: {
         content: string | null
         receivedAt: string
@@ -42,6 +46,8 @@ export const DashboardNumberCard = memo(function DashboardNumberCard({
     smsCount,
     expiresAt,
     status,
+    price = 0,
+    currencyPrices,
     latestSms,
     onSync
 }: DashboardNumberCardProps) {
@@ -205,6 +211,9 @@ export const DashboardNumberCard = memo(function DashboardNumberCard({
                                     </motion.div>
                                 )}
                             </AnimatePresence>
+                            <div className="text-[10px] font-mono text-gray-400/60 font-medium tracking-tight opacity-75 mt-0.5 text-right">
+                                <PriceDisplay currencyPrices={currencyPrices || { USD: (price || 0) / 100 }} />
+                            </div>
                             <div className={cn(
                                 "flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[10px] font-bold uppercase tracking-wider",
                                 (status === 'expired' || status === 'cancelled') ? "bg-red-500/10 border-red-500/20 text-red-500" :
