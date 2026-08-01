@@ -1,13 +1,14 @@
 "use client"
 
 import { useState, memo, useEffect, useRef } from 'react'
-import { Copy, Check, Clock, MessageSquare } from 'lucide-react'
+import { Copy, Check, Clock, Tag } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils/utils'
 import { getCountryFlagUrlSync } from "@/lib/normalizers/country-flags"
 import { useTranslations } from 'next-intl'
 import { SafeImage } from '@/components/ui/safe-image'
+import { PriceDisplay } from '@/components/common/PriceDisplay'
 
 interface SMSNumberCardProps {
     phoneNumber: string
@@ -21,6 +22,7 @@ interface SMSNumberCardProps {
     secondsLeft: number
     messageCount: number
     price?: number
+    currencyPrices?: Record<string, number>
     status?: string
     providerName?: string
     serviceIconUrl?: string
@@ -43,6 +45,7 @@ export const SMSNumberCard = memo(function SMSNumberCard({
     secondsLeft,
     messageCount,
     price = 0,
+    currencyPrices,
     status = 'active',
     providerName = 'Unknown',
     serviceIconUrl,
@@ -250,48 +253,22 @@ export const SMSNumberCard = memo(function SMSNumberCard({
                                     : `${minutesLeft}:${secondsLeft.toString().padStart(2, '0')}`
                                 }
                             </div>
-
-                            {/* Price Badge */}
-                            {typeof price === 'number' && price > 0 && (
-                                <div className="absolute top-2 right-2 text-[9px] font-mono text-gray-500 bg-white/5 px-1.5 py-0.5 rounded">
-                                    ${price.toFixed(2)}
-                                </div>
-                            )}
                         </div>
 
-                        {/* Messages */}
+                        {/* Price Box with Zero-Math Instant Currency Switching */}
                         <div className={cn(
                             "relative p-3 rounded-xl border transition-all",
-                            pulseMessage && !isExpired
-                                ? "bg-blue-500/10 border-blue-500/30"
-                                : "bg-white/[0.02] border-white/5 hover:border-blue-500/20"
+                            "bg-white/[0.02] border-white/5 hover:border-[hsl(var(--neon-lime)/0.2)]"
                         )}>
-                            <AnimatePresence>
-                                {pulseMessage && !isExpired && (
-                                    <motion.div
-                                        initial={{ scale: 0.95, opacity: 0 }}
-                                        animate={{ scale: 1, opacity: 1 }}
-                                        exit={{ opacity: 0 }}
-                                        className="absolute inset-0 bg-blue-500/10 rounded-xl"
-                                    />
-                                )}
-                            </AnimatePresence>
-
                             <div className="flex items-center gap-1.5 text-[10px] text-gray-500 uppercase tracking-wide font-medium mb-1">
-                                <MessageSquare className="w-3 h-3" />
-                                Received
+                                <Tag className="w-3 h-3 text-[hsl(var(--neon-lime))]" />
+                                Price
                             </div>
-                            <motion.div
-                                key={messageCount}
-                                initial={messageCount > 0 ? { scale: 1.1 } : {}}
-                                animate={{ scale: 1 }}
-                                className={cn(
-                                    "text-xl font-mono font-medium",
-                                    isExpired ? "text-gray-600" : messageCount > 0 ? "text-blue-400" : "text-white"
-                                )}
-                            >
-                                {messageCount}
-                            </motion.div>
+                            <div className="text-xl font-mono font-medium text-white">
+                                <PriceDisplay
+                                    currencyPrices={currencyPrices || { POINTS: price, USD: price / 100 }}
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>

@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/lib/auth/jwt'
 import { syncUserNumbers } from '@/lib/sms/sync'
 import { getServiceIconUrlByName } from '@/lib/search/search'
 import { getCountryFlagUrl } from '@/lib/normalizers/country-flags'
+import { getCurrencyService } from '@/lib/currency/currency-service'
 
 // GET /api/numbers/my - Get user's numbers
 export async function GET(request: Request) {
@@ -91,6 +92,8 @@ export async function GET(request: Request) {
                 ? (n as any).countryIconUrl
                 : (n.countryName ? await getCountryFlagUrl(n.countryName) : undefined)
 
+            const currencyPrices = await getCurrencyService().pointsToAllFiat(Number(n.price))
+
             return {
                 id: n.id,
                 phoneNumber: n.phoneNumber,
@@ -101,6 +104,7 @@ export async function GET(request: Request) {
                 serviceCode: n.serviceCode,
                 serviceIconUrl,
                 price: Number(n.price),
+                currencyPrices,
                 provider: n.provider,
                 status: n.status,
                 expiresAt: n.expiresAt,

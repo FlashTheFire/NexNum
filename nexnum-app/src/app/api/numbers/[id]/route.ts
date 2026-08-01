@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/core/db'
 import { getCurrentUser } from '@/lib/auth/jwt'
+import { getCurrencyService } from '@/lib/currency/currency-service'
 
 interface RouteParams {
     params: Promise<{ id: string }>
@@ -45,6 +46,8 @@ export async function GET(request: Request, { params }: RouteParams) {
             )
         }
 
+        const currencyPrices = await getCurrencyService().pointsToAllFiat(Number(number.price))
+
         return NextResponse.json({
             success: true,
             number: {
@@ -54,6 +57,7 @@ export async function GET(request: Request, { params }: RouteParams) {
                 countryName: number.countryName,
                 serviceName: number.serviceName,
                 price: Number(number.price),
+                currencyPrices,
                 status: number.status,
                 expiresAt: number.expiresAt,
                 purchasedAt: number.purchasedAt,

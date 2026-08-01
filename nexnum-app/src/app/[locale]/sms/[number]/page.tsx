@@ -432,6 +432,7 @@ export default function SMSPage() {
                                     secondsLeft={secondsLeft}
                                     messageCount={messages.length}
                                     price={displayNumber.price}
+                                    currencyPrices={displayNumber.currencyPrices}
                                     status={displayNumber.status || 'active'}
                                     providerName={providerName}
                                     serviceIconUrl={displayNumber.serviceIconUrl}

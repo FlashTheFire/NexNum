@@ -62,6 +62,7 @@ export interface PhoneNumber {
     serviceCode?: string
     serviceIconUrl?: string
     price: number
+    currencyPrices?: Record<string, number>
     status: string
     expiresAt: string | null
     purchasedAt: string | null
