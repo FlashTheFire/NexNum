@@ -3,7 +3,7 @@
 import { useRef, useState, useEffect } from "react"
 import Link from "next/link"
 import { useTranslations } from "next-intl"
-import { motion, useScroll, useTransform } from "framer-motion"
+import { motion, AnimatePresence, useScroll, useTransform } from "framer-motion"
 import {
     Wallet,
     Phone,
@@ -70,13 +70,23 @@ const MiniBarChart = ({ color, data }: { color: string, data?: number[] }) => {
 
 export function DesktopDashboard() {
     const { user } = useAuthStore()
-    const { userProfile, activeNumbers, isLoadingNumbers, transactions, usageSummary, totalSpent, totalDeposited } = useGlobalStore()
+    const { userProfile, activeNumbers, isLoadingNumbers, isLoadingDashboard, transactions, usageSummary, totalSpent, totalDeposited, fetchDashboardState, fetchNumbers } = useGlobalStore()
     const [isMounted, setIsMounted] = useState(false)
+    const [isInitialLoad, setIsInitialLoad] = useState(true)
     const containerRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
         setIsMounted(true)
-    }, [])
+        if (fetchNumbers) {
+            fetchNumbers().finally(() => setIsInitialLoad(false))
+        } else if (fetchDashboardState) {
+            fetchDashboardState().finally(() => setIsInitialLoad(false))
+        } else {
+            setIsInitialLoad(false)
+        }
+    }, [fetchNumbers, fetchDashboardState])
+
+    const isLoading = !isMounted || isInitialLoad || isLoadingNumbers || isLoadingDashboard
 
     const t = useTranslations('dashboard')
 
@@ -198,45 +208,63 @@ export function DesktopDashboard() {
                                 </Link>
                             </div>
                             <div className="p-5 flex-1 bg-[url('/assets/grid.svg')] bg-opacity-5">
-                                {(!isMounted || isLoadingNumbers) ? (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
-                                        {[...Array(4)].map((_, i) => (
-                                            <NumberCardSkeleton key={i} index={i} className="h-[136px]" />
-                                        ))}
-                                    </div>
-                                ) : activeNumbers.length > 0 ? (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
-                                        {activeNumbers.slice(0, 8).map(num => (
-                                            <ModernNumberCard
-                                                key={num.id}
-                                                id={num.id}
-                                                number={(num as any).phoneNumber || (num as any).number}
-                                                countryCode={num.countryCode}
-                                                countryName={num.countryName}
-                                                countryIconUrl={num.countryIconUrl}
-                                                serviceName={num.serviceName}
-                                                serviceIconUrl={num.serviceIconUrl}
-                                                smsCount={num.smsCount}
-                                                expiresAt={num.expiresAt}
-                                                status={num.status || 'active'}
-                                                className="h-[136px]"
-                                            />
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="text-center py-12 flex flex-col items-center justify-center h-full">
-                                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-white/[0.08] to-white/[0.02] flex items-center justify-center mb-4 border border-white/10 shadow-xl">
-                                            <Phone className="h-5 w-5 text-gray-400" />
-                                        </div>
-                                        <h4 className="text-base font-bold text-white mb-1.5">{t('vault.emptyTitle')}</h4>
-                                        <p className="text-xs text-gray-500 max-w-[240px] mb-6 leading-relaxed">{t('vault.emptyDescription')}</p>
-                                        <Link href="/dashboard/buy">
-                                            <Button size="sm" className="h-9 px-6 rounded-lg bg-[hsl(var(--neon-lime))] text-black font-bold hover:bg-[hsl(72,100%,60%)] shadow-[0_0_20px_hsla(var(--neon-lime),0.3)] transition-all hover:scale-105 active:scale-95">
-                                                {t('vault.purchaseBtn')}
-                                            </Button>
-                                        </Link>
-                                    </div>
-                                )}
+                                <AnimatePresence mode="wait">
+                                    {isLoading ? (
+                                        <motion.div
+                                            key="skeleton"
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            exit={{ opacity: 0 }}
+                                            className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4"
+                                        >
+                                            {[...Array(8)].map((_, i) => (
+                                                <NumberCardSkeleton key={i} index={i} className="h-[148px]" />
+                                            ))}
+                                        </motion.div>
+                                    ) : activeNumbers.length > 0 ? (
+                                        <motion.div
+                                            key="list"
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4"
+                                        >
+                                            {activeNumbers.slice(0, 8).map(num => (
+                                                <ModernNumberCard
+                                                    key={num.id}
+                                                    id={num.id}
+                                                    number={(num as any).phoneNumber || (num as any).number}
+                                                    countryCode={num.countryCode}
+                                                    countryName={num.countryName}
+                                                    countryIconUrl={num.countryIconUrl}
+                                                    serviceName={num.serviceName}
+                                                    serviceIconUrl={num.serviceIconUrl}
+                                                    smsCount={num.smsCount}
+                                                    expiresAt={num.expiresAt}
+                                                    status={num.status || 'active'}
+                                                    className="h-[148px]"
+                                                />
+                                            ))}
+                                        </motion.div>
+                                    ) : (
+                                        <motion.div
+                                            key="empty"
+                                            initial={{ opacity: 0, y: 10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            className="text-center py-12 flex flex-col items-center justify-center h-full"
+                                        >
+                                            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-white/[0.08] to-white/[0.02] flex items-center justify-center mb-4 border border-white/10 shadow-xl">
+                                                <Phone className="h-5 w-5 text-gray-400" />
+                                            </div>
+                                            <h4 className="text-base font-bold text-white mb-1.5">{t('vault.emptyTitle')}</h4>
+                                            <p className="text-xs text-gray-500 max-w-[240px] mb-6 leading-relaxed">{t('vault.emptyDescription')}</p>
+                                            <Link href="/dashboard/buy">
+                                                <Button size="sm" className="h-9 px-6 rounded-lg bg-[hsl(var(--neon-lime))] text-black font-bold hover:bg-[hsl(72,100%,60%)] shadow-[0_0_20px_hsla(var(--neon-lime),0.3)] transition-all hover:scale-105 active:scale-95">
+                                                    {t('vault.purchaseBtn')}
+                                                </Button>
+                                            </Link>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
                             </div>
                         </div>
                     </motion.div>
