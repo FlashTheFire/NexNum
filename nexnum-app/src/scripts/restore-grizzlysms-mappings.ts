@@ -42,10 +42,27 @@ async function restoreGrizzlySmsFromAuditLog() {
         process.exit(1)
     }
 
+    const mappings = selectedMeta.mappings || {}
+    mappings.setCancel = {
+        type: "text_regex",
+        regex: "(ACCESS_CANCEL|ACCESS_CANCEL_ALREADY)|(NO_ACTIVATION|BAD_KEY|BAD_STATUS|EARLY_CANCEL_DENIED|ERROR_SQL)",
+        fields: {
+            status: "1|2"
+        },
+        conditionalFields: {
+            BAD_KEY: { error: "Invalid API key", status: "BAD_KEY" },
+            BAD_STATUS: { error: "Incorrect status", status: "BAD_STATUS" },
+            ACCESS_CANCEL: { status: "CANCELLED" },
+            ACCESS_CANCEL_ALREADY: { status: "CANCELLED" },
+            NO_ACTIVATION: { error: "Activation does not exist", status: "NO_ACTIVATION" },
+            EARLY_CANCEL_DENIED: { error: "Cannot cancel yet: Provider requires waiting 2 minutes after purchase", status: "EARLY_CANCEL_DENIED" }
+        }
+    }
+
     const updated = await prisma.provider.update({
         where: { id: provider.id },
         data: {
-            mappings: selectedMeta.mappings,
+            mappings,
             endpoints: selectedMeta.endpoints || provider.endpoints,
             updatedAt: new Date()
         }

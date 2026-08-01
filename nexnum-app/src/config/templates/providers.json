@@ -350,7 +350,7 @@
             },
             "setCancel": {
                 "type": "text_regex",
-                "regex": "(ACCESS_CANCEL)|(NO_ACTIVATION|BAD_KEY|BAD_STATUS|ERROR_SQL)",
+                "regex": "(ACCESS_CANCEL|ACCESS_CANCEL_ALREADY)|(NO_ACTIVATION|BAD_KEY|BAD_STATUS|EARLY_CANCEL_DENIED|ERROR_SQL)",
                 "fields": {
                     "status": "1|2"
                 },
@@ -366,9 +366,16 @@
                     "ACCESS_CANCEL": {
                         "status": "CANCELLED"
                     },
+                    "ACCESS_CANCEL_ALREADY": {
+                        "status": "CANCELLED"
+                    },
                     "NO_ACTIVATION": {
                         "error": "Activation does not exist",
                         "status": "NO_ACTIVATION"
+                    },
+                    "EARLY_CANCEL_DENIED": {
+                        "error": "Cannot cancel yet: Provider requires waiting 2 minutes after purchase",
+                        "status": "EARLY_CANCEL_DENIED"
                     }
                 }
             },
