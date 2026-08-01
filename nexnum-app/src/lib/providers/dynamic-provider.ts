@@ -821,7 +821,7 @@ export class DynamicProvider implements SmsProvider {
             try {
                 const parsed = this.parseResponse(response, mappingKey, true)
                 const mapped = parsed[0]
-                if (mapped && (mapped.error || ['NO_NUMBERS', 'NO_BALANCE', 'BAD_KEY', 'NO_ACTIVATION', 'BAD_STATUS', 'EARLY_CANCEL_DENIED', 'SERVICE_UNAVAILABLE_REGION'].includes(String(mapped.status)))) {
+                if (mapped && (mapped.error || ['NO_NUMBERS', 'NO_BALANCE', 'BAD_KEY', 'NO_ACTIVATION', 'BAD_ACTION', 'BAD_STATUS', 'EARLY_CANCEL_DENIED', 'SERVICE_UNAVAILABLE_REGION'].includes(String(mapped.status)))) {
                     const errType = (mapped.status || 'PROVIDER_ERROR') as UniversalErrorType
                     const errMsg = String(mapped.error || mapped.status || checkString)
                     throw new ProviderError(errType, errMsg, checkString)
@@ -1376,7 +1376,7 @@ export class DynamicProvider implements SmsProvider {
                     // Resolve fields dynamically (supports conditionalFields)
                     const fields = this.resolveEffectiveFields(source, mapConfig)
 
-                    // Support for Named & Numbered Capture Groups + Fallback Chains ("1|4")
+                    // Support for Named & Numbered Capture Groups + Fallback Chains ("1|4") + Conditional Literals
                     for (const [targetField, sourceGroupStr] of Object.entries(fields)) {
                         const possibleGroups = String(sourceGroupStr).split('|').map(s => s.trim())
                         let value = undefined
@@ -1390,6 +1390,16 @@ export class DynamicProvider implements SmsProvider {
                             if (!isNaN(idx) && match[idx] !== undefined) {
                                 value = match[idx]
                                 break
+                            }
+                        }
+
+                        // If not matched to a capture group, check if sourceGroupStr is a literal value set by conditionalFields
+                        if (value === undefined && typeof sourceGroupStr === 'string' && sourceGroupStr.trim()) {
+                            const rawStr = sourceGroupStr.trim()
+                            const isNumericIdx = !isNaN(parseInt(rawStr))
+                            const isNamedGroup = match.groups && Object.keys(match.groups).includes(rawStr)
+                            if (!isNumericIdx && !isNamedGroup) {
+                                value = rawStr
                             }
                         }
 
