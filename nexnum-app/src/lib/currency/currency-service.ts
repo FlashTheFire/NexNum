@@ -574,12 +574,12 @@ export class CurrencyService {
 }
 
 /**
- * Utility to format decimal values for storage/indexing.
- * Rounds HALF UP to exactly 5 decimal places to ensure high internal precision
- * while maintaining standard financial rounding behavior.
+ * Utility to format decimal values for display, storage, and indexing.
+ * Rounds UP (CEIL) to exactly 2 decimal places to ensure clean 2-decimal fiat prices
+ * while adding any required fractional amount so platform never undercharges.
  */
 function toActualDecimal(value: Decimal): number {
-    return value.toDecimalPlaces(5, Decimal.ROUND_HALF_UP).toNumber()
+    return value.toDecimalPlaces(2, Decimal.ROUND_CEIL).toNumber()
 }
 
 // ============================================================================
