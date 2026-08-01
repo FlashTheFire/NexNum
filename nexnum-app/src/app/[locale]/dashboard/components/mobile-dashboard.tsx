@@ -383,15 +383,6 @@ export function MobileDashboard() {
                                                         </div>
                                                     </div>
                                                     {/* Dynamic Status Badge */}
-                                                    {(!num.status || !['received', 'expired', 'cancelled', 'completed', 'timeout'].includes(num.status)) && (
-                                                        <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-emerald-500/30 text-emerald-400 text-[10px] bg-emerald-500/10 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
-                                                            Aᴄᴛɪᴠᴇ
-                                                        </div>
-                                                    )}
-                                                    {(num.status === 'received' || num.status === 'completed') && (
-                                                        <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-emerald-500/30 text-emerald-400 text-[10px] bg-emerald-500/10 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
-                                                            Cᴏᴍᴘʟᴇᴛᴇᴅ
-                                                        </div>
                                                     <div className="flex flex-col items-end">
                                                         {(!num.status || !['received', 'expired', 'cancelled', 'completed', 'timeout'].includes(num.status)) && (
                                                             <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-emerald-500/30 text-emerald-400 text-[10px] bg-emerald-500/10 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
