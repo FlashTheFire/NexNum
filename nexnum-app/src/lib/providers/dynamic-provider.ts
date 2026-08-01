@@ -1185,54 +1185,57 @@ export class DynamicProvider implements SmsProvider {
     }
 
 
-    private parseJsonDictionary(obj: Record<string, any>, mapConfig: MappingConfig, parentContext: any = {}): any[] {
-        const results: any[] = []
-
-        // Debug logging enabled
-        const isDebug = false // Toggle true if needed for tough cases
+    private parseJsonDictionary(
+        obj: Record<string, any>,
+        mapConfig: MappingConfig,
+        parentContext: any = {},
+        results: any[] = []
+    ): any[] {
+        if (!obj || typeof obj !== 'object') return results
 
         const nestingConfig = mapConfig.nestingLevels
         const extractOperators = nestingConfig?.extractOperators ?? false
         const providersKey = nestingConfig?.providersKey
-
-        // Universal Logic: Default requiredField to 'provider_id' if extractOperators is true
-        // This filters out garbage nodes (like "Prcl") that lack a valid provider ID
         const requiredField = nestingConfig?.requiredField ?? (extractOperators ? 'provider_id' : undefined)
-
-        // API Standardization v2.0: Track depth and ancestors for $atDepth:N accessor
         const currentDepth = (parentContext.depth ?? -1) + 1
-        const currentAncestors = parentContext.ancestors ?? []
 
         for (const [key, value] of Object.entries(obj)) {
-            if (isDebug) {
-                logger.debug('Processing mapping key', {
-                    context: 'DEBUG_MAPPING',
-                    key,
-                    extractOperators,
-                    providersKey,
-                    depth: currentDepth
-                })
-            }
-
-            // Build enhanced context for new depth accessors
+            // Lightweight parent context chain (zero array allocations per node)
             const enhancedContext = {
-                ...parentContext,
+                parent: parentContext,
                 key,
                 value,
                 depth: currentDepth,
-                ancestors: [...currentAncestors, key],
-                path: currentAncestors.length > 0 ? `${currentAncestors.join('.')}.${key}` : key,
-                rootKey: currentAncestors[0] ?? key,
+                parentKey: parentContext.key,
+                grandParentKey: parentContext.parentKey || parentContext.grandParentKey,
+                greatGrandParentKey: parentContext.grandParentKey,
                 parentValue: parentContext.value,
-                greatGrandParentKey: parentContext.grandParentKey
+                operatorKey: parentContext.operatorKey,
+                // Lazily evaluated getters for depth accessors to avoid array allocations per node
+                get ancestors(): string[] {
+                    const list: string[] = []
+                    let curr: any = enhancedContext
+                    while (curr && curr.key !== undefined) {
+                        list.unshift(curr.key)
+                        curr = curr.parent
+                    }
+                    return list
+                },
+                get path(): string {
+                    return this.ancestors.join('.')
+                },
+                get rootKey(): string {
+                    let curr: any = enhancedContext
+                    while (curr && curr.parent && curr.parent.key !== undefined) {
+                        curr = curr.parent
+                    }
+                    return curr?.key ?? key
+                }
             }
 
             if (typeof value !== 'object' || value === null) {
-                // Simple value: wrap it - isLeaf = true
-                results.push(this.mapFields({ value }, this.resolveEffectiveFields({ value }, mapConfig), {
-                    ...enhancedContext,
-                    isLeaf: true
-                }))
+                (enhancedContext as any).isLeaf = true
+                results.push(this.mapFields({ value }, this.resolveEffectiveFields({ value }, mapConfig), enhancedContext))
                 continue
             }
 
@@ -1241,14 +1244,6 @@ export class DynamicProvider implements SmsProvider {
             const providersObj = isDirectProvidersObj ? value : (providersKey && value && typeof value === 'object' ? value[providersKey] : undefined)
 
             if (providersObj && typeof providersObj === 'object') {
-                if (isDebug) {
-                    logger.debug('Found providersKey, extracting providers', {
-                        context: 'DEBUG_MAPPING',
-                        providersKey,
-                        key,
-                        isDirectProvidersObj
-                    })
-                }
                 for (const [providerKey, providerData] of Object.entries(providersObj as Record<string, any>)) {
                     const isObj = typeof providerData === 'object' && providerData !== null
                     const targetData = isObj ? providerData : {
@@ -1262,31 +1257,40 @@ export class DynamicProvider implements SmsProvider {
                         provider_id: providerKey
                     }
 
-                    // Check required field ONLY if explicitly configured in nestingLevels
                     if (isObj && requiredField && nestingConfig?.requiredField && providerData[requiredField] === undefined) {
-                        if (isDebug) {
-                            logger.debug('Skipping provider - missing required field', {
-                                context: 'DEBUG_MAPPING',
-                                providerKey,
-                                requiredField
-                            })
-                        }
                         continue
                     }
 
-                    // Build operator-level context
                     const operatorContext = {
-                        ...enhancedContext,
+                        parent: enhancedContext,
+                        key: providerKey,
+                        value: targetData,
                         operatorKey: providerKey,
                         depth: currentDepth + 1,
-                        ancestors: [...currentAncestors, key, providerKey],
-                        path: `${currentAncestors.join('.')}.${key}.${providerKey}`.replace(/^\./, ''),
-                        isLeaf: true
+                        isLeaf: true,
+                        get ancestors(): string[] {
+                            const list: string[] = []
+                            let curr: any = operatorContext
+                            while (curr && curr.key !== undefined) {
+                                list.unshift(curr.key)
+                                curr = curr.parent
+                            }
+                            return list
+                        },
+                        get path(): string {
+                            return this.ancestors.join('.')
+                        },
+                        get rootKey(): string {
+                            let curr: any = operatorContext
+                            while (curr && curr.parent && curr.parent.key !== undefined) {
+                                curr = curr.parent
+                            }
+                            return curr?.key ?? providerKey
+                        }
                     }
 
                     const mapped = this.mapFields(targetData, this.resolveEffectiveFields(targetData, mapConfig), operatorContext)
 
-                    // Fallback context fields from parent container (e.g. countryId, serviceCode from parent)
                     if (!mapped.country && enhancedContext.parentValue?.countryId) mapped.country = String(enhancedContext.parentValue.countryId)
                     if (!mapped.country && enhancedContext.parentValue?.countryName) mapped.countryName = String(enhancedContext.parentValue.countryName)
                     if (!mapped.country && enhancedContext.parentValue?.country) mapped.country = String(enhancedContext.parentValue.country)
@@ -1303,51 +1307,25 @@ export class DynamicProvider implements SmsProvider {
                 continue
             }
 
-            // Check if this level contains actual data fields
             const hasData = this.hasDataFields(value)
-            enhancedContext.isLeaf = hasData
-
-            if (isDebug) {
-                logger.debug('Processed mapping level', {
-                    context: 'DEBUG_MAPPING',
-                    key,
-                    hasData,
-                    depth: currentDepth
-                })
-            }
+            ;(enhancedContext as any).isLeaf = hasData
 
             if (extractOperators) {
                 if (hasData) {
-                    // Leaf node with data - extract
                     const mapped = this.mapFields(value, this.resolveEffectiveFields(value, mapConfig), enhancedContext)
-                    // Auto-assign operator from key ONLY if NOT in strict operator mode
                     if (!mapped.operator && !extractOperators) mapped.operator = key
                     results.push(mapped)
                 } else {
-                    // Nested structure - RECURSE deeper with updated context
-                    const nestedResults = this.parseJsonDictionary(value, mapConfig, {
-                        ...enhancedContext,
-                        grandParentKey: parentContext.key || parentContext.parentKey,
-                        parentKey: key
-                    })
-                    results.push(...nestedResults)
+                    this.parseJsonDictionary(value, mapConfig, enhancedContext, results)
                 }
                 continue
             }
 
-            // Standard dictionary (no extractOperators flag)
             if (hasData) {
-                // Leaf node - extract
                 const mapped = this.mapFields(value, this.resolveEffectiveFields(value, mapConfig), enhancedContext)
                 results.push(mapped)
             } else {
-                // Nested structure - RECURSE deeper
-                const nestedResults = this.parseJsonDictionary(value, mapConfig, {
-                    ...enhancedContext,
-                    grandParentKey: parentContext.key || parentContext.parentKey,
-                    parentKey: key
-                })
-                results.push(...nestedResults)
+                this.parseJsonDictionary(value, mapConfig, enhancedContext, results)
             }
         }
 

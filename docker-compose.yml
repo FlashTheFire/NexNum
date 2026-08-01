@@ -26,6 +26,7 @@ services:
       PORT: 3000
       PG_POOL_MAX: 20
       NEXT_DISABLE_INTERNAL_WORKERS: "true"
+      NODE_OPTIONS: "--max-old-space-size=4096"
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       MEILISEARCH_HOST: http://meilisearch:7700
       SOCKET_HOST: nexnum-socket

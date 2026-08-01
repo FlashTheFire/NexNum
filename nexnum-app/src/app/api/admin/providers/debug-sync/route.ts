@@ -749,11 +749,13 @@ export async function GET(request: Request) {
 
                         if (!isValidSvc) {
                             unlistedServiceCount++
-                            sampleSoftFilteredOffers.push({
-                                unlistedServiceCode: serviceCode,
-                                unlistedCountryCode: countryCode,
-                                rawPriceItem: p
-                            } as any)
+                            if (sampleSoftFilteredOffers.length < 50) {
+                                sampleSoftFilteredOffers.push({
+                                    unlistedServiceCode: serviceCode,
+                                    unlistedCountryCode: countryCode,
+                                    rawPriceItem: p
+                                } as any)
+                            }
                             continue
                         }
 

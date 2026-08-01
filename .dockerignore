@@ -8,12 +8,12 @@
 .github
 
 # Node dependencies & Next.js build outputs
-node_modules
-.next
-out
-build
-dist
-coverage
+**/node_modules
+**/.next
+**/out
+**/build
+**/dist
+**/coverage
 
 # Python build & virtual environment exclusions
 __pycache__
