@@ -173,36 +173,38 @@ export function ModernNumberCard({
     )
 }
 
+const SkeletonPulse = ({ className }: { className?: string }) => (
+    <div className={cn(
+        "animate-pulse bg-gradient-to-r from-white/[0.03] via-white/[0.08] to-white/[0.03] bg-[length:200%_100%] rounded",
+        className
+    )} style={{ animation: 'shimmer 1.5s infinite' }} />
+)
+
 export function NumberCardSkeleton({ index = 0, className }: { index?: number; className?: string }) {
     return (
         <motion.div
-            initial={{ opacity: 0, y: 10 }}
+            initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.04, duration: 0.3 }}
-            className={cn("relative h-[136px] w-full rounded-2xl bg-[#12141a]/90 backdrop-blur-md border border-white/[0.04] overflow-hidden p-3", className)}
+            transition={{ delay: index * 0.05, duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+            className={cn("relative h-[148px] w-full rounded-2xl bg-white/[0.02] border border-white/[0.04] overflow-hidden p-4", className)}
             style={{
                 clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 20px), calc(100% - 20px) 100%, 0 100%)'
             }}
         >
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.03] to-transparent animate-shimmer" />
-            <div className="relative z-10 flex flex-col justify-between h-full">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                        <div className="w-7 h-7 rounded-md bg-white/[0.05] animate-pulse" />
-                        <div className="space-y-1">
-                            <div className="h-3 w-20 rounded bg-white/[0.05] animate-pulse" />
-                            <div className="h-2.5 w-12 rounded bg-white/[0.03] animate-pulse" />
-                        </div>
-                    </div>
-                    <div className="h-4 w-12 rounded-full bg-white/[0.05] animate-pulse" />
-                </div>
-                <div className="space-y-1.5 pt-2">
-                    <div className="h-6 w-36 rounded bg-white/[0.06] animate-pulse" />
-                    <div className="flex items-center gap-2">
-                        <div className="h-3 w-16 rounded bg-white/[0.04] animate-pulse" />
-                        <div className="h-3 w-10 rounded bg-white/[0.04] animate-pulse" />
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.02] to-transparent animate-shimmer" />
+            <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                    <SkeletonPulse className="w-7 h-7 rounded-md" />
+                    <div className="space-y-1.5">
+                        <SkeletonPulse className="h-4 w-24" />
+                        <SkeletonPulse className="h-3 w-16" />
                     </div>
                 </div>
+                <SkeletonPulse className="h-4 w-14 rounded-full" />
+            </div>
+            <div className="space-y-2 mt-4">
+                <SkeletonPulse className="h-6 w-36" />
+                <SkeletonPulse className="h-3 w-20" />
             </div>
         </motion.div>
     )
