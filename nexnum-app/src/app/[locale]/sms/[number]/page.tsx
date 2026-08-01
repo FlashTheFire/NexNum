@@ -516,7 +516,13 @@ export default function SMSPage() {
                                 </div>
                             </motion.div>
 
-                            <motion.div variants={fadeInLeft} className="pt-2">
+                            {/* Desktop Tip (visible on desktop) */}
+                            <motion.div variants={fadeInLeft} className="hidden lg:block pt-2">
+                                <SMSTroubleshootingCard />
+                            </motion.div>
+
+                            {/* Mobile Tip (visible on mobile) */}
+                            <motion.div variants={fadeInLeft} className="lg:hidden pt-2">
                                 <SMSTroubleshootingCard />
                             </motion.div>
                         </div>
