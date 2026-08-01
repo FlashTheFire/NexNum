@@ -211,9 +211,6 @@ export const DashboardNumberCard = memo(function DashboardNumberCard({
                                     </motion.div>
                                 )}
                             </AnimatePresence>
-                            <div className="text-[10px] font-mono text-gray-400/60 font-medium tracking-tight opacity-75 mt-0.5 text-right">
-                                <PriceDisplay currencyPrices={currencyPrices || { USD: (price || 0) / 100 }} />
-                            </div>
                             <div className={cn(
                                 "flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[10px] font-bold uppercase tracking-wider",
                                 (status === 'expired' || status === 'cancelled') ? "bg-red-500/10 border-red-500/20 text-red-500" :
@@ -239,6 +236,9 @@ export const DashboardNumberCard = memo(function DashboardNumberCard({
                         <div className="flex items-center gap-2 text-sm">
                             <span className="text-[hsl(var(--neon-lime))] font-semibold">
                                 {serviceName.length > 10 ? serviceName.substring(0, 10) + '...' : serviceName}
+                            </span>
+                            <span className="text-xs font-mono text-gray-400/70 font-medium">
+                                <PriceDisplay currencyPrices={currencyPrices || { USD: (price || 0) / 100 }} />
                             </span>
                             <span className="text-gray-600">|</span>
                             <span className="text-gray-400 flex items-center gap-1">

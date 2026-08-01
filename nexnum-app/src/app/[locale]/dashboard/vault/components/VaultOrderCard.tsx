@@ -102,10 +102,18 @@ export const VaultOrderCard = memo(({ number, status }: VaultOrderCardProps) => 
             glow: "",
             icon: AlertCircle,
             label: "Refunded"
+        },
+        cancelled: {
+            border: "border-red-500/20 opacity-75 hover:opacity-100",
+            accent: "bg-red-500/60",
+            badge: "bg-red-500/10 text-red-400 border-red-500/20",
+            glow: "",
+            icon: AlertCircle,
+            label: "Cancelled"
         }
     };
 
-    const style = statusStyles[status];
+    const style = statusStyles[status] || statusStyles.expired;
     const StatusIcon = style.icon;
 
     // Check if SMS code snippet exists
@@ -136,27 +144,27 @@ export const VaultOrderCard = memo(({ number, status }: VaultOrderCardProps) => 
                                         <ServiceIcon id={serviceId} name={number.serviceName} className="w-full h-full object-contain" />
                                     </div>
                                     <div>
-                                        <h4 className="font-extrabold text-sm text-white capitalize leading-tight flex items-center gap-1.5">
-                                            {number.serviceName || 'Virtual Service'}
-                                            <ArrowUpRight className="w-3.5 h-3.5 text-zinc-500 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                        </h4>
+                                        <div className="flex items-center gap-2">
+                                            <h4 className="font-extrabold text-sm text-white capitalize leading-tight flex items-center gap-1.5">
+                                                {number.serviceName || 'Virtual Service'}
+                                                <ArrowUpRight className="w-3.5 h-3.5 text-zinc-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                            </h4>
+                                            <span className="text-xs font-mono text-gray-400/70 font-medium">
+                                                <PriceDisplay currencyPrices={(number as any).currencyPrices || { USD: (number.price || 0) / 100 }} />
+                                            </span>
+                                        </div>
                                         <p className="text-[11px] text-zinc-400 font-medium">
                                             {number.countryName || 'Global'}
                                         </p>
                                     </div>
                                 </div>
 
-                                <div className="flex flex-col items-end gap-1 shrink-0">
-                                    <div className={cn(
-                                        "flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11px] font-bold tracking-wide uppercase shrink-0",
-                                        style.badge
-                                    )}>
-                                        <StatusIcon className="w-3 h-3" />
-                                        <span>{style.label}</span>
-                                    </div>
-                                    <div className="text-[10px] font-mono font-medium text-gray-400/60 tracking-tight opacity-75 mt-0.5">
-                                        <PriceDisplay currencyPrices={(number as any).currencyPrices || { USD: (number.price || 0) / 100 }} />
-                                    </div>
+                                <div className={cn(
+                                    "flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11px] font-bold tracking-wide uppercase shrink-0",
+                                    style.badge
+                                )}>
+                                    <StatusIcon className="w-3 h-3" />
+                                    <span>{style.label}</span>
                                 </div>
                             </div>
 

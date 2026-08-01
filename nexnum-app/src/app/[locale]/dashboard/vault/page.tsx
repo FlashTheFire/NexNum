@@ -244,16 +244,17 @@ export default function VaultPage() {
             .filter(num => num && num.id && num.number)
             .map(num => {
                 const expiresAt = num.expiresAt ? new Date(num.expiresAt).getTime() : 0
-                let calculatedStatus = num.status || 'active'
+                const rawStatus = String(num.status || 'active').toLowerCase()
+                let calculatedStatus: 'active' | 'completed' | 'expired' | 'cancelled' = 'active'
 
-                if (num.status === 'cancelled' || (num as any).status === 'refunded') {
+                if (rawStatus === 'cancelled' || rawStatus === 'refunded') {
+                    calculatedStatus = 'cancelled'
+                } else if (rawStatus === 'received' || rawStatus === 'completed' || (num.smsCount || 0) > 0 || num.latestSms) {
+                    calculatedStatus = 'completed'
+                } else if (rawStatus === 'expired' || rawStatus === 'timeout' || (expiresAt > 0 && expiresAt <= now)) {
                     calculatedStatus = 'expired'
-                } else if (isNaN(expiresAt) || expiresAt <= now) {
-                    if ((num.smsCount || 0) > 0 || num.latestSms || ((num as any).smsMessages && (num as any).smsMessages.length > 0)) {
-                        calculatedStatus = 'completed'
-                    } else {
-                        calculatedStatus = 'expired'
-                    }
+                } else {
+                    calculatedStatus = 'active'
                 }
 
                 return { ...num, currentStatus: calculatedStatus }

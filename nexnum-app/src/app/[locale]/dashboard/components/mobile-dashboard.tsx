@@ -23,7 +23,6 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { DashboardBackground } from "./dashboard-background"
 import { DashboardNumberCard } from "./DashboardNumberCard"
-import { PriceDisplay } from "@/components/common/PriceDisplay"
 import { NumberCardSkeleton } from "./ModernNumberCard"
 import { PriceDisplay, BalanceDisplay } from "@/components/common/PriceDisplay"
 import { TelegramLinkCard } from "@/components/user/TelegramLinkCard"
@@ -404,16 +403,17 @@ export function MobileDashboard() {
                                                                 Cᴀɴᴄᴇʟʟᴇᴅ
                                                             </div>
                                                         )}
-                                                        <div className="text-[10px] font-mono text-gray-400/60 font-medium tracking-tight opacity-75 mt-0.5">
-                                                            <PriceDisplay currencyPrices={num.currencyPrices || { USD: (num.price || 0) / 100 }} />
-                                                        </div>
                                                     </div>
                                                 </div>
 
                                                 <div className="space-y-1">
                                                     <p className="text-xl font-mono font-medium text-white tracking-wide">{num.number}</p>
-                                                    <p className="text-xs text-gray-500 flex items-center gap-1">
-                                                        {num.serviceName.length > 10 ? num.serviceName.substring(0, 10) + '...' : num.serviceName} • <span className="text-[hsl(var(--neon-lime))]">{num.smsCount || 0} SMS</span>
+                                                    <p className="text-xs text-gray-500 flex items-center gap-1.5">
+                                                        {num.serviceName.length > 10 ? num.serviceName.substring(0, 10) + '...' : num.serviceName}
+                                                        <span className="text-xs font-mono text-gray-400/70 font-medium">
+                                                            <PriceDisplay currencyPrices={num.currencyPrices || { USD: (num.price || 0) / 100 }} />
+                                                        </span>
+                                                        • <span className="text-[hsl(var(--neon-lime))]">{num.smsCount || 0} SMS</span>
                                                     </p>
                                                 </div>
                                             </div>
