@@ -75,10 +75,10 @@ export class ProviderRequestBuilder {
         service: ['service', 'serviceCode', 'serviceId', 'externalService'],
         serviceCode: ['serviceCode', 'service', 'serviceId', 'externalService'],
         serviceId: ['serviceId', 'service', 'serviceCode', 'externalService'],
-        operator: ['operator', 'operatorId', 'op'],
-        operatorId: ['operatorId', 'operator', 'op'],
+        operator: ['operator', 'operatorId', 'op', 'providerIds', 'provider_ids', 'provider_id'],
+        operatorId: ['operatorId', 'operator', 'op', 'providerIds', 'provider_ids', 'provider_id'],
         maxPrice: ['maxPrice', 'max_price', 'expectedPrice'],
-        providerIds: ['providerIds', 'provider_ids'],
+        providerIds: ['providerIds', 'provider_ids', 'provider_id', 'operator', 'operatorId', 'op'],
         exceptProviderIds: ['exceptProviderIds', 'except_provider_ids'],
     }
 
@@ -138,8 +138,8 @@ export class ProviderRequestBuilder {
                     }
 
                     if (resolved !== undefined) {
-                        const isGenericOperator = paramName.toLowerCase() === 'operator' && 
-                            ['any', 'default', 'all'].includes(resolved.toLowerCase())
+                        const isGenericOperator = ['operator', 'providerids', 'exceptproviderids'].includes(paramName.toLowerCase()) && 
+                            ['any', 'default', 'all', ''].includes(resolved.toLowerCase())
 
                         if (!isGenericOperator) {
                             query.append(paramName, resolved)
@@ -162,8 +162,8 @@ export class ProviderRequestBuilder {
             for (const [key, value] of Object.entries(runtimeParams)) {
                 // Skip if handled or internal control key
                 if (handledKeys.has(key) || this.INTERNAL_CONTROL_KEYS.has(key)) continue
-                // Skip generic operator values ('any', 'default', 'all')
-                if (key.toLowerCase() === 'operator' && ['any', 'default', 'all'].includes(String(value).toLowerCase())) continue
+                // Skip generic operator/providerIds values ('any', 'default', 'all', '')
+                if (['operator', 'providerids', 'exceptproviderids'].includes(key.toLowerCase()) && ['any', 'default', 'all', ''].includes(String(value).toLowerCase())) continue
                 // Skip if already set
                 if (query.has(key)) continue
 
