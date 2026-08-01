@@ -11,6 +11,7 @@ import { PricingConfig } from '@/config/app.config'
 import { PricingService } from '@/lib/pricing/pricing-service'
 import { getCurrencyService } from '@/lib/currency/currency-service'
 import { getCountryFlagUrlSync } from '@/lib/normalizers/country-flags'
+import { RateLimitedQueue } from '@/lib/utils/async-utils'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300 // 5 minutes timeout
@@ -670,13 +671,34 @@ export async function GET(request: Request) {
                     send(`[STEP 4] Fetching live prices from Upstream Provider API...`)
                     const apiFetchStart = Date.now()
                     let rawPrices: any[] = []
-                    try {
-                        rawPrices = await dynamicProvider.getPrices()
-                        send(`[SUCCESS] Raw Price Fetch completed in ${Date.now() - apiFetchStart}ms. Total PriceData objects parsed: ${rawPrices.length}`)
-                    } catch (e: any) {
-                        send(`[ERROR] Upstream Price Fetch Error: ${e.message}`)
-                        continue
+
+                    const globalSyncProviders = ['5simnet', 'grizzlysms', 'smsbower', 'daisysms', 'smshub', 'smspool', 'hero_sms', 'virtuality']
+                    const isGlobalSync = (provider as any).useGlobalSync === true ||
+                        ((provider as any).options as any)?.useGlobalSync === true ||
+                        globalSyncProviders.includes(provider.name.toLowerCase())
+
+                    if (isGlobalSync) {
+                        try {
+                            rawPrices = await dynamicProvider.getPrices()
+                        } catch (e: any) {
+                            send(`[WARN] Global getPrices() failed: ${e.message}, falling back to per-country fetch...`)
+                        }
                     }
+
+                    if (rawPrices.length === 0) {
+                        send(`[INFO] Executing per-country price fetch across ${countries.length} target countries...`)
+                        const rateLimits = { concurrency: 5, interval: 200 }
+                        const limiter = new RateLimitedQueue(rateLimits.concurrency, rateLimits.interval)
+                        const promises = countries.map(c => limiter.add(async () => {
+                            try {
+                                const p = await dynamicProvider.getPrices(c.code)
+                                if (p.length > 0) rawPrices.push(...p)
+                            } catch {}
+                        }))
+                        await Promise.all(promises)
+                    }
+
+                    send(`[SUCCESS] Raw Price Fetch completed in ${Date.now() - apiFetchStart}ms. Total PriceData objects parsed: ${rawPrices.length}`)
 
                     if (rawPrices.length === 0) {
                         send(`[WARN] Provider returned 0 price entries! Check provider balance or API configuration.`)

@@ -1313,7 +1313,7 @@ export class DynamicProvider implements SmsProvider {
             if (extractOperators) {
                 if (hasData) {
                     const mapped = this.mapFields(value, this.resolveEffectiveFields(value, mapConfig), enhancedContext)
-                    if (!mapped.operator && !extractOperators) mapped.operator = key
+                    if (!mapped.operator) mapped.operator = key
                     results.push(mapped)
                 } else {
                     this.parseJsonDictionary(value, mapConfig, enhancedContext, results)
