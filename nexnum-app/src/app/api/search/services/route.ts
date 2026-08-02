@@ -80,8 +80,9 @@ async function resolveServiceIconUrls(serviceNames: string[]): Promise<Map<strin
 }
 
 /**
- * Batched flag URL resolver - queries MeiliSearch for top relevant countries per service
- * ordered by offer count / relevance and converts them to local flag icon URLs.
+ * Batched flag URL resolver - queries MeiliSearch for offers per service,
+ * aggregates country stats (lowestPrice & totalStock), and sorts countries using
+ * the exact Step 2 Default Relevance Filter ("Smart Sort": cheapest first, stock tie-breaker).
  */
 async function resolveServiceFlagUrls(serviceNames: string[]): Promise<Map<string, string[]>> {
     const map = new Map<string, string[]>();
@@ -91,45 +92,57 @@ async function resolveServiceFlagUrls(serviceNames: string[]): Promise<Map<strin
         const queries = serviceNames.map(name => ({
             indexUid: INDEXES.OFFERS,
             q: '',
-            filter: `serviceName = "${name.replace(/"/g, '\\"')}"`,
-            facets: ['countryName'],
-            limit: 10,
-            sort: ['stock:desc'],
-            attributesToRetrieve: ['countryName']
+            filter: `serviceName = "${name.replace(/"/g, '\\"')}" AND isActive = true`,
+            limit: 100,
+            attributesToRetrieve: ['countryName', 'pointPrice', 'stock']
         }));
 
         const response = await meili.multiSearch({ queries });
 
         response.results.forEach((res, index) => {
             const serviceName = serviceNames[index];
-            const flagsSet = new Set<string>();
+            
+            // Map countryName -> { lowestPrice, totalStock }
+            const countryMap = new Map<string, { lowestPrice: number; totalStock: number }>();
 
-            // 1. Primary: Use facetDistribution for countryName (counts frequency across all providers)
-            const facetCounts = res.facetDistribution?.countryName;
-            if (facetCounts && Object.keys(facetCounts).length > 0) {
-                // Sort country names by document count descending (most relevant / widely available first)
-                const sortedCountries = Object.entries(facetCounts)
-                    .sort((a, b) => (b[1] as number) - (a[1] as number));
+            for (const hit of (res.hits || []) as any[]) {
+                if (!hit.countryName) continue;
+                const cName = hit.countryName;
+                const price = Number(hit.pointPrice || 0);
+                const stock = Number(hit.stock || 0);
 
-                for (const [cName] of sortedCountries) {
-                    const flagUrl = getCountryFlagUrlSync(cName);
-                    if (flagUrl) {
-                        flagsSet.add(flagUrl);
-                        if (flagsSet.size >= 4) break;
-                    }
+                const existing = countryMap.get(cName);
+                if (!existing) {
+                    countryMap.set(cName, { lowestPrice: price, totalStock: stock });
+                } else {
+                    existing.lowestPrice = Math.min(existing.lowestPrice, price);
+                    existing.totalStock += stock;
                 }
             }
 
-            // 2. Fallback: If facetDistribution yielded no flags, iterate hits
-            if (flagsSet.size < 4 && res.hits) {
-                for (const hit of (res.hits || []) as any[]) {
-                    if (hit.countryName) {
-                        const flagUrl = getCountryFlagUrlSync(hit.countryName);
-                        if (flagUrl) {
-                            flagsSet.add(flagUrl);
-                            if (flagsSet.size >= 4) break;
-                        }
-                    }
+            // Convert to array and sort using Step 2 Default Relevance Filter ("Smart Sort"):
+            // Cheapest first if price diff > 1 point, otherwise prioritize high stock
+            const sortedCountries = Array.from(countryMap.entries())
+                .map(([name, stats]) => ({
+                    name,
+                    lowestPrice: stats.lowestPrice,
+                    totalStock: stats.totalStock,
+                    flagUrl: getCountryFlagUrlSync(name)
+                }))
+                .filter(c => Boolean(c.flagUrl));
+
+            sortedCountries.sort((a, b) => {
+                const priceDiff = a.lowestPrice - b.lowestPrice;
+                if (Math.abs(priceDiff) > 1) return priceDiff; // Price diff > 1 -> cheapest wins
+                return b.totalStock - a.totalStock; // Otherwise stock wins
+            });
+
+            // Extract top unique flag URLs
+            const flagsSet = new Set<string>();
+            for (const c of sortedCountries) {
+                if (c.flagUrl) {
+                    flagsSet.add(c.flagUrl);
+                    if (flagsSet.size >= 4) break;
                 }
             }
 
