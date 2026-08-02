@@ -89,7 +89,7 @@ const nextConfig = {
     },
 
     // Performance optimizations
-    output: process.platform === 'win32' ? undefined : 'standalone',
+    output: 'standalone',
     reactStrictMode: true,
     poweredByHeader: false,
 

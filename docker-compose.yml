@@ -31,6 +31,11 @@ services:
       MEILISEARCH_HOST: http://meilisearch:7700
       SOCKET_HOST: nexnum-socket
       NEXT_PUBLIC_SOCKET_URL: ${NEXT_PUBLIC_SOCKET_URL}
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
     env_file:
       - .env
     ports:
@@ -76,6 +81,11 @@ services:
       MEILISEARCH_HOST: http://meilisearch:7700
       TELEGRAM_BOT_TOKEN: ${BOT_TOKEN}
       ZOMBIE_ALERT_CHAT_ID: ${ADMIN_ID}
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
     env_file:
       - .env
     depends_on:
@@ -113,6 +123,11 @@ services:
       PORT: 3951
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       MEILISEARCH_HOST: http://meilisearch:7700
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
     env_file:
       - .env
     ports:
@@ -177,8 +192,8 @@ services:
     container_name: nexnum-meilisearch
     environment:
       MEILI_MASTER_KEY: ${MEILISEARCH_API_KEY}
-      MEILI_ENV: development
-      MEILI_NO_ANALYTICS: true
+      MEILI_ENV: production
+      MEILI_NO_ANALYTICS: "true"
     volumes:
       - meili_data:/meili_data
     restart: unless-stopped
@@ -218,12 +233,18 @@ services:
       TELEGRAM_ADMIN_CHANNEL: ${TELEGRAM_ADMIN_CHANNEL:-${CHANNEL_ID}}
       PUBLIC_APP_URL: ${PUBLIC_APP_URL:-${NEXT_PUBLIC_APP_URL}}
       PAYMENT_GATEWAY_API_KEY: ${PAYMENT_GATEWAY_API_KEY:-dummy_gateway_key}
-      USE_WEBHOOK: ${USE_WEBHOOK:-false}
-      WEBHOOK_URL: ${WEBHOOK_URL:-}
+      USE_WEBHOOK: "false"
+      WEBHOOK_URL: ""
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
     env_file:
       - .env
-    ports:
-      - "8080:8080"
+    # Port 8080 only needed in webhook mode — remove if using polling
+    # ports:
+    #   - "8080:8080"
     depends_on:
       nexnum-app:
         condition: service_healthy

@@ -57,3 +57,15 @@ appendonly.aof
 # OS artifacts
 .DS_Store
 Thumbs.db
+
+# Bot runtime artifacts (logs, sessions, test cache)
+nexnum-bot/sessions/
+nexnum-bot/application.log
+nexnum-bot/support.log
+nexnum-bot/user_accounts.json
+nexnum-bot/.pytest_cache
+nexnum-bot/assets/
+
+# Root-level log files
+*.log
+profile_readme/
