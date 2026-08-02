@@ -133,9 +133,9 @@ export const DashboardNumberCard = memo(function DashboardNumberCard({
                 <div className="p-5 flex flex-col gap-4">
                     {/* Header: Country & Status */}
                     <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="relative w-9 h-9 flex-shrink-0">
-                                <div className="relative w-full h-full rounded-[12px] bg-gradient-to-br from-white/[0.08] to-white/[0.02] border border-white/10 flex items-center justify-center p-1.5 shadow-inner overflow-hidden">
+                        <div className="flex items-center gap-2">
+                            <div className="relative w-7 h-7 flex-shrink-0">
+                                <div className="relative w-full h-full rounded-md overflow-hidden transition-all duration-300 ring-1 ring-white/10 group-hover:scale-105">
                                     {serviceIconUrl ? (
                                         <img
                                             alt={serviceName}
@@ -148,7 +148,7 @@ export const DashboardNumberCard = memo(function DashboardNumberCard({
                                         </div>
                                     )}
                                 </div>
-                                <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-[#151518] overflow-hidden shadow-md z-20">
+                                <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#151518] overflow-hidden shadow-md z-20">
                                     <img
                                         alt={countryName}
                                         className="w-full h-full rounded-full object-cover shadow-sm ring-1 ring-white/10"
@@ -156,9 +156,9 @@ export const DashboardNumberCard = memo(function DashboardNumberCard({
                                     />
                                 </div>
                             </div>
-                            <div className="flex flex-col justify-center gap-0.5">
-                                <span className="text-[12px] text-gray-400 font-medium leading-none tracking-normal">Price</span>
-                                <span className="text-[22px] font-bold text-white leading-none font-sans tracking-tight">
+                            <div className="flex flex-col gap-0.5">
+                                <span className="text-[10px] text-gray-400 font-medium leading-none">Price</span>
+                                <span className="text-xs font-bold text-white leading-none font-sans">
                                     <PriceDisplay currencyPrices={currencyPrices} />
                                 </span>
                             </div>

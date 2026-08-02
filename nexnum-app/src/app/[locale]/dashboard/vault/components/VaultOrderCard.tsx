@@ -143,9 +143,9 @@ export const VaultOrderCard = memo(({ number, status }: VaultOrderCardProps) => 
                                     <div className="w-8 h-8 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center p-1.5 shrink-0 group-hover:scale-105 transition-transform">
                                         <ServiceIcon id={serviceId} name={number.serviceName} className="w-full h-full object-contain" />
                                     </div>
-                                    <div className="flex flex-col justify-center gap-0.5">
-                                        <span className="text-[12px] text-gray-400 font-medium leading-none tracking-normal">Price</span>
-                                        <span className="text-[22px] font-bold text-white leading-none font-sans tracking-tight">
+                                    <div className="flex flex-col gap-0.5">
+                                        <span className="text-[10px] text-gray-400 font-medium leading-none">Price</span>
+                                        <span className="text-xs font-bold text-white leading-none font-sans">
                                             <PriceDisplay currencyPrices={(number as any).currencyPrices} />
                                         </span>
                                     </div>
