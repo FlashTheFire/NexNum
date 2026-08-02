@@ -271,9 +271,8 @@ export async function GET(req: NextRequest) {
                 break;
         }
 
-        // v4 prefix: country dedup key is now lowercased; v3 keys may have
-        // already been cached as un-deduped (e.g. India + india both present)
-        const cacheKey = `cache:search:services:v4:${rl.userId || rl.ip}:${q}:${page}:${limit}:${mappedSort}`;
+        // Shared global cache key for all users/bots (eliminates DB queries per user/IP)
+        const cacheKey = `cache:search:services:global:v5:${q}:${page}:${limit}:${mappedSort}`;
 
         const result = await cacheGet<{ items: any[]; total: number; page: number; limit: number; hasMore: boolean }>(
             cacheKey,
@@ -299,8 +298,9 @@ export async function GET(req: NextRequest) {
                     hasMore: r.page * r.limit < r.total
                 };
             },
-            60
+            600 // 10 minutes global Redis cache
         );
+
 
         // 1. BATCHED icon and flag URL resolve
         const serviceNames = (result.items as any[]).map(i => i.serviceName).filter(Boolean);
