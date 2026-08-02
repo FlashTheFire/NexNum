@@ -268,7 +268,7 @@ export const SMSNumberCard = memo(function SMSNumberCard({
                             "bg-white/[0.02] border-white/5 hover:border-[hsl(var(--neon-lime)/0.2)]"
                         )}>
                             <div className="flex items-center gap-1.5 text-[10px] text-gray-500 uppercase tracking-wide font-medium mb-1">
-                                <Tag className="w-3 h-3 text-[hsl(var(--neon-lime))]" />
+                                <Tag className="w-3 h-3" />
                                 Price
                             </div>
                             <div className="text-xl font-mono font-medium text-white">
