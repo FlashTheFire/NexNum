@@ -5,8 +5,9 @@ import { checkSearchRateLimit } from "@/lib/api/search-rate-limit";
 import { cacheGet } from "@/lib/core/redis";
 import { prisma } from "@/lib/core/db";
 import { getCanonicalName, generateCanonicalCode } from "@/lib/normalizers/service-identity";
-import { meili, INDEXES } from "@/lib/search/search";
+import { meili, INDEXES, resolveUniversalServiceFilter } from "@/lib/search/search";
 import { getCountryFlagUrlSync } from "@/lib/normalizers/country-flags";
+import { normalizeCountryName } from "@/lib/normalizers/country-normalizer";
 import fs from 'fs';
 import path from 'path';
 
@@ -80,61 +81,73 @@ async function resolveServiceIconUrls(serviceNames: string[]): Promise<Map<strin
 }
 
 /**
- * Batched flag URL resolver - queries MeiliSearch for offers per service,
- * aggregates country stats (lowestPrice & totalStock), and sorts countries using
- * the exact Step 2 Default Relevance Filter ("Smart Sort": cheapest first, stock tie-breaker).
+ * Batched flag URL resolver - queries MeiliSearch using the exact same service filter
+ * and country aggregation algorithm as Step 2 (searchCountries), ensuring 100% flag parity.
  */
 async function resolveServiceFlagUrls(serviceNames: string[]): Promise<Map<string, string[]>> {
     const map = new Map<string, string[]>();
     if (serviceNames.length === 0) return map;
 
     try {
-        const queries = serviceNames.map(name => ({
-            indexUid: INDEXES.OFFERS,
-            q: '',
-            filter: `serviceName = "${name.replace(/"/g, '\\"')}" AND isActive = true`,
-            limit: 100,
-            attributesToRetrieve: ['countryName', 'pointPrice', 'stock']
+        const indexObj = meili.index(INDEXES.OFFERS);
+
+        const queries = await Promise.all(serviceNames.map(async (name) => {
+            const serviceFilter = await resolveUniversalServiceFilter(indexObj, name);
+            return {
+                indexUid: INDEXES.OFFERS,
+                q: '',
+                filter: `${serviceFilter} AND isActive = true`,
+                limit: 1000,
+                attributesToRetrieve: ['countryName', 'providerCountryCode', 'pointPrice', 'stock']
+            };
         }));
 
         const response = await meili.multiSearch({ queries });
 
         response.results.forEach((res, index) => {
             const serviceName = serviceNames[index];
-            
-            // Map countryName -> { lowestPrice, totalStock }
-            const countryMap = new Map<string, { lowestPrice: number; totalStock: number }>();
+
+            const countryMap = new Map<string, {
+                displayName: string;
+                minPrice: number;
+                totalStock: number;
+            }>();
 
             for (const hit of (res.hits || []) as any[]) {
                 if (!hit.countryName) continue;
-                const cName = hit.countryName;
+                const normalizedName = normalizeCountryName(hit.countryName).toLowerCase();
+                if (!normalizedName) continue;
+
                 const price = Number(hit.pointPrice || 0);
                 const stock = Number(hit.stock || 0);
 
-                const existing = countryMap.get(cName);
-                if (!existing) {
-                    countryMap.set(cName, { lowestPrice: price, totalStock: stock });
-                } else {
-                    existing.lowestPrice = Math.min(existing.lowestPrice, price);
-                    existing.totalStock += stock;
+                let stats = countryMap.get(normalizedName);
+                if (!stats) {
+                    stats = {
+                        displayName: hit.countryName,
+                        minPrice: price,
+                        totalStock: 0
+                    };
+                    countryMap.set(normalizedName, stats);
                 }
+
+                stats.minPrice = Math.min(stats.minPrice, price);
+                stats.totalStock += stock;
             }
 
-            // Convert to array and sort using Step 2 Default Relevance Filter ("Smart Sort"):
-            // Cheapest first if price diff > 1 point, otherwise prioritize high stock
-            const sortedCountries = Array.from(countryMap.entries())
-                .map(([name, stats]) => ({
-                    name,
-                    lowestPrice: stats.lowestPrice,
-                    totalStock: stats.totalStock,
-                    flagUrl: getCountryFlagUrlSync(name)
-                }))
-                .filter(c => Boolean(c.flagUrl));
+            // Step 2 Exact Relevance Sort Algorithm ("Smart Sort"):
+            // Cheapest first if price difference > 1 point ($0.01), otherwise higher stock wins
+            const sortedCountries = Array.from(countryMap.values()).map(g => ({
+                name: g.displayName,
+                lowestPrice: g.minPrice,
+                totalStock: g.totalStock,
+                flagUrl: getCountryFlagUrlSync(g.displayName) || ''
+            })).filter(c => Boolean(c.flagUrl));
 
             sortedCountries.sort((a, b) => {
                 const priceDiff = a.lowestPrice - b.lowestPrice;
-                if (Math.abs(priceDiff) > 1) return priceDiff; // Price diff > 1 -> cheapest wins
-                return b.totalStock - a.totalStock; // Otherwise stock wins
+                if (Math.abs(priceDiff) > 1) return priceDiff;
+                return b.totalStock - a.totalStock;
             });
 
             // Extract top unique flag URLs
