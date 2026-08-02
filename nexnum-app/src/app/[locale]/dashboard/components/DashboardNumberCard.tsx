@@ -237,7 +237,7 @@ export const DashboardNumberCard = memo(function DashboardNumberCard({
                             <h3 className="text-2xl font-mono font-bold text-white tracking-tight">
                                 {phoneCountryCode && phoneNationalNumber ? (
                                     <>
-                                        <span className="text-gray-500 font-semibold text-lg">{phoneCountryCode}</span>
+                                        <span className="text-gray-500 font-semibold">{phoneCountryCode}</span>
                                         <span className="ml-1">{phoneNationalNumber}</span>
                                     </>
                                 ) : (

@@ -167,7 +167,14 @@ export const SMSNumberCard = memo(function SMSNumberCard({
                                         )}
                                         title="Click to copy full number"
                                     >
-                                        {phoneNumber}
+                                        {phoneCountryCode && phoneNationalNumber ? (
+                                            <>
+                                                <span className="text-gray-500 font-semibold">{phoneCountryCode}</span>
+                                                <span className="ml-1">{phoneNationalNumber}</span>
+                                            </>
+                                        ) : (
+                                            phoneNumber
+                                        )}
                                     </button>
                                     <button
                                         onClick={handleCopyNationalNumber}
