@@ -340,7 +340,8 @@ export async function GET(req: NextRequest) {
                 // currencyPrices was pre-computed inside the cache callback (line above)
                 // to avoid storing a Promise (which JSON.stringify turns into {}).
                 currencyPrices: item.currencyPrices || {},
-                flagUrls: flagMap.get(item.serviceName) || [],
+                flagUrls: (item.flagUrls && item.flagUrls.length > 0) ? item.flagUrls : (flagMap.get(item.serviceName) || []),
+
                 isFavorite: favoriteMap.has(value),
                 favoriteId: favoriteMap.get(value) || null,
             };

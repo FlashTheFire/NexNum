@@ -667,6 +667,7 @@ model ServiceAggregate {
   totalStock    BigInt   @map("total_stock")
   countryCount  Int      @map("country_count")
   providerCount Int      @map("provider_count")
+  flagUrls      String[] @default([]) @map("flag_urls")
   lastUpdatedAt DateTime @default(now()) @map("last_updated_at")
 
   @@index([lowestPrice])

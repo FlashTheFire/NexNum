@@ -1,8 +1,10 @@
 import { prisma } from '@/lib/core/db'
 import { meili, INDEXES } from './search'
 import { logger } from '@/lib/core/logger'
-import { cacheSet, cacheGet, CACHE_KEYS } from '@/lib/core/redis'
+import { cacheSet, cacheGet, CACHE_KEYS, redis } from '@/lib/core/redis'
 import { withHeartbeat } from '@/lib/workers/with-heartbeat'
+import { getCountryFlagUrlSync } from '@/lib/normalizers/country-flags'
+import { normalizeCountryName } from '@/lib/normalizers/country-normalizer'
 
 interface ServiceAggregateData {
     serviceCode: string
@@ -11,6 +13,7 @@ interface ServiceAggregateData {
     totalStock: bigint
     countryCount: number
     providerCount: number
+    flagUrls: string[]
 }
 
 /**
@@ -25,8 +28,6 @@ export async function refreshAllServiceAggregatesImpl() {
 
     try {
         // 0. MeiliSearch Consistency Drain (Race Condition Prevention)
-        // Wait for ALL pending tasks in MeiliSearch to ensure we have a consistent view.
-        // This addresses the "Sync Race Condition Protection" by ensuring deletes/indexes are processed.
         logger.info('[AGGREGATES] Draining MeiliSearch task queue for consistency...');
         const tasks = await meili.tasks.getTasks({ statuses: ['enqueued', 'processing'] as any });
         if (tasks.results && tasks.results.length > 0) {
@@ -46,6 +47,8 @@ export async function refreshAllServiceAggregatesImpl() {
             totalStock: bigint;
             _countries: Set<string>;
             _providers: Set<string>;
+            _countryStats: Map<string, { displayName: string; minPrice: number; totalStock: number }>;
+            flagUrls: string[];
         }>()
 
         const activeProviders = await prisma.provider.findMany({ where: { isActive: true }, select: { name: true } })
@@ -70,11 +73,8 @@ export async function refreshAllServiceAggregatesImpl() {
 
             for (const hit of result.hits as any[]) {
                 const providerName = typeof hit.provider === 'string' ? hit.provider.toLowerCase() : ''
-                if (!activeProviderNames.has(providerName)) continue; const rawCode = hit.providerServiceCode || 'unknown';
-                // DEDUP: a single logical service (e.g. "Amazon") is often listed by
-                // providers under multiple raw codes ("am", "amazon", "AMAZON").
-                // Key the aggregate Map by the canonical lowercased serviceName so all
-                // variants collapse into ONE row. Falls back to raw code when name is missing.
+                if (!activeProviderNames.has(providerName)) continue;
+                const rawCode = hit.providerServiceCode || 'unknown';
                 const displayName = (hit.serviceName || rawCode).trim();
                 const dedupKey = displayName.toLowerCase();
 
@@ -86,19 +86,33 @@ export async function refreshAllServiceAggregatesImpl() {
                         lowestPrice: hit.pointPrice,
                         totalStock: BigInt(0),
                         _countries: new Set(),
-                        _providers: new Set()
+                        _providers: new Set(),
+                        _countryStats: new Map(),
+                        flagUrls: []
                     }
                     aggregates.set(dedupKey, agg)
                 }
 
-                // Keep the most human-readable serviceName seen (longest non-empty wins).
                 if (displayName.length > agg.serviceName.length) {
                     agg.serviceName = displayName;
                 }
 
                 agg.lowestPrice = Math.min(agg.lowestPrice, hit.pointPrice)
                 agg.totalStock += BigInt(hit.stock || 0)
-                if (hit.countryName) agg._countries.add(hit.countryName)
+                if (hit.countryName) {
+                    agg._countries.add(hit.countryName);
+                    const normName = normalizeCountryName(hit.countryName).toLowerCase();
+                    if (normName) {
+                        let cStat = agg._countryStats.get(normName);
+                        if (!cStat) {
+                            cStat = { displayName: hit.countryName, minPrice: hit.pointPrice, totalStock: hit.stock || 0 };
+                            agg._countryStats.set(normName, cStat);
+                        } else {
+                            cStat.minPrice = Math.min(cStat.minPrice, hit.pointPrice);
+                            cStat.totalStock += hit.stock || 0;
+                        }
+                    }
+                }
                 if (hit.provider) agg._providers.add(hit.provider)
             }
 
@@ -109,10 +123,7 @@ export async function refreshAllServiceAggregatesImpl() {
         }
 
         if (aggregates.size === 0) {
-            // SAFETY: Before wiping aggregates, check if we actually have active providers.
-            // If MeiliSearch is empty but we have providers, it's likely a sync race condition.
             const activeProviderCount = await prisma.provider.count({ where: { isActive: true } });
-
             if (activeProviderCount > 0) {
                 logger.warn('MeiliSearch returned 0 documents, but active providers were found. Skipping cleanup (Sync Race Condition Protection).', { context: 'AGGREGATES' });
                 return 0;
@@ -123,13 +134,30 @@ export async function refreshAllServiceAggregatesImpl() {
             return 0
         }
 
+        // Compute precalculated flag URLs for each service using Step 2 Smart Sort
+        for (const agg of aggregates.values()) {
+            const sorted = Array.from(agg._countryStats.values())
+                .map(c => ({ ...c, flagUrl: getCountryFlagUrlSync(c.displayName) || '' }))
+                .filter(c => Boolean(c.flagUrl));
+
+            sorted.sort((a, b) => {
+                const priceDiff = a.minPrice - b.minPrice;
+                if (Math.abs(priceDiff) > 1) return priceDiff;
+                return b.totalStock - a.totalStock;
+            });
+
+            const flagsSet = new Set<string>();
+            for (const c of sorted) {
+                flagsSet.add(c.flagUrl);
+                if (flagsSet.size >= 4) break;
+            }
+            agg.flagUrls = Array.from(flagsSet);
+        }
+
         // 2. High-Speed Persistence (Optimized Batch Upserts)
         const finalStats = Array.from(aggregates.values());
-        logger.info(`Computed ${finalStats.length} aggregates. Syncing to DB...`, { context: 'AGGREGATES' });
+        logger.info(`Computed ${finalStats.length} aggregates with precomputed flagUrls. Syncing to DB...`, { context: 'AGGREGATES' });
 
-        // High-Performance Optimization: Use single-pass PostgreSQL INSERT ... ON CONFLICT
-        // in chunks of 500. This replaces the two-pass (createMany + UPDATE FROM unnest)
-        // bottleneck, dropping DB sync duration for 3000+ records from 37s -> <0.5s.
         const BATCH_SIZE = 500;
 
         for (let i = 0; i < finalStats.length; i += BATCH_SIZE) {
@@ -144,6 +172,7 @@ export async function refreshAllServiceAggregatesImpl() {
                 const stocks = chunk.map(s => s.totalStock.toString());
                 const countryCounts = chunk.map(s => s._countries.size);
                 const providerCounts = chunk.map(s => s._providers.size);
+                const flagUrlsNested = chunk.map(s => s.flagUrls);
                 const updatedAts = chunk.map(() => nowIso);
 
                 await prisma.$executeRaw`
@@ -155,6 +184,7 @@ export async function refreshAllServiceAggregatesImpl() {
                         "total_stock",
                         "country_count",
                         "provider_count",
+                        "flag_urls",
                         "last_updated_at"
                     )
                     SELECT
@@ -165,6 +195,7 @@ export async function refreshAllServiceAggregatesImpl() {
                         src."total_stock"::bigint,
                         src."country_count",
                         src."provider_count",
+                        src."flag_urls"::text[],
                         src."last_updated_at"::timestamptz
                     FROM unnest(
                         ${ids}::text[],
@@ -174,6 +205,7 @@ export async function refreshAllServiceAggregatesImpl() {
                         ${stocks}::text[],
                         ${countryCounts}::int[],
                         ${providerCounts}::int[],
+                        ${flagUrlsNested}::text[][],
                         ${updatedAts}::text[]
                     ) AS src(
                         "id",
@@ -183,6 +215,7 @@ export async function refreshAllServiceAggregatesImpl() {
                         "total_stock",
                         "country_count",
                         "provider_count",
+                        "flag_urls",
                         "last_updated_at"
                     )
                     ON CONFLICT ("service_code") DO UPDATE SET
@@ -191,8 +224,17 @@ export async function refreshAllServiceAggregatesImpl() {
                         "total_stock"     = EXCLUDED."total_stock",
                         "country_count"   = EXCLUDED."country_count",
                         "provider_count"  = EXCLUDED."provider_count",
+                        "flag_urls"       = EXCLUDED."flag_urls",
                         "last_updated_at" = EXCLUDED."last_updated_at"
                 `;
+
+                // Warm up Redis
+                for (const s of chunk) {
+                    try {
+                        const rKey = `cache:flag_urls:${s.serviceCode}`;
+                        await redis.set(rKey, JSON.stringify(s.flagUrls), 'EX', 1800);
+                    } catch { /* fail open */ }
+                }
 
                 if (i % 1000 === 0 && i > 0) {
                     logger.debug(`[AGGREGATES] Progress: Synchronized ${i} / ${finalStats.length} records...`);
@@ -207,6 +249,7 @@ export async function refreshAllServiceAggregatesImpl() {
         await prisma.serviceAggregate.deleteMany({
             where: { serviceCode: { notIn: activeServiceCodes } }
         });
+
 
         // 4. Invalidate Redis Cache
         await cacheSet(CACHE_KEYS.SERVICE_LIST_DEFAULT, null);
