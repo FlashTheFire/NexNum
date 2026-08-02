@@ -4,6 +4,8 @@
 
 BEGIN;
 
+ALTER TABLE users ADD COLUMN IF NOT EXISTS account_origin VARCHAR(50) DEFAULT 'web';
+
 -- ---------------------------------------------------------------------------
 -- 1. USER SESSIONS
 -- ---------------------------------------------------------------------------

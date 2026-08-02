@@ -19,6 +19,8 @@ const AUTH_SETTINGS_KEY = 'system:auth_settings'
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
+    let usedKey: string | null = null
+    let keyReserved = false
 
     // Extract Telegram callback parameters
     const telegramData: Record<string, string> = {}
@@ -32,6 +34,8 @@ export async function GET(request: Request) {
     if (!hash) {
         return NextResponse.redirect(new URL('/auth/login?error=missing_hash', request.url))
     }
+
+    usedKey = `v1:used_tg_hash:${hash}`
 
     try {
         const stored = await redis.get(AUTH_SETTINGS_KEY)
@@ -72,12 +76,12 @@ export async function GET(request: Request) {
         }
 
         // Security Hardening: Prevent Replay Attacks using Redis single-use hash key
-        const usedKey = `v1:used_tg_hash:${hash}`
-        const isReplayed = await redis.set(usedKey, '1', 'EX', 300, 'NX')
-        if (!isReplayed) {
+        const isReserved = await redis.set(usedKey, '1', 'EX', 300, 'NX')
+        if (!isReserved) {
             console.error('[Telegram] Replay attack detected for hash:', hash)
             return NextResponse.redirect(new URL('/auth/login?error=replay_attack_detected', request.url))
         }
+        keyReserved = true
 
         const telegramUser = {
             id: telegramData.id,
@@ -127,6 +131,9 @@ export async function GET(request: Request) {
 
         return NextResponse.redirect(new URL('/dashboard', request.url))
     } catch (error: any) {
+        if (usedKey && keyReserved) {
+            await redis.del(usedKey).catch(() => {})
+        }
         console.error('[Telegram] Error:', error)
         return NextResponse.redirect(new URL(`/auth/login?error=oauth_failed`, request.url))
     }
