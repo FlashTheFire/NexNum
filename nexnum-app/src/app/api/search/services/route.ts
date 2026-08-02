@@ -11,79 +11,13 @@ import { normalizeCountryName } from "@/lib/normalizers/country-normalizer";
 import fs from 'fs';
 import path from 'path';
 
-// Local icon cache: populated once per process. Keyed by canonical service code.
-// Avoids 24 fs.existsSync() calls per response (the previous bottleneck).
-let _localIconCache: { webp: Map<string, string>; svg: Map<string, string> } | null = null;
-let _localIconCacheBuiltAt = 0;
-const LOCAL_ICON_TTL_MS = 60_000;
+import { resolveServiceIconUrls, dicebearUrl } from "@/lib/search/icon-resolver";
 
 // Process-wide memory cache for precomputed service flag URLs (<0.01ms lookup)
 const _localFlagCache = new Map<string, { flags: string[]; expiresAt: number }>();
 const LOCAL_FLAG_TTL_MS = 600_000; // 10 minutes process memory cache
 const REDIS_FLAG_TTL_SEC = 1800;    // 30 minutes Redis cache
 
-function getLocalIconMaps() {
-    const now = Date.now();
-    if (_localIconCache && (now - _localIconCacheBuiltAt) < LOCAL_ICON_TTL_MS) {
-        return _localIconCache;
-    }
-    const iconsDir = path.join(process.cwd(), 'public/assets/icons/services');
-    const webp = new Map<string, string>();
-    const svg = new Map<string, string>();
-    try {
-        if (fs.existsSync(iconsDir)) {
-            for (const file of fs.readdirSync(iconsDir)) {
-                const stem = file.replace(/\.(webp|svg)$/i, '');
-                if (file.toLowerCase().endsWith('.webp')) webp.set(stem, `/assets/icons/services/${file}`);
-                else if (file.toLowerCase().endsWith('.svg')) svg.set(stem, `/assets/icons/services/${file}`);
-            }
-        }
-    } catch { /* directory missing in some envs */ }
-    _localIconCache = { webp, svg };
-    _localIconCacheBuiltAt = now;
-    return _localIconCache;
-}
-
-/**
- * Batched icon resolver - replaces Promise.all(getServiceIconUrlByName * 24).
- * 1 fs readdir per minute + 1 Prisma findMany per request.
- * Returns a Map keyed by original service name for O(1) lookup.
- */
-async function resolveServiceIconUrls(serviceNames: string[]): Promise<Map<string, string>> {
-    const map = new Map<string, string>();
-    if (serviceNames.length === 0) return map;
-
-    const codeToName = new Map<string, string>();
-    for (const name of serviceNames) {
-        if (!name) continue;
-        const canonical = getCanonicalName(name);
-        const code = generateCanonicalCode(canonical);
-        codeToName.set(code, name);
-    }
-
-    const { webp, svg } = getLocalIconMaps();
-    const resolvedCodes = new Set<string>();
-    for (const [code, originalName] of codeToName) {
-        if (webp.has(code)) { map.set(originalName, webp.get(code)!); resolvedCodes.add(code); }
-        else if (svg.has(code)) { map.set(originalName, svg.get(code)!); resolvedCodes.add(code); }
-    }
-
-    const missingCodes = [...codeToName.keys()].filter(c => !resolvedCodes.has(c));
-    if (missingCodes.length > 0) {
-        try {
-            const lookups = await prisma.serviceLookup.findMany({
-                where: { serviceCode: { in: missingCodes } },
-                select: { serviceCode: true, serviceIcon: true }
-            });
-            for (const row of lookups) {
-                const originalName = codeToName.get(row.serviceCode);
-                if (originalName && row.serviceIcon) map.set(originalName, row.serviceIcon);
-            }
-        } catch { /* fail open */ }
-    }
-
-    return map;
-}
 
 /**
  * Batched flag URL resolver (Ultra-Fast 2-Tier Caching Engine):

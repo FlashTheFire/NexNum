@@ -273,11 +273,64 @@ export async function refreshAllServiceAggregatesImpl() {
         });
 
 
-        // 4. Invalidate Redis Cache
+        // 4. Invalidate and Pre-Bake Default Search Responses in Redis for Instant Cold-Starts (<0.1ms)
         await cacheSet(CACHE_KEYS.SERVICE_LIST_DEFAULT, null);
+
+        try {
+            const { resolveServiceIconUrls, dicebearUrl } = await import('./icon-resolver');
+            const { calculatePrices } = await import('@/lib/pricing/pricing-utils');
+
+            const defaultLimits = [24, 50, 100];
+            const defaultSorts: ('stock' | 'pointPrice' | 'pointPriceDesc' | 'name')[] = ['stock', 'pointPrice', 'pointPriceDesc', 'name'];
+
+            for (const limit of defaultLimits) {
+                for (const mappedSort of defaultSorts) {
+                    const cacheKey = `cache:search:services:global:v6::1:${limit}:${mappedSort}`;
+
+                    let sorted = [...finalStats];
+                    if (mappedSort === 'pointPrice') sorted.sort((a, b) => a.lowestPrice - b.lowestPrice);
+                    else if (mappedSort === 'pointPriceDesc') sorted.sort((a, b) => b.lowestPrice - a.lowestPrice);
+                    else sorted.sort((a, b) => Number(b.totalStock - a.totalStock));
+
+                    const sliced = sorted.slice(0, limit);
+                    const serviceNames = sliced.map(s => s.serviceName);
+                    const iconMap = await resolveServiceIconUrls(serviceNames);
+
+                    const items = await Promise.all(sliced.map(async (item) => {
+                        const iconUrl = iconMap.get(item.serviceName) || dicebearUrl(item.serviceName);
+                        const currencyPrices = await calculatePrices(Number(item.lowestPrice));
+                        return {
+                            slug: item.serviceCode,
+                            name: item.serviceName,
+                            lowestPrice: Number(item.lowestPrice),
+                            totalStock: Number(item.totalStock),
+                            serverCount: item.providerCount || 0,
+                            countryCount: item.countryCount || 0,
+                            iconUrl,
+                            currencyPrices,
+                            flagUrls: item.flagUrls || [],
+                        };
+                    }));
+
+                    const payload = {
+                        items,
+                        total: finalStats.length,
+                        page: 1,
+                        limit,
+                        hasMore: limit < finalStats.length
+                    };
+
+                    await redis.set(cacheKey, JSON.stringify(payload), 'EX', 1800);
+                }
+            }
+            logger.info('[AGGREGATES] Pre-baked default service search pages into Redis cache.', { context: 'AGGREGATES' });
+        } catch (prebakeError) {
+            logger.warn('[AGGREGATES] Pre-baking default service search responses failed:', { error: prebakeError });
+        }
 
         const duration = Date.now() - startTime;
         logger.success(`Batch refresh complete. ${finalStats.length} services updated in ${duration}ms`, { context: 'AGGREGATES', durationMs: duration });
+
         return finalStats.length;
 
     } catch (error) {
