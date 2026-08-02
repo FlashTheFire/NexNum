@@ -134,8 +134,8 @@ export const DashboardNumberCard = memo(function DashboardNumberCard({
                     {/* Header: Country & Status */}
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                            <div className="relative w-10 h-10 flex-shrink-0">
-                                <div className="relative w-full h-full rounded-lg overflow-hidden transition-all duration-300 ring-1 ring-white/10 group-hover:scale-105">
+                            <div className="relative w-9 h-9 flex-shrink-0">
+                                <div className="relative w-full h-full rounded-[12px] bg-gradient-to-br from-white/[0.08] to-white/[0.02] border border-white/10 flex items-center justify-center p-1.5 shadow-inner overflow-hidden">
                                     {serviceIconUrl ? (
                                         <img
                                             alt={serviceName}
@@ -143,13 +143,12 @@ export const DashboardNumberCard = memo(function DashboardNumberCard({
                                             src={serviceIconUrl}
                                         />
                                     ) : (
-                                        <div className="w-full h-full bg-[#1A1D24] flex items-center justify-center text-gray-300 text-lg font-bold">
+                                        <div className="w-full h-full bg-[#1A1D24] flex items-center justify-center text-gray-300 text-xs font-bold">
                                             {serviceName?.charAt(0).toUpperCase()}
                                         </div>
                                     )}
-                                    <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none"></div>
                                 </div>
-                                <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-[#151518] overflow-hidden shadow-md z-20">
+                                <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-[#151518] overflow-hidden shadow-md z-20">
                                     <img
                                         alt={countryName}
                                         className="w-full h-full rounded-full object-cover shadow-sm ring-1 ring-white/10"
@@ -157,9 +156,9 @@ export const DashboardNumberCard = memo(function DashboardNumberCard({
                                     />
                                 </div>
                             </div>
-                            <div className="flex flex-col gap-0.5">
-                                <span className="text-[10px] text-gray-500 font-medium leading-none">Price</span>
-                                <span className="text-sm font-bold text-gray-200 leading-none font-mono">
+                            <div className="flex flex-col justify-center gap-0.5">
+                                <span className="text-[12px] text-gray-400 font-medium leading-none tracking-normal">Price</span>
+                                <span className="text-[22px] font-bold text-white leading-none font-sans tracking-tight">
                                     <PriceDisplay currencyPrices={currencyPrices} />
                                 </span>
                             </div>
