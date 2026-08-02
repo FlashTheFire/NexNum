@@ -122,7 +122,7 @@ export const SMSBackground = memo(function SMSBackground() {
             />
 
             {/* Dashed connector lines */}
-            <svg className="absolute inset-0 w-full h-full opacity-[0.08]" data-parallax="0.04">
+            <svg className="absolute inset-0 w-full h-full opacity-[0.08]" viewBox="0 0 100 100" preserveAspectRatio="none" data-parallax="0.04">
                 <defs>
                     <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="100%">
                         <stop offset="0%" stopColor="rgba(179,255,0,0.4)" />
@@ -131,20 +131,20 @@ export const SMSBackground = memo(function SMSBackground() {
                 </defs>
                 {/* Connector from top-right to center */}
                 <path
-                    d="M 80% 20% Q 60% 30% 55% 50%"
+                    d="M 80 20 Q 60 30 55 50"
                     fill="none"
                     stroke="url(#lineGradient)"
-                    strokeWidth="1"
-                    strokeDasharray="8 6"
+                    strokeWidth="0.1"
+                    strokeDasharray="1 1"
                     className="animate-connector-draw"
                 />
                 {/* Connector from bottom-left to center */}
                 <path
-                    d="M 15% 75% Q 30% 60% 45% 55%"
+                    d="M 15 75 Q 30 60 45 55"
                     fill="none"
                     stroke="url(#lineGradient)"
-                    strokeWidth="1"
-                    strokeDasharray="6 8"
+                    strokeWidth="0.1"
+                    strokeDasharray="1 1"
                     className="animate-connector-draw-delayed"
                 />
             </svg>

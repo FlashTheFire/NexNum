@@ -72,20 +72,22 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
         });
 
         // -----------------------------------------------------------------
-        // Event Handling (Envelope Unwrapping)
-        // -----------------------------------------------------------------
+        // Helper to unwrap event payload whether sent raw or wrapped in v1 envelope
+        const unwrapEnvelope = (data: any) => {
+            if (!data) return null;
+            if (data.v === 1 && data.payload) return data.payload;
+            return data;
+        };
 
-        socketInstance.on('state.updated', (envelope: any) => {
-            // Verify Envelope Version
-            if (envelope?.v !== 1 || !envelope?.payload) {
-                console.warn('[Socket] Invalid envelope received:', envelope);
-                return;
-            }
+        socketInstance.on('state.updated', (raw: any) => {
+            const payload = unwrapEnvelope(raw);
+            if (!payload) return;
 
-            const { type, reason } = envelope.payload;
-            console.log(`🔄 [Socket] State Update: ${type} (${reason || 'Unknown'})`);
+            const type = payload.stateType || payload.type;
+            const reason = payload.reason;
+            console.log(`🔄 [Socket] State Update: ${type || 'all'} (${reason || 'Unknown'})`);
 
-            // Optimistic Updates could go here
+            // Refresh store state
             fetchDashboardStateRef.current();
 
             // Notify user of balance changes if explicitly triggered
@@ -97,13 +99,10 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
             }
         });
 
-        socketInstance.on('sms.received', (envelope: any) => {
-            if (envelope?.v !== 1 || !envelope?.payload) {
-                console.warn('[Socket] Invalid envelope received:', envelope);
-                return;
-            }
+        socketInstance.on('sms.received', (raw: any) => {
+            const data = unwrapEnvelope(raw);
+            if (!data) return;
 
-            const data = envelope.payload;
             if (data?.phoneNumber && data?.message) {
                 // ALWAYS play notification sound for incoming SMS
                 playNotification();
