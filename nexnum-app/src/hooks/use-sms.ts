@@ -2,6 +2,7 @@ import useSWR from 'swr'
 import { SMSMessage } from '@/lib/sms/types'
 import { useGlobalStore } from '@/stores/appStore'
 import { useEffect } from 'react'
+import { useSocket } from '@/hooks/use-socket'
 
 const fetcher = (url: string) => fetch(url).then(r => r.json())
 
@@ -25,14 +26,20 @@ interface BackendSMS {
 
 export function useSMS(numberId: string): UseSMSResult {
     const { updateNumber } = useGlobalStore()
+    const { isConnected } = useSocket()
+
     const { data, error, mutate, isValidating } = useSWR<{ success: boolean; messages: BackendSMS[]; status?: string }>(
         numberId ? `/api/sms/${encodeURIComponent(numberId)}` : null,
         fetcher,
         {
             refreshInterval: (latestData) => {
+                // Terminal states: stop polling entirely
                 if (latestData?.status && ['completed', 'timeout', 'cancelled'].includes(latestData.status)) {
                     return 0
                 }
+                // Socket is live: no polling needed, socket delivers updates instantly
+                if (isConnected) return 0
+                // Socket offline fallback: poll every 3s
                 return 3000
             },
             revalidateOnFocus: true,

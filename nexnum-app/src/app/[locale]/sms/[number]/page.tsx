@@ -96,13 +96,30 @@ export default function SMSPage() {
 
     // Real-Time Socket Integration
     useSocketEvent('sms.received', (data) => {
-        // If the event belongs to this number (match ID or Phone), reload immediately
+        // Match by numberId (exact) or phoneNumber (fallback)
         if (displayNumber && (data.numberId === displayNumber.id || data.phoneNumber === displayNumber.number)) {
-            // Use reload (GET) instead of refresh (POST) to save provider API calls
+            // Trigger SWR revalidation — gets full message from DB (includes all fields)
             reload();
-            toast.success('New SMS Code Received!', {
-                description: data.code ? `Verification Code: ${data.code}` : 'Check your inbox list below.'
-            });
+
+            // Show enriched toast with immediate code from event payload (zero extra request)
+            if (data.code) {
+                toast.success('🎉 SMS Received — Code Ready!', {
+                    description: `Your OTP: ${data.code}`,
+                    duration: 15000,
+                    action: {
+                        label: 'Copy Code',
+                        onClick: () => {
+                            navigator.clipboard.writeText(data.code!);
+                            toast.success('Code copied!', { duration: 2000 });
+                        }
+                    }
+                });
+            } else {
+                toast.success('📩 New SMS Received', {
+                    description: data.message ? data.message.slice(0, 80) : 'New message received.',
+                    duration: 8000,
+                });
+            }
         }
     });
 

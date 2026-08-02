@@ -11,6 +11,8 @@ import { logger } from '@/lib/core/logger'
 import { CodeExtractor } from '@/lib/sms/code-extractor'
 import { WebhookPayload, SmsResult, ActivationStatus } from '@/lib/sms/types'
 import { EventPublisher } from '@/lib/events/publisher'
+import { PresenceMonitor } from '@/lib/socket/presence'
+import { NotificationFactory } from '@/lib/notifications/notification-service'
 
 export abstract class BaseWebhookHandler {
     protected providerName: string
@@ -126,22 +128,47 @@ export abstract class BaseWebhookHandler {
         // Cache SMS
         await this.cacheSms(number.id, smsResult)
 
-        // Publish Event (Fire & Forget)
+        // Publish Event — with full payload for instant client-side rendering
         if (number.ownerId) {
             try {
                 await EventPublisher.publish('sms.received', `user:${number.ownerId}`, {
                     activationId: payload.activationId,
+                    numberId: number.id,              // exact match on SMS page
                     phoneNumber: number.phoneNumber,
                     message: smsResult.content,
+                    code: smsResult.code || undefined, // show OTP in toast immediately
                     serviceName: number.serviceCode || undefined,
                     receivedAt: smsResult.receivedAt.toISOString()
                 })
             } catch (error) {
-                // Log but do not fail the webhook processing
                 logger.error('Failed to publish sms.received event', {
                     error,
                     activationId: payload.activationId,
                     numberId: number.id
+                })
+            }
+
+            // Offline Fallback: Web Push notification if user is not on socket
+            // Non-blocking — never fails webhook processing
+            try {
+                const isOnline = await PresenceMonitor.isUserOnline(number.ownerId)
+                if (!isOnline) {
+                    logger.debug('[Webhook] User offline — queuing push notification', {
+                        userId: number.ownerId,
+                        numberId: number.id
+                    })
+                    await NotificationFactory.smsReceived(
+                        number.ownerId,
+                        number.phoneNumber,
+                        smsResult.code || undefined,
+                        number.serviceCode || undefined,
+                        number.id
+                    )
+                }
+            } catch (error) {
+                logger.warn('[Webhook] Offline push fallback failed (non-critical)', {
+                    error,
+                    userId: number.ownerId
                 })
             }
         } else {
@@ -237,10 +264,17 @@ export abstract class BaseWebhookHandler {
     }
 
     /**
-     * Cache SMS for fast retrieval
+     * Cache SMS as a list — supports multiple SMS per number without collision.
+     * Keeps last 50 messages, expires after 5 minutes of inactivity.
      */
     private async cacheSms(numberId: string, sms: SmsResult): Promise<void> {
-        const cacheKey = `sms:${numberId}`
-        await redis.set(cacheKey, JSON.stringify(sms), 'EX', 300) // 5 minutes
+        const cacheKey = `sms:list:${numberId}`
+        const serialized = JSON.stringify(sms)
+        // Prepend latest SMS to list (newest first)
+        await redis.lpush(cacheKey, serialized)
+        // Sliding expiry: reset on each new SMS
+        await redis.expire(cacheKey, 300) // 5 minutes
+        // Cap list size to prevent unbounded growth
+        await redis.ltrim(cacheKey, 0, 49) // keep last 50
     }
 }

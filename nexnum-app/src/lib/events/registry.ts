@@ -8,10 +8,12 @@ import { z } from 'zod';
 // 1. SMS Received Event
 export const SmsReceivedPayload = z.object({
     activationId: z.string(),
+    numberId: z.string(),               // DB number.id — for exact SMS page matching
     phoneNumber: z.string(),
     message: z.string(),
+    code: z.string().optional(),        // Extracted OTP — show in toast instantly
     serviceName: z.string().optional(),
-    receivedAt: z.string().datetime(), // ISO string from Date
+    receivedAt: z.string().datetime(),
 });
 
 // 2. State Updated Event (Wallet/Numbers/etc)
