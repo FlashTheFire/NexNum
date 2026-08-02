@@ -46,37 +46,36 @@ class NexNumApiClient:
         query: Optional[str] = None,
         page: int = 1,
         limit: int = 50,
-        sort: Optional[str] = None,
+        sort: Optional[str] = "relevance",
         ttl: int = 120
     ) -> Dict[str, Any]:
         """
-        Fetch service aggregates from GET /api/public/services
+        Fetch service aggregates from GET /api/search/services
         """
-        cache_key = f"api:services:q={query or ''}:p={page}:l={limit}:s={sort or ''}"
+        cache_key = f"api:search_services:q={query or ''}:p={page}:l={limit}:s={sort or 'relevance'}"
         cached = await cache_manager.get(cache_key, CachePrefix.SERVICE)
         if cached:
             return cached
 
         session = await self._get_session()
         params = {"page": str(page), "limit": str(limit)}
-        if query:
-            params["q"] = query
-        if sort:
-            params["sort"] = sort
+        params["q"] = query or ""
+        params["sort"] = sort or "relevance"
 
         try:
-            url = f"{self.base_url}/api/public/services"
+            url = f"{self.base_url}/api/search/services"
             async with session.get(url, params=params) as resp:
                 if resp.status == 200:
                     data = await resp.json()
-                    if data and data.get("services"):
+                    if data and data.get("items") is not None:
                         await cache_manager.set(cache_key, data, CachePrefix.SERVICE, expire=ttl)
                     return data
                 logger.warning(f"get_services HTTP {resp.status} for {url}")
         except Exception as e:
             logger.error(f"Failed to fetch get_services: {e}")
 
-        return {"success": False, "services": [], "pagination": {"page": page, "limit": limit, "total": 0, "totalPages": 0}}
+        return {"success": False, "items": [], "pagination": {"page": page, "limit": limit, "total": 0, "hasMore": False}}
+
 
     async def get_countries(
         self,

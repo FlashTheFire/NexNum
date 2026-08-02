@@ -285,7 +285,7 @@ class UserSearchManagement:
             sort=sort_by
         )
 
-        services = resp.get("services", [])
+        services = resp.get("items", [])
         results: List[Tuple[str, Dict[str, Any]]] = []
 
         for svc in services:
@@ -293,20 +293,23 @@ class UserSearchManagement:
                 svc_name = svc.get("name", "Unknown")
                 lowest_price = float(svc.get("lowestPrice", 0.0))
                 total_stock = int(svc.get("totalStock", 0))
-                svc_code = str(svc.get("code", ""))
+                svc_code = str(svc.get("slug", ""))
 
                 # Assign numeric ID or fallback
-                app_id = str(svc.get("id") or svc_code)
+                app_id = svc_code
 
                 results.append((svc_name, {
                     'lowest_price': lowest_price,
                     'total_stock': total_stock,
                     'app_id': app_id,
-                    'app_code': svc_code
+                    'app_code': svc_code,
+                    'flag_urls': svc.get("flagUrls", []),
+                    'country_count': int(svc.get("countryCount", 0))
                 }))
             except Exception as e:
                 logging.debug(f"Error parsing service item: {e}")
                 continue
+
 
         # 4) Cache and return
         await cache_manager.set(cache_key, results, CachePrefix.SEARCH, expire=120)
@@ -545,28 +548,20 @@ class UserSearchManagement:
                     code = data.get("app_code", "")
                     first = code.split(",")[0].strip().lower() if "," in code else code.lower()
 
-                    # pick top countries
-                    pc = price_country.get(app_id, {})
-                    cp: Dict[str, float] = {}
-                    for ps, cid in pc.items():
-                        try:
-                            p = float(ps)
-                            if p > 0 and (cid not in cp or p < cp[cid]):
-                                cp[cid] = p
-                        except:
-                            continue
-
-                    top4 = sorted(cp.items(), key=lambda x: x[1])[:4]
-                    has_more = len(cp) > 3
+                    flag_urls = data.get("flag_urls", [])
                     flags = []
-                    for cid, _ in top4[:3]:
-                        cc = country_data.get(cid, {}).get("country_code", "")
-                        emoji = country_code_to_flag_emoji(cc)
-                        if emoji:
-                            flags.append(emoji)
+                    for fu in flag_urls[:3]:
+                        if fu:
+                            cc = fu.split("/")[-1].replace(".svg", "")
+                            emoji = country_code_to_flag_emoji(cc)
+                            if emoji:
+                                flags.append(emoji)
                     
+                    has_more = len(flag_urls) > 3
                     display = f"{' '.join(flags)}{' ⋯' if has_more else ''}" if flags else "N/A"
-                    label = "Country" if len(cp) <= 1 else "Countries"
+                    country_count = data.get("country_count", 0)
+                    label = "Country" if country_count <= 1 else "Countries"
+
 
                     desc = (
                         f"❯ Tʜᴇ Sᴛᴀʀᴛɪɴɢ Pʀɪᴄᴇ Is Oɴʟʏ {str(f'{lowp:.2f}').translate(await small_caps())} Pᴏɪɴᴛ's.\n"
