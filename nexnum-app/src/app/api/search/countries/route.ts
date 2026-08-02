@@ -49,19 +49,11 @@ export async function GET(req: NextRequest) {
 
         const countryNames = (result.countries || []).map((c: any) => c.name).filter(Boolean);
         let favoriteMap = new Map<string, string>();
-        if (rl.userId && countryNames.length > 0) {
-            try {
-                const favs = await prisma.userFavorite.findMany({
-                    where: {
-                        userId: rl.userId,
-                        type: 'COUNTRY',
-                        value: { in: countryNames.map(n => n.toLowerCase()) }
-                    },
-                    select: { id: true, value: true }
-                });
-                favoriteMap = new Map(favs.map(f => [f.value, f.id]));
-            } catch { /* fail open */ }
+        if (rl.userId) {
+            const { getUserFavoritesMap } = await import('@/lib/cache/user-favorites-cache');
+            favoriteMap = await getUserFavoritesMap(rl.userId, 'COUNTRY');
         }
+
 
         const items = (result.countries || []).map((country: any) => {
             const value = (country.name || '').toLowerCase();

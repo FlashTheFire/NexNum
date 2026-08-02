@@ -228,13 +228,34 @@ export async function refreshAllServiceAggregatesImpl() {
                         "last_updated_at" = EXCLUDED."last_updated_at"
                 `;
 
-                // Warm up Redis
+                // Warm up Redis for flagUrls AND Step 2 Country Search per service
+                const { generateCanonicalCode } = await import('./search');
                 for (const s of chunk) {
                     try {
                         const rKey = `cache:flag_urls:${s.serviceCode}`;
                         await redis.set(rKey, JSON.stringify(s.flagUrls), 'EX', 1800);
+
+                        // Pre-warm Step 2 Country Search Redis Cache
+                        const sortedCountries = Array.from(s._countryStats.values())
+                            .map(c => ({
+                                code: generateCanonicalCode(c.displayName),
+                                name: c.displayName,
+                                flagUrl: getCountryFlagUrlSync(c.displayName) || '',
+                                lowestPrice: c.minPrice,
+                                totalStock: c.totalStock,
+                                serverCount: 1
+                            }))
+                            .sort((a, b) => {
+                                const priceDiff = a.lowestPrice - b.lowestPrice;
+                                if (Math.abs(priceDiff) > 1) return priceDiff;
+                                return b.totalStock - a.totalStock;
+                            });
+
+                        const step2Key = `cache:search:countries:v3:${s.serviceCode}::1:50:name`;
+                        await redis.set(step2Key, JSON.stringify({ countries: sortedCountries.slice(0, 50), total: sortedCountries.length }), 'EX', 1800);
                     } catch { /* fail open */ }
                 }
+
 
                 if (i % 1000 === 0 && i > 0) {
                     logger.debug(`[AGGREGATES] Progress: Synchronized ${i} / ${finalStats.length} records...`);

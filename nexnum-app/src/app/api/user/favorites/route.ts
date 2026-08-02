@@ -84,6 +84,8 @@ export async function POST(req: NextRequest) {
             create: { userId, type, value: normValue, displayName, iconUrl: iconUrl ?? null },
             update: { displayName, iconUrl: iconUrl ?? null },
         });
+        const { invalidateUserFavoritesCache } = await import('@/lib/cache/user-favorites-cache');
+        await invalidateUserFavoritesCache(userId);
         return NextResponse.json({ item: fav });
     } catch (e: any) {
         console.error('[favorites POST] error', e);
@@ -100,6 +102,8 @@ export async function DELETE(req: NextRequest) {
         const id = req.nextUrl.searchParams.get('id');
         if (id) {
             await prisma.userFavorite.deleteMany({ where: { id, userId } });
+            const { invalidateUserFavoritesCache } = await import('@/lib/cache/user-favorites-cache');
+            await invalidateUserFavoritesCache(userId);
             return NextResponse.json({ ok: true });
         }
         if (!body) return NextResponse.json({ error: 'Missing id or payload' }, { status: 400 });
@@ -109,7 +113,10 @@ export async function DELETE(req: NextRequest) {
         await prisma.userFavorite.deleteMany({
             where: { userId, type, value: value.toLowerCase() },
         });
+        const { invalidateUserFavoritesCache } = await import('@/lib/cache/user-favorites-cache');
+        await invalidateUserFavoritesCache(userId);
         return NextResponse.json({ ok: true });
+
     } catch (e: any) {
         console.error('[favorites DELETE] error', e);
         return NextResponse.json({ error: 'Failed to remove favorite' }, { status: 500 });

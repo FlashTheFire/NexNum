@@ -312,18 +312,10 @@ export async function GET(req: NextRequest) {
         // 2. Per-user favorite merge (1 extra query when authenticated, 0 when anon)
         let favoriteMap = new Map<string, string>();
         if (rl.userId) {
-            try {
-                const favs = await prisma.userFavorite.findMany({
-                    where: {
-                        userId: rl.userId,
-                        type: 'SERVICE',
-                        value: { in: serviceNames.map(n => n.toLowerCase()) }
-                    },
-                    select: { id: true, value: true }
-                });
-                favoriteMap = new Map(favs.map(f => [f.value, f.id]));
-            } catch { /* fail open */ }
+            const { getUserFavoritesMap } = await import('@/lib/cache/user-favorites-cache');
+            favoriteMap = await getUserFavoritesMap(rl.userId, 'SERVICE');
         }
+
 
         // 3. Enrich with icons + prices + favorite flags
         const enrichedItems = (result.items as any[]).map((item) => {
