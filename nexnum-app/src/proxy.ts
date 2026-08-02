@@ -74,7 +74,7 @@ export default async function proxy(request: NextRequest) {
             response.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=30')
         }
 
-        attachSecurityHeaders(response);
+        attachSecurityHeaders(response, request);
         return response;
     }
 
