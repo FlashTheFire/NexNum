@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServiceAggregates } from "@/lib/search/service-aggregates";
 import { calculatePrices } from "@/lib/pricing/pricing-utils";
 import { checkSearchRateLimit } from "@/lib/api/search-rate-limit";
-import { cacheGet } from "@/lib/core/redis";
+import { cacheGet, redis } from "@/lib/core/redis";
 import { prisma } from "@/lib/core/db";
 import { getCanonicalName, generateCanonicalCode } from "@/lib/normalizers/service-identity";
 import { meili, INDEXES, resolveUniversalServiceFilter } from "@/lib/search/search";
@@ -16,6 +16,11 @@ import path from 'path';
 let _localIconCache: { webp: Map<string, string>; svg: Map<string, string> } | null = null;
 let _localIconCacheBuiltAt = 0;
 const LOCAL_ICON_TTL_MS = 60_000;
+
+// Process-wide memory cache for precomputed service flag URLs (<0.01ms lookup)
+const _localFlagCache = new Map<string, { flags: string[]; expiresAt: number }>();
+const LOCAL_FLAG_TTL_MS = 600_000; // 10 minutes process memory cache
+const REDIS_FLAG_TTL_SEC = 1800;    // 30 minutes Redis cache
 
 function getLocalIconMaps() {
     const now = Date.now();
@@ -81,17 +86,61 @@ async function resolveServiceIconUrls(serviceNames: string[]): Promise<Map<strin
 }
 
 /**
- * Batched flag URL resolver - queries MeiliSearch using the exact same service filter
- * and country aggregation algorithm as Step 2 (searchCountries), ensuring 100% flag parity.
+ * Batched flag URL resolver (Ultra-Fast 2-Tier Caching Engine):
+ * Tier 1: Process Memory (<0.01ms)
+ * Tier 2: Redis Distributed Cache (<0.5ms)
+ * Tier 3: MeiliSearch Multi-Search Calculation (on miss only, precomputed & cached for 30 min)
  */
 async function resolveServiceFlagUrls(serviceNames: string[]): Promise<Map<string, string[]>> {
     const map = new Map<string, string[]>();
     if (serviceNames.length === 0) return map;
 
+    const now = Date.now();
+    const missingInMem: string[] = [];
+
+    // 1. Tier 1: Check Process Memory
+    for (const name of serviceNames) {
+        const cached = _localFlagCache.get(name);
+        if (cached && cached.expiresAt > now) {
+            map.set(name, cached.flags);
+        } else {
+            missingInMem.push(name);
+        }
+    }
+
+    if (missingInMem.length === 0) return map;
+
+    // 2. Tier 2: Check Redis MGET for services missing in memory
+    const missingInRedis: string[] = [];
+    try {
+        const redisKeys = missingInMem.map(name => `cache:flag_urls:${name.toLowerCase().trim()}`);
+        const redisVals = await redis.mget(...redisKeys);
+
+        missingInMem.forEach((name, idx) => {
+            const val = redisVals[idx];
+            if (val) {
+                try {
+                    const parsedFlags: string[] = JSON.parse(val);
+                    map.set(name, parsedFlags);
+                    _localFlagCache.set(name, { flags: parsedFlags, expiresAt: now + LOCAL_FLAG_TTL_MS });
+                } catch {
+                    missingInRedis.push(name);
+                }
+            } else {
+                missingInRedis.push(name);
+            }
+        });
+    } catch {
+        missingInRedis.push(...missingInMem);
+    }
+
+    if (missingInRedis.length === 0) return map;
+
+    // 3. Tier 3: Compute via MeiliSearch multiSearch for uncached services ONLY
     try {
         const indexObj = meili.index(INDEXES.OFFERS);
 
-        const queries = await Promise.all(serviceNames.map(async (name) => {
+        const queries = await Promise.all(missingInRedis.map(async (name) => {
             const serviceFilter = await resolveUniversalServiceFilter(indexObj, name);
             return {
                 indexUid: INDEXES.OFFERS,
@@ -104,8 +153,8 @@ async function resolveServiceFlagUrls(serviceNames: string[]): Promise<Map<strin
 
         const response = await meili.multiSearch({ queries });
 
-        response.results.forEach((res, index) => {
-            const serviceName = serviceNames[index];
+        await Promise.all(response.results.map(async (res, index) => {
+            const serviceName = missingInRedis[index];
 
             const countryMap = new Map<string, {
                 displayName: string;
@@ -159,14 +208,23 @@ async function resolveServiceFlagUrls(serviceNames: string[]): Promise<Map<strin
                 }
             }
 
-            map.set(serviceName, Array.from(flagsSet));
-        });
+            const flagsList = Array.from(flagsSet);
+            map.set(serviceName, flagsList);
+            _localFlagCache.set(serviceName, { flags: flagsList, expiresAt: now + LOCAL_FLAG_TTL_MS });
+
+            // Store in Redis with 30 minute TTL for multi-instance distributed fast lookup
+            try {
+                const rKey = `cache:flag_urls:${serviceName.toLowerCase().trim()}`;
+                await redis.set(rKey, JSON.stringify(flagsList), 'EX', REDIS_FLAG_TTL_SEC);
+            } catch { /* fail open */ }
+        }));
     } catch {
         /* fail open */
     }
 
     return map;
 }
+
 
 function dicebearUrl(seed: string) {
     return `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(seed)}&backgroundColor=0ea5e9,6366f1,8b5cf6,ec4899`;
