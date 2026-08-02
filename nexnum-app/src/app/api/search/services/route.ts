@@ -160,9 +160,7 @@ async function resolveServiceFlagUrls(serviceNames: string[]): Promise<Map<strin
 }
 
 
-function dicebearUrl(seed: string) {
-    return `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(seed)}&backgroundColor=0ea5e9,6366f1,8b5cf6,ec4899`;
-}
+
 
 /**
  * GET /api/search/services
