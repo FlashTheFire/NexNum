@@ -229,8 +229,9 @@ export async function refreshAllServiceAggregatesImpl() {
                 `;
 
                 // Warm up Redis for flagUrls AND Step 2 Country Search per service
-                const { generateCanonicalCode } = await import('./search');
+                const { generateCanonicalCode } = await import('@/lib/normalizers/service-identity');
                 for (const s of chunk) {
+
                     try {
                         const rKey = `cache:flag_urls:${s.serviceCode}`;
                         await redis.set(rKey, JSON.stringify(s.flagUrls), 'EX', 1800);
