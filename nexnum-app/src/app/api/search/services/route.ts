@@ -80,8 +80,8 @@ async function resolveServiceIconUrls(serviceNames: string[]): Promise<Map<strin
 }
 
 /**
- * Batched flag URL resolver - queries MeiliSearch for sample countries per service
- * and converts them to local flag icon URLs.
+ * Batched flag URL resolver - queries MeiliSearch for top relevant countries per service
+ * ordered by offer count / relevance and converts them to local flag icon URLs.
  */
 async function resolveServiceFlagUrls(serviceNames: string[]): Promise<Map<string, string[]>> {
     const map = new Map<string, string[]>();
@@ -92,7 +92,9 @@ async function resolveServiceFlagUrls(serviceNames: string[]): Promise<Map<strin
             indexUid: INDEXES.OFFERS,
             q: '',
             filter: `serviceName = "${name.replace(/"/g, '\\"')}"`,
-            limit: 15,
+            facets: ['countryName'],
+            limit: 10,
+            sort: ['stock:desc'],
             attributesToRetrieve: ['countryName']
         }));
 
@@ -102,12 +104,31 @@ async function resolveServiceFlagUrls(serviceNames: string[]): Promise<Map<strin
             const serviceName = serviceNames[index];
             const flagsSet = new Set<string>();
 
-            for (const hit of (res.hits || []) as any[]) {
-                if (hit.countryName) {
-                    const flagUrl = getCountryFlagUrlSync(hit.countryName);
+            // 1. Primary: Use facetDistribution for countryName (counts frequency across all providers)
+            const facetCounts = res.facetDistribution?.countryName;
+            if (facetCounts && Object.keys(facetCounts).length > 0) {
+                // Sort country names by document count descending (most relevant / widely available first)
+                const sortedCountries = Object.entries(facetCounts)
+                    .sort((a, b) => (b[1] as number) - (a[1] as number));
+
+                for (const [cName] of sortedCountries) {
+                    const flagUrl = getCountryFlagUrlSync(cName);
                     if (flagUrl) {
                         flagsSet.add(flagUrl);
                         if (flagsSet.size >= 4) break;
+                    }
+                }
+            }
+
+            // 2. Fallback: If facetDistribution yielded no flags, iterate hits
+            if (flagsSet.size < 4 && res.hits) {
+                for (const hit of (res.hits || []) as any[]) {
+                    if (hit.countryName) {
+                        const flagUrl = getCountryFlagUrlSync(hit.countryName);
+                        if (flagUrl) {
+                            flagsSet.add(flagUrl);
+                            if (flagsSet.size >= 4) break;
+                        }
                     }
                 }
             }
