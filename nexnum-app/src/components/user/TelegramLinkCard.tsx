@@ -89,7 +89,7 @@ export function TelegramLinkCard({ telegramId, username, className }: TelegramLi
                         )}
 
                         {/* ── Content row ── */}
-                        <div className="flex items-start gap-3 pr-8">
+                        <div className="flex items-center gap-3 pr-8">
                             {/* Icon box — neobrutalist accent */}
                             <div
                                 className={cn(
@@ -106,7 +106,7 @@ export function TelegramLinkCard({ telegramId, username, className }: TelegramLi
                             </div>
 
                             {/* Text content */}
-                            <div className="min-w-0 flex-1 space-y-1">
+                            <div className="min-w-0 flex-1 space-y-0.5">
                                 <div className="flex items-center gap-2 flex-wrap">
                                     <h5 className="text-sm font-black text-white leading-tight uppercase tracking-wide">
                                         {isLinked ? 'Telegram Synced' : 'Connect Telegram AI Bot'}
@@ -137,10 +137,47 @@ export function TelegramLinkCard({ telegramId, username, className }: TelegramLi
                                     </p>
                                 )}
                             </div>
+
+                            {/* ── Desktop button — inline on the right ── */}
+                            <div className="hidden md:flex shrink-0 flex-col gap-1">
+                                {isLinked ? (
+                                    <a
+                                        href="https://t.me/NexNumBot"
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className={cn(
+                                            'inline-flex items-center justify-center gap-1.5 rounded-lg border-2 border-black px-5 py-2',
+                                            'bg-emerald-400 text-black text-xs font-black uppercase tracking-wide',
+                                            'shadow-[3px_3px_0px_0px_#000] hover:shadow-[1px_1px_0px_0px_#000] hover:translate-x-[2px] hover:translate-y-[2px]',
+                                            'transition-all duration-100 whitespace-nowrap'
+                                        )}
+                                    >
+                                        Open Bot <ArrowUpRight className="h-3.5 w-3.5 stroke-[2.5]" />
+                                    </a>
+                                ) : (
+                                    <button
+                                        onClick={handleConnect}
+                                        disabled={loading}
+                                        className={cn(
+                                            'inline-flex items-center justify-center gap-1.5 rounded-lg border-2 border-black px-5 py-2',
+                                            'bg-[hsl(var(--neon-lime))] text-black text-xs font-black uppercase tracking-wide',
+                                            'shadow-[3px_3px_0px_0px_#000] hover:shadow-[1px_1px_0px_0px_#000] hover:translate-x-[2px] hover:translate-y-[2px]',
+                                            'transition-all duration-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-[3px_3px_0px_0px_#000] disabled:translate-x-0 disabled:translate-y-0',
+                                            'whitespace-nowrap'
+                                        )}
+                                    >
+                                        <Send className="h-3.5 w-3.5 stroke-[2.5]" />
+                                        {loading ? 'Generating...' : 'Sync Now →'}
+                                    </button>
+                                )}
+                                {error && (
+                                    <p className="text-[10px] font-mono text-red-400 font-semibold text-center">⚠ {error}</p>
+                                )}
+                            </div>
                         </div>
 
-                        {/* ── Action row ── */}
-                        <div className="mt-3 flex flex-col gap-1.5">
+                        {/* ── Mobile-only action row ── */}
+                        <div className="mt-3 flex flex-col gap-1.5 md:hidden">
                             {isLinked ? (
                                 <a
                                     href="https://t.me/NexNumBot"
@@ -150,7 +187,7 @@ export function TelegramLinkCard({ telegramId, username, className }: TelegramLi
                                         'inline-flex items-center justify-center gap-1.5 rounded-lg border-2 border-black px-4 py-2',
                                         'bg-emerald-400 text-black text-xs font-black uppercase tracking-wide',
                                         'shadow-[3px_3px_0px_0px_#000] hover:shadow-[1px_1px_0px_0px_#000] hover:translate-x-[2px] hover:translate-y-[2px]',
-                                        'transition-all duration-100 w-full sm:w-auto'
+                                        'transition-all duration-100 w-full'
                                     )}
                                 >
                                     Open Bot <ArrowUpRight className="h-3.5 w-3.5 stroke-[2.5]" />
@@ -164,7 +201,7 @@ export function TelegramLinkCard({ telegramId, username, className }: TelegramLi
                                         'bg-[hsl(var(--neon-lime))] text-black text-xs font-black uppercase tracking-wide',
                                         'shadow-[3px_3px_0px_0px_#000] hover:shadow-[1px_1px_0px_0px_#000] hover:translate-x-[2px] hover:translate-y-[2px]',
                                         'transition-all duration-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-[3px_3px_0px_0px_#000] disabled:translate-x-0 disabled:translate-y-0',
-                                        'w-full sm:w-auto'
+                                        'w-full'
                                     )}
                                 >
                                     <Send className="h-3.5 w-3.5 stroke-[2.5]" />
