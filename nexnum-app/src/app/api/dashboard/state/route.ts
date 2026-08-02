@@ -20,6 +20,7 @@ import { getServiceIconUrlByName } from '@/lib/search/search'
 import { getCountryFlagUrl } from '@/lib/normalizers/country-flags'
 import { createHash } from 'crypto'
 import { logger } from '@/lib/core/logger'
+import { formatPhoneNumber } from '@/lib/utils/phone-parser'
 
 interface DashboardState {
     balance: MultiCurrencyPrice       // Pure fiat map {USD, INR, RUB, EUR, GBP, CNY} — no points
@@ -155,9 +156,26 @@ async function fetchDashboardState(userId: string): Promise<DashboardState> {
         const countryIconUrl = (n as any).countryIconUrl
             || (n.countryName ? await getCountryFlagUrl(n.countryName) : undefined)
 
+        const currencyPrices = await getCurrencyService().pointsToAllFiat(Number(n.price))
+
+        let phoneCountryCode = n.phoneCountryCode
+        let phoneNationalNumber = n.phoneNationalNumber
+
+        if (!phoneCountryCode || !phoneNationalNumber) {
+            try {
+                const parsed = formatPhoneNumber(n.phoneNumber)
+                phoneCountryCode = parsed.countryCode
+                phoneNationalNumber = parsed.nationalNumber
+            } catch (e) {
+                // Fail silently
+            }
+        }
+
         return {
             id: n.id,
             phoneNumber: n.phoneNumber,
+            phoneCountryCode: phoneCountryCode || null,
+            phoneNationalNumber: phoneNationalNumber || null,
             countryCode: n.countryCode,
             countryName: n.countryName,
             countryIconUrl,
@@ -165,6 +183,7 @@ async function fetchDashboardState(userId: string): Promise<DashboardState> {
             serviceCode: n.serviceCode,
             serviceIconUrl,
             price: Number(n.price),
+            currencyPrices,
             provider: n.provider,
             status: n.status,
             expiresAt: n.expiresAt,

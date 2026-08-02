@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/core/db'
 import { getCurrentUser } from '@/lib/auth/jwt'
 import { getCurrencyService } from '@/lib/currency/currency-service'
+import { formatPhoneNumber } from '@/lib/utils/phone-parser'
 
 interface RouteParams {
     params: Promise<{ id: string }>
@@ -48,13 +49,26 @@ export async function GET(request: Request, { params }: RouteParams) {
 
         const currencyPrices = await getCurrencyService().pointsToAllFiat(Number(number.price))
 
+        let phoneCountryCode = number.phoneCountryCode
+        let phoneNationalNumber = number.phoneNationalNumber
+
+        if (!phoneCountryCode || !phoneNationalNumber) {
+            try {
+                const parsed = formatPhoneNumber(number.phoneNumber)
+                phoneCountryCode = parsed.countryCode
+                phoneNationalNumber = parsed.nationalNumber
+            } catch (e) {
+                // Fail silently
+            }
+        }
+
         return NextResponse.json({
             success: true,
             number: {
                 id: number.id,
                 phoneNumber: number.phoneNumber,
-                phoneCountryCode: number.phoneCountryCode || null,
-                phoneNationalNumber: number.phoneNationalNumber || null,
+                phoneCountryCode: phoneCountryCode || null,
+                phoneNationalNumber: phoneNationalNumber || null,
                 countryCode: number.countryCode,
                 countryName: number.countryName,
                 serviceName: number.serviceName,

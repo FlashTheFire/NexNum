@@ -185,6 +185,7 @@ export const useGlobalStore = create<GlobalState>()(
                             serviceCode: n.serviceCode as string,
                             serviceIconUrl: n.serviceIconUrl as string,
                             price: Number(n.price) || 0,
+                            currencyPrices: (n.currencyPrices as Record<string, number>) || undefined,
                             expiresAt: (n.expiresAt as string) || '',
                             purchasedAt: (n.purchasedAt as string) || undefined,
                             smsCount: (n.smsCount as number) || 0,

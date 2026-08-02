@@ -5,6 +5,7 @@ import { syncUserNumbers } from '@/lib/sms/sync'
 import { getServiceIconUrlByName } from '@/lib/search/search'
 import { getCountryFlagUrl } from '@/lib/normalizers/country-flags'
 import { getCurrencyService } from '@/lib/currency/currency-service'
+import { formatPhoneNumber } from '@/lib/utils/phone-parser'
 
 // GET /api/numbers/my - Get user's numbers
 export async function GET(request: Request) {
@@ -94,11 +95,24 @@ export async function GET(request: Request) {
 
             const currencyPrices = await getCurrencyService().pointsToAllFiat(Number(n.price))
 
+            let phoneCountryCode = n.phoneCountryCode
+            let phoneNationalNumber = n.phoneNationalNumber
+
+            if (!phoneCountryCode || !phoneNationalNumber) {
+                try {
+                    const parsed = formatPhoneNumber(n.phoneNumber)
+                    phoneCountryCode = parsed.countryCode
+                    phoneNationalNumber = parsed.nationalNumber
+                } catch (e) {
+                    // Fail silently
+                }
+            }
+
             return {
                 id: n.id,
                 phoneNumber: n.phoneNumber,
-                phoneCountryCode: n.phoneCountryCode || null,
-                phoneNationalNumber: n.phoneNationalNumber || null,
+                phoneCountryCode: phoneCountryCode || null,
+                phoneNationalNumber: phoneNationalNumber || null,
                 countryCode: n.countryCode,
                 countryName: n.countryName,
                 countryIconUrl,
