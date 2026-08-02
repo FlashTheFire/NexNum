@@ -132,7 +132,7 @@ export default async function proxy(request: NextRequest) {
     }
 
     // Attach Security Headers to the i18n response
-    attachSecurityHeaders(response);
+    attachSecurityHeaders(response, request);
 
     // Attach multi-domain tenant header to response
     response.headers.set('x-tenant-domain', cleanHost);
@@ -140,10 +140,15 @@ export default async function proxy(request: NextRequest) {
     return response;
 }
 
-function attachSecurityHeaders(response: NextResponse) {
+function attachSecurityHeaders(response: NextResponse, request: NextRequest) {
     response.headers.set('X-DNS-Prefetch-Control', 'on')
-    const IS_PROD = process.env.NODE_ENV === 'production'
-    if (IS_PROD) {
+    
+    const host = (request.headers.get('host') || '').split(':')[0].toLowerCase()
+    const isLocalhost = host === 'localhost' || host === '127.0.0.1' || host.endsWith('.local')
+    const proto = request.headers.get('x-forwarded-proto') || request.nextUrl.protocol.replace(':', '')
+    const IS_SECURE = proto === 'https' && !isLocalhost
+
+    if (IS_SECURE) {
         response.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload')
     }
     response.headers.set('X-XSS-Protection', '1; mode=block')
@@ -169,10 +174,10 @@ function attachSecurityHeaders(response: NextResponse) {
 
     const csp = [
         "default-src 'self'",
-        // upgrade-insecure-requests is ONLY safe in production (where TLS exists).
-        // In development (localhost:3000, no cert) it causes ERR_SSL_PROTOCOL_ERROR on
-        // every prefetch because the browser tries to upgrade http://localhost to https://.
-        ...(IS_PROD ? ["upgrade-insecure-requests"] : []),
+        // upgrade-insecure-requests is ONLY safe on real HTTPS domains.
+        // On localhost or HTTP, it causes ERR_SSL_PROTOCOL_ERROR because
+        // the browser tries to upgrade http://localhost to https://.
+        ...(IS_SECURE ? ["upgrade-insecure-requests"] : []),
         "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://js.hcaptcha.com https://challenges.cloudflare.com https://*.sentry.io https://*.vercel-insights.com",
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
         "font-src 'self' data: https://fonts.gstatic.com",
