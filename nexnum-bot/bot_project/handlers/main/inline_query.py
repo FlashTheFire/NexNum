@@ -35,9 +35,10 @@ from telebot.types import (
     CallbackQuery,
 )
 try:
-    from utils.functions import small_caps, format_number_to_text
+    from utils.functions import small_caps, format_number_to_text, country_code_to_flag_emoji
 except ImportError:
-    from bot_project.utils.functions import small_caps, format_number_to_text
+    from bot_project.utils.functions import small_caps, format_number_to_text, country_code_to_flag_emoji
+
 
 try:
     from utils.config import COMMISSION, PUBLIC_APP_URL
@@ -557,14 +558,22 @@ class UserSearchManagement:
 
                     top4 = sorted(cp.items(), key=lambda x: x[1])[:4]
                     has_more = len(cp) > 3
-                    flags = [ country_data.get(cid,{}).get("country_code","") for cid,_ in top4[:3] ]
-                    display = f"[{','.join(flags)}{',...' if has_more else ''}]"
+                    flags = []
+                    for cid, _ in top4[:3]:
+                        cc = country_data.get(cid, {}).get("country_code", "")
+                        emoji = country_code_to_flag_emoji(cc)
+                        if emoji:
+                            flags.append(emoji)
+                    
+                    display = f"{' '.join(flags)}{' ⋯' if has_more else ''}" if flags else "N/A"
+                    label = "Country" if len(cp) <= 1 else "Countries"
 
                     desc = (
                         f"❯ Tʜᴇ Sᴛᴀʀᴛɪɴɢ Pʀɪᴄᴇ Is Oɴʟʏ {str(f'{lowp:.2f}').translate(await small_caps())} Pᴏɪɴᴛ's.\n"
-                        f"• Sᴇʀᴠᴇʀs » {display.translate(await small_caps())}\n"
+                        f"• {label} » {display}\n"
                         f"• Tᴏᴛᴀʟ Sᴛᴏᴄᴋ » {await format_number_to_text(stock)}"
                     ).translate(await small_caps())
+
                     app_cmd_id = str(app_id).replace(" ", "-")
                     cmd = f"#Sᴇʀᴠɪᴄᴇ|{app_cmd_id}" if is_admin else f"/Buy_{app_cmd_id}"
                     switch = "#Sᴇʀᴠɪᴄᴇ " if is_admin else ""

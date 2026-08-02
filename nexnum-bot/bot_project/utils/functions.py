@@ -643,3 +643,13 @@ async def decode_base62(encoded: str) -> int:
 # Base62 characters and lookup dictionary
 BASE62_ALPHABET = np.array(list(string.digits + string.ascii_letters), dtype='<U1')
 BASE62_LOOKUP = {char: idx for idx, char in enumerate(BASE62_ALPHABET)}
+
+def country_code_to_flag_emoji(code: str) -> str:
+    """Converts a 2-letter ISO country code into regional indicator flag emojis."""
+    if not code or len(code) != 2:
+        return ""
+    try:
+        return "".join(chr(127397 + ord(c.upper())) for c in code)
+    except:
+        return ""
+

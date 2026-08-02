@@ -9,7 +9,8 @@ if str(_bot_project_dir) not in sys.path:
 from telebot.async_telebot import AsyncTeleBot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, Message, InlineQuery, InlineQueryResultArticle, InputTextMessageContent, InlineQueryResultArticle
 from redis.commands.search.query import Query
-from utils.functions import setup_logger, small_caps, large_caps, country_flag_link, format_number_to_text
+from utils.functions import setup_logger, small_caps, large_caps, country_flag_link, format_number_to_text, country_code_to_flag_emoji
+
 from utils.cache_manager import cache_manager, CachePrefix
 from utils.redis_manager import redis_manager, RedisManager
 from utils.config import APP_COUNT, COMMISSION
@@ -697,12 +698,18 @@ class UserServerManagement:
                     if len(servers_sorted) <= 3 else f"[{', '.join(servers_sorted[:3])}, ...]"
                 ) if inline_query.id != "tool" else f"[{', '.join(servers_sorted)}]"
 
+                cc = country_data.get(cid, {}).get("country_code", "")
+                emoji = country_code_to_flag_emoji(cc)
+                display_val = f"{emoji} {cname}" if emoji else cname
+
                 price_pts = float(min_price) * float(COMMISSION)
                 desc = (
                     f"❯ Tʜᴇ Sᴛᴀʀᴛɪɴɢ Pʀɪᴄᴇ Is Oɴʟʏ {str(f'{price_pts:.2f}').translate(await small_caps())} Pᴏɪɴᴛ's.\n"
-                    f"• Sᴇʀᴠᴇʀs » {disp.translate(await small_caps())}\n"
+                    f"• Country » {display_val}\n"
+                    f"• Servers » {disp.translate(await small_caps())}\n"
                     f"• Tᴏᴛᴀʟ Sᴛᴏᴄᴋ » {await format_number_to_text(total_stock)}"
                 ).translate(await small_caps())
+
 
                 imc = (
                     f"/Buy_{app_id}_{cid}" if not is_admin else f"#Sᴇʀᴠɪᴄᴇ|{app_id}|{cid}"
