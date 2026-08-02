@@ -154,19 +154,33 @@ function attachSecurityHeaders(response: NextResponse) {
 
     // Resolve socket origin from env so CSP stays accurate in dev vs prod
     const rawSocketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3951'
-    const SOCKET_ORIGIN = rawSocketUrl
-        .replace(/^wss:/, 'https:')
-        .replace(/^ws:/, 'http:')
-        .replace(/\/+$/, '') // strip trailing slash
+    const IS_PROD = process.env.NODE_ENV === 'production'
+
+    // HTTP(S) origin for connect-src
+    const SOCKET_HTTP = rawSocketUrl
+        .replace(/^wss:\/\//, 'https://')
+        .replace(/^ws:\/\//, 'http://')
+        .replace(/\/+$/, '')
+
+    // WS(S) origin — derive from socket URL for explicit allowlist entry
+    const SOCKET_WS = rawSocketUrl
+        .replace(/^https:\/\//, 'wss://')
+        .replace(/^http:\/\//, 'ws://')
+        .replace(/\/+$/, '')
 
     const csp = [
         "default-src 'self'",
-        "upgrade-insecure-requests",
+        // upgrade-insecure-requests is ONLY safe in production (where TLS exists).
+        // In development (localhost:3000, no cert) it causes ERR_SSL_PROTOCOL_ERROR on
+        // every prefetch because the browser tries to upgrade http://localhost to https://.
+        ...(IS_PROD ? ["upgrade-insecure-requests"] : []),
         "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://js.hcaptcha.com https://challenges.cloudflare.com https://*.sentry.io https://*.vercel-insights.com",
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
         "font-src 'self' data: https://fonts.gstatic.com",
         `img-src 'self' data: blob: https://*.githubusercontent.com https://api.dicebear.com https:`,
-        `connect-src 'self' ${SOCKET_ORIGIN} https://api.hcaptcha.com https://*.sentry.io https://*.ingest.sentry.io wss: https:`,
+        // Must include BOTH the http(s) origin AND the ws(s) origin explicitly.
+        // wss: alone doesn't cover ws:// (used on localhost without TLS).
+        `connect-src 'self' ${SOCKET_HTTP} ${SOCKET_WS} https://api.hcaptcha.com https://*.sentry.io https://*.ingest.sentry.io wss: ws: https:`,
         "frame-src 'self' https://js.hcaptcha.com https://challenges.cloudflare.com",
         "frame-ancestors 'self'",
         "base-uri 'self'",
