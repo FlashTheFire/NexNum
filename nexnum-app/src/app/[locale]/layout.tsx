@@ -46,7 +46,9 @@ export async function generateMetadata({
     languageAlternates['x-default'] = `${baseUrl}/en`;
 
     const envSiteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL
-    const validBaseUrl = envSiteUrl || (host && !host.includes('localhost') ? `${protocol}://${host}` : 'https://nexnum.is')
+    const validBaseUrl = host && host.includes('localhost')
+        ? `http://${host}`
+        : (envSiteUrl || `${protocol}://${host}`)
 
     return {
         metadataBase: new URL(validBaseUrl),

@@ -462,8 +462,6 @@ async function syncDynamic(provider: Provider, options?: SyncOptions): Promise<S
         // Visibility maps: externalId -> isActive (for filtering hidden items from MeiliSearch)
         const countryVisibilityMap = new Map<string, boolean>()
         const serviceVisibilityMap = new Map<string, boolean>()
-        const countryNameMap = new Map<string, string>()
-        const serviceMap = new Map<string, string>()
 
         if (skipMetadataSync) {
             logger.info('Using existing DB metadata for sync', {
