@@ -328,7 +328,7 @@ export function MobileDashboard() {
                                             expiresAt={num.expiresAt}
                                             status={num.status || 'active'}
                                             currencyPrices={num.currencyPrices}
-                                            className="h-[120px]"
+                                            className="h-[96px]"
                                         />
                                     </div>
                                 ))}
