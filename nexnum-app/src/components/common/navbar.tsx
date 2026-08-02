@@ -175,7 +175,7 @@ export function Navbar() {
                         {/* Mobile Actions (Notification + Menu) */}
                         <div className="flex items-center gap-1.5 xl:hidden relative">
                             <NotificationDropdown />
-                            <LanguageSwitcher />
+
 
                             <button
                                 className="p-2.5 text-gray-400 hover:text-white rounded-xl hover:bg-white/[0.06] transition-all"
@@ -228,19 +228,6 @@ export function Navbar() {
                                                 <LogOut className="w-4 h-4" />
                                             </button>
                                         </motion.div>
-
-                                        {/* Mobile Menu Language Quick Switch */}
-                                        <motion.div
-                                            initial={{ opacity: 0, y: 10 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            transition={{ delay: 0.12 }}
-                                            className="flex items-center gap-2 px-1"
-                                        >
-                                            <div className="flex-1 flex flex-row items-center justify-start gap-2">
-                                                <CurrencySelector />
-                                                <LanguageSwitcher />
-                                            </div>
-                                        </motion.div>
                                     </>
                                 )}
                                 <div className="space-y-1">
@@ -260,6 +247,11 @@ export function Navbar() {
                                                 <div className="flex items-center gap-3 px-4 py-3.5 text-gray-300 hover:text-white hover:bg-white/[0.04] rounded-xl transition-all font-medium">
                                                     <link.icon className="h-5 w-5 opacity-70" />
                                                     <span>{link.label}</span>
+                                                    {link.href === '/dashboard/settings' && (
+                                                        <span className="ml-auto" onClick={e => e.preventDefault()}>
+                                                            <CurrencySelector />
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </Link>
                                         </motion.div>
