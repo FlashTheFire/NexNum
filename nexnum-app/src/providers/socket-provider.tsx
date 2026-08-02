@@ -105,6 +105,9 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
 
             const data = envelope.payload;
             if (data?.phoneNumber && data?.message) {
+                // ALWAYS play notification sound for incoming SMS
+                playNotification();
+
                 // Skip global toast if the user is already on the SMS page for this number
                 // (the page-level useSocketEvent handler shows its own enriched toast)
                 const onSmsPage = typeof window !== 'undefined' &&
@@ -112,7 +115,6 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
                      window.location.pathname.includes(`/sms/${data.phoneNumber}`));
 
                 if (!onSmsPage) {
-                    playNotification();
                     toast('📩 New SMS Received', {
                         description: `${data.phoneNumber}: ${data.message.substring(0, 50)}${data.message.length > 50 ? '...' : ''}`,
                         icon: <Phone className="w-4 h-4 text-violet-400" />,
