@@ -127,7 +127,7 @@ export const DashboardNumberCard = memo(function DashboardNumberCard({
                 <div className="p-5 flex flex-col gap-4">
                     {/* Header: Country & Status */}
                     <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2.5">
+                        <div className="flex items-center gap-3">
                             <div className="relative w-10 h-10 flex-shrink-0">
                                 <div className="relative w-full h-full rounded-lg overflow-hidden transition-all duration-300 ring-1 ring-white/10 group-hover:scale-105">
                                     {serviceIconUrl ? (
@@ -151,9 +151,12 @@ export const DashboardNumberCard = memo(function DashboardNumberCard({
                                     />
                                 </div>
                             </div>
-                            <span className="text-xs font-mono text-gray-400/80 font-semibold tracking-tight">
-                                <PriceDisplay currencyPrices={currencyPrices} />
-                            </span>
+                            <div className="flex flex-col gap-0.5">
+                                <span className="text-[10px] text-gray-500 font-medium leading-none">Price</span>
+                                <span className="text-sm font-bold text-gray-200 leading-none font-mono">
+                                    <PriceDisplay currencyPrices={currencyPrices} />
+                                </span>
+                            </div>
                         </div>
 
                         <div className="flex items-center gap-2">
