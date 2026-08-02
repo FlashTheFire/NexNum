@@ -39,15 +39,14 @@ export async function GET(req: NextRequest) {
             );
         }
 
-        // v4 prefix: country dedup key is now lowercased; v3 keys may have
-        // already been cached as un-deduped
-        const cacheKey = `cache:search:countries:v2:${serviceCode}:${q}:${page}:${limit}:${sort}`;
+        const cacheKey = `cache:search:countries:v3:${serviceCode}:${q}:${page}:${limit}:${sort}`;
 
         const result = await cacheGet<{ countries: any[]; total: number }>(
             cacheKey,
             () => searchCountries(serviceCode, q, { page, limit, sort }),
-            60
+            600 // 10 minutes global Redis cache
         );
+
         const countryNames = (result.countries || []).map((c: any) => c.name).filter(Boolean);
         let favoriteMap = new Map<string, string>();
         if (rl.userId && countryNames.length > 0) {
