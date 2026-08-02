@@ -1035,8 +1035,18 @@ export async function GET(request: Request) {
                     }
                 }
 
+                send(`[AGGREGATES] Recalculating & pre-baking service & country search caches into PostgreSQL and Redis...`);
+                try {
+                    const { refreshAllServiceAggregates } = await import('@/lib/search/service-aggregates');
+                    await refreshAllServiceAggregates();
+                    send(`[AGGREGATES] All search caches pre-baked successfully.`);
+                } catch (aggErr: any) {
+                    send(`[AGGREGATES WARNING] Search cache pre-baking encounterd an issue: ${aggErr.message || aggErr}`);
+                }
+
                 send(`[SUCCESS] FULL DIAGNOSTIC SYNC COMPLETE IN ${Date.now() - startTime}ms.`)
                 controller.close()
+
             } catch (error: any) {
                 send(`[ERROR] FATAL ERROR DURING DIAGNOSTIC SYNC: ${error.stack || error.message || error}`)
                 controller.close()
