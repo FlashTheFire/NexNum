@@ -45,14 +45,6 @@ export async function emitStateUpdate(
 }
 
 
-/**
- * Emit an internal control event for the Socket Server cluster.
- * Used for revocation, kill-switches, and global system notifications.
- */
-// TODO: Implement 'control.event' in Registry if strictly needed. 
-// For now, this is internal/admin usage so we keep manual pub or define a ControlEvent schema.
-export async function emitControlEvent(type: string, payload: any): Promise<void> {
-    // Placeholder for strict implementation. 
-    // Current manual publishing is risky. Should define Schema later if widely used.
-    logger.warn('[StateEmitter] emitControlEvent is deprecated. Define schema before use.', { type })
-}
+// NOTE: If you need to emit internal control events (e.g., user.revoked, ban enforcement),
+// use EventPublisher.publish() directly with a defined schema entry in EVENT_REGISTRY.
+// Do not add another ad-hoc emitControlEvent wrapper without a schema.

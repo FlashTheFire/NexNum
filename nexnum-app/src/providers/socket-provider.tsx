@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { toast } from 'sonner';
 import { useGlobalStore } from '@/stores/appStore';
@@ -25,6 +25,10 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
     const [isConnected, setIsConnected] = useState(false);
     const fetchDashboardState = useGlobalStore((state) => state.fetchDashboardState);
     const { play: playNotification } = useSound('/assets/audio/notification.mp3')
+
+    // Stabilize callback ref so socket useEffect never re-runs on store updates
+    const fetchDashboardStateRef = useRef(fetchDashboardState);
+    useEffect(() => { fetchDashboardStateRef.current = fetchDashboardState; }, [fetchDashboardState]);
 
     useEffect(() => {
         if (!SOCKET_ENABLED) {
@@ -82,7 +86,7 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
             console.log(`🔄 [Socket] State Update: ${type} (${reason || 'Unknown'})`);
 
             // Optimistic Updates could go here
-            fetchDashboardState();
+            fetchDashboardStateRef.current();
 
             // Notify user of balance changes if explicitly triggered
             if (type === 'wallet' && reason === 'deposit') {
@@ -114,7 +118,7 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
                     }
                 });
             }
-            fetchDashboardState();
+            fetchDashboardStateRef.current();
         });
 
         setSocket(socketInstance);
@@ -122,7 +126,8 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
         return () => {
             socketInstance.disconnect();
         };
-    }, [fetchDashboardState]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // socket created once — fetchDashboardState stabilized via ref above
 
     /**
      * Replay missed events from Redis Stream via API
@@ -160,7 +165,7 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
                             }
                         });
 
-                        if (shouldRefetch) fetchDashboardState();
+                        if (shouldRefetch) fetchDashboardStateRef.current();
                     }
                 }
             }
