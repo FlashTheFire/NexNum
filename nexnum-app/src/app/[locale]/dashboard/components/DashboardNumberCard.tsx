@@ -130,7 +130,7 @@ export const DashboardNumberCard = memo(function DashboardNumberCard({
                 {/* Visual Texture */}
                 <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-white/[0.03] to-transparent pointer-events-none" />
 
-                <div className="p-5 flex flex-col gap-4">
+                <div className="p-3.5 px-4 flex flex-col gap-2.5">
                     {/* Header: Country & Status */}
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">

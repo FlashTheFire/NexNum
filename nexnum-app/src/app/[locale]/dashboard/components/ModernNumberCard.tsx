@@ -54,7 +54,7 @@ export function ModernNumberCard({
     return (
         <Link
             href={`/sms/${id}`}
-            className={cn("relative group cursor-pointer w-full block h-[160px]", className)}
+            className={cn("relative group cursor-pointer w-full block h-[120px]", className)}
             style={{
                 clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 24px), calc(100% - 30px) 100%, 0 100%)'
             }}
@@ -213,7 +213,7 @@ export function NumberCardSkeleton({ index = 0, className }: { index?: number; c
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.05, duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
-            className={cn("relative h-[148px] w-full rounded-2xl bg-white/[0.02] border border-white/[0.04] overflow-hidden p-4", className)}
+            className={cn("relative h-[120px] w-full rounded-2xl bg-white/[0.02] border border-white/[0.04] overflow-hidden p-3", className)}
             style={{
                 clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 20px), calc(100% - 20px) 100%, 0 100%)'
             }}
