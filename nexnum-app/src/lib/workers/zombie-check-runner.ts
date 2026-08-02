@@ -21,6 +21,7 @@ import { notificationManager } from '@/lib/notifications/manager'
 import { logger } from '@/lib/core/logger'
 
 const PRUNE_AGE_MS = 7 * 24 * 60 * 60 * 1000
+const _processStartTime = Date.now()
 
 /** Tracks which zombies we already alerted about (persists across ticks within the process) */
 const _alertedZombies = new Map<string, 'info' | 'warning' | 'critical'>()
@@ -38,7 +39,7 @@ export async function runZombieCheck(): Promise<ZombieCheckSummary> {
     const now = Date.now()
     const heartbeats = readHeartbeats()
     const detector = new ZombieDetector(STANDARD_WORKERS)
-    const zombies = detector.detect(heartbeats, now)
+    const zombies = detector.detect(heartbeats, now, _processStartTime)
     const pruned = pruneStaleHeartbeats(PRUNE_AGE_MS)
 
     // Clear previously-alerted zombies that have recovered

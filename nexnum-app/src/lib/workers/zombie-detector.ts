@@ -130,7 +130,7 @@ export const STANDARD_WORKERS: WorkerSpec[] = [
     },
     {
         name: 'search_aggregates',
-        thresholdMs: 10 * 60 * 1000, // 10 min — runs every 5 min
+        thresholdMs: 30 * 60 * 1000, // 30 min — runs every 15 min
         severity: 'warning',
         description: 'Search aggregates refresh'
     },

@@ -178,9 +178,11 @@ export async function startQueueWorker() {
 
         // JOB: Smart Sync Scheduler (Daily)
         const { syncAllProviders, verifyAssetIntegrity } = await import('./lib/providers/provider-sync');
+        const { recordHeartbeat } = await import('./lib/workers/heartbeat-registry');
         await queue.work(QUEUES.SCHEDULED_SYNC, async () => {
             await verifyAssetIntegrity();
             await syncAllProviders();
+            recordHeartbeat('scheduled_sync');
         });
         await queue.schedule(QUEUES.SCHEDULED_SYNC, '0 0 * * *', {});
 
