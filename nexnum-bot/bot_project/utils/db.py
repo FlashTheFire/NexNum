@@ -20,8 +20,8 @@ if str(_bot_project_dir) not in sys.path:
 
 from .config import DATABASE_URL
 
-if sys.platform == 'win32':
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+if sys.platform == 'win32' and sys.version_info < (3, 14):
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())  # type: ignore[attr-defined]
 
 logger = logging.getLogger("db_adapter")
 
@@ -88,7 +88,7 @@ class DatabaseAdapter:
             async with self.pool.connection() as conn:
                 await conn.set_autocommit(True)
                 async with conn.cursor() as cur:
-                    await cur.execute(sql_script)
+                    await cur.execute(sql_script)  # type: ignore[arg-type]
             logger.info("Successfully verified/created bot PostgreSQL schema tables (user_sessions, etc.).")
             return True
         except Exception as e:
@@ -269,13 +269,13 @@ class DatabaseAdapter:
                         params.append(name)
                     if is_banned is not None:
                         updates.append("is_banned = %s")
-                        params.append(is_banned)
+                        params.append(is_banned)  # type: ignore[arg-type]  # bool is valid param value
                     if not updates:
                         return True
                     updates.append("updated_at = NOW()")
                     params.append(tg_id_str)
                     sql = f"UPDATE users SET {', '.join(updates)} WHERE telegram_id = %s"
-                    await cur.execute(sql, tuple(params))
+                    await cur.execute(sql, tuple(params))  # type: ignore[arg-type]
                     await conn.commit()
                     return True
         except Exception as e:
@@ -749,6 +749,8 @@ class DatabaseAdapter:
                 )
                 res = await cur.fetchone()
                 await conn.commit()
+                if res is None:
+                    raise RuntimeError("create_deposit_request RETURNING clause returned no row")
                 return str(res["id"])
 
     async def update_deposit_status(
@@ -774,7 +776,7 @@ class DatabaseAdapter:
                     params.append(str(deposit_id))
                     params.append(str(deposit_id))
                     sql = f"UPDATE deposit_requests SET {', '.join(updates)} WHERE id::text = %s OR idempotency_key = %s"
-                    await cur.execute(sql, tuple(params))
+                    await cur.execute(sql, tuple(params))  # type: ignore[arg-type]
                     await conn.commit()
                     return True
         except Exception as exc:
@@ -855,7 +857,7 @@ class DatabaseAdapter:
 
                 where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
 
-                await cur.execute(
+                await cur.execute(  # type: ignore[arg-type]
                     f"SELECT dr.*, u.telegram_id FROM deposit_requests dr "
                     f"LEFT JOIN users u ON dr.user_id = u.id {where_sql} "
                     f"ORDER BY dr.created_at DESC LIMIT %s OFFSET %s",
@@ -877,7 +879,7 @@ class DatabaseAdapter:
                             wt_params.extend([st, et])
                         except Exception:
                             pass
-                    await cur.execute(
+                    await cur.execute(  # type: ignore[arg-type]
                         f"SELECT wt.id, w.user_id, wt.amount, wt.created_at, wt.idempotency_key, u.telegram_id "
                         f"FROM wallet_transactions wt "
                         f"JOIN wallets w ON wt.wallet_id = w.id "
@@ -973,6 +975,8 @@ class DatabaseAdapter:
                 )
                 res = await cur.fetchone()
                 await conn.commit()
+                if res is None:
+                    raise RuntimeError("create_activation RETURNING clause returned no row")
                 return str(res["id"])
 
     async def update_activation_sms(
@@ -1004,7 +1008,7 @@ class DatabaseAdapter:
                     vals.append(str(order_id))
                     sql = f"UPDATE purchase_orders SET {', '.join(sets)} WHERE id = %s OR activation_id = %s RETURNING id"
                     vals.append(str(order_id))
-                    await cur.execute(sql, tuple(vals))
+                    await cur.execute(sql, tuple(vals))  # type: ignore[arg-type]
                     await conn.commit()
                     return True
         except Exception as exc:
@@ -1111,12 +1115,12 @@ class DatabaseAdapter:
 
                 where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
 
-                await cur.execute(f"SELECT COUNT(*) as total FROM purchase_orders po {where_sql}", tuple(params))
+                await cur.execute(f"SELECT COUNT(*) as total FROM purchase_orders po {where_sql}", tuple(params))  # type: ignore[arg-type]
                 total_row = await cur.fetchone()
                 total = total_row["total"] if total_row else 0
 
                 query_params = list(params) + [limit, offset]
-                await cur.execute(
+                await cur.execute(  # type: ignore[arg-type]
                     f"SELECT po.*, u.telegram_id FROM purchase_orders po "
                     f"LEFT JOIN users u ON po.user_id = u.id {where_sql} "
                     f"ORDER BY po.created_at DESC LIMIT %s OFFSET %s",
@@ -1235,7 +1239,7 @@ class DatabaseAdapter:
                     )
                     row = await cur.fetchone()
                     await conn.commit()
-                    return str(list(row.values())[0]) if row else ticket_id
+                    return str(row[0]) if row else ticket_id  # plain cursor, row is a tuple
         except Exception as exc:
             logger.error(f"Error creating support ticket for {telegram_id}: {exc}")
             return None
@@ -1300,12 +1304,12 @@ class DatabaseAdapter:
 
                 where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
 
-                await cur.execute(f"SELECT COUNT(*) as total FROM support_tickets st {where_sql}", tuple(params))
+                await cur.execute(f"SELECT COUNT(*) as total FROM support_tickets st {where_sql}", tuple(params))  # type: ignore[arg-type]
                 total_row = await cur.fetchone()
                 total = total_row["total"] if total_row else 0
 
                 query_params = list(params) + [limit, offset]
-                await cur.execute(
+                await cur.execute(  # type: ignore[arg-type]
                     f"SELECT st.*, u.telegram_id FROM support_tickets st "
                     f"LEFT JOIN users u ON st.user_id = u.id {where_sql} "
                     f"ORDER BY st.created_at DESC LIMIT %s OFFSET %s",
@@ -1564,7 +1568,7 @@ class DatabaseAdapter:
 
                     await cur.execute("SELECT pg_try_advisory_lock(%s)", (lock_id,))
                     row = await cur.fetchone()
-                    got = list(row.values())[0] if row else False
+                    got = row[0] if row else False  # plain cursor, row is a tuple
                     if got:
                         await cur.execute(
                             "INSERT INTO operation_locks (lock_key, owner_id, acquired_at, expires_at) "

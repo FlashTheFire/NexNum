@@ -13,17 +13,20 @@ import uuid
 from decimal import Decimal
 
 # Ensure Windows Selector Event Loop policy for psycopg3 compatibility on Windows
-if sys.platform == 'win32':
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+if sys.platform == 'win32' and sys.version_info < (3, 14):
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())  # type: ignore[attr-defined]
 
 BOT_PROJECT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if BOT_PROJECT_DIR not in sys.path:
     sys.path.insert(0, BOT_PROJECT_DIR)
 
-from utils.db import db_adapter
+try:
+    from utils.db import db_adapter
+except ImportError:
+    from bot_project.utils.db import db_adapter  # type: ignore[no-redef]
 
 
-async def create_test_user(email: str, name: str, origin: str = 'web', tg_id: str = None) -> str:
+async def create_test_user(email: str, name: str, origin: str = 'web', tg_id: str | None = None) -> str:
     """Helper to insert a test user with wallet."""
     user_id = str(uuid.uuid4())
     pool = await db_adapter._ensure_pool()
