@@ -154,7 +154,6 @@ function attachSecurityHeaders(response: NextResponse) {
 
     // Resolve socket origin from env so CSP stays accurate in dev vs prod
     const rawSocketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3951'
-    const IS_PROD = process.env.NODE_ENV === 'production'
 
     // HTTP(S) origin for connect-src
     const SOCKET_HTTP = rawSocketUrl
