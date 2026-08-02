@@ -304,8 +304,9 @@ export async function refreshAllServiceAggregatesImpl() {
                             name: item.serviceName,
                             lowestPrice: Number(item.lowestPrice),
                             totalStock: Number(item.totalStock),
-                            serverCount: item.providerCount || 0,
-                            countryCount: item.countryCount || 0,
+                            serverCount: item._providers ? item._providers.size : 0,
+                            countryCount: item._countries ? item._countries.size : 0,
+
                             iconUrl,
                             currencyPrices,
                             flagUrls: item.flagUrls || [],
