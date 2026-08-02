@@ -118,9 +118,12 @@ export function ModernNumberCard({
                                     />
                                 </div>
                             </div>
-                            <span className="text-xs font-mono text-gray-400/80 font-semibold tracking-tight">
-                                <PriceDisplay currencyPrices={currencyPrices} />
-                            </span>
+                            <div className="flex flex-col gap-0.5">
+                                <span className="text-[10px] text-gray-500 font-medium leading-none">Price</span>
+                                <span className="text-xs font-bold text-gray-200 leading-none font-mono">
+                                    <PriceDisplay currencyPrices={currencyPrices} />
+                                </span>
+                            </div>
                         </div>
                         {/* Dynamic Status Badge */}
                         <div className="flex flex-col items-end gap-1">

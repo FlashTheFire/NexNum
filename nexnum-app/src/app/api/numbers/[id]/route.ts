@@ -53,6 +53,8 @@ export async function GET(request: Request, { params }: RouteParams) {
             number: {
                 id: number.id,
                 phoneNumber: number.phoneNumber,
+                phoneCountryCode: number.phoneCountryCode || null,
+                phoneNationalNumber: number.phoneNationalNumber || null,
                 countryCode: number.countryCode,
                 countryName: number.countryName,
                 serviceName: number.serviceName,

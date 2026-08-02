@@ -619,6 +619,8 @@ export default function VaultPage() {
                                         key={num.id}
                                         id={num.id}
                                         number={(num as any).phoneNumber || num.number}
+                                        phoneCountryCode={(num as any).phoneCountryCode || null}
+                                        phoneNationalNumber={(num as any).phoneNationalNumber || null}
                                         countryCode={num.countryCode}
                                         countryName={num.countryName}
                                         countryIconUrl={num.countryIconUrl}
@@ -627,6 +629,7 @@ export default function VaultPage() {
                                         smsCount={num.smsCount}
                                         expiresAt={num.expiresAt}
                                         status={num.currentStatus}
+                                        currencyPrices={(num as any).currencyPrices}
                                         className="h-[148px]"
                                     />
                                 ))}
