@@ -326,7 +326,7 @@ export function MobileDashboard() {
                                             serviceIconUrl={num.serviceIconUrl}
                                             smsCount={num.smsCount}
                                             expiresAt={num.expiresAt}
-                                            status={num.status}
+                                            status={num.status || 'active'}
                                             currencyPrices={num.currencyPrices}
                                             className="h-[148px]"
                                         />
