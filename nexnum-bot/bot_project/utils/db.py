@@ -1372,22 +1372,26 @@ class DatabaseAdapter:
         """
         Link a Telegram ID to an existing Web App User account.
         Merges any existing bot account wallet & history into the master Web App user.
+        Security Hardening: Atomic transaction, FOR UPDATE locks, and complete foreign key cleanup.
         """
         pool = await self._ensure_pool()
         async with pool.connection() as conn:
             async with conn.cursor(row_factory=dict_row) as cur:
-                await cur.execute("SELECT id, telegram_id FROM users WHERE id = %s", (str(web_user_id),))
+                # Lock target web user row
+                await cur.execute("SELECT id, telegram_id FROM users WHERE id = %s FOR UPDATE", (str(web_user_id),))
                 web_user = await cur.fetchone()
                 if not web_user:
                     return {"success": False, "message": "Web App user account not found."}
 
-                await cur.execute("SELECT id FROM users WHERE telegram_id = %s", (str(telegram_id),))
+                # Lock any existing user with this telegram_id
+                await cur.execute("SELECT id FROM users WHERE telegram_id = %s FOR UPDATE", (str(telegram_id),))
                 existing_bot_user = await cur.fetchone()
 
                 if existing_bot_user and str(existing_bot_user["id"]) != str(web_user_id):
                     bot_user_id = str(existing_bot_user["id"])
 
-                    await cur.execute("SELECT balance FROM wallets WHERE user_id = %s", (bot_user_id,))
+                    # Lock bot user's wallet
+                    await cur.execute("SELECT balance FROM wallets WHERE user_id = %s FOR UPDATE", (bot_user_id,))
                     bot_wallet = await cur.fetchone()
                     bot_bal = float(bot_wallet["balance"]) if bot_wallet and bot_wallet.get("balance") else 0.0
 
@@ -1403,13 +1407,23 @@ class DatabaseAdapter:
                             "SELECT %s, id, %s, 'CREDIT', 'Merged balance from bot account', %s, NOW() FROM wallets WHERE user_id = %s",
                             (str(uuid.uuid4()), bot_bal, idem_key, str(web_user_id)),
                         )
+                        # Zero out bot user wallet balance
+                        await cur.execute("UPDATE wallets SET balance = 0, updated_at = NOW() WHERE user_id = %s", (bot_user_id,))
 
+                    # Safely detach telegram_id from bot user FIRST to avoid UniqueViolation
+                    await cur.execute("UPDATE users SET telegram_id = NULL WHERE id = %s", (bot_user_id,))
+
+                    # Re-assign all related entities
                     await cur.execute("UPDATE purchase_orders SET user_id = %s WHERE user_id = %s", (str(web_user_id), bot_user_id))
                     await cur.execute("UPDATE deposit_requests SET user_id = %s WHERE user_id = %s", (str(web_user_id), bot_user_id))
                     await cur.execute("UPDATE support_tickets SET user_id = %s WHERE user_id = %s", (str(web_user_id), bot_user_id))
+
+                    # Delete non-essential dependent records that would trigger FK violations
                     await cur.execute("DELETE FROM user_sessions WHERE user_id = %s", (bot_user_id,))
+                    await cur.execute("DELETE FROM wallets WHERE user_id = %s", (bot_user_id,))
                     await cur.execute("DELETE FROM users WHERE id = %s", (bot_user_id,))
 
+                # Assign telegram_id to web user
                 await cur.execute(
                     "UPDATE users SET telegram_id = %s, updated_at = NOW() WHERE id = %s",
                     (str(telegram_id), str(web_user_id)),

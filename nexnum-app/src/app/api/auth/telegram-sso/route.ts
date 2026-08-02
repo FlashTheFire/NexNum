@@ -6,11 +6,18 @@ import { generateToken } from '@/lib/auth/jwt'
 /**
  * Validates Telegram Mini App initData HMAC-SHA256 signature
  */
-function verifyTelegramWebAppData(initData: string, botToken: string): { isValid: boolean; user?: any } {
+function verifyTelegramWebAppData(initData: string, botToken: string): { isValid: boolean; user?: any; error?: string } {
     try {
         const urlParams = new URLSearchParams(initData)
         const hash = urlParams.get('hash')
-        if (!hash) return { isValid: false }
+        if (!hash) return { isValid: false, error: 'Missing hash' }
+
+        // Security Hardening: Enforce strict auth_date staleness check (5-minute TTL max)
+        const authDate = parseInt(urlParams.get('auth_date') || '0', 10)
+        const now = Math.floor(Date.now() / 1000)
+        if (!authDate || now - authDate > 300 || authDate > now + 60) {
+            return { isValid: false, error: 'Stale or invalid auth_date timestamp (max 5 minutes)' }
+        }
 
         urlParams.delete('hash')
 
@@ -30,7 +37,7 @@ function verifyTelegramWebAppData(initData: string, botToken: string): { isValid
     } catch (err) {
         console.error('[Telegram SSO] initData parsing error:', err)
     }
-    return { isValid: false }
+    return { isValid: false, error: 'Invalid HMAC signature' }
 }
 
 /**

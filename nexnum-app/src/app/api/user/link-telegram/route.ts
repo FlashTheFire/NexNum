@@ -50,6 +50,12 @@ export async function POST(request: NextRequest) {
     }
 
     try {
+        // Security Hardening: Cleanup expired tokens for this user first
+        await prisma.$executeRaw`
+            DELETE FROM account_link_tokens 
+            WHERE user_id = ${userId} AND expires_at < NOW()
+        `;
+
         const botUsername = await getBotUsername();
         // High-entropy 128-bit cryptographic token (16 bytes = 32 hex chars)
         const token = `LINK-${crypto.randomBytes(16).toString('hex').toUpperCase()}`;

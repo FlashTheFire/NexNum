@@ -64,11 +64,19 @@ export async function GET(request: Request) {
             return NextResponse.redirect(new URL('/auth/login?error=invalid_hash', request.url))
         }
 
-        // Check auth_date is recent (within 24 hours)
-        const authDate = parseInt(telegramData.auth_date || '0')
+        // Security Hardening: Enforce 5-minute (300s) max age for OAuth login callback
+        const authDate = parseInt(telegramData.auth_date || '0', 10)
         const now = Math.floor(Date.now() / 1000)
-        if (now - authDate > 86400) {
+        if (!authDate || now - authDate > 300 || authDate > now + 60) {
             return NextResponse.redirect(new URL('/auth/login?error=auth_expired', request.url))
+        }
+
+        // Security Hardening: Prevent Replay Attacks using Redis single-use hash key
+        const usedKey = `v1:used_tg_hash:${hash}`
+        const isReplayed = await redis.set(usedKey, '1', 'EX', 300, 'NX')
+        if (!isReplayed) {
+            console.error('[Telegram] Replay attack detected for hash:', hash)
+            return NextResponse.redirect(new URL('/auth/login?error=replay_attack_detected', request.url))
         }
 
         const telegramUser = {
@@ -79,7 +87,7 @@ export async function GET(request: Request) {
             photoUrl: telegramData.photo_url || ''
         }
 
-        // Find or create user
+        // Find or create user with standardized canonical email format
         let user = await prisma.user.findFirst({
             where: { telegramId: telegramUser.id }
         })
@@ -89,7 +97,7 @@ export async function GET(request: Request) {
             user = await prisma.user.create({
                 data: {
                     name: fullName,
-                    email: `${telegramUser.id}@telegram.placeholder`,
+                    email: `tg_${telegramUser.id}@telegram.nexnum.in`,
                     passwordHash: uuidv4(),
                     telegramId: telegramUser.id,
                     image: telegramUser.photoUrl || null,
