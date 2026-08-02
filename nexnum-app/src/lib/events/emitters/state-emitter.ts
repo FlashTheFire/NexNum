@@ -45,6 +45,15 @@ export async function emitStateUpdate(
 }
 
 
-// NOTE: If you need to emit internal control events (e.g., user.revoked, ban enforcement),
-// use EventPublisher.publish() directly with a defined schema entry in EVENT_REGISTRY.
-// Do not add another ad-hoc emitControlEvent wrapper without a schema.
+/**
+ * Emit an internal control event to the Socket Server cluster.
+ * Currently supports: 'user.revoked' for ban enforcement and session kill-switch.
+ * Add new types to EVENT_REGISTRY before using here.
+ */
+export async function emitControlEvent(type: 'user.revoked', payload: { userId: string }): Promise<void> {
+    try {
+        await EventPublisher.publish(type, 'system', payload, { source: 'control-emitter' })
+    } catch (error: any) {
+        logger.error('[ControlEmitter] Failed to emit control event', { type, error: error.message })
+    }
+}

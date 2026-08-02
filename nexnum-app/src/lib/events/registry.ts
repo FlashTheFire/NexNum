@@ -21,10 +21,16 @@ export const StateUpdatedPayload = z.object({
     reason: z.string().optional(),
 });
 
+// 3. User Revoked Event (Security: ban enforcement, session kill-switch)
+export const UserRevokedPayload = z.object({
+    userId: z.string(),
+});
+
 // The Master Registry Map
 export const EVENT_REGISTRY = {
     'sms.received': SmsReceivedPayload,
     'state.updated': StateUpdatedPayload,
+    'user.revoked': UserRevokedPayload,
 } as const;
 
 export type EventType = keyof typeof EVENT_REGISTRY;
