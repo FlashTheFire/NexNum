@@ -105,18 +105,25 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
 
             const data = envelope.payload;
             if (data?.phoneNumber && data?.message) {
-                // Play notification sound
-                playNotification()
+                // Skip global toast if the user is already on the SMS page for this number
+                // (the page-level useSocketEvent handler shows its own enriched toast)
+                const onSmsPage = typeof window !== 'undefined' &&
+                    (window.location.pathname.includes(`/sms/${data.numberId}`) ||
+                     window.location.pathname.includes(`/sms/${data.phoneNumber}`));
 
-                toast('New Message Received', {
-                    description: `${data.phoneNumber}: ${data.message.substring(0, 50)}${data.message.length > 50 ? '...' : ''}`,
-                    icon: <Phone className="w-4 h-4 text-violet-400" />,
-                    duration: 8000, // Keep longer
-                    action: {
-                        label: 'View',
-                        onClick: () => window.location.href = `/sms/${data.phoneNumber}`
-                    }
-                });
+                if (!onSmsPage) {
+                    playNotification();
+                    toast('📩 New SMS Received', {
+                        description: `${data.phoneNumber}: ${data.message.substring(0, 50)}${data.message.length > 50 ? '...' : ''}`,
+                        icon: <Phone className="w-4 h-4 text-violet-400" />,
+                        duration: 8000,
+                        action: {
+                            // Navigate by numberId (DB key) not phoneNumber (fragile)
+                            label: 'View',
+                            onClick: () => window.location.href = `/sms/${data.numberId || data.phoneNumber}`
+                        }
+                    });
+                }
             }
             fetchDashboardStateRef.current();
         });
