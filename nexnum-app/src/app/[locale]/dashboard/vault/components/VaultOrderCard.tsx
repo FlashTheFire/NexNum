@@ -163,7 +163,14 @@ export const VaultOrderCard = memo(({ number, status }: VaultOrderCardProps) => 
                             {/* Main Phone Number & Copy Action */}
                             <div className="bg-black/40 border border-white/5 rounded-xl p-2.5 px-3 flex items-center justify-between my-3 group/num hover:border-white/15 transition-all">
                                 <span className="font-mono text-base font-black text-white tracking-wider">
-                                    {number.number}
+                                    {(number as any).phoneCountryCode && (number as any).phoneNationalNumber ? (
+                                        <>
+                                            <span className="text-zinc-500 font-semibold text-sm">{(number as any).phoneCountryCode}</span>
+                                            <span className="ml-1">{(number as any).phoneNationalNumber}</span>
+                                        </>
+                                    ) : (
+                                        number.number
+                                    )}
                                 </span>
                                 <button
                                     onClick={handleCopy}

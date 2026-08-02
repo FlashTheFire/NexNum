@@ -14,6 +14,10 @@ import { PriceDisplay } from "@/components/common/PriceDisplay"
 interface DashboardNumberCardProps {
     id: string
     number: string
+    /** Country dialing code e.g. "+62" */
+    phoneCountryCode?: string | null
+    /** National number without country code e.g. "83162052821" */
+    phoneNationalNumber?: string | null
     countryCode: string
     countryName: string
     countryIconUrl?: string
@@ -37,6 +41,8 @@ interface DashboardNumberCardProps {
 export const DashboardNumberCard = memo(function DashboardNumberCard({
     id,
     number,
+    phoneCountryCode,
+    phoneNationalNumber,
     countryCode,
     countryName,
     countryIconUrl,
@@ -231,7 +237,16 @@ export const DashboardNumberCard = memo(function DashboardNumberCard({
                     {/* Body: Number & Service */}
                     <div className="space-y-1">
                         <div className="flex items-center gap-2 group/num">
-                            <h3 className="text-2xl font-mono font-bold text-white tracking-tight">{number}</h3>
+                            <h3 className="text-2xl font-mono font-bold text-white tracking-tight">
+                                {phoneCountryCode && phoneNationalNumber ? (
+                                    <>
+                                        <span className="text-gray-500 font-semibold text-lg">{phoneCountryCode}</span>
+                                        <span className="ml-1">{phoneNationalNumber}</span>
+                                    </>
+                                ) : (
+                                    number
+                                )}
+                            </h3>
                             <button
                                 onClick={handleCopy}
                                 className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all hover:bg-white/10 text-gray-400"

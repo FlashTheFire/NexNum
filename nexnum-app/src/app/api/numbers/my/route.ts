@@ -97,6 +97,8 @@ export async function GET(request: Request) {
             return {
                 id: n.id,
                 phoneNumber: n.phoneNumber,
+                phoneCountryCode: n.phoneCountryCode || null,
+                phoneNationalNumber: n.phoneNationalNumber || null,
                 countryCode: n.countryCode,
                 countryName: n.countryName,
                 countryIconUrl,

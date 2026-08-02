@@ -233,6 +233,8 @@ export function DesktopDashboard() {
                                                     key={num.id}
                                                     id={num.id}
                                                     number={(num as any).phoneNumber || (num as any).number}
+                                                    phoneCountryCode={(num as any).phoneCountryCode || null}
+                                                    phoneNationalNumber={(num as any).phoneNationalNumber || null}
                                                     countryCode={num.countryCode}
                                                     countryName={num.countryName}
                                                     countryIconUrl={num.countryIconUrl}

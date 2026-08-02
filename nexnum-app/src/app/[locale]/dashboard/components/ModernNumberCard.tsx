@@ -11,6 +11,10 @@ import { PriceDisplay } from '@/components/common/PriceDisplay'
 interface ModernNumberCardProps {
     id: string
     number: string
+    /** Country dialing code e.g. "+62" */
+    phoneCountryCode?: string | null
+    /** National number without country code e.g. "83162052821" */
+    phoneNationalNumber?: string | null
     countryCode?: string
     countryName: string
     countryIconUrl?: string
@@ -26,6 +30,8 @@ interface ModernNumberCardProps {
 export function ModernNumberCard({
     id,
     number,
+    phoneCountryCode,
+    phoneNationalNumber,
     countryCode,
     countryName,
     countryIconUrl,
@@ -142,7 +148,16 @@ export function ModernNumberCard({
                     </div>
 
                     <div className="space-y-0.5 pl-0.5">
-                        <p className="text-xl font-mono font-bold text-white tracking-wide truncate transition-all group-hover:text-[hsl(var(--neon-lime))]">{number}</p>
+                        <p className="text-xl font-mono font-bold text-white tracking-wide truncate transition-all group-hover:text-[hsl(var(--neon-lime))]">
+                            {phoneCountryCode && phoneNationalNumber ? (
+                                <>
+                                    <span className="text-gray-500 font-semibold text-base">{phoneCountryCode}</span>
+                                    <span className="ml-1">{phoneNationalNumber}</span>
+                                </>
+                            ) : (
+                                number
+                            )}
+                        </p>
                         <div className="flex items-center gap-2">
                             <span className="text-[11px] text-gray-500 font-bold uppercase truncate max-w-[80px] opacity-80">{serviceName}</span>
                             <span className="w-0.5 h-0.5 rounded-full bg-gray-700"></span>

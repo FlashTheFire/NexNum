@@ -29,6 +29,10 @@ export interface Transaction {
 export interface ActiveNumber {
     id: string
     number: string
+    /** Country dialing code e.g. "+62" */
+    phoneCountryCode?: string | null
+    /** National number without country code e.g. "83162052821" */
+    phoneNationalNumber?: string | null
     countryCode: string
     countryName: string
     countryIconUrl?: string
@@ -172,6 +176,8 @@ export const useGlobalStore = create<GlobalState>()(
                         const numbers: ActiveNumber[] = data.numbers.map((n: Record<string, unknown>) => ({
                             id: n.id as string,
                             number: n.phoneNumber as string,
+                            phoneCountryCode: (n.phoneCountryCode as string | null) || null,
+                            phoneNationalNumber: (n.phoneNationalNumber as string | null) || null,
                             countryCode: n.countryCode as string,
                             countryName: (n.countryName as string) || '',
                             countryIconUrl: (n.countryIconUrl as string) || getCountryFlagUrlSync((n.countryName as string) || (n.countryCode as string)),
@@ -264,6 +270,8 @@ export const useGlobalStore = create<GlobalState>()(
                     const numbers: ActiveNumber[] = (result.data.numbers || []).map((n: Record<string, unknown>) => ({
                         id: n.id as string,
                         number: n.phoneNumber as string,
+                        phoneCountryCode: (n.phoneCountryCode as string | null) || null,
+                        phoneNationalNumber: (n.phoneNationalNumber as string | null) || null,
                         countryCode: n.countryCode as string,
                         countryName: (n.countryName as string) || '',
                         countryIconUrl: (n.countryIconUrl as string) || getCountryFlagUrlSync((n.countryName as string) || (n.countryCode as string)),
@@ -401,6 +409,8 @@ export const useGlobalStore = create<GlobalState>()(
                         const realNumber: ActiveNumber = {
                             id: n.id,
                             number: n.phoneNumber,
+                            phoneCountryCode: n.phoneCountryCode || null,
+                            phoneNationalNumber: n.phoneNationalNumber || null,
                             countryCode: n.countryCode,
                             countryName: n.countryName || '',
                             countryIconUrl: getCountryFlagUrlSync(n.countryName || n.countryCode),

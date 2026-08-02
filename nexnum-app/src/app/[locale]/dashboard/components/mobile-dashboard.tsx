@@ -412,7 +412,16 @@ export function MobileDashboard() {
                                                  </div>
 
                                                  <div className="space-y-1">
-                                                     <p className="text-xl font-mono font-medium text-white tracking-wide">{num.number}</p>
+                                                     <p className="text-xl font-mono font-medium text-white tracking-wide">
+                                                         {(num as any).phoneCountryCode && (num as any).phoneNationalNumber ? (
+                                                             <>
+                                                                 <span className="text-gray-500 font-semibold text-base">{(num as any).phoneCountryCode}</span>
+                                                                 <span className="ml-1">{(num as any).phoneNationalNumber}</span>
+                                                             </>
+                                                         ) : (
+                                                             num.number
+                                                         )}
+                                                     </p>
                                                      <p className="text-xs text-gray-500 flex items-center gap-1.5">
                                                          {num.serviceName.length > 10 ? num.serviceName.substring(0, 10) + '...' : num.serviceName} • <span className="text-[hsl(var(--neon-lime))]">{num.smsCount || 0} SMS</span>
                                                      </p>
