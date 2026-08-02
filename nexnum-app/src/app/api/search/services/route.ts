@@ -272,7 +272,7 @@ export async function GET(req: NextRequest) {
         }
 
         // Shared global cache key for all users/bots (eliminates DB queries per user/IP)
-        const cacheKey = `cache:search:services:global:v5:${q}:${page}:${limit}:${mappedSort}`;
+        const cacheKey = `cache:search:services:global:v6:${q}:${page}:${limit}:${mappedSort}`;
 
         const result = await cacheGet<{ items: any[]; total: number; page: number; limit: number; hasMore: boolean }>(
             cacheKey,
@@ -283,13 +283,33 @@ export async function GET(req: NextRequest) {
                     limit,
                     sortBy: mappedSort
                 });
-                // Pre-compute prices inside the cache so cached entries are complete.
-                // This means we never return a Promise (which JSON.stringify turns into {})
-                // and the hot read path never re-runs currency conversion.
-                const items = await Promise.all((r.items || []).map(async (item: any) => ({
-                    ...item,
-                    currencyPrices: await calculatePrices(Number(item.lowestPrice)),
-                })));
+
+                const rawItems = r.items || [];
+                const serviceNames = rawItems.map((i: any) => i.serviceName).filter(Boolean);
+
+                const [iconMap, flagMap] = await Promise.all([
+                    resolveServiceIconUrls(serviceNames),
+                    resolveServiceFlagUrls(serviceNames)
+                ]);
+
+                const items = await Promise.all(rawItems.map(async (item: any) => {
+                    const iconUrl = iconMap.get(item.serviceName) || dicebearUrl(item.serviceName);
+                    const currencyPrices = await calculatePrices(Number(item.lowestPrice));
+                    const flagUrls = (item.flagUrls && item.flagUrls.length > 0) ? item.flagUrls : (flagMap.get(item.serviceName) || []);
+
+                    return {
+                        slug: item.serviceCode,
+                        name: item.serviceName,
+                        lowestPrice: Number(item.lowestPrice),
+                        totalStock: Number(item.totalStock),
+                        serverCount: item.providerCount || 0,
+                        countryCount: item.countryCount || 0,
+                        iconUrl,
+                        currencyPrices,
+                        flagUrls,
+                    };
+                }));
+
                 return {
                     items,
                     total: r.total,
@@ -301,39 +321,17 @@ export async function GET(req: NextRequest) {
             600 // 10 minutes global Redis cache
         );
 
-
-        // 1. BATCHED icon and flag URL resolve
-        const serviceNames = (result.items as any[]).map(i => i.serviceName).filter(Boolean);
-        const [iconMap, flagMap] = await Promise.all([
-            resolveServiceIconUrls(serviceNames),
-            resolveServiceFlagUrls(serviceNames)
-        ]);
-
-        // 2. Per-user favorite merge (1 extra query when authenticated, 0 when anon)
+        // Per-user favorite merge (uses 5-min Redis cache per user)
         let favoriteMap = new Map<string, string>();
         if (rl.userId) {
             const { getUserFavoritesMap } = await import('@/lib/cache/user-favorites-cache');
             favoriteMap = await getUserFavoritesMap(rl.userId, 'SERVICE');
         }
 
-
-        // 3. Enrich with icons + prices + favorite flags
-        const enrichedItems = (result.items as any[]).map((item) => {
-            const iconUrl = iconMap.get(item.serviceName) || dicebearUrl(item.serviceName);
-            const value = (item.serviceName || '').toLowerCase();
+        const enrichedItems = result.items.map((item) => {
+            const value = (item.name || '').toLowerCase();
             return {
-                slug: item.serviceCode,
-                name: item.serviceName,
-                lowestPrice: Number(item.lowestPrice),
-                totalStock: Number(item.totalStock),
-                serverCount: item.providerCount || 0,
-                countryCount: item.countryCount || 0,
-                iconUrl,
-                // currencyPrices was pre-computed inside the cache callback (line above)
-                // to avoid storing a Promise (which JSON.stringify turns into {}).
-                currencyPrices: item.currencyPrices || {},
-                flagUrls: (item.flagUrls && item.flagUrls.length > 0) ? item.flagUrls : (flagMap.get(item.serviceName) || []),
-
+                ...item,
                 isFavorite: favoriteMap.has(value),
                 favoriteId: favoriteMap.get(value) || null,
             };
@@ -348,6 +346,7 @@ export async function GET(req: NextRequest) {
                 hasMore: result.hasMore
             }
         });
+
     } catch (error) {
         console.error("Failed to search services:", error);
         return NextResponse.json(
