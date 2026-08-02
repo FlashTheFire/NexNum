@@ -5,6 +5,8 @@ import { checkSearchRateLimit } from "@/lib/api/search-rate-limit";
 import { cacheGet } from "@/lib/core/redis";
 import { prisma } from "@/lib/core/db";
 import { getCanonicalName, generateCanonicalCode } from "@/lib/normalizers/service-identity";
+import { meili, INDEXES } from "@/lib/search/search";
+import { getCountryFlagUrlSync } from "@/lib/normalizers/country-flags";
 import fs from 'fs';
 import path from 'path';
 
@@ -72,6 +74,48 @@ async function resolveServiceIconUrls(serviceNames: string[]): Promise<Map<strin
                 if (originalName && row.serviceIcon) map.set(originalName, row.serviceIcon);
             }
         } catch { /* fail open */ }
+    }
+
+    return map;
+}
+
+/**
+ * Batched flag URL resolver - queries MeiliSearch for sample countries per service
+ * and converts them to local flag icon URLs.
+ */
+async function resolveServiceFlagUrls(serviceNames: string[]): Promise<Map<string, string[]>> {
+    const map = new Map<string, string[]>();
+    if (serviceNames.length === 0) return map;
+
+    try {
+        const queries = serviceNames.map(name => ({
+            indexUid: INDEXES.OFFERS,
+            q: '',
+            filter: `serviceName = "${name.replace(/"/g, '\\"')}"`,
+            limit: 15,
+            attributesToRetrieve: ['countryName']
+        }));
+
+        const response = await meili.multiSearch({ queries });
+
+        response.results.forEach((res, index) => {
+            const serviceName = serviceNames[index];
+            const flagsSet = new Set<string>();
+
+            for (const hit of (res.hits || []) as any[]) {
+                if (hit.countryName) {
+                    const flagUrl = getCountryFlagUrlSync(hit.countryName);
+                    if (flagUrl) {
+                        flagsSet.add(flagUrl);
+                        if (flagsSet.size >= 4) break;
+                    }
+                }
+            }
+
+            map.set(serviceName, Array.from(flagsSet));
+        });
+    } catch {
+        /* fail open */
     }
 
     return map;
@@ -153,9 +197,12 @@ export async function GET(req: NextRequest) {
             60
         );
 
-        // 1. BATCHED icon resolve - 1 dir read + 1 Prisma findMany, not 24
+        // 1. BATCHED icon and flag URL resolve
         const serviceNames = (result.items as any[]).map(i => i.serviceName).filter(Boolean);
-        const iconMap = await resolveServiceIconUrls(serviceNames);
+        const [iconMap, flagMap] = await Promise.all([
+            resolveServiceIconUrls(serviceNames),
+            resolveServiceFlagUrls(serviceNames)
+        ]);
 
         // 2. Per-user favorite merge (1 extra query when authenticated, 0 when anon)
         let favoriteMap = new Map<string, string>();
@@ -188,7 +235,7 @@ export async function GET(req: NextRequest) {
                 // currencyPrices was pre-computed inside the cache callback (line above)
                 // to avoid storing a Promise (which JSON.stringify turns into {}).
                 currencyPrices: item.currencyPrices || {},
-                flagUrls: [],
+                flagUrls: flagMap.get(item.serviceName) || [],
                 isFavorite: favoriteMap.has(value),
                 favoriteId: favoriteMap.get(value) || null,
             };
