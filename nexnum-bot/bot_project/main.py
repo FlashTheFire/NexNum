@@ -117,10 +117,7 @@ async def lifespan(app: FastAPI):
     scheduler.start()
     app.state.scheduler = scheduler
 
-    # Start Firebase SSE Stream Listeners for live SMS updates
-    await firebase_stream_manager.start_listeners()
-
-    # Phase 1: Create Redis Stream consumer group for inbound SMS
+    # Ensure Redis Stream consumer group exists for fast-ack webhook
     try:
         redis_client = await redis_manager.get_client()
         if redis_client:
@@ -129,18 +126,22 @@ async def lifespan(app: FastAPI):
         import logging
         logging.getLogger(__name__).warning(f"Failed to init inbound consumer group: {e}")
 
-    # Phase 3: Start Redis Stream consumer workers for activation matching
-    await start_activation_workers()
-
-    # Phase 4: Start background historical SMS pre-scorer worker
-    await start_prescorer_worker()
+    # Conditionally start background workers if in-process mode is enabled
+    if settings.ENABLE_IN_PROCESS_WORKERS:
+        await firebase_stream_manager.start_listeners()
+        await start_activation_workers()
+        await start_prescorer_worker()
+        logger.info("[LIFESPAN] Background workers started in-process inside FastAPI server.")
+    else:
+        logger.info("[LIFESPAN] HTTP API Mode active — background worker tasks offloaded to worker.py process.")
 
     yield
 
     # Cleanup
-    await stop_prescorer_worker()
-    await stop_activation_workers()
-    await firebase_stream_manager.stop_listeners()
+    if settings.ENABLE_IN_PROCESS_WORKERS:
+        await stop_prescorer_worker()
+        await stop_activation_workers()
+        await firebase_stream_manager.stop_listeners()
     scheduler.shutdown()
 
 fastapi_app = FastAPI(

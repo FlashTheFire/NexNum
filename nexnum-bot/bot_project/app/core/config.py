@@ -32,7 +32,8 @@ class Settings(BaseSettings):
     WEBHOOK_SHARED_SECRET: str = ""              # X-API-Key header value for inbound webhook auth
     INBOUND_DEDUP_TTL: int = 60                  # Seconds to keep dedup keys in Redis
     REDIS_STREAM_INBOUND: str = "stream:inbound:sms"  # Redis Stream name for inbound SMS
-    INBOUND_WORKER_COUNT: int = 3                # Number of Redis Stream consumer workers
+    INBOUND_WORKER_COUNT: int = 5                # Number of Redis Stream consumer workers (Option A: 5)
+    ENABLE_IN_PROCESS_WORKERS: bool = False      # False = Workers run exclusively in dedicated worker.py process
 
     # Background jobs
     HEARTBEAT_INTERVAL_SECONDS: int = 60
