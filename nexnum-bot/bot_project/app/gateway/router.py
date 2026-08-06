@@ -212,6 +212,7 @@ async def handler_api(
     forward: Optional[str] = Query(None),
     operator: Optional[str] = Query(None),
     user_id: Optional[str] = Query(None),
+    userId: Optional[str] = Query(None),
     user: Optional[str] = Query(None),
 ):
     global balance
@@ -223,7 +224,7 @@ async def handler_api(
         return "BAD_KEY"
 
     action = action.lower()
-    req_user_id = user_id or user or ""
+    req_user_id = user_id or userId or user or ""
 
     # --- getBalance ---
     if action in ("getbalance", "balance"):
@@ -265,14 +266,16 @@ async def handler_api(
             await set_user_number_cooldown(req_user_id, phone_number, now)
 
         act_id = f"{int(now * 1000)}{random.randint(10, 99)}"  # Unique numeric activation ID
-        logger.info(f"Activation {act_id} created for Client {client_id} with phone {phone_number}")
+        logger.info(f"Activation {act_id} created for Client {client_id} (User: {req_user_id}) with phone {phone_number}")
 
         clean_digits = phone_number.replace("+", "")
         svc_cost = 0.35
 
         act = {
             "id": act_id,
+            "user_id": req_user_id,
             "client_id": client_id,
+            "sim_slot": sim_slot,
             "service": req_service,
             "country": country or "22",
             "number": phone_number,
@@ -288,6 +291,7 @@ async def handler_api(
         json_resp = {
             "id": act_id,
             "activationId": int(act_id),
+            "userId": req_user_id,
             "phone": clean_digits,
             "phoneNumber": clean_digits,
             "price": svc_cost,
