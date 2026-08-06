@@ -10,6 +10,12 @@ class Settings(BaseSettings):
     FIREBASE_DATABASE_URLS: Optional[str] = None
     FIREBASE_AUTH_TOKENS: Optional[str] = None
 
+    # Dedicated Schema Declarations (Explicit Gateways vs Clients Firebase DBs)
+    FIREBASE_GATEWAY_URL: Optional[str] = None
+    FIREBASE_GATEWAY_AUTH: Optional[str] = None
+    FIREBASE_CLIENT_URL: Optional[str] = None
+    FIREBASE_CLIENT_AUTH: Optional[str] = None
+
     # API Auth
     API_KEY: str = "your-random-secret-key"
 
@@ -37,10 +43,29 @@ class Settings(BaseSettings):
     def get_firebase_nodes(self) -> List[Dict[str, str]]:
         """
         Parses unlimited Firebase database instances from configuration.
+        Each node dict contains: {"id": str, "url": str, "auth": str, "schema_type": "gateways"|"clients"|"auto"}
         """
         nodes = []
 
-        # 1. JSON Array Format (Primary)
+        # 0. Dedicated Gateway & Client env variables (Explicit format)
+        if self.FIREBASE_GATEWAY_URL:
+            nodes.append({
+                "id": "firebase_gateways_db",
+                "url": self.FIREBASE_GATEWAY_URL.rstrip("/"),
+                "auth": self.FIREBASE_GATEWAY_AUTH or "",
+                "schema_type": "gateways"
+            })
+        if self.FIREBASE_CLIENT_URL:
+            nodes.append({
+                "id": "firebase_clients_db",
+                "url": self.FIREBASE_CLIENT_URL.rstrip("/"),
+                "auth": self.FIREBASE_CLIENT_AUTH or "",
+                "schema_type": "clients"
+            })
+        if nodes:
+            return nodes
+
+        # 1. JSON Array Format (Primary with optional schema_type key)
         if self.FIREBASE_NODES_JSON:
             try:
                 parsed = json.loads(self.FIREBASE_NODES_JSON)
@@ -49,7 +74,10 @@ class Settings(BaseSettings):
                         if isinstance(n, dict) and n.get("url"):
                             url = n["url"].rstrip("/")
                             auth = n.get("auth", "")
-                            nodes.append({"id": f"node_{idx+1}", "url": url, "auth": auth})
+                            stype = n.get("schema_type", n.get("type", "auto")).lower()
+                            if stype not in ("gateways", "clients", "auto"):
+                                stype = "auto"
+                            nodes.append({"id": f"node_{idx+1}", "url": url, "auth": auth, "schema_type": stype})
                     if nodes:
                         return nodes
             except Exception:
@@ -61,18 +89,21 @@ class Settings(BaseSettings):
             auths = [a.strip() for a in (self.FIREBASE_AUTH_TOKENS or "").split(",") if a.strip()]
             for idx, u in enumerate(urls):
                 a = auths[idx] if idx < len(auths) else ""
-                nodes.append({"id": f"node_{idx+1}", "url": u, "auth": a})
+                nodes.append({"id": f"node_{idx+1}", "url": u, "auth": a, "schema_type": "auto"})
             if nodes:
                 return nodes
 
-        # 3. Numbered Env Variables (FIREBASE_DATABASE_URL_1, FIREBASE_DATABASE_URL_2, etc.)
+        # 3. Numbered Env Variables
         idx = 1
         while True:
             u_var = os.environ.get(f"FIREBASE_DATABASE_URL_{idx}")
             a_var = os.environ.get(f"FIREBASE_AUTH_TOKEN_{idx}", "")
+            s_var = os.environ.get(f"FIREBASE_SCHEMA_TYPE_{idx}", "auto").lower()
             if not u_var:
                 break
-            nodes.append({"id": f"node_{idx}", "url": u_var.rstrip("/"), "auth": a_var})
+            if s_var not in ("gateways", "clients", "auto"):
+                s_var = "auto"
+            nodes.append({"id": f"node_{idx}", "url": u_var.rstrip("/"), "auth": a_var, "schema_type": s_var})
             idx += 1
         if nodes:
             return nodes

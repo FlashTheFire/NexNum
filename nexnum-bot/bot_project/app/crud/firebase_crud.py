@@ -148,51 +148,13 @@ def get_all_clients() -> Dict[str, Any]:
 
 def get_all_sim_nodes() -> List[Any]:
     """
-    Phase 2 — Dual-Schema Aggregator:
-    Fetches both `/gateways` and `/clients` across all Firebase nodes concurrently.
-    Parses nodes into atomic DeviceSimNodes using FirebaseSchemaAdapter.
-    Equal Rights: Both `/gateways` and `/clients` nodes are included IF a valid phone number is found.
-    Excludes any device/SIM where no phone number can be resolved.
+    Universal Multi-Schema Aggregator:
+    Queries all declared Firebase nodes via UniversalFirebaseRegistry, running whichever
+    schema each node is declared to use ('gateways', 'clients', or 'auto').
     """
-    from app.crud.schema_adapter import FirebaseSchemaAdapter, DeviceSimNode
-
-    sim_nodes: List[DeviceSimNode] = []
-
-    def fetch_node_all_schemas(node):
-        gateways = _firebase_request_node(node, 'GET', '/gateways') or {}
-        clients = _firebase_request_node(node, 'GET', '/clients') or {}
-        return node, gateways if isinstance(gateways, dict) else {}, clients if isinstance(clients, dict) else {}
-
-    futures = [_CRUD_EXECUTOR.submit(fetch_node_all_schemas, n) for n in FIREBASE_NODES]
-    for fut in futures:
-        node, gateways_dict, clients_dict = fut.result()
-
-        # 1. Process /gateways (SilentGate new schema)
-        for dev_id, dev_data in gateways_dict.items():
-            if isinstance(dev_data, dict):
-                CLIENT_NODE_MAP[dev_id] = node
-                # Fetch recent messages if needed for fallback phone extraction
-                messages = None
-                parsed = FirebaseSchemaAdapter.parse_node(dev_id, dev_data, firebase_node_id=node["id"], messages=messages)
-                if not parsed:
-                    # Retry with SMS history fallback
-                    messages = get_incoming_messages(dev_id, limit=30)
-                    parsed = FirebaseSchemaAdapter.parse_node(dev_id, dev_data, firebase_node_id=node["id"], messages=messages)
-                sim_nodes.extend(parsed)
-
-        # 2. Process /clients (Legacy schema)
-        for cid, cdata in clients_dict.items():
-            if isinstance(cdata, dict) and cid not in gateways_dict:
-                CLIENT_NODE_MAP[cid] = node
-                messages = None
-                parsed = FirebaseSchemaAdapter.parse_node(cid, cdata, firebase_node_id=node["id"], messages=messages)
-                if not parsed:
-                    # Retry with SMS history fallback
-                    messages = get_incoming_messages(cid, limit=30)
-                    parsed = FirebaseSchemaAdapter.parse_node(cid, cdata, firebase_node_id=node["id"], messages=messages)
-                sim_nodes.extend(parsed)
-
-    logger.info(f"[SchemaAdapter] Aggregated {len(sim_nodes)} valid allocatable SIM nodes across {len(FIREBASE_NODES)} Firebase nodes")
+    from app.crud.universal_firebase import UniversalFirebaseRegistry
+    sim_nodes = UniversalFirebaseRegistry.fetch_all_sim_nodes()
+    logger.info(f"[SchemaAdapter] Aggregated {len(sim_nodes)} valid allocatable SIM nodes across Universal Firebase Registry")
     return sim_nodes
 
 
