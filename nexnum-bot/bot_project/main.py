@@ -208,6 +208,10 @@ class TelegramBot:
         """Initialize all required services."""
         try:
             await redis_manager.ensure_connection()
+            try:
+                from utils.db import db_adapter
+            except ImportError:
+                from bot_project.utils.db import db_adapter
             await db_adapter.init_pool()
             if not await self.initialize_managers():
                 raise Exception("Failed to initialize managers")
@@ -222,6 +226,10 @@ class TelegramBot:
             await logger.error(f"Error during service initialization: {str(e)}")
             raise
         finally:
+            try:
+                from utils.db import db_adapter
+            except ImportError:
+                from bot_project.utils.db import db_adapter
             await self.safe_call(self.shutdown)
             await self.safe_call(db_adapter.close_pool)
             await self.safe_call(redis_manager.close)
