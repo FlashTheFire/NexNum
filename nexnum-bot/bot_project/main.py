@@ -90,10 +90,69 @@ try:
 except ImportError:
     from bot_project.handlers.methods.admin import admin_panel
 
-try:
-    from utils.db import db_adapter
-except ImportError:
-    from bot_project.utils.db import db_adapter
+from fastapi import FastAPI, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
+from apscheduler.schedulers.background import BackgroundScheduler
+from contextlib import asynccontextmanager
+
+from app.core.config import get_settings
+from app.core.logging import setup_logging
+from app.api.v1.router import router as api_router
+from app.api.webhook import router as webhook_router
+from app.jobs.scheduler import schedule_jobs
+from app.gateway.router import router as gateway_router
+from app.services.firebase_stream import firebase_stream_manager
+from app.inbound.router import router as inbound_router, ensure_consumer_group
+
+settings = get_settings()
+setup_logging()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    scheduler = BackgroundScheduler()
+    schedule_jobs(scheduler)
+    scheduler.start()
+    app.state.scheduler = scheduler
+
+    # Start Firebase SSE Stream Listeners for live SMS updates
+    await firebase_stream_manager.start_listeners()
+
+    # Phase 1: Create Redis Stream consumer group for inbound SMS
+    try:
+        redis_client = await redis_manager.get_client()
+        if redis_client:
+            await ensure_consumer_group(redis_client)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Failed to init inbound consumer group: {e}")
+
+    yield
+    await firebase_stream_manager.stop_listeners()
+    scheduler.shutdown()
+
+fastapi_app = FastAPI(
+    title=settings.PROJECT_NAME,
+    version="1.0.0",
+    debug=settings.DEBUG,
+    lifespan=lifespan
+)
+
+fastapi_app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+fastapi_app.include_router(api_router, prefix=settings.API_V1_PREFIX)
+fastapi_app.include_router(webhook_router, prefix="/webhook")
+fastapi_app.include_router(gateway_router)
+fastapi_app.include_router(inbound_router)  # Phase 1: Unified Inbound Webhook
+
+@fastapi_app.get("/health")
+async def health_check():
+    return {"status": "ok"}
 
 
 class TelegramBot:
@@ -275,41 +334,27 @@ class TelegramBot:
                 await asyncio.sleep(5)
 
     async def start_webhook(self) -> None:
-        """Start the bot using aiohttp web server in high-concurrency Webhook mode."""
-        from aiohttp import web
+        """Configure Telegram Webhook route on the FastAPI application."""
         try:
-            from utils.config import USE_WEBHOOK, WEBHOOK_URL, WEBHOOK_PATH, WEBHOOK_HOST, WEBHOOK_PORT, WEBHOOK_SECRET
+            from utils.config import WEBHOOK_URL, WEBHOOK_PATH, WEBHOOK_SECRET
         except ImportError:
-            from bot_project.utils.config import USE_WEBHOOK, WEBHOOK_URL, WEBHOOK_PATH, WEBHOOK_HOST, WEBHOOK_PORT, WEBHOOK_SECRET
+            from bot_project.utils.config import WEBHOOK_URL, WEBHOOK_PATH, WEBHOOK_SECRET
 
-        app = web.Application()
-
-        async def handle_webhook(request: web.Request) -> web.Response:
+        @fastapi_app.post(WEBHOOK_PATH)
+        async def handle_telegram_webhook(request: Request):
             secret_header = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
             if WEBHOOK_SECRET and secret_header and secret_header != WEBHOOK_SECRET:
-                return web.Response(status=403, text="Forbidden")
+                return Response(status_code=403, content="Forbidden")
             try:
                 data = await request.json()
                 update = Update.de_json(data)
                 if update:
                     asyncio.create_task(self.bot.process_new_updates([update]))
-                return web.Response(status=200, text="OK")
+                return Response(status_code=200, content="OK")
             except Exception as err:
                 logger = await get_async_logger()
                 await logger.error(f"Error processing webhook update: {err}")
-                return web.Response(status=500, text="Error")
-
-        async def handle_health(request: web.Request) -> web.Response:
-            return web.Response(status=200, text="Bot Webhook Alive")
-
-        app.router.add_post(WEBHOOK_PATH, handle_webhook)
-        app.router.add_get("/health", handle_health)
-        app.router.add_get("/", handle_health)
-
-        runner = web.AppRunner(app)
-        await runner.setup()
-        site = web.TCPSite(runner, host=WEBHOOK_HOST, port=WEBHOOK_PORT)
-        await site.start()
+                return Response(status_code=500, content="Error")
 
         full_webhook_url = f"{WEBHOOK_URL.rstrip('/')}{WEBHOOK_PATH}"
         logger = await get_async_logger()
@@ -319,11 +364,6 @@ class TelegramBot:
             secret_token=WEBHOOK_SECRET if WEBHOOK_SECRET else None,
             drop_pending_updates=True
         )
-        await logger.info(f"Webhook server running instantly on http://{WEBHOOK_HOST}:{WEBHOOK_PORT}{WEBHOOK_PATH}")
-
-        while True:
-            await asyncio.sleep(3600)
-
 
 async def main():
     """Entry point of the application."""
@@ -332,26 +372,44 @@ async def main():
     # Create tasks for both the bot and the periodic updater
     async with bot.initialize_services():
         bot_task = None
+        fastapi_task = None
         try:
             # Register handlers
             await bot.register_handlers()
 
             try:
-                from utils.config import USE_WEBHOOK, WEBHOOK_URL
+                from utils.config import USE_WEBHOOK, WEBHOOK_URL, WEBHOOK_HOST, WEBHOOK_PORT
             except ImportError:
-                from bot_project.utils.config import USE_WEBHOOK, WEBHOOK_URL
+                from bot_project.utils.config import USE_WEBHOOK, WEBHOOK_URL, WEBHOOK_HOST, WEBHOOK_PORT
+
+            # Start FastAPI gateway app on the configured webhook port
+            import uvicorn
+            config = uvicorn.Config(
+                app=fastapi_app,
+                host=WEBHOOK_HOST,
+                port=WEBHOOK_PORT,
+                log_level="info",
+                loop="asyncio"
+            )
+            server = uvicorn.Server(config)
+            logger = await get_async_logger()
+            await logger.info(f"Starting Unified FastAPI App & Gateway on http://{WEBHOOK_HOST}:{WEBHOOK_PORT}...")
+            fastapi_task = asyncio.create_task(server.serve())
 
             if USE_WEBHOOK and WEBHOOK_URL:
                 logger = await get_async_logger()
-                await logger.info("Launching bot in High-Performance Webhook Mode...")
-                bot_task = asyncio.create_task(bot.start_webhook())
+                await logger.info("Configuring bot in Webhook Mode on FastAPI app...")
+                await bot.start_webhook()
+                # Keep service alive as FastAPI serves requests
+                while True:
+                    await asyncio.sleep(3600)
             else:
                 logger = await get_async_logger()
                 await logger.info("Launching bot in Polling Mode...")
                 await bot.bot.delete_webhook()
                 bot_task = asyncio.create_task(bot.bot.polling(non_stop=True, timeout=60))
+                await asyncio.gather(bot_task, fastapi_task)
 
-            await bot_task
         except Exception as e:
             logger = await get_async_logger()
             await logger.error(f"Startup error: {e}")
@@ -360,12 +418,14 @@ async def main():
                 bot_task.cancel()
                 try:
                     await bot_task
-                except (asyncio.CancelledError, Exception) as _ce:
-                    try:
-                        _logger = await get_async_logger()
-                        await _logger.info(f"Background task cancelled during shutdown: {_ce}")
-                    except Exception:
-                        pass
+                except (asyncio.CancelledError, Exception):
+                    pass
+            if fastapi_task is not None and not fastapi_task.done():
+                fastapi_task.cancel()
+                try:
+                    await fastapi_task
+                except (asyncio.CancelledError, Exception):
+                    pass
 
 if __name__ == "__main__":
     try:
