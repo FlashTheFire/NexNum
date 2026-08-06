@@ -117,6 +117,8 @@ setup_logging()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    import logging
+    logger = logging.getLogger("main")
     scheduler = BackgroundScheduler()
     schedule_jobs(scheduler)
     scheduler.start()
@@ -128,8 +130,7 @@ async def lifespan(app: FastAPI):
         if redis_client:
             await ensure_consumer_group(redis_client)
     except Exception as e:
-        import logging
-        logging.getLogger(__name__).warning(f"Failed to init inbound consumer group: {e}")
+        logger.warning(f"Failed to init inbound consumer group: {e}")
 
     # Conditionally start background workers if in-process mode is enabled
     if settings.ENABLE_IN_PROCESS_WORKERS:
