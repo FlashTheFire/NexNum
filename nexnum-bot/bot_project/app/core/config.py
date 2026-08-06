@@ -1,7 +1,10 @@
 import os
 import json
 from typing import List, Dict, Optional
-from pydantic_settings import BaseSettings
+try:
+    from pydantic_settings import BaseSettings
+except ImportError:
+    from pydantic import BaseSettings
 from functools import lru_cache
 
 class Settings(BaseSettings):
