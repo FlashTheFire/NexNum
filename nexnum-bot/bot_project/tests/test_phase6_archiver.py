@@ -19,10 +19,8 @@ class TestPhase6SupabaseArchiver(unittest.TestCase):
 
     def test_01_archiver_non_blocking(self):
         """Test that calling SupabaseArchiver methods creates non-blocking asyncio tasks without raising errors."""
-        loop = asyncio.get_event_loop()
-
         # Execute archive_message
-        loop.run_until_complete(SupabaseArchiver.archive_message(
+        asyncio.run(SupabaseArchiver.archive_message(
             device_id="test_dev_01",
             sender="Telegram",
             body="Telegram code 12345",
@@ -32,7 +30,7 @@ class TestPhase6SupabaseArchiver(unittest.TestCase):
         ))
 
         # Execute archive_activation_log
-        loop.run_until_complete(SupabaseArchiver.archive_activation_log(
+        asyncio.run(SupabaseArchiver.archive_activation_log(
             activation_id="act_1001",
             device_id="test_dev_01",
             phone_number="+919876543210",

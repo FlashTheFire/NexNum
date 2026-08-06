@@ -1,9 +1,6 @@
-# tests/test_phase1_inbound.py
-"""
-Phase 1 Deep Test Suite — Unified Webhook Inbound & Fast-Ack
-"""
 import sys
 import os
+import time
 import asyncio
 import unittest
 from pathlib import Path
@@ -60,7 +57,6 @@ class TestPhase1Inbound(unittest.TestCase):
             "isOtp": True,
             "otpCode": "888999"
         }
-        import time
         start = time.time()
         response = async_req("POST", "/webhook/inbound", json=payload, headers={"X-API-Key": "test-secret-123"})
         elapsed_ms = (time.time() - start) * 1000
@@ -71,7 +67,6 @@ class TestPhase1Inbound(unittest.TestCase):
 
     def test_04_inbound_deduplication(self):
         """Test Redis SETNX deduplication for repeated SMS payload."""
-        import time
         ts = int(time.time() * 1000)
         payload = {
             "deviceId": "dup_test_device",
