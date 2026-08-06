@@ -33,6 +33,11 @@ except ImportError:
     from bot_project.utils.redis_manager import redis_manager
 
 try:
+    from utils.db import db_adapter
+except ImportError:
+    from bot_project.utils.db import db_adapter
+
+try:
     from handlers.manager.operation import (
         FinancialManagement, UserManagement, OrderManagement, DepositManagement,
         get_async_logger, user_mgr, order_mgr, deposit_mgr, financial_mgr
