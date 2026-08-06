@@ -94,6 +94,32 @@ async def set_service_cooldown(phone_number: str, service: str, timestamp: float
         except Exception as e:
             logger.warning(f"Redis error setting service cooldown: {e}")
 
+USER_NUMBER_COOLDOWN_TTL = 1800  # 30 minutes rule for same user
+
+async def check_user_number_cooldown(user_id: str, phone_number: str) -> float:
+    if not user_id:
+        return 0.0
+    client = await get_redis_client()
+    if client:
+        try:
+            val = await client.get(f"{REDIS_PREFIX}:cooldown:user:{user_id}:{phone_number}")
+            if val is not None:
+                return float(val)
+        except Exception as e:
+            logger.warning(f"Redis error checking user number cooldown: {e}")
+    return 0.0
+
+async def set_user_number_cooldown(user_id: str, phone_number: str, timestamp: float):
+    if not user_id:
+        return
+    client = await get_redis_client()
+    if client:
+        try:
+            await client.set(f"{REDIS_PREFIX}:cooldown:user:{user_id}:{phone_number}", str(timestamp), ex=USER_NUMBER_COOLDOWN_TTL)
+        except Exception as e:
+            logger.warning(f"Redis error setting user number cooldown: {e}")
+
+
 async def save_activation(activation_id: str, activation_data: dict):
     _local_activations[activation_id] = activation_data
     client = await get_redis_client()
@@ -185,6 +211,8 @@ async def handler_api(
     status: Optional[str] = Query(None),
     forward: Optional[str] = Query(None),
     operator: Optional[str] = Query(None),
+    user_id: Optional[str] = Query(None),
+    user: Optional[str] = Query(None),
 ):
     global balance
 
@@ -195,8 +223,8 @@ async def handler_api(
         return "BAD_KEY"
 
     action = action.lower()
+    req_user_id = user_id or user or ""
 
-    # --- getBalance ---
     # --- getBalance ---
     if action in ("getbalance", "balance"):
         return f"ACCESS_BALANCE:{balance:.2f}"
@@ -234,6 +262,12 @@ async def handler_api(
             if (now - last_serv_alloc) < 1200:  # 20 minutes = 1200s
                 continue
 
+            # 3. Check 30-minute user-to-number cooldown (same user cannot get same number within 30 min)
+            if req_user_id:
+                last_user_alloc = await check_user_number_cooldown(req_user_id, phone)
+                if (now - last_user_alloc) < 1800:  # 30 minutes = 1800s
+                    continue
+
             valid_candidates.append(node)
 
         if not valid_candidates:
@@ -254,6 +288,8 @@ async def handler_api(
         # Update allocation cooldown timestamps
         await set_global_cooldown(phone_number, now)
         await set_service_cooldown(phone_number, req_service, now)
+        if req_user_id:
+            await set_user_number_cooldown(req_user_id, phone_number, now)
 
         act_id = f"{int(now * 1000)}{random.randint(10, 99)}"  # Unique numeric activation ID
         logger.info(f"Activation {act_id} created for Client {client_id} with phone {phone_number}")

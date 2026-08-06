@@ -103,6 +103,7 @@ from app.jobs.scheduler import schedule_jobs
 from app.gateway.router import router as gateway_router
 from app.services.firebase_stream import firebase_stream_manager
 from app.inbound.router import router as inbound_router, ensure_consumer_group
+from app.workers.activation_worker import start_activation_workers, stop_activation_workers
 
 settings = get_settings()
 setup_logging()
@@ -126,7 +127,13 @@ async def lifespan(app: FastAPI):
         import logging
         logging.getLogger(__name__).warning(f"Failed to init inbound consumer group: {e}")
 
+    # Phase 3: Start Redis Stream consumer workers for activation matching
+    await start_activation_workers()
+
     yield
+
+    # Cleanup
+    await stop_activation_workers()
     await firebase_stream_manager.stop_listeners()
     scheduler.shutdown()
 
