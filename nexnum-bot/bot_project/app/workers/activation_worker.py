@@ -196,6 +196,27 @@ async def _process_stream_message(redis_client, msg_id: str, fields: Dict[str, s
                 except Exception as e:
                     logger.warning(f"Failed to increment service count for {act_number}: {e}")
 
+            # Phase 6: Async Non-Blocking Supabase Archiving
+            from app.services.supabase_archive import SupabaseArchiver
+            asyncio.create_task(SupabaseArchiver.archive_message(
+                device_id=device_id,
+                sender=sender,
+                body=body,
+                otp_code=otp_code,
+                service=req_service,
+                activation_id=act_id
+            ))
+            duration = max(0.0, time.time() - act.get("created", time.time()))
+            asyncio.create_task(SupabaseArchiver.archive_activation_log(
+                activation_id=act_id,
+                device_id=device_id,
+                phone_number=act.get("number", ""),
+                service=req_service,
+                status="STATUS_OK",
+                code_text=otp_code,
+                duration_sec=duration
+            ))
+
             # Optional Instant Webhook Push to nexnum-app
             asyncio.create_task(_push_otp_webhook(act_id, act, otp_code, body, sender))
 

@@ -101,6 +101,7 @@ from app.api.v1.router import router as api_router
 from app.api.webhook import router as webhook_router
 from app.jobs.scheduler import schedule_jobs
 from app.gateway.router import router as gateway_router
+from app.gateway.dashboard import router as dashboard_router
 from app.services.firebase_stream import firebase_stream_manager
 from app.inbound.router import router as inbound_router, ensure_consumer_group
 from app.workers.activation_worker import start_activation_workers, stop_activation_workers
@@ -161,6 +162,7 @@ fastapi_app.include_router(api_router, prefix=settings.API_V1_PREFIX)
 fastapi_app.include_router(webhook_router, prefix="/webhook")
 fastapi_app.include_router(gateway_router)
 fastapi_app.include_router(inbound_router)  # Phase 1: Unified Inbound Webhook
+fastapi_app.include_router(dashboard_router)  # Phase 7: Production Admin Control Dashboard
 
 @fastapi_app.get("/health")
 async def health_check():
