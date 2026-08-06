@@ -242,9 +242,8 @@ services:
         max-file: "5"
     env_file:
       - .env
-    # Port 8080 only needed in webhook mode — remove if using polling
-    # ports:
-    #   - "8080:8080"
+    ports:
+      - "8080:8080"
     depends_on:
       nexnum-app:
         condition: service_healthy
@@ -256,6 +255,40 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  # ============================================
+  # Dedicated Python Background Worker
+  # ============================================
+  nexnum-py-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.bot
+    image: nexnum-py-worker
+    container_name: nexnum-py-worker
+    restart: unless-stopped
+    command: python bot_project/worker.py
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-4807afac74c98db34a06d9c50158a83b87746b4b2e47273e20495dbb92f85811}
+      DATABASE_URL: ${DATABASE_URL}
+      SUPABASE_URL: ${SUPABASE_URL:-https://kqlhsbtexcoxqwwubuhz.supabase.co}
+      SUPABASE_KEY: ${SUPABASE_KEY:-sb_publishable_qggA0oG7mpRRT7WTnf6UUw_nIPVf1zM}
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    env_file:
+      - .env
+    depends_on:
+      redis:
+        condition: service_healthy
     deploy:
       resources:
         limits:
