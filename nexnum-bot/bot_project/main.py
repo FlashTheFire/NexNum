@@ -104,6 +104,7 @@ from app.gateway.router import router as gateway_router
 from app.services.firebase_stream import firebase_stream_manager
 from app.inbound.router import router as inbound_router, ensure_consumer_group
 from app.workers.activation_worker import start_activation_workers, stop_activation_workers
+from app.workers.prescorer_worker import start_prescorer_worker, stop_prescorer_worker
 
 settings = get_settings()
 setup_logging()
@@ -130,9 +131,13 @@ async def lifespan(app: FastAPI):
     # Phase 3: Start Redis Stream consumer workers for activation matching
     await start_activation_workers()
 
+    # Phase 4: Start background historical SMS pre-scorer worker
+    await start_prescorer_worker()
+
     yield
 
     # Cleanup
+    await stop_prescorer_worker()
     await stop_activation_workers()
     await firebase_stream_manager.stop_listeners()
     scheduler.shutdown()

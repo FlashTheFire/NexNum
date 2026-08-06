@@ -240,53 +240,26 @@ async def handler_api(
         req_service = (service or "ot").lower()
         now = time.time()
 
-        # Filter active online SIM nodes meeting cooldown requirements
-        valid_candidates = []
-        for node in sim_nodes:
-            # Must be online or recently seen (<10 mins)
-            mins_since_seen = (now - (node.last_seen_ms / 1000 if node.last_seen_ms > 1e11 else node.last_seen_ms)) / 60
-            if not node.is_online and mins_since_seen > 10:
-                continue
+        # Phase 4: Deterministic Multi-Factor Device SIM Selection via DeviceScorer
+        from app.gateway.scorer import DeviceScorer
 
-            phone = node.phone_number
-            if not phone:
-                continue
+        redis_client = await get_redis_client()
+        selected_sim = await DeviceScorer.select_best_sim_node(
+            redis_client=redis_client,
+            sim_nodes=sim_nodes,
+            service=req_service,
+            user_id=req_user_id
+        )
 
-            # 1. Check 5-minute global allocation cooldown for ANY service
-            last_alloc = await check_global_cooldown(phone)
-            if (now - last_alloc) < 300:  # 5 minutes = 300s
-                continue
-
-            # 2. Check 20-minute allocation cooldown for SAME service
-            last_serv_alloc = await check_service_cooldown(phone, req_service)
-            if (now - last_serv_alloc) < 1200:  # 20 minutes = 1200s
-                continue
-
-            # 3. Check 30-minute user-to-number cooldown (same user cannot get same number within 30 min)
-            if req_user_id:
-                last_user_alloc = await check_user_number_cooldown(req_user_id, phone)
-                if (now - last_user_alloc) < 1800:  # 30 minutes = 1800s
-                    continue
-
-            valid_candidates.append(node)
-
-        if not valid_candidates:
-            logger.warning("No online SIM nodes with valid phone numbers available meeting cooldown requirements")
+        if not selected_sim:
+            logger.warning(f"No valid SIM nodes available for service '{req_service}' meeting scoring and cooldown requirements.")
             return "NO_NUMBERS"
-
-        # Sort valid SIM nodes by newest activity / last seen first
-        valid_candidates.sort(key=lambda n: n.last_seen_ms, reverse=True)
-
-        # Pick from top 3 candidates for load balancing
-        top_candidates = valid_candidates[:max(1, min(3, len(valid_candidates)))]
-        selected_sim = random.choice(top_candidates)
 
         client_id = selected_sim.device_id
         phone_number = selected_sim.phone_number
         sim_slot = selected_sim.sim_slot
 
-        # Update allocation cooldown timestamps
-        await set_global_cooldown(phone_number, now)
+        # Update allocation cooldown timestamps (Service & User-to-number 30-min cooldowns)
         await set_service_cooldown(phone_number, req_service, now)
         if req_user_id:
             await set_user_number_cooldown(req_user_id, phone_number, now)

@@ -185,6 +185,13 @@ async def _process_stream_message(redis_client, msg_id: str, fields: Dict[str, s
             await _save_redis_activation(redis_client, act_id, act)
             logger.info(f"[ActivationWorker MATCH] Activation {act_id} matched SMS from device {device_id} (Service: {req_service}): '{otp_code}'")
 
+            # Increment service SMS count in Redis for Fresh Numbers scoring
+            if act_number:
+                try:
+                    await redis_client.hincrby(f"{REDIS_PREFIX}:service_counts:+{act_number}", req_service, 1)
+                except Exception as e:
+                    logger.warning(f"Failed to increment service count for {act_number}: {e}")
+
             # Optional Instant Webhook Push to nexnum-app
             asyncio.create_task(_push_otp_webhook(act_id, act, otp_code, body, sender))
 
