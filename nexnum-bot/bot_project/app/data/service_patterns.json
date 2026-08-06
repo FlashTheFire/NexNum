@@ -1,0 +1,277 @@
+{
+  "tg": {
+    "name": "Telegram",
+    "senders": ["(?i)Telegram", "(?i)TGRAM", "(?i)TG-", "5-digit shortcode"],
+    "sender_patterns": ["(?i)telegram", "(?i)tgram", "(?i)tg-"],
+    "body_patterns": [
+      "(?i)telegram",
+      "(?i)login code:?\\s*\\d{5}",
+      "(?i)code:?\\s*\\d{5}",
+      "(?i)do not give this code to anyone",
+      "(?i)web login code"
+    ],
+    "otp_regex": "\\b(\\d{5})\\b"
+  },
+  "wa": {
+    "name": "WhatsApp",
+    "senders": ["(?i)WhatsApp", "(?i)WHATSAPP"],
+    "sender_patterns": ["(?i)whatsapp"],
+    "body_patterns": [
+      "(?i)whatsapp",
+      "(?i)code:?\\s*\\d{3}-\\d{3}",
+      "(?i)verification code",
+      "(?i)your whatsapp code"
+    ],
+    "otp_regex": "\\b(\\d{3}[-\\s]?\\d{3})\\b"
+  },
+  "go": {
+    "name": "Google / YouTube",
+    "senders": ["(?i)Google", "(?i)G-", "(?i)GGOOGLE"],
+    "sender_patterns": ["(?i)google", "(?i)g-"],
+    "body_patterns": [
+      "(?i)google",
+      "(?i)g-\\d{6}",
+      "(?i)verification code",
+      "(?i)use this code to verify"
+    ],
+    "otp_regex": "\\b(\\d{6})\\b"
+  },
+  "ig": {
+    "name": "Instagram",
+    "senders": ["(?i)Instagram", "(?i)IG-"],
+    "sender_patterns": ["(?i)instagram", "(?i)ig-"],
+    "body_patterns": [
+      "(?i)instagram",
+      "(?i)ig code",
+      "(?i)your instagram code"
+    ],
+    "otp_regex": "\\b(\\d{6})\\b"
+  },
+  "fb": {
+    "name": "Facebook",
+    "senders": ["(?i)Facebook", "(?i)FB-"],
+    "sender_patterns": ["(?i)facebook", "(?i)fb-"],
+    "body_patterns": [
+      "(?i)facebook",
+      "(?i)fb-\\d{6}",
+      "(?i)your facebook code",
+      "(?i)confirmation code"
+    ],
+    "otp_regex": "\\b(\\d{6})\\b"
+  },
+  "tw": {
+    "name": "Twitter / X",
+    "senders": ["(?i)Twitter", "(?i)X.com"],
+    "sender_patterns": ["(?i)twitter", "(?i)x\\.com"],
+    "body_patterns": [
+      "(?i)twitter",
+      "(?i)confirmation code",
+      "(?i)login code"
+    ],
+    "otp_regex": "\\b(\\d{6})\\b"
+  },
+  "oi": {
+    "name": "Tinder",
+    "senders": ["(?i)Tinder"],
+    "sender_patterns": ["(?i)tinder"],
+    "body_patterns": [
+      "(?i)tinder",
+      "(?i)your tinder code",
+      "(?i)tinder verification code"
+    ],
+    "otp_regex": "\\b(\\d{6})\\b"
+  },
+  "ub": {
+    "name": "Uber",
+    "senders": ["(?i)Uber", "(?i)UBERIN"],
+    "sender_patterns": ["(?i)uber"],
+    "body_patterns": [
+      "(?i)uber",
+      "(?i)verification code",
+      "(?i)uber code"
+    ],
+    "otp_regex": "\\b(\\d{4,6})\\b"
+  },
+  "am": {
+    "name": "Amazon",
+    "senders": ["(?i)Amazon", "(?i)AMAZON"],
+    "sender_patterns": ["(?i)amazon"],
+    "body_patterns": [
+      "(?i)amazon",
+      "(?i)otp for amazon",
+      "(?i)verification code",
+      "(?i)use code"
+    ],
+    "otp_regex": "\\b(\\d{6})\\b"
+  },
+  "mm": {
+    "name": "Microsoft / Outlook",
+    "senders": ["(?i)Microsoft", "(?i)MSFT"],
+    "sender_patterns": ["(?i)microsoft", "(?i)msft"],
+    "body_patterns": [
+      "(?i)microsoft",
+      "(?i)security code",
+      "(?i)use code"
+    ],
+    "otp_regex": "\\b(\\d{6,7})\\b"
+  },
+  "wx": {
+    "name": "Apple / iCloud",
+    "senders": ["(?i)Apple"],
+    "sender_patterns": ["(?i)apple"],
+    "body_patterns": [
+      "(?i)apple",
+      "(?i)apple id code",
+      "(?i)verification code"
+    ],
+    "otp_regex": "\\b(\\d{6})\\b"
+  },
+  "lf": {
+    "name": "TikTok",
+    "senders": ["(?i)TikTok"],
+    "sender_patterns": ["(?i)tiktok"],
+    "body_patterns": [
+      "(?i)tiktok",
+      "(?i)verification code",
+      "(?i)your verification code"
+    ],
+    "otp_regex": "\\b(\\d{6})\\b"
+  },
+  "fk": {
+    "name": "Flipkart",
+    "senders": ["(?i)Flipkart", "(?i)FLPKRT"],
+    "sender_patterns": ["(?i)flipkart", "(?i)flpkrt"],
+    "body_patterns": [
+      "(?i)flipkart",
+      "(?i)otp to log in",
+      "(?i)use code"
+    ],
+    "otp_regex": "\\b(\\d{6})\\b"
+  },
+  "sw": {
+    "name": "Swiggy",
+    "senders": ["(?i)Swiggy", "(?i)SWIGGY"],
+    "sender_patterns": ["(?i)swiggy"],
+    "body_patterns": [
+      "(?i)swiggy",
+      "(?i)otp to verify",
+      "(?i)swiggy code"
+    ],
+    "otp_regex": "\\b(\\d{6})\\b"
+  },
+  "zo": {
+    "name": "Zomato",
+    "senders": ["(?i)Zomato", "(?i)ZOMATO"],
+    "sender_patterns": ["(?i)zomato"],
+    "body_patterns": [
+      "(?i)zomato",
+      "(?i)otp for zomato",
+      "(?i)verification code"
+    ],
+    "otp_regex": "\\b(\\d{6})\\b"
+  },
+  "me": {
+    "name": "Meesho",
+    "senders": ["(?i)Meesho", "(?i)MEESHO"],
+    "sender_patterns": ["(?i)meesho"],
+    "body_patterns": [
+      "(?i)meesho",
+      "(?i)otp for meesho",
+      "(?i)verification code"
+    ],
+    "otp_regex": "\\b(\\d{6})\\b"
+  },
+  "pm": {
+    "name": "Paytm",
+    "senders": ["(?i)Paytm", "(?i)PAYTM"],
+    "sender_patterns": ["(?i)paytm"],
+    "body_patterns": [
+      "(?i)paytm",
+      "(?i)otp for paytm",
+      "(?i)verification code"
+    ],
+    "otp_regex": "\\b(\\d{6})\\b"
+  },
+  "pp": {
+    "name": "PhonePe",
+    "senders": ["(?i)PhonePe", "(?i)PHONEPE"],
+    "sender_patterns": ["(?i)phonepe"],
+    "body_patterns": [
+      "(?i)phonepe",
+      "(?i)otp for phonepe",
+      "(?i)verification code"
+    ],
+    "otp_regex": "\\b(\\d{5,6})\\b"
+  },
+  "d1": {
+    "name": "Dream11",
+    "senders": ["(?i)Dream11", "(?i)DREAM11"],
+    "sender_patterns": ["(?i)dream11"],
+    "body_patterns": [
+      "(?i)dream11",
+      "(?i)otp for dream11",
+      "(?i)verification code"
+    ],
+    "otp_regex": "\\b(\\d{6})\\b"
+  },
+  "tc": {
+    "name": "Truecaller",
+    "senders": ["(?i)Truecaller", "(?i)TRUECALLER"],
+    "sender_patterns": ["(?i)truecaller"],
+    "body_patterns": [
+      "(?i)truecaller",
+      "(?i)verification code"
+    ],
+    "otp_regex": "\\b(\\d{6})\\b"
+  },
+  "ds": {
+    "name": "Discord",
+    "senders": ["(?i)Discord"],
+    "sender_patterns": ["(?i)discord"],
+    "body_patterns": [
+      "(?i)discord",
+      "(?i)security code",
+      "(?i)verification code"
+    ],
+    "otp_regex": "\\b(\\d{6})\\b"
+  },
+  "vi": {
+    "name": "Viber",
+    "senders": ["(?i)Viber"],
+    "sender_patterns": ["(?i)viber"],
+    "body_patterns": [
+      "(?i)viber",
+      "(?i)viber code"
+    ],
+    "otp_regex": "\\b(\\d{6})\\b"
+  },
+  "sn": {
+    "name": "Snapchat",
+    "senders": ["(?i)Snapchat", "(?i)SNAPCHAT"],
+    "sender_patterns": ["(?i)snapchat"],
+    "body_patterns": [
+      "(?i)snapchat",
+      "(?i)snapchat code"
+    ],
+    "otp_regex": "\\b(\\d{6})\\b"
+  },
+  "ya": {
+    "name": "Yahoo",
+    "senders": ["(?i)Yahoo"],
+    "sender_patterns": ["(?i)yahoo"],
+    "body_patterns": [
+      "(?i)yahoo",
+      "(?i)verification code"
+    ],
+    "otp_regex": "\\b(\\d{6})\\b"
+  },
+  "ot": {
+    "name": "Other / Universal Fallback",
+    "senders": [".*"],
+    "sender_patterns": [".*"],
+    "body_patterns": [
+      "(?i)(?:otp|code|verification|passcode|secret|pin|login|auth|password)"
+    ],
+    "otp_regex": "\\b(\\d{4,8})\\b"
+  }
+}

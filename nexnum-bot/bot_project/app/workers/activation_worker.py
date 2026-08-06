@@ -158,15 +158,19 @@ async def _process_stream_message(redis_client, msg_id: str, fields: Dict[str, s
 
         # First SMS match vs Re-send match
         is_match = False
+        extracted_code = None
+
         if not has_sms:
-            # First SMS: must match requested service pattern
-            is_match = match_sms_to_service(body, sender, req_service)
+            # First SMS: must match requested service pattern dynamically
+            from app.services.pattern_registry import ServicePatternRegistry
+            is_match, extracted_code = await ServicePatternRegistry.match_sms_dynamic(redis_client, body, sender, req_service)
         else:
             # Re-send cycle: accept any incoming SMS
             is_match = True
+            extracted_code = fields.get("otpCode") or extract_otp_code(body) or body
 
         if is_match:
-            otp_code = fields.get("otpCode") or extract_otp_code(body) or body
+            otp_code = extracted_code or body
 
             # Update activation in Redis
             act["has_sms"] = True
