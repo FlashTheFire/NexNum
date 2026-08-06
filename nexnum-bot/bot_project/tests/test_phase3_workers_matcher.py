@@ -39,10 +39,14 @@ class TestPhase3WorkersMatcher(unittest.TestCase):
 
     def test_03_cancellation_shield(self):
         """Test that setStatus=8 (cancel) is blocked if has_sms is True (refund protection)."""
-        client = TestClient(fastapi_app)
-        
-        # Test calling setStatus=8 on non-existent or completed activation
-        response = client.get("/stubs/handler_api.php?action=setStatus&api_key=test&id=999999999&status=8")
+        import httpx
+        from main import fastapi_app
+
+        async def _call():
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=fastapi_app), base_url="http://test") as client:
+                return await client.get("/stubs/handler_api.php?action=setStatus&api_key=test&id=999999999&status=8")
+
+        response = asyncio.run(_call())
         self.assertIn(response.text, ("NO_ACTIVATION", "BAD_STATUS"))
         print("  [Phase 3] Cancellation shield logic verified!")
 

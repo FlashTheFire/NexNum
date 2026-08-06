@@ -49,12 +49,12 @@ class TestPhase4DeviceScorer(unittest.TestCase):
         loop = asyncio.get_event_loop()
         
         # Fresh candidate (0 SMS)
-        c_fresh = loop.run_until_complete(DeviceScorer.score_sim_node(None, self.node_fresh, "tg", "u1", self.now))
-        # Used candidate (simulated 3 previous SMS)
-        c_used = loop.run_until_complete(DeviceScorer.score_sim_node(None, self.node_used, "tg", "u1", self.now))
+        c_fresh = loop.run_until_complete(DeviceScorer.score_sim_node(None, self.node_fresh, "tg", "u1", self.now, service_sms_count_override=0))
+        # Used candidate (3 previous SMS)
+        c_used = loop.run_until_complete(DeviceScorer.score_sim_node(None, self.node_used, "tg", "u1", self.now, service_sms_count_override=3))
         
         self.assertGreater(c_fresh.score, c_used.score)
-        print(f"  [Phase 4] Fresh Numbers scoring verified! Fresh score={c_fresh.score} > Default score={c_used.score}")
+        print(f"  [Phase 4] Fresh Numbers scoring verified! Fresh score={c_fresh.score} > Used score={c_used.score}")
 
     def test_02_battery_health_scoring(self):
         """Test battery health scoring bonus and penalty."""

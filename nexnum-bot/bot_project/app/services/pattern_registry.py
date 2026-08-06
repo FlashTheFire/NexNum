@@ -181,6 +181,9 @@ class ServicePatternRegistry:
             from app.services.sms_parser import extract_otp_code
             extracted_code = extract_otp_code(body) or body
 
+        if extracted_code:
+            extracted_code = str(extracted_code).replace("-", "").replace(" ", "").strip()
+
         return True, extracted_code
 
     @classmethod

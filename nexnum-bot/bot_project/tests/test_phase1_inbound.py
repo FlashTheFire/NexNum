@@ -8,27 +8,31 @@ import asyncio
 import unittest
 from pathlib import Path
 
-# Add bot_project to sys.path
 _bot_dir = Path(__file__).resolve().parent.parent
 if str(_bot_dir) not in sys.path:
     sys.path.insert(0, str(_bot_dir))
 
-from fastapi.testclient import TestClient
+import httpx
 from main import fastapi_app
 from app.core.config import get_settings
 
 settings = get_settings()
 
 
+def async_req(method: str, path: str, **kwargs):
+    async def _call():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=fastapi_app), base_url="http://test") as client:
+            return await client.request(method, path, **kwargs)
+    return asyncio.run(_call())
+
+
 class TestPhase1Inbound(unittest.TestCase):
     def setUp(self):
-        self.client = TestClient(fastapi_app)
-        # Set a test shared secret
         settings.WEBHOOK_SHARED_SECRET = "test-secret-123"
 
     def test_01_health_check(self):
         """Test health check endpoint."""
-        response = self.client.get("/health")
+        response = async_req("GET", "/health")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"status": "ok"})
 
@@ -42,23 +46,24 @@ class TestPhase1Inbound(unittest.TestCase):
             "isOtp": True,
             "otpCode": "12345"
         }
-        response = self.client.post("/webhook/inbound", json=payload, headers={"X-API-Key": "wrong-secret"})
+        response = async_req("POST", "/webhook/inbound", json=payload, headers={"X-API-Key": "wrong-secret"})
         self.assertEqual(response.status_code, 401)
         self.assertIn("Invalid API key", response.json()["detail"])
 
     def test_03_inbound_auth_success_and_fast_ack(self):
         """Test successful auth and fast-ack response time (<50ms target)."""
         payload = {
-            "deviceId": f"test_device_{int(asyncio.get_event_loop().time() * 1000)}",
-            "timestamp": int(asyncio.get_event_loop().time() * 1000),
+            "deviceId": f"test_device_{int(time.time() * 1000)}",
+            "timestamp": int(time.time() * 1000),
             "sender": "+919876543210",
             "body": "Your WhatsApp code is 888-999",
             "isOtp": True,
             "otpCode": "888999"
         }
-        start = asyncio.get_event_loop().time()
-        response = self.client.post("/webhook/inbound", json=payload, headers={"X-API-Key": "test-secret-123"})
-        elapsed_ms = (asyncio.get_event_loop().time() - start) * 1000
+        import time
+        start = time.time()
+        response = async_req("POST", "/webhook/inbound", json=payload, headers={"X-API-Key": "test-secret-123"})
+        elapsed_ms = (time.time() - start) * 1000
 
         self.assertIn(response.status_code, (200, 202))
         self.assertIn("status", response.json())
@@ -66,7 +71,8 @@ class TestPhase1Inbound(unittest.TestCase):
 
     def test_04_inbound_deduplication(self):
         """Test Redis SETNX deduplication for repeated SMS payload."""
-        ts = int(asyncio.get_event_loop().time() * 1000)
+        import time
+        ts = int(time.time() * 1000)
         payload = {
             "deviceId": "dup_test_device",
             "timestamp": ts,
@@ -74,10 +80,8 @@ class TestPhase1Inbound(unittest.TestCase):
             "body": "Your Google verification code is 654321",
             "isOtp": True
         }
-        # First attempt
-        res1 = self.client.post("/webhook/inbound", json=payload, headers={"X-API-Key": "test-secret-123"})
-        # Second attempt with exact same deviceId and timestamp
-        res2 = self.client.post("/webhook/inbound", json=payload, headers={"X-API-Key": "test-secret-123"})
+        res1 = async_req("POST", "/webhook/inbound", json=payload, headers={"X-API-Key": "test-secret-123"})
+        res2 = async_req("POST", "/webhook/inbound", json=payload, headers={"X-API-Key": "test-secret-123"})
         
         self.assertIn(res2.status_code, (200, 202))
         if res2.status_code == 200:

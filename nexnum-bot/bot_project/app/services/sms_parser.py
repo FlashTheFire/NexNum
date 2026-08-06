@@ -232,6 +232,8 @@ def match_sms_to_service(body: str, sender: str, service_code: str) -> bool:
         for b_pat in patterns.get("body", []):
             if b_pat.search(body):
                 return True
+        # If specific service patterns defined but neither sender nor body matched -> NOT a match!
+        return False
 
-    # Fallback for 'ot' or when pattern didn't explicitly trigger: match if OTP code present
+    # Fallback for 'ot' (Other / Universal): match if any OTP code present
     return extract_otp_code(body) is not None

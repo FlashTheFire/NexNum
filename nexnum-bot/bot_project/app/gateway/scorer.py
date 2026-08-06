@@ -53,7 +53,8 @@ class DeviceScorer:
         service: str,
         user_id: str,
         now: float,
-        effective_cooldown_sec: float = 1200.0
+        effective_cooldown_sec: float = 1200.0,
+        service_sms_count_override: Optional[int] = None
     ) -> ScoredSimCandidate:
         """
         Calculates deterministic integer score for a DeviceSimNode candidate.
@@ -73,7 +74,9 @@ class DeviceScorer:
         if not node.is_online and mins_since_seen > 10.0:
             return ScoredSimCandidate(node=node, score=-9999, service_sms_count=0, mins_since_seen=mins_since_seen)
 
-        if redis_client:
+        if service_sms_count_override is not None:
+            service_sms_count = service_sms_count_override
+        elif redis_client:
             try:
                 # Pipeline Redis checks for max speed (~0.2ms total)
                 pipe = redis_client.pipeline()

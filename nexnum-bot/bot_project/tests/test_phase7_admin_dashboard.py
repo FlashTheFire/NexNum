@@ -4,6 +4,7 @@ Phase 7 Deep Test Suite — Gateway Admin REST API & Control Dashboard Web UI
 """
 import sys
 import os
+import asyncio
 import unittest
 from pathlib import Path
 
@@ -11,18 +12,22 @@ _bot_dir = Path(__file__).resolve().parent.parent
 if str(_bot_dir) not in sys.path:
     sys.path.insert(0, str(_bot_dir))
 
-from fastapi.testclient import TestClient
+import httpx
 from main import fastapi_app
+
+
+def async_req(method: str, path: str, **kwargs):
+    async def _call():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=fastapi_app), base_url="http://test") as client:
+            return await client.request(method, path, **kwargs)
+    return asyncio.run(_call())
 
 
 class TestPhase7AdminDashboard(unittest.TestCase):
 
-    def setUp(self):
-        self.client = TestClient(fastapi_app)
-
     def test_01_admin_stats_endpoint(self):
         """Test GET /api/v1/admin/stats metric response structure."""
-        response = self.client.get("/api/v1/admin/stats")
+        response = async_req("GET", "/api/v1/admin/stats")
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertIn("sim_nodes", data)
@@ -32,7 +37,7 @@ class TestPhase7AdminDashboard(unittest.TestCase):
 
     def test_02_admin_devices_endpoint(self):
         """Test GET /api/v1/admin/devices listing."""
-        response = self.client.get("/api/v1/admin/devices")
+        response = async_req("GET", "/api/v1/admin/devices")
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertIn("devices", data)
@@ -40,7 +45,7 @@ class TestPhase7AdminDashboard(unittest.TestCase):
 
     def test_03_admin_activations_endpoint(self):
         """Test GET /api/v1/admin/activations feed."""
-        response = self.client.get("/api/v1/admin/activations")
+        response = async_req("GET", "/api/v1/admin/activations")
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertIn("activations", data)
@@ -53,7 +58,7 @@ class TestPhase7AdminDashboard(unittest.TestCase):
             "sender": "Telegram",
             "body": "Your Telegram login code is 54321"
         }
-        response = self.client.post("/api/v1/admin/test-match", json=payload)
+        response = async_req("POST", "/api/v1/admin/test-match", json=payload)
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertTrue(data["isMatched"])
@@ -62,7 +67,7 @@ class TestPhase7AdminDashboard(unittest.TestCase):
 
     def test_05_admin_dashboard_web_gui_rendering(self):
         """Test GET /admin/dashboard HTML single-page web app rendering."""
-        response = self.client.get("/admin/dashboard")
+        response = async_req("GET", "/admin/dashboard")
         self.assertEqual(response.status_code, 200)
         self.assertIn("<html", response.text)
         self.assertIn("NexNum Gateway Control Center", response.text)
