@@ -31,6 +31,10 @@ class DepositVerifyRequest(BaseModel):
     utr: str = Field(..., description="Payment Transaction Reference / UTR Number")
     amount: Optional[float] = Field(None, description="Verified deposit amount")
 
+class DepositCancelRequest(BaseModel):
+    deposit_id: str = Field(..., description="Deposit ID to cancel")
+    reason: Optional[str] = Field(None, description="Optional cancellation reason")
+
 @router.post("/create", summary="Create Deposit Request")
 async def create_deposit(req: DepositCreateRequest):
     """
@@ -178,4 +182,88 @@ async def verify_utr(req: DepositVerifyRequest):
         raise
     except Exception as e:
         logger.error(f"Error verifying UTR for deposit {req.deposit_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/cancel", summary="Cancel Pending Deposit")
+async def cancel_deposit(req: DepositCancelRequest):
+    """
+    Cancels a pending deposit request.
+    - Updates status to CANCELLED in PostgreSQL deposit_requests.
+    - Removes the Redis hash so the tracker stops polling.
+    - Idempotent: if already cancelled/completed, returns success without re-processing.
+    """
+    try:
+        db = db_adapter
+        deposit_id = req.deposit_id
+
+        # 1. Fetch the deposit from DB
+        dep = await db.get_deposit_request(deposit_id)
+        if not dep:
+            # Already gone — treat as success (idempotent)
+            return {
+                "status": "success",
+                "message": "Deposit not found or already removed.",
+                "deposit_id": deposit_id
+            }
+
+        dep_dict = dict(dep) if isinstance(dep, dict) else dep.__dict__ if hasattr(dep, '__dict__') else {}
+        current_status = str(dep_dict.get("status", "")).upper()
+
+        # 2. Guard: only cancel PENDING deposits
+        if current_status in ("COMPLETED", "CONFIRMED", "SUCCESS"):
+            raise HTTPException(
+                status_code=409,
+                detail=f"Cannot cancel a deposit that is already {current_status}."
+            )
+
+        if current_status == "CANCELLED":
+            return {
+                "status": "success",
+                "message": "Deposit was already cancelled.",
+                "deposit_id": deposit_id
+            }
+
+        # 3. Update status in PostgreSQL
+        try:
+            await db.execute(
+                """UPDATE deposit_requests
+                   SET status = 'CANCELLED', updated_at = NOW()
+                   WHERE deposit_id = $1 OR id::text = $1""",
+                deposit_id
+            )
+        except Exception:
+            # Fallback: try update_deposit_status if execute is not available
+            if hasattr(db, 'update_deposit_status'):
+                await db.update_deposit_status(deposit_id=deposit_id, status="CANCELLED")
+
+        # 4. Remove from Redis so tracker stops
+        try:
+            from utils.redis_manager import redis_manager
+            client = await redis_manager.get_client()
+            if client:
+                info_key = f"deposit_data:info:{deposit_id}"
+                # Mark as cancelled in hash before deleting (for audit)
+                await client.hset(info_key, mapping={"status": "CANCELLED"})
+                await client.expire(info_key, 300)  # expire in 5 min
+
+                # Also remove from active tracker set if present
+                tracker_set_key = "deposit_tracker:active"
+                await client.srem(tracker_set_key, deposit_id)
+        except Exception as re_err:
+            logger.warning(f"Redis cleanup notice on cancel: {re_err}")
+
+        logger.info(f"Deposit {deposit_id} cancelled by user. Reason: {req.reason or 'none'}")
+
+        return {
+            "status": "success",
+            "message": "Deposit cancelled successfully.",
+            "deposit_id": deposit_id,
+            "reason": req.reason
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error cancelling deposit {req.deposit_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))

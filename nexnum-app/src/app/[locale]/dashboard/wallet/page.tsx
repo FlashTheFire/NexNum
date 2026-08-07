@@ -70,6 +70,7 @@ export default function WalletPage() {
     const [activeDeposit, setActiveDeposit] = useState<any>(null)
     const [timeLeft, setTimeLeft] = useState(900)
     const [isGenerating, setIsGenerating] = useState(false)
+    const [isCancelling, setIsCancelling] = useState(false)
     const [copiedCrypto, setCopiedCrypto] = useState(false)
     const [resolvedQrImage, setResolvedQrImage] = useState<string | null>(null)
 
@@ -200,6 +201,13 @@ export default function WalletPage() {
                 const depId = pending.depositId || pending.orderId
                 const defaultQr = `https://qr.udayscriptsx.workers.dev/?data=upi%3A%2F%2Fpay%3Fpa%3Dpaytmqr281005050101nbxw0hx35cpo%40paytm%26pn%3DPaytm%2520Merchant%26tr%3D${depId}%26tn%3DAdding%2520Fund&body=dot&eye=frame13&eyeball=ball14&col1=121f28&col2=121f28&logo=https://i.postimg.cc/cCrHr3TQ/1000011838-removebg.png`
 
+                // Calculate real remaining seconds from expiresAt
+                const remainingSecs = pending.expiresIn
+                    ? Math.max(0, Math.floor(
+                        (new Date(pending.expiresAt).getTime() - Date.now()) / 1000
+                      ))
+                    : 900
+
                 setActiveDeposit({
                     depositId: depId,
                     amount: pending.amount,
@@ -207,9 +215,9 @@ export default function WalletPage() {
                     originalCurrency: 'INR',
                     qrCodeUrl: pending.qrCodeUrl || defaultQr,
                     upiId: 'paytmqr281005050101nbxw0hx35cpo@paytm',
-                    expiresIn: pending.expiresIn || 900
+                    expiresIn: remainingSecs
                 })
-                setTimeLeft(pending.expiresIn || 900)
+                setTimeLeft(remainingSecs)
                 setInlineStep('qr_payment')
                 startPolling(depId)
                 startCountdown()
@@ -227,11 +235,43 @@ export default function WalletPage() {
         setInlineStep('select_method')
     }
 
+    // Cancel active deposit so user can generate a new one
+    const handleCancelDeposit = async () => {
+        if (!activeDeposit?.depositId) return
+        setIsCancelling(true)
+        try {
+            const result = await api.request<any>('/api/wallet/deposit/cancel', 'POST', {
+                depositId: activeDeposit.depositId,
+                reason: 'user_cancelled',
+            })
+            if (result.success || result.data?.status === 'cancelled') {
+                cleanup()
+                setActiveDeposit(null)
+                setResolvedQrImage(null)
+                setInlineStep('input')
+                toast.success('Deposit cancelled. You can now start a new one.')
+            } else {
+                toast.error(result.error || 'Failed to cancel deposit')
+            }
+        } catch (e: any) {
+            toast.error('Failed to cancel deposit. Please try again.')
+        } finally {
+            setIsCancelling(false)
+        }
+    }
+
     // Create UPI Order & Transition to QR Payment
     const handleSelectUpiPayment = async () => {
         const val = parseFloat(amount)
         if (isNaN(val) || val <= 0) {
             toast.error("Please enter a valid deposit amount")
+            return
+        }
+
+        // Block if there's already an active deposit — user must cancel first
+        if (activeDeposit) {
+            setInlineStep('qr_payment')
+            toast.info('You have an active deposit. Cancel it first to generate a new one.')
             return
         }
 
@@ -241,7 +281,6 @@ export default function WalletPage() {
             const result = await api.request<any>('/api/wallet/deposit', 'POST', {
                 amount: val,
                 currency: preferredCurrency,
-                currencyRate: currencyRate,
                 idempotencyKey: `dep_${user?.id}_${Date.now()}`
             })
 
@@ -256,7 +295,6 @@ export default function WalletPage() {
                     amount: depData.amount || calculatedInrAmount,
                     originalAmount: val,
                     originalCurrency: preferredCurrency,
-                    securitySignature: depData.securitySignature,
                     qrCodeUrl: depData.qrCodeUrl || defaultQr,
                     upiId: depData.upiId || 'paytmqr281005050101nbxw0hx35cpo@paytm',
                     expiresIn: depData.expiresIn || 900
@@ -747,42 +785,112 @@ export default function WalletPage() {
                                                 initial={{ opacity: 0, scale: 0.98 }}
                                                 animate={{ opacity: 1, scale: 1 }}
                                                 exit={{ opacity: 0, scale: 0.98 }}
-                                                className="space-y-6 text-center"
+                                                className="space-y-4"
                                             >
-                                                {/* Amount & Expiry Timer Banner */}
-                                                <div className="flex items-center justify-between p-4 rounded-xl bg-black/40 border border-white/10">
-                                                    <div className="text-left">
-                                                        <p className="text-[10px] uppercase font-bold text-muted-foreground">Amount to Pay</p>
-                                                        <div className="flex items-baseline gap-2">
-                                                            <p className="text-xl font-bold text-emerald-400">₹{activeDeposit.amount.toLocaleString()}</p>
-                                                            <span className="text-[11px] text-zinc-400 font-mono">({currencySym}{parseFloat(amount).toLocaleString()} {preferredCurrency})</span>
-                                                        </div>
-                                                    </div>
-                                                    <div className="text-right">
-                                                        <p className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1 justify-end">
-                                                            <Clock className="w-3.5 h-3.5 text-amber-400" /> Session Expiry
+                                                {/* Amount + Timer Banner */}
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                                                        <p className="text-[10px] uppercase font-bold text-emerald-400/70 tracking-widest mb-1">Amount to Pay</p>
+                                                        <p className="text-xl font-bold text-emerald-400 tabular-nums">
+                                                            ₹{activeDeposit.amount?.toLocaleString('en-IN') ?? '—'}
                                                         </p>
-                                                        <p className="text-base font-mono font-bold text-amber-400">{formatTimer(timeLeft)}</p>
+                                                        {preferredCurrency !== 'INR' && (
+                                                            <p className="text-[10px] text-muted-foreground mt-0.5 font-mono">
+                                                                ≈ {currencySym}{parseFloat(amount).toFixed(2)} {preferredCurrency}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                    <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                                                        <p className="text-[10px] uppercase font-bold text-amber-400/70 tracking-widest mb-1 flex items-center gap-1">
+                                                            <Clock className="w-3 h-3" /> Session Expiry
+                                                        </p>
+                                                        <p className={`text-xl font-mono font-bold tabular-nums ${timeLeft < 120 ? 'text-rose-400 animate-pulse' : 'text-amber-400'}`}>
+                                                            {formatTimer(timeLeft)}
+                                                        </p>
+                                                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                                                            {timeLeft < 60 ? 'Expiring soon!' : 'Complete payment before expiry'}
+                                                        </p>
                                                     </div>
                                                 </div>
 
-                                                {/* Live QR Code Box */}
-                                                <div className="relative mx-auto w-64 h-64 bg-white p-4 rounded-2xl shadow-2xl shadow-emerald-500/10 flex items-center justify-center border-4 border-emerald-500/40">
-                                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                                    <img
-                                                        src={resolvedQrImage || activeDeposit.qrCodeUrl}
-                                                        alt="UPI QR Code"
-                                                        className="w-full h-full object-contain rounded-lg"
-                                                    />
+                                                {/* QR Code Container — premium glassmorphic */}
+                                                <div className="relative flex flex-col items-center">
+                                                    {/* Outer glow ring */}
+                                                    <div className="absolute inset-0 rounded-3xl bg-emerald-500/10 blur-xl pointer-events-none" />
+
+                                                    <div className="relative w-full max-w-[260px] mx-auto">
+                                                        {/* QR Card */}
+                                                        <div className="relative bg-white rounded-2xl p-4 shadow-2xl shadow-emerald-500/20 border-2 border-emerald-500/40 overflow-hidden">
+                                                            {/* Scan-line animation overlay */}
+                                                            <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-2xl">
+                                                                <motion.div
+                                                                    animate={{ y: ['-100%', '200%'] }}
+                                                                    transition={{ duration: 2.5, repeat: Infinity, ease: 'linear', repeatDelay: 1 }}
+                                                                    className="absolute left-0 right-0 h-8 bg-gradient-to-b from-transparent via-emerald-400/25 to-transparent"
+                                                                />
+                                                            </div>
+
+                                                            {/* QR Image or Skeleton */}
+                                                            {resolvedQrImage ? (
+                                                                /* eslint-disable-next-line @next/next/no-img-element */
+                                                                <img
+                                                                    src={resolvedQrImage}
+                                                                    alt="UPI QR Code — Scan with Paytm / PhonePe / GPay"
+                                                                    className="w-full h-full object-contain"
+                                                                    style={{ minHeight: 200 }}
+                                                                />
+                                                            ) : (
+                                                                <div className="w-full flex flex-col items-center justify-center gap-3 py-10">
+                                                                    <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
+                                                                    <p className="text-xs text-gray-400 font-medium">Generating QR code...</p>
+                                                                </div>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Corner accent marks */}
+                                                        <div className="absolute -top-1 -left-1 w-5 h-5 border-t-2 border-l-2 border-emerald-400 rounded-tl-md" />
+                                                        <div className="absolute -top-1 -right-1 w-5 h-5 border-t-2 border-r-2 border-emerald-400 rounded-tr-md" />
+                                                        <div className="absolute -bottom-1 -left-1 w-5 h-5 border-b-2 border-l-2 border-emerald-400 rounded-bl-md" />
+                                                        <div className="absolute -bottom-1 -right-1 w-5 h-5 border-b-2 border-r-2 border-emerald-400 rounded-br-md" />
+                                                    </div>
+
+                                                    <p className="mt-3 text-[11px] text-muted-foreground text-center">
+                                                        Scan with <span className="text-white font-semibold">Paytm</span> · <span className="text-white font-semibold">PhonePe</span> · <span className="text-white font-semibold">GPay</span>
+                                                    </p>
                                                 </div>
 
-                                                {/* Automatic Polling Indicator */}
-                                                <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center gap-2 text-xs text-emerald-400 font-medium">
-                                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                                    <span>Scan & Pay via Paytm / PhonePe / GPay • Auto-detecting payment...</span>
+                                                {/* Auto-detection status bar */}
+                                                <div className="flex items-center justify-center gap-2.5 p-3 rounded-xl bg-emerald-500/8 border border-emerald-500/15">
+                                                    <div className="relative flex h-2.5 w-2.5 shrink-0">
+                                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                                                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+                                                    </div>
+                                                    <p className="text-xs text-emerald-400 font-medium">
+                                                        Auto-detecting payment — no action needed after scanning
+                                                    </p>
+                                                </div>
+
+                                                {/* Cancel Deposit — prominent, safe destructive styling */}
+                                                <div className="pt-1 border-t border-white/5">
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleCancelDeposit}
+                                                        disabled={isCancelling}
+                                                        className="w-full h-11 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer flex items-center justify-center gap-2 border border-rose-500/30 bg-rose-500/8 text-rose-400 hover:bg-rose-500/15 hover:border-rose-500/50 hover:text-rose-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    >
+                                                        {isCancelling ? (
+                                                            <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Cancelling...</>
+                                                        ) : (
+                                                            <><ArrowLeft className="w-3.5 h-3.5" /> Cancel & Generate New Deposit</>
+                                                        )}
+                                                    </button>
+                                                    <p className="text-center text-[10px] text-muted-foreground mt-1.5">
+                                                        Only one active deposit allowed at a time
+                                                    </p>
                                                 </div>
                                             </motion.div>
                                         )}
+
 
                                         {/* STEP 3B: Crypto USDT Payment Screen */}
                                         {inlineStep === 'crypto_payment' && (

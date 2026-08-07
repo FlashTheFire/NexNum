@@ -505,6 +505,80 @@ export class DepositService {
     }
 
     /**
+     * Cancel a pending deposit (user-initiated)
+     * - Only transitions from 'pending' → 'cancelled'
+     * - Row-locks to prevent race with confirmDeposit / expireDeposit
+     * - Syncs cancellation to nexnum-bot (non-blocking)
+     * - Writes AuditLog entry for financial compliance
+     */
+    async cancelDeposit(depositId: string, userId: string, reason = 'user_cancelled'): Promise<void> {
+        // 1. Verify deposit exists and belongs to this user
+        const deposit = await this.getDeposit(depositId)
+        if (!deposit) throw new Error('Deposit not found')
+        if (deposit.userId !== userId) throw new Error('Deposit does not belong to this user')
+        if (deposit.status !== 'pending') {
+            throw new Error(`Cannot cancel a deposit with status '${deposit.status}'`)
+        }
+
+        // 2. Atomic DB update with row lock
+        await prisma.$transaction(async (tx) => {
+            await tx.$executeRaw`SELECT 1 FROM "wallet_transactions" WHERE "id" = ${depositId} FOR UPDATE`
+
+            const currentTx = await tx.walletTransaction.findUnique({
+                where: { id: depositId },
+                select: { metadata: true },
+            })
+            const currentMetadata = (currentTx?.metadata as unknown as DepositMetadata) || {} as DepositMetadata
+
+            // Guard: only from 'pending'
+            if (currentMetadata.status && currentMetadata.status !== 'pending') return
+
+            await tx.walletTransaction.update({
+                where: { id: depositId },
+                data: {
+                    metadata: {
+                        ...currentMetadata,
+                        status: 'cancelled',
+                        cancelledAt: new Date().toISOString(),
+                        cancellationReason: reason,
+                    },
+                },
+            })
+
+            // Audit log
+            await tx.auditLog.create({
+                data: {
+                    userId,
+                    action: 'DEPOSIT_CANCELLED',
+                    resourceType: 'WALLET',
+                    resourceId: depositId,
+                    metadata: { depositId, orderId: deposit.orderId, amount: deposit.amount, reason },
+                    ipAddress: null,
+                },
+            })
+        })
+
+        // 3. Clean Redis — remove from pending set immediately
+        await redis.del(DEPOSIT_KEY(depositId))
+        await redis.srem(USER_PENDING_DEPOSITS(userId), depositId)
+
+        // 4. Notify nexnum-bot to stop tracking (non-blocking, best-effort)
+        try {
+            const botUrl = process.env.NEXNUM_BOT_URL || 'http://nexnum-bot:8080'
+            await fetch(`${botUrl}/api/v1/deposit/cancel`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ deposit_id: deposit.orderId, reason }),
+                signal: AbortSignal.timeout(3000),
+            })
+        } catch (err: any) {
+            logger.warn('[DepositService] Bot cancel sync failed (non-critical)', { depositId, error: err.message })
+        }
+
+        logger.info('[DepositService] Deposit cancelled by user', { depositId, userId, reason })
+    }
+
+    /**
      * Get user's pending deposits
      */
     async getPendingDeposits(userId: string): Promise<Deposit[]> {
