@@ -129,10 +129,28 @@ async def get_devices_list(
         except Exception:
             pass
 
+    # ── Bulk-check which devices have cached messages in Redis ──────────────
+    has_messages_set: set = set()
+    if redis_client:
+        try:
+            pipe = redis_client.pipeline()
+            for n in sim_nodes:
+                pipe.exists(f"{REDIS_PREFIX}:device_messages:{n.device_id}")
+            msg_results = await pipe.execute()
+            for n, has_msg in zip(sim_nodes, msg_results):
+                if has_msg:
+                    has_messages_set.add(n.device_id)
+        except Exception:
+            pass
+
     # Build response records
     all_devices = []
     for n in sim_nodes:
         is_banned = n.device_id in banned_set
+        has_real_phone = bool(
+            n.phone_number and n.phone_number not in ("Pending", "Unknown", "")
+        )
+        has_msgs = n.device_id in has_messages_set
         all_devices.append({
             "deviceId": n.device_id,
             "simSlot": n.sim_slot,
@@ -143,7 +161,10 @@ async def get_devices_list(
             "battery": n.battery if n.battery is not None else 100,
             "lastSeenMs": n.last_seen_ms,
             "firebaseNodeId": n.firebase_node_id,
-            "isBanned": is_banned
+            "isBanned": is_banned,
+            "hasMessages": has_msgs,
+            # Internal-only: used for tier sort, not returned to client
+            "_hasRealPhone": has_real_phone,
         })
 
     # Search Filtering
@@ -157,22 +178,41 @@ async def get_devices_list(
             or s_lower in d["schemaType"].lower()
         ]
 
-    # Column Sorting Logic
+    # ── Professional Tier-Based Sort ────────────────────────────────────────
+    # Tier 5 (TOP): Online + Real phone + Has messages  → fully operational
+    # Tier 4:       Online + Real phone + No messages   → active but un-analyzed
+    # Tier 3:       Offline + Real phone + Has messages → verified, dormant
+    # Tier 2:       Any + Pending/Unknown phone         → number not yet resolved
+    # Tier 1 (BOTTOM): Offline + No phone + No messages → empty/new device
+    def _device_tier(d: dict) -> int:
+        online = d["isOnline"]
+        real_phone = d["_hasRealPhone"]
+        has_msg = d["hasMessages"]
+        if online and real_phone and has_msg:
+            return 5
+        if online and real_phone and not has_msg:
+            return 4
+        if not online and real_phone and has_msg:
+            return 3
+        if real_phone and not has_msg:
+            return 2
+        return 1
+
     reverse = sort_order.lower() == "desc"
-    
+
     if sort_by == "status":
-        all_devices.sort(key=lambda d: (
-            1 if d["phoneNumber"] and d["phoneNumber"] not in ("Pending", "Unknown") else 0,
-            1 if d["isOnline"] else 0,
-            d["battery"]
-        ), reverse=reverse)
+        # Primary: tier desc → Secondary: lastSeenMs desc (most recent first within tier)
+        all_devices.sort(
+            key=lambda d: (_device_tier(d), d["lastSeenMs"], d["battery"]),
+            reverse=True
+        )
     elif sort_by == "battery":
         all_devices.sort(key=lambda d: d["battery"], reverse=reverse)
     elif sort_by in ("lastSeenMs", "lastMessage", "lastMessageTime"):
         all_devices.sort(key=lambda d: d.get("lastSeenMs", 0), reverse=reverse)
     elif sort_by == "phoneNumber":
         all_devices.sort(key=lambda d: (
-            1 if d["phoneNumber"] and d["phoneNumber"] not in ("Pending", "Unknown") else 0,
+            1 if d["_hasRealPhone"] else 0,
             d["phoneNumber"]
         ), reverse=reverse)
     elif sort_by == "deviceId":
@@ -184,7 +224,15 @@ async def get_devices_list(
     elif sort_by == "isBanned" or sort_by == "actions":
         all_devices.sort(key=lambda d: 1 if d["isBanned"] else 0, reverse=reverse)
     else:
-        all_devices.sort(key=lambda d: (1 if d["isOnline"] else 0, d["battery"]), reverse=True)
+        # Default: tier-based
+        all_devices.sort(
+            key=lambda d: (_device_tier(d), d["lastSeenMs"]),
+            reverse=True
+        )
+
+    # Strip internal-only fields before returning
+    for d in all_devices:
+        d.pop("_hasRealPhone", None)
 
     total = len(all_devices)
     total_pages = max(1, math.ceil(total / limit)) if limit > 0 else 1
@@ -208,9 +256,39 @@ async def get_device_messages(
     limit: int = Query(default=150, ge=1, le=500, description="Max messages to fetch (up to 150)")
 ):
     """
-    Fetch last 150 incoming SMS messages for a specific device / SIM from Firebase.
-    Returns messages sorted by time (latest first) with sender, text, parsed OTP, and timestamps.
+    Fetch last 150 incoming SMS messages for a specific device / SIM from Firebase RTDB.
+    Uses Redis 0ms caching layer with fallback to parallel multi-identifier key lookup.
     """
+    try:
+        from utils.redis_manager import redis_manager
+        redis_client = await redis_manager.get_client()
+    except Exception:
+        try:
+            from bot_project.utils.redis_manager import redis_manager
+            redis_client = await redis_manager.get_client()
+        except Exception:
+            redis_client = None
+
+    cache_key = f"nexsms:device_messages:{device_id}"
+
+    # 1. Check Redis Cache for 0ms Instant Response
+    if redis_client:
+        try:
+            cached_data = await redis_client.get(cache_key)
+            if cached_data:
+                parsed = json.loads(cached_data)
+                if isinstance(parsed, list):
+                    return {
+                        "deviceId": device_id,
+                        "count": len(parsed[:limit]),
+                        "limit": limit,
+                        "messages": parsed[:limit],
+                        "source": "cache"
+                    }
+        except Exception:
+            pass
+
+    # 2. Fast Multi-Path Query
     try:
         from app.crud import firebase_crud as crud
         raw_msgs = crud.get_incoming_messages(device_id, limit=limit)
@@ -225,36 +303,39 @@ async def get_device_messages(
         
         body_text = str(msg.get("message") or msg.get("body") or msg.get("text") or "")
         sender = str(msg.get("sender") or msg.get("from") or msg.get("service") or "Unknown")
-        ts = msg.get("timestamp") or msg.get("time") or msg.get("createdAt") or msg.get("id") or 0
         otp = extract_otp_code(body_text)
 
-        # Parse timestamp safely
-        ts_val = 0.0
-        try:
-            if isinstance(ts, (int, float)):
-                ts_val = float(ts)
-            else:
-                ts_val = float(str(ts).strip())
-        except Exception:
-            ts_val = 0.0
+        # Parse timestamp safely to epoch milliseconds
+        ts_val = crud.parse_any_datetime_to_epoch_ms(msg)
+        date_time_str = str(msg.get("dateTime") or msg.get("datetime") or msg.get("date_time") or "")
 
         formatted_messages.append({
             "id": str(msg.get("id", "")),
             "sender": sender,
             "message": body_text,
             "timestamp": ts_val,
+            "dateTime": date_time_str,
             "otp": otp,
             "service": msg.get("service") or sender
         })
 
     # Sort descending (newest message first)
     formatted_messages.sort(key=lambda m: m["timestamp"], reverse=True)
+    res_list = formatted_messages[:limit]
+
+    # 3. Save to Redis Cache (300s TTL)
+    if redis_client and res_list:
+        try:
+            await redis_client.set(cache_key, json.dumps(res_list), ex=300)
+        except Exception:
+            pass
 
     return {
         "deviceId": device_id,
-        "count": len(formatted_messages),
+        "count": len(res_list),
         "limit": limit,
-        "messages": formatted_messages[:limit]
+        "messages": res_list,
+        "source": "live"
     }
 
 
@@ -429,4 +510,157 @@ async def test_pattern_match(payload: TestMatchPayload):
         "otpRegex": details.get("otpRegex"),
         "executionTimeMs": exec_time_ms,
         "timestamp": int(time.time())
+    }
+
+
+# ─── 5. Real-Time Scorer Leaderboard & Allocation Queue ───────────────────────
+
+@router.get("/scorer/leaderboard", response_model=None, dependencies=[Depends(verify_api_key)])
+async def get_scorer_leaderboard(
+    service: str = Query("tg", description="Service code to score against (e.g. tg, wa, go, any, all)"),
+    user_id: str = Query("", description="Optional user ID for cooldown checking"),
+    limit: int = Query(50, ge=1, le=200, description="Max ranked candidates to return")
+):
+    """
+    Returns real-time point score leaderboard across all SIM nodes for a requested service.
+    Rank #1 is the exact next number that will be occupied/allocated!
+    """
+    try:
+        from utils.redis_manager import redis_manager
+    except ImportError:
+        from bot_project.utils.redis_manager import redis_manager
+
+    # pyrefly: ignore [missing-import]
+    from app.gateway.scorer import DeviceScorer
+
+    redis_client = await redis_manager.get_client()
+    sim_nodes = await get_all_sim_nodes_async()
+
+    now = time.time()
+    req_svc = (service or "tg").lower()
+
+    # Bulk-check which devices have any message history in Redis
+    device_has_messages: Dict[str, bool] = {}
+    if redis_client:
+        try:
+            pipe = redis_client.pipeline()
+            for node in sim_nodes:
+                pipe.exists(f"{REDIS_PREFIX}:device_messages:{node.device_id}")
+            msg_results = await pipe.execute()
+            for node, has_msg in zip(sim_nodes, msg_results):
+                device_has_messages[node.device_id] = bool(has_msg)
+        except Exception:
+            pass
+
+    scored_items = []
+    for node in sim_nodes:
+        candidate = await DeviceScorer.score_sim_node(
+            redis_client=redis_client,
+            node=node,
+            service=req_svc,
+            user_id=user_id,
+            now=now,
+            effective_cooldown_sec=1200.0
+        )
+
+        last_seen_sec = node.last_seen_ms / 1000 if node.last_seen_ms > 1e11 else node.last_seen_ms
+        mins_since_seen = max(0.0, (now - last_seen_sec) / 60.0)
+        hours_since_seen = mins_since_seen / 60.0
+        has_messages = device_has_messages.get(node.device_id, False)
+
+        # ── Freshness Breakdown (Data-Poor vs Genuinely Fresh) ─────────────
+        # A device with NO messages at all is NOT fresh — it's data-poor (unknown quality).
+        # A device WITH messages but 0 for THIS specific service IS genuinely fresh.
+        if not has_messages:
+            # Data-poor: we have no evidence this SIM can receive any SMS at all
+            freshness_label = "NO_DATA"
+            freshness_pts = -50
+        elif candidate.service_sms_count == 0:
+            # Genuinely fresh: has message history, just never used for this service
+            freshness_label = "FRESH"
+            freshness_pts = 100
+        else:
+            # Used: penalize by service SMS count
+            freshness_label = "USED"
+            freshness_pts = -(candidate.service_sms_count * 25)
+
+        # ── Recency Breakdown ───────────────────────────────────────────────
+        if hours_since_seen <= 1.0:
+            recency_pts = 60
+            recency_label = "< 1h"
+        elif hours_since_seen <= 3.0:
+            recency_pts = 40
+            recency_label = "< 3h"
+        elif hours_since_seen <= 6.0:
+            recency_pts = 20
+            recency_label = "< 6h"
+        elif hours_since_seen <= 12.0:
+            recency_pts = 10
+            recency_label = "< 12h"
+        else:
+            recency_pts = 2
+            recency_label = "> 12h"
+
+        online_pts = 30 if node.is_online else 0
+        batt_pts = 10 if node.battery >= 70 else (-20 if node.battery < 15 else 0)
+
+        is_cooldown = candidate.score == -9999
+        if is_cooldown:
+            status_label = "COOLDOWN"
+        elif node.is_online:
+            status_label = "ONLINE"
+        else:
+            status_label = "OFFLINE"
+
+        scored_items.append({
+            "deviceId": node.device_id,
+            "simSlot": node.sim_slot,
+            "phoneNumber": node.phone_number,
+            "carrier": node.carrier,
+            "isOnline": node.is_online,
+            "battery": node.battery,
+            "lastSeenMs": node.last_seen_ms,
+            "schemaType": node.schema_type,
+            "firebaseNodeId": node.firebase_node_id,
+            "hasMessages": has_messages,
+            "score": candidate.score,
+            "serviceSmsCount": candidate.service_sms_count,
+            "minsSinceSeen": round(mins_since_seen, 1),
+            "hoursSinceSeen": round(hours_since_seen, 2),
+            "isCooldown": is_cooldown,
+            "statusLabel": status_label,
+            "breakdown": {
+                "freshnessLabel": freshness_label,
+                "freshnessBonus": freshness_pts,
+                "recencyLabel": recency_label,
+                "recencyScore": recency_pts,
+                "onlineBonus": online_pts,
+                "batteryBonus": batt_pts,
+                "totalComponents": freshness_pts + recency_pts + online_pts + batt_pts
+            }
+        })
+
+    # Sort descending by score (highest score = Rank #1)
+    scored_items.sort(key=lambda x: (x["score"], x["isOnline"], x["battery"]), reverse=True)
+
+    # Assign 1-based ranks
+    for idx, item in enumerate(scored_items):
+        item["rank"] = idx + 1
+        if idx == 0 and not item["isCooldown"]:
+            item["allocationTier"] = "TOP_PICK"
+        elif not item["isCooldown"]:
+            item["allocationTier"] = "READY"
+        else:
+            item["allocationTier"] = "COOLDOWN"
+
+    top_results = scored_items[:limit]
+
+    return {
+        "service": req_svc,
+        "serviceName": req_svc.upper(),
+        "totalNodes": len(sim_nodes),
+        "totalRanked": len(scored_items),
+        "topPick": top_results[0] if top_results and not top_results[0]["isCooldown"] else None,
+        "leaderboard": top_results,
+        "timestamp": int(now)
     }
