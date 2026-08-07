@@ -52,13 +52,21 @@ export async function GET(request: Request) {
                 const metadata = (tx.metadata as any) || {}
 
                 // Compute base currencyPrices from points (USD = points / 100)
-                const currencyPrices = await currencyService.pointsToAllFiat(points)
+                let currencyPrices = await currencyService.pointsToAllFiat(points)
 
-                // If transaction is a deposit with explicit fiat metadata, override exact fiat values
-                if (metadata.depositFiatAmount && metadata.depositFiatCurrency) {
+                // If metadata has stored fiatEquivalents (from confirmDeposit snapshot), use them
+                if (metadata.fiatEquivalents && typeof metadata.fiatEquivalents === 'object') {
+                    currencyPrices = { ...currencyPrices, ...metadata.fiatEquivalents }
+                } else if (metadata.depositFiatAmount && metadata.depositFiatCurrency) {
                     const fiatVal = parseFloat(metadata.depositFiatAmount)
                     if (!isNaN(fiatVal) && fiatVal > 0) {
-                        currencyPrices[metadata.depositFiatCurrency] = fiatVal
+                        if (metadata.depositFiatCurrency === 'INR') {
+                            const pointsForInr = await currencyService.inrToPoints(fiatVal)
+                            currencyPrices = await currencyService.pointsToAllFiat(pointsForInr)
+                            currencyPrices['INR'] = fiatVal
+                        } else {
+                            currencyPrices[metadata.depositFiatCurrency] = fiatVal
+                        }
                     }
                 }
 

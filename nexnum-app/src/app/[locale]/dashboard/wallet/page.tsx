@@ -22,7 +22,9 @@ import {
     Coins,
     Lock,
     QrCode,
-    ShieldCheck
+    ShieldCheck,
+    MessageSquare,
+    X
 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -778,46 +780,43 @@ export default function WalletPage() {
                                                 exit={{ opacity: 0, y: -10 }}
                                                 className="space-y-4"
                                             >
-                                                {/* Amount + Expiry Summary Row */}
-                                                <div className="grid grid-cols-2 gap-3">
-                                                    <div className="p-4 rounded-xl bg-card/50 border border-white/10">
-                                                        <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider mb-1">Amount to Pay</p>
+                                                {/* Single Compact Summary Row (Amount + Expiry) */}
+                                                <div className="p-3.5 rounded-xl bg-card/50 border border-white/10 flex items-center justify-between">
+                                                    <div>
+                                                        <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider mb-0.5">Amount to Pay</p>
                                                         {isGenerating && !activeDeposit ? (
-                                                            <div className="h-7 w-24 bg-white/10 rounded animate-pulse" />
+                                                            <div className="h-6 w-20 bg-white/10 rounded animate-pulse" />
                                                         ) : (
-                                                            <div>
-                                                                <p className="text-2xl font-bold text-white tabular-nums">
+                                                            <div className="flex items-baseline gap-1.5">
+                                                                <span className="text-xl font-bold text-white tabular-nums">
                                                                     ₹{activeDeposit?.amount?.toLocaleString('en-IN') ?? calculatedInrAmount}
-                                                                </p>
+                                                                </span>
                                                                 {preferredCurrency !== 'INR' && (
-                                                                    <p className="text-[10px] text-muted-foreground mt-0.5 font-mono">
-                                                                        ≈ {currencySym}{parseFloat(amount).toFixed(2)} {preferredCurrency}
-                                                                    </p>
+                                                                    <span className="text-[10px] text-muted-foreground font-mono">
+                                                                        (≈ {currencySym}{parseFloat(amount).toFixed(2)} {preferredCurrency})
+                                                                    </span>
                                                                 )}
                                                             </div>
                                                         )}
                                                     </div>
 
-                                                    <div className="p-4 rounded-xl bg-card/50 border border-white/10">
-                                                        <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider mb-1 flex items-center gap-1">
-                                                            <Clock className="w-3 h-3 text-amber-400" /> Session Expiry
+                                                    <div className="text-right">
+                                                        <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider mb-0.5 flex items-center justify-end gap-1">
+                                                            <Clock className="w-3 h-3 text-amber-400" /> Expiry
                                                         </p>
-                                                        <p className={`text-2xl font-mono font-bold tabular-nums ${timeLeft < 120 ? 'text-rose-400 animate-pulse' : 'text-amber-400'}`}>
+                                                        <p className={`text-xl font-mono font-bold tabular-nums ${timeLeft < 120 ? 'text-rose-400 animate-pulse' : 'text-amber-400'}`}>
                                                             {formatTimer(timeLeft)}
-                                                        </p>
-                                                        <p className="text-[10px] text-muted-foreground mt-0.5">
-                                                            Complete before expiry
                                                         </p>
                                                     </div>
                                                 </div>
 
                                                 {/* QR Code Container — ultra minimalist */}
                                                 <div className="flex flex-col items-center">
-                                                    <div className="relative w-full max-w-[220px] aspect-square mx-auto bg-white rounded-xl p-3 border border-white/10 flex items-center justify-center overflow-hidden">
+                                                    <div className="relative w-full max-w-[200px] aspect-square mx-auto bg-white rounded-xl p-2.5 border border-white/10 flex items-center justify-center overflow-hidden">
                                                         {isGenerating || !resolvedQrImage ? (
-                                                            <div className="w-full h-full flex flex-col items-center justify-center gap-2.5">
-                                                                <Loader2 className="w-7 h-7 text-gray-700 animate-spin" />
-                                                                <p className="text-xs text-gray-500 font-medium">Generating QR...</p>
+                                                            <div className="w-full h-full flex flex-col items-center justify-center gap-2">
+                                                                <Loader2 className="w-6 h-6 text-gray-700 animate-spin" />
+                                                                <p className="text-[11px] text-gray-500 font-medium">Generating QR...</p>
                                                             </div>
                                                         ) : (
                                                             /* eslint-disable-next-line @next/next/no-img-element */
@@ -829,37 +828,36 @@ export default function WalletPage() {
                                                         )}
                                                     </div>
 
-                                                    <p className="mt-2.5 text-xs text-muted-foreground text-center">
-                                                        Scan with Paytm · PhonePe · GPay · BHIM
+                                                    <p className="mt-2 text-xs text-muted-foreground text-center">
+                                                        Pay with any UPI apps · BHIM · PhonePe · Paytm · GPay
                                                     </p>
                                                 </div>
 
-                                                {/* Auto-detection Status Bar */}
-                                                <div className="p-3 rounded-xl bg-card/40 border border-white/10 flex items-center justify-center gap-2 text-xs text-muted-foreground">
-                                                    <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-                                                    <span>Auto-detecting payment — no action needed after scanning</span>
-                                                </div>
+                                                {/* Single Row Action Buttons: [Help & Support] [Cancel Deposit] */}
+                                                <div className="grid grid-cols-2 gap-2.5 pt-1">
+                                                    <a
+                                                        href="https://t.me/NexNum"
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="h-11 rounded-xl text-xs font-semibold border border-white/10 bg-card/40 text-zinc-300 hover:bg-white/5 hover:text-white transition-all flex items-center justify-center gap-1.5 no-underline cursor-pointer"
+                                                    >
+                                                        <MessageSquare className="w-3.5 h-3.5 text-sky-400" />
+                                                        Help &amp; Support
+                                                    </a>
 
-                                                {/* Cancel Action Button */}
-                                                {activeDeposit && (
-                                                    <div className="pt-1">
-                                                        <button
-                                                            type="button"
-                                                            onClick={handleCancelDeposit}
-                                                            disabled={isCancelling}
-                                                            className="w-full h-12 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer flex items-center justify-center gap-2 border border-white/10 bg-card/40 text-zinc-400 hover:bg-white/5 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                                                        >
-                                                            {isCancelling ? (
-                                                                <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Cancelling Deposit...</>
-                                                            ) : (
-                                                                <><ArrowLeft className="w-3.5 h-3.5" /> Cancel &amp; Generate New Deposit</>
-                                                            )}
-                                                        </button>
-                                                        <p className="text-center text-[10px] text-muted-foreground mt-1.5">
-                                                            Only one active deposit allowed at a time
-                                                        </p>
-                                                    </div>
-                                                )}
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleCancelDeposit}
+                                                        disabled={isCancelling}
+                                                        className="h-11 rounded-xl text-xs font-semibold border border-white/10 bg-card/40 text-rose-400 hover:bg-rose-500/10 hover:border-rose-500/30 transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    >
+                                                        {isCancelling ? (
+                                                            <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Cancelling...</>
+                                                        ) : (
+                                                            <><X className="w-3.5 h-3.5" /> Cancel Deposit</>
+                                                        )}
+                                                    </button>
+                                                </div>
                                             </motion.div>
                                         )}
 
