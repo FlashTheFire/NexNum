@@ -23,18 +23,17 @@ class TestPhase3WorkersMatcher(unittest.TestCase):
 
     def test_01_service_sms_pattern_matching(self):
         """Test matching SMS text and sender ID against requested service codes."""
-        loop = asyncio.get_event_loop()
         # Telegram match
-        matched_tg, _, _ = loop.run_until_complete(ServicePatternRegistry.match_sms_dynamic(None, "Telegram login code: 54321", "Telegram", "tg"))
+        matched_tg, _, _ = asyncio.run(ServicePatternRegistry.match_sms_dynamic(None, "Telegram login code: 54321", "Telegram", "tg"))
         self.assertTrue(matched_tg)
         # WhatsApp match
-        matched_wa, _, _ = loop.run_until_complete(ServicePatternRegistry.match_sms_dynamic(None, "Your WhatsApp code: 123-456", "WhatsApp", "wa"))
+        matched_wa, _, _ = asyncio.run(ServicePatternRegistry.match_sms_dynamic(None, "Your WhatsApp code: 123-456", "WhatsApp", "wa"))
         self.assertTrue(matched_wa)
         # Google match
-        matched_go, _, _ = loop.run_until_complete(ServicePatternRegistry.match_sms_dynamic(None, "G-987654 is your Google verification code", "Google", "go"))
+        matched_go, _, _ = asyncio.run(ServicePatternRegistry.match_sms_dynamic(None, "G-987654 is your Google verification code", "Google", "go"))
         self.assertTrue(matched_go)
         # Wrong service mismatch
-        matched_sw_tg, _, _ = loop.run_until_complete(ServicePatternRegistry.match_sms_dynamic(None, "Your Swiggy order code is 112233", "Swiggy", "tg"))
+        matched_sw_tg, _, _ = asyncio.run(ServicePatternRegistry.match_sms_dynamic(None, "Your Swiggy order code is 112233", "Swiggy", "tg"))
         self.assertFalse(matched_sw_tg)
         print("  [Phase 3] Service SMS pattern matching verified for Telegram, WhatsApp, Google!")
 

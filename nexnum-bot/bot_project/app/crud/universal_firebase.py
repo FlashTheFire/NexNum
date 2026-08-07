@@ -112,10 +112,9 @@ class UniversalFirebaseNode:
     async def parse_sim_nodes_async(self) -> List[DeviceSimNode]:
         raw_dict = await self.fetch_raw_data_async()
         sim_nodes = []
-        try:    
+        try:
             # pyrefly: ignore [missing-import]
-            # pyrefly: ignore [missing-import]
-from app.crud.firebase_crud import GLOBAL_PHONE_CACHE
+            from app.crud.firebase_crud import GLOBAL_PHONE_CACHE
         except ImportError:
             GLOBAL_PHONE_CACHE = {}
 
