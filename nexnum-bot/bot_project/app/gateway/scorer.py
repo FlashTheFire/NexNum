@@ -153,8 +153,21 @@ class DeviceScorer:
         if last_sms_timestamp_ms > 0:
             last_sms_sec = last_sms_timestamp_ms / 1000.0 if last_sms_timestamp_ms > 1e11 else last_sms_timestamp_ms
             hours_since_last_sms = max(0.0, (now - last_sms_sec) / 3600.0)
+        elif node.last_seen_ms and node.last_seen_ms > 0:
+            # Fallback: Use device heartbeat last_seen_ms as recency proxy.
+            # A device that heartbeated recently is likely still receiving SMS,
+            # but pre-scorer hasn't cached its messages yet. Don't default to 999h
+            # which would hard-exclude it. Instead, use last_seen + 1h buffer.
+            last_seen_sec = node.last_seen_ms / 1000.0 if node.last_seen_ms > 1e11 else node.last_seen_ms
+            hours_since_last_seen = max(0.0, (now - last_seen_sec) / 3600.0)
+            # Cap the fallback at 11h so the device isn't immediately excluded
+            # but still ranks lower than devices with confirmed SMS recency
+            hours_since_last_sms = min(hours_since_last_seen + 1.0, 11.0)
+            # Mark as having messages (unknown but assumed active) only if recently seen
+            if hours_since_last_seen < 12.0 and not has_messages:
+                has_messages = True
         else:
-            hours_since_last_sms = 999.0  # No SMS history
+            hours_since_last_sms = 999.0  # Truly no data at all
 
         mins_since_sms = hours_since_last_sms * 60.0
 
