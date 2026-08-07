@@ -420,8 +420,8 @@ export default function HistoryPage() {
     const stats = useMemo(() => {
         const cleanTxs = transactions.filter(t => !['reservation', 'rollback'].includes(t.type))
 
-        const depositedPrices: Record<string, number> = {}
-        const spentPrices: Record<string, number> = {}
+        const depositedPrices: Record<string, number> = { USD: 0, INR: 0, points: 0 }
+        const spentPrices: Record<string, number> = { USD: 0, INR: 0, points: 0 }
 
         cleanTxs.forEach(t => {
             const isDep = ['topup', 'manual_credit', 'deposit', 'referral_bonus'].includes(t.type)
