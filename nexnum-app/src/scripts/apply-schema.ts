@@ -1,7 +1,9 @@
 import 'dotenv/config'
-import { prisma } from '../lib/core/db'
+import { PrismaClient } from '@prisma/client'
 import * as fs from 'fs'
 import * as path from 'path'
+
+const prisma = new PrismaClient()
 
 /**
  * Automatically applies master PostgreSQL schema (app_schema.sql)
@@ -22,6 +24,8 @@ export async function applyAppSchema() {
         console.log('[SCHEMA] ✅ Master database schema synchronized successfully.')
     } catch (error: any) {
         console.error('[SCHEMA] ⚠️ Schema sync notice:', error.message)
+    } finally {
+        await prisma.$disconnect()
     }
 }
 
