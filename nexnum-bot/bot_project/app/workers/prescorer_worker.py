@@ -118,6 +118,7 @@ async def _fetch_device_messages_fast(
     """
     Fetches newest messages for a single device from Firebase in ~15ms.
     Probes /messages/{device_id}, /clients/{device_id}/messages, /gateways/{device_id}/messages, and phone mapping paths.
+    Uses limitToLast only (no orderBy=$key which requires Firebase index rules).
     """
     paths_to_try = [
         f"/messages/{device_id}",
@@ -134,7 +135,7 @@ async def _fetch_device_messages_fast(
         ])
 
     for path in paths_to_try:
-        url = node._build_url(path, params='orderBy="$key"&limitToLast=20')
+        url = node._build_url(path, params='limitToLast=20')
         try:
             resp = await client.get(url, timeout=1.5)
             if resp.status_code == 200 and resp.json():
@@ -215,7 +216,11 @@ async def analyze_and_cache_all_service_counts(redis_client):
                     continue
             except Exception:
                 pass
-        elif no_msg_flag:
+        # NOTE: Removed aggressive negative cache skip — device_no_messages is now
+        # only a soft hint (60s TTL). Devices are always re-probed after TTL expires.
+        # Previously this had 300s TTL and hard-skipped devices, permanently blocking
+        # message lookups for 5 minutes even if messages arrived.
+        if no_msg_flag:
             continue
 
         uncached_sims.append(sim)
@@ -295,7 +300,9 @@ async def analyze_and_cache_all_service_counts(redis_client):
                     pipe.set(f"{REDIS_PREFIX}:device_messages:{clean_phone}", msg_json, ex=600)
         else:
             devices_no_messages += 1
-            pipe.set(f"{REDIS_PREFIX}:device_no_messages:{device_id}", "1", ex=300)
+            # Reduced from 300s to 60s — prevents 5-minute lockout of devices
+            # that just received their first message
+            pipe.set(f"{REDIS_PREFIX}:device_no_messages:{device_id}", "1", ex=60)
             if phone and phone not in ("Pending", "Unknown", ""):
                 processed_phones.add(phone)
             continue
