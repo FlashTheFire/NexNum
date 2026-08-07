@@ -39,7 +39,11 @@ if [ -n "$DATABASE_URL" ]; then
     fi
 
     echo "[STARTUP] Synchronizing master raw SQL schema (app_schema.sql)..."
-    timeout 30 npx tsx src/scripts/apply-schema.ts || echo "[STARTUP] Schema sync notice. Proceeding..."
+    if [ -f "./prisma/apply-schema.ts" ]; then
+        timeout 30 npx tsx ./prisma/apply-schema.ts || echo "[STARTUP] Schema sync notice. Proceeding..."
+    elif [ -f "./src/scripts/apply-schema.ts" ]; then
+        timeout 30 npx tsx ./src/scripts/apply-schema.ts || echo "[STARTUP] Schema sync notice. Proceeding..."
+    fi
 
     echo "[STARTUP] Checking database schema status and sync..."
     timeout 30 npx prisma db push --accept-data-loss || timeout 30 npx prisma migrate deploy || echo "[STARTUP] Database schema active in Supabase. Proceeding to server startup..."
