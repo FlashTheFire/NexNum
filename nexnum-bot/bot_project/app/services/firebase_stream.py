@@ -72,8 +72,9 @@ class FirebaseStreamManager:
         node_url = node.get("url", "").rstrip("/")
         auth_token = node.get("auth", "")
         
-        stype = node.get("schema_type", "auto").lower()
-        stream_path = "/gateways.json" if stype == "gateways" else "/clients.json"
+        # Listen to /messages.json — this is where SilentGate writes incoming SMS
+        # (NOT /gateways.json or /clients.json which only contain device registration data)
+        stream_path = "/messages.json"
         stream_url = f"{node_url}{stream_path}"
         if auth_token:
             stream_url += f"?auth={auth_token}"
