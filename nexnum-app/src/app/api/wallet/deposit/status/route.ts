@@ -1,26 +1,29 @@
 /**
  * Deposit Status API Endpoint
- * 
+ *
  * GET /api/wallet/deposit/status?id={depositId}
- * Check and return the status of a deposit
- * 
+ * Check and return the status of a deposit.
+ *
+ * Always returns HTTP 200 with a status field — never 500.
+ * Provider downtime → { status: 'pending' } so the client keeps polling gracefully.
+ *
  * @module api/wallet/deposit/status
  */
 
 import { apiHandler } from '@/lib/api/api-handler'
 import { ResponseFactory } from '@/lib/api/response-factory'
 import { getDepositService } from '@/lib/payment/deposit-service'
+import { logger } from '@/lib/core/logger'
 
 /**
  * GET /api/wallet/deposit/status
- * Check deposit status
+ * Check deposit status — always returns a clean response, never propagates provider errors.
  */
 export const GET = apiHandler(async (request, { user }) => {
     if (!user) {
         return ResponseFactory.error('Unauthorized', 401, 'E_UNAUTHORIZED')
     }
 
-    // Get deposit ID from query
     const { searchParams } = new URL(request.url)
     const depositId = searchParams.get('id')
 
@@ -29,7 +32,28 @@ export const GET = apiHandler(async (request, { user }) => {
     }
 
     const depositService = getDepositService()
-    const result = await depositService.checkStatus(depositId)
+
+    let result: Awaited<ReturnType<typeof depositService.checkStatus>>
+
+    try {
+        result = await depositService.checkStatus(depositId)
+    } catch (err: any) {
+        // Belt-and-suspenders: should never reach here after the provider fixes,
+        // but if it does — return pending so the client keeps polling rather than crashing.
+        logger.warn('[DepositStatus] checkStatus threw unexpectedly — returning pending to client', {
+            depositId,
+            error: err?.message,
+        })
+        return ResponseFactory.success({
+            status: 'pending',
+            message: 'Waiting for payment confirmation',
+            amount: undefined,
+            amountCurrency: 'INR' as const,
+            utr: undefined,
+            completedAt: undefined,
+            deposit: null,
+        })
+    }
 
     // Verify ownership
     if (result.deposit && result.deposit.userId !== user.userId) {

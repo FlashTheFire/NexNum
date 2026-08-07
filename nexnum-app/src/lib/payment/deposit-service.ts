@@ -248,8 +248,22 @@ export class DepositService {
             return { status: 'expired', message: 'Deposit has expired', deposit: { ...deposit, status: 'expired' } }
         }
 
-        // Check with payment provider
-        const status = await this.provider.checkStatus(deposit.orderId)
+        // Check with payment provider (wrapped so any unexpected throw returns pending, not HTTP 500)
+        let status: PaymentStatus
+        try {
+            status = await this.provider.checkStatus(deposit.orderId)
+        } catch (providerErr: any) {
+            logger.warn('[DepositService] Provider checkStatus threw unexpectedly — returning pending', {
+                depositId,
+                error: providerErr?.message,
+            })
+            const remainingMsFallback = deposit.expiresAt.getTime() - Date.now()
+            return {
+                status: 'pending',
+                message: 'Waiting for payment confirmation',
+                deposit: { ...deposit, expiresIn: Math.max(0, Math.floor(remainingMsFallback / 1000)) },
+            }
+        }
 
         if (status.status === 'completed') {
             await this.confirmDeposit(depositId, status.amount || deposit.amount, status.utr)
@@ -383,6 +397,20 @@ export class DepositService {
 
             // Remove from pending list
             await redis.srem(USER_PENDING_DEPOSITS(deposit.userId), depositId)
+
+            // Trigger real-time socket notification to client
+            try {
+                const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3951'
+                await fetch(`${socketUrl}/api/notify`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        room: `user:${deposit.userId}`,
+                        event: 'balance_updated',
+                        data: { depositId, amount: totalPointsCredit, timestamp: Date.now() }
+                    })
+                }).catch(() => {})
+            } catch (_err) {}
 
             logger.info('[DepositService] Deposit confirmed with forensic integrity', {
                 depositId,

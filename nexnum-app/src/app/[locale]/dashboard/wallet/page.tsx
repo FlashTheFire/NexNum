@@ -22,8 +22,7 @@ import {
     Coins,
     Lock,
     QrCode,
-    ShieldCheck,
-    CreditCard
+    ShieldCheck
 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -70,10 +69,7 @@ export default function WalletPage() {
 
     const [activeDeposit, setActiveDeposit] = useState<any>(null)
     const [timeLeft, setTimeLeft] = useState(900)
-    const [utrInput, setUtrInput] = useState("")
     const [isGenerating, setIsGenerating] = useState(false)
-    const [isVerifyingUtr, setIsVerifyingUtr] = useState(false)
-    const [copiedUpi, setCopiedUpi] = useState(false)
     const [copiedCrypto, setCopiedCrypto] = useState(false)
     const [resolvedQrImage, setResolvedQrImage] = useState<string | null>(null)
 
@@ -84,7 +80,20 @@ export default function WalletPage() {
             return
         }
 
-        const rawUrl = activeDeposit.qrCodeUrl
+        const rawUrl = activeDeposit.qrCodeUrl as string
+
+        // Direct image URLs — no JSON parsing needed, use as-is
+        const isDirectImage =
+            rawUrl.includes('api.qrserver.com') ||
+            rawUrl.includes('qrcode-monkey.com') ||
+            /\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(rawUrl)
+
+        if (isDirectImage) {
+            setResolvedQrImage(rawUrl)
+            return
+        }
+
+        // Cloudflare QR worker returns JSON { image: "..." } — resolve to direct URL
         if (rawUrl.includes('qr.udayscriptsx.workers.dev')) {
             fetch(rawUrl)
                 .then(r => r.json())
@@ -96,9 +105,11 @@ export default function WalletPage() {
                     const upiString = encodeURIComponent(`upi://pay?pa=paytmqr281005050101nbxw0hx35cpo@paytm&pn=NexNum&tr=${activeDeposit.depositId || activeDeposit.orderId}&tn=Adding Fund`)
                     setResolvedQrImage(`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${upiString}`)
                 })
-        } else {
-            setResolvedQrImage(rawUrl)
+            return
         }
+
+        // Fallback: use URL as-is
+        setResolvedQrImage(rawUrl)
     }, [activeDeposit?.qrCodeUrl, activeDeposit?.depositId, activeDeposit?.orderId])
 
     // Refs
@@ -271,39 +282,6 @@ export default function WalletPage() {
         setInlineStep('crypto_payment')
     }
 
-    // Submit UTR Transaction Reference
-    const handleVerifyUtr = async () => {
-        if (!utrInput.trim() || utrInput.trim().length < 6) {
-            toast.error("Please enter a valid 12-digit UPI UTR number")
-            return
-        }
-
-        setIsVerifyingUtr(true)
-        try {
-            const res = await fetch('http://localhost:8080/api/v1/deposit/verify-utr', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    deposit_id: activeDeposit?.depositId || activeDeposit?.orderId,
-                    utr: utrInput.trim()
-                })
-            })
-
-            if (res.ok) {
-                cleanup()
-                setInlineStep('success')
-                fetchBalance()
-                fetchTransactions()
-                toast.success("UTR submitted! Balance credited.")
-            } else {
-                toast.success("UTR recorded! Verification in progress.")
-            }
-        } catch (e) {
-            toast.success("UTR recorded! Verification in progress.")
-        } finally {
-            setIsVerifyingUtr(false)
-        }
-    }
 
     const startPolling = (depId: string) => {
         cleanup()
@@ -330,7 +308,9 @@ export default function WalletPage() {
             setTimeLeft(prev => {
                 if (prev <= 1) {
                     cleanup()
-                    toast.error("Payment session expired")
+                    setInlineStep('input')
+                    setActiveDeposit(null)
+                    toast.error("Payment session expired. Please start a new deposit.")
                     return 0
                 }
                 return prev - 1
@@ -338,13 +318,6 @@ export default function WalletPage() {
         }, 1000)
     }
 
-    const copyUpiId = () => {
-        const upi = activeDeposit?.upiId || 'paytmqr281005050101nbxw0hx35cpo@paytm'
-        navigator.clipboard.writeText(upi)
-        setCopiedUpi(true)
-        toast.success("UPI VPA ID copied to clipboard")
-        setTimeout(() => setCopiedUpi(false), 2000)
-    }
 
     const cryptoAddress = cryptoNetwork === 'TRC20' 
         ? "TQn9Y2khEsLJW1ChVWFMSMeSTow5K3wSE4" 
@@ -679,17 +652,6 @@ export default function WalletPage() {
                                                     </div>
                                                 </div>
 
-                                                {/* Summary Calculation Banner */}
-                                                <div className="p-3.5 rounded-xl bg-black/40 border border-white/10 flex items-center justify-between text-xs">
-                                                    <span className="text-muted-foreground font-medium">You'll receive</span>
-                                                    <div className="text-right">
-                                                        <span className="text-emerald-400 font-bold font-mono text-sm mr-2">
-                                                            {parseFloat(amount) ? (parseFloat(amount) * 100).toLocaleString() : 0} Points
-                                                        </span>
-                                                        <span className="text-[10px] text-zinc-500 block">Min: {currencySym}1.00 • Max: {currencySym}5,000.00</span>
-                                                    </div>
-                                                </div>
-
                                                 {/* Continue Button */}
                                                 <Button
                                                     onClick={handleContinueToMethod}
@@ -778,7 +740,7 @@ export default function WalletPage() {
                                             </motion.div>
                                         )}
 
-                                        {/* STEP 3A: Live UPI QR Payment & UTR Screen */}
+                                        {/* STEP 3A: Live UPI QR Payment Screen */}
                                         {inlineStep === 'qr_payment' && activeDeposit && (
                                             <motion.div
                                                 key="step_qr_payment"
@@ -788,7 +750,7 @@ export default function WalletPage() {
                                                 className="space-y-6 text-center"
                                             >
                                                 {/* Amount & Expiry Timer Banner */}
-                                                <div className="flex items-center justify-between p-3.5 rounded-xl bg-black/40 border border-white/10">
+                                                <div className="flex items-center justify-between p-4 rounded-xl bg-black/40 border border-white/10">
                                                     <div className="text-left">
                                                         <p className="text-[10px] uppercase font-bold text-muted-foreground">Amount to Pay</p>
                                                         <div className="flex items-baseline gap-2">
@@ -798,14 +760,14 @@ export default function WalletPage() {
                                                     </div>
                                                     <div className="text-right">
                                                         <p className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1 justify-end">
-                                                            <Clock className="w-3 h-3 text-amber-400" /> Session Expiry
+                                                            <Clock className="w-3.5 h-3.5 text-amber-400" /> Session Expiry
                                                         </p>
                                                         <p className="text-base font-mono font-bold text-amber-400">{formatTimer(timeLeft)}</p>
                                                     </div>
                                                 </div>
 
                                                 {/* Live QR Code Box */}
-                                                <div className="relative mx-auto w-56 h-56 bg-white p-3.5 rounded-2xl shadow-2xl flex items-center justify-center border-4 border-emerald-500/40">
+                                                <div className="relative mx-auto w-64 h-64 bg-white p-4 rounded-2xl shadow-2xl shadow-emerald-500/10 flex items-center justify-center border-4 border-emerald-500/40">
                                                     {/* eslint-disable-next-line @next/next/no-img-element */}
                                                     <img
                                                         src={resolvedQrImage || activeDeposit.qrCodeUrl}
@@ -814,46 +776,10 @@ export default function WalletPage() {
                                                     />
                                                 </div>
 
-                                                {/* Copyable UPI VPA Address */}
-                                                <div className="p-3.5 rounded-xl bg-black/30 border border-white/10 flex items-center justify-between">
-                                                    <div className="text-left min-w-0 pr-2">
-                                                        <p className="text-[10px] font-bold uppercase text-muted-foreground">UPI VPA Address</p>
-                                                        <p className="text-xs font-mono text-emerald-300 truncate">{activeDeposit.upiId}</p>
-                                                    </div>
-                                                    <Button
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        onClick={copyUpiId}
-                                                        className="h-8 px-3 text-xs border border-white/10 hover:bg-white/10 shrink-0 cursor-pointer"
-                                                    >
-                                                        {copiedUpi ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                                                    </Button>
-                                                </div>
-
-                                                {/* 12-Digit UTR Input Field */}
-                                                <div className="space-y-2 text-left">
-                                                    <p className="text-xs font-medium text-gray-300">Enter 12-Digit UTR / Transaction Reference</p>
-                                                    <div className="flex gap-2">
-                                                        <Input
-                                                            placeholder="e.g. 421098765432"
-                                                            value={utrInput}
-                                                            onChange={(e) => setUtrInput(e.target.value)}
-                                                            className="bg-black/40 border-white/10 text-xs font-mono h-11 focus:border-emerald-500/50"
-                                                        />
-                                                        <Button
-                                                            onClick={handleVerifyUtr}
-                                                            disabled={isVerifyingUtr || !utrInput.trim()}
-                                                            className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold h-11 px-5 rounded-xl shadow-md shrink-0 cursor-pointer"
-                                                        >
-                                                            {isVerifyingUtr ? <Loader2 className="w-4 h-4 animate-spin" /> : "Verify UTR"}
-                                                        </Button>
-                                                    </div>
-                                                </div>
-
-                                                {/* Status Polling Indicator */}
-                                                <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground pt-1">
-                                                    <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" />
-                                                    <span>Waiting for payment confirmation...</span>
+                                                {/* Automatic Polling Indicator */}
+                                                <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center gap-2 text-xs text-emerald-400 font-medium">
+                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                    <span>Scan & Pay via Paytm / PhonePe / GPay • Auto-detecting payment...</span>
                                                 </div>
                                             </motion.div>
                                         )}

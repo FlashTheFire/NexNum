@@ -73,8 +73,20 @@ export const POST = apiHandler(async (request, { body, user }) => {
 
     const { amount, currency = 'INR', currencyRate, taxPercent = 0, discountPercent = 0, customerMobile, idempotencyKey } = body
 
-    // 1. Calculate INR converted amount
-    const { finalAmount: inrAmount } = calculateDepositINR(amount, currency, currencyRate, taxPercent, discountPercent)
+    // 1. Calculate INR converted amount with live CurrencyService rates
+    let activeRate = currencyRate
+    if (!activeRate || activeRate <= 0) {
+        try {
+            const { getCurrencyService } = await import('@/lib/currency/currency-service')
+            const rates = await getCurrencyService().getRates()
+            const val = rates[currency as 'USD' | 'EUR' | 'GBP' | 'INR' | 'RUB']
+            activeRate = typeof val === 'number' && val > 0 ? val : 88.5
+        } catch (_err) {
+            activeRate = 88.5
+        }
+    }
+
+    const { finalAmount: inrAmount } = calculateDepositINR(amount, currency, activeRate, taxPercent, discountPercent)
 
     // 2. Generate anti-bot HMAC security signature
     const secret = process.env.JWT_SECRET || 'nexnum_secure_deposit_key_2026'
