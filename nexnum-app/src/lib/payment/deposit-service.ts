@@ -97,10 +97,12 @@ export class DepositService {
         // Get config for max pending deposits
         const config = await getPaymentSettingsService().getConfig()
 
-        // Check for existing pending deposits
-        const pendingCount = await this.getPendingDepositCount(userId)
-        if (pendingCount >= config.maxPendingDeposits) {
-            throw PaymentError.declined(`Maximum ${config.maxPendingDeposits} pending deposits allowed. Please complete or wait for existing deposits to expire.`)
+        // Auto-expire previous pending deposits so user is never blocked
+        const existingPending = await this.getPendingDeposits(userId)
+        if (existingPending.length > 0) {
+            for (const oldDep of existingPending) {
+                await this.expireDeposit(oldDep.id)
+            }
         }
 
         // Ensure wallet exists

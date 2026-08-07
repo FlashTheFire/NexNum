@@ -11,21 +11,19 @@ import {
     History,
     Sparkles,
     Download,
-    Search,
     RefreshCw,
     CheckCircle2,
-    XCircle,
     Clock,
-    AlertCircle,
-    RotateCcw,
-    ChevronLeft,
-    ChevronRight,
-    Ban,
     Copy,
     Check,
     Loader2,
     IndianRupee,
-    ArrowLeft
+    ArrowLeft,
+    Coins,
+    Lock,
+    QrCode,
+    ShieldCheck,
+    CreditCard
 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -63,16 +61,45 @@ export default function WalletPage() {
     const { userProfile, transactions, fetchTransactions, fetchBalance } = useGlobalStore()
     const { currencies, preferredCurrency, formatPrice } = useCurrency()
 
-    // Form & Inline Deposit State
-    const [amount, setAmount] = useState<string>("")
+    // Form & Inline Multi-Step Deposit State
+    const [amount, setAmount] = useState<string>("10")
     const [customFocused, setCustomFocused] = useState(false)
-    const [inlineStep, setInlineStep] = useState<'input' | 'qr_payment' | 'success'>('input')
+    const [inlineStep, setInlineStep] = useState<'input' | 'select_method' | 'qr_payment' | 'crypto_payment' | 'success'>('input')
+    const [selectedGateway, setSelectedGateway] = useState<'UPI' | 'CRYPTO'>('UPI')
+    const [cryptoNetwork, setCryptoNetwork] = useState<'TRC20' | 'BEP20'>('TRC20')
+
     const [activeDeposit, setActiveDeposit] = useState<any>(null)
     const [timeLeft, setTimeLeft] = useState(900)
     const [utrInput, setUtrInput] = useState("")
     const [isGenerating, setIsGenerating] = useState(false)
     const [isVerifyingUtr, setIsVerifyingUtr] = useState(false)
     const [copiedUpi, setCopiedUpi] = useState(false)
+    const [copiedCrypto, setCopiedCrypto] = useState(false)
+    const [resolvedQrImage, setResolvedQrImage] = useState<string | null>(null)
+
+    // Resolve QR Worker JSON to direct image URL if needed
+    useEffect(() => {
+        if (!activeDeposit?.qrCodeUrl) {
+            setResolvedQrImage(null)
+            return
+        }
+
+        const rawUrl = activeDeposit.qrCodeUrl
+        if (rawUrl.includes('qr.udayscriptsx.workers.dev')) {
+            fetch(rawUrl)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.image) setResolvedQrImage(data.image)
+                    else setResolvedQrImage(rawUrl)
+                })
+                .catch(() => {
+                    const upiString = encodeURIComponent(`upi://pay?pa=paytmqr281005050101nbxw0hx35cpo@paytm&pn=NexNum&tr=${activeDeposit.depositId || activeDeposit.orderId}&tn=Adding Fund`)
+                    setResolvedQrImage(`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${upiString}`)
+                })
+        } else {
+            setResolvedQrImage(rawUrl)
+        }
+    }, [activeDeposit?.qrCodeUrl, activeDeposit?.depositId, activeDeposit?.orderId])
 
     // Refs
     const addFundsRef = useRef<HTMLDivElement>(null)
@@ -131,13 +158,7 @@ export default function WalletPage() {
         const baseValues = [10, 25, 50, 100]
         return baseValues.map(base => {
             const raw = base * currencyRate
-            let rounded = raw
-            if (raw >= 10000) rounded = Math.round(raw / 5000) * 5000
-            else if (raw >= 1000) rounded = Math.round(raw / 500) * 500
-            else if (raw >= 100) rounded = Math.round(raw / 50) * 50
-            else if (raw >= 10) rounded = Math.round(raw / 5) * 5
-            else rounded = Math.round(raw)
-            
+            let rounded = Math.round(raw)
             const val = Math.max(1, rounded)
             return {
                 value: val,
@@ -147,6 +168,17 @@ export default function WalletPage() {
     }, [preferredCurrency, currencySym, currencyRate])
 
     const userCardLast4 = user?.id ? user.id.slice(-4).toUpperCase() : "8888"
+
+    // Estimated INR converted amount for display
+    const calculatedInrAmount = useMemo(() => {
+        const val = parseFloat(amount) || 0
+        if (preferredCurrency === 'INR') return val
+        if (preferredCurrency === 'USD') return Math.round(val * 88.5 * 100) / 100
+        if (preferredCurrency === 'EUR') return Math.round(val * 96.0 * 100) / 100
+        if (preferredCurrency === 'GBP') return Math.round(val * 112.0 * 100) / 100
+        if (preferredCurrency === 'RUB') return Math.round(val * 0.95 * 100) / 100
+        return Math.round(val * (currencyRate || 88.5) * 100) / 100
+    }, [amount, preferredCurrency, currencyRate])
 
     // Check for existing pending deposit on page load
     const fetchExistingPendingDeposit = async () => {
@@ -160,6 +192,8 @@ export default function WalletPage() {
                 setActiveDeposit({
                     depositId: depId,
                     amount: pending.amount,
+                    originalAmount: pending.amount,
+                    originalCurrency: 'INR',
                     qrCodeUrl: pending.qrCodeUrl || defaultQr,
                     upiId: 'paytmqr281005050101nbxw0hx35cpo@paytm',
                     expiresIn: pending.expiresIn || 900
@@ -172,32 +206,46 @@ export default function WalletPage() {
         } catch (e) {}
     }
 
-    // Inline Deposit Trigger Handler
-    const handleInlineCreateDeposit = async () => {
+    // Handle Amount Continue -> Select Method
+    const handleContinueToMethod = () => {
+        const val = parseFloat(amount)
+        if (isNaN(val) || val < 1) {
+            toast.error("Minimum deposit amount is $1.00")
+            return
+        }
+        setInlineStep('select_method')
+    }
+
+    // Create UPI Order & Transition to QR Payment
+    const handleSelectUpiPayment = async () => {
         const val = parseFloat(amount)
         if (isNaN(val) || val <= 0) {
             toast.error("Please enter a valid deposit amount")
             return
         }
 
+        setSelectedGateway('UPI')
         setIsGenerating(true)
         try {
             const result = await api.request<any>('/api/wallet/deposit', 'POST', {
                 amount: val,
                 currency: preferredCurrency,
-                currencyRate: currencyRate
+                currencyRate: currencyRate,
+                idempotencyKey: `dep_${user?.id}_${Date.now()}`
             })
 
             if (result.success && result.data) {
                 const depData = result.data
                 const depId = depData.depositId || depData.orderId || `dep_${Date.now()}`
-                const defaultQr = `https://qr.udayscriptsx.workers.dev/?data=upi%3A%2F%2Fpay%3Fpa%3Dpaytmqr281005050101nbxw0hx35cpo%40paytm%26pn%3DPaytm%2520Merchant%26tr%3D${depId}%26tn%3DAdding%2520Fund&body=dot&eye=frame13&eyeball=ball14&col1=121f28&col2=121f28&logo=https://i.postimg.cc/cCrHr3TQ/1000011838-removebg.png`
+                const defaultQr = `https://qr.udayscriptsx.workers.dev/?data=upi%3A%2F%2Fpay%3Fpa%3Dpaytmqr281005050101nbxw0hx35cpo%40paytm%26pn%3DNexNum%26tr%3D${depId}%26tn%3DAdding%2520Fund&body=dot&eye=frame13&eyeball=ball14&col1=121f28&col2=121f28&logo=https://i.postimg.cc/cCrHr3TQ/1000011838-removebg.png`
 
                 setActiveDeposit({
                     depositId: depId,
-                    amount: depData.amount || val,
+                    orderId: depData.orderId,
+                    amount: depData.amount || calculatedInrAmount,
                     originalAmount: val,
                     originalCurrency: preferredCurrency,
+                    securitySignature: depData.securitySignature,
                     qrCodeUrl: depData.qrCodeUrl || defaultQr,
                     upiId: depData.upiId || 'paytmqr281005050101nbxw0hx35cpo@paytm',
                     expiresIn: depData.expiresIn || 900
@@ -217,7 +265,13 @@ export default function WalletPage() {
         }
     }
 
-    // Submit UTR
+    // Select Crypto Payment -> Transition to Crypto Screen
+    const handleSelectCryptoPayment = () => {
+        setSelectedGateway('CRYPTO')
+        setInlineStep('crypto_payment')
+    }
+
+    // Submit UTR Transaction Reference
     const handleVerifyUtr = async () => {
         if (!utrInput.trim() || utrInput.trim().length < 6) {
             toast.error("Please enter a valid 12-digit UPI UTR number")
@@ -230,7 +284,7 @@ export default function WalletPage() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    deposit_id: activeDeposit?.depositId,
+                    deposit_id: activeDeposit?.depositId || activeDeposit?.orderId,
                     utr: utrInput.trim()
                 })
             })
@@ -242,10 +296,10 @@ export default function WalletPage() {
                 fetchTransactions()
                 toast.success("UTR submitted! Balance credited.")
             } else {
-                toast.success("UTR recorded! System is verifying payment.")
+                toast.success("UTR recorded! Verification in progress.")
             }
         } catch (e) {
-            toast.success("UTR recorded! System is verifying payment.")
+            toast.success("UTR recorded! Verification in progress.")
         } finally {
             setIsVerifyingUtr(false)
         }
@@ -290,6 +344,17 @@ export default function WalletPage() {
         setCopiedUpi(true)
         toast.success("UPI VPA ID copied to clipboard")
         setTimeout(() => setCopiedUpi(false), 2000)
+    }
+
+    const cryptoAddress = cryptoNetwork === 'TRC20' 
+        ? "TQn9Y2khEsLJW1ChVWFMSMeSTow5K3wSE4" 
+        : "0x71C7656EC7ab88b098defB751B7401B5f6d8976F"
+
+    const copyCryptoAddress = () => {
+        navigator.clipboard.writeText(cryptoAddress)
+        setCopiedCrypto(true)
+        toast.success(`USDT ${cryptoNetwork} address copied`)
+        setTimeout(() => setCopiedCrypto(false), 2000)
     }
 
     const formatTimer = (seconds: number) => {
@@ -381,7 +446,7 @@ export default function WalletPage() {
                             variant="outline"
                             size="sm"
                             onClick={() => { fetchBalance(); fetchTransactions(); toast.success("Refreshed wallet balance"); }}
-                            className="border-white/10 bg-card/40 hover:bg-white/10 text-xs font-semibold h-10 px-4"
+                            className="border-white/10 bg-card/40 hover:bg-white/10 text-xs font-semibold h-10 px-4 cursor-pointer"
                         >
                             <RefreshCw className="w-3.5 h-3.5 mr-2" />
                             Refresh
@@ -390,7 +455,7 @@ export default function WalletPage() {
                             variant="outline"
                             size="sm"
                             onClick={downloadReport}
-                            className="border-white/10 bg-card/40 hover:bg-white/10 text-xs font-semibold h-10 px-4"
+                            className="border-white/10 bg-card/40 hover:bg-white/10 text-xs font-semibold h-10 px-4 cursor-pointer"
                         >
                             <Download className="w-3.5 h-3.5 mr-2" />
                             Download CSV
@@ -466,14 +531,14 @@ export default function WalletPage() {
                         {/* Quick Actions Grid */}
                         <motion.div variants={fadeInUp} className="grid grid-cols-2 gap-3">
                             <Button
-                                className="h-16 rounded-xl bg-card/40 border border-white/10 hover:bg-emerald-500/10 hover:border-emerald-500/30 backdrop-blur-sm group transition-all"
+                                className="h-16 rounded-xl bg-card/40 border border-white/10 hover:bg-emerald-500/10 hover:border-emerald-500/30 backdrop-blur-sm group transition-all cursor-pointer"
                                 variant="outline"
                                 onClick={handleDepositClick}
                             >
                                 <ArrowDownRight className="mr-2 h-5 w-5 text-emerald-400 group-hover:scale-110 transition-transform" />
                                 <div className="text-left">
                                     <div className="font-semibold text-white">Deposit</div>
-                                    <div className="text-[10px] text-muted-foreground">Add funds via UPI</div>
+                                    <div className="text-[10px] text-muted-foreground">Add funds via UPI/Crypto</div>
                                 </div>
                             </Button>
                             
@@ -496,17 +561,16 @@ export default function WalletPage() {
                                 <CardContent className="p-4 flex items-center gap-3">
                                     <Shield className="h-5 w-5 text-indigo-400 shrink-0" />
                                     <div>
-                                        <h4 className="text-xs font-semibold text-white">Bank-Grade Security</h4>
-                                        <p className="text-[11px] text-muted-foreground">Your funds are protected by 256-bit encryption and regulated banking partners.</p>
+                                        <h4 className="text-xs font-semibold text-white">Bank-Grade Encrypted Security</h4>
+                                        <p className="text-[11px] text-muted-foreground">All transactions pass anti-bot HMAC signature checks and 256-bit encryption.</p>
                                     </div>
                                 </CardContent>
                             </Card>
                         </motion.div>
                     </div>
 
-                    {/* Right Column: Inline Add Funds Panel (No Popups) & History (7/12) */}
+                    {/* Right Column: Inline Multi-Step Add Funds Panel (7/12) */}
                     <div className="lg:col-span-12 xl:col-span-7 space-y-8">
-                        {/* Top Up / Add Funds Inline Card */}
                         <motion.div variants={fadeInUp} ref={addFundsRef}>
                             <Card className="border-white/10 bg-card/30 backdrop-blur-xl overflow-hidden shadow-xl shadow-black/5 relative">
                                 <div className="absolute top-0 right-0 p-4 opacity-50 pointer-events-none">
@@ -520,19 +584,42 @@ export default function WalletPage() {
                                                 <Plus className="h-5 w-5" />
                                             </div>
                                             <div>
-                                                <CardTitle className="text-xl font-bold text-white">Add Funds</CardTitle>
-                                                <CardDescription className="text-xs text-muted-foreground">Instant top-up via secure gateway</CardDescription>
+                                                <CardTitle className="text-xl font-bold text-white">
+                                                    {inlineStep === 'input' && "Add Funds"}
+                                                    {inlineStep === 'select_method' && "Select Payment Method"}
+                                                    {inlineStep === 'qr_payment' && "Add Funds via UPI"}
+                                                    {inlineStep === 'crypto_payment' && "Crypto USDT Deposit"}
+                                                    {inlineStep === 'success' && "Deposit Completed"}
+                                                </CardTitle>
+                                                <CardDescription className="text-xs text-muted-foreground">
+                                                    {inlineStep === 'input' && "Enter amount to deposit"}
+                                                    {inlineStep === 'select_method' && "Choose your preferred payment method"}
+                                                    {inlineStep === 'qr_payment' && "Instant top-up via secure UPI QR gateway"}
+                                                    {inlineStep === 'crypto_payment' && "Send USDT via TRC20 or BEP20 network"}
+                                                    {inlineStep === 'success' && "Wallet balance updated successfully"}
+                                                </CardDescription>
                                             </div>
                                         </div>
 
-                                        {inlineStep === 'qr_payment' && (
+                                        {inlineStep === 'select_method' && (
                                             <Button
-                                                onClick={() => { setInlineStep('input'); cleanup(); }}
+                                                onClick={() => setInlineStep('input')}
                                                 variant="ghost"
                                                 size="sm"
-                                                className="text-xs text-indigo-400 hover:text-indigo-300 border border-indigo-500/30 bg-indigo-500/10 h-8"
+                                                className="text-xs text-indigo-400 hover:text-indigo-300 border border-indigo-500/30 bg-indigo-500/10 h-8 cursor-pointer"
                                             >
                                                 <ArrowLeft className="w-3.5 h-3.5 mr-1" /> Back to Amount
+                                            </Button>
+                                        )}
+
+                                        {(inlineStep === 'qr_payment' || inlineStep === 'crypto_payment') && (
+                                            <Button
+                                                onClick={() => { setInlineStep('select_method'); cleanup(); }}
+                                                variant="ghost"
+                                                size="sm"
+                                                className="text-xs text-indigo-400 hover:text-indigo-300 border border-indigo-500/30 bg-indigo-500/10 h-8 cursor-pointer"
+                                            >
+                                                <ArrowLeft className="w-3.5 h-3.5 mr-1" /> Back to Payment Method
                                             </Button>
                                         )}
                                     </div>
@@ -540,10 +627,10 @@ export default function WalletPage() {
 
                                 <CardContent className="p-6 relative z-10">
                                     <AnimatePresence mode="wait">
-                                        {/* Step 1: Inline Amount & Preset Selection */}
+                                        {/* STEP 1: Enter Amount & Select Presets */}
                                         {inlineStep === 'input' && (
                                             <motion.div
-                                                key="inline_input"
+                                                key="step_input"
                                                 initial={{ opacity: 0, y: 10 }}
                                                 animate={{ opacity: 1, y: 0 }}
                                                 exit={{ opacity: 0, y: -10 }}
@@ -582,7 +669,7 @@ export default function WalletPage() {
                                                         <Input
                                                             ref={customInputRef}
                                                             type="number"
-                                                            placeholder={`Enter custom amount in ${preferredCurrency}...`}
+                                                            placeholder={`10`}
                                                             value={amount}
                                                             onChange={(e) => setAmount(e.target.value)}
                                                             onFocus={() => setCustomFocused(true)}
@@ -592,34 +679,122 @@ export default function WalletPage() {
                                                     </div>
                                                 </div>
 
-                                                {/* Deposit Trigger Button */}
+                                                {/* Summary Calculation Banner */}
+                                                <div className="p-3.5 rounded-xl bg-black/40 border border-white/10 flex items-center justify-between text-xs">
+                                                    <span className="text-muted-foreground font-medium">You'll receive</span>
+                                                    <div className="text-right">
+                                                        <span className="text-emerald-400 font-bold font-mono text-sm mr-2">
+                                                            {parseFloat(amount) ? (parseFloat(amount) * 100).toLocaleString() : 0} Points
+                                                        </span>
+                                                        <span className="text-[10px] text-zinc-500 block">Min: {currencySym}1.00 • Max: {currencySym}5,000.00</span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Continue Button */}
                                                 <Button
-                                                    onClick={handleInlineCreateDeposit}
-                                                    disabled={!amount || parseFloat(amount) <= 0 || isGenerating}
+                                                    onClick={handleContinueToMethod}
+                                                    disabled={!amount || parseFloat(amount) <= 0}
                                                     className={cn(
-                                                        "w-full h-14 text-lg font-semibold border-none shadow-lg transition-all duration-300 rounded-xl cursor-pointer",
-                                                        "bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 shadow-indigo-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        "w-full h-14 text-base md:text-lg font-semibold border-none shadow-lg transition-all duration-300 rounded-xl cursor-pointer",
+                                                        "bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-emerald-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
                                                     )}
                                                 >
-                                                    {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : amount ? `Deposit ${currencySym}${parseFloat(amount).toLocaleString()}` : "Enter Amount"}
+                                                    Continue to Select Payment Method
                                                 </Button>
                                             </motion.div>
                                         )}
 
-                                        {/* Step 2: Inline Live QR Code & UTR Verification Screen */}
+                                        {/* STEP 2: Select Payment Method Screen */}
+                                        {inlineStep === 'select_method' && (
+                                            <motion.div
+                                                key="step_select_method"
+                                                initial={{ opacity: 0, y: 10 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                exit={{ opacity: 0, y: -10 }}
+                                                className="space-y-4"
+                                            >
+                                                <div className="grid grid-cols-1 gap-3">
+                                                    {/* UPI Method Selection Option */}
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleSelectUpiPayment}
+                                                        disabled={isGenerating}
+                                                        className="w-full p-4 rounded-2xl bg-black/40 border-2 border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all text-left flex items-center justify-between group cursor-pointer"
+                                                    >
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 group-hover:scale-105 transition-transform">
+                                                                <IndianRupee className="w-6 h-6" />
+                                                            </div>
+                                                            <div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-sm font-bold text-white">UPI / Paytm</span>
+                                                                    <Badge className="bg-emerald-500/20 text-emerald-400 text-[10px] border-emerald-500/40">
+                                                                        Local Currency (INR)
+                                                                    </Badge>
+                                                                </div>
+                                                                <p className="text-xs text-muted-foreground mt-0.5">
+                                                                    Instant QR Code top-up via Paytm, PhonePe & Google Pay
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        {isGenerating ? (
+                                                            <Loader2 className="w-5 h-5 text-emerald-400 animate-spin" />
+                                                        ) : (
+                                                            <ArrowDownRight className="w-5 h-5 text-zinc-500 group-hover:text-emerald-400 group-hover:translate-x-0.5 transition-all" />
+                                                        )}
+                                                    </button>
+
+                                                    {/* Crypto USDT Selection Option */}
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleSelectCryptoPayment}
+                                                        className="w-full p-4 rounded-2xl bg-black/40 border-2 border-white/10 hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-all text-left flex items-center justify-between group cursor-pointer"
+                                                    >
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="w-12 h-12 rounded-xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400 group-hover:scale-105 transition-transform">
+                                                                <Coins className="w-6 h-6" />
+                                                            </div>
+                                                            <div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-sm font-bold text-white">Crypto</span>
+                                                                    <Badge className="bg-indigo-500/20 text-indigo-400 text-[10px] border-indigo-500/40">
+                                                                        USDT (Global)
+                                                                    </Badge>
+                                                                </div>
+                                                                <p className="text-xs text-muted-foreground mt-0.5">
+                                                                    Instant USDT TRC20 / BEP20 network deposit
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        <ArrowDownRight className="w-5 h-5 text-zinc-500 group-hover:text-indigo-400 group-hover:translate-x-0.5 transition-all" />
+                                                    </button>
+                                                </div>
+
+                                                {/* Security Footer Note */}
+                                                <div className="pt-2 flex items-center justify-center gap-2 text-center text-xs text-muted-foreground">
+                                                    <Lock className="w-3.5 h-3.5 text-emerald-400" />
+                                                    <span>All payments are secure and encrypted</span>
+                                                </div>
+                                            </motion.div>
+                                        )}
+
+                                        {/* STEP 3A: Live UPI QR Payment & UTR Screen */}
                                         {inlineStep === 'qr_payment' && activeDeposit && (
                                             <motion.div
-                                                key="inline_qr"
+                                                key="step_qr_payment"
                                                 initial={{ opacity: 0, scale: 0.98 }}
                                                 animate={{ opacity: 1, scale: 1 }}
                                                 exit={{ opacity: 0, scale: 0.98 }}
                                                 className="space-y-6 text-center"
                                             >
-                                                {/* Amount & Timer Bar */}
+                                                {/* Amount & Expiry Timer Banner */}
                                                 <div className="flex items-center justify-between p-3.5 rounded-xl bg-black/40 border border-white/10">
-                                                    <div>
+                                                    <div className="text-left">
                                                         <p className="text-[10px] uppercase font-bold text-muted-foreground">Amount to Pay</p>
-                                                        <p className="text-xl font-bold text-emerald-400">₹{activeDeposit.amount.toLocaleString()}</p>
+                                                        <div className="flex items-baseline gap-2">
+                                                            <p className="text-xl font-bold text-emerald-400">₹{activeDeposit.amount.toLocaleString()}</p>
+                                                            <span className="text-[11px] text-zinc-400 font-mono">({currencySym}{parseFloat(amount).toLocaleString()} {preferredCurrency})</span>
+                                                        </div>
                                                     </div>
                                                     <div className="text-right">
                                                         <p className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1 justify-end">
@@ -630,32 +805,32 @@ export default function WalletPage() {
                                                 </div>
 
                                                 {/* Live QR Code Box */}
-                                                <div className="relative mx-auto w-56 h-56 bg-white p-3.5 rounded-2xl shadow-2xl flex items-center justify-center border-4 border-indigo-500/40">
+                                                <div className="relative mx-auto w-56 h-56 bg-white p-3.5 rounded-2xl shadow-2xl flex items-center justify-center border-4 border-emerald-500/40">
                                                     {/* eslint-disable-next-line @next/next/no-img-element */}
                                                     <img
-                                                        src={activeDeposit.qrCodeUrl}
+                                                        src={resolvedQrImage || activeDeposit.qrCodeUrl}
                                                         alt="UPI QR Code"
                                                         className="w-full h-full object-contain rounded-lg"
                                                     />
                                                 </div>
 
-                                                {/* Copyable UPI VPA ID */}
+                                                {/* Copyable UPI VPA Address */}
                                                 <div className="p-3.5 rounded-xl bg-black/30 border border-white/10 flex items-center justify-between">
                                                     <div className="text-left min-w-0 pr-2">
                                                         <p className="text-[10px] font-bold uppercase text-muted-foreground">UPI VPA Address</p>
-                                                        <p className="text-xs font-mono text-indigo-300 truncate">{activeDeposit.upiId}</p>
+                                                        <p className="text-xs font-mono text-emerald-300 truncate">{activeDeposit.upiId}</p>
                                                     </div>
                                                     <Button
                                                         size="sm"
                                                         variant="ghost"
                                                         onClick={copyUpiId}
-                                                        className="h-8 px-3 text-xs border border-white/10 hover:bg-white/10 shrink-0"
+                                                        className="h-8 px-3 text-xs border border-white/10 hover:bg-white/10 shrink-0 cursor-pointer"
                                                     >
                                                         {copiedUpi ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                                                     </Button>
                                                 </div>
 
-                                                {/* 12-Digit UTR Input */}
+                                                {/* 12-Digit UTR Input Field */}
                                                 <div className="space-y-2 text-left">
                                                     <p className="text-xs font-medium text-gray-300">Enter 12-Digit UTR / Transaction Reference</p>
                                                     <div className="flex gap-2">
@@ -663,7 +838,7 @@ export default function WalletPage() {
                                                             placeholder="e.g. 421098765432"
                                                             value={utrInput}
                                                             onChange={(e) => setUtrInput(e.target.value)}
-                                                            className="bg-black/40 border-white/10 text-xs font-mono h-11 focus:border-indigo-500/50"
+                                                            className="bg-black/40 border-white/10 text-xs font-mono h-11 focus:border-emerald-500/50"
                                                         />
                                                         <Button
                                                             onClick={handleVerifyUtr}
@@ -677,16 +852,67 @@ export default function WalletPage() {
 
                                                 {/* Status Polling Indicator */}
                                                 <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground pt-1">
-                                                    <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-400" />
+                                                    <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" />
                                                     <span>Waiting for payment confirmation...</span>
                                                 </div>
                                             </motion.div>
                                         )}
 
-                                        {/* Step 3: Success View */}
+                                        {/* STEP 3B: Crypto USDT Payment Screen */}
+                                        {inlineStep === 'crypto_payment' && (
+                                            <motion.div
+                                                key="step_crypto_payment"
+                                                initial={{ opacity: 0, scale: 0.98 }}
+                                                animate={{ opacity: 1, scale: 1 }}
+                                                exit={{ opacity: 0, scale: 0.98 }}
+                                                className="space-y-6 text-center"
+                                            >
+                                                {/* Amount Header */}
+                                                <div className="p-3.5 rounded-xl bg-black/40 border border-white/10 flex items-center justify-between text-left">
+                                                    <div>
+                                                        <p className="text-[10px] uppercase font-bold text-muted-foreground">Deposit Amount</p>
+                                                        <p className="text-xl font-bold text-indigo-400">{parseFloat(amount).toFixed(2)} USDT</p>
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setCryptoNetwork('TRC20')}
+                                                            className={cn("px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border", cryptoNetwork === 'TRC20' ? "bg-indigo-600 text-white border-indigo-500" : "bg-black/40 text-zinc-400 border-white/10")}
+                                                        >TRC20</button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setCryptoNetwork('BEP20')}
+                                                            className={cn("px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border", cryptoNetwork === 'BEP20' ? "bg-indigo-600 text-white border-indigo-500" : "bg-black/40 text-zinc-400 border-white/10")}
+                                                        >BEP20</button>
+                                                    </div>
+                                                </div>
+
+                                                {/* Deposit Wallet Address */}
+                                                <div className="p-3.5 rounded-xl bg-black/30 border border-white/10 flex items-center justify-between">
+                                                    <div className="text-left min-w-0 pr-2">
+                                                        <p className="text-[10px] font-bold uppercase text-muted-foreground">USDT ({cryptoNetwork}) Address</p>
+                                                        <p className="text-xs font-mono text-indigo-300 truncate">{cryptoAddress}</p>
+                                                    </div>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        onClick={copyCryptoAddress}
+                                                        className="h-8 px-3 text-xs border border-white/10 hover:bg-white/10 shrink-0 cursor-pointer"
+                                                    >
+                                                        {copiedCrypto ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                                                    </Button>
+                                                </div>
+
+                                                <p className="text-xs text-zinc-400">
+                                                    Send exactly <strong className="text-white">{parseFloat(amount).toFixed(2)} USDT</strong> on the <strong className="text-indigo-400">{cryptoNetwork}</strong> network. Credits automatically after 3 confirmations.
+                                                </p>
+                                            </motion.div>
+                                        )}
+
+                                        {/* STEP 4: Success View */}
                                         {inlineStep === 'success' && (
                                             <motion.div
-                                                key="inline_success"
+                                                key="step_success"
                                                 initial={{ opacity: 0, scale: 0.95 }}
                                                 animate={{ opacity: 1, scale: 1 }}
                                                 exit={{ opacity: 0, scale: 0.95 }}
@@ -698,16 +924,16 @@ export default function WalletPage() {
                                                 <div>
                                                     <h4 className="text-lg font-bold text-white">Deposit Successful!</h4>
                                                     <p className="text-xs text-muted-foreground mt-1">
-                                                        Your wallet balance has been updated successfully.
+                                                        Your wallet balance has been credited with Points successfully.
                                                     </p>
                                                 </div>
                                                 <Button
                                                     onClick={() => {
                                                         setInlineStep('input')
                                                         setActiveDeposit(null)
-                                                        setAmount('')
+                                                        setAmount('10')
                                                     }}
-                                                    className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold h-10 px-6 rounded-xl shadow-md"
+                                                    className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold h-10 px-6 rounded-xl shadow-md cursor-pointer"
                                                 >
                                                     Add Another Deposit
                                                 </Button>

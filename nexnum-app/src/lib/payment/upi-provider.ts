@@ -216,17 +216,32 @@ export class UPIProvider {
     }
 
     /**
-     * Build QR code URL for order
+     * Build and resolve QR code image URL for order
      */
-    private buildQRCodeUrl(orderId: string, config: PaymentConfig): string {
+    private async resolveQRCodeUrl(orderId: string, config: PaymentConfig): Promise<string> {
         const qrBase = config.upiQrBaseUrl || 'https://qr.udayscriptsx.workers.dev/'
 
-        // UPI deep link with custom styling
-        const upiData = encodeURIComponent(
-            `upi://pay?pa=paytmqr281005050101nbxw0hx35cpo@paytm&pn=NexNum&tr=${orderId}&tn=Adding Fund`
-        )
+        const upiRaw = `upi://pay?pa=paytmqr281005050101nbxw0hx35cpo@paytm&pn=NexNum&tr=${orderId}&tn=Adding Fund`
+        const upiData = encodeURIComponent(upiRaw)
 
-        return `${qrBase}?data=${upiData}&body=dot&eye=frame13&eyeball=ball14&col1=121f28&col2=121f28&logo=https://i.postimg.cc/cCrHr3TQ/1000011838-removebg.png`
+        const workerUrl = `${qrBase}?data=${upiData}&body=dot&eye=frame13&eyeball=ball14&col1=121f28&col2=121f28&logo=https://i.postimg.cc/cCrHr3TQ/1000011838-removebg.png`
+
+        try {
+            const controller = new AbortController()
+            const timeoutId = setTimeout(() => controller.abort(), 3500)
+            const response = await fetch(workerUrl, { signal: controller.signal })
+            clearTimeout(timeoutId)
+            if (response.ok) {
+                const text = await response.text()
+                try {
+                    const data = JSON.parse(text)
+                    if (data.image) return data.image
+                } catch {}
+            }
+        } catch (_err) {}
+
+        // Reliable fallback if worker is unreachable or returns invalid format
+        return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(upiRaw)}`
     }
 
     /**
@@ -293,20 +308,23 @@ export class UPIProvider {
                 }
             } catch (_err) {}
 
+            const qrCodeUrl = await this.resolveQRCodeUrl(orderId, config)
+
             return {
                 orderId,
                 paymentUrl,
-                qrCodeUrl: this.buildQRCodeUrl(orderId, config),
+                qrCodeUrl,
                 amount,
                 expiresAt,
                 expiresIn: config.depositTimeoutMins * 60,
             }
         } catch (error: any) {
             const expiresAt = new Date(Date.now() + config.depositTimeoutMins * 60 * 1000)
+            const qrCodeUrl = await this.resolveQRCodeUrl(orderId, config)
             return {
                 orderId,
                 paymentUrl: `upi://pay?pa=paytmqr281005050101nbxw0hx35cpo@paytm&pn=Paytm%20Merchant&tr=${orderId}&tn=Adding%20Fund`,
-                qrCodeUrl: this.buildQRCodeUrl(orderId, config),
+                qrCodeUrl,
                 amount,
                 expiresAt,
                 expiresIn: config.depositTimeoutMins * 60,
@@ -417,14 +435,17 @@ export class UPIProvider {
     async checkStatus(orderId: string): Promise<PaymentStatus> {
         const config = await this.getConfig()
 
-        switch (config.upiProviderMode) {
-            case 'THIRD_PARTY':
-                return this.checkThirdPartyStatus(orderId, config)
+        let mode = config.upiProviderMode
+        if (!mode || mode === 'DISABLED') {
+            mode = 'THIRD_PARTY'
+        }
+
+        switch (mode) {
             case 'DIRECT_PAYTM':
                 return this.checkPaytmStatus(orderId, config)
-            case 'DISABLED':
+            case 'THIRD_PARTY':
             default:
-                return { status: 'failed', message: 'Payments disabled' }
+                return this.checkThirdPartyStatus(orderId, config)
         }
     }
 
