@@ -25,20 +25,79 @@ import { cn } from "@/lib/utils/utils"
  * - 1 month ago 1 week ago, 2 months ago
  * - No messages (if 0 or null)
  */
-function formatDetailedRelativeTime(timestampMs: number | string | null | undefined): string {
-    if (!timestampMs) return "No messages"
-    const ts = typeof timestampMs === "string" ? parseFloat(timestampMs) : timestampMs
-    if (isNaN(ts) || ts <= 0) return "No messages"
+function parseAnyTimestampToMs(val: number | string | null | undefined): number {
+    if (!val) return 0
+    if (typeof val === 'number') {
+        if (val <= 0) return 0
+        if (val < 1e11) return val * 1000
+        return val
+    }
+    const s = String(val).trim()
+    if (!s) return 0
 
-    // Guard against year 1970 IDs (before year 2000: 946684800000 ms)
-    const ms = ts < 10000000000 ? (ts < 946684800 ? 0 : ts * 1000) : ts
-    if (ms <= 0 || ms < 946684800000) return "No messages"
+    // Pure numeric string
+    if (/^\d+(\.\d+)?$/.test(s)) {
+        const num = parseFloat(s)
+        if (num <= 0) return 0
+        if (num < 1e11) return num * 1000
+        return num
+    }
+
+    // Clean delimiters e.g. "08-08-2026 | 04:05 am" -> "08-08-2026 04:05 AM"
+    const cleaned = s.replace(/\|/g, ' ').replace(/\s+/g, ' ').trim()
+
+    // 1. Direct native parser
+    const direct = Date.parse(cleaned)
+    if (!isNaN(direct) && direct > 946684800000) {
+        return direct
+    }
+
+    // 2. Parse DD-MM-YYYY or MM-DD-YYYY or YYYY-MM-DD with 12h/24h time
+    const dmyMatch = cleaned.match(/^(\d{1,4})[-/](\d{1,2})[-/](\d{1,4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(am|pm)?$/i)
+    if (dmyMatch) {
+        const [, p1, p2, p3, hStr, minStr, secStr, ampm] = dmyMatch
+        let year: number, month: number, day: number
+        if (p1.length === 4) {
+            year = parseInt(p1, 10)
+            month = parseInt(p2, 10) - 1
+            day = parseInt(p3, 10)
+        } else {
+            day = parseInt(p1, 10)
+            month = parseInt(p2, 10) - 1
+            year = parseInt(p3, 10)
+            if (year < 100) year += 2000
+        }
+        let hour = parseInt(hStr, 10)
+        const minute = parseInt(minStr, 10)
+        const second = secStr ? parseInt(secStr, 10) : 0
+        if (ampm) {
+            const isPm = ampm.toLowerCase() === 'pm'
+            if (isPm && hour < 12) hour += 12
+            if (!isPm && hour === 12) hour = 0
+        }
+        const dt = new Date(year, month, day, hour, minute, second)
+        if (!isNaN(dt.getTime())) {
+            return dt.getTime()
+        }
+    }
+    return 0
+}
+
+function formatDetailedRelativeTime(timestampMs: number | string | null | undefined, fallbackStr?: string): string {
+    const ms = parseAnyTimestampToMs(timestampMs)
+    if (ms <= 0) return fallbackStr || "No messages"
 
     const now = Date.now()
-    const diff = Math.max(0, now - ms)
-    const seconds = Math.floor(diff / 1000)
+    const diff = now - ms
 
-    if (seconds < 60) {
+    // Clock skew / fresh incoming within 45 seconds
+    if (diff < 0 && Math.abs(diff) < 60000) {
+        return "just now"
+    }
+
+    const seconds = Math.floor(Math.max(0, diff) / 1000)
+
+    if (seconds < 45) {
         return "just now"
     }
 
@@ -369,9 +428,8 @@ export default function GatewayAdminPage() {
         }
     }
     // Open and load device SMS messages on demand with pagination & search
-    const handleOpenDeviceSms = async (device: DeviceNode, page = 1) => {
-        setSelectedDevice(device)
-        setIsLoadingMessages(true)
+    const handleOpenDeviceSms = useCallback(async (device: DeviceNode, page = 1, showLoading = true) => {
+        if (showLoading) setIsLoadingMessages(true)
         setMsgPage(page)
         try {
             const targetKey = device.deviceId || device.phoneNumber || device.firebaseNodeId
@@ -386,12 +444,23 @@ export default function GatewayAdminPage() {
                 setDeviceMessages([])
             }
         } catch {
-            toast.error("Failed to load device SMS messages")
+            if (showLoading) toast.error("Failed to load device SMS messages")
             setDeviceMessages([])
         } finally {
-            setIsLoadingMessages(false)
+            if (showLoading) setIsLoadingMessages(false)
         }
-    }
+    }, [msgLimit, msgSearchQuery])
+
+    // Fetch live SMS every 5 seconds directly from Firebase/API when message modal is open
+    useEffect(() => {
+        if (!selectedDevice) return
+
+        const interval = setInterval(() => {
+            handleOpenDeviceSms(selectedDevice, msgPage, false)
+        }, 5000)
+
+        return () => clearInterval(interval)
+    }, [selectedDevice, msgPage, handleOpenDeviceSms])
 
     const openAddServiceModal = () => {
         setFormCode("")
@@ -1859,19 +1928,34 @@ export default function GatewayAdminPage() {
                                             <Battery className="w-3 h-3 text-zinc-400" />
                                             {selectedDevice.battery}%
                                         </span>
+                                        <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 font-mono text-[10px] font-bold">
+                                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                                            LIVE (5s)
+                                        </span>
                                     </div>
                                     <p className="text-xs text-zinc-400 font-medium">
-                                        Device ID: <span className="font-mono text-zinc-300 font-bold">{selectedDevice.deviceId}</span> • Node: <span className="font-mono text-zinc-300">{selectedDevice.firebaseNodeId}</span> • Last Activity: <span className="text-[hsl(var(--neon-lime))] font-bold">{formatDetailedRelativeTime(deviceMessages.length > 0 && deviceMessages[0].timestamp > 0 ? deviceMessages[0].timestamp : selectedDevice.lastSeenMs)}</span>
+                                        Device ID: <span className="font-mono text-zinc-300 font-bold">{selectedDevice.deviceId}</span> • Node: <span className="font-mono text-zinc-300">{selectedDevice.firebaseNodeId}</span> • Last Activity: <span className="text-[hsl(var(--neon-lime))] font-bold">{formatDetailedRelativeTime(deviceMessages.length > 0 ? (deviceMessages[0].timestamp > 0 ? deviceMessages[0].timestamp : deviceMessages[0].dateTime) : selectedDevice.lastSeenMs, "just now")}</span>
                                     </p>
                                 </div>
 
-                                {/* Close Button */}
-                                <button
-                                    onClick={() => setSelectedDevice(null)}
-                                    className="self-start sm:self-center p-2 rounded-lg border-2 border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white hover:border-[hsl(var(--neon-lime))] hover:bg-zinc-800 shadow-[2px_2px_0px_0px_#000] active:translate-x-[1px] active:translate-y-[1px] transition-all"
-                                >
-                                    <X className="w-5 h-5 stroke-[2.5]" />
-                                </button>
+                                {/* Controls: Refresh & Close Button */}
+                                <div className="flex items-center gap-2 self-start sm:self-center">
+                                    <button
+                                        onClick={() => handleOpenDeviceSms(selectedDevice, msgPage, true)}
+                                        className="p-2 rounded-lg border-2 border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white hover:border-[hsl(var(--neon-lime))] hover:bg-zinc-800 shadow-[2px_2px_0px_0px_#000] active:translate-x-[1px] active:translate-y-[1px] transition-all flex items-center gap-1.5 text-xs font-bold"
+                                        title="Fetch live SMS immediately from Firebase"
+                                    >
+                                        <RefreshCw className={`w-4 h-4 stroke-[2.5] ${isLoadingMessages ? 'animate-spin text-[hsl(var(--neon-lime))]' : ''}`} />
+                                        <span className="hidden sm:inline">Refresh</span>
+                                    </button>
+                                    <button
+                                        onClick={() => setSelectedDevice(null)}
+                                        className="p-2 rounded-lg border-2 border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white hover:border-[hsl(var(--neon-lime))] hover:bg-zinc-800 shadow-[2px_2px_0px_0px_#000] active:translate-x-[1px] active:translate-y-[1px] transition-all"
+                                        title="Close"
+                                    >
+                                        <X className="w-5 h-5 stroke-[2.5]" />
+                                    </button>
+                                </div>
                             </div>
 
                             {/* Modal Subheader / Search & Controls */}
@@ -1943,9 +2027,7 @@ export default function GatewayAdminPage() {
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-[11px] font-mono text-zinc-400 flex items-center gap-1">
                                                         <Clock className="w-3 h-3 text-zinc-500" />
-                                                        {msg.timestamp > 946684800000 
-                                                            ? formatDetailedRelativeTime(msg.timestamp) 
-                                                            : (msg.dateTime || "Recent")}
+                                                        {formatDetailedRelativeTime(msg.timestamp > 0 ? msg.timestamp : msg.dateTime, msg.dateTime || "Recent")}
                                                     </span>
                                                     {msg.dateTime ? (
                                                         <span className="text-[10px] text-zinc-500 font-mono hidden md:inline">

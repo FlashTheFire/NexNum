@@ -100,14 +100,16 @@ def parse_any_datetime_to_epoch_ms(val: Any) -> float:
 
     # Clean separators (e.g. "06-12-2025 | 06:55 PM" -> "06-12-2025 06:55 PM")
     cleaned = s.replace("|", " ").replace("/", "-").strip()
-    cleaned = re.sub(r"\s+", " ", cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned).upper()
 
     # Candidate date parsing formats
     date_formats = [
         "%d-%m-%Y %I:%M %p",       # "06-12-2025 06:55 PM" or "02-08-2026 06:48 PM"
+        "%d-%m-%Y %I:%M:%S %p",
         "%d-%m-%Y %H:%M:%S",       # "06-12-2025 18:55:00"
         "%d-%m-%Y %H:%M",          # "06-12-2025 18:55"
         "%m-%d-%Y %I:%M %p",       # "12-06-2025 06:55 PM"
+        "%m-%d-%Y %I:%M:%S %p",
         "%m-%d-%Y %H:%M:%S",
         "%m-%d-%Y %H:%M",
         "%Y-%m-%d %H:%M:%S",       # "2026-08-02 18:48:00"
