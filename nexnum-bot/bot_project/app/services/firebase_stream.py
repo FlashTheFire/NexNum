@@ -18,6 +18,22 @@ settings = get_settings()
 
 FIREBASE_NODES = settings.get_firebase_nodes()
 
+# Module-level Redis client cache — resolved once per listener loop iteration
+# so we don't await redis_manager.get_client() on every single message line.
+_redis_client_cache = None
+
+async def _get_redis():
+    global _redis_client_cache
+    if _redis_client_cache is not None:
+        return _redis_client_cache
+    try:
+        from utils.redis_manager import redis_manager
+    except ImportError:
+        from bot_project.utils.redis_manager import redis_manager
+    _redis_client_cache = await redis_manager.get_client()
+    return _redis_client_cache
+
+
 class FirebaseStreamManager:
     def __init__(self):
         self._tasks: List[asyncio.Task] = []
@@ -171,25 +187,18 @@ class FirebaseStreamManager:
 
     async def _push_to_inbound_stream(self, node_id: str, client_id: str, msg_text: str, msg_ts: float, full_msg: dict):
         """Push Firebase SSE message to same Redis Stream as webhook inbound."""
-        try:
-            from utils.redis_manager import redis_manager
-        except ImportError:
-            from bot_project.utils.redis_manager import redis_manager
-
-        redis_client = await redis_manager.get_client()
+        redis_client = await _get_redis()
         if redis_client is None:
             return
 
         # Dedup: Check if webhook already delivered this message
         dedup_key = f"nexsms:dedup:{client_id}:{int(msg_ts)}"
         try:
-            already_exists = await redis_client.exists(dedup_key)
-            if already_exists:
+            # SET NX: atomic — sets key only if it doesn't exist, returns None if already set
+            was_set = await redis_client.set(dedup_key, "1", nx=True, ex=settings.INBOUND_DEDUP_TTL)
+            if not was_set:
                 logger.debug(f"[SSE] Skipping duplicate (already via webhook): {client_id}:{int(msg_ts)}")
                 return
-
-            # Set dedup key so webhook won't re-process either
-            await redis_client.set(dedup_key, "1", nx=True, ex=settings.INBOUND_DEDUP_TTL)
         except Exception as e:
             logger.warning(f"[SSE] Dedup check failed: {e}. Proceeding anyway.")
 
@@ -213,4 +222,3 @@ class FirebaseStreamManager:
             logger.warning(f"[SSE→Stream] Failed to push to stream: {e}")
 
 firebase_stream_manager = FirebaseStreamManager()
-

@@ -7,9 +7,10 @@ Stores per-service OTP sender & body patterns.
   2. Overrides: Synced from Supabase table `sms_service_patterns` in SilentGate DB
   3. Caching: Redis (`nexsms:patterns:{service_code}`) with 5-minute TTL
 
-Provides:
-  - `match_sms_dynamic(body, sender, service_code)`: Validates incoming SMS against dynamic patterns
-  - `update_pattern(service_code, pattern_dict)`: Live admin pattern updates with automatic Redis invalidation
+Performance optimizations:
+  - Compiled regex objects are cached in-process (never recompiled for same pattern string)
+  - Auto-detect mode fetches ALL patterns in a single Redis pipeline call (one round-trip)
+  - Supabase fallback hits Redis first; if found, Supabase is never contacted
 """
 
 from __future__ import annotations
@@ -32,7 +33,26 @@ PATTERNS_FILE_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "d
 
 # In-memory default patterns cache
 _DEFAULT_PATTERNS: Dict[str, dict] = {}
-_COMPILED_PATTERNS_CACHE: Dict[str, dict] = {}
+
+# In-process compiled regex cache: pattern_string → compiled regex
+# This avoids re.compile() overhead on every SMS (the biggest single CPU hotspot)
+_REGEX_CACHE: Dict[str, re.Pattern] = {}
+
+# Excluded words for OTP code filtering
+_EXCLUDED_WORDS = frozenset({
+    "login", "verify", "auth", "index", "home", "html", "php",
+    "telegram", "whatsapp", "swiggy", "google", "amazon",
+    "facebook", "instagram", "twitter"
+})
+
+
+def _get_compiled(pattern_str: str) -> re.Pattern:
+    """Return cached compiled regex, compiling once on first use."""
+    cached = _REGEX_CACHE.get(pattern_str)
+    if cached is None:
+        cached = re.compile(pattern_str, re.I)
+        _REGEX_CACHE[pattern_str] = cached
+    return cached
 
 
 def load_default_patterns() -> Dict[str, dict]:
@@ -40,7 +60,7 @@ def load_default_patterns() -> Dict[str, dict]:
     global _DEFAULT_PATTERNS
     if _DEFAULT_PATTERNS:
         return _DEFAULT_PATTERNS
-    
+
     try:
         if os.path.exists(PATTERNS_FILE_PATH):
             with open(PATTERNS_FILE_PATH, "r", encoding="utf-8") as f:
@@ -50,8 +70,40 @@ def load_default_patterns() -> Dict[str, dict]:
             logger.warning(f"[PatternRegistry] Patterns JSON file not found at {PATTERNS_FILE_PATH}")
     except Exception as e:
         logger.error(f"[PatternRegistry] Failed to load default patterns JSON: {e}")
-    
+
     return _DEFAULT_PATTERNS
+
+
+def _match_against_pattern(body: str, sender: str, code: str, pattern: dict) -> tuple[bool, Optional[str], Optional[str], Optional[str]]:
+    """
+    Pure CPU-bound pattern match (no I/O).
+    Returns (matched, matched_sender_pat, matched_body_pat, custom_otp_regex).
+    Uses _get_compiled() for zero-allocation regex reuse.
+    """
+    sender_pats = pattern.get("sender_patterns", [])
+    body_pats = pattern.get("body_patterns", [])
+
+    matched_sender_pattern = None
+    matched_body_pattern = None
+    matched = False
+
+    # 1. Sender check
+    if sender:
+        for raw_p in sender_pats:
+            if raw_p and _get_compiled(raw_p).search(sender):
+                matched = True
+                matched_sender_pattern = raw_p
+                break
+
+    # 2. Body check (only if not already matched via sender)
+    if not matched:
+        for raw_p in body_pats:
+            if raw_p and _get_compiled(raw_p).search(body):
+                matched = True
+                matched_body_pattern = raw_p
+                break
+
+    return matched, matched_sender_pattern, matched_body_pattern, pattern.get("otp_regex")
 
 
 class ServicePatternRegistry:
@@ -60,10 +112,10 @@ class ServicePatternRegistry:
     async def get_pattern(cls, redis_client, service_code: str) -> dict:
         """
         Get pattern definition for a service code.
-        Lookup chain: Redis Cache -> Supabase Overrides -> Local JSON Default
+        Lookup chain: Redis Cache → Supabase Overrides → Local JSON Default
         """
         code = (service_code or "ot").lower()
-        
+
         # 1. Check Redis Cache
         if redis_client:
             try:
@@ -86,14 +138,50 @@ class ServicePatternRegistry:
         # 3. Fallback to Local JSON Defaults
         defaults = load_default_patterns()
         pattern = defaults.get(code) or defaults.get("ot") or {}
-        
+
         if redis_client and pattern:
             try:
                 await redis_client.set(f"{REDIS_PREFIX}:pattern:{code}", json.dumps(pattern), ex=300)
             except Exception:
                 pass
-        
+
         return pattern
+
+    @classmethod
+    async def _get_all_patterns_pipeline(cls, redis_client) -> Dict[str, dict]:
+        """
+        Fetch ALL service patterns in a single Redis pipeline call.
+        Falls back to local JSON for any missing keys.
+        This replaces sequential per-service get_pattern() calls in auto-detect mode.
+        """
+        defaults = load_default_patterns()
+        if not defaults:
+            return {}
+
+        all_codes = list(defaults.keys())
+
+        if redis_client:
+            try:
+                pipe = redis_client.pipeline()
+                for code in all_codes:
+                    pipe.get(f"{REDIS_PREFIX}:pattern:{code}")
+                results = await pipe.execute()
+
+                patterns: Dict[str, dict] = {}
+                for code, cached_val in zip(all_codes, results):
+                    if cached_val:
+                        try:
+                            patterns[code] = json.loads(cached_val)
+                        except Exception:
+                            patterns[code] = defaults.get(code, {})
+                    else:
+                        patterns[code] = defaults.get(code, {})
+                return patterns
+            except Exception as e:
+                logger.warning(f"[PatternRegistry] Pipeline fetch failed, using local defaults: {e}")
+
+        # No Redis — use local defaults directly
+        return dict(defaults)
 
     @classmethod
     async def _fetch_from_supabase(cls, service_code: str) -> Optional[dict]:
@@ -134,64 +222,47 @@ class ServicePatternRegistry:
     async def match_sms_dynamic(cls, redis_client, body: str, sender: str, service_code: str) -> tuple[bool, Optional[str], dict]:
         """
         Validates incoming SMS against dynamic pattern for service_code.
-        If service_code is 'auto', 'all', 'any', or empty, auto-detects across ALL JSON service patterns!
+        If service_code is 'auto', 'all', 'any', or empty, auto-detects across ALL JSON service patterns.
         Returns `(is_matched: bool, extracted_code: Optional[str], details: dict)`.
+
+        Performance: Auto mode fetches ALL patterns in ONE Redis pipeline call instead of
+        sequential get_pattern() calls (O(1) round-trips vs O(n) round-trips).
         """
         if not body:
             return False, None, {}
 
         req_code = (service_code or "auto").lower()
 
-        # Build list of (code, pattern) to check
+        # Build ordered list of (code, pattern) to check
         if req_code not in ("auto", "all", "any"):
-            patterns_to_check = [(req_code, await cls.get_pattern(redis_client, req_code))]
+            # Single-service mode: one Redis GET
+            pattern = await cls.get_pattern(redis_client, req_code)
+            patterns_to_check = [(req_code, pattern)]
         else:
+            # Auto-detect mode: ONE pipeline call for all patterns
+            all_patterns = await cls._get_all_patterns_pipeline(redis_client)
             defaults = load_default_patterns()
-            patterns_to_check = []
-            # Check specific services first
-            for c in defaults:
-                if c != "ot":
-                    patterns_to_check.append((c, await cls.get_pattern(redis_client, c)))
-            # Check 'ot' (Other / Fallback) last
-            if "ot" in defaults:
-                patterns_to_check.append(("ot", await cls.get_pattern(redis_client, "ot")))
-
-        EXCLUDED_WORDS = {"login", "verify", "auth", "index", "home", "html", "php", "telegram", "whatsapp", "swiggy", "google", "amazon", "facebook", "instagram", "twitter"}
+            # Check specific services first, then 'ot' (fallback) last
+            patterns_to_check = [
+                (c, all_patterns[c]) for c in defaults if c != "ot" and c in all_patterns
+            ]
+            if "ot" in all_patterns:
+                patterns_to_check.append(("ot", all_patterns["ot"]))
 
         for code, pattern in patterns_to_check:
             if not pattern:
                 continue
 
-            service_name = pattern.get("name", code.upper())
-            sender_pats = [re.compile(p, re.I) for p in pattern.get("sender_patterns", []) if p]
-            body_pats = [re.compile(p, re.I) for p in pattern.get("body_patterns", []) if p]
-            custom_otp_regex = pattern.get("otp_regex")
-
-            matched = False
-            matched_sender_pattern = None
-            matched_body_pattern = None
-
-            # 1. Check sender
-            for raw_p, p in zip(pattern.get("sender_patterns", []), sender_pats):
-                if sender and p.search(sender):
-                    matched = True
-                    matched_sender_pattern = raw_p
-                    break
-
-            # 2. Check body
-            for raw_p, p in zip(pattern.get("body_patterns", []), body_pats):
-                if p.search(body):
-                    matched = True
-                    if not matched_body_pattern:
-                        matched_body_pattern = raw_p
-                    break
+            matched, matched_sender_pat, matched_body_pat, custom_otp_regex = _match_against_pattern(
+                body, sender, code, pattern
+            )
 
             if matched:
-                # 3. Extract OTP
+                # Extract OTP code
                 extracted_code = None
                 if custom_otp_regex:
                     try:
-                        m = re.search(custom_otp_regex, body, re.I)
+                        m = _get_compiled(custom_otp_regex).search(body)
                         if m:
                             extracted_code = m.group(1) if m.groups() else m.group(0)
                     except Exception:
@@ -204,14 +275,14 @@ class ServicePatternRegistry:
 
                 if extracted_code:
                     extracted_code = str(extracted_code).replace("-", "").replace(" ", "").strip()
-                    if not any(c.isalnum() for c in extracted_code) or extracted_code.lower() in EXCLUDED_WORDS:
+                    if not any(c.isalnum() for c in extracted_code) or extracted_code.lower() in _EXCLUDED_WORDS:
                         extracted_code = None
 
                 details = {
                     "matchedServiceCode": code,
-                    "serviceName": service_name,
-                    "matchedSenderPattern": matched_sender_pattern,
-                    "matchedBodyPattern": matched_body_pattern,
+                    "serviceName": pattern.get("name", code.upper()),
+                    "matchedSenderPattern": matched_sender_pat,
+                    "matchedBodyPattern": matched_body_pat,
                     "otpRegex": custom_otp_regex
                 }
                 return True, extracted_code, details
@@ -231,6 +302,7 @@ class ServicePatternRegistry:
     async def update_pattern(cls, redis_client, service_code: str, pattern_data: dict) -> bool:
         """
         Update pattern for a service. Writes to Supabase and invalidates Redis cache.
+        Also clears in-process compiled regex cache for affected patterns.
         """
         code = (service_code or "ot").lower()
         supabase_url = getattr(settings, "SUPABASE_URL", os.environ.get("SUPABASE_URL"))
@@ -242,6 +314,10 @@ class ServicePatternRegistry:
                 await redis_client.delete(f"{REDIS_PREFIX}:pattern:{code}")
             except Exception as e:
                 logger.warning(f"[PatternRegistry] Redis delete failed for {code}: {e}")
+
+        # Clear compiled regex cache for patterns belonging to this service
+        # (simple approach: clear all — they'll be recompiled on next hit)
+        _REGEX_CACHE.clear()
 
         if not supabase_url or not supabase_key:
             logger.warning("[PatternRegistry] Supabase credentials not set — pattern updated in Redis cache only.")
