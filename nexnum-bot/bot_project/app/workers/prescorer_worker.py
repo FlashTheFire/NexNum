@@ -100,7 +100,7 @@ async def _fetch_device_messages_fast(
     """
     url = node._build_url(f"/messages/{device_id}")
     try:
-        resp = await client.get(url, timeout=3.0)
+        resp = await client.get(url, timeout=1.0)
         if resp.status_code == 200 and resp.json():
             raw_msgs = resp.json()
             if isinstance(raw_msgs, dict):
@@ -136,7 +136,7 @@ async def analyze_and_cache_all_service_counts(redis_client):
     Ultra-Fast Parallel Batch Pre-Scorer:
     1. Scans all SIM nodes.
     2. Checks Redis cache in 1 pipeline call. Skips already-cached devices.
-    3. For uncached devices, fetches messages concurrently in parallel batches (3.0s timeout).
+    3. For uncached devices, fetches messages concurrently in parallel batches (1.0s timeout).
     4. Batch-caches results into Redis via pipeline in ~1-2 seconds total.
     """
     loop = asyncio.get_running_loop()
@@ -182,13 +182,13 @@ async def analyze_and_cache_all_service_counts(redis_client):
 
         uncached_sims.append(sim)
 
-    # 2. Parallel Async Fetch for Uncached Devices (Semaphore 100 Pipeline)
+    # 2. Parallel Async Fetch for Uncached Devices (Semaphore 150 Pipeline, 1.0s Timeout)
     devices_fetched_fresh = 0
     if uncached_sims and default_node:
         logger.info(f"[PreScorerWorker] Fetching messages for {len(uncached_sims)} uncached devices from Firebase...")
-        limits = httpx.Limits(max_keepalive_connections=100, max_connections=200)
-        async with httpx.AsyncClient(timeout=3.0, limits=limits, follow_redirects=True) as http_client:
-            sem = asyncio.Semaphore(100)
+        limits = httpx.Limits(max_keepalive_connections=150, max_connections=300)
+        async with httpx.AsyncClient(timeout=1.0, limits=limits, follow_redirects=True) as http_client:
+            sem = asyncio.Semaphore(150)
 
             async def _throttled_fetch(sim_node):
                 async with sem:
