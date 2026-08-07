@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { motion, AnimatePresence, Variants } from "framer-motion"
 import {
     Wallet,
@@ -10,10 +10,17 @@ import {
     ArrowDownRight,
     History,
     Sparkles,
-    Lock,
     Download,
     Search,
-    RefreshCw
+    RefreshCw,
+    CheckCircle2,
+    XCircle,
+    Clock,
+    AlertCircle,
+    RotateCcw,
+    ChevronLeft,
+    ChevronRight,
+    Ban
 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -51,65 +58,140 @@ const cardTilt: Variants = {
     }
 }
 
-const presets = [10, 25, 50, 100]
+const ITEMS_PER_PAGE = 6
 
 export default function WalletPage() {
     const { user } = useAuthStore()
-    const { userProfile, transactions, topUp, fetchTransactions, isLoadingTransactions } = useGlobalStore()
+    const { userProfile, transactions, fetchTransactions, fetchBalance, isLoadingTransactions } = useGlobalStore()
     const [amount, setAmount] = useState<string>("")
-    const [isLoading, setIsLoading] = useState(false)
     const [customFocused, setCustomFocused] = useState(false)
-    const { currencies, preferredCurrency, formatFromPrices, formatPrice, settings } = useCurrency()
-    const pointsRate = Number(settings?.pointsRate) || 100
-    const currencySym = currencies[preferredCurrency]?.symbol || '$'
-    const formatPriceContext = formatPrice // Use robust formatPrice helper
-
-    // Deposit Dialog
+    const { currencies, preferredCurrency, formatPrice } = useCurrency()
+    
+    // Deposit Dialog State
     const [depositDialogOpen, setDepositDialogOpen] = useState(false)
+    const [selectedDepositAmount, setSelectedDepositAmount] = useState<number | string>("")
 
-    // Filters
-    const [filterType, setFilterType] = useState<'all' | 'credit' | 'debit'>('all')
+    // Scroll ref for Add Funds section
+    const addFundsRef = useRef<HTMLDivElement>(null)
+    const customInputRef = useRef<HTMLInputElement>(null)
+
+    // Filters & Pagination
+    const [filterType, setFilterType] = useState<'all' | 'credit' | 'debit' | 'other'>('all')
+    const [currentPage, setCurrentPage] = useState(1)
 
     useEffect(() => {
         fetchTransactions()
     }, [fetchTransactions])
 
-    // Auto-complete payment simulation
-    useEffect(() => {
-        let timeout: NodeJS.Timeout
-        if (isLoading && amount) {
-            timeout = setTimeout(() => {
-                const value = parseFloat(amount)
-                if (!isNaN(value)) {
-                    topUp(value)
-                    toast.success(`Successfully added ${formatPriceContext(value)} to wallet`)
-                    setIsLoading(false)
-                    setAmount("")
-                }
-            }, 5000)
-        }
-        return () => clearTimeout(timeout)
-    }, [isLoading, amount, topUp, formatPriceContext])
+    const activeCurrencyObj = currencies[preferredCurrency]
+    const currencySym = activeCurrencyObj?.symbol || '$'
+    const currencyRate = activeCurrencyObj?.rate || 1
 
-    // Calculate simulated "Card Number" based on User ID for consistent personalization
+    // Server-synced Dynamic Presets based on active currency
+    const dynamicPresets = useMemo(() => {
+        if (preferredCurrency === 'INR') {
+            return [
+                { value: 100, label: '₹100' },
+                { value: 500, label: '₹500' },
+                { value: 1000, label: '₹1,000' },
+                { value: 2500, label: '₹2,500' }
+            ]
+        }
+        if (preferredCurrency === 'USD' || preferredCurrency === 'EUR' || preferredCurrency === 'GBP') {
+            return [
+                { value: 10, label: `${currencySym}10` },
+                { value: 25, label: `${currencySym}25` },
+                { value: 50, label: `${currencySym}50` },
+                { value: 100, label: `${currencySym}100` }
+            ]
+        }
+        if (preferredCurrency === 'RUB') {
+            return [
+                { value: 500, label: '₽500' },
+                { value: 1000, label: '₽1,000' },
+                { value: 2500, label: '₽2,500' },
+                { value: 5000, label: '₽5,000' }
+            ]
+        }
+
+        // Generic calculation for any server-fetched currency
+        const baseValues = [10, 25, 50, 100]
+        return baseValues.map(base => {
+            const raw = base * currencyRate
+            let rounded = raw
+            if (raw >= 10000) rounded = Math.round(raw / 5000) * 5000
+            else if (raw >= 1000) rounded = Math.round(raw / 500) * 500
+            else if (raw >= 100) rounded = Math.round(raw / 50) * 50
+            else if (raw >= 10) rounded = Math.round(raw / 5) * 5
+            else rounded = Math.round(raw)
+            
+            const val = Math.max(1, rounded)
+            return {
+                value: val,
+                label: `${currencySym}${val.toLocaleString()}`
+            }
+        })
+    }, [preferredCurrency, currencySym, currencyRate])
+
+    // User Card Last 4 Digits
     const userCardLast4 = user?.id ? user.id.slice(-4).toUpperCase() : "8888"
 
     // Filter Logic
-    // Filter Logic
-    const filteredTransactions = transactions.filter(t => {
-        if (filterType === 'all') return true
-        if (filterType === 'credit') return ['topup', 'manual_credit', 'referral_bonus'].includes(t.type)
-        if (filterType === 'debit') return ['purchase', 'manual_debit'].includes(t.type)
-        return true
-    })
+    const filteredTransactions = useMemo(() => {
+        return transactions.filter(t => {
+            const type = t.type ? t.type.toLowerCase() : ''
+            const status = t.status ? t.status.toLowerCase() : ''
 
-    const handleTopUp = () => {
-        const value = parseFloat(amount)
-        if (isNaN(value) || value < 5) {
-            toast.error(`Minimum top-up is ${formatPriceContext(5 * pointsRate)}`)
+            if (filterType === 'all') return true
+            if (filterType === 'credit') {
+                return ['topup', 'manual_credit', 'referral_bonus', 'refund'].includes(type)
+            }
+            if (filterType === 'debit') {
+                return ['purchase', 'manual_debit'].includes(type)
+            }
+            if (filterType === 'other') {
+                return ['cancelled', 'timeout', 'expired', 'failed'].includes(status) || ['cancelled', 'timeout'].includes(type)
+            }
+            return true
+        })
+    }, [transactions, filterType])
+
+    // Reset pagination when filter changes
+    useEffect(() => {
+        setCurrentPage(1)
+    }, [filterType])
+
+    // Pagination Calculations
+    const totalPages = Math.ceil(filteredTransactions.length / ITEMS_PER_PAGE) || 1
+    const paginatedTransactions = useMemo(() => {
+        const start = (currentPage - 1) * ITEMS_PER_PAGE
+        return filteredTransactions.slice(start, start + ITEMS_PER_PAGE)
+    }, [filteredTransactions, currentPage])
+
+    // Handlers
+    const handleDepositClick = () => {
+        if (addFundsRef.current) {
+            addFundsRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            setTimeout(() => {
+                customInputRef.current?.focus()
+            }, 300)
+        }
+    }
+
+    const handleWithdrawClick = () => {
+        toast.info("Withdrawal functionality is currently not available. Please contact support for assistance.", {
+            description: "Bank transfers and crypto withdrawals will be enabled in an upcoming release."
+        })
+    }
+
+    const handleOpenDepositDialog = () => {
+        const val = parseFloat(amount)
+        if (isNaN(val) || val <= 0) {
+            toast.error("Please enter a valid amount to deposit")
             return
         }
-        setIsLoading(true)
+        setSelectedDepositAmount(val)
+        setDepositDialogOpen(true)
     }
 
     const downloadReport = () => {
@@ -118,7 +200,7 @@ export default function WalletPage() {
             t.id,
             new Date(t.date).toLocaleString(),
             t.type,
-            formatPriceContext(t.amount),
+            formatPrice(t.amount),
             t.description,
             t.status
         ])
@@ -135,6 +217,81 @@ export default function WalletPage() {
         link.click()
         document.body.removeChild(link)
         toast.success("Report downloaded successfully")
+    }
+
+    // Helper function for transaction status rendering
+    const renderStatusBadge = (status?: string, type?: string) => {
+        const s = (status || '').toLowerCase()
+        const t = (type || '').toLowerCase()
+
+        if (s === 'completed' || s === 'success') {
+            return (
+                <Badge variant="outline" className="text-[10px] h-5 border-emerald-500/50 text-emerald-400 bg-emerald-500/10 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" /> Completed
+                </Badge>
+            )
+        }
+        if (s === 'pending' || s === 'submitted') {
+            return (
+                <Badge variant="outline" className="text-[10px] h-5 border-amber-500/50 text-amber-400 bg-amber-500/10 flex items-center gap-1">
+                    <Clock className="w-3 h-3 animate-spin" /> Pending Verification
+                </Badge>
+            )
+        }
+        if (s === 'cancelled' || t === 'cancelled') {
+            return (
+                <Badge variant="outline" className="text-[10px] h-5 border-rose-500/50 text-rose-400 bg-rose-500/10 flex items-center gap-1">
+                    <XCircle className="w-3 h-3" /> Cancelled
+                </Badge>
+            )
+        }
+        if (t === 'refund' || s === 'refunded') {
+            return (
+                <Badge variant="outline" className="text-[10px] h-5 border-purple-500/50 text-purple-400 bg-purple-500/10 flex items-center gap-1">
+                    <RotateCcw className="w-3 h-3" /> Refunded
+                </Badge>
+            )
+        }
+        if (s === 'timeout' || s === 'expired' || s === 'failed') {
+            return (
+                <Badge variant="outline" className="text-[10px] h-5 border-slate-500/50 text-slate-400 bg-slate-500/10 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" /> {s === 'timeout' ? 'Timeout' : 'Expired'}
+                </Badge>
+            )
+        }
+
+        return (
+            <Badge variant="outline" className="text-[10px] h-5 border-gray-500/50 text-gray-400 bg-gray-500/10">
+                {status || 'Success'}
+            </Badge>
+        )
+    }
+
+    // Helper for transaction icon
+    const renderTransactionIcon = (type?: string, status?: string) => {
+        const t = (type || '').toLowerCase()
+        const s = (status || '').toLowerCase()
+
+        if (t === 'refund' || s === 'refunded') {
+            return <RotateCcw className="h-5 w-5 text-purple-400" />
+        }
+        if (s === 'cancelled' || t === 'cancelled') {
+            return <Ban className="h-5 w-5 text-rose-400" />
+        }
+        if (s === 'timeout' || s === 'expired' || s === 'failed') {
+            return <AlertCircle className="h-5 w-5 text-slate-400" />
+        }
+        if (['topup', 'manual_credit'].includes(t)) {
+            return <ArrowDownRight className="h-5 w-5 text-emerald-400" />
+        }
+        if (['purchase', 'manual_debit'].includes(t)) {
+            return <ArrowUpRight className="h-5 w-5 text-rose-400" />
+        }
+        if (t === 'referral_bonus') {
+            return <Sparkles className="h-5 w-5 text-amber-400" />
+        }
+
+        return <ArrowDownRight className="h-5 w-5 text-emerald-400" />
     }
 
     return (
@@ -166,7 +323,10 @@ export default function WalletPage() {
                         <Button
                             variant="outline"
                             className="bg-card/50 backdrop-blur-xl border-white/10 hidden md:flex hover:bg-white/10"
-                            onClick={() => fetchTransactions()}
+                            onClick={() => {
+                                fetchTransactions()
+                                fetchBalance()
+                            }}
                         >
                             <RefreshCw className={cn("mr-2 h-4 w-4", isLoadingTransactions && "animate-spin")} />
                             Refresh
@@ -183,7 +343,7 @@ export default function WalletPage() {
                 </div>
 
                 <div className="grid lg:grid-cols-12 gap-6 md:gap-8">
-                    {/* Left Column: Digital Card & Actions (5/12) */}
+                    {/* Left Column: Digital Card & Showcase Quick Actions (5/12) */}
                     <div className="lg:col-span-12 xl:col-span-5 space-y-6">
                         {/* 3D Digital Card */}
                         <motion.div
@@ -230,12 +390,10 @@ export default function WalletPage() {
                                             <div className="w-12 h-9 rounded-lg bg-gradient-to-br from-amber-200 to-amber-400 opacity-80 shadow-inner border border-amber-300/30 flex items-center justify-center">
                                                 <div className="w-8 h-5 border border-black/10 rounded opacity-50" />
                                             </div>
-                                            <div className="flex-1 h-9 flex items-center">
-                                                <div className="flex gap-2">
-                                                    <div className="w-2 h-2 rounded-full bg-white/30 animate-pulse" />
-                                                    <div className="w-2 h-2 rounded-full bg-white/30" />
-                                                    <div className="w-2 h-2 rounded-full bg-white/30" />
-                                                </div>
+                                            <div className="flex gap-2">
+                                                <div className="w-2 h-2 rounded-full bg-white/30 animate-pulse" />
+                                                <div className="w-2 h-2 rounded-full bg-white/30" />
+                                                <div className="w-2 h-2 rounded-full bg-white/30" />
                                             </div>
                                         </div>
 
@@ -258,12 +416,12 @@ export default function WalletPage() {
                             </motion.div>
                         </motion.div>
 
-                        {/* Quick Actions Grid */}
+                        {/* Quick Actions Grid (Showcase Buttons) */}
                         <motion.div variants={fadeInUp} className="grid grid-cols-2 gap-3">
                             <Button
-                                className="h-14 rounded-xl bg-card/40 border border-white/5 hover:bg-white/5 backdrop-blur-sm group"
+                                className="h-16 rounded-xl bg-card/40 border border-white/10 hover:bg-emerald-500/10 hover:border-emerald-500/30 backdrop-blur-sm group transition-all"
                                 variant="outline"
-                                onClick={() => setDepositDialogOpen(true)}
+                                onClick={handleDepositClick}
                             >
                                 <ArrowDownRight className="mr-2 h-5 w-5 text-emerald-400 group-hover:scale-110 transition-transform" />
                                 <div className="text-left">
@@ -271,13 +429,22 @@ export default function WalletPage() {
                                     <div className="text-[10px] text-muted-foreground">Add funds via UPI</div>
                                 </div>
                             </Button>
-                            <Button className="h-14 rounded-xl bg-card/40 border border-white/5 hover:bg-white/5 backdrop-blur-sm group" variant="outline">
-                                <ArrowUpRight className="mr-2 h-5 w-5 text-rose-400 group-hover:scale-110 transition-transform" />
-                                <div className="text-left">
-                                    <div className="font-semibold text-white">Withdraw</div>
-                                    <div className="text-[10px] text-muted-foreground">Transfer to bank</div>
-                                </div>
-                            </Button>
+                            
+                            <div className="relative group">
+                                <Button
+                                    className="w-full h-16 rounded-xl bg-card/20 border border-white/5 opacity-80 cursor-pointer hover:bg-rose-500/5 backdrop-blur-sm transition-all"
+                                    variant="outline"
+                                    onClick={handleWithdrawClick}
+                                >
+                                    <ArrowUpRight className="mr-2 h-5 w-5 text-rose-400/70" />
+                                    <div className="text-left flex-1 min-w-0">
+                                        <div className="flex items-center gap-1 justify-between">
+                                            <span className="font-semibold text-white/80">Withdraw</span>
+                                        </div>
+                                        <div className="text-[10px] text-rose-400/90 font-medium">Currently Not Available</div>
+                                    </div>
+                                </Button>
+                            </div>
                         </motion.div>
 
                         {/* Security Notice */}
@@ -292,10 +459,10 @@ export default function WalletPage() {
                         </motion.div>
                     </div>
 
-                    {/* Right Column: Top-Up & History (7/12) */}
+                    {/* Right Column: Add Funds & History (7/12) */}
                     <div className="lg:col-span-12 xl:col-span-7 space-y-8">
-                        {/* Top Up Panel */}
-                        <motion.div variants={fadeInUp}>
+                        {/* Top Up / Add Funds Panel */}
+                        <motion.div variants={fadeInUp} ref={addFundsRef}>
                             <Card className="border-white/10 bg-card/30 backdrop-blur-xl overflow-hidden shadow-xl shadow-black/5 relative">
                                 <div className="absolute top-0 right-0 p-4 opacity-50">
                                     <Wallet className="w-24 h-24 text-white/5 -rotate-12" />
@@ -306,177 +473,149 @@ export default function WalletPage() {
                                             <Plus className="h-5 w-5" />
                                         </div>
                                         <div>
-                                            <CardTitle>Add Funds</CardTitle>
+                                            <CardTitle className="text-2xl font-bold">Add Funds</CardTitle>
                                             <CardDescription>Instant top-up via secure gateway</CardDescription>
                                         </div>
                                     </div>
                                 </CardHeader>
                                 <CardContent className="space-y-6 relative z-10">
-                                    <AnimatePresence mode="wait">
-                                        {!isLoading ? (
-                                            <motion.div
-                                                key="selection"
-                                                initial={{ opacity: 0, x: -20 }}
-                                                animate={{ opacity: 1, x: 0 }}
-                                                exit={{ opacity: 0, x: 20 }}
-                                                className="space-y-6"
-                                            >
-                                                {/* Presets */}
-                                                <div className="grid grid-cols-4 gap-3">
-                                                    {presets.map((preset) => {
-                                                        const isActive = amount === preset.toString()
-                                                        return (
-                                                            <button
-                                                                key={preset}
-                                                                onClick={() => setAmount(preset.toString())}
-                                                                className={cn(
-                                                                    "relative h-14 rounded-xl font-semibold transition-all duration-300 border",
-                                                                    isActive
-                                                                        ? "bg-emerald-500 text-white border-emerald-500 shadow-lg shadow-emerald-500/25 scale-[1.02]"
-                                                                        : "bg-card/50 border-white/5 text-muted-foreground hover:bg-white/5 hover:text-foreground"
-                                                                )}
-                                                            >
-                                                                ${preset}
-                                                            </button>
-                                                        )
-                                                    })}
-                                                </div>
+                                    <div className="space-y-6">
+                                        {/* Dynamic Server-Synced Presets */}
+                                        <div className="grid grid-cols-4 gap-3">
+                                            {dynamicPresets.map((preset) => {
+                                                const isActive = amount === preset.value.toString()
+                                                return (
+                                                    <button
+                                                        key={preset.value}
+                                                        type="button"
+                                                        onClick={() => setAmount(preset.value.toString())}
+                                                        className={cn(
+                                                            "relative h-14 rounded-xl font-semibold transition-all duration-300 border text-sm md:text-base",
+                                                            isActive
+                                                                ? "bg-emerald-500 text-white border-emerald-500 shadow-lg shadow-emerald-500/25 scale-[1.02]"
+                                                                : "bg-card/50 border-white/5 text-muted-foreground hover:bg-white/5 hover:text-foreground"
+                                                        )}
+                                                    >
+                                                        {preset.label}
+                                                    </button>
+                                                )
+                                            })}
+                                        </div>
 
-                                                {/* Custom Amount */}
-                                                <div className="relative group">
-                                                    <div className={cn(
-                                                        "absolute inset-0 bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 rounded-xl blur transition-opacity duration-500",
-                                                        customFocused ? "opacity-100" : "opacity-0"
-                                                    )} />
-                                                    <div className="relative flex items-center bg-card/50 border border-white/10 rounded-xl px-4 h-16 transition-colors group-hover:border-white/20">
-                                                        <span className="text-xl font-medium text-muted-foreground mr-2">{currencySym}</span>
-                                                        <Input
-                                                            type="number"
-                                                            placeholder="Enter custom amount..."
-                                                            value={amount}
-                                                            onChange={(e) => setAmount(e.target.value)}
-                                                            onFocus={() => setCustomFocused(true)}
-                                                            onBlur={() => setCustomFocused(false)}
-                                                            className="border-none bg-transparent h-full text-2xl font-bold placeholder:font-normal focus-visible:ring-0 p-0"
-                                                        />
-                                                    </div>
-                                                </div>
+                                        {/* Custom Amount with Dynamic Currency Prefix */}
+                                        <div className="relative group">
+                                            <div className={cn(
+                                                "absolute inset-0 bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 rounded-xl blur transition-opacity duration-500",
+                                                customFocused ? "opacity-100" : "opacity-0"
+                                            )} />
+                                            <div className="relative flex items-center bg-card/50 border border-white/10 rounded-xl px-4 h-16 transition-colors group-hover:border-white/20">
+                                                <span className="text-2xl font-bold text-muted-foreground mr-2">{currencySym}</span>
+                                                <Input
+                                                    ref={customInputRef}
+                                                    type="number"
+                                                    placeholder={`Enter custom amount in ${preferredCurrency}...`}
+                                                    value={amount}
+                                                    onChange={(e) => setAmount(e.target.value)}
+                                                    onFocus={() => setCustomFocused(true)}
+                                                    onBlur={() => setCustomFocused(false)}
+                                                    className="border-none bg-transparent h-full text-2xl font-bold placeholder:font-normal placeholder:text-muted-foreground/60 focus-visible:ring-0 p-0"
+                                                />
+                                            </div>
+                                        </div>
 
-                                                <Button
-                                                    onClick={handleTopUp}
-                                                    disabled={!amount || parseFloat(amount) < 5}
-                                                    className={cn(
-                                                        "w-full h-14 text-lg font-semibold border-none shadow-lg transition-all duration-300 rounded-xl",
-                                                        "bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 shadow-indigo-500/25"
-                                                    )}
-                                                >
-                                                    {amount ? `Pay ${formatPriceContext(parseFloat(amount) * pointsRate)}` : "Enter Amount"}
-                                                </Button>
-                                            </motion.div>
-                                        ) : (
-                                            <motion.div
-                                                key="payment"
-                                                initial={{ opacity: 0, scale: 0.95 }}
-                                                animate={{ opacity: 1, scale: 1 }}
-                                                exit={{ opacity: 0, scale: 0.95 }}
-                                                className="space-y-6 py-4"
-                                            >
-                                                <div className="flex flex-col items-center justify-center space-y-4">
-                                                    <div className="relative w-20 h-20">
-                                                        <div className="absolute inset-0 rounded-full border-4 border-white/10" />
-                                                        <div className="absolute inset-0 rounded-full border-4 border-indigo-500 border-t-transparent animate-spin" />
-                                                        <div className="absolute inset-0 flex items-center justify-center">
-                                                            <Lock className="w-8 h-8 text-indigo-400" />
-                                                        </div>
-                                                    </div>
-                                                    <div className="text-center">
-                                                        <h3 className="text-lg font-semibold text-white">Processing Secure Payment</h3>
-                                                        <p className="text-muted-foreground text-sm">Please approve the request on your device...</p>
-                                                    </div>
-                                                </div>
-                                                <Button
-                                                    variant="ghost"
-                                                    onClick={() => setIsLoading(false)}
-                                                    className="w-full hover:bg-white/5 text-muted-foreground"
-                                                >
-                                                    Cancel Transaction
-                                                </Button>
-                                            </motion.div>
-                                        )}
-                                    </AnimatePresence>
+                                        {/* Deposit Trigger Button */}
+                                        <Button
+                                            onClick={handleOpenDepositDialog}
+                                            disabled={!amount || parseFloat(amount) <= 0}
+                                            className={cn(
+                                                "w-full h-14 text-lg font-semibold border-none shadow-lg transition-all duration-300 rounded-xl cursor-pointer",
+                                                "bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 shadow-indigo-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
+                                            )}
+                                        >
+                                            {amount ? `Deposit ${currencySym}${parseFloat(amount).toLocaleString()}` : "Enter Amount"}
+                                        </Button>
+                                    </div>
                                 </CardContent>
                             </Card>
                         </motion.div>
 
-                        {/* Recent Activity Detailed */}
+                        {/* Recent Activity Detailed with Pagination */}
                         <motion.div variants={fadeInUp}>
-                            <div className="flex items-center justify-between mb-6 px-1">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 px-1">
                                 <h3 className="font-semibold text-lg flex items-center gap-2">
                                     <History className="h-5 w-5 text-indigo-400" />
                                     Transaction History
                                 </h3>
 
                                 {/* Filters */}
-                                <div className="flex items-center gap-2 bg-card/30 p-1 rounded-lg border border-white/5">
+                                <div className="flex items-center gap-1 bg-card/40 p-1 rounded-xl border border-white/10 self-start sm:self-auto">
                                     <button
+                                        type="button"
                                         onClick={() => setFilterType('all')}
-                                        className={cn("px-3 py-1.5 rounded-md text-xs font-medium transition-colors", filterType === 'all' ? "bg-white/10 text-white" : "text-muted-foreground hover:text-white")}
+                                        className={cn("px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer", filterType === 'all' ? "bg-white/10 text-white font-bold" : "text-muted-foreground hover:text-white")}
                                     >All</button>
                                     <button
+                                        type="button"
                                         onClick={() => setFilterType('credit')}
-                                        className={cn("px-3 py-1.5 rounded-md text-xs font-medium transition-colors", filterType === 'credit' ? "bg-emerald-500/10 text-emerald-400" : "text-muted-foreground hover:text-white")}
+                                        className={cn("px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer", filterType === 'credit' ? "bg-emerald-500/20 text-emerald-400 font-bold" : "text-muted-foreground hover:text-white")}
                                     >Incoming</button>
                                     <button
+                                        type="button"
                                         onClick={() => setFilterType('debit')}
-                                        className={cn("px-3 py-1.5 rounded-md text-xs font-medium transition-colors", filterType === 'debit' ? "bg-rose-500/10 text-rose-400" : "text-muted-foreground hover:text-white")}
+                                        className={cn("px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer", filterType === 'debit' ? "bg-rose-500/20 text-rose-400 font-bold" : "text-muted-foreground hover:text-white")}
                                     >Outgoing</button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFilterType('other')}
+                                        className={cn("px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer", filterType === 'other' ? "bg-purple-500/20 text-purple-400 font-bold" : "text-muted-foreground hover:text-white")}
+                                    >Other</button>
                                 </div>
                             </div>
 
-                            <Card className="border-white/5 bg-card/20 backdrop-blur-md overflow-hidden">
+                            <Card className="border-white/10 bg-card/20 backdrop-blur-md overflow-hidden shadow-xl">
                                 <div className="divide-y divide-white/5">
-                                    {filteredTransactions.length > 0 ? (
-                                        filteredTransactions.map((tx) => (
-                                            <div
-                                                key={tx.id}
-                                                className="group flex items-center justify-between p-4 hover:bg-white/5 transition-colors cursor-default"
-                                            >
-                                                <div className="flex items-center gap-4">
-                                                    <div className={cn(
-                                                        "w-12 h-12 rounded-2xl flex items-center justify-center border border-white/5 relative overflow-hidden",
-                                                        ['topup', 'manual_credit', 'referral_bonus'].includes(tx.type) ? "bg-emerald-500/5" : "bg-rose-500/5"
-                                                    )}>
-                                                        {['topup', 'manual_credit'].includes(tx.type) && <ArrowDownRight className="h-5 w-5 text-emerald-500" />}
-                                                        {['purchase', 'manual_debit'].includes(tx.type) && <ArrowUpRight className="h-5 w-5 text-rose-500" />}
-                                                        {tx.type === 'referral_bonus' && <Sparkles className="h-5 w-5 text-amber-500" />}
+                                    {paginatedTransactions.length > 0 ? (
+                                        paginatedTransactions.map((tx) => {
+                                            const isCredit = ['topup', 'manual_credit', 'referral_bonus', 'refund'].includes((tx.type || '').toLowerCase())
+                                            return (
+                                                <div
+                                                    key={tx.id}
+                                                    className="group flex items-center justify-between p-4 hover:bg-white/5 transition-colors cursor-default"
+                                                >
+                                                    <div className="flex items-center gap-4">
+                                                        <div className={cn(
+                                                            "w-12 h-12 rounded-2xl flex items-center justify-center border border-white/5 relative overflow-hidden shrink-0",
+                                                            isCredit ? "bg-emerald-500/10" : "bg-rose-500/10"
+                                                        )}>
+                                                            {renderTransactionIcon(tx.type, tx.status)}
+                                                        </div>
+                                                        <div>
+                                                            <div className="flex flex-wrap items-center gap-2">
+                                                                <p className="font-medium text-sm text-white group-hover:text-indigo-200 transition-colors">
+                                                                    {tx.description || (tx.type === 'topup' ? 'Wallet Top-up' : 'Transaction')}
+                                                                </p>
+                                                                {renderStatusBadge(tx.status, tx.type)}
+                                                            </div>
+                                                            <div className="flex items-center gap-2 mt-1">
+                                                                <p className="text-xs text-muted-foreground font-mono">{new Date(tx.date).toLocaleDateString()}</p>
+                                                                <span className="text-xs text-white/20">•</span>
+                                                                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{(tx.type || '').replace('_', ' ')}</p>
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                    <div>
-                                                        <div className="flex items-center gap-2">
-                                                            <p className="font-medium text-sm text-white group-hover:text-indigo-200 transition-colors">
-                                                                {tx.description || (tx.type === 'topup' ? 'Wallet Top-up' : 'Number Purchase')}
-                                                            </p>
-                                                            {tx.status === 'pending' && <Badge variant="outline" className="text-[10px] h-5 border-amber-500/50 text-amber-500">Pending</Badge>}
-                                                            {tx.type.includes('manual') && <Badge variant="outline" className="text-[10px] h-5 border-indigo-500/50 text-indigo-400">Admin</Badge>}
-                                                        </div>
-                                                        <div className="flex items-center gap-2 mt-1">
-                                                            <p className="text-xs text-muted-foreground font-mono">{new Date(tx.date).toLocaleDateString()}</p>
-                                                            <span className="text-xs text-white/20">•</span>
-                                                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{tx.type.replace('_', ' ')}</p>
-                                                        </div>
+                                                    <div className="text-right shrink-0">
+                                                        <span className={cn(
+                                                            "block text-lg font-bold font-mono",
+                                                            isCredit ? "text-emerald-400" : "text-white"
+                                                        )}>
+                                                            {isCredit ? "+" : "-"}
+                                                            <PriceDisplay currencyPrices={tx.currencyPrices || {}} />
+                                                        </span>
+                                                        <span className="text-[10px] text-white/30 font-mono">{tx.id.slice(0, 8)}...</span>
                                                     </div>
                                                 </div>
-                                                <div className="text-right">
-                                                    <span className={cn(
-                                                        "block text-lg font-bold font-mono",
-                                                        ['topup', 'manual_credit', 'referral_bonus'].includes(tx.type) ? "text-emerald-400" : "text-white"
-                                                    )}>
-                                                        {['topup', 'manual_credit', 'referral_bonus'].includes(tx.type) ? "+" : "-"}
-                                                        <PriceDisplay currencyPrices={tx.currencyPrices || {}} />
-                                                    </span>
-                                                    <span className="text-[10px] text-white/30 font-mono">{tx.id.slice(0, 8)}...</span>
-                                                </div>
-                                            </div>
-                                        ))
+                                            )
+                                        })
                                     ) : (
                                         <div className="text-center py-12 flex flex-col items-center justify-center">
                                             <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mb-4">
@@ -489,6 +628,57 @@ export default function WalletPage() {
                                         </div>
                                     )}
                                 </div>
+
+                                {/* Catalog Pagination Controls */}
+                                {filteredTransactions.length > 0 && (
+                                    <div className="p-4 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-4 bg-black/20">
+                                        <p className="text-xs text-muted-foreground">
+                                            Showing <span className="font-semibold text-white">{(currentPage - 1) * ITEMS_PER_PAGE + 1}</span> to{" "}
+                                            <span className="font-semibold text-white">{Math.min(currentPage * ITEMS_PER_PAGE, filteredTransactions.length)}</span> of{" "}
+                                            <span className="font-semibold text-white">{filteredTransactions.length}</span> transactions
+                                        </p>
+                                        
+                                        <div className="flex items-center gap-2">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                disabled={currentPage === 1}
+                                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                                className="h-8 border-white/10 bg-white/5 hover:bg-white/10 disabled:opacity-30"
+                                            >
+                                                <ChevronLeft className="w-4 h-4 mr-1" /> Prev
+                                            </Button>
+                                            
+                                            <div className="flex items-center gap-1 px-2">
+                                                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                                                    <button
+                                                        key={page}
+                                                        type="button"
+                                                        onClick={() => setCurrentPage(page)}
+                                                        className={cn(
+                                                            "w-7 h-7 rounded-lg text-xs font-semibold transition-all cursor-pointer",
+                                                            currentPage === page
+                                                                ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/20"
+                                                                : "text-muted-foreground hover:bg-white/5 hover:text-white"
+                                                        )}
+                                                    >
+                                                        {page}
+                                                    </button>
+                                                ))}
+                                            </div>
+
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                disabled={currentPage === totalPages}
+                                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                                className="h-8 border-white/10 bg-white/5 hover:bg-white/10 disabled:opacity-30"
+                                            >
+                                                Next <ChevronRight className="w-4 h-4 ml-1" />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                )}
                             </Card>
                         </motion.div>
                     </div>
@@ -498,9 +688,11 @@ export default function WalletPage() {
             {/* Deposit Dialog */}
             <DepositDialog
                 open={depositDialogOpen}
+                initialAmount={selectedDepositAmount}
                 onClose={() => setDepositDialogOpen(false)}
                 onSuccess={() => {
                     fetchTransactions()
+                    fetchBalance()
                 }}
             />
         </div>

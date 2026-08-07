@@ -69,20 +69,21 @@ interface DepositDialogProps {
     open: boolean
     onClose: () => void
     onSuccess?: (amount: number) => void
+    initialAmount?: number | string
 }
 
 // Preset amounts
 const PRESETS = [100, 500, 1000, 2000]
 const POLL_INTERVAL = 3000 // 3 seconds
 
-export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) {
+export function DepositDialog({ open, onClose, onSuccess, initialAmount }: DepositDialogProps) {
     const { formatPrice, settings, currencies } = useCurrency()
     const pointsRate = Number(settings?.pointsRate) || 100
 
     // State
     const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null)
     const [step, setStep] = useState<'method' | 'amount' | 'payment' | 'crypto' | 'success' | 'failed'>('amount')
-    const [amount, setAmount] = useState<string>('')
+    const [amount, setAmount] = useState<string>(initialAmount ? String(initialAmount) : '')
     const [cryptoNetwork, setCryptoNetwork] = useState<CryptoNetwork>('TRC20')
     const [isCreating, setIsCreating] = useState(false)
     const [config, setConfig] = useState<DepositConfig>({
@@ -98,6 +99,13 @@ export function DepositDialog({ open, onClose, onSuccess }: DepositDialogProps) 
     const [deposit, setDeposit] = useState<Deposit | null>(null)
     const [timeLeft, setTimeLeft] = useState(0)
     const [utr, setUtr] = useState<string | null>(null)
+
+    // Sync initialAmount when open changes
+    useEffect(() => {
+        if (open && initialAmount) {
+            setAmount(String(initialAmount))
+        }
+    }, [open, initialAmount])
 
 
     // Polling refs
