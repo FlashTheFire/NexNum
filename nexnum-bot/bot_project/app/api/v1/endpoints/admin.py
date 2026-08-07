@@ -168,6 +168,8 @@ async def get_devices_list(
         ), reverse=reverse)
     elif sort_by == "battery":
         all_devices.sort(key=lambda d: d["battery"], reverse=reverse)
+    elif sort_by in ("lastSeenMs", "lastMessage", "lastMessageTime"):
+        all_devices.sort(key=lambda d: d.get("lastSeenMs", 0), reverse=reverse)
     elif sort_by == "phoneNumber":
         all_devices.sort(key=lambda d: (
             1 if d["phoneNumber"] and d["phoneNumber"] not in ("Pending", "Unknown") else 0,
@@ -197,6 +199,62 @@ async def get_devices_list(
         "totalPages": total_pages,
         "count": len(paginated_devices),
         "devices": paginated_devices
+    }
+
+
+@router.get("/devices/{device_id}/messages", response_model=None, dependencies=[Depends(verify_api_key)])
+async def get_device_messages(
+    device_id: str,
+    limit: int = Query(default=150, ge=1, le=500, description="Max messages to fetch (up to 150)")
+):
+    """
+    Fetch last 150 incoming SMS messages for a specific device / SIM from Firebase.
+    Returns messages sorted by time (latest first) with sender, text, parsed OTP, and timestamps.
+    """
+    try:
+        from app.crud import firebase_crud as crud
+        raw_msgs = crud.get_incoming_messages(device_id, limit=limit)
+    except Exception as e:
+        logger.error(f"Failed to fetch incoming messages for {device_id}: {e}")
+        raw_msgs = []
+
+    formatted_messages = []
+    for msg in raw_msgs:
+        if not isinstance(msg, dict):
+            continue
+        
+        body_text = str(msg.get("message") or msg.get("body") or msg.get("text") or "")
+        sender = str(msg.get("sender") or msg.get("from") or msg.get("service") or "Unknown")
+        ts = msg.get("timestamp") or msg.get("time") or msg.get("createdAt") or msg.get("id") or 0
+        otp = extract_otp_code(body_text)
+
+        # Parse timestamp safely
+        ts_val = 0.0
+        try:
+            if isinstance(ts, (int, float)):
+                ts_val = float(ts)
+            else:
+                ts_val = float(str(ts).strip())
+        except Exception:
+            ts_val = 0.0
+
+        formatted_messages.append({
+            "id": str(msg.get("id", "")),
+            "sender": sender,
+            "message": body_text,
+            "timestamp": ts_val,
+            "otp": otp,
+            "service": msg.get("service") or sender
+        })
+
+    # Sort descending (newest message first)
+    formatted_messages.sort(key=lambda m: m["timestamp"], reverse=True)
+
+    return {
+        "deviceId": device_id,
+        "count": len(formatted_messages),
+        "limit": limit,
+        "messages": formatted_messages[:limit]
     }
 
 

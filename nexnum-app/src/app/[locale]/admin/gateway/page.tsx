@@ -1,17 +1,81 @@
 "use client"
 
-import React, { useState, useEffect, useCallback } from "react"
+import React, { useState, useEffect, useCallback, useMemo } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
     Smartphone, Server, Shield, Activity, RefreshCw, CheckCircle,
     XCircle, AlertCircle, Ban, Play, Terminal, Cpu, Battery, Wifi,
     Clock, Search, ArrowRight, Zap, Filter, ArrowUpDown, ChevronLeft,
-    ChevronRight, ChevronsLeft, ChevronsRight, Check, Sparkles, Copy
+    ChevronRight, ChevronsLeft, ChevronsRight, Check, Sparkles, Copy,
+    X, MessageSquare, Calendar, Key, ExternalLink, Inbox
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils/utils"
+
+/**
+ * Format timestamp into detailed professional relative time:
+ * - just now (< 1 min)
+ * - 1min ago, 20min ago
+ * - 1hour 30min ago, 2hour 15min ago
+ * - 1 day 7 hour ago, 2 day 4 hour ago
+ * - 1 week ago, 1 week 3 days ago, 10 days ago
+ * - 1 month ago 1 week ago, 2 months ago
+ * - No messages (if 0 or null)
+ */
+function formatDetailedRelativeTime(timestampMs: number | string | null | undefined): string {
+    if (!timestampMs) return "No messages"
+    const ts = typeof timestampMs === "string" ? parseFloat(timestampMs) : timestampMs
+    if (isNaN(ts) || ts <= 0) return "No messages"
+
+    const now = Date.now()
+    // Handle seconds vs milliseconds
+    const ms = ts < 10000000000 ? ts * 1000 : ts
+    const diff = Math.max(0, now - ms)
+    const seconds = Math.floor(diff / 1000)
+
+    if (seconds < 60) {
+        return "just now"
+    }
+
+    const minutes = Math.floor(seconds / 60)
+    if (minutes < 60) {
+        return `${minutes}min ago`
+    }
+
+    const hours = Math.floor(minutes / 60)
+    const remMinutes = minutes % 60
+    if (hours < 24) {
+        if (remMinutes === 0) return `${hours}hour ago`
+        return `${hours}hour ${remMinutes}min ago`
+    }
+
+    const days = Math.floor(hours / 24)
+    const remHours = hours % 24
+    if (days < 7) {
+        if (remHours === 0) return `${days} day ago`
+        return `${days} day ${remHours} hour ago`
+    }
+
+    if (days >= 7 && days < 30) {
+        const weeks = Math.floor(days / 7)
+        const remDays = days % 7
+        if (days === 10) return "10 days ago"
+        if (remDays === 0) return `${weeks} week ago`
+        return `${weeks} week ${remDays} days ago`
+    }
+
+    const months = Math.floor(days / 30)
+    const remWeeks = Math.floor((days % 30) / 7)
+    if (months < 12) {
+        if (remWeeks === 0) return `${months} month ago`
+        return `${months} month ${remWeeks} week ago`
+    }
+
+    const years = Math.floor(days / 365)
+    return `${years} year ago`
+}
 
 interface GatewayStats {
     status: string
@@ -46,6 +110,15 @@ interface DeviceNode {
     isBanned: boolean
 }
 
+interface DeviceSmsMessage {
+    id: string
+    sender: string
+    message: string
+    timestamp: number
+    otp?: string | null
+    service?: string
+}
+
 interface ActivationItem {
     id: string
     userId: string
@@ -57,7 +130,7 @@ interface ActivationItem {
     elapsedSeconds: number
 }
 
-type DeviceSortField = 'phoneNumber' | 'deviceId' | 'simSlot' | 'carrier' | 'schemaType' | 'status' | 'battery' | 'isBanned'
+type DeviceSortField = 'phoneNumber' | 'deviceId' | 'simSlot' | 'carrier' | 'schemaType' | 'status' | 'battery' | 'isBanned' | 'lastSeenMs' | 'lastMessage'
 type SortOrder = 'asc' | 'desc'
 
 export default function GatewayAdminPage() {
@@ -75,6 +148,14 @@ export default function GatewayAdminPage() {
     const [deviceTotalPages, setDeviceTotalPages] = useState(1)
     const [deviceSortBy, setDeviceSortBy] = useState<DeviceSortField>('status')
     const [deviceSortOrder, setDeviceSortOrder] = useState<SortOrder>('desc')
+
+    // Device SMS Inspector State (Modal for last 150 messages)
+    const [selectedDevice, setSelectedDevice] = useState<DeviceNode | null>(null)
+    const [deviceMessages, setDeviceMessages] = useState<DeviceSmsMessage[]>([])
+    const [isLoadingMessages, setIsLoadingMessages] = useState(false)
+    const [msgSearchQuery, setMsgSearchQuery] = useState("")
+    const [msgPage, setMsgPage] = useState(1)
+    const [msgLimit, setMsgLimit] = useState(10)
 
     // Pagination & Sorting State for Live Activations
     const [actPage, setActPage] = useState(1)
@@ -194,6 +275,45 @@ export default function GatewayAdminPage() {
             toast.error("Action failed")
         }
     }
+    // Open and load device SMS messages (up to 150)
+    const handleOpenDeviceSms = async (device: DeviceNode) => {
+        setSelectedDevice(device)
+        setIsLoadingMessages(true)
+        setMsgPage(1)
+        setMsgSearchQuery("")
+        try {
+            const res = await fetch(`/api/admin/gateway?endpoint=${encodeURIComponent(`/api/v1/admin/devices/${device.deviceId}/messages?limit=150`)}`)
+            if (res.ok) {
+                const data = await res.json()
+                setDeviceMessages(data.messages || [])
+            } else {
+                setDeviceMessages([])
+            }
+        } catch {
+            toast.error("Failed to load device SMS messages")
+            setDeviceMessages([])
+        } finally {
+            setIsLoadingMessages(false)
+        }
+    }
+
+    // Filter & Paginate Device SMS Messages
+    const filteredDeviceMessages = useMemo(() => {
+        if (!msgSearchQuery.trim()) return deviceMessages
+        const q = msgSearchQuery.toLowerCase()
+        return deviceMessages.filter(m => 
+            (m.sender || "").toLowerCase().includes(q) ||
+            (m.message || "").toLowerCase().includes(q) ||
+            (m.otp || "").toLowerCase().includes(q) ||
+            (m.service || "").toLowerCase().includes(q)
+        )
+    }, [deviceMessages, msgSearchQuery])
+
+    const totalMsgPages = Math.max(1, Math.ceil(filteredDeviceMessages.length / msgLimit))
+    const paginatedDeviceMessages = useMemo(() => {
+        const start = (msgPage - 1) * msgLimit
+        return filteredDeviceMessages.slice(start, start + msgLimit)
+    }, [filteredDeviceMessages, msgPage, msgLimit])
 
     // Live Real-World Pattern Match Tester
     const handleTestMatch = async () => {
@@ -466,6 +586,17 @@ export default function GatewayAdminPage() {
                                             </div>
                                         </th>
                                         <th
+                                            onClick={() => handleDeviceHeaderSort('lastSeenMs')}
+                                            className="pb-3 px-4 cursor-pointer hover:text-[hsl(var(--neon-lime))] transition-colors"
+                                        >
+                                            <div className="flex items-center gap-1.5">
+                                                <span>Last Message</span>
+                                                {(deviceSortBy === 'lastSeenMs' || deviceSortBy === 'lastMessage') && (
+                                                    <span className="text-[hsl(var(--neon-lime))] font-bold">{deviceSortOrder === 'asc' ? '▲' : '▼'}</span>
+                                                )}
+                                            </div>
+                                        </th>
+                                        <th
                                             onClick={() => handleDeviceHeaderSort('isBanned')}
                                             className="pb-3 pl-4 text-right cursor-pointer hover:text-[hsl(var(--neon-lime))] transition-colors"
                                         >
@@ -482,17 +613,21 @@ export default function GatewayAdminPage() {
                                 <tbody className="divide-y divide-zinc-800/60 text-xs font-bold">
                                     {devices.length === 0 ? (
                                         <tr>
-                                            <td colSpan={7} className="py-8 text-center text-zinc-500 font-bold uppercase tracking-wider">
+                                            <td colSpan={8} className="py-8 text-center text-zinc-500 font-bold uppercase tracking-wider">
                                                 No hardware device SIM nodes found matching your criteria.
                                             </td>
                                         </tr>
                                     ) : (
                                         devices.map((d) => (
-                                            <tr key={`${d.deviceId}_${d.simSlot}`} className="hover:bg-zinc-800/30 transition-colors">
+                                            <tr 
+                                                key={`${d.deviceId}_${d.simSlot}`} 
+                                                onClick={() => handleOpenDeviceSms(d)}
+                                                className="hover:bg-zinc-800/40 cursor-pointer transition-colors group"
+                                            >
                                                 {/* Phone Number */}
                                                 <td className="py-3.5 pr-4">
                                                     {d.phoneNumber && d.phoneNumber !== "Pending" ? (
-                                                        <span className="inline-flex items-center gap-1.5 text-white font-mono font-black">
+                                                        <span className="inline-flex items-center gap-1.5 text-white font-mono font-black group-hover:text-[hsl(var(--neon-lime))] transition-colors">
                                                             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                                                             {d.phoneNumber}
                                                         </span>
@@ -552,10 +687,21 @@ export default function GatewayAdminPage() {
                                                     </div>
                                                 </td>
 
+                                                {/* Last Message Column */}
+                                                <td className="py-3.5 px-4">
+                                                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-zinc-800 bg-zinc-900/90 text-zinc-300 font-mono text-[11px] group-hover:border-[hsl(var(--neon-lime))] group-hover:text-[hsl(var(--neon-lime))] transition-colors">
+                                                        <Clock className="w-3 h-3 text-zinc-500 group-hover:text-[hsl(var(--neon-lime))]" />
+                                                        {formatDetailedRelativeTime(d.lastSeenMs)}
+                                                    </span>
+                                                </td>
+
                                                 {/* Actions */}
                                                 <td className="py-3.5 pl-4 text-right">
                                                     <button
-                                                        onClick={() => handleBanToggle(d.deviceId, d.isBanned)}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            handleBanToggle(d.deviceId, d.isBanned)
+                                                        }}
                                                         className={cn(
                                                             "px-3 py-1 rounded-md border-2 border-black font-black text-[10px] uppercase tracking-wider shadow-[2px_2px_0px_0px_#000] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all",
                                                             d.isBanned
@@ -909,6 +1055,256 @@ export default function GatewayAdminPage() {
                     </div>
                 </div>
             )}
+
+            {/* ── 5. DEVICE SMS INSPECTOR MODAL (LAST 150 SMS) ── */}
+            <AnimatePresence>
+                {selectedDevice && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 md:p-10 bg-black/80 backdrop-blur-md">
+                        {/* Backdrop Click Dismiss */}
+                        <div 
+                            className="absolute inset-0"
+                            onClick={() => setSelectedDevice(null)}
+                        />
+
+                        {/* Modal Container */}
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                            transition={{ duration: 0.2, ease: "easeOut" }}
+                            className="relative w-full max-w-5xl max-h-[90vh] flex flex-col rounded-2xl border-2 border-zinc-800 bg-[#0d0e12] shadow-[8px_8px_0px_0px_#000] overflow-hidden z-10"
+                        >
+                            {/* Modal Header */}
+                            <div className="p-5 sm:p-6 border-b-2 border-zinc-800 bg-zinc-950 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                                <div className="space-y-1">
+                                    <div className="flex items-center gap-2.5 flex-wrap">
+                                        <div className="p-2 rounded-lg border-2 border-black bg-[hsl(var(--neon-lime))] text-black shadow-[2px_2px_0px_0px_#000]">
+                                            <Inbox className="w-5 h-5 stroke-[2.5]" />
+                                        </div>
+                                        <h2 className="text-lg sm:text-xl font-black text-white tracking-tight flex items-center gap-2">
+                                            {selectedDevice.phoneNumber && selectedDevice.phoneNumber !== "Pending" ? (
+                                                <span className="font-mono text-[hsl(var(--neon-lime))]">
+                                                    {selectedDevice.phoneNumber}
+                                                </span>
+                                            ) : (
+                                                <span className="text-zinc-400">Device {selectedDevice.deviceId}</span>
+                                            )}
+                                        </h2>
+
+                                        {/* Copy Phone Button */}
+                                        {selectedDevice.phoneNumber && selectedDevice.phoneNumber !== "Pending" && (
+                                            <button
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(selectedDevice.phoneNumber)
+                                                    toast.success("Phone number copied to clipboard")
+                                                }}
+                                                className="p-1.5 rounded border border-zinc-700 bg-zinc-900 text-zinc-400 hover:text-white hover:border-[hsl(var(--neon-lime))] transition-colors"
+                                                title="Copy Phone Number"
+                                            >
+                                                <Copy className="w-3.5 h-3.5" />
+                                            </button>
+                                        )}
+
+                                        {/* Badges */}
+                                        <span className="px-2 py-0.5 rounded border border-zinc-700 bg-zinc-900 text-zinc-300 font-mono text-[10px] font-bold">
+                                            Slot {selectedDevice.simSlot}
+                                        </span>
+                                        <span className="px-2 py-0.5 rounded border border-zinc-700 bg-zinc-900 text-zinc-300 text-[10px] font-black uppercase">
+                                            {selectedDevice.carrier}
+                                        </span>
+                                        {selectedDevice.isOnline ? (
+                                            <span className="px-2 py-0.5 rounded border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 font-bold uppercase text-[10px] flex items-center gap-1">
+                                                <Wifi className="w-3 h-3 stroke-[2.5]" />
+                                                Online
+                                            </span>
+                                        ) : (
+                                            <span className="px-2 py-0.5 rounded border border-zinc-700 bg-zinc-800 text-zinc-400 font-bold uppercase text-[10px]">
+                                                Offline
+                                            </span>
+                                        )}
+                                        <span className="px-2 py-0.5 rounded border border-zinc-700 bg-zinc-900 text-zinc-300 font-mono text-[10px] font-bold flex items-center gap-1">
+                                            <Battery className="w-3 h-3 text-zinc-400" />
+                                            {selectedDevice.battery}%
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-zinc-400 font-medium">
+                                        Device ID: <span className="font-mono text-zinc-300 font-bold">{selectedDevice.deviceId}</span> • Node: <span className="font-mono text-zinc-300">{selectedDevice.firebaseNodeId}</span> • Last Activity: <span className="text-[hsl(var(--neon-lime))] font-bold">{formatDetailedRelativeTime(selectedDevice.lastSeenMs)}</span>
+                                    </p>
+                                </div>
+
+                                {/* Close Button */}
+                                <button
+                                    onClick={() => setSelectedDevice(null)}
+                                    className="self-start sm:self-center p-2 rounded-lg border-2 border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white hover:border-[hsl(var(--neon-lime))] hover:bg-zinc-800 shadow-[2px_2px_0px_0px_#000] active:translate-x-[1px] active:translate-y-[1px] transition-all"
+                                >
+                                    <X className="w-5 h-5 stroke-[2.5]" />
+                                </button>
+                            </div>
+
+                            {/* Modal Subheader / Search & Controls */}
+                            <div className="p-4 border-b-2 border-zinc-800 bg-[#0d0e12] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                <div className="relative flex-1">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 stroke-[2.5]" />
+                                    <input
+                                        type="text"
+                                        placeholder="Search message text, sender, OTP code..."
+                                        value={msgSearchQuery}
+                                        onChange={(e) => {
+                                            setMsgSearchQuery(e.target.value)
+                                            setMsgPage(1)
+                                        }}
+                                        className="w-full pl-9 pr-4 py-2 rounded-lg border-2 border-zinc-800 bg-zinc-900 text-white text-xs font-bold placeholder:text-zinc-500 focus:outline-none focus:border-[hsl(var(--neon-lime))] shadow-[2px_2px_0px_0px_#000] transition-colors"
+                                    />
+                                </div>
+
+                                <div className="flex items-center gap-3 self-end sm:self-center">
+                                    <div className="text-[11px] font-bold text-zinc-400">
+                                        Showing <span className="text-white">{filteredDeviceMessages.length}</span> of <span className="text-[hsl(var(--neon-lime))] font-mono font-black">{deviceMessages.length}</span> SMS (Max 150)
+                                    </div>
+                                    <select
+                                        value={msgLimit}
+                                        onChange={(e) => {
+                                            setMsgLimit(Number(e.target.value))
+                                            setMsgPage(1)
+                                        }}
+                                        className="px-2.5 py-1.5 rounded-lg border-2 border-zinc-800 bg-zinc-900 text-white font-bold text-xs focus:outline-none focus:border-[hsl(var(--neon-lime))]"
+                                    >
+                                        <option value={10}>10 / page</option>
+                                        <option value={25}>25 / page</option>
+                                        <option value={50}>50 / page</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Modal Body / Message List */}
+                            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3 min-h-[300px]">
+                                {isLoadingMessages ? (
+                                    <div className="py-16 flex flex-col items-center justify-center gap-3 text-zinc-400">
+                                        <RefreshCw className="w-8 h-8 animate-spin text-[hsl(var(--neon-lime))]" />
+                                        <span className="text-xs font-black uppercase tracking-wider">Loading device SMS stream...</span>
+                                    </div>
+                                ) : paginatedDeviceMessages.length === 0 ? (
+                                    <div className="py-16 text-center text-zinc-500 font-bold uppercase tracking-wider text-xs border-2 border-dashed border-zinc-800 rounded-xl p-8">
+                                        {msgSearchQuery ? "No SMS messages matching search query." : "No incoming SMS messages logged for this device yet."}
+                                    </div>
+                                ) : (
+                                    paginatedDeviceMessages.map((msg, idx) => (
+                                        <div 
+                                            key={msg.id || idx}
+                                            className="rounded-xl border-2 border-zinc-800 bg-zinc-950 p-4 shadow-[3px_3px_0px_0px_#000] hover:border-zinc-700 transition-colors flex flex-col gap-2.5"
+                                        >
+                                            {/* Message Meta Row */}
+                                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="px-2.5 py-0.5 rounded border border-zinc-700 bg-zinc-900 text-white font-black text-xs uppercase tracking-wider">
+                                                        {msg.sender || "UNKNOWN"}
+                                                    </span>
+                                                    {msg.otp && (
+                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded border-2 border-black bg-[hsl(var(--neon-lime))] text-black font-mono font-black text-xs shadow-[1px_1px_0px_0px_#000]">
+                                                            <Key className="w-3 h-3 stroke-[2.5]" />
+                                                            OTP: {msg.otp}
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-[11px] font-mono text-zinc-400 flex items-center gap-1">
+                                                        <Clock className="w-3 h-3 text-zinc-500" />
+                                                        {formatDetailedRelativeTime(msg.timestamp)}
+                                                    </span>
+                                                    {msg.timestamp > 0 && (
+                                                        <span className="text-[10px] text-zinc-600 font-mono hidden md:inline">
+                                                            ({new Date(msg.timestamp < 10000000000 ? msg.timestamp * 1000 : msg.timestamp).toLocaleString()})
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Message Text Body */}
+                                            <div className="rounded-lg bg-zinc-900/80 border border-zinc-800/80 p-3 text-xs font-mono text-zinc-200 leading-relaxed break-words whitespace-pre-wrap select-text">
+                                                {msg.message || "—"}
+                                            </div>
+
+                                            {/* Actions Row */}
+                                            <div className="flex items-center justify-end gap-2 pt-1">
+                                                {msg.otp && (
+                                                    <button
+                                                        onClick={() => {
+                                                            navigator.clipboard.writeText(msg.otp!)
+                                                            toast.success(`OTP ${msg.otp} copied to clipboard`)
+                                                        }}
+                                                        className="px-2.5 py-1 rounded border border-zinc-700 bg-zinc-900 text-xs font-bold text-[hsl(var(--neon-lime))] hover:bg-zinc-800 transition-colors flex items-center gap-1.5"
+                                                    >
+                                                        <Copy className="w-3 h-3" />
+                                                        Copy OTP
+                                                    </button>
+                                                )}
+                                                <button
+                                                    onClick={() => {
+                                                        navigator.clipboard.writeText(msg.message)
+                                                        toast.success("SMS body copied to clipboard")
+                                                    }}
+                                                    className="px-2.5 py-1 rounded border border-zinc-700 bg-zinc-900 text-xs font-bold text-zinc-300 hover:text-white hover:bg-zinc-800 transition-colors flex items-center gap-1.5"
+                                                >
+                                                    <Copy className="w-3 h-3" />
+                                                    Copy Text
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+
+                            {/* Modal Footer / Pagination */}
+                            <div className="p-4 border-t-2 border-zinc-800 bg-zinc-950 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs font-bold text-zinc-400">
+                                <div>
+                                    Page <span className="text-white font-black">{msgPage}</span> of <span className="text-white font-black">{totalMsgPages}</span>
+                                </div>
+
+                                <div className="flex items-center gap-1.5">
+                                    <button
+                                        onClick={() => setMsgPage(1)}
+                                        disabled={msgPage === 1}
+                                        className="p-2 rounded border-2 border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-white disabled:opacity-30 disabled:cursor-not-allowed shadow-[1px_1px_0px_0px_#000]"
+                                        title="First Page"
+                                    >
+                                        <ChevronsLeft className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                        onClick={() => setMsgPage(prev => Math.max(1, prev - 1))}
+                                        disabled={msgPage === 1}
+                                        className="p-2 rounded border-2 border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-white disabled:opacity-30 disabled:cursor-not-allowed shadow-[1px_1px_0px_0px_#000]"
+                                        title="Previous Page"
+                                    >
+                                        <ChevronLeft className="w-4 h-4" />
+                                    </button>
+
+                                    <span className="px-3 py-1 text-white font-mono font-black">
+                                        {msgPage} / {totalMsgPages}
+                                    </span>
+
+                                    <button
+                                        onClick={() => setMsgPage(prev => Math.min(totalMsgPages, prev + 1))}
+                                        disabled={msgPage === totalMsgPages}
+                                        className="p-2 rounded border-2 border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-white disabled:opacity-30 disabled:cursor-not-allowed shadow-[1px_1px_0px_0px_#000]"
+                                        title="Next Page"
+                                    >
+                                        <ChevronRight className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                        onClick={() => setMsgPage(totalMsgPages)}
+                                        disabled={msgPage === totalMsgPages}
+                                        className="p-2 rounded border-2 border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-white disabled:opacity-30 disabled:cursor-not-allowed shadow-[1px_1px_0px_0px_#000]"
+                                        title="Last Page"
+                                    >
+                                        <ChevronsRight className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </main>
     )
 }
