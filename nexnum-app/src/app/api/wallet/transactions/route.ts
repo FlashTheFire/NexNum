@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma, ensureWallet } from '@/lib/core/db'
 import { getCurrentUser } from '@/lib/auth/jwt'
-import { currencyService } from '@/lib/currency/currency-service'
+import { getCurrencyService } from '@/lib/currency/currency-service'
 
 export async function GET(request: Request) {
     try {
@@ -42,6 +42,8 @@ export async function GET(request: Request) {
             }),
             prisma.walletTransaction.count({ where }),
         ])
+
+        const currencyService = getCurrencyService()
 
         // Map transactions with pre-computed currencyPrices
         const formattedTransactions = await Promise.all(
