@@ -162,6 +162,16 @@ const TransactionCard = ({ tx, index }: TransactionCardProps) => {
 
     const Icon = isCredit ? ArrowDownRight : ArrowUpRight
 
+    // Sanitize prices to be strictly positive so PriceDisplay does not double-prepend negative signs
+    const safePrices = useMemo(() => {
+        if (!tx.currencyPrices) return { USD: Math.abs(tx.amount) / 100 }
+        const cleaned: Record<string, number> = {}
+        for (const [k, v] of Object.entries(tx.currencyPrices)) {
+            cleaned[k] = Math.abs(v)
+        }
+        return cleaned
+    }, [tx.currencyPrices, tx.amount])
+
     return (
         <motion.div
             initial={{ opacity: 0, y: 15, scale: 0.98 }}
@@ -217,7 +227,7 @@ const TransactionCard = ({ tx, index }: TransactionCardProps) => {
                         </div>
                         <div className="col-span-3 text-right">
                             <span className={cn("font-bold font-mono text-lg block", amountColor)}>
-                                {isCredit ? "+" : "-"}<PriceDisplay currencyPrices={tx.currencyPrices || { USD: Math.abs(tx.amount) / 100 }} />
+                                {isCredit ? "+" : "-"}<PriceDisplay currencyPrices={safePrices} />
                             </span>
                             <span className={cn(
                                 "text-[10px] uppercase font-bold tracking-wider flex items-center justify-end gap-1 mt-0.5",
@@ -248,7 +258,7 @@ const TransactionCard = ({ tx, index }: TransactionCardProps) => {
                     </div>
                     <div className="text-right">
                         <p className={cn("font-bold font-mono text-sm", amountColor)}>
-                            {isCredit ? "+" : "-"}<PriceDisplay currencyPrices={tx.currencyPrices || { USD: Math.abs(tx.amount) / 100 }} />
+                            {isCredit ? "+" : "-"}<PriceDisplay currencyPrices={safePrices} />
                         </p>
                         <p className={cn(
                             "text-[10px] font-medium uppercase tracking-wide",
@@ -370,13 +380,13 @@ const StatCard = ({ title, value, icon, colorScheme, index, trend }: StatCardPro
 export default function HistoryPage() {
     const { transactions, isLoadingTransactions, fetchTransactions } = useGlobalStore()
     const [searchTerm, setSearchTerm] = useState("")
-    const [filterType, setFilterType] = useState<"all" | "purchase" | "topup" | "refund">("all")
+    const [filterType, setFilterType] = useState<"all" | "purchase" | "deposit" | "refund">("all")
     const [isFilterOpen, setIsFilterOpen] = useState(false)
     const [currentPage, setCurrentPage] = useState(1)
     const [isStatsOpen, setIsStatsOpen] = useState(true)
     const [isMounted, setIsMounted] = useState(false)
     const itemsPerPage = 8
-    const { formatFromPrices, isLoading: isCurrencyLoading } = useCurrency()
+    const { formatFromPrices } = useCurrency()
 
     const containerRef = useRef<HTMLDivElement>(null)
     const { scrollY } = useScroll()
@@ -391,9 +401,10 @@ export default function HistoryPage() {
     const filteredTransactions = useMemo(() => {
         return transactions.filter((tx) => {
             if (['reservation', 'rollback'].includes(tx.type)) return false
-            const matchesSearch = tx.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                tx.id.toLowerCase().includes(searchTerm.toLowerCase())
-            const matchesType = filterType === "all" || tx.type === filterType
+            const matchesSearch = (tx.description || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (tx.id || '').toLowerCase().includes(searchTerm.toLowerCase())
+            const matchesType = filterType === "all" ||
+                (filterType === "deposit" ? (tx.type === "deposit" || tx.type === "topup" || tx.type === "manual_credit") : tx.type === filterType)
             return matchesSearch && matchesType
         })
     }, [transactions, searchTerm, filterType])
@@ -405,12 +416,33 @@ export default function HistoryPage() {
         return filteredTransactions.slice(startIndex, startIndex + itemsPerPage)
     }, [filteredTransactions, currentPage])
 
-    // Stats Calculation
+    // Multi-Currency Stats Calculation (summing exact fiat prices for each currency across all transactions)
     const stats = useMemo(() => {
         const cleanTxs = transactions.filter(t => !['reservation', 'rollback'].includes(t.type))
+
+        const depositedPrices: Record<string, number> = {}
+        const spentPrices: Record<string, number> = {}
+
+        cleanTxs.forEach(t => {
+            const isDep = ['topup', 'manual_credit', 'deposit', 'referral_bonus'].includes(t.type)
+            const isSpent = ['purchase', 'manual_debit'].includes(t.type)
+            const prices = t.currencyPrices || { USD: Math.abs(t.amount) / 100 }
+
+            if (isDep) {
+                Object.keys(prices).forEach(curr => {
+                    depositedPrices[curr] = (depositedPrices[curr] || 0) + Math.abs(prices[curr])
+                })
+            }
+            if (isSpent) {
+                Object.keys(prices).forEach(curr => {
+                    spentPrices[curr] = (spentPrices[curr] || 0) + Math.abs(prices[curr])
+                })
+            }
+        })
+
         return {
-            spent: cleanTxs.filter(t => t.type === "purchase").reduce((acc, curr) => acc + Math.abs(curr.amount), 0),
-            deposited: cleanTxs.filter(t => ['topup', 'manual_credit', 'deposit'].includes(t.type)).reduce((acc, curr) => acc + Math.abs(curr.amount), 0),
+            depositedPrices,
+            spentPrices,
             count: cleanTxs.length,
             thisMonth: cleanTxs.filter(t => {
                 const txDate = new Date(t.createdAt)
@@ -420,24 +452,41 @@ export default function HistoryPage() {
         }
     }, [transactions])
 
+    // Robust RFC-4180 CSV Exporter
     const handleExport = () => {
-        const csv = [
-            ["Date", "Type", "Description", "Amount", "Status"],
-            ...filteredTransactions.map(tx => [
+        const headers = ["Transaction ID", "Date", "Type", "Description", "Amount", "Status"]
+        const rows = filteredTransactions.map(tx => {
+            const isCredit = (['topup', 'refund', 'deposit', 'manual_credit', 'referral_bonus'] as string[]).includes(tx.type)
+
+            const cleanPrices: Record<string, number> = {}
+            if (tx.currencyPrices) {
+                for (const [k, v] of Object.entries(tx.currencyPrices)) {
+                    cleanPrices[k] = Math.abs(v)
+                }
+            } else {
+                cleanPrices.USD = Math.abs(tx.amount) / 100
+            }
+
+            const formattedPrice = (isCredit ? "+" : "-") + formatFromPrices(cleanPrices)
+
+            return [
+                tx.id,
                 formatDate(tx.createdAt),
                 tx.type,
-                tx.description,
-                formatFromPrices(tx.currencyPrices || { points: tx.amount }),
+                `"${(tx.description || '').replace(/"/g, '""')}"`,
+                `"${formattedPrice}"`,
                 tx.status,
-            ])
-        ].map(row => row.join(",")).join("\n")
+            ]
+        })
 
-        const blob = new Blob([csv], { type: "text/csv" })
+        const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n")
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
         const url = URL.createObjectURL(blob)
         const a = document.createElement("a")
         a.href = url
-        a.download = "nexnum_transactions.csv"
+        a.download = `nexnum_transactions_${new Date().toISOString().slice(0, 10)}.csv`
         a.click()
+        URL.revokeObjectURL(url)
     }
 
     const isLoading = isLoadingTransactions || !isMounted
@@ -544,7 +593,7 @@ export default function HistoryPage() {
                                 <>
                                     <StatCard
                                         title="Total Deposited"
-                                        value={<PriceDisplay currencyPrices={{ USD: stats.deposited }} />}
+                                        value={<PriceDisplay currencyPrices={stats.depositedPrices} />}
                                         icon={<ArrowDownRight className="h-5 w-5 md:h-6 md:w-6" />}
                                         colorScheme="emerald"
                                         index={0}
@@ -552,7 +601,7 @@ export default function HistoryPage() {
                                     />
                                     <StatCard
                                         title="Total Spent"
-                                        value={<PriceDisplay currencyPrices={{ USD: stats.spent }} />}
+                                        value={<PriceDisplay currencyPrices={stats.spentPrices} />}
                                         icon={<ArrowUpRight className="h-5 w-5 md:h-6 md:w-6" />}
                                         colorScheme="rose"
                                         index={1}
@@ -596,11 +645,11 @@ export default function HistoryPage() {
 
                             {/* Desktop Filter Pills */}
                             <div className="hidden md:flex gap-1 px-1">
-                                {(["all", "purchase", "topup"] as const).map((type) => (
+                                {(["all", "purchase", "deposit", "refund"] as const).map((type) => (
                                     <motion.button
                                         key={type}
                                         onClick={() => {
-                                            setFilterType(type as any)
+                                            setFilterType(type)
                                             setCurrentPage(1)
                                         }}
                                         whileHover={{ scale: 1.02 }}
@@ -642,7 +691,7 @@ export default function HistoryPage() {
                                 className="overflow-hidden border-t border-white/[0.04] md:hidden"
                             >
                                 <div className="p-3 flex flex-wrap gap-2">
-                                    {(["all", "purchase", "topup", "refund"] as const).map((type) => (
+                                    {(["all", "purchase", "deposit", "refund"] as const).map((type) => (
                                         <Button
                                             key={type}
                                             variant={filterType === type ? "default" : "ghost"}
