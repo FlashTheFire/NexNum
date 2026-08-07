@@ -100,7 +100,7 @@ CREATE TABLE IF NOT EXISTS "notifications" (
     "message"    TEXT NOT NULL,
     "data"       JSONB,
     "read"       BOOLEAN NOT NULL DEFAULT FALSE,
-    "createdAt"  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS "push_subscriptions" (

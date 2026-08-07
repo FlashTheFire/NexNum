@@ -113,11 +113,11 @@ CREATE TABLE IF NOT EXISTS "notifications" (
     "message"    TEXT NOT NULL,
     "data"       JSONB,
     "read"       BOOLEAN NOT NULL DEFAULT FALSE,
-    "createdAt"  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS "notifications_user_id_read_idx" ON "notifications" ("user_id", "read");
-CREATE INDEX IF NOT EXISTS "notifications_user_id_createdAt_idx" ON "notifications" ("user_id", "createdAt");
+CREATE INDEX IF NOT EXISTS "notifications_user_id_created_at_idx" ON "notifications" ("user_id", "created_at");
 
 CREATE TABLE IF NOT EXISTS "push_subscriptions" (
     "id"         TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
