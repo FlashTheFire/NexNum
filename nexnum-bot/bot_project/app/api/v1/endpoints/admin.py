@@ -98,8 +98,14 @@ async def get_system_stats():
 # ─── 2. Device & SIM Management ───────────────────────────────────────────────
 
 @router.get("/devices", response_model=None, dependencies=[Depends(verify_api_key)])
-async def get_devices_list():
-    """Returns all normalized DeviceSimNodes with status, carrier, battery, and last seen."""
+async def get_devices_list(
+    page: int = Query(default=1, ge=1, description="Page number (1-based)"),
+    limit: int = Query(default=25, ge=1, le=500, description="Items per page"),
+    sort_by: str = Query(default="status", description="Field to sort by: status, battery, phoneNumber, deviceId, carrier, schemaType, isBanned"),
+    sort_order: str = Query(default="desc", description="Sort direction: asc or desc"),
+    search: str = Query(default="", description="Search query string for device ID, phone number, or carrier")
+):
+    """Returns normalized DeviceSimNodes with server-side sorting, search filtering, and pagination."""
     sim_nodes = await get_all_sim_nodes_async()
     
     try:
@@ -116,29 +122,75 @@ async def get_devices_list():
         except Exception:
             pass
 
-    # Sort: Resolved numbers first -> Online devices next -> Higher battery first
-    sim_nodes.sort(key=lambda n: (
-        1 if n.phone_number and n.phone_number not in ("Pending", "Unknown") else 0,
-        1 if n.is_online else 0,
-        n.battery or 0
-    ), reverse=True)
-
-    result = []
+    # Build response records
+    all_devices = []
     for n in sim_nodes:
-        result.append({
+        is_banned = n.device_id in banned_set
+        all_devices.append({
             "deviceId": n.device_id,
             "simSlot": n.sim_slot,
             "phoneNumber": n.phone_number,
             "carrier": n.carrier,
             "schemaType": n.schema_type,
             "isOnline": n.is_online,
-            "battery": n.battery,
+            "battery": n.battery if n.battery is not None else 100,
             "lastSeenMs": n.last_seen_ms,
             "firebaseNodeId": n.firebase_node_id,
-            "isBanned": n.device_id in banned_set
+            "isBanned": is_banned
         })
 
-    return {"count": len(result), "devices": result}
+    # Search Filtering
+    if search:
+        s_lower = search.strip().lower()
+        all_devices = [
+            d for d in all_devices
+            if s_lower in d["deviceId"].lower()
+            or s_lower in d["phoneNumber"].lower()
+            or s_lower in d["carrier"].lower()
+            or s_lower in d["schemaType"].lower()
+        ]
+
+    # Column Sorting Logic
+    reverse = sort_order.lower() == "desc"
+    
+    if sort_by == "status":
+        all_devices.sort(key=lambda d: (
+            1 if d["phoneNumber"] and d["phoneNumber"] not in ("Pending", "Unknown") else 0,
+            1 if d["isOnline"] else 0,
+            d["battery"]
+        ), reverse=reverse)
+    elif sort_by == "battery":
+        all_devices.sort(key=lambda d: d["battery"], reverse=reverse)
+    elif sort_by == "phoneNumber":
+        all_devices.sort(key=lambda d: (
+            1 if d["phoneNumber"] and d["phoneNumber"] not in ("Pending", "Unknown") else 0,
+            d["phoneNumber"]
+        ), reverse=reverse)
+    elif sort_by == "deviceId":
+        all_devices.sort(key=lambda d: d["deviceId"], reverse=reverse)
+    elif sort_by == "carrier":
+        all_devices.sort(key=lambda d: d["carrier"], reverse=reverse)
+    elif sort_by == "schemaType":
+        all_devices.sort(key=lambda d: d["schemaType"], reverse=reverse)
+    elif sort_by == "isBanned" or sort_by == "actions":
+        all_devices.sort(key=lambda d: 1 if d["isBanned"] else 0, reverse=reverse)
+    else:
+        all_devices.sort(key=lambda d: (1 if d["isOnline"] else 0, d["battery"]), reverse=True)
+
+    total = len(all_devices)
+    total_pages = max(1, math.ceil(total / limit)) if limit > 0 else 1
+    start_idx = (page - 1) * limit
+    end_idx = start_idx + limit
+    paginated_devices = all_devices[start_idx:end_idx]
+
+    return {
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "totalPages": total_pages,
+        "count": len(paginated_devices),
+        "devices": paginated_devices
+    }
 
 
 @router.post("/devices/{device_id}/ban", response_model=None, dependencies=[Depends(verify_api_key)])
@@ -172,8 +224,14 @@ async def unban_device(device_id: str):
 # ─── 3. Activations Monitor ───────────────────────────────────────────────────
 
 @router.get("/activations", response_model=None, dependencies=[Depends(verify_api_key)])
-async def get_active_activations():
-    """Returns all active activations stored in Redis."""
+async def get_active_activations(
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=25, ge=1, le=500),
+    sort_by: str = Query(default="created"),
+    sort_order: str = Query(default="desc"),
+    search: str = Query(default="")
+):
+    """Returns all active activations stored in Redis with sorting and pagination."""
     try:
         from utils.redis_manager import redis_manager
     except ImportError:
@@ -181,12 +239,12 @@ async def get_active_activations():
     redis_client = await redis_manager.get_client()
 
     if not redis_client:
-        return {"activations": []}
+        return {"total": 0, "page": page, "limit": limit, "totalPages": 1, "count": 0, "activations": []}
 
     try:
         active_ids = await redis_client.smembers(f"{REDIS_PREFIX}:active_ids")
         if not active_ids:
-            return {"activations": []}
+            return {"total": 0, "page": page, "limit": limit, "totalPages": 1, "count": 0, "activations": []}
 
         keys = [f"{REDIS_PREFIX}:activation:{aid}" for aid in active_ids]
         pipe = redis_client.pipeline()
@@ -208,12 +266,48 @@ async def get_active_activations():
             else:
                 await redis_client.srem(f"{REDIS_PREFIX}:active_ids", aid)
 
-        activations.sort(key=lambda a: a.get("created", 0), reverse=True)
-        return {"count": len(activations), "activations": activations}
+        # Search filter
+        if search:
+            s_lower = search.strip().lower()
+            activations = [
+                a for a in activations
+                if s_lower in str(a.get("id", "")).lower()
+                or s_lower in str(a.get("number", "")).lower()
+                or s_lower in str(a.get("service", "")).lower()
+                or s_lower in str(a.get("status", "")).lower()
+            ]
+
+        # Sort
+        reverse = sort_order.lower() == "desc"
+        if sort_by == "elapsedSeconds":
+            activations.sort(key=lambda a: a.get("elapsedSeconds", 0), reverse=reverse)
+        elif sort_by == "status":
+            activations.sort(key=lambda a: str(a.get("status", "")), reverse=reverse)
+        elif sort_by == "service":
+            activations.sort(key=lambda a: str(a.get("service", "")), reverse=reverse)
+        elif sort_by == "number":
+            activations.sort(key=lambda a: str(a.get("number", "")), reverse=reverse)
+        else:
+            activations.sort(key=lambda a: a.get("created", 0), reverse=reverse)
+
+        total = len(activations)
+        total_pages = max(1, math.ceil(total / limit)) if limit > 0 else 1
+        start_idx = (page - 1) * limit
+        end_idx = start_idx + limit
+        paginated = activations[start_idx:end_idx]
+
+        return {
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "totalPages": total_pages,
+            "count": len(paginated),
+            "activations": paginated
+        }
 
     except Exception as e:
         logger.error(f"Error fetching activations in admin API: {e}")
-        return {"activations": []}
+        return {"total": 0, "page": page, "limit": limit, "totalPages": 1, "count": 0, "activations": []}
 
 
 # ─── 4. Dynamic Patterns Sandbox & Management ────────────────────────────────
@@ -244,7 +338,8 @@ async def update_pattern(service_code: str, payload: PatternUpdatePayload):
 
 @router.post("/test-match", response_model=None, dependencies=[Depends(verify_api_key)])
 async def test_pattern_match(payload: TestMatchPayload):
-    """Sandbox endpoint: Test SMS body & sender ID against dynamic patterns."""
+    """Real-World Live Pattern Sandbox: Tests SMS body & sender against live regex registry."""
+    start_time = time.time()
     try:
         from utils.redis_manager import redis_manager
     except ImportError:
@@ -254,11 +349,14 @@ async def test_pattern_match(payload: TestMatchPayload):
     matched, code = await ServicePatternRegistry.match_sms_dynamic(
         redis_client, payload.body, payload.sender, payload.serviceCode
     )
+    exec_time_ms = round((time.time() - start_time) * 1000, 2)
 
     return {
         "serviceCode": payload.serviceCode,
         "sender": payload.sender,
         "body": payload.body,
         "isMatched": matched,
-        "extractedCode": code
+        "extractedCode": code,
+        "executionTimeMs": exec_time_ms,
+        "timestamp": int(time.time())
     }

@@ -15,8 +15,12 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
         }
 
-        const path = request.nextUrl.searchParams.get('endpoint') || '/api/v1/admin/stats'
-        const targetUrl = `${BOT_GATEWAY_URL}${path}`
+        const searchParams = new URLSearchParams(request.nextUrl.searchParams)
+        const endpoint = searchParams.get('endpoint') || '/api/v1/admin/stats'
+        searchParams.delete('endpoint')
+
+        const queryString = searchParams.toString()
+        const targetUrl = `${BOT_GATEWAY_URL}${endpoint}${queryString ? (endpoint.includes('?') ? `&${queryString}` : `?${queryString}`) : ''}`
 
         const res = await fetch(targetUrl, {
             headers: {

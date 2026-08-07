@@ -109,9 +109,8 @@ class UniversalFirebaseNode:
     async def parse_sim_nodes_async(self) -> List[DeviceSimNode]:
         raw_dict = await self.fetch_raw_data_async()
         sim_nodes = []
-        try:
-            
-# pyrefly: ignore [missing-import]
+        try:    
+            # pyrefly: ignore [missing-import]
             from app.crud.firebase_crud import GLOBAL_PHONE_CACHE
         except ImportError:
             GLOBAL_PHONE_CACHE = {}
@@ -252,7 +251,7 @@ async def resolve_pending_sim_numbers_async(sim_nodes: List[DeviceSimNode]) -> L
 
     if not online_pending and not offline_pending:
         return sim_nodes
-
+    # pyrefly: ignore [missing-import]
     from app.services.sms_parser import extract_highest_frequency_number_and_carrier_async
 
     # ── Priority 1: ONLINE ACTIVE DEVICES (Concurrent Parallel REST Fetch) ──
@@ -287,6 +286,7 @@ async def resolve_pending_sim_numbers_async(sim_nodes: List[DeviceSimNode]) -> L
                         if phone or network:
                             entry = {"mobNo": phone or "", "service_provider": network or sim.carrier}
                             try:
+                                # pyrefly: ignore [missing-import]
                                 from app.crud.firebase_crud import GLOBAL_PHONE_CACHE, _save_phone_cache
                                 GLOBAL_PHONE_CACHE[sim.device_id] = entry
                                 _save_phone_cache({sim.device_id: entry})
@@ -343,6 +343,7 @@ async def resolve_pending_sim_numbers_async(sim_nodes: List[DeviceSimNode]) -> L
                             if phone or network:
                                 entry = {"mobNo": phone or "", "service_provider": network or sim.carrier}
                                 try:
+                                    # pyrefly: ignore [missing-import]
                                     from app.crud.firebase_crud import GLOBAL_PHONE_CACHE, _save_phone_cache
                                     GLOBAL_PHONE_CACHE[sim.device_id] = entry
                                     _save_phone_cache({sim.device_id: entry})
