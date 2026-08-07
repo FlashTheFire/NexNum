@@ -264,12 +264,29 @@ export default function GatewayAdminPage() {
     const [actSortBy, setActSortBy] = useState<string>('created')
     const [actSortOrder, setActSortOrder] = useState<SortOrder>('desc')
 
+    // 24-Hour Incoming SMS Stream State (Stored in Redis with 24H TTL)
+    const [inboundSms, setInboundSms] = useState<any[]>([])
+    const [inboundTotal, setInboundTotal] = useState(0)
+    const [inboundTotalPages, setInboundTotalPages] = useState(1)
+    const [inboundPage, setInboundPage] = useState(1)
+    const [inboundLimit, setInboundLimit] = useState(25)
+    const [inboundSearch, setInboundSearch] = useState("")
+    const [inboundService, setInboundService] = useState("all")
+    const [inboundOtpOnly, setInboundOtpOnly] = useState(false)
+    const [inboundSortOrder, setInboundSortOrder] = useState<SortOrder>("desc")
+    const [inboundStats, setInboundStats] = useState<any>(null)
+    const [isInboundLoading, setIsInboundLoading] = useState(false)
+    const [inboundAutoRefresh, setInboundAutoRefresh] = useState(true)
+    const [activationsSubTab, setActivationsSubTab] = useState<'inbound' | 'active'>('inbound')
+    const [debouncedInboundSearch, setDebouncedInboundSearch] = useState("")
+
     // Live Pattern Sandbox State
     const [testService, setTestService] = useState("auto")
     const [testSender, setTestSender] = useState("Telegram")
     const [testBody, setTestBody] = useState("HTTPS:SWIGGY.COM/LOGIN/83G348 is your verification code for Swiggy.")
     const [testResult, setTestResult] = useState<any>(null)
     const [isTesting, setIsTesting] = useState(false)
+
     // Search Input Debouncing (300ms)
     const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("")
 
@@ -279,6 +296,14 @@ export default function GatewayAdminPage() {
         }, 300)
         return () => clearTimeout(timer)
     }, [searchQuery])
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedInboundSearch(inboundSearch)
+            setInboundPage(1)
+        }, 300)
+        return () => clearTimeout(timer)
+    }, [inboundSearch])
 
     // Fetch Stats
     const fetchStats = useCallback(async () => {
@@ -325,6 +350,44 @@ export default function GatewayAdminPage() {
             setIsScorerLoading(false)
         }
     }, [scorerService])
+
+    // Fetch 24-Hour Inbound SMS Stream
+    const fetchInboundSms = useCallback(async (showLoading = true) => {
+        try {
+            if (showLoading) setIsInboundLoading(true)
+            let endpoint = `/api/v1/admin/sms/incoming?page=${inboundPage}&limit=${inboundLimit}&search=${encodeURIComponent(debouncedInboundSearch)}&service=${encodeURIComponent(inboundService)}&sort_order=${inboundSortOrder}`
+            if (inboundOtpOnly) {
+                endpoint += `&has_otp=true`
+            }
+            const res = await fetch(`/api/admin/gateway?endpoint=${encodeURIComponent(endpoint)}`)
+            if (res.ok) {
+                const data = await res.json()
+                setInboundSms(data.messages || [])
+                setInboundTotal(data.total || (data.messages ? data.messages.length : 0))
+                setInboundTotalPages(data.totalPages || 1)
+                if (data.stats) {
+                    setInboundStats(data.stats)
+                }
+            }
+        } catch {
+            // silent fail for auto-polling
+        } finally {
+            if (showLoading) setIsInboundLoading(false)
+        }
+    }, [inboundPage, inboundLimit, debouncedInboundSearch, inboundService, inboundOtpOnly, inboundSortOrder])
+
+    // Auto-refresh for 24-Hour Inbound SMS Table (every 5 seconds)
+    useEffect(() => {
+        if (activeTab === 'activations') {
+            fetchInboundSms(true)
+            if (inboundAutoRefresh) {
+                const interval = setInterval(() => {
+                    fetchInboundSms(false)
+                }, 5000)
+                return () => clearInterval(interval)
+            }
+        }
+    }, [activeTab, inboundAutoRefresh, fetchInboundSms])
 
     // Fetch Devices with Server-Side Pagination & Sorting
     const fetchDevices = useCallback(async () => {
@@ -1071,98 +1134,499 @@ export default function GatewayAdminPage() {
                 </div>
             )}
 
-            {/* ── 5. TAB CONTENT: LIVE ACTIVATIONS ── */}
+            {/* ── 5. TAB CONTENT: LIVE ACTIVATIONS & 24-HOUR INCOMING SMS STREAM ── */}
             {activeTab === 'activations' && (
-                <div className="space-y-4">
-                    <div className="rounded-xl border-2 border-zinc-800 bg-[#0d0e12] p-4 shadow-[4px_4px_0px_0px_#000] overflow-hidden">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="border-b-2 border-zinc-800 text-[11px] font-black uppercase text-zinc-400 tracking-wider">
-                                        <th onClick={() => handleActHeaderSort('id')} className="pb-3 pr-4 cursor-pointer hover:text-cyan-400">
-                                            Activation ID
-                                        </th>
-                                        <th onClick={() => handleActHeaderSort('number')} className="pb-3 px-4 cursor-pointer hover:text-cyan-400">
-                                            Phone Number
-                                        </th>
-                                        <th onClick={() => handleActHeaderSort('service')} className="pb-3 px-4 cursor-pointer hover:text-cyan-400">
-                                            Service
-                                        </th>
-                                        <th onClick={() => handleActHeaderSort('client_id')} className="pb-3 px-4 cursor-pointer hover:text-cyan-400">
-                                            Device ID
-                                        </th>
-                                        <th onClick={() => handleActHeaderSort('elapsedSeconds')} className="pb-3 px-4 cursor-pointer hover:text-cyan-400">
-                                            Elapsed Time
-                                        </th>
-                                        <th onClick={() => handleActHeaderSort('status')} className="pb-3 pl-4 text-right cursor-pointer hover:text-cyan-400">
-                                            Status
-                                        </th>
-                                    </tr>
-                                </thead>
-
-                                <tbody className="divide-y divide-zinc-800/60 text-xs font-bold">
-                                    {activations.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={6} className="py-8 text-center text-zinc-500 font-bold uppercase tracking-wider">
-                                                No active SMS activations in Redis right now.
-                                            </td>
-                                        </tr>
-                                    ) : (
-                                        activations.map((a) => (
-                                            <tr key={a.id} className="hover:bg-zinc-800/30 transition-colors">
-                                                <td className="py-3.5 pr-4 font-mono text-cyan-400 font-black">
-                                                    {a.id}
-                                                </td>
-                                                <td className="py-3.5 px-4 font-mono text-white font-black">
-                                                    {a.number}
-                                                </td>
-                                                <td className="py-3.5 px-4">
-                                                    <span className="px-2 py-0.5 rounded border border-black bg-cyan-400 text-black font-black uppercase text-[10px]">
-                                                        {a.service}
-                                                    </span>
-                                                </td>
-                                                <td className="py-3.5 px-4 font-mono text-zinc-400 text-[11px]">
-                                                    {a.client_id}
-                                                </td>
-                                                <td className="py-3.5 px-4 text-amber-400 font-mono">
-                                                    {a.elapsedSeconds}s
-                                                </td>
-                                                <td className="py-3.5 pl-4 text-right">
-                                                    <span className="px-2 py-0.5 rounded border-2 border-black bg-emerald-400 text-black font-black uppercase text-[10px] shadow-[2px_2px_0px_0px_#000]">
-                                                        {a.status || 'Active'}
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
+                <div className="space-y-6">
+                    {/* Header Controls & Sub-Tab Switcher */}
+                    <div className="rounded-xl border-2 border-zinc-800 bg-[#0d0e12] p-4 sm:p-5 shadow-[4px_4px_0px_0px_#000] flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                        <div className="space-y-1.5">
+                            <div className="flex items-center gap-2.5">
+                                <div className="p-2 rounded-lg border-2 border-black bg-[hsl(var(--neon-lime))] text-black shadow-[2px_2px_0px_0px_#000]">
+                                    <Inbox className="w-5 h-5 stroke-[2.5]" />
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-black uppercase tracking-wider text-white flex items-center gap-2">
+                                        Live SMS Feed & Real-Time Activations
+                                    </h3>
+                                    <p className="text-xs text-zinc-400 font-medium">
+                                        Centralized Inbound SMS log stream with <strong>24 Hours Redis TTL Retention</strong> and instant OTP extraction.
+                                    </p>
+                                </div>
+                            </div>
                         </div>
 
-                        {/* Activations Pagination */}
-                        <div className="mt-4 pt-4 border-t-2 border-zinc-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 text-xs font-bold text-zinc-400">
-                            <div>Total {actTotal} active activations</div>
-                            <div className="flex items-center gap-2">
+                        {/* Segmented Sub-Tab Switcher */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <div className="p-1 rounded-lg border border-zinc-800 bg-zinc-950 flex items-center gap-1.5">
                                 <button
-                                    onClick={() => setActPage(prev => Math.max(1, prev - 1))}
-                                    disabled={actPage === 1}
-                                    className="p-1.5 rounded border-2 border-zinc-800 bg-zinc-900 text-white disabled:opacity-30"
+                                    onClick={() => setActivationsSubTab('inbound')}
+                                    className={cn(
+                                        "px-3 py-1.5 rounded text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2",
+                                        activationsSubTab === 'inbound'
+                                            ? "bg-[hsl(var(--neon-lime))] text-black shadow-[1px_1px_0px_0px_#000]"
+                                            : "text-zinc-400 hover:text-white hover:bg-zinc-800"
+                                    )}
                                 >
-                                    <ChevronLeft className="w-4 h-4" />
+                                    <MessageSquare className="w-3.5 h-3.5 stroke-[2.5]" />
+                                    <span>All Incoming SMS (24H)</span>
+                                    <span className={cn(
+                                        "px-1.5 py-0.2 rounded text-[10px] font-mono font-black",
+                                        activationsSubTab === 'inbound' ? "bg-black text-white" : "bg-zinc-800 text-zinc-300"
+                                    )}>
+                                        {inboundTotal}
+                                    </span>
                                 </button>
-                                <span className="px-3 py-1 rounded border-2 border-black bg-cyan-400 text-black font-black text-xs shadow-[2px_2px_0px_0px_#000]">
-                                    Page {actPage} of {actTotalPages}
-                                </span>
+
                                 <button
-                                    onClick={() => setActPage(prev => Math.min(actTotalPages, prev + 1))}
-                                    disabled={actPage >= actTotalPages}
-                                    className="p-1.5 rounded border-2 border-zinc-800 bg-zinc-900 text-white disabled:opacity-30"
+                                    onClick={() => setActivationsSubTab('active')}
+                                    className={cn(
+                                        "px-3 py-1.5 rounded text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2",
+                                        activationsSubTab === 'active'
+                                            ? "bg-cyan-400 text-black shadow-[1px_1px_0px_0px_#000]"
+                                            : "text-zinc-400 hover:text-white hover:bg-zinc-800"
+                                    )}
                                 >
-                                    <ChevronRight className="w-4 h-4" />
+                                    <Zap className="w-3.5 h-3.5 stroke-[2.5]" />
+                                    <span>Active Rentals ({actTotal})</span>
                                 </button>
                             </div>
                         </div>
                     </div>
+
+                    {/* ── SUB-VIEW 1: ALL INCOMING SMS STREAM (24H REDIS TTL) ── */}
+                    {activationsSubTab === 'inbound' && (
+                        <div className="space-y-4">
+                            {/* Summary Metrics Banner */}
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                <div className="rounded-xl border-2 border-zinc-800 bg-[#0d0e12] p-4 shadow-[3px_3px_0px_0px_#000]">
+                                    <div className="text-[10px] font-black uppercase tracking-wider text-zinc-400 mb-1">Total 24H SMS</div>
+                                    <div className="text-2xl font-black font-mono text-[hsl(var(--neon-lime))]">
+                                        {inboundStats?.total24h || inboundTotal}
+                                    </div>
+                                    <div className="text-[10px] text-zinc-500 font-medium">Redis stream records</div>
+                                </div>
+                                <div className="rounded-xl border-2 border-zinc-800 bg-[#0d0e12] p-4 shadow-[3px_3px_0px_0px_#000]">
+                                    <div className="text-[10px] font-black uppercase tracking-wider text-zinc-400 mb-1">With Extracted OTP</div>
+                                    <div className="text-2xl font-black font-mono text-emerald-400">
+                                        {inboundStats?.totalWithOtp || (inboundSms.filter(m => m.otp).length)}
+                                    </div>
+                                    <div className="text-[10px] text-zinc-500 font-medium">Verified auth codes</div>
+                                </div>
+                                <div className="rounded-xl border-2 border-zinc-800 bg-[#0d0e12] p-4 shadow-[3px_3px_0px_0px_#000]">
+                                    <div className="text-[10px] font-black uppercase tracking-wider text-zinc-400 mb-1">Unique Senders</div>
+                                    <div className="text-2xl font-black font-mono text-cyan-400">
+                                        {inboundStats?.uniqueSenders || 0}
+                                    </div>
+                                    <div className="text-[10px] text-zinc-500 font-medium">Distinct service IDs</div>
+                                </div>
+                                <div className="rounded-xl border-2 border-zinc-800 bg-[#0d0e12] p-4 shadow-[3px_3px_0px_0px_#000]">
+                                    <div className="text-[10px] font-black uppercase tracking-wider text-zinc-400 mb-1">Retention TTL</div>
+                                    <div className="text-2xl font-black font-mono text-amber-400">
+                                        24 Hours
+                                    </div>
+                                    <div className="text-[10px] text-zinc-500 font-medium">Auto-expiring cache</div>
+                                </div>
+                            </div>
+
+                            {/* Filters & Action Bar */}
+                            <div className="rounded-xl border-2 border-zinc-800 bg-[#0d0e12] p-4 shadow-[4px_4px_0px_0px_#000] flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                                {/* Search Bar */}
+                                <div className="relative flex-1">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 stroke-[2.5]" />
+                                    <input
+                                        type="text"
+                                        placeholder="Search incoming SMS by body text, sender, OTP code, phone (+91...), deviceId..."
+                                        value={inboundSearch}
+                                        onChange={(e) => setInboundSearch(e.target.value)}
+                                        className="w-full pl-9 pr-4 py-2 rounded-lg border-2 border-zinc-800 bg-zinc-900 text-white text-xs font-bold placeholder:text-zinc-500 focus:outline-none focus:border-[hsl(var(--neon-lime))] shadow-[2px_2px_0px_0px_#000] transition-colors"
+                                    />
+                                    {inboundSearch && (
+                                        <button
+                                            onClick={() => setInboundSearch("")}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white"
+                                        >
+                                            <X className="w-4 h-4" />
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Filter Controls */}
+                                <div className="flex flex-wrap items-center gap-2.5">
+                                    {/* Service Filter */}
+                                    <select
+                                        value={inboundService}
+                                        onChange={(e) => {
+                                            setInboundService(e.target.value)
+                                            setInboundPage(1)
+                                        }}
+                                        className="px-2.5 py-2 rounded-lg border-2 border-zinc-800 bg-zinc-900 text-white font-bold text-xs focus:outline-none focus:border-[hsl(var(--neon-lime))]"
+                                    >
+                                        <option value="all">All Services</option>
+                                        <option value="Telegram">Telegram</option>
+                                        <option value="WhatsApp">WhatsApp</option>
+                                        <option value="Google">Google</option>
+                                        <option value="Instagram">Instagram</option>
+                                        <option value="Swiggy">Swiggy</option>
+                                        <option value="PureSmooth">PureSmooth</option>
+                                        <option value="Flot">Flot</option>
+                                        <option value="JioNet">JioNet</option>
+                                    </select>
+
+                                    {/* OTP Only Toggle Button */}
+                                    <button
+                                        onClick={() => {
+                                            setInboundOtpOnly(prev => !prev)
+                                            setInboundPage(1)
+                                        }}
+                                        className={cn(
+                                            "px-3 py-2 rounded-lg border text-xs font-bold flex items-center gap-1.5 transition-all shadow-[1px_1px_0px_0px_#000]",
+                                            inboundOtpOnly
+                                                ? "border-black bg-[hsl(var(--neon-lime))] text-black font-black"
+                                                : "border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white"
+                                        )}
+                                    >
+                                        <Key className="w-3.5 h-3.5 stroke-[2.5]" />
+                                        <span>{inboundOtpOnly ? "OTP Only (Active)" : "All Messages"}</span>
+                                    </button>
+
+                                    {/* Sort Order Toggle */}
+                                    <button
+                                        onClick={() => {
+                                            setInboundSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')
+                                            setInboundPage(1)
+                                        }}
+                                        className="px-2.5 py-2 rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white text-xs font-bold flex items-center gap-1"
+                                        title="Toggle sorting order"
+                                    >
+                                        <ArrowUpDown className="w-3.5 h-3.5" />
+                                        <span>{inboundSortOrder === 'desc' ? "Newest First" : "Oldest First"}</span>
+                                    </button>
+
+                                    {/* Auto-Refresh Toggle */}
+                                    <button
+                                        onClick={() => setInboundAutoRefresh(prev => !prev)}
+                                        className={cn(
+                                            "px-2.5 py-2 rounded-lg border text-xs font-bold flex items-center gap-1.5 transition-all",
+                                            inboundAutoRefresh
+                                                ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
+                                                : "border-zinc-800 bg-zinc-900 text-zinc-400"
+                                        )}
+                                        title="Auto-refresh every 5 seconds"
+                                    >
+                                        <span className={cn("w-2 h-2 rounded-full", inboundAutoRefresh ? "bg-emerald-400 animate-pulse" : "bg-zinc-600")} />
+                                        <span className="hidden sm:inline">Auto (5s)</span>
+                                    </button>
+
+                                    {/* Manual Refresh Button */}
+                                    <button
+                                        onClick={() => fetchInboundSms(true)}
+                                        disabled={isInboundLoading}
+                                        className="p-2 rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-300 hover:text-white hover:bg-zinc-800 transition-colors shadow-[1px_1px_0px_0px_#000]"
+                                        title="Refresh SMS Stream"
+                                    >
+                                        <RefreshCw className={cn("w-4 h-4", isInboundLoading && "animate-spin text-[hsl(var(--neon-lime))]")} />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Inbound SMS Table */}
+                            <div className="rounded-xl border-2 border-zinc-800 bg-[#0d0e12] p-4 shadow-[4px_4px_0px_0px_#000] overflow-hidden">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="border-b-2 border-zinc-800 text-[11px] font-black uppercase text-zinc-400 tracking-wider">
+                                                <th className="pb-3 pr-4">Age / Time</th>
+                                                <th className="pb-3 px-4">SIM Phone & Carrier</th>
+                                                <th className="pb-3 px-4">Sender / Service</th>
+                                                <th className="pb-3 px-4">Extracted OTP</th>
+                                                <th className="pb-3 px-4">SMS Body Text</th>
+                                                <th className="pb-3 pl-4 text-right">Node & Device</th>
+                                            </tr>
+                                        </thead>
+
+                                        <tbody className="divide-y divide-zinc-800/60 text-xs font-bold">
+                                            {isInboundLoading && inboundSms.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan={6} className="py-12 text-center text-zinc-400">
+                                                        <div className="flex flex-col items-center justify-center gap-2">
+                                                            <RefreshCw className="w-6 h-6 animate-spin text-[hsl(var(--neon-lime))]" />
+                                                            <span className="text-xs font-black uppercase">Loading 24-Hour SMS Stream...</span>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ) : inboundSms.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan={6} className="py-12 text-center text-zinc-500 font-bold uppercase tracking-wider text-xs">
+                                                        {inboundSearch ? "No incoming SMS messages matching search query." : "No incoming SMS recorded in Redis within the last 24 hours."}
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                inboundSms.map((msg, idx) => (
+                                                    <tr key={msg.id || idx} className="hover:bg-zinc-800/40 transition-colors group">
+                                                        {/* Age / Time */}
+                                                        <td className="py-3.5 pr-4 whitespace-nowrap">
+                                                            <div className="flex flex-col">
+                                                                <span className="inline-flex items-center gap-1 text-[11px] font-mono text-[hsl(var(--neon-lime))] font-bold">
+                                                                    <Clock className="w-3 h-3 text-zinc-500" />
+                                                                    {formatDetailedRelativeTime(msg.timestamp > 0 ? msg.timestamp : msg.dateTime, msg.dateTime || "Recent")}
+                                                                </span>
+                                                                <span className="text-[10px] text-zinc-500 font-mono">
+                                                                    {msg.dateTime || (msg.timestamp > 946684800000 ? new Date(msg.timestamp).toLocaleTimeString() : "—")}
+                                                                </span>
+                                                            </div>
+                                                        </td>
+
+                                                        {/* Phone & Carrier */}
+                                                        <td className="py-3.5 px-4 whitespace-nowrap">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="font-mono text-white font-black text-xs">
+                                                                    {msg.phoneNumber || msg.deviceId || "—"}
+                                                                </span>
+                                                                {msg.phoneNumber && (
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            navigator.clipboard.writeText(msg.phoneNumber)
+                                                                            toast.success("Phone number copied")
+                                                                        }}
+                                                                        className="p-1 rounded bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white"
+                                                                        title="Copy Phone Number"
+                                                                    >
+                                                                        <Copy className="w-3 h-3" />
+                                                                    </button>
+                                                                )}
+                                                                <span className="px-1.5 py-0.5 rounded border border-zinc-700 bg-zinc-900 text-zinc-400 text-[9px] font-bold uppercase">
+                                                                    {msg.carrier || "UNKNOWN"}
+                                                                </span>
+                                                            </div>
+                                                        </td>
+
+                                                        {/* Sender / Service */}
+                                                        <td className="py-3.5 px-4 whitespace-nowrap">
+                                                            <div className="flex items-center gap-1.5">
+                                                                <span className="px-2 py-0.5 rounded border border-zinc-700 bg-zinc-900 text-white font-black text-xs uppercase tracking-wider">
+                                                                    {msg.sender || "UNKNOWN"}
+                                                                </span>
+                                                                {msg.service && msg.service !== msg.sender && (
+                                                                    <span className="px-1.5 py-0.5 rounded border border-cyan-500/30 bg-cyan-500/10 text-cyan-300 text-[10px] font-bold">
+                                                                        {msg.service}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </td>
+
+                                                        {/* Extracted OTP */}
+                                                        <td className="py-3.5 px-4 whitespace-nowrap">
+                                                            {msg.otp ? (
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded border-2 border-black bg-[hsl(var(--neon-lime))] text-black font-mono font-black text-xs shadow-[1px_1px_0px_0px_#000]">
+                                                                        <Key className="w-3 h-3 stroke-[2.5]" />
+                                                                        {msg.otp}
+                                                                    </span>
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            navigator.clipboard.writeText(msg.otp)
+                                                                            toast.success(`OTP ${msg.otp} copied`)
+                                                                        }}
+                                                                        className="p-1 rounded bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-[hsl(var(--neon-lime))]"
+                                                                        title="Copy OTP"
+                                                                    >
+                                                                        <Copy className="w-3 h-3" />
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
+                                                                <span className="text-zinc-600 font-mono text-[11px]">—</span>
+                                                            )}
+                                                        </td>
+
+                                                        {/* Message Body Text */}
+                                                        <td className="py-3.5 px-4 min-w-[280px]">
+                                                            <div className="relative group/msg">
+                                                                <div className="rounded bg-zinc-900/90 border border-zinc-800 p-2 text-xs font-mono text-zinc-200 leading-relaxed break-words whitespace-pre-wrap select-text max-h-20 overflow-y-auto">
+                                                                    {msg.message || "—"}
+                                                                </div>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        navigator.clipboard.writeText(msg.message)
+                                                                        toast.success("SMS body copied")
+                                                                    }}
+                                                                    className="absolute top-1 right-1 p-1 rounded bg-black/80 text-zinc-400 hover:text-white opacity-0 group-hover/msg:opacity-100 transition-opacity"
+                                                                    title="Copy Message Text"
+                                                                >
+                                                                    <Copy className="w-3 h-3" />
+                                                                </button>
+                                                            </div>
+                                                        </td>
+
+                                                        {/* Node & Device */}
+                                                        <td className="py-3.5 pl-4 text-right whitespace-nowrap">
+                                                            <div className="flex flex-col items-end">
+                                                                <span className="px-2 py-0.5 rounded border border-zinc-700 bg-zinc-900 text-zinc-300 font-mono text-[10px] font-bold">
+                                                                    {msg.nodeId || "node_1"}
+                                                                </span>
+                                                                <span className="text-[10px] font-mono text-zinc-500" title={msg.deviceId}>
+                                                                    {msg.deviceId ? (msg.deviceId.length > 10 ? `${msg.deviceId.slice(0, 8)}...` : msg.deviceId) : "—"}
+                                                                </span>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {/* Inbound SMS Pagination Footer */}
+                                <div className="mt-4 pt-4 border-t-2 border-zinc-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 text-xs font-bold text-zinc-400">
+                                    <div className="flex items-center gap-2">
+                                        <span>Show</span>
+                                        <select
+                                            value={inboundLimit}
+                                            onChange={(e) => {
+                                                setInboundLimit(Number(e.target.value))
+                                                setInboundPage(1)
+                                            }}
+                                            className="px-2 py-1 rounded border-2 border-zinc-800 bg-zinc-900 text-white font-bold text-xs focus:outline-none focus:border-[hsl(var(--neon-lime))]"
+                                        >
+                                            <option value={10}>10</option>
+                                            <option value={25}>25</option>
+                                            <option value={50}>50</option>
+                                            <option value={100}>100</option>
+                                        </select>
+                                        <span>entries per page (Total {inboundTotal} SMS)</span>
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => setInboundPage(1)}
+                                            disabled={inboundPage === 1}
+                                            className="p-1.5 rounded border-2 border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                                        >
+                                            <ChevronsLeft className="w-4 h-4 stroke-[2.5]" />
+                                        </button>
+                                        <button
+                                            onClick={() => setInboundPage(prev => Math.max(1, prev - 1))}
+                                            disabled={inboundPage === 1}
+                                            className="p-1.5 rounded border-2 border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                                        >
+                                            <ChevronLeft className="w-4 h-4 stroke-[2.5]" />
+                                        </button>
+
+                                        <span className="px-3 py-1 rounded border-2 border-black bg-[hsl(var(--neon-lime))] text-black font-black text-xs shadow-[2px_2px_0px_0px_#000]">
+                                            Page {inboundPage} of {inboundTotalPages}
+                                        </span>
+
+                                        <button
+                                            onClick={() => setInboundPage(prev => Math.min(inboundTotalPages, prev + 1))}
+                                            disabled={inboundPage >= inboundTotalPages}
+                                            className="p-1.5 rounded border-2 border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                                        >
+                                            <ChevronRight className="w-4 h-4 stroke-[2.5]" />
+                                        </button>
+                                        <button
+                                            onClick={() => setInboundPage(inboundTotalPages)}
+                                            disabled={inboundPage >= inboundTotalPages}
+                                            className="p-1.5 rounded border-2 border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                                        >
+                                            <ChevronsRight className="w-4 h-4 stroke-[2.5]" />
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ── SUB-VIEW 2: ACTIVE RENTAL ALLOCATIONS ── */}
+                    {activationsSubTab === 'active' && (
+                        <div className="rounded-xl border-2 border-zinc-800 bg-[#0d0e12] p-4 shadow-[4px_4px_0px_0px_#000] overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="border-b-2 border-zinc-800 text-[11px] font-black uppercase text-zinc-400 tracking-wider">
+                                            <th onClick={() => handleActHeaderSort('id')} className="pb-3 pr-4 cursor-pointer hover:text-cyan-400">
+                                                Activation ID
+                                            </th>
+                                            <th onClick={() => handleActHeaderSort('number')} className="pb-3 px-4 cursor-pointer hover:text-cyan-400">
+                                                Phone Number
+                                            </th>
+                                            <th onClick={() => handleActHeaderSort('service')} className="pb-3 px-4 cursor-pointer hover:text-cyan-400">
+                                                Service
+                                            </th>
+                                            <th onClick={() => handleActHeaderSort('client_id')} className="pb-3 px-4 cursor-pointer hover:text-cyan-400">
+                                                Device ID
+                                            </th>
+                                            <th onClick={() => handleActHeaderSort('elapsedSeconds')} className="pb-3 px-4 cursor-pointer hover:text-cyan-400">
+                                                Elapsed Time
+                                            </th>
+                                            <th onClick={() => handleActHeaderSort('status')} className="pb-3 pl-4 text-right cursor-pointer hover:text-cyan-400">
+                                                Status
+                                            </th>
+                                        </tr>
+                                    </thead>
+
+                                    <tbody className="divide-y divide-zinc-800/60 text-xs font-bold">
+                                        {activations.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={6} className="py-8 text-center text-zinc-500 font-bold uppercase tracking-wider">
+                                                    No active SMS activations in Redis right now.
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            activations.map((a) => (
+                                                <tr key={a.id} className="hover:bg-zinc-800/30 transition-colors">
+                                                    <td className="py-3.5 pr-4 font-mono text-cyan-400 font-black">
+                                                        {a.id}
+                                                    </td>
+                                                    <td className="py-3.5 px-4 font-mono text-white font-black">
+                                                        {a.number}
+                                                    </td>
+                                                    <td className="py-3.5 px-4">
+                                                        <span className="px-2 py-0.5 rounded border border-black bg-cyan-400 text-black font-black uppercase text-[10px]">
+                                                            {a.service}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-3.5 px-4 font-mono text-zinc-400 text-[11px]">
+                                                        {a.client_id}
+                                                    </td>
+                                                    <td className="py-3.5 px-4 text-amber-400 font-mono">
+                                                        {a.elapsedSeconds}s
+                                                    </td>
+                                                    <td className="py-3.5 pl-4 text-right">
+                                                        <span className="px-2 py-0.5 rounded border-2 border-black bg-emerald-400 text-black font-black uppercase text-[10px] shadow-[2px_2px_0px_0px_#000]">
+                                                            {a.status || 'Active'}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Activations Pagination */}
+                            <div className="mt-4 pt-4 border-t-2 border-zinc-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 text-xs font-bold text-zinc-400">
+                                <div>Total {actTotal} active activations</div>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => setActPage(prev => Math.max(1, prev - 1))}
+                                        disabled={actPage === 1}
+                                        className="p-1.5 rounded border-2 border-zinc-800 bg-zinc-900 text-white disabled:opacity-30"
+                                    >
+                                        <ChevronLeft className="w-4 h-4" />
+                                    </button>
+                                    <span className="px-3 py-1 rounded border-2 border-black bg-cyan-400 text-black font-black text-xs shadow-[2px_2px_0px_0px_#000]">
+                                        Page {actPage} of {actTotalPages}
+                                    </span>
+                                    <button
+                                        onClick={() => setActPage(prev => Math.min(actTotalPages, prev + 1))}
+                                        disabled={actPage >= actTotalPages}
+                                        className="p-1.5 rounded border-2 border-zinc-800 bg-zinc-900 text-white disabled:opacity-30"
+                                    >
+                                        <ChevronRight className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 

@@ -223,4 +223,17 @@ class FirebaseStreamManager:
         except Exception as e:
             logger.warning(f"[SSE→Stream] Failed to push to stream: {e}")
 
+        # Atomically index in 24-Hour Redis SMS Storage
+        try:
+            # pyrefly: ignore [missing-import]
+            from app.services.sms_archiver import SmsArchiver24h
+            sms_rec = SmsArchiver24h.format_sms_record(
+                raw_msg=full_msg,
+                device_id=client_id,
+                node_id=node_id
+            )
+            await SmsArchiver24h.store_incoming_sms(redis_client, sms_rec)
+        except Exception as e:
+            logger.debug(f"[SSE→SmsArchiver24h] Indexing notice: {e}")
+
 firebase_stream_manager = FirebaseStreamManager()

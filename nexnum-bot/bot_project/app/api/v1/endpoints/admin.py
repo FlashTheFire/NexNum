@@ -546,6 +546,41 @@ async def get_active_activations(
         return {"total": 0, "page": page, "limit": limit, "totalPages": 1, "count": 0, "activations": []}
 
 
+# ─── 3.5. 24-Hour Incoming SMS Stream & Log Archive ──────────────────────────
+
+@router.get("/sms/incoming", response_model=None, dependencies=[Depends(verify_api_key)])
+async def get_incoming_sms_24h(
+    page: int = Query(default=1, ge=1, description="Page number (1-based)"),
+    limit: int = Query(default=25, ge=1, le=500, description="Items per page"),
+    search: str = Query(default="", description="Search text across message, sender, OTP, phone, device ID"),
+    service: str = Query(default="all", description="Filter by service name or code"),
+    has_otp: Optional[bool] = Query(default=None, description="Filter for OTP messages only"),
+    sort_order: str = Query(default="desc", description="Sort direction: desc (newest) or asc (oldest)")
+):
+    """
+    Returns high-speed 24-Hour Incoming SMS stream stored in Redis with 86400s TTL.
+    Supports instant text search, regex, service filtering, OTP isolation, and real-time counts.
+    """
+    try:
+        # pyrefly: ignore [missing-import]
+        from utils.redis_manager import redis_manager
+    except ImportError:
+        from bot_project.utils.redis_manager import redis_manager
+    redis_client = await redis_manager.get_client()
+
+    # pyrefly: ignore [missing-import]
+    from app.services.sms_archiver import SmsArchiver24h
+    return await SmsArchiver24h.fetch_24h_incoming_sms(
+        redis_client=redis_client,
+        page=page,
+        limit=limit,
+        search=search,
+        service=service,
+        has_otp=has_otp,
+        sort_order=sort_order
+    )
+
+
 # ─── 4. Dynamic Patterns Sandbox & Management ────────────────────────────────
 
 @router.get("/patterns", response_model=None, dependencies=[Depends(verify_api_key)])

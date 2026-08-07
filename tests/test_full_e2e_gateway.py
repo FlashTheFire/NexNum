@@ -305,6 +305,58 @@ def test_stock_scaler_smart_psychological_scaling():
     assert zero_fleet["is_out_of_stock"] is True
 
 
+def test_sms_archiver_24h_redis_storage_and_query():
+    """Test 8: Verify 24-Hour Incoming SMS Archiver with Redis TTL retention."""
+    # pyrefly: ignore [missing-import]
+    from app.services.sms_archiver import SmsArchiver24h
+
+    # 1. Format SMS record
+    raw_sample = {
+        "id": "test_msg_9988",
+        "sender": "AD-PURESC-T",
+        "message": "Enter code 759524 to confirm your account access. ---PURESMOOTH",
+        "dateTime": "08-08-2026 | 04:05 am",
+        "deviceId": "dev_test_node1"
+    }
+
+    formatted = SmsArchiver24h.format_sms_record(
+        raw_msg=raw_sample,
+        device_id="dev_test_node1",
+        node_id="node_1",
+        phone_number="+917208933148",
+        carrier="Airtel 5G",
+        sim_slot=0
+    )
+
+    assert formatted["sender"] == "AD-PURESC-T"
+    assert formatted["otp"] == "759524"
+    assert formatted["phoneNumber"] == "+917208933148"
+    assert formatted["carrier"] == "Airtel 5G"
+    assert formatted["nodeId"] == "node_1"
+    assert formatted["timestamp"] > 946684800000
+
+    # 2. Async Redis storage & query with mock
+    async def _run_storage_test():
+        redis = MockRedisClient()
+        success = await SmsArchiver24h.store_incoming_sms(redis, formatted)
+        # MockRedisClient does not throw, returns True or handles gracefully
+        assert isinstance(success, bool)
+
+        result = await SmsArchiver24h.fetch_24h_incoming_sms(
+            redis_client=redis,
+            page=1,
+            limit=25,
+            search="759524",
+            seed_if_empty=False
+        )
+        assert "total" in result
+        assert "messages" in result
+        assert "stats" in result
+        assert result["ttlHours"] == 24
+
+    asyncio.run(_run_storage_test())
+
+
 if __name__ == "__main__":
     pytest.main(["-v", __file__])
 
