@@ -1,0 +1,94 @@
+{
+  "schema_version": "1.0",
+  "default_schema": "auto",
+  "schemas": {
+    "silentgate": {
+      "device_path": "/gateways",
+      "message_path": "/messages/{device_id}",
+      "mappings": {
+        "device_id": ["deviceId", "id", "gateway_id", "$key"],
+        "phone_number": ["phoneNumber", "phone", "number", "mobNo"],
+        "carrier": ["carrier", "operator", "network", "service_provider"],
+        "status": ["status", "online"],
+        "battery": ["battery"],
+        "model": ["model", "modelName"],
+        "sims_array": "sims",
+        "sim_item": {
+          "slot": ["slot", "simSlotIndex", "index"],
+          "phone_number": ["phoneNumber", "phone", "number", "mobNo"],
+          "carrier": ["carrier", "operator", "network", "carrierName", "service_provider"]
+        }
+      },
+      "message_mappings": {
+        "id": ["id", "$key"],
+        "body": ["body", "message", "text"],
+        "sender": ["from", "sender"],
+        "timestamp": ["timestamp", "dateTime", "time"],
+        "type": ["type"]
+      }
+    },
+    "legacy_rich": {
+      "device_path": "/clients",
+      "message_path": "/messages/{device_id}",
+      "mappings": {
+        "device_id": ["deviceId", "id", "clientId", "$key"],
+        "phone_number": ["mobNo", "phoneNumber", "number", "phone"],
+        "carrier": ["service_provider", "carrierName", "network", "operator", "carrier"],
+        "status": ["status"],
+        "battery": ["battery"],
+        "model": ["modelName", "model"],
+        "sims_array": "sims",
+        "sim_item": {
+          "slot": ["simSlotIndex", "slot", "index"],
+          "phone_number": ["phoneNumber", "mobNo", "number", "phone"],
+          "carrier": ["carrierName", "service_provider", "network", "operator", "carrier"]
+        }
+      },
+      "message_mappings": {
+        "id": ["id", "$key"],
+        "body": ["message", "body", "text"],
+        "sender": ["sender", "from"],
+        "timestamp": ["dateTime", "timestamp", "time"],
+        "type": ["type"]
+      }
+    },
+    "legacy_light": {
+      "device_path": "/clients",
+      "message_path": "/messages/{device_id}",
+      "mappings": {
+        "device_id": ["deviceId", "id", "clientId", "$key"],
+        "phone_number": ["mobNo", "phoneNumber", "number"],
+        "carrier": ["service_provider", "network", "operator"],
+        "status": ["status"],
+        "battery": ["battery"],
+        "model": ["modelName", "model"]
+      },
+      "message_mappings": {
+        "id": ["id", "$key"],
+        "body": ["message", "body", "text"],
+        "sender": ["sender", "from"],
+        "timestamp": ["dateTime", "timestamp", "time"],
+        "type": ["type"]
+      }
+    },
+    "legacy_dual": {
+      "device_path": "/clients",
+      "message_path": "/messages/{device_id}",
+      "mappings": {
+        "device_id": ["deviceId", "id", "clientId", "$key"],
+        "phone_number": ["mobNo", "phoneNumber", "number"],
+        "carrier": ["service_provider", "network", "operator"],
+        "status": ["status"],
+        "battery": ["battery"],
+        "model": ["modelName", "model"]
+      },
+      "message_mappings": {
+        "id": ["id", "$key"],
+        "body": ["message", "body", "text"],
+        "sender": ["sender", "from"],
+        "timestamp": ["dateTime", "timestamp", "time"],
+        "type": ["type"]
+      }
+    }
+  }
+}

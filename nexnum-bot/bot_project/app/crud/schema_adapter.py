@@ -199,7 +199,10 @@ class FirebaseSchemaAdapter:
         if not isinstance(node_data, dict):
             return []
 
-        schema_type = cls.detect_schema_type(node_data)
+        # pyrefly: ignore [missing-import]
+        from app.crud.schema_registry import SchemaRegistry
+
+        schema_type = SchemaRegistry.detect_schema_type(node_data)
         sim_nodes: List[DeviceSimNode] = []
 
         # ── Parse Online Status ──
@@ -220,19 +223,15 @@ class FirebaseSchemaAdapter:
             last_seen_ms = safe_float(node_data.get("lastMessageTime") or node_data.get("timestamp") or 0.0)
             battery = safe_int(node_data.get("battery"), 100)
 
-        # ────────── SCENARIO A: SilentGate Schema (/gateways) ──────────
-        sims_raw = node_data.get("sims")
-        if isinstance(sims_raw, list) and len(sims_raw) > 0:
-            for idx, sim in enumerate(sims_raw):
-                if not isinstance(sim, dict):
-                    continue
-
-                slot_val = sim.get("simSlotIndex") if sim.get("simSlotIndex") is not None else sim.get("slot")
-                slot = safe_int(slot_val, default=idx)
+        # ────────── SCENARIO A: SIMs Array Resolution (Declarative) ──────────
+        resolved_sims = SchemaRegistry.resolve_sims(node_data, schema_type=schema_type)
+        if resolved_sims:
+            for idx, sim in enumerate(resolved_sims):
+                slot_raw = sim.get("slot_raw")
+                slot = safe_int(slot_raw, default=idx)
                 
-                # Check direct SIM fields
-                raw_p = sim.get("phoneNumber") or sim.get("number") or sim.get("phone") or sim.get("mobNo")
-                carrier = str(sim.get("carrierName") or sim.get("carrier") or sim.get("operator") or sim.get("network") or sim.get("service_provider") or "Unknown")
+                raw_p = sim.get("phoneNumber")
+                carrier = sim.get("carrierName") or "Unknown"
                 phone = normalize_phone_number(raw_p)
 
                 # Fallback: SMS History scan if phone is missing
@@ -243,7 +242,6 @@ class FirebaseSchemaAdapter:
                     if sms_carrier and carrier == "Unknown":
                         carrier = sms_carrier
 
-                # Include SIM in fleet even if phone is pending resolution
                 if not phone:
                     phone = "Pending"
 
@@ -263,21 +261,9 @@ class FirebaseSchemaAdapter:
             if sim_nodes:
                 return sim_nodes
 
-        # ────────── SCENARIO B: Legacy Schema (/clients) or fallback ──────────
-        # Extract direct fields
-        raw_p = (
-            node_data.get("mobNo") or
-            node_data.get("phoneNumber") or
-            node_data.get("number") or
-            node_data.get("phone") or
-            node_data.get("simNumber")
-        )
-        carrier = str(
-            node_data.get("service_provider") or
-            node_data.get("network") or
-            node_data.get("operator") or
-            "Unknown"
-        )
+        # ────────── SCENARIO B: Single SIM / Direct Field Resolution ──────────
+        raw_p = SchemaRegistry.resolve_field(node_data, "phone_number", schema_type=schema_type)
+        carrier = SchemaRegistry.resolve_field(node_data, "carrier", schema_type=schema_type, default="Unknown")
         
         # Check smsAnalysis if present
         sms_analysis = node_data.get("smsAnalysis")
@@ -297,7 +283,6 @@ class FirebaseSchemaAdapter:
             if sms_carrier and carrier == "Unknown":
                 carrier = sms_carrier
 
-        # Include client node in fleet even if phone is pending resolution
         if not phone:
             phone = "Pending"
 
@@ -306,7 +291,7 @@ class FirebaseSchemaAdapter:
             sim_slot=0,
             phone_number=phone,
             carrier=carrier,
-            schema_type=schema_type if schema_type != "unknown" else "legacy",
+            schema_type=schema_type,
             is_online=is_online,
             last_seen_ms=last_seen_ms,
             battery=battery,
