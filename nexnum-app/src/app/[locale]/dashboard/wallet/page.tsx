@@ -780,13 +780,13 @@ export default function WalletPage() {
                                             >
                                                 {/* Amount + Expiry Summary Row */}
                                                 <div className="grid grid-cols-2 gap-3">
-                                                    <div className="p-3.5 rounded-xl bg-card/40 border border-white/10">
+                                                    <div className="p-4 rounded-xl bg-card/50 border border-white/10">
                                                         <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider mb-1">Amount to Pay</p>
                                                         {isGenerating && !activeDeposit ? (
                                                             <div className="h-7 w-24 bg-white/10 rounded animate-pulse" />
                                                         ) : (
-                                                            <>
-                                                                <p className="text-xl font-bold text-emerald-400 tabular-nums">
+                                                            <div>
+                                                                <p className="text-2xl font-bold text-white tabular-nums">
                                                                     ₹{activeDeposit?.amount?.toLocaleString('en-IN') ?? calculatedInrAmount}
                                                                 </p>
                                                                 {preferredCurrency !== 'INR' && (
@@ -794,65 +794,60 @@ export default function WalletPage() {
                                                                         ≈ {currencySym}{parseFloat(amount).toFixed(2)} {preferredCurrency}
                                                                     </p>
                                                                 )}
-                                                            </>
+                                                            </div>
                                                         )}
                                                     </div>
 
-                                                    <div className="p-3.5 rounded-xl bg-card/40 border border-white/10">
+                                                    <div className="p-4 rounded-xl bg-card/50 border border-white/10">
                                                         <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider mb-1 flex items-center gap-1">
                                                             <Clock className="w-3 h-3 text-amber-400" /> Session Expiry
                                                         </p>
-                                                        <p className={`text-xl font-mono font-bold tabular-nums ${timeLeft < 120 ? 'text-rose-400 animate-pulse' : 'text-amber-400'}`}>
+                                                        <p className={`text-2xl font-mono font-bold tabular-nums ${timeLeft < 120 ? 'text-rose-400 animate-pulse' : 'text-amber-400'}`}>
                                                             {formatTimer(timeLeft)}
                                                         </p>
                                                         <p className="text-[10px] text-muted-foreground mt-0.5">
-                                                            Complete payment before expiry
+                                                            Complete before expiry
                                                         </p>
                                                     </div>
                                                 </div>
 
-                                                {/* QR Code Container — minimal & clean */}
+                                                {/* QR Code Container — ultra minimalist */}
                                                 <div className="flex flex-col items-center">
-                                                    <div className="relative w-full max-w-[240px] aspect-square mx-auto bg-white rounded-2xl p-4 border border-white/10 shadow-xl flex items-center justify-center overflow-hidden">
+                                                    <div className="relative w-full max-w-[220px] aspect-square mx-auto bg-white rounded-xl p-3 border border-white/10 flex items-center justify-center overflow-hidden">
                                                         {isGenerating || !resolvedQrImage ? (
-                                                            <div className="w-full h-full flex flex-col items-center justify-center gap-3">
-                                                                <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
-                                                                <p className="text-xs text-gray-500 font-medium">Generating UPI QR Code...</p>
+                                                            <div className="w-full h-full flex flex-col items-center justify-center gap-2.5">
+                                                                <Loader2 className="w-7 h-7 text-gray-700 animate-spin" />
+                                                                <p className="text-xs text-gray-500 font-medium">Generating QR...</p>
                                                             </div>
                                                         ) : (
                                                             /* eslint-disable-next-line @next/next/no-img-element */
                                                             <img
                                                                 src={resolvedQrImage}
-                                                                alt="UPI QR Code — Scan with BHIM / PhonePe / Paytm / GPay"
+                                                                alt="UPI QR Code"
                                                                 className="w-full h-full object-contain"
                                                             />
                                                         )}
                                                     </div>
 
-                                                    <p className="mt-3 text-[11px] text-muted-foreground text-center">
-                                                        Scan with <span className="text-white font-medium">BHIM</span> · <span className="text-white font-medium">PhonePe</span> · <span className="text-white font-medium">Paytm</span> · <span className="text-white font-medium">GPay</span>
+                                                    <p className="mt-2.5 text-xs text-muted-foreground text-center">
+                                                        Scan with Paytm · PhonePe · GPay · BHIM
                                                     </p>
                                                 </div>
 
                                                 {/* Auto-detection Status Bar */}
-                                                <div className="p-3 rounded-xl bg-card/30 border border-white/10 flex items-center justify-center gap-2.5">
-                                                    <div className="relative flex h-2 w-2 shrink-0">
-                                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-                                                    </div>
-                                                    <p className="text-xs text-emerald-400 font-medium">
-                                                        Auto-detecting payment — no action needed after scanning
-                                                    </p>
+                                                <div className="p-3 rounded-xl bg-card/40 border border-white/10 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                                                    <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                                                    <span>Auto-detecting payment — no action needed after scanning</span>
                                                 </div>
 
                                                 {/* Cancel Action Button */}
                                                 {activeDeposit && (
-                                                    <div className="pt-1 border-t border-white/5">
+                                                    <div className="pt-1">
                                                         <button
                                                             type="button"
                                                             onClick={handleCancelDeposit}
                                                             disabled={isCancelling}
-                                                            className="w-full h-10 rounded-xl text-xs font-medium transition-all duration-200 cursor-pointer flex items-center justify-center gap-2 border border-rose-500/20 bg-rose-500/5 text-rose-400 hover:bg-rose-500/10 hover:border-rose-500/40 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                            className="w-full h-12 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer flex items-center justify-center gap-2 border border-white/10 bg-card/40 text-zinc-400 hover:bg-white/5 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
                                                         >
                                                             {isCancelling ? (
                                                                 <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Cancelling Deposit...</>
@@ -860,7 +855,7 @@ export default function WalletPage() {
                                                                 <><ArrowLeft className="w-3.5 h-3.5" /> Cancel &amp; Generate New Deposit</>
                                                             )}
                                                         </button>
-                                                        <p className="text-center text-[10px] text-muted-foreground mt-1">
+                                                        <p className="text-center text-[10px] text-muted-foreground mt-1.5">
                                                             Only one active deposit allowed at a time
                                                         </p>
                                                     </div>
@@ -868,41 +863,40 @@ export default function WalletPage() {
                                             </motion.div>
                                         )}
 
-
                                         {/* STEP 3B: Crypto USDT Payment Screen */}
                                         {inlineStep === 'crypto_payment' && (
                                             <motion.div
                                                 key="step_crypto_payment"
-                                                initial={{ opacity: 0, scale: 0.98 }}
-                                                animate={{ opacity: 1, scale: 1 }}
-                                                exit={{ opacity: 0, scale: 0.98 }}
-                                                className="space-y-6 text-center"
+                                                initial={{ opacity: 0, y: 10 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                exit={{ opacity: 0, y: -10 }}
+                                                className="space-y-4"
                                             >
                                                 {/* Amount Header */}
-                                                <div className="p-3.5 rounded-xl bg-black/40 border border-white/10 flex items-center justify-between text-left">
+                                                <div className="p-4 rounded-xl bg-card/50 border border-white/10 flex items-center justify-between">
                                                     <div>
-                                                        <p className="text-[10px] uppercase font-bold text-muted-foreground">Deposit Amount</p>
-                                                        <p className="text-xl font-bold text-indigo-400">{parseFloat(amount).toFixed(2)} USDT</p>
+                                                        <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider mb-1">Deposit Amount</p>
+                                                        <p className="text-2xl font-bold text-white">{parseFloat(amount).toFixed(2)} USDT</p>
                                                     </div>
                                                     <div className="flex items-center gap-1.5">
                                                         <button
                                                             type="button"
                                                             onClick={() => setCryptoNetwork('TRC20')}
-                                                            className={cn("px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border", cryptoNetwork === 'TRC20' ? "bg-indigo-600 text-white border-indigo-500" : "bg-black/40 text-zinc-400 border-white/10")}
+                                                            className={cn("px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border", cryptoNetwork === 'TRC20' ? "bg-indigo-600 text-white border-indigo-500" : "bg-card/40 text-zinc-400 border-white/10")}
                                                         >TRC20</button>
                                                         <button
                                                             type="button"
                                                             onClick={() => setCryptoNetwork('BEP20')}
-                                                            className={cn("px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border", cryptoNetwork === 'BEP20' ? "bg-indigo-600 text-white border-indigo-500" : "bg-black/40 text-zinc-400 border-white/10")}
+                                                            className={cn("px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border", cryptoNetwork === 'BEP20' ? "bg-indigo-600 text-white border-indigo-500" : "bg-card/40 text-zinc-400 border-white/10")}
                                                         >BEP20</button>
                                                     </div>
                                                 </div>
 
                                                 {/* Deposit Wallet Address */}
-                                                <div className="p-3.5 rounded-xl bg-black/30 border border-white/10 flex items-center justify-between">
-                                                    <div className="text-left min-w-0 pr-2">
-                                                        <p className="text-[10px] font-bold uppercase text-muted-foreground">USDT ({cryptoNetwork}) Address</p>
-                                                        <p className="text-xs font-mono text-indigo-300 truncate">{cryptoAddress}</p>
+                                                <div className="p-4 rounded-xl bg-card/40 border border-white/10 flex items-center justify-between">
+                                                    <div className="min-w-0 pr-2">
+                                                        <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider mb-1">USDT ({cryptoNetwork}) Address</p>
+                                                        <p className="text-xs font-mono text-zinc-300 truncate">{cryptoAddress}</p>
                                                     </div>
                                                     <Button
                                                         size="sm"
@@ -914,7 +908,7 @@ export default function WalletPage() {
                                                     </Button>
                                                 </div>
 
-                                                <p className="text-xs text-zinc-400">
+                                                <p className="text-xs text-muted-foreground text-center">
                                                     Send exactly <strong className="text-white">{parseFloat(amount).toFixed(2)} USDT</strong> on the <strong className="text-indigo-400">{cryptoNetwork}</strong> network. Credits automatically after 3 confirmations.
                                                 </p>
                                             </motion.div>
