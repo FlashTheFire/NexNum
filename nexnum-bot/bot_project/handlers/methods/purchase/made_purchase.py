@@ -1058,26 +1058,25 @@ class UserPurchaseManagement:
             await pubsub.psubscribe('__keyspace@0__:schedule:quote:*')
             logger.info("Listening for schedule events...")
 
-            async for message in pubsub.listen():
-                if message['type'] != 'pmessage':
-                    continue
-
-                event = message['data']
-                if isinstance(event, bytes):
-                    event = event.decode()
-                if event != 'zadd':
-                    continue
-
-                channel = message['channel']
-                if isinstance(channel, bytes):
-                    channel = channel.decode()
-                # Extract the actual Redis key
-                _, key = channel.split('__keyspace@0__:', 1)
-
-                logger.debug(f"New schedule event for key: {key}")
-                self._start_schedule_loop(key)
+            while True:
+                try:
+                    message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=30.0)
+                    if message and message['type'] == 'pmessage':
+                        event = message['data']
+                        if isinstance(event, bytes):
+                            event = event.decode()
+                        if event == 'zadd':
+                            channel = message['channel']
+                            if isinstance(channel, bytes):
+                                channel = channel.decode()
+                            _, key = channel.split('__keyspace@0__:', 1)
+                            logger.debug(f"New schedule event for key: {key}")
+                            self._start_schedule_loop(key)
+                    await asyncio.sleep(0.5)
+                except (asyncio.TimeoutError, Exception):
+                    await asyncio.sleep(2.0)
         except Exception as e:
-            logger.warning(f"Schedule listener error (Redis optional): {e}")
+            logger.debug(f"Schedule listener notice: {e}")
 
     def _start_schedule_loop(self, key: str):
         """
