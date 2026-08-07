@@ -182,27 +182,26 @@ async def analyze_and_cache_all_service_counts(redis_client):
 
         uncached_sims.append(sim)
 
-    # 2. Parallel Async Fetch for Uncached Devices (Batches of 30)
+    # 2. Parallel Async Fetch for Uncached Devices (Semaphore 100 Pipeline)
     devices_fetched_fresh = 0
     if uncached_sims and default_node:
         logger.info(f"[PreScorerWorker] Fetching messages for {len(uncached_sims)} uncached devices from Firebase...")
-        limits = httpx.Limits(max_keepalive_connections=30, max_connections=50)
+        limits = httpx.Limits(max_keepalive_connections=100, max_connections=200)
         async with httpx.AsyncClient(timeout=3.0, limits=limits, follow_redirects=True) as http_client:
-            chunk_size = 30
-            for i in range(0, len(uncached_sims), chunk_size):
-                chunk = uncached_sims[i:i+chunk_size]
-                tasks = []
-                for sim in chunk:
-                    owning_node = node_map.get(sim.firebase_node_id or "", default_node)
-                    tasks.append(_fetch_device_messages_fast(sim.device_id, owning_node, http_client))
+            sem = asyncio.Semaphore(100)
 
-                results = await asyncio.gather(*tasks, return_exceptions=True)
-                for res in results:
-                    if isinstance(res, tuple):
-                        dev_id, msgs = res
-                        if msgs:
-                            device_messages_map[dev_id] = msgs
-                            devices_fetched_fresh += 1
+            async def _throttled_fetch(sim_node):
+                async with sem:
+                    owning_node = node_map.get(sim_node.firebase_node_id or "", default_node)
+                    return await _fetch_device_messages_fast(sim_node.device_id, owning_node, http_client)
+
+            results = await asyncio.gather(*[_throttled_fetch(s) for s in uncached_sims], return_exceptions=True)
+            for res in results:
+                if isinstance(res, tuple):
+                    dev_id, msgs = res
+                    if msgs:
+                        device_messages_map[dev_id] = msgs
+                        devices_fetched_fresh += 1
 
     # 3. Batch Pipeline Save to Redis for 0ms I/O
     pipe = redis_client.pipeline()
