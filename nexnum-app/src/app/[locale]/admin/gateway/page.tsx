@@ -156,11 +156,26 @@ export default function GatewayAdminPage() {
         }
     }
 
-    const filteredDevices = devices.filter(d =>
-        d.phoneNumber.includes(searchQuery) ||
-        d.deviceId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        d.carrier.toLowerCase().includes(searchQuery.toLowerCase())
-    )
+    const filteredDevices = devices
+        .filter(d =>
+            d.phoneNumber.includes(searchQuery) ||
+            d.deviceId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            d.carrier.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+        .sort((a, b) => {
+            // 1. Resolved phone numbers first
+            const aHasPhone = a.phoneNumber && a.phoneNumber !== "Pending" && a.phoneNumber !== "Unknown" ? 1 : 0
+            const bHasPhone = b.phoneNumber && b.phoneNumber !== "Pending" && b.phoneNumber !== "Unknown" ? 1 : 0
+            if (aHasPhone !== bHasPhone) return bHasPhone - aHasPhone
+
+            // 2. Online devices next
+            const aOnline = a.isOnline ? 1 : 0
+            const bOnline = b.isOnline ? 1 : 0
+            if (aOnline !== bOnline) return bOnline - aOnline
+
+            // 3. Higher battery level
+            return (b.battery || 0) - (a.battery || 0)
+        })
 
     return (
         <main className="min-h-screen p-4 md:p-6 lg:p-8 space-y-6">

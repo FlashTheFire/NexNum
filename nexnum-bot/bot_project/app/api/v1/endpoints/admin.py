@@ -116,6 +116,13 @@ async def get_devices_list():
         except Exception:
             pass
 
+    # Sort: Resolved numbers first -> Online devices next -> Higher battery first
+    sim_nodes.sort(key=lambda n: (
+        1 if n.phone_number and n.phone_number not in ("Pending", "Unknown") else 0,
+        1 if n.is_online else 0,
+        n.battery or 0
+    ), reverse=True)
+
     result = []
     for n in sim_nodes:
         result.append({

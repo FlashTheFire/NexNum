@@ -58,6 +58,15 @@ class UniversalFirebaseNode:
                         combined.update(data)
             except Exception as e:
                 logger.warning(f"UniversalFirebase [{self.node_id}] /gateways error: {e}")
+                try:
+                    async with httpx.AsyncClient(timeout=10.0) as fresh:
+                        resp = await fresh.get(self._build_url("/gateways"))
+                        if resp.status_code == 200 and resp.json():
+                            data = resp.json()
+                            if isinstance(data, dict):
+                                combined.update(data)
+                except Exception:
+                    pass
 
         # 2. Fetch /clients if schema is 'clients' or 'auto'
         if self.schema_type in ("clients", "auto"):
@@ -69,6 +78,15 @@ class UniversalFirebaseNode:
                         combined.update(data)
             except Exception as e:
                 logger.warning(f"UniversalFirebase [{self.node_id}] /clients error: {e}")
+                try:
+                    async with httpx.AsyncClient(timeout=10.0) as fresh:
+                        resp = await fresh.get(self._build_url("/clients"))
+                        if resp.status_code == 200 and resp.json():
+                            data = resp.json()
+                            if isinstance(data, dict):
+                                combined.update(data)
+                except Exception:
+                    pass
 
         return combined
 
