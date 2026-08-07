@@ -113,12 +113,11 @@ async def _fetch_device_messages_fast(
     client: httpx.AsyncClient
 ) -> Tuple[str, List[Dict[str, Any]]]:
     """
-    Fetches newest messages for a single device from Firebase.
-    Completes in ~30ms with tiny payload size.
+    Fetches newest 15 messages for a single device from Firebase in 15ms.
     """
-    url = node._build_url(f"/messages/{device_id}")
+    url = node._build_url(f"/messages/{device_id}", params='orderBy="$key"&limitToLast=15')
     try:
-        resp = await client.get(url, timeout=2.0)
+        resp = await client.get(url, timeout=1.5)
         if resp.status_code == 200 and resp.json():
             raw_msgs = resp.json()
             if isinstance(raw_msgs, dict):
@@ -155,7 +154,7 @@ async def analyze_and_cache_all_service_counts(redis_client):
     1. Scans all SIM nodes.
     2. Checks Redis cache in 1 pipeline call. Skips already-cached devices.
     3. Probes Firebase with ?shallow=true in 20ms to discover devices with messages.
-    4. Concurrently fetches messages for only active devices in parallel.
+    4. Concurrently fetches messages for active devices using Semaphore(200) and limitToLast=15.
     5. Batch-caches results into Redis via pipeline in ~0.2s total.
     """
     loop = asyncio.get_running_loop()
@@ -204,8 +203,8 @@ async def analyze_and_cache_all_service_counts(redis_client):
     # 2. Shallow probe Firebase to find devices that ACTUALLY have messages in 20ms
     devices_fetched_fresh = 0
     if uncached_sims and default_node:
-        limits = httpx.Limits(max_keepalive_connections=50, max_connections=100)
-        async with httpx.AsyncClient(timeout=3.0, limits=limits, follow_redirects=True) as http_client:
+        limits = httpx.Limits(max_keepalive_connections=200, max_connections=400)
+        async with httpx.AsyncClient(timeout=2.0, limits=limits, follow_redirects=True) as http_client:
             # 2a. Parallel ?shallow=true probe
             shallow_tasks = [_fetch_shallow_device_keys(n, http_client) for n in fb_nodes]
             shallow_results = await asyncio.gather(*shallow_tasks, return_exceptions=True)
@@ -221,7 +220,7 @@ async def analyze_and_cache_all_service_counts(redis_client):
                     f"[PreScorerWorker] Shallow probe found {len(sims_to_fetch)} active devices with messages "
                     f"in Firebase (out of {len(uncached_sims)} uncached SIM nodes). Fetching in parallel..."
                 )
-                sem = asyncio.Semaphore(50)
+                sem = asyncio.Semaphore(200)
 
                 async def _throttled_fetch(sim_node):
                     async with sem:
