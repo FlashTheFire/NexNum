@@ -147,9 +147,8 @@ export default function DashboardLayout({
                         {/* Navigation */}
                         <nav className="flex-1 p-3 space-y-1 relative flex flex-col">
                             <div className="flex-1 space-y-1">
-                                {navItems.map((item, index) => {
-                                    const isActive = pathname === item.href
-                                    const isFirst = index === 0
+                                {navItems.map((item) => {
+                                    const isActive = pathname === item.href || pathname.endsWith(item.href)
 
                                     return (
                                         <div key={item.href}>
@@ -161,18 +160,15 @@ export default function DashboardLayout({
                                                     whileHover={{ x: sidebarCollapsed ? 0 : 4 }}
                                                     whileTap={{ scale: 0.98 }}
                                                     className={cn(
-                                                        "relative flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group",
+                                                        "relative flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group border border-transparent",
                                                         isActive
-                                                            ? "bg-white/[0.08] text-white shadow-sm"
+                                                            ? "bg-white/[0.08] text-white shadow-sm border-white/10"
                                                             : "text-gray-400 hover:text-white hover:bg-white/[0.04]",
                                                         sidebarCollapsed && "justify-center px-2"
                                                     )}
                                                 >
                                                     {isActive && (
-                                                        <motion.div
-                                                            layoutId="activeNav"
-                                                            className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-[hsl(var(--neon-lime))] rounded-r-full shadow-[0_0_8px_hsl(var(--neon-lime)/0.5)]"
-                                                        />
+                                                        <div className="absolute left-0 top-2 bottom-2 w-1 bg-[hsl(var(--neon-lime))] rounded-r-full shadow-[0_0_10px_hsl(var(--neon-lime)/0.6)]" />
                                                     )}
                                                     <item.icon className={cn(
                                                         "h-5 w-5 transition-colors shrink-0",
@@ -180,7 +176,7 @@ export default function DashboardLayout({
                                                     )} />
                                                     {!sidebarCollapsed && (
                                                         <div className="flex-1 min-w-0">
-                                                            <span className="text-sm font-medium">{item.label}</span>
+                                                            <span className={cn("text-sm font-medium", isActive && "font-bold text-white")}>{item.label}</span>
                                                         </div>
                                                     )}
                                                 </motion.div>
@@ -212,7 +208,7 @@ export default function DashboardLayout({
                                     </Link>
                                 )}
 
-                                {/* Dedicated Toggle Button - Moved Below Nav Items */}
+                                {/* Dedicated Toggle Button */}
                                 <div className="pt-2 border-t border-white/5">
                                     <Button
                                         variant="ghost"
@@ -258,10 +254,10 @@ export default function DashboardLayout({
                         </nav>
 
                         {/* Bottom Section */}
-                        <div className="p-3 border-t border-white/10 space-y-3">
+                        <div className="p-3 border-t border-white/10 space-y-2">
                             {/* Theme Toggle */}
                             <div className={cn(
-                                "flex items-center gap-3 px-2",
+                                "flex items-center gap-3 px-2 py-1",
                                 sidebarCollapsed ? "justify-center" : "justify-between"
                             )}>
                                 {!sidebarCollapsed ? (
@@ -274,16 +270,35 @@ export default function DashboardLayout({
                                 )}
                             </div>
 
-                            {!sidebarCollapsed && bottomNavItems.map((item) => (
-                                <Link key={item.href} href={item.href}>
-                                    <div className={cn(
-                                        "flex items-center gap-3 px-3 py-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors",
-                                    )}>
-                                        <item.icon className="h-4 w-4" />
-                                        <span className="text-sm">{item.label}</span>
-                                    </div>
-                                </Link>
-                            ))}
+                            {bottomNavItems.map((item) => {
+                                const isActive = pathname === item.href || pathname.endsWith(item.href)
+                                return (
+                                    <Link key={item.href} href={item.href}>
+                                        <motion.div
+                                            whileHover={{ x: sidebarCollapsed ? 0 : 4 }}
+                                            whileTap={{ scale: 0.98 }}
+                                            className={cn(
+                                                "relative flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-200 group border border-transparent",
+                                                isActive
+                                                    ? "bg-white/[0.08] text-white shadow-sm border-white/10"
+                                                    : "text-gray-400 hover:text-white hover:bg-white/[0.04]",
+                                                sidebarCollapsed && "justify-center px-2"
+                                            )}
+                                        >
+                                            {isActive && (
+                                                <div className="absolute left-0 top-2 bottom-2 w-1 bg-[hsl(var(--neon-lime))] rounded-r-full shadow-[0_0_10px_hsl(var(--neon-lime)/0.6)]" />
+                                            )}
+                                            <item.icon className={cn(
+                                                "h-4 w-4 transition-colors shrink-0",
+                                                isActive ? "text-[hsl(var(--neon-lime))]" : "text-gray-400 group-hover:text-white"
+                                            )} />
+                                            {!sidebarCollapsed && (
+                                                <span className={cn("text-sm font-medium", isActive && "font-bold text-white")}>{item.label}</span>
+                                            )}
+                                        </motion.div>
+                                    </Link>
+                                )
+                            })}
                         </div>
                     </motion.aside>
 

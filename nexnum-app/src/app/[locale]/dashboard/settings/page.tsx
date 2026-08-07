@@ -13,36 +13,35 @@ import {
     Camera,
     Check,
     Lock,
-    Eye,
-    EyeOff,
-    CreditCard
+    Save,
+    Sparkles,
+    Key,
+    ShieldCheck
 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
-import { useGlobalStore } from "@/stores/appStore"
 import { useAuthStore } from "@/stores/authStore"
 import { cn } from "@/lib/utils/utils"
 import { NotificationSettings } from "@/components/dashboard/settings/NotificationSettings"
 import { TwoFactorSetup } from "@/components/dashboard/settings/TwoFactorSetup"
 import { useCurrency } from "@/providers/CurrencyProvider"
+import { DarkNeobrutalistNotificationCard } from "@/components/dashboard/DarkNeobrutalistNotificationCard"
 
-// Tab Configuration
+// Tab Configuration (Billing Removed)
 const tabs = [
     { id: "general", label: "General", icon: User },
     { id: "security", label: "Security", icon: Shield },
     { id: "notifications", label: "Notifications", icon: Bell },
-    { id: "billing", label: "Billing", icon: CreditCard },
 ]
 
 // Animation Variants
 const fadeInScale = {
-    initial: { opacity: 0, scale: 0.95 },
-    animate: { opacity: 1, scale: 1, transition: { duration: 0.3 } },
-    exit: { opacity: 0, scale: 0.95, transition: { duration: 0.2 } }
+    initial: { opacity: 0, y: 10, scale: 0.98 },
+    animate: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.25 } },
+    exit: { opacity: 0, y: -10, scale: 0.98, transition: { duration: 0.15 } }
 }
 
 export default function SettingsPage() {
@@ -50,12 +49,12 @@ export default function SettingsPage() {
     const { currencies, settings: currencySettings } = useCurrency()
     const [activeTab, setActiveTab] = useState("general")
     const [isLoading, setIsLoading] = useState(false)
+    const [showDemoNotification, setShowDemoNotification] = useState(true)
 
     // Form States
     const [name, setName] = useState(user?.name || "")
     const [email, setEmail] = useState(user?.email || "")
     const [preferredCurrency, setPreferredCurrency] = useState(user?.preferredCurrency && user.preferredCurrency !== 'POINTS' ? user.preferredCurrency : "USD")
-    const [twoFactor, setTwoFactor] = useState(false)
 
     const handleSave = async () => {
         setIsLoading(true)
@@ -84,49 +83,65 @@ export default function SettingsPage() {
     }
 
     return (
-        <div className="min-h-full p-4 md:p-6 lg:p-8 relative overflow-hidden">
-            {/* Background Ambience */}
+        <div className="min-h-full p-4 md:p-6 lg:p-8 relative overflow-hidden bg-[#0a0a0c]">
+            {/* Background Ambience & Glow */}
             <div className="fixed inset-0 pointer-events-none z-0">
-                <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-900/10 rounded-full blur-[120px]" />
-                <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-purple-900/10 rounded-full blur-[120px]" />
+                <div className="absolute top-0 right-1/4 w-[600px] h-[600px] bg-[hsl(var(--neon-lime))/0.04] rounded-full blur-[140px]" />
+                <div className="absolute bottom-10 left-10 w-[500px] h-[500px] bg-purple-900/10 rounded-full blur-[140px]" />
             </div>
 
             <div className="relative z-10 max-w-4xl mx-auto space-y-8">
-                {/* Header */}
-                <div>
-                    <h1 className="text-3xl md:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60">
-                        Settings
-                    </h1>
-                    <p className="text-muted-foreground mt-1">Manage your account preferences</p>
+                {/* Header Section */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-6">
+                    <div>
+                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-[hsl(var(--neon-lime))] text-black mb-2 shadow-[2px_2px_0px_0px_#000]">
+                            <Sparkles className="h-3.5 w-3.5 fill-current" />
+                            Account Preferences
+                        </div>
+                        <h1 className="text-3xl md:text-5xl font-black text-white tracking-tight">
+                            Settings
+                        </h1>
+                        <p className="text-gray-400 text-sm mt-1">Manage profile parameters, security 2FA, and notification channels</p>
+                    </div>
+
+                    <motion.div whileTap={{ scale: 0.95 }}>
+                        <Button
+                            onClick={handleSave}
+                            disabled={isLoading}
+                            className="bg-[hsl(var(--neon-lime))] hover:bg-[hsl(var(--neon-lime))/0.9] text-black font-extrabold text-sm h-11 px-6 rounded-xl border-2 border-black shadow-[4px_4px_0px_0px_#000] transition-all flex items-center gap-2"
+                        >
+                            <Save className="h-4 w-4" />
+                            {isLoading ? "Saving..." : "Save Changes"}
+                        </Button>
+                    </motion.div>
                 </div>
 
-                {/* Tabs Navigation */}
-                <div className="flex p-1 bg-card/30 backdrop-blur-xl border border-white/5 rounded-2xl w-full md:w-fit overflow-x-auto">
-                    {tabs.map((tab) => (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id)}
-                            className={cn(
-                                "relative px-6 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 flex items-center gap-2 whitespace-nowrap",
-                                activeTab === tab.id ? "text-white" : "text-muted-foreground hover:text-white"
-                            )}
-                        >
-                            {activeTab === tab.id && (
-                                <motion.div
-                                    layoutId="activeTab"
-                                    className="absolute inset-0 bg-white/10 rounded-xl"
-                                    transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-                                />
-                            )}
-                            <tab.icon className="h-4 w-4 relative z-10" />
-                            <span className="relative z-10">{tab.label}</span>
-                        </button>
-                    ))}
+                {/* Tabs Navigation (Neo-Brutalist Design) */}
+                <div className="flex p-1.5 bg-[#12141c] border-2 border-white/15 rounded-2xl w-full md:w-fit overflow-x-auto shadow-[4px_4px_0px_0px_rgba(0,0,0,0.8)]">
+                    {tabs.map((tab) => {
+                        const isActive = activeTab === tab.id
+                        return (
+                            <button
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id)}
+                                className={cn(
+                                    "relative px-6 py-3 rounded-xl text-xs md:text-sm font-black transition-all duration-200 flex items-center gap-2.5 whitespace-nowrap uppercase tracking-wider",
+                                    isActive
+                                        ? "bg-[hsl(var(--neon-lime))] text-black shadow-[2px_2px_0px_0px_#000]"
+                                        : "text-gray-400 hover:text-white hover:bg-white/5"
+                                )}
+                            >
+                                <tab.icon className="h-4 w-4 relative z-10 shrink-0" />
+                                <span className="relative z-10">{tab.label}</span>
+                            </button>
+                        )
+                    })}
                 </div>
 
                 {/* Content Area */}
-                <div className="relative min-h-[500px]">
+                <div className="relative min-h-[450px]">
                     <AnimatePresence mode="wait">
+                        {/* ────── TAB 1: GENERAL ────── */}
                         {activeTab === "general" && (
                             <motion.div
                                 key="general"
@@ -134,90 +149,68 @@ export default function SettingsPage() {
                                 className="space-y-6"
                             >
                                 {/* Profile Card */}
-                                <Card className="border-white/10 bg-card/30 backdrop-blur-xl">
-                                    <CardHeader>
-                                        <CardTitle>Profile Information</CardTitle>
-                                        <CardDescription>Update your public profile details</CardDescription>
+                                <Card className="border-2 border-white/15 bg-[#10121a]/80 backdrop-blur-xl rounded-2xl shadow-[6px_6px_0px_0px_rgba(0,0,0,0.9)] overflow-hidden">
+                                    <CardHeader className="border-b border-white/10 bg-white/[0.02]">
+                                        <CardTitle className="text-xl font-black text-white flex items-center gap-2">
+                                            <User className="h-5 w-5 text-[hsl(var(--neon-lime))]" />
+                                            Profile Information
+                                        </CardTitle>
+                                        <CardDescription className="text-gray-400 text-xs">Update your account name and email address</CardDescription>
                                     </CardHeader>
-                                    <CardContent className="space-y-8">
+
+                                    <CardContent className="p-6 space-y-6">
                                         {/* Avatar Section */}
-                                        <div className="flex items-center gap-6">
+                                        <div className="flex items-center gap-6 pb-6 border-b border-white/10">
                                             <div className="relative group cursor-pointer">
-                                                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 p-0.5">
-                                                    <div className="w-full h-full rounded-full bg-black/50 overflow-hidden flex items-center justify-center border-4 border-transparent">
-                                                        <span className="text-3xl font-bold text-white">{name.charAt(0)}</span>
+                                                <div className="w-20 h-20 rounded-2xl bg-[hsl(var(--neon-lime))] p-1 border-2 border-black shadow-[4px_4px_0px_0px_#000]">
+                                                    <div className="w-full h-full rounded-xl bg-black/90 flex items-center justify-center border border-white/20">
+                                                        <span className="text-2xl font-black text-[hsl(var(--neon-lime))]">{name ? name.charAt(0).toUpperCase() : "U"}</span>
                                                     </div>
                                                 </div>
-                                                <div className="absolute inset-0 rounded-full bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <Camera className="h-6 w-6 text-white" />
-                                                </div>
                                             </div>
-                                            <div className="space-y-1">
-                                                <Button variant="outline" size="sm" className="border-white/10">Change Avatar</Button>
-                                                <p className="text-xs text-muted-foreground">JPG, GIF or PNG. 1MB max.</p>
+
+                                            <div>
+                                                <h3 className="text-lg font-black text-white">{name || "User"}</h3>
+                                                <p className="text-xs text-gray-400 font-mono mt-0.5">{email || "No email set"}</p>
+                                                <div className="inline-flex items-center gap-1.5 mt-2 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                                    <ShieldCheck className="h-3 w-3" />
+                                                    Verified Account
+                                                </div>
                                             </div>
                                         </div>
 
-                                        {/* Form Fields */}
-                                        <div className="grid md:grid-cols-2 gap-6">
+                                        {/* Form Fields Grid */}
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                             <div className="space-y-2">
-                                                <Label>Display Name</Label>
-                                                <div className="relative">
-                                                    <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                                                    <Input
-                                                        value={name}
-                                                        onChange={(e) => setName(e.target.value)}
-                                                        className="pl-9 bg-black/20 border-white/10 focus:border-indigo-500/50"
-                                                    />
-                                                </div>
+                                                <Label className="text-xs font-black uppercase tracking-wider text-gray-300">Full Display Name</Label>
+                                                <Input
+                                                    value={name}
+                                                    onChange={(e) => setName(e.target.value)}
+                                                    placeholder="Enter your full name"
+                                                    className="h-11 bg-black/50 border-2 border-white/15 focus:border-[hsl(var(--neon-lime))] rounded-xl text-white font-medium shadow-[2px_2px_0px_0px_#000]"
+                                                />
                                             </div>
-                                            <div className="space-y-2">
-                                                <Label>Email Address</Label>
-                                                <div className="relative">
-                                                    <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                                                    <Input
-                                                        value={email}
-                                                        onChange={(e) => setEmail(e.target.value)}
-                                                        className="pl-9 bg-black/20 border-white/10 focus:border-indigo-500/50"
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </CardContent>
-                                </Card>
 
-                                {/* Regional Settings */}
-                                <Card className="border-white/10 bg-card/30 backdrop-blur-xl">
-                                    <CardHeader>
-                                        <CardTitle>Preferences</CardTitle>
-                                        <CardDescription>Customize your regional experience</CardDescription>
-                                    </CardHeader>
-                                    <CardContent className="grid md:grid-cols-2 gap-6">
-                                        <div className="space-y-2">
-                                            <Label>Language</Label>
-                                            <div className="relative">
-                                                <Globe className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                                                <select className="w-full h-10 pl-9 pr-3 rounded-md border border-white/10 bg-black/20 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500/50">
-                                                    <option>English (US)</option>
-                                                    <option>Spanish</option>
-                                                    <option>French</option>
-                                                </select>
+                                            <div className="space-y-2">
+                                                <Label className="text-xs font-black uppercase tracking-wider text-gray-300">Email Address</Label>
+                                                <Input
+                                                    value={email}
+                                                    onChange={(e) => setEmail(e.target.value)}
+                                                    placeholder="name@example.com"
+                                                    className="h-11 bg-black/50 border-2 border-white/15 focus:border-[hsl(var(--neon-lime))] rounded-xl text-white font-medium shadow-[2px_2px_0px_0px_#000]"
+                                                />
                                             </div>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label>Currency</Label>
-                                            <div className="relative">
-                                                <span className="absolute left-3 top-2.5 text-sm font-bold text-muted-foreground">
-                                                    {currencies[preferredCurrency]?.symbol || '$'}
-                                                </span>
+
+                                            <div className="space-y-2 md:col-span-2">
+                                                <Label className="text-xs font-black uppercase tracking-wider text-gray-300">Preferred Display Currency</Label>
                                                 <select
                                                     value={preferredCurrency}
                                                     onChange={(e) => setPreferredCurrency(e.target.value)}
-                                                    className="w-full h-10 pl-9 pr-3 rounded-md border border-white/10 bg-black/20 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500/50"
+                                                    className="w-full h-11 px-4 bg-black/50 border-2 border-white/15 focus:border-[hsl(var(--neon-lime))] rounded-xl text-white font-bold text-sm shadow-[2px_2px_0px_0px_#000] outline-none"
                                                 >
-                                                    {Object.values(currencies).map(curr => (
-                                                        <option key={curr.code} value={curr.code}>
-                                                            {curr.name} ({curr.symbol})
+                                                    {currencies.map((c) => (
+                                                        <option key={c.code} value={c.code} className="bg-[#12141c] text-white">
+                                                            {c.symbol} ({c.code}) - {c.name}
                                                         </option>
                                                     ))}
                                                 </select>
@@ -228,121 +221,63 @@ export default function SettingsPage() {
                             </motion.div>
                         )}
 
+                        {/* ────── TAB 2: SECURITY ────── */}
                         {activeTab === "security" && (
                             <motion.div
                                 key="security"
                                 {...fadeInScale}
                                 className="space-y-6"
                             >
-                                {/* Password Change */}
-                                <Card className="border-white/10 bg-card/30 backdrop-blur-xl">
-                                    <CardHeader>
-                                        <CardTitle>Password & Authentication</CardTitle>
-                                        <CardDescription>Manage how you sign in to your account</CardDescription>
+                                <Card className="border-2 border-white/15 bg-[#10121a]/80 backdrop-blur-xl rounded-2xl shadow-[6px_6px_0px_0px_rgba(0,0,0,0.9)] overflow-hidden">
+                                    <CardHeader className="border-b border-white/10 bg-white/[0.02]">
+                                        <CardTitle className="text-xl font-black text-white flex items-center gap-2">
+                                            <Shield className="h-5 w-5 text-[hsl(var(--neon-lime))]" />
+                                            Security & Two-Factor Auth
+                                        </CardTitle>
+                                        <CardDescription className="text-gray-400 text-xs">Protect your account with Two-Factor Authentication (2FA) and password security</CardDescription>
                                     </CardHeader>
-                                    <CardContent className="space-y-4">
-                                        <div className="space-y-2">
-                                            <Label>Current Password</Label>
-                                            <div className="relative">
-                                                <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                                                <Input type="password" placeholder="••••••••" className="pl-9 bg-black/20 border-white/10" />
-                                            </div>
-                                        </div>
-                                        <div className="grid md:grid-cols-2 gap-4">
-                                            <div className="space-y-2">
-                                                <Label>New Password</Label>
-                                                <div className="relative">
-                                                    <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                                                    <Input type="password" placeholder="Min. 8 characters" className="pl-9 bg-black/20 border-white/10" />
-                                                </div>
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label>Confirm Password</Label>
-                                                <div className="relative">
-                                                    <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                                                    <Input type="password" placeholder="Repeat password" className="pl-9 bg-black/20 border-white/10" />
-                                                </div>
-                                            </div>
-                                        </div>
+                                    <CardContent className="p-6">
+                                        <TwoFactorSetup />
                                     </CardContent>
-                                </Card>
-
-                                {/* 2FA Toggle */}
-                                <Card className="border-white/10 bg-card/30 backdrop-blur-xl">
-                                    <TwoFactorSetup
-                                        enabled={twoFactor}
-                                        onStatusChange={setTwoFactor}
-                                    />
                                 </Card>
                             </motion.div>
                         )}
 
+                        {/* ────── TAB 3: NOTIFICATIONS ────── */}
                         {activeTab === "notifications" && (
                             <motion.div
                                 key="notifications"
                                 {...fadeInScale}
                                 className="space-y-6"
                             >
-                                <NotificationSettings />
-                            </motion.div>
-                        )}
-
-                        {activeTab === "billing" && (
-                            <motion.div
-                                key="billing"
-                                {...fadeInScale}
-                                className="space-y-6"
-                            >
-                                <Card className="border-white/10 bg-card/30 backdrop-blur-xl">
-                                    <CardHeader>
-                                        <CardTitle>Plan & Billing</CardTitle>
-                                        <CardDescription>Manage your subscription and payment methods</CardDescription>
+                                <Card className="border-2 border-white/15 bg-[#10121a]/80 backdrop-blur-xl rounded-2xl shadow-[6px_6px_0px_0px_rgba(0,0,0,0.9)] overflow-hidden">
+                                    <CardHeader className="border-b border-white/10 bg-white/[0.02]">
+                                        <CardTitle className="text-xl font-black text-white flex items-center gap-2">
+                                            <Bell className="h-5 w-5 text-[hsl(var(--neon-lime))]" />
+                                            Notification Preferences
+                                        </CardTitle>
+                                        <CardDescription className="text-gray-400 text-xs">Configure real-time SMS alerts, security notifications, and channel preferences</CardDescription>
                                     </CardHeader>
-                                    <CardContent className="space-y-6">
-                                        <div className="p-4 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 flex items-center justify-between">
-                                            <div>
-                                                <p className="text-sm font-medium text-indigo-300 mb-1">CURRENT PLAN</p>
-                                                <h3 className="text-2xl font-bold text-white">Pro Member</h3>
-                                                <p className="text-xs text-muted-foreground mt-1">Renews on Jan 14, 2026</p>
-                                            </div>
-                                            <Button className="bg-white text-black hover:bg-gray-200">Manage Plan</Button>
-                                        </div>
-
-                                        <div className="space-y-3">
-                                            <Label>Payment Methods</Label>
-                                            <div className="flex items-center justify-between p-4 rounded-xl border border-white/10 bg-black/20">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-6 bg-white/10 rounded flex items-center justify-center text-[10px] font-bold">VISA</div>
-                                                    <div>
-                                                        <p className="text-sm font-medium">Visa ending in 4242</p>
-                                                        <p className="text-xs text-muted-foreground">Expiry 12/28</p>
-                                                    </div>
-                                                </div>
-                                                <Button variant="ghost" size="sm">Edit</Button>
-                                            </div>
-                                        </div>
+                                    <CardContent className="p-6">
+                                        <NotificationSettings />
                                     </CardContent>
                                 </Card>
                             </motion.div>
                         )}
                     </AnimatePresence>
-
-                    {/* Fixed Save Button / Actions */}
-                    <div className="flex justify-end pt-6">
-                        <Button
-                            onClick={handleSave}
-                            disabled={isLoading}
-                            className="bg-indigo-600 hover:bg-indigo-500 min-w-[120px]"
-                        >
-                            {isLoading ? (
-                                <>Saving...</>
-                            ) : (
-                                <>Save Changes</>
-                            )}
-                        </Button>
-                    </div>
                 </div>
             </div>
+
+            {/* Dark Neo-Brutalist Notification Card Toast */}
+            {showDemoNotification && (
+                <DarkNeobrutalistNotificationCard
+                    title="Universal Schema Engine Active"
+                    message="Multi-node RTDB fleet is running with 1,482 connected SIM nodes."
+                    badgeText="FLEET ENGINE"
+                    actionText="View Settings"
+                    onClose={() => setShowDemoNotification(false)}
+                />
+            )}
         </div>
     )
 }

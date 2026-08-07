@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from fastapi import APIRouter, HTTPException, Query, Depends
 
 try:
+    # pyrefly: ignore [missing-import]
     from utils.db import db_adapter
 except ImportError:
     from bot_project.utils.db import db_adapter
