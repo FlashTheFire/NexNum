@@ -11,11 +11,11 @@ import Image from 'next/image'
 import { useAuthStore } from '@/stores/authStore'
 
 interface TwoFactorSetupProps {
-    enabled: boolean
-    onStatusChange: (enabled: boolean) => void
+    enabled?: boolean
+    onStatusChange?: (enabled: boolean) => void
 }
 
-export function TwoFactorSetup({ enabled, onStatusChange }: TwoFactorSetupProps) {
+export function TwoFactorSetup({ enabled = false, onStatusChange }: TwoFactorSetupProps) {
     const { token } = useAuthStore()
     const [isOpen, setIsOpen] = useState(false)
     const [step, setStep] = useState<'intro' | 'qr' | 'verify' | 'backup' | 'disable'>('intro')

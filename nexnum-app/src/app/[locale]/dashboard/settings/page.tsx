@@ -237,7 +237,10 @@ export default function SettingsPage() {
                                         <CardDescription className="text-gray-400 text-xs">Protect your account with Two-Factor Authentication (2FA) and password security</CardDescription>
                                     </CardHeader>
                                     <CardContent className="p-6">
-                                        <TwoFactorSetup />
+                                        <TwoFactorSetup
+                                            enabled={user?.twoFactorEnabled || twoFactor}
+                                            onStatusChange={setTwoFactor}
+                                        />
                                     </CardContent>
                                 </Card>
                             </motion.div>
