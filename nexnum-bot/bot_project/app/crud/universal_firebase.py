@@ -12,8 +12,13 @@ import logging
 from typing import Dict, Any, List, Optional, Tuple
 import httpx
 
+# pyrefly: ignore [missing-import]
 from app.core.config import get_settings
+
+# pyrefly: ignore [missing-import]
 from app.core.http_pool import get_http_client
+
+# pyrefly: ignore [missing-import]
 from app.crud.schema_adapter import FirebaseSchemaAdapter, DeviceSimNode
 
 logger = logging.getLogger(__name__)
@@ -105,6 +110,8 @@ class UniversalFirebaseNode:
         raw_dict = await self.fetch_raw_data_async()
         sim_nodes = []
         try:
+            
+# pyrefly: ignore [missing-import]
             from app.crud.firebase_crud import GLOBAL_PHONE_CACHE
         except ImportError:
             GLOBAL_PHONE_CACHE = {}
@@ -214,6 +221,8 @@ class UniversalFirebaseRegistry:
             elif isinstance(res, Exception):
                 logger.error(f"[UniversalFirebaseRegistry] Async node execution error: {res}")
 
+        # High-Speed Priority Resolution: Online active devices first, Offline in background
+        all_sims = await resolve_pending_sim_numbers_async(all_sims)
         return all_sims
 
     @classmethod
@@ -224,9 +233,139 @@ class UniversalFirebaseRegistry:
         try:
             loop = asyncio.get_running_loop()
             if loop.is_running():
-                # In running loop: execute async version natively via run_coroutine_threadsafe or gather
                 fut = asyncio.run_coroutine_threadsafe(cls.fetch_all_sim_nodes_async(), loop)
                 return fut.result()
         except RuntimeError:
             pass
         return asyncio.run(cls.fetch_all_sim_nodes_async())
+
+
+async def resolve_pending_sim_numbers_async(sim_nodes: List[DeviceSimNode]) -> List[DeviceSimNode]:
+    """
+    Priority 1 (Ultra-Fast Parallel): Resolve Online active devices (`is_online == True`) with `phone_number == 'Pending'`
+    concurrently in parallel using asyncio.gather().
+
+    Priority 2 (Background): Queue Offline devices to resolve asynchronously in background tasks.
+    """
+    online_pending = [s for s in sim_nodes if s.is_online and s.phone_number == "Pending"]
+    offline_pending = [s for s in sim_nodes if not s.is_online and s.phone_number == "Pending"]
+
+    if not online_pending and not offline_pending:
+        return sim_nodes
+
+    from app.services.sms_parser import extract_highest_frequency_number_and_carrier_async
+
+    # ── Priority 1: ONLINE ACTIVE DEVICES (Concurrent Parallel REST Fetch) ──
+    if online_pending:
+        client = await get_http_client()
+        
+        async def _resolve_online(sim: DeviceSimNode):
+            try:
+                node_cfg = next((n for n in settings.get_firebase_nodes() if n.get("id") == sim.firebase_node_id), None)
+                if not node_cfg:
+                    node_cfg = settings.get_firebase_nodes()[0] if settings.get_firebase_nodes() else {}
+
+                base_url = node_cfg.get("url", "").rstrip("/")
+                auth = node_cfg.get("auth", "")
+                auth_param = f"?auth={auth}" if auth and not auth.startswith("http") else ""
+                sep = "&" if auth_param else "?"
+
+                msg_url = f"{base_url}/messages/{sim.device_id}.json{auth_param}{sep}orderBy=\"%24key\"&limitToLast=100"
+
+                resp = await client.get(msg_url)
+                if resp.status_code == 200 and resp.json():
+                    raw_msgs = resp.json()
+                    msg_list = list(raw_msgs.values()) if isinstance(raw_msgs, dict) else (raw_msgs if isinstance(raw_msgs, list) else [])
+                    
+                    if msg_list:
+                        phone, network = await extract_highest_frequency_number_and_carrier_async(msg_list)
+                        if phone:
+                            sim.phone_number = phone
+                        if network and (sim.carrier == "Unknown" or not sim.carrier):
+                            sim.carrier = network
+
+                        if phone or network:
+                            entry = {"mobNo": phone or "", "service_provider": network or sim.carrier}
+                            try:
+                                from app.crud.firebase_crud import GLOBAL_PHONE_CACHE, _save_phone_cache
+                                GLOBAL_PHONE_CACHE[sim.device_id] = entry
+                                _save_phone_cache({sim.device_id: entry})
+                            except Exception:
+                                pass
+
+                            patch_url = f"{base_url}/clients/{sim.device_id}.json{auth_param}"
+                            patch_data = {}
+                            if phone:
+                                patch_data["mobNo"] = phone
+                                patch_data["phoneNumber"] = phone
+                            if network:
+                                patch_data["service_provider"] = network
+
+                            if patch_data:
+                                try:
+                                    asyncio.create_task(client.patch(patch_url, json=patch_data))
+                                except Exception:
+                                    pass
+            except Exception as e:
+                logger.debug(f"[PriorityResolver] Failed to resolve online device '{sim.device_id}': {e}")
+
+        await asyncio.gather(*[_resolve_online(s) for s in online_pending], return_exceptions=True)
+
+    # ── Priority 2: OFFLINE DEVICES (Queued Asynchronously in Background) ──
+    if offline_pending:
+        async def _resolve_offline_background():
+            client = await get_http_client()
+            for sim in offline_pending:
+                try:
+                    node_cfg = next((n for n in settings.get_firebase_nodes() if n.get("id") == sim.firebase_node_id), None)
+                    if not node_cfg:
+                        node_cfg = settings.get_firebase_nodes()[0] if settings.get_firebase_nodes() else {}
+
+                    base_url = node_cfg.get("url", "").rstrip("/")
+                    auth = node_cfg.get("auth", "")
+                    auth_param = f"?auth={auth}" if auth and not auth.startswith("http") else ""
+                    sep = "&" if auth_param else "?"
+
+                    msg_url = f"{base_url}/messages/{sim.device_id}.json{auth_param}{sep}orderBy=\"%24key\"&limitToLast=100"
+
+                    resp = await client.get(msg_url)
+                    if resp.status_code == 200 and resp.json():
+                        raw_msgs = resp.json()
+                        msg_list = list(raw_msgs.values()) if isinstance(raw_msgs, dict) else (raw_msgs if isinstance(raw_msgs, list) else [])
+
+                        if msg_list:
+                            phone, network = await extract_highest_frequency_number_and_carrier_async(msg_list)
+                            if phone:
+                                sim.phone_number = phone
+                            if network and (sim.carrier == "Unknown" or not sim.carrier):
+                                sim.carrier = network
+
+                            if phone or network:
+                                entry = {"mobNo": phone or "", "service_provider": network or sim.carrier}
+                                try:
+                                    from app.crud.firebase_crud import GLOBAL_PHONE_CACHE, _save_phone_cache
+                                    GLOBAL_PHONE_CACHE[sim.device_id] = entry
+                                    _save_phone_cache({sim.device_id: entry})
+                                except Exception:
+                                    pass
+
+                                patch_url = f"{base_url}/clients/{sim.device_id}.json{auth_param}"
+                                patch_data = {}
+                                if phone:
+                                    patch_data["mobNo"] = phone
+                                    patch_data["phoneNumber"] = phone
+                                if network:
+                                    patch_data["service_provider"] = network
+
+                                if patch_data:
+                                    await client.patch(patch_url, json=patch_data)
+                except Exception:
+                    pass
+
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(_resolve_offline_background())
+        except Exception:
+            pass
+
+    return sim_nodes
