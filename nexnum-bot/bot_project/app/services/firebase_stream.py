@@ -162,30 +162,8 @@ class FirebaseStreamManager:
             await self._match_sms_to_activation(node_id, client_id, msg_text, msg_ts, msg)
 
     async def _match_sms_to_activation(self, node_id: str, client_id: str, msg_text: str, msg_ts: float, full_msg: dict):
-        # ─── Phase 1: Also push to Redis Stream (unified inbound pipeline) ────
+        # Push to Redis Stream (unified inbound pipeline handles worker matching)
         await self._push_to_inbound_stream(node_id, client_id, msg_text, msg_ts, full_msg)
-
-        # ─── Legacy direct-match (backward compatible, will be removed in Phase 3) ─
-        activations = await get_all_activations()
-        if not activations:
-            return
-
-        now = time.time()
-        for act_id, act in activations.items():
-            if act.get("status") in ("STATUS_CANCEL", "STATUS_OK"):
-                continue
-
-            # Match client_id
-            if act.get("client_id") == client_id:
-                created_ms = act.get("created", 0) * 1000
-                if msg_ts >= created_ms:
-                    act["has_sms"] = True
-                    act["received_messages"] = [full_msg]
-                    act["code_text"] = msg_text
-                    act["sms_time"] = msg_ts
-                    act["status"] = "STATUS_OK"
-                    await save_activation(act_id, act)
-                    logger.info(f"[SSE STREAM match] Activation {act_id} matched live SMS from Client {client_id}: '{msg_text}'")
 
     async def _push_to_inbound_stream(self, node_id: str, client_id: str, msg_text: str, msg_ts: float, full_msg: dict):
         """Push Firebase SSE message to same Redis Stream as webhook inbound."""
@@ -225,7 +203,7 @@ class FirebaseStreamManager:
             "source": f"firebase_sse:{node_id}",
         }
         try:
-            msg_id = await redis_client.xadd(stream_name, entry)
+            msg_id = await redis_client.xadd(stream_name, entry, maxlen=10000, approximate=True)
             logger.debug(f"[SSE→Stream] Pushed {client_id} message to stream: {msg_id}")
         except Exception as e:
             logger.warning(f"[SSE→Stream] Failed to push to stream: {e}")

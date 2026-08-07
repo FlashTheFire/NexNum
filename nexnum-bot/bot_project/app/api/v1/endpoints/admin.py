@@ -15,7 +15,7 @@ import time
 import json
 import logging
 from typing import Dict, Any, List, Optional
-from fastapi import APIRouter, Request, HTTPException, Query, Body
+from fastapi import APIRouter, Request, HTTPException, Query, Body, Depends
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 
@@ -27,7 +27,9 @@ from app.services.sms_parser import extract_otp_code, match_sms_to_service
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-router = APIRouter(tags=["Admin Panel"])
+from app.middleware.auth import verify_api_key
+
+router = APIRouter(tags=["Admin Panel"], dependencies=[Depends(verify_api_key)])
 REDIS_PREFIX = "nexsms"
 
 
@@ -68,8 +70,7 @@ async def get_system_stats():
 
     if redis_client:
         try:
-            keys = await redis_client.keys(f"{REDIS_PREFIX}:activation:*")
-            active_activations = len(keys)
+            active_activations = await redis_client.scard(f"{REDIS_PREFIX}:active_ids")
             
             stream_info = await redis_client.xinfo_stream(settings.REDIS_STREAM_INBOUND)
             stream_length = stream_info.get("length", 0)
@@ -179,10 +180,11 @@ async def get_active_activations():
         return {"activations": []}
 
     try:
-        keys = await redis_client.keys(f"{REDIS_PREFIX}:activation:*")
-        if not keys:
+        active_ids = await redis_client.smembers(f"{REDIS_PREFIX}:active_ids")
+        if not active_ids:
             return {"activations": []}
 
+        keys = [f"{REDIS_PREFIX}:activation:{aid}" for aid in active_ids]
         pipe = redis_client.pipeline()
         for k in keys:
             pipe.get(k)
@@ -190,16 +192,17 @@ async def get_active_activations():
 
         activations = []
         now = time.time()
-        for k, v in zip(keys, results):
+        for aid, v in zip(active_ids, results):
             if v:
                 try:
                     data = json.loads(v)
-                    act_id = k.split(":")[-1]
                     created = data.get("created", now)
                     data["elapsedSeconds"] = round(now - created, 1)
                     activations.append(data)
                 except Exception:
                     pass
+            else:
+                await redis_client.srem(f"{REDIS_PREFIX}:active_ids", aid)
 
         activations.sort(key=lambda a: a.get("created", 0), reverse=True)
         return {"count": len(activations), "activations": activations}

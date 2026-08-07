@@ -120,14 +120,35 @@ async def set_user_number_cooldown(user_id: str, phone_number: str, timestamp: f
             logger.warning(f"Redis error setting user number cooldown: {e}")
 
 
+ACTIVE_IDS_KEY = f"{REDIS_PREFIX}:active_ids"
+
 async def save_activation(activation_id: str, activation_data: dict):
     _local_activations[activation_id] = activation_data
     client = await get_redis_client()
     if client:
         try:
-            await client.set(f"{REDIS_PREFIX}:activation:{activation_id}", json.dumps(activation_data), ex=ACTIVATION_TTL)
+            status = activation_data.get("status")
+            pipe = client.pipeline()
+            pipe.set(f"{REDIS_PREFIX}:activation:{activation_id}", json.dumps(activation_data), ex=ACTIVATION_TTL)
+            if status in ("STATUS_CANCEL", "STATUS_OK"):
+                pipe.srem(ACTIVE_IDS_KEY, activation_id)
+            else:
+                pipe.sadd(ACTIVE_IDS_KEY, activation_id)
+            await pipe.execute()
         except Exception as e:
             logger.warning(f"Redis error saving activation: {e}")
+
+async def remove_activation_index(activation_id: str):
+    _local_activations.pop(activation_id, None)
+    client = await get_redis_client()
+    if client:
+        try:
+            pipe = client.pipeline()
+            pipe.delete(f"{REDIS_PREFIX}:activation:{activation_id}")
+            pipe.srem(ACTIVE_IDS_KEY, activation_id)
+            await pipe.execute()
+        except Exception as e:
+            logger.warning(f"Redis error removing activation index: {e}")
 
 async def get_activation(activation_id: str) -> Optional[dict]:
     client = await get_redis_client()
@@ -144,20 +165,23 @@ async def get_all_activations() -> Dict[str, dict]:
     client = await get_redis_client()
     if client:
         try:
-            keys = await client.keys(f"{REDIS_PREFIX}:activation:*")
-            if keys:
+            active_ids = await client.smembers(ACTIVE_IDS_KEY)
+            if active_ids:
+                keys = [f"{REDIS_PREFIX}:activation:{aid}" for aid in active_ids]
                 pipe = client.pipeline()
                 for key in keys:
                     pipe.get(key)
                 results = await pipe.execute()
                 res = {}
-                for k, v in zip(keys, results):
+                for aid, v in zip(active_ids, results):
                     if v:
-                        act_id = k.split(":")[-1]
-                        res[act_id] = json.loads(v)
+                        res[str(aid)] = json.loads(v)
+                    else:
+                        # Clean up stale ID from set
+                        await client.srem(ACTIVE_IDS_KEY, aid)
                 return res
         except Exception as e:
-            logger.warning(f"Redis error listing all activations: {e}")
+            logger.warning(f"Redis error listing active activations: {e}")
     return _local_activations
 
 # -----------------------------------------------------------------------------
@@ -269,7 +293,12 @@ async def handler_api(
         logger.info(f"Activation {act_id} created for Client {client_id} (User: {req_user_id}) with phone {phone_number}")
 
         clean_digits = phone_number.replace("+", "")
-        svc_cost = 0.35
+        
+        # Calculate professional dynamic pricing with peak-time surge
+        from app.services.pricing_engine import PricingEngine
+        pricing_data = await PricingEngine.compute_dynamic_price(redis_client, req_service)
+        svc_cost = pricing_data["finalPrice"]
+        logger.info(f"Dynamic price for '{req_service}': ${svc_cost} (Surge: {pricing_data['isSurge']}, Reason: {pricing_data['surgeReason']})")
 
         act = {
             "id": act_id,
@@ -475,11 +504,15 @@ async def handler_api(
         target_country = str(country) if country and country != "any" else "22"
         req_svc = service.lower() if service else None
 
+        from app.services.pricing_engine import PricingEngine
+        redis_client = await get_redis_client()
+
         services_map = {}
         for s in services_catalog:
             code = s["code"]
             if not req_svc or code == req_svc:
-                cost = s["cost"]
+                price_info = await PricingEngine.compute_dynamic_price(redis_client, code, custom_base_price=s["cost"])
+                cost = price_info["finalPrice"]
                 count = max(1, online_count)
                 services_map[code] = {
                     "cost": cost,
@@ -487,7 +520,9 @@ async def handler_api(
                     "amount": cost,
                     "count": count,
                     "stock": count,
-                    "operator": "any"
+                    "operator": "any",
+                    "surge": price_info["isSurge"],
+                    "surgeReason": price_info["surgeReason"]
                 }
 
         prices = {target_country: services_map}

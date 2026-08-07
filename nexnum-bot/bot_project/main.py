@@ -144,10 +144,12 @@ async def lifespan(app: FastAPI):
     yield
 
     # Cleanup
+    from app.core.http_pool import close_http_pool
     if settings.ENABLE_IN_PROCESS_WORKERS:
         await stop_prescorer_worker()
         await stop_activation_workers()
         await firebase_stream_manager.stop_listeners()
+    await close_http_pool()
     scheduler.shutdown()
 
 fastapi_app = FastAPI(

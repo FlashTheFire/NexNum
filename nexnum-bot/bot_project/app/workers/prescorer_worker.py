@@ -78,7 +78,8 @@ async def analyze_and_cache_all_service_counts(redis_client):
     Scans all SIM nodes, fetches up to 150 historical SMS per device,
     computes per-service SMS counts, and saves to Redis `nexsms:service_counts:{phone}`.
     """
-    sim_nodes = get_all_sim_nodes()
+    loop = asyncio.get_running_loop()
+    sim_nodes = await loop.run_in_executor(None, get_all_sim_nodes)
     if not sim_nodes:
         return
 
@@ -90,8 +91,8 @@ async def analyze_and_cache_all_service_counts(redis_client):
             continue
         processed_phones.add(phone)
 
-        # Fetch up to 100 historical messages for this device
-        messages = get_incoming_messages(node.device_id, limit=100)
+        # Fetch up to 100 historical messages for this device in executor thread
+        messages = await loop.run_in_executor(None, get_incoming_messages, node.device_id, 100)
         if not messages:
             continue
 

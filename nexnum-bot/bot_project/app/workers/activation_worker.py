@@ -230,25 +230,27 @@ async def _process_stream_message(redis_client, msg_id: str, fields: Dict[str, s
 # ─── Redis Helpers ────────────────────────────────────────────────────────────
 
 async def _get_active_redis_activations(redis_client) -> Dict[str, dict]:
-    """Retrieve all activations from Redis (`nexsms:activation:*`)."""
+    """Retrieve all active activations from Redis using the active_ids SET index."""
     try:
-        keys = await redis_client.keys(f"{REDIS_PREFIX}:activation:*")
-        if not keys:
+        active_ids = await redis_client.smembers(f"{REDIS_PREFIX}:active_ids")
+        if not active_ids:
             return {}
 
+        keys = [f"{REDIS_PREFIX}:activation:{aid}" for aid in active_ids]
         pipe = redis_client.pipeline()
         for key in keys:
             pipe.get(key)
         results = await pipe.execute()
 
         res = {}
-        for k, v in zip(keys, results):
+        for aid, v in zip(active_ids, results):
             if v:
-                act_id = k.split(":")[-1]
                 try:
-                    res[act_id] = json.loads(v)
+                    res[str(aid)] = json.loads(v)
                 except Exception:
                     pass
+            else:
+                await redis_client.srem(f"{REDIS_PREFIX}:active_ids", aid)
         return res
     except Exception as e:
         logger.warning(f"Error fetching Redis activations in worker: {e}")

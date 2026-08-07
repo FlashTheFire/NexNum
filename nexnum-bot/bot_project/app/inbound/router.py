@@ -119,7 +119,7 @@ async def _push_to_stream(redis_client, payload: InboundSmsPayload) -> Optional[
     }
     
     try:
-        msg_id = await redis_client.xadd(stream_name, entry)
+        msg_id = await redis_client.xadd(stream_name, entry, maxlen=10000, approximate=True)
         return msg_id
     except Exception as e:
         logger.error(f"Failed to XADD to stream '{stream_name}': {e}")

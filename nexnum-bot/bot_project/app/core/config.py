@@ -20,8 +20,8 @@ class Settings(BaseSettings):
     FIREBASE_CLIENT_AUTH: Optional[str] = None
 
     # Supabase Integration (SilentGate project)
-    SUPABASE_URL: Optional[str] = "https://kqlhsbtexcoxqwwubuhz.supabase.co"
-    SUPABASE_KEY: Optional[str] = "sb_publishable_qggA0oG7mpRRT7WTnf6UUw_nIPVf1zM"
+    SUPABASE_URL: Optional[str] = None
+    SUPABASE_KEY: Optional[str] = None
 
     # API Auth
     API_KEY: str = "your-random-secret-key"
