@@ -56,9 +56,9 @@ async def create_deposit(req: DepositCreateRequest):
             deposit_id=deposit_id
         )
 
-        from utils.functions import QR_BASE_URL
+        from utils.functions import generate_simple_upi_qr
         dep_id_str = str(created_id or deposit_id)
-        qr_code_url = QR_BASE_URL.format(order_id=dep_id_str)
+        qr_code_url = generate_simple_upi_qr(dep_id_str, req.amount)
         upi_id = "paytmqr281005050101nbxw0hx35cpo@paytm"
 
         deposit_data = {

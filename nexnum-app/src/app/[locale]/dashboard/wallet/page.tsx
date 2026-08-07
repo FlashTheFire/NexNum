@@ -200,8 +200,8 @@ export default function WalletPage() {
             const result = await api.request<any>('/api/wallet/deposit')
             if (result.success && result.data?.deposits && result.data.deposits.length > 0) {
                 const pending = result.data.deposits[0]
-                const depId = pending.depositId || pending.orderId
-                const defaultQr = `https://qr.udayscriptsx.workers.dev/?data=upi%3A%2F%2Fpay%3Fpa%3Dpaytmqr281005050101nbxw0hx35cpo%40paytm%26pn%3DPaytm%2520Merchant%26tr%3D${depId}%26tn%3DAdding%2520Fund&body=dot&eye=frame13&eyeball=ball14&col1=121f28&col2=121f28&logo=https://i.postimg.cc/cCrHr3TQ/1000011838-removebg.png`
+                const upiRaw = `upi://pay?pa=paytmqr281005050101nbxw0hx35cpo@paytm&pn=Nex+Num+Name&am=${pending.amount || 10}&cu=INR&tr=${depId}&tn=Adding+Fund`
+                const defaultQr = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(upiRaw)}`
 
                 // Calculate real remaining seconds from expiresAt
                 const remainingSecs = pending.expiresIn

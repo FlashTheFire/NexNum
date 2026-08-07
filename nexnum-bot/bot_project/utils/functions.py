@@ -39,16 +39,14 @@ import numpy as np
 qrcode: Any = None
 
 # Constants and providers
-DEPOSIT_PROVIDERS = {
-    1: ('paytm.udayscriptsx.workers.dev/', 'SzFThC49898719386494'),
-}
-QR_BASE_URL = (
-    "https://qr.udayscriptsx.workers.dev/"
-    "?data=upi%3A%2F%2Fpay%3Fpa%3Dpaytmqr281005050101nbxw0hx35cpo%40paytm"
-    "%26pn%3DPaytm%2520Merchant%26tr%3D{order_id}"
-    "%26tn%3DAdding%2520Fund&body=dot&eye=frame13&eyeball=ball14"
-    "&col1=121f28&col2=121f28&logo=https://i.postimg.cc/cCrHr3TQ/1000011838-removebg.png"
-)
+def generate_simple_upi_qr(order_id: str, amount: float = 10) -> str:
+    """Generates simple, reliable, fast UPI QR code URL with pre-filled merchant name, amount, and currency."""
+    import urllib.parse
+    safe_amt = max(1, int(amount) if amount else 10)
+    upi_raw = f"upi://pay?pa=paytmqr281005050101nbxw0hx35cpo@paytm&pn=Nex+Num+Name&am={safe_amt}&cu=INR&tr={order_id}&tn=Adding+Fund"
+    return f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={urllib.parse.quote(upi_raw)}"
+
+QR_BASE_URL = "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=upi%3A%2F%2Fpay%3Fpa%3Dpaytmqr281005050101nbxw0hx35cpo%40paytm%26pn%3DNex%2BNum%2BName%26am%3D{amount}%26cu%3DINR%26tr%3D{order_id}%26tn%3DAdding%2BFund"
 ALPHABET = "𝄃𝄂𝄀𝄁"
 BASE = len(ALPHABET)
 

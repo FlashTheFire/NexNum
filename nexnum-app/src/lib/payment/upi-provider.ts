@@ -95,31 +95,11 @@ export class UPIProvider {
     }
 
     /**
-     * Build and resolve QR code image URL for order
+     * Build simple, fast, reliable QR code image URL with pre-filled merchant name, amount, currency, and order ID
      */
-    private async resolveQRCodeUrl(orderId: string, config: PaymentConfig): Promise<string> {
-        const qrBase = config.upiQrBaseUrl || 'https://qr.udayscriptsx.workers.dev/'
-
-        const upiRaw = `upi://pay?pa=paytmqr281005050101nbxw0hx35cpo@paytm&pn=NexNum&tr=${orderId}&tn=Adding Fund`
-        const upiData = encodeURIComponent(upiRaw)
-
-        const workerUrl = `${qrBase}?data=${upiData}&body=dot&eye=frame13&eyeball=ball14&col1=121f28&col2=121f28&logo=https://i.postimg.cc/cCrHr3TQ/1000011838-removebg.png`
-
-        try {
-            const controller = new AbortController()
-            const timeoutId = setTimeout(() => controller.abort(), 3500)
-            const response = await fetch(workerUrl, { signal: controller.signal })
-            clearTimeout(timeoutId)
-            if (response.ok) {
-                const text = await response.text()
-                try {
-                    const data = JSON.parse(text)
-                    if (data.image) return data.image
-                } catch {}
-            }
-        } catch (_err) {}
-
-        // Reliable fallback if worker is unreachable or returns invalid format
+    private resolveQRCodeUrl(orderId: string, amount: number): string {
+        const safeAmount = Math.max(1, Number(amount) || 10)
+        const upiRaw = `upi://pay?pa=paytmqr281005050101nbxw0hx35cpo@paytm&pn=Nex+Num+Name&am=${safeAmount}&cu=INR&tr=${orderId}&tn=Adding+Fund`
         return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(upiRaw)}`
     }
 
@@ -172,7 +152,7 @@ export class UPIProvider {
                 body: formData.toString(),
             })
 
-            let paymentUrl = `upi://pay?pa=paytmqr281005050101nbxw0hx35cpo@paytm&pn=Paytm%20Merchant&tr=${orderId}&tn=Adding%20Fund`
+            let paymentUrl = `upi://pay?pa=paytmqr281005050101nbxw0hx35cpo@paytm&pn=Nex+Num+Name&am=${amount}&cu=INR&tr=${orderId}&tn=Adding+Fund`
             const expiresAt = new Date(Date.now() + config.depositTimeoutMins * 60 * 1000)
 
             try {
@@ -182,7 +162,7 @@ export class UPIProvider {
                 }
             } catch (_err) {}
 
-            const qrCodeUrl = await this.resolveQRCodeUrl(orderId, config)
+            const qrCodeUrl = this.resolveQRCodeUrl(orderId, amount)
 
             return {
                 orderId,
@@ -194,10 +174,10 @@ export class UPIProvider {
             }
         } catch (error: any) {
             const expiresAt = new Date(Date.now() + config.depositTimeoutMins * 60 * 1000)
-            const qrCodeUrl = await this.resolveQRCodeUrl(orderId, config)
+            const qrCodeUrl = this.resolveQRCodeUrl(orderId, amount)
             return {
                 orderId,
-                paymentUrl: `upi://pay?pa=paytmqr281005050101nbxw0hx35cpo@paytm&pn=Paytm%20Merchant&tr=${orderId}&tn=Adding%20Fund`,
+                paymentUrl: `upi://pay?pa=paytmqr281005050101nbxw0hx35cpo@paytm&pn=Nex+Num+Name&am=${amount}&cu=INR&tr=${orderId}&tn=Adding+Fund`,
                 qrCodeUrl,
                 amount,
                 expiresAt,
