@@ -47,6 +47,9 @@ REDIS_PREFIX = "nexsms"
 
 class PatternUpdatePayload(BaseModel):
     name: str = Field(..., description="Human readable service name")
+    price: Optional[float] = Field(default=15.0, description="Service base price in INR/USD")
+    stock: Optional[int] = Field(default=100, description="Service stock / available SIMs")
+    senders: List[str] = Field(default=[], description="List of sender string hints")
     sender_patterns: List[str] = Field(default=[], description="List of sender regex patterns")
     body_patterns: List[str] = Field(default=[], description="List of body regex patterns")
     otp_regex: Optional[str] = Field(default=None, description="Custom OTP extraction regex pattern")
@@ -291,12 +294,14 @@ async def get_devices_list(
 @router.get("/devices/{device_id}/messages", response_model=None, dependencies=[Depends(verify_api_key)])
 async def get_device_messages(
     device_id: str,
-    limit: int = Query(default=150, ge=1, le=500, description="Max messages to fetch (up to 150)")
+    page: int = Query(default=1, ge=1, description="Page number for pagination"),
+    limit: int = Query(default=25, ge=1, le=500, description="Max messages per page"),
+    search: Optional[str] = Query(default=None, description="Search query filter across body and sender")
 ):
     """
-    Fetch last 150 incoming SMS messages for a specific device / SIM from Firebase RTDB.
+    Fetch last incoming SMS messages for a specific device / SIM from Firebase RTDB.
     Uses Redis 0ms caching layer with fallback to parallel multi-identifier key lookup.
-    Bypasses device_no_messages negative cache for explicit user requests.
+    Supports server-side search filtering and pagination.
     """
     try:
         # pyrefly: ignore [missing-import]
@@ -311,13 +316,14 @@ async def get_device_messages(
 
     cache_key = f"nexsms:device_messages:{device_id}"
 
-    # 0. Clear negative cache — user explicitly requested messages, don't trust stale "no messages" flag
+    # 0. Clear negative cache — user explicitly requested messages
     if redis_client:
         try:
             await redis_client.delete(f"{REDIS_PREFIX}:device_no_messages:{device_id}")
         except Exception:
             pass
 
+    cached_all: Optional[List[dict]] = None
     # 1. Check Redis Cache for 0ms Instant Response
     if redis_client:
         try:
@@ -325,81 +331,95 @@ async def get_device_messages(
             if cached_data:
                 parsed = json.loads(cached_data)
                 if isinstance(parsed, list) and len(parsed) > 0:
-                    return {
-                        "deviceId": device_id,
-                        "count": len(parsed[:limit]),
-                        "limit": limit,
-                        "messages": parsed[:limit],
-                        "source": "cache"
-                    }
+                    cached_all = parsed
         except Exception:
             pass
 
-    # 2. Fast Multi-Path Query (also tries phone number variants from GLOBAL_PHONE_CACHE)
-    try:
-        raw_msgs = get_incoming_messages(device_id, limit=limit)
-    except Exception as e:
-        logger.error(f"Failed to fetch incoming messages for {device_id}: {e}")
-        raw_msgs = []
-
-    # 2b. If empty, try alternate keys from phone cache
-    if not raw_msgs:
+    if cached_all is None:
+        # 2. Fast Multi-Path Query (also tries phone number variants from GLOBAL_PHONE_CACHE)
         try:
-            if device_id in GLOBAL_PHONE_CACHE:
-                alt_phone = GLOBAL_PHONE_CACHE[device_id].get("mobNo", "")
-                if alt_phone:
-                    raw_msgs = get_incoming_messages(alt_phone, limit=limit)
-        except Exception:
-            pass
+            raw_msgs = get_incoming_messages(device_id, limit=150)
+        except Exception as e:
+            logger.error(f"Failed to fetch incoming messages for {device_id}: {e}")
+            raw_msgs = []
 
-    formatted_messages = []
-    for msg in raw_msgs:
-        if not isinstance(msg, dict):
-            continue
-        
-        body_text = str(msg.get("message") or msg.get("body") or msg.get("text") or "")
-        sender = str(msg.get("sender") or msg.get("from") or msg.get("service") or "Unknown")
-        otp = extract_otp_code(body_text)
+        # 2b. If empty, try alternate keys from phone cache
+        if not raw_msgs:
+            try:
+                if device_id in GLOBAL_PHONE_CACHE:
+                    alt_phone = GLOBAL_PHONE_CACHE[device_id].get("mobNo", "")
+                    if alt_phone:
+                        raw_msgs = get_incoming_messages(alt_phone, limit=150)
+            except Exception:
+                pass
 
-        # Parse timestamp safely to epoch milliseconds
-        try:
-            ts_val = parse_any_datetime_to_epoch_ms(msg)
-        except Exception:
-            ts_val = 0
-        date_time_str = str(msg.get("dateTime") or msg.get("datetime") or msg.get("date_time") or "")
+        formatted_messages = []
+        for msg in raw_msgs:
+            if not isinstance(msg, dict):
+                continue
+            
+            body_text = str(msg.get("message") or msg.get("body") or msg.get("text") or "")
+            sender = str(msg.get("sender") or msg.get("from") or msg.get("service") or "Unknown")
+            otp = extract_otp_code(body_text)
 
-        formatted_messages.append({
-            "id": str(msg.get("id", "")),
-            "sender": sender,
-            "message": body_text,
-            "timestamp": ts_val,
-            "dateTime": date_time_str,
-            "otp": otp,
-            "service": msg.get("service") or sender
-        })
+            # Parse timestamp safely to epoch milliseconds
+            try:
+                ts_val = parse_any_datetime_to_epoch_ms(msg)
+            except Exception:
+                ts_val = 0
+            date_time_str = str(msg.get("dateTime") or msg.get("datetime") or msg.get("date_time") or "")
 
-    # Sort descending (newest message first)
-    formatted_messages.sort(key=lambda m: m["timestamp"], reverse=True)
-    res_list = formatted_messages[:limit]
+            formatted_messages.append({
+                "id": str(msg.get("id", "")),
+                "sender": sender,
+                "message": body_text,
+                "timestamp": ts_val,
+                "dateTime": date_time_str,
+                "otp": otp,
+                "service": msg.get("service") or sender
+            })
 
-    # 3. Save to Redis Cache (600s TTL) and sync across identifiers
-    if redis_client and res_list:
-        try:
-            msg_json = json.dumps(res_list)
-            pipe = redis_client.pipeline()
-            pipe.delete(f"{REDIS_PREFIX}:device_no_messages:{device_id}")
-            pipe.set(cache_key, msg_json, ex=600)
-            pipe.set(f"{REDIS_PREFIX}:device_messages:{device_id}", msg_json, ex=600)
-            await pipe.execute()
-        except Exception:
-            pass
+        # Sort descending (newest message first)
+        formatted_messages.sort(key=lambda m: m["timestamp"], reverse=True)
+        cached_all = formatted_messages
+
+        # 3. Save to Redis Cache (600s TTL)
+        if redis_client and cached_all:
+            try:
+                msg_json = json.dumps(cached_all)
+                pipe = redis_client.pipeline()
+                pipe.delete(f"{REDIS_PREFIX}:device_no_messages:{device_id}")
+                pipe.set(cache_key, msg_json, ex=600)
+                pipe.set(f"{REDIS_PREFIX}:device_messages:{device_id}", msg_json, ex=600)
+                await pipe.execute()
+            except Exception:
+                pass
+
+    all_messages = cached_all or []
+
+    # Optional search filtering
+    if search:
+        s_lower = search.strip().lower()
+        all_messages = [
+            m for m in all_messages
+            if s_lower in str(m.get("message", "")).lower() or s_lower in str(m.get("sender", "")).lower() or s_lower in str(m.get("otp", "")).lower()
+        ]
+
+    total = len(all_messages)
+    total_pages = max(1, math.ceil(total / limit)) if limit > 0 else 1
+    start_idx = (page - 1) * limit
+    end_idx = start_idx + limit
+    paginated_msgs = all_messages[start_idx:end_idx]
 
     return {
         "deviceId": device_id,
-        "count": len(res_list),
+        "total": total,
+        "page": page,
         "limit": limit,
-        "messages": res_list,
-        "source": "live"
+        "totalPages": total_pages,
+        "count": len(paginated_msgs),
+        "messages": paginated_msgs,
+        "source": "cache" if cached_all is not None else "live"
     }
 
 
@@ -548,6 +568,23 @@ async def update_pattern(service_code: str, payload: PatternUpdatePayload):
         return {"status": "success", "serviceCode": service_code, "pattern": pattern_data}
     else:
         raise HTTPException(status_code=500, detail="Failed to update pattern in database.")
+
+
+@router.delete("/patterns/{service_code}", response_model=None, dependencies=[Depends(verify_api_key)])
+async def delete_pattern_endpoint(service_code: str):
+    """Deletes pattern definition for a service live from disk, Redis cache, and Supabase."""
+    try:
+        # pyrefly: ignore [missing-import]
+        from utils.redis_manager import redis_manager
+    except ImportError:
+        from bot_project.utils.redis_manager import redis_manager
+    redis_client = await redis_manager.get_client()
+
+    success = await ServicePatternRegistry.delete_pattern(redis_client, service_code)
+    if success:
+        return {"status": "success", "serviceCode": service_code}
+    else:
+        raise HTTPException(status_code=400, detail="Cannot delete default fallback service 'ot'.")
 
 
 @router.post("/test-match", response_model=None, dependencies=[Depends(verify_api_key)])

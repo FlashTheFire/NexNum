@@ -37,14 +37,19 @@ BODY_NETWORK_MAP = [
 
 # ---- OTP / Code Extraction Patterns ----
 OTP_PATTERNS = [
+    # G-123456 (Google / Firebase / Android)
+    re.compile(r'\bG[\s\-]*([0-9]{4,8})\b', re.I),
     # WhatsApp style: 654-117
     re.compile(r'(?:code|OTP)\s*:?\s*([0-9]{3}[\-\s][0-9]{3})\b', re.I),
     # Flipkart / Standard OTP: [#] 314415
     re.compile(r'\[#\]\s*([0-9]{4,8})', re.I),
-    # Keyword matches
-    re.compile(r'(?:OTP|code|verification|passcode|secret|pin|login|auth|password)\s*(?:is|:|\-)?\s*([0-9]{4,8})\b', re.I),
-    re.compile(r'\b([0-9]{4,8})\s*(?:is\s+your\s+otp|is\s+your\s+verification\s+code|is\s+your\s+code)', re.I),
-    re.compile(r'(?:use\s+code|enter\s+code|key\s+is)\s*:?\s*([0-9]{4,8})\b', re.I),
+    # Keyword matches (e.g. "code is: 48392", "OTP is 1234", "password: 8943")
+    re.compile(r'(?:OTP|code|verification|passcode|secret|pin|login|auth|password|account)\s*(?:is\s*:?|are|:|\-|\=)?\s*([0-9]{4,8})\b', re.I),
+    # Leading OTP (e.g. "928374 to verify your WhatsApp", "4930 is your OTP")
+    re.compile(r'\b([0-9]{4,8})\s*(?:is\s+your|is\s+the|is\s+an|is\s+verification|to\s+verify|valid\s+for)', re.I),
+    re.compile(r'(?:use\s+code|enter\s+code|key\s+is|use)\s*:?\s*([0-9]{4,8})\b', re.I),
+    # General 4-6 digit fallback
+    re.compile(r'\b([0-9]{4,6})\b'),
 ]
 
 def extract_phone_numbers(message: str) -> List[str]:

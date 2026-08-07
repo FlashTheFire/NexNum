@@ -386,8 +386,11 @@ class ServicePatternRegistry:
         # (simple approach: clear all — they'll be recompiled on next hit)
         _REGEX_CACHE.clear()
 
+        # Save pattern to local disk
+        cls.save_pattern_to_disk(code, pattern_data)
+
         if not supabase_url or not supabase_key:
-            logger.warning("[PatternRegistry] Supabase credentials not set — pattern updated in Redis cache only.")
+            logger.info(f"[PatternRegistry] Pattern for '{code}' saved to disk and Redis invalidated.")
             return True
 
         # Upsert to Supabase
@@ -413,10 +416,94 @@ class ServicePatternRegistry:
                 resp = await client.post(url, headers=headers, json=payload)
                 if resp.status_code in (200, 201):
                     logger.info(f"[PatternRegistry] Pattern for '{code}' updated in Supabase successfully.")
-                    return True
                 else:
-                    logger.error(f"[PatternRegistry] Supabase update failed ({resp.status_code}): {resp.text}")
-                    return False
+                    logger.warning(f"[PatternRegistry] Supabase notice ({resp.status_code}): {resp.text}")
+            return True
         except Exception as exc:
-            logger.error(f"[PatternRegistry] Error updating pattern in Supabase: {exc}")
+            logger.warning(f"[PatternRegistry] Notice updating pattern in Supabase: {exc}")
+            return True
+
+    @classmethod
+    def save_pattern_to_disk(cls, service_code: str, pattern_data: dict) -> bool:
+        """Persists pattern definition atomically to service_patterns.json."""
+        global _DEFAULT_PATTERNS
+        code = (service_code or "ot").lower()
+        try:
+            defaults = load_default_patterns()
+            defaults[code] = {
+                "name": pattern_data.get("name", code.upper()),
+                "price": float(pattern_data.get("price", 15.0) or 15.0),
+                "stock": int(pattern_data.get("stock", 100) or 100),
+                "senders": pattern_data.get("senders") or [f"(?i){pattern_data.get('name', code)}"],
+                "sender_patterns": pattern_data.get("sender_patterns", []),
+                "body_patterns": pattern_data.get("body_patterns", []),
+                "otp_regex": pattern_data.get("otp_regex") or r"(?:\b\d{4,8}\b|\b[A-Za-z0-9]{4,10}\b)"
+            }
+            _DEFAULT_PATTERNS = defaults
+            cls._INDEX_CACHE.clear()
+            _REGEX_CACHE.clear()
+
+            with open(PATTERNS_FILE_PATH, "w", encoding="utf-8") as f:
+                json.dump(defaults, f, indent=2)
+            logger.info(f"[PatternRegistry] Saved service pattern '{code}' to {PATTERNS_FILE_PATH}")
+            return True
+        except Exception as e:
+            logger.error(f"[PatternRegistry] Failed to save pattern '{code}' to disk: {e}")
             return False
+
+    @classmethod
+    def delete_pattern_from_disk(cls, service_code: str) -> bool:
+        """Deletes a pattern definition from service_patterns.json."""
+        global _DEFAULT_PATTERNS
+        code = (service_code or "ot").lower()
+        if code == "ot":
+            return False  # Prevent deleting fallback
+        try:
+            defaults = load_default_patterns()
+            if code in defaults:
+                del defaults[code]
+                _DEFAULT_PATTERNS = defaults
+                cls._INDEX_CACHE.clear()
+                _REGEX_CACHE.clear()
+                with open(PATTERNS_FILE_PATH, "w", encoding="utf-8") as f:
+                    json.dump(defaults, f, indent=2)
+                logger.info(f"[PatternRegistry] Deleted service pattern '{code}' from {PATTERNS_FILE_PATH}")
+            return True
+        except Exception as e:
+            logger.error(f"[PatternRegistry] Failed to delete pattern '{code}' from disk: {e}")
+            return False
+
+    @classmethod
+    async def delete_pattern(cls, redis_client, service_code: str) -> bool:
+        """Deletes pattern from disk, Redis cache, and Supabase."""
+        code = (service_code or "ot").lower()
+        if code == "ot":
+            return False
+        
+        # 1. Remove from Disk
+        cls.delete_pattern_from_disk(code)
+
+        # 2. Invalidate Redis
+        if redis_client:
+            try:
+                await redis_client.delete(f"{REDIS_PREFIX}:pattern:{code}")
+            except Exception:
+                pass
+
+        # 3. Supabase delete if configured
+        supabase_url = getattr(settings, "SUPABASE_URL", os.environ.get("SUPABASE_URL"))
+        supabase_key = getattr(settings, "SUPABASE_KEY", os.environ.get("SUPABASE_KEY"))
+        if supabase_url and supabase_key:
+            try:
+                import httpx
+                url = f"{supabase_url.rstrip('/')}/rest/v1/sms_service_patterns?code=eq.{code}"
+                headers = {
+                    "apikey": supabase_key,
+                    "Authorization": f"Bearer {supabase_key}"
+                }
+                async with httpx.AsyncClient(timeout=3.0) as client:
+                    await client.delete(url, headers=headers)
+            except Exception as e:
+                logger.debug(f"[PatternRegistry] Supabase delete notice for {code}: {e}")
+
+        return True

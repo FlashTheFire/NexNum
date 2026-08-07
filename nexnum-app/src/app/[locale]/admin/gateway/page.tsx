@@ -7,7 +7,8 @@ import {
     XCircle, AlertCircle, Ban, Play, Terminal, Cpu, Battery, Wifi,
     Clock, Search, ArrowRight, Zap, Filter, ArrowUpDown, ChevronLeft,
     ChevronRight, ChevronsLeft, ChevronsRight, Check, Sparkles, Copy,
-    X, MessageSquare, Calendar, Key, ExternalLink, Inbox
+    X, MessageSquare, Calendar, Key, ExternalLink, Inbox, Plus, Edit3,
+    Trash2, Tag, DollarSign, Layers
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -133,16 +134,44 @@ interface ActivationItem {
     elapsedSeconds: number
 }
 
+interface ServicePatternItem {
+    code: string
+    name: string
+    price?: number
+    stock?: number
+    senders?: string[]
+    sender_patterns?: string[]
+    body_patterns?: string[]
+    otp_regex?: string
+}
+
 type DeviceSortField = 'phoneNumber' | 'deviceId' | 'simSlot' | 'carrier' | 'schemaType' | 'status' | 'battery' | 'isBanned' | 'lastSeenMs' | 'lastMessage'
 type SortOrder = 'asc' | 'desc'
 
 export default function GatewayAdminPage() {
-    const [activeTab, setActiveTab] = useState<'devices' | 'activations' | 'sandbox' | 'scorer'>('devices')
+    const [activeTab, setActiveTab] = useState<'devices' | 'activations' | 'services' | 'sandbox' | 'scorer'>('devices')
     const [stats, setStats] = useState<GatewayStats | null>(null)
     const [devices, setDevices] = useState<DeviceNode[]>([])
     const [activations, setActivations] = useState<ActivationItem[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [searchQuery, setSearchQuery] = useState("")
+
+    // Services Catalog State
+    const [patterns, setPatterns] = useState<Record<string, ServicePatternItem>>({})
+    const [isLoadingPatterns, setIsLoadingPatterns] = useState(false)
+    const [serviceSearchQuery, setServiceSearchQuery] = useState("")
+    const [isAddServiceOpen, setIsAddServiceOpen] = useState(false)
+    const [isEditServiceOpen, setIsEditServiceOpen] = useState(false)
+    const [editingServiceCode, setEditingServiceCode] = useState("")
+
+    // Service Form State
+    const [formCode, setFormCode] = useState("")
+    const [formName, setFormName] = useState("")
+    const [formPrice, setFormPrice] = useState<number>(15.0)
+    const [formStock, setFormStock] = useState<number>(100)
+    const [formSenderPats, setFormSenderPats] = useState("")
+    const [formBodyPats, setFormBodyPats] = useState("")
+    const [formOtpRegex, setFormOtpRegex] = useState("")
 
     // Scorer Leaderboard State
     const [scorerService, setScorerService] = useState('tg')
@@ -165,6 +194,8 @@ export default function GatewayAdminPage() {
     const [msgSearchQuery, setMsgSearchQuery] = useState("")
     const [msgPage, setMsgPage] = useState(1)
     const [msgLimit, setMsgLimit] = useState(10)
+    const [totalMsgCount, setTotalMsgCount] = useState(0)
+    const [totalMsgPages, setTotalMsgPages] = useState(1)
 
     // Pagination & Sorting State for Live Activations
     const [actPage, setActPage] = useState(1)
@@ -200,6 +231,22 @@ export default function GatewayAdminPage() {
             }
         } catch {
             // silent fail for stats auto-refresh
+        }
+    }, [])
+
+    // Fetch Service Patterns
+    const fetchPatterns = useCallback(async () => {
+        try {
+            setIsLoadingPatterns(true)
+            const res = await fetch('/api/admin/gateway?endpoint=/api/v1/admin/patterns')
+            if (res.ok) {
+                const data = await res.json()
+                setPatterns(data.patterns || {})
+            }
+        } catch {
+            toast.error("Failed to load service patterns catalog")
+        } finally {
+            setIsLoadingPatterns(false)
         }
     }, [])
 
@@ -257,7 +304,7 @@ export default function GatewayAdminPage() {
 
     // Main Gateway Data Fetcher
     const fetchAllData = useCallback(async () => {
-        await Promise.all([fetchStats(), fetchDevices(), fetchActivations()])
+        await Promise.all([fetchStats(), fetchDevices(), fetchActivations(), fetchPatterns()])
     }, [fetchStats, fetchDevices, fetchActivations])
 
     useEffect(() => {
@@ -321,18 +368,20 @@ export default function GatewayAdminPage() {
             toast.error("Action failed")
         }
     }
-    // Open and load device SMS messages (up to 150)
-    const handleOpenDeviceSms = async (device: DeviceNode) => {
+    // Open and load device SMS messages on demand with pagination & search
+    const handleOpenDeviceSms = async (device: DeviceNode, page = 1) => {
         setSelectedDevice(device)
         setIsLoadingMessages(true)
-        setMsgPage(1)
-        setMsgSearchQuery("")
+        setMsgPage(page)
         try {
-            const targetKey = device.firebaseNodeId || device.deviceId
-            const res = await fetch(`/api/admin/gateway?endpoint=${encodeURIComponent(`/api/v1/admin/devices/${targetKey}/messages?limit=150`)}`)
+            const targetKey = device.deviceId || device.phoneNumber || device.firebaseNodeId
+            const endpoint = `/api/v1/admin/devices/${targetKey}/messages?page=${page}&limit=${msgLimit}&search=${encodeURIComponent(msgSearchQuery)}`
+            const res = await fetch(`/api/admin/gateway?endpoint=${encodeURIComponent(endpoint)}`)
             if (res.ok) {
                 const data = await res.json()
                 setDeviceMessages(data.messages || [])
+                setTotalMsgCount(data.total || (data.messages ? data.messages.length : 0))
+                setTotalMsgPages(data.totalPages || 1)
             } else {
                 setDeviceMessages([])
             }
@@ -343,6 +392,105 @@ export default function GatewayAdminPage() {
             setIsLoadingMessages(false)
         }
     }
+
+    const openAddServiceModal = () => {
+        setFormCode("")
+        setFormName("")
+        setFormPrice(15.0)
+        setFormStock(100)
+        setFormSenderPats("")
+        setFormBodyPats("")
+        setFormOtpRegex("")
+        setIsAddServiceOpen(true)
+    }
+
+    const openEditServiceModal = (code: string, item: ServicePatternItem) => {
+        setEditingServiceCode(code)
+        setFormCode(code)
+        setFormName(item.name || code.toUpperCase())
+        setFormPrice(item.price || 15.0)
+        setFormStock(item.stock || 100)
+        const senders = item.sender_patterns || item.senders || []
+        setFormSenderPats(senders.join("\n"))
+        const bodies = item.body_patterns || []
+        setFormBodyPats(bodies.join("\n"))
+        setFormOtpRegex(item.otp_regex || "")
+        setIsEditServiceOpen(true)
+    }
+
+    const handleSaveService = async (isNew: boolean) => {
+        const code = (formCode || "").trim().toLowerCase()
+        if (!code) {
+            toast.error("Service code is required (e.g. tg, wa, go)")
+            return
+        }
+        try {
+            const payload = {
+                name: formName || code.toUpperCase(),
+                price: Number(formPrice) || 15.0,
+                stock: Number(formStock) || 100,
+                sender_patterns: formSenderPats.split('\n').map(s => s.trim()).filter(Boolean),
+                body_patterns: formBodyPats.split('\n').map(s => s.trim()).filter(Boolean),
+                otp_regex: formOtpRegex.trim() || undefined
+            }
+
+            const res = await fetch('/api/admin/gateway', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    endpoint: `/api/v1/admin/patterns/${code}`,
+                    payload
+                })
+            })
+
+            if (res.ok) {
+                toast.success(`Service '${code}' saved successfully!`)
+                setIsAddServiceOpen(false)
+                setIsEditServiceOpen(false)
+                fetchPatterns()
+            } else {
+                toast.error("Failed to save service pattern")
+            }
+        } catch {
+            toast.error("Network error saving service")
+        }
+    }
+
+    const handleDeleteService = async (code: string) => {
+        if (code === 'ot') {
+            toast.error("Cannot delete fallback service 'ot'")
+            return
+        }
+        if (!confirm(`Are you sure you want to delete service pattern '${code}'?`)) return
+        try {
+            const res = await fetch(`/api/admin/gateway?endpoint=/api/v1/admin/patterns/${code}`, {
+                method: 'DELETE'
+            })
+            if (res.ok) {
+                toast.success(`Service '${code}' deleted successfully`)
+                fetchPatterns()
+            } else {
+                toast.error("Failed to delete service")
+            }
+        } catch {
+            toast.error("Network error deleting service")
+        }
+    }
+
+    // Filter patterns by search
+    const filteredPatterns = useMemo(() => {
+        const list = Object.entries(patterns).map(([code, item]) => ({
+            ...item,
+            code
+        }))
+        if (!serviceSearchQuery.trim()) return list
+        const q = serviceSearchQuery.toLowerCase()
+        return list.filter(p =>
+            p.code.toLowerCase().includes(q) ||
+            (p.name || "").toLowerCase().includes(q) ||
+            (p.sender_patterns || []).some(s => s.toLowerCase().includes(q))
+        )
+    }, [patterns, serviceSearchQuery])
 
     // Filter & Paginate Device SMS Messages
     const filteredDeviceMessages = useMemo(() => {
@@ -356,7 +504,6 @@ export default function GatewayAdminPage() {
         )
     }, [deviceMessages, msgSearchQuery])
 
-    const totalMsgPages = Math.max(1, Math.ceil(filteredDeviceMessages.length / msgLimit))
     const paginatedDeviceMessages = useMemo(() => {
         const start = (msgPage - 1) * msgLimit
         return filteredDeviceMessages.slice(start, start + msgLimit)
@@ -525,6 +672,22 @@ export default function GatewayAdminPage() {
                         )}
                     >
                         Live Activations ({actTotal})
+                    </button>
+
+                    <button
+                        onClick={() => {
+                            setActiveTab('services')
+                            fetchPatterns()
+                        }}
+                        className={cn(
+                            "px-4 py-2 rounded-lg border-2 font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1.5",
+                            activeTab === 'services'
+                                ? "border-black bg-purple-400 text-black shadow-[3px_3px_0px_0px_#000]"
+                                : "border-zinc-800 bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:text-white"
+                        )}
+                    >
+                        <Server className="w-3.5 h-3.5" />
+                        Services Catalog ({Object.keys(patterns).length})
                     </button>
 
                     <button
@@ -1227,7 +1390,7 @@ export default function GatewayAdminPage() {
                                                 firebaseNodeId: scorerData.topPick.firebaseNodeId,
                                                 isBanned: false
                                             }
-                                            setSelectedDevice(dev)
+                                            handleOpenDeviceSms(dev)
                                         }}
                                         className="px-4 py-2 rounded-lg border-2 border-black bg-black text-white font-black text-xs uppercase tracking-wider hover:bg-zinc-900 shadow-[2px_2px_0px_0px_#000] active:translate-x-[1px] active:translate-y-[1px] transition-all"
                                     >
@@ -1427,6 +1590,194 @@ export default function GatewayAdminPage() {
                                                     >
                                                         Inspect SMS
                                                     </button>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── 5. TAB CONTENT: SERVICES CATALOG ── */}
+            {activeTab === 'services' && (
+                <div className="space-y-4">
+                    {/* Header Controls */}
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 rounded-xl border-2 border-zinc-800 bg-[#0d0e12] p-4 shadow-[4px_4px_0px_0px_#000]">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2.5 rounded-lg border-2 border-black bg-purple-400 text-black shadow-[2px_2px_0px_0px_#000]">
+                                <Layers className="w-5 h-5 stroke-[2.5]" />
+                            </div>
+                            <div>
+                                <h2 className="text-base font-black text-white uppercase tracking-tight flex items-center gap-2">
+                                    Service Patterns & Dynamic Pricing Registry
+                                </h2>
+                                <p className="text-xs text-zinc-400 font-medium">
+                                    Manage regex matchers, India pricing (₹), and SIM stock for all 25+ gateway services
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                            <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
+                                <input
+                                    type="text"
+                                    placeholder="Filter by service name or code..."
+                                    value={serviceSearchQuery}
+                                    onChange={(e) => setServiceSearchQuery(e.target.value)}
+                                    className="pl-8 pr-3 py-1.5 rounded-lg border-2 border-zinc-800 bg-zinc-900 text-white text-xs font-bold placeholder:text-zinc-500 focus:outline-none focus:border-purple-400"
+                                />
+                            </div>
+
+                            <button
+                                onClick={openAddServiceModal}
+                                className="px-3 py-1.5 rounded-lg border-2 border-black bg-[hsl(var(--neon-lime))] text-black font-black text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-[2px_2px_0px_0px_#000] hover:bg-[hsl(var(--neon-lime))]/90 active:translate-x-[1px] active:translate-y-[1px] transition-all"
+                            >
+                                <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                                Add Service
+                            </button>
+
+                            <button
+                                onClick={fetchPatterns}
+                                disabled={isLoadingPatterns}
+                                className="p-2 rounded-lg border-2 border-zinc-800 bg-zinc-900 text-zinc-300 hover:text-white hover:border-zinc-700 shadow-[2px_2px_0px_0px_#000]"
+                                title="Refresh Services"
+                            >
+                                <RefreshCw className={cn("w-3.5 h-3.5", isLoadingPatterns && "animate-spin")} />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Services Table Card */}
+                    <div className="rounded-xl border-2 border-zinc-800 bg-[#0d0e12] p-4 shadow-[4px_4px_0px_0px_#000] overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="border-b-2 border-zinc-800 text-[11px] font-black uppercase text-zinc-400 tracking-wider">
+                                        <th className="pb-3 pr-4">Service</th>
+                                        <th className="pb-3 px-4">Code</th>
+                                        <th className="pb-3 px-4">Price (₹)</th>
+                                        <th className="pb-3 px-4">Stock</th>
+                                        <th className="pb-3 px-4">Sender Patterns</th>
+                                        <th className="pb-3 px-4">Body Patterns</th>
+                                        <th className="pb-3 px-4">OTP Regex</th>
+                                        <th className="pb-3 pl-4 text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-zinc-800/60 text-xs font-bold">
+                                    {isLoadingPatterns && Object.keys(patterns).length === 0 ? (
+                                        <tr>
+                                            <td colSpan={8} className="py-12 text-center text-zinc-400">
+                                                <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-purple-400" />
+                                                Loading service patterns and live catalog...
+                                            </td>
+                                        </tr>
+                                    ) : filteredPatterns.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={8} className="py-12 text-center text-zinc-500 font-bold uppercase tracking-wider">
+                                                No service patterns found matching filter.
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        filteredPatterns.map((p) => (
+                                            <tr key={p.code} className="hover:bg-zinc-800/40 transition-colors group">
+                                                {/* Service Name */}
+                                                <td className="py-3.5 pr-4">
+                                                    <span className="text-white font-black text-sm flex items-center gap-2">
+                                                        <Tag className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                                                        {p.name || p.code.toUpperCase()}
+                                                    </span>
+                                                </td>
+
+                                                {/* Service Code */}
+                                                <td className="py-3.5 px-4">
+                                                    <span className="px-2 py-0.5 rounded border-2 border-black bg-purple-400 text-black font-mono font-black text-xs shadow-[1px_1px_0px_0px_#000]">
+                                                        {p.code}
+                                                    </span>
+                                                </td>
+
+                                                {/* Price */}
+                                                <td className="py-3.5 px-4">
+                                                    <span className="px-2 py-0.5 rounded border border-emerald-500/40 bg-emerald-500/10 text-emerald-400 font-mono font-black text-xs">
+                                                        ₹{(p.price ?? 15.0).toFixed(2)}
+                                                    </span>
+                                                </td>
+
+                                                {/* Stock */}
+                                                <td className="py-3.5 px-4 font-mono text-zinc-300">
+                                                    <span className="px-2 py-0.5 rounded border border-zinc-800 bg-zinc-900 text-[11px] font-bold">
+                                                        {p.stock ?? 100} SIMs
+                                                    </span>
+                                                </td>
+
+                                                {/* Sender Patterns */}
+                                                <td className="py-3.5 px-4">
+                                                    <div className="flex flex-wrap gap-1 max-w-xs">
+                                                        {(p.sender_patterns || p.senders || []).slice(0, 3).map((sp, idx) => (
+                                                            <span key={idx} className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 text-[10px] font-mono border border-zinc-700">
+                                                                {sp}
+                                                            </span>
+                                                        ))}
+                                                        {(p.sender_patterns || p.senders || []).length > 3 && (
+                                                            <span className="text-[10px] text-zinc-500 font-mono">
+                                                                +{(p.sender_patterns || p.senders || []).length - 3} more
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </td>
+
+                                                {/* Body Patterns */}
+                                                <td className="py-3.5 px-4">
+                                                    <div className="flex items-center gap-1">
+                                                        <span className="text-zinc-400 text-[11px] font-mono">
+                                                            {(p.body_patterns || []).length} patterns
+                                                        </span>
+                                                    </div>
+                                                </td>
+
+                                                {/* OTP Regex */}
+                                                <td className="py-3.5 px-4">
+                                                    <span className="text-zinc-400 font-mono text-[11px] bg-zinc-900 px-2 py-0.5 rounded border border-zinc-800">
+                                                        {p.otp_regex || "\\b\\d{4,6}\\b"}
+                                                    </span>
+                                                </td>
+
+                                                {/* Actions */}
+                                                <td className="py-3.5 pl-4 text-right">
+                                                    <div className="flex items-center justify-end gap-1.5">
+                                                        <button
+                                                            onClick={() => openEditServiceModal(p.code, p)}
+                                                            className="p-1.5 rounded border border-zinc-700 bg-zinc-900 text-zinc-300 hover:text-white hover:border-purple-400 transition-colors shadow-[1px_1px_0px_0px_#000]"
+                                                            title="Edit Service"
+                                                        >
+                                                            <Edit3 className="w-3.5 h-3.5" />
+                                                        </button>
+
+                                                        <button
+                                                            onClick={() => {
+                                                                setTestService(p.code)
+                                                                setTestSender(p.name || p.code.toUpperCase())
+                                                                setActiveTab('sandbox')
+                                                            }}
+                                                            className="p-1.5 rounded border border-zinc-700 bg-zinc-900 text-amber-400 hover:bg-zinc-800 transition-colors shadow-[1px_1px_0px_0px_#000]"
+                                                            title="Test in Sandbox"
+                                                        >
+                                                            <Terminal className="w-3.5 h-3.5" />
+                                                        </button>
+
+                                                        {p.code !== 'ot' && (
+                                                            <button
+                                                                onClick={() => handleDeleteService(p.code)}
+                                                                className="p-1.5 rounded border border-rose-900/60 bg-rose-950/40 text-rose-400 hover:bg-rose-900/60 transition-colors shadow-[1px_1px_0px_0px_#000]"
+                                                                title="Delete Service"
+                                                            >
+                                                                <Trash2 className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))
@@ -1688,6 +2039,257 @@ export default function GatewayAdminPage() {
                                         <ChevronsRight className="w-4 h-4" />
                                     </button>
                                 </div>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            {/* ── 7. ADD SERVICE MODAL ── */}
+            <AnimatePresence>
+                {isAddServiceOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/80 backdrop-blur-md">
+                        <div className="absolute inset-0" onClick={() => setIsAddServiceOpen(false)} />
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                            className="relative w-full max-w-xl rounded-2xl border-2 border-black bg-[#0d0e12] shadow-[8px_8px_0px_0px_#000] overflow-hidden z-10"
+                        >
+                            <div className="p-5 border-b-2 border-zinc-800 bg-zinc-950 flex items-center justify-between">
+                                <div className="flex items-center gap-2.5">
+                                    <div className="p-2 rounded-lg border-2 border-black bg-[hsl(var(--neon-lime))] text-black shadow-[2px_2px_0px_0px_#000]">
+                                        <Plus className="w-5 h-5 stroke-[3]" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-black text-white uppercase tracking-tight">Add New Service</h3>
+                                        <p className="text-xs text-zinc-400">Configure service code, India pricing, stock & regex rules</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setIsAddServiceOpen(false)}
+                                    className="p-1.5 rounded-lg border-2 border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white hover:border-[hsl(var(--neon-lime))]"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+
+                            <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-xs font-black uppercase text-zinc-400 mb-1">Service Code *</label>
+                                        <input
+                                            type="text"
+                                            placeholder="e.g. tg, wa, nf, sw"
+                                            value={formCode}
+                                            onChange={(e) => setFormCode(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                                            className="w-full px-3 py-2 rounded-lg border-2 border-zinc-800 bg-zinc-900 text-white font-mono font-bold text-xs focus:outline-none focus:border-[hsl(var(--neon-lime))]"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-black uppercase text-zinc-400 mb-1">Display Name *</label>
+                                        <input
+                                            type="text"
+                                            placeholder="e.g. Telegram, Netflix"
+                                            value={formName}
+                                            onChange={(e) => setFormName(e.target.value)}
+                                            className="w-full px-3 py-2 rounded-lg border-2 border-zinc-800 bg-zinc-900 text-white font-bold text-xs focus:outline-none focus:border-[hsl(var(--neon-lime))]"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-xs font-black uppercase text-zinc-400 mb-1">Base Price (₹) *</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            value={formPrice}
+                                            onChange={(e) => setFormPrice(parseFloat(e.target.value) || 0)}
+                                            className="w-full px-3 py-2 rounded-lg border-2 border-zinc-800 bg-zinc-900 text-emerald-400 font-mono font-black text-xs focus:outline-none focus:border-emerald-400"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-black uppercase text-zinc-400 mb-1">Allocatable Stock *</label>
+                                        <input
+                                            type="number"
+                                            value={formStock}
+                                            onChange={(e) => setFormStock(parseInt(e.target.value) || 0)}
+                                            className="w-full px-3 py-2 rounded-lg border-2 border-zinc-800 bg-zinc-900 text-white font-mono font-bold text-xs focus:outline-none focus:border-[hsl(var(--neon-lime))]"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-black uppercase text-zinc-400 mb-1">Sender Patterns (1 regex per line)</label>
+                                    <textarea
+                                        rows={3}
+                                        placeholder={"telegram\\b\ntelegr\nTG"}
+                                        value={formSenderPats}
+                                        onChange={(e) => setFormSenderPats(e.target.value)}
+                                        className="w-full px-3 py-2 rounded-lg border-2 border-zinc-800 bg-zinc-900 text-zinc-200 font-mono text-xs focus:outline-none focus:border-[hsl(var(--neon-lime))]"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-black uppercase text-zinc-400 mb-1">Body Patterns (1 regex per line)</label>
+                                    <textarea
+                                        rows={3}
+                                        placeholder={"telegram code\nlogin code"}
+                                        value={formBodyPats}
+                                        onChange={(e) => setFormBodyPats(e.target.value)}
+                                        className="w-full px-3 py-2 rounded-lg border-2 border-zinc-800 bg-zinc-900 text-zinc-200 font-mono text-xs focus:outline-none focus:border-[hsl(var(--neon-lime))]"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-black uppercase text-zinc-400 mb-1">Custom OTP Regex (Optional)</label>
+                                    <input
+                                        type="text"
+                                        placeholder={"\\b\\d{4,6}\\b"}
+                                        value={formOtpRegex}
+                                        onChange={(e) => setFormOtpRegex(e.target.value)}
+                                        className="w-full px-3 py-2 rounded-lg border-2 border-zinc-800 bg-zinc-900 text-amber-400 font-mono text-xs focus:outline-none focus:border-amber-400"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="p-4 border-t-2 border-zinc-800 bg-zinc-950 flex items-center justify-end gap-3">
+                                <button
+                                    onClick={() => setIsAddServiceOpen(false)}
+                                    className="px-4 py-2 rounded-lg border-2 border-zinc-800 bg-zinc-900 text-zinc-300 font-bold text-xs hover:bg-zinc-800"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={() => handleSaveService(true)}
+                                    className="px-4 py-2 rounded-lg border-2 border-black bg-[hsl(var(--neon-lime))] text-black font-black text-xs uppercase tracking-wider shadow-[2px_2px_0px_0px_#000] hover:bg-[hsl(var(--neon-lime))]/90"
+                                >
+                                    Save Service
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            {/* ── 8. EDIT SERVICE MODAL ── */}
+            <AnimatePresence>
+                {isEditServiceOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/80 backdrop-blur-md">
+                        <div className="absolute inset-0" onClick={() => setIsEditServiceOpen(false)} />
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                            className="relative w-full max-w-xl rounded-2xl border-2 border-black bg-[#0d0e12] shadow-[8px_8px_0px_0px_#000] overflow-hidden z-10"
+                        >
+                            <div className="p-5 border-b-2 border-zinc-800 bg-zinc-950 flex items-center justify-between">
+                                <div className="flex items-center gap-2.5">
+                                    <div className="p-2 rounded-lg border-2 border-black bg-purple-400 text-black shadow-[2px_2px_0px_0px_#000]">
+                                        <Edit3 className="w-5 h-5 stroke-[2.5]" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-black text-white uppercase tracking-tight">Edit Service: {editingServiceCode}</h3>
+                                        <p className="text-xs text-zinc-400">Modify live patterns, India pricing & SIM allocation</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setIsEditServiceOpen(false)}
+                                    className="p-1.5 rounded-lg border-2 border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white hover:border-purple-400"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+
+                            <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-xs font-black uppercase text-zinc-400 mb-1">Service Code</label>
+                                        <input
+                                            type="text"
+                                            disabled
+                                            value={formCode}
+                                            className="w-full px-3 py-2 rounded-lg border-2 border-zinc-800 bg-zinc-950 text-zinc-400 font-mono font-bold text-xs cursor-not-allowed opacity-70"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-black uppercase text-zinc-400 mb-1">Display Name *</label>
+                                        <input
+                                            type="text"
+                                            value={formName}
+                                            onChange={(e) => setFormName(e.target.value)}
+                                            className="w-full px-3 py-2 rounded-lg border-2 border-zinc-800 bg-zinc-900 text-white font-bold text-xs focus:outline-none focus:border-purple-400"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-xs font-black uppercase text-zinc-400 mb-1">Base Price (₹) *</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            value={formPrice}
+                                            onChange={(e) => setFormPrice(parseFloat(e.target.value) || 0)}
+                                            className="w-full px-3 py-2 rounded-lg border-2 border-zinc-800 bg-zinc-900 text-emerald-400 font-mono font-black text-xs focus:outline-none focus:border-emerald-400"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-black uppercase text-zinc-400 mb-1">Allocatable Stock *</label>
+                                        <input
+                                            type="number"
+                                            value={formStock}
+                                            onChange={(e) => setFormStock(parseInt(e.target.value) || 0)}
+                                            className="w-full px-3 py-2 rounded-lg border-2 border-zinc-800 bg-zinc-900 text-white font-mono font-bold text-xs focus:outline-none focus:border-purple-400"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-black uppercase text-zinc-400 mb-1">Sender Patterns (1 regex per line)</label>
+                                    <textarea
+                                        rows={3}
+                                        value={formSenderPats}
+                                        onChange={(e) => setFormSenderPats(e.target.value)}
+                                        className="w-full px-3 py-2 rounded-lg border-2 border-zinc-800 bg-zinc-900 text-zinc-200 font-mono text-xs focus:outline-none focus:border-purple-400"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-black uppercase text-zinc-400 mb-1">Body Patterns (1 regex per line)</label>
+                                    <textarea
+                                        rows={3}
+                                        value={formBodyPats}
+                                        onChange={(e) => setFormBodyPats(e.target.value)}
+                                        className="w-full px-3 py-2 rounded-lg border-2 border-zinc-800 bg-zinc-900 text-zinc-200 font-mono text-xs focus:outline-none focus:border-purple-400"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-black uppercase text-zinc-400 mb-1">Custom OTP Regex (Optional)</label>
+                                    <input
+                                        type="text"
+                                        value={formOtpRegex}
+                                        onChange={(e) => setFormOtpRegex(e.target.value)}
+                                        className="w-full px-3 py-2 rounded-lg border-2 border-zinc-800 bg-zinc-900 text-amber-400 font-mono text-xs focus:outline-none focus:border-amber-400"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="p-4 border-t-2 border-zinc-800 bg-zinc-950 flex items-center justify-end gap-3">
+                                <button
+                                    onClick={() => setIsEditServiceOpen(false)}
+                                    className="px-4 py-2 rounded-lg border-2 border-zinc-800 bg-zinc-900 text-zinc-300 font-bold text-xs hover:bg-zinc-800"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={() => handleSaveService(false)}
+                                    className="px-4 py-2 rounded-lg border-2 border-black bg-purple-400 text-black font-black text-xs uppercase tracking-wider shadow-[2px_2px_0px_0px_#000] hover:bg-purple-300"
+                                >
+                                    Update Service
+                                </button>
                             </div>
                         </motion.div>
                     </div>

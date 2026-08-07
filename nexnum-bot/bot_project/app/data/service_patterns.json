@@ -1,8 +1,19 @@
 {
   "tg": {
     "name": "Telegram",
-    "senders": ["(?i)Telegram", "(?i)TGRAM", "(?i)TG-", "5-digit shortcode"],
-    "sender_patterns": ["(?i)telegram", "(?i)tgram", "(?i)tg-"],
+    "price": 15.0,
+    "stock": 150,
+    "senders": [
+      "(?i)Telegram",
+      "(?i)TGRAM",
+      "(?i)TG-",
+      "5-digit shortcode"
+    ],
+    "sender_patterns": [
+      "(?i)telegram",
+      "(?i)tgram",
+      "(?i)tg-"
+    ],
     "body_patterns": [
       "(?i)telegram",
       "(?i)t\\.me/login",
@@ -14,8 +25,15 @@
   },
   "wa": {
     "name": "WhatsApp",
-    "senders": ["(?i)WhatsApp", "(?i)WHATSAPP"],
-    "sender_patterns": ["(?i)whatsapp"],
+    "price": 20.0,
+    "stock": 80,
+    "senders": [
+      "(?i)WhatsApp",
+      "(?i)WHATSAPP"
+    ],
+    "sender_patterns": [
+      "(?i)whatsapp"
+    ],
     "body_patterns": [
       "(?i)whatsapp",
       "(?i)your whatsapp code",
@@ -25,8 +43,17 @@
   },
   "go": {
     "name": "Google / YouTube",
-    "senders": ["(?i)Google", "(?i)G-", "(?i)GGOOGLE"],
-    "sender_patterns": ["(?i)google", "(?i)g-"],
+    "price": 15.0,
+    "stock": 120,
+    "senders": [
+      "(?i)Google",
+      "(?i)G-",
+      "(?i)GGOOGLE"
+    ],
+    "sender_patterns": [
+      "(?i)google",
+      "(?i)g-"
+    ],
     "body_patterns": [
       "(?i)google",
       "(?i)g-\\d{6}",
@@ -36,8 +63,16 @@
   },
   "ig": {
     "name": "Instagram",
-    "senders": ["(?i)Instagram", "(?i)IG-"],
-    "sender_patterns": ["(?i)instagram", "(?i)ig-"],
+    "price": 15.0,
+    "stock": 100,
+    "senders": [
+      "(?i)Instagram",
+      "(?i)IG-"
+    ],
+    "sender_patterns": [
+      "(?i)instagram",
+      "(?i)ig-"
+    ],
     "body_patterns": [
       "(?i)instagram",
       "(?i)ig code",
@@ -47,8 +82,16 @@
   },
   "fb": {
     "name": "Facebook",
-    "senders": ["(?i)Facebook", "(?i)FB-"],
-    "sender_patterns": ["(?i)facebook", "(?i)fb-"],
+    "price": 15.0,
+    "stock": 90,
+    "senders": [
+      "(?i)Facebook",
+      "(?i)FB-"
+    ],
+    "sender_patterns": [
+      "(?i)facebook",
+      "(?i)fb-"
+    ],
     "body_patterns": [
       "(?i)facebook",
       "(?i)fb-\\d{6}",
@@ -58,8 +101,16 @@
   },
   "tw": {
     "name": "Twitter / X",
-    "senders": ["(?i)Twitter", "(?i)X.com"],
-    "sender_patterns": ["(?i)twitter", "(?i)x\\.com"],
+    "price": 18.0,
+    "stock": 75,
+    "senders": [
+      "(?i)Twitter",
+      "(?i)X.com"
+    ],
+    "sender_patterns": [
+      "(?i)twitter",
+      "(?i)x\\.com"
+    ],
     "body_patterns": [
       "(?i)twitter",
       "(?i)x\\.com"
@@ -68,8 +119,14 @@
   },
   "oi": {
     "name": "Tinder",
-    "senders": ["(?i)Tinder"],
-    "sender_patterns": ["(?i)tinder"],
+    "price": 15.0,
+    "stock": 60,
+    "senders": [
+      "(?i)Tinder"
+    ],
+    "sender_patterns": [
+      "(?i)tinder"
+    ],
     "body_patterns": [
       "(?i)tinder",
       "(?i)your tinder code"
@@ -78,8 +135,15 @@
   },
   "ub": {
     "name": "Uber",
-    "senders": ["(?i)Uber", "(?i)UBERIN"],
-    "sender_patterns": ["(?i)uber"],
+    "price": 15.0,
+    "stock": 50,
+    "senders": [
+      "(?i)Uber",
+      "(?i)UBERIN"
+    ],
+    "sender_patterns": [
+      "(?i)uber"
+    ],
     "body_patterns": [
       "(?i)uber",
       "(?i)uber code"
@@ -88,8 +152,15 @@
   },
   "am": {
     "name": "Amazon",
-    "senders": ["(?i)Amazon", "(?i)AMAZON"],
-    "sender_patterns": ["(?i)amazon"],
+    "price": 15.0,
+    "stock": 85,
+    "senders": [
+      "(?i)Amazon",
+      "(?i)AMAZON"
+    ],
+    "sender_patterns": [
+      "(?i)amazon"
+    ],
     "body_patterns": [
       "(?i)amazon",
       "(?i)otp for amazon"
@@ -98,8 +169,16 @@
   },
   "mm": {
     "name": "Microsoft / Outlook",
-    "senders": ["(?i)Microsoft", "(?i)MSFT"],
-    "sender_patterns": ["(?i)microsoft", "(?i)msft"],
+    "price": 15.0,
+    "stock": 95,
+    "senders": [
+      "(?i)Microsoft",
+      "(?i)MSFT"
+    ],
+    "sender_patterns": [
+      "(?i)microsoft",
+      "(?i)msft"
+    ],
     "body_patterns": [
       "(?i)microsoft",
       "(?i)outlook",
@@ -109,8 +188,14 @@
   },
   "wx": {
     "name": "Apple / iCloud",
-    "senders": ["(?i)Apple"],
-    "sender_patterns": ["(?i)apple"],
+    "price": 20.0,
+    "stock": 40,
+    "senders": [
+      "(?i)Apple"
+    ],
+    "sender_patterns": [
+      "(?i)apple"
+    ],
     "body_patterns": [
       "(?i)apple",
       "(?i)apple id"
@@ -119,8 +204,14 @@
   },
   "lf": {
     "name": "TikTok",
-    "senders": ["(?i)TikTok"],
-    "sender_patterns": ["(?i)tiktok"],
+    "price": 15.0,
+    "stock": 70,
+    "senders": [
+      "(?i)TikTok"
+    ],
+    "sender_patterns": [
+      "(?i)tiktok"
+    ],
     "body_patterns": [
       "(?i)tiktok"
     ],
@@ -128,8 +219,16 @@
   },
   "fk": {
     "name": "Flipkart",
-    "senders": ["(?i)Flipkart", "(?i)FLPKRT"],
-    "sender_patterns": ["(?i)flipkart", "(?i)flpkrt"],
+    "price": 12.0,
+    "stock": 110,
+    "senders": [
+      "(?i)Flipkart",
+      "(?i)FLPKRT"
+    ],
+    "sender_patterns": [
+      "(?i)flipkart",
+      "(?i)flpkrt"
+    ],
     "body_patterns": [
       "(?i)flipkart",
       "(?i)otp for flipkart"
@@ -138,8 +237,15 @@
   },
   "sw": {
     "name": "Swiggy",
-    "senders": ["(?i)Swiggy", "(?i)SWIGGY"],
-    "sender_patterns": ["(?i)swiggy"],
+    "price": 12.0,
+    "stock": 110,
+    "senders": [
+      "(?i)Swiggy",
+      "(?i)SWIGGY"
+    ],
+    "sender_patterns": [
+      "(?i)swiggy"
+    ],
     "body_patterns": [
       "(?i)swiggy",
       "(?i)swiggy\\.com"
@@ -148,8 +254,15 @@
   },
   "zo": {
     "name": "Zomato",
-    "senders": ["(?i)Zomato", "(?i)ZOMATO"],
-    "sender_patterns": ["(?i)zomato"],
+    "price": 12.0,
+    "stock": 110,
+    "senders": [
+      "(?i)Zomato",
+      "(?i)ZOMATO"
+    ],
+    "sender_patterns": [
+      "(?i)zomato"
+    ],
     "body_patterns": [
       "(?i)zomato"
     ],
@@ -157,8 +270,15 @@
   },
   "me": {
     "name": "Meesho",
-    "senders": ["(?i)Meesho", "(?i)MEESHO"],
-    "sender_patterns": ["(?i)meesho"],
+    "price": 12.0,
+    "stock": 100,
+    "senders": [
+      "(?i)Meesho",
+      "(?i)MEESHO"
+    ],
+    "sender_patterns": [
+      "(?i)meesho"
+    ],
     "body_patterns": [
       "(?i)meesho"
     ],
@@ -166,8 +286,15 @@
   },
   "pm": {
     "name": "Paytm",
-    "senders": ["(?i)Paytm", "(?i)PAYTM"],
-    "sender_patterns": ["(?i)paytm"],
+    "price": 15.0,
+    "stock": 80,
+    "senders": [
+      "(?i)Paytm",
+      "(?i)PAYTM"
+    ],
+    "sender_patterns": [
+      "(?i)paytm"
+    ],
     "body_patterns": [
       "(?i)paytm"
     ],
@@ -175,8 +302,15 @@
   },
   "pp": {
     "name": "PhonePe",
-    "senders": ["(?i)PhonePe", "(?i)PHONEPE"],
-    "sender_patterns": ["(?i)phonepe"],
+    "price": 15.0,
+    "stock": 80,
+    "senders": [
+      "(?i)PhonePe",
+      "(?i)PHONEPE"
+    ],
+    "sender_patterns": [
+      "(?i)phonepe"
+    ],
     "body_patterns": [
       "(?i)phonepe"
     ],
@@ -184,8 +318,15 @@
   },
   "d1": {
     "name": "Dream11",
-    "senders": ["(?i)Dream11", "(?i)DREAM11"],
-    "sender_patterns": ["(?i)dream11"],
+    "price": 12.0,
+    "stock": 60,
+    "senders": [
+      "(?i)Dream11",
+      "(?i)DREAM11"
+    ],
+    "sender_patterns": [
+      "(?i)dream11"
+    ],
     "body_patterns": [
       "(?i)dream11"
     ],
@@ -193,8 +334,15 @@
   },
   "tc": {
     "name": "Truecaller",
-    "senders": ["(?i)Truecaller", "(?i)TRUECALLER"],
-    "sender_patterns": ["(?i)truecaller"],
+    "price": 12.0,
+    "stock": 90,
+    "senders": [
+      "(?i)Truecaller",
+      "(?i)TRUECALLER"
+    ],
+    "sender_patterns": [
+      "(?i)truecaller"
+    ],
     "body_patterns": [
       "(?i)truecaller"
     ],
@@ -202,8 +350,14 @@
   },
   "ds": {
     "name": "Discord",
-    "senders": ["(?i)Discord"],
-    "sender_patterns": ["(?i)discord"],
+    "price": 15.0,
+    "stock": 70,
+    "senders": [
+      "(?i)Discord"
+    ],
+    "sender_patterns": [
+      "(?i)discord"
+    ],
     "body_patterns": [
       "(?i)discord"
     ],
@@ -211,8 +365,14 @@
   },
   "vi": {
     "name": "Viber",
-    "senders": ["(?i)Viber"],
-    "sender_patterns": ["(?i)viber"],
+    "price": 15.0,
+    "stock": 50,
+    "senders": [
+      "(?i)Viber"
+    ],
+    "sender_patterns": [
+      "(?i)viber"
+    ],
     "body_patterns": [
       "(?i)viber"
     ],
@@ -220,8 +380,15 @@
   },
   "sn": {
     "name": "Snapchat",
-    "senders": ["(?i)Snapchat", "(?i)SNAPCHAT"],
-    "sender_patterns": ["(?i)snapchat"],
+    "price": 15.0,
+    "stock": 65,
+    "senders": [
+      "(?i)Snapchat",
+      "(?i)SNAPCHAT"
+    ],
+    "sender_patterns": [
+      "(?i)snapchat"
+    ],
     "body_patterns": [
       "(?i)snapchat"
     ],
@@ -229,17 +396,110 @@
   },
   "ya": {
     "name": "Yahoo",
-    "senders": ["(?i)Yahoo"],
-    "sender_patterns": ["(?i)yahoo"],
+    "price": 12.0,
+    "stock": 60,
+    "senders": [
+      "(?i)Yahoo"
+    ],
+    "sender_patterns": [
+      "(?i)yahoo"
+    ],
     "body_patterns": [
       "(?i)yahoo"
     ],
     "otp_regex": "\\b([A-Za-z0-9]{6})\\b"
   },
+  "vk": {
+    "name": "VKontakte",
+    "price": 15.0,
+    "stock": 40,
+    "senders": [
+      "(?i)VK",
+      "(?i)VKontakte"
+    ],
+    "sender_patterns": [
+      "(?i)vk",
+      "(?i)vkontakte"
+    ],
+    "body_patterns": [
+      "(?i)vk\\.com",
+      "(?i)vk code"
+    ],
+    "otp_regex": "\\b([A-Za-z0-9]{5,6})\\b"
+  },
+  "ok": {
+    "name": "OK.ru",
+    "price": 15.0,
+    "stock": 40,
+    "senders": [
+      "(?i)OK.ru",
+      "(?i)Odnoklassniki"
+    ],
+    "sender_patterns": [
+      "(?i)ok\\.ru",
+      "(?i)odnoklassniki"
+    ],
+    "body_patterns": [
+      "(?i)ok\\.ru"
+    ],
+    "otp_regex": "\\b([A-Za-z0-9]{6})\\b"
+  },
+  "ma": {
+    "name": "Mail.ru",
+    "price": 15.0,
+    "stock": 40,
+    "senders": [
+      "(?i)Mail.ru"
+    ],
+    "sender_patterns": [
+      "(?i)mail\\.ru"
+    ],
+    "body_patterns": [
+      "(?i)mail\\.ru"
+    ],
+    "otp_regex": "\\b([A-Za-z0-9]{6})\\b"
+  },
+  "nz": {
+    "name": "Nike",
+    "price": 15.0,
+    "stock": 30,
+    "senders": [
+      "(?i)Nike"
+    ],
+    "sender_patterns": [
+      "(?i)nike"
+    ],
+    "body_patterns": [
+      "(?i)nike",
+      "(?i)nike code"
+    ],
+    "otp_regex": "\\b([A-Za-z0-9]{6})\\b"
+  },
+  "hw": {
+    "name": "Alipay",
+    "price": 20.0,
+    "stock": 25,
+    "senders": [
+      "(?i)Alipay"
+    ],
+    "sender_patterns": [
+      "(?i)alipay"
+    ],
+    "body_patterns": [
+      "(?i)alipay"
+    ],
+    "otp_regex": "\\b([A-Za-z0-9]{6})\\b"
+  },
   "ot": {
     "name": "Other / Universal Fallback",
-    "senders": [".*"],
-    "sender_patterns": [".*"],
+    "price": 15.0,
+    "stock": 200,
+    "senders": [
+      ".*"
+    ],
+    "sender_patterns": [
+      ".*"
+    ],
     "body_patterns": [
       "(?i)(?:otp|code|verification|passcode|secret|pin|login|auth|password)"
     ],

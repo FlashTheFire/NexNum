@@ -443,9 +443,9 @@ def get_incoming_messages(client_id: str, limit: int = 150) -> List[Dict[str, An
     try:
         sim_nodes = get_all_sim_nodes()
         for sn in sim_nodes:
-            if client_id in (sn.device_id, sn.firebase_node_id, sn.phone_number, getattr(sn, 'clean_digits', '')):
-                for k in (sn.firebase_node_id, sn.device_id, sn.phone_number):
-                    if k and k not in candidate_keys:
+            if client_id in (sn.device_id, sn.phone_number, getattr(sn, 'clean_digits', '')):
+                for k in (sn.device_id, sn.phone_number):
+                    if k and k not in candidate_keys and not k.startswith("node_"):
                         candidate_keys.append(k)
                 # Also add clean digits variant
                 clean = getattr(sn, 'clean_digits', '')
@@ -454,13 +454,16 @@ def get_incoming_messages(client_id: str, limit: int = 150) -> List[Dict[str, An
     except Exception as e:
         logger.debug(f"[get_incoming_messages] Candidate key mapping notice: {e}")
 
+    # Ensure no node name like 'node_1' is in candidate_keys
+    candidate_keys = [k for k in candidate_keys if k and not k.startswith("node_")]
+
     result = None
 
-    # 2. Try mapped keys first against owning node — NO orderBy=$key (fails without Firebase index rules)
+    # 2. Try mapped keys first against owning node — uses orderBy="%24key" required by Firebase REST API for limitToLast
     for key in candidate_keys:
         node = _find_client_node(key)
         if node:
-            params = f"&limitToLast={limit}"
+            params = f'&orderBy="%24key"&limitToLast={limit}'
             # Check /messages/{key} (SilentGate primary path)
             res = _firebase_request_node(node, 'GET', f'/messages/{key}', params=params)
             if res and isinstance(res, dict):
@@ -486,7 +489,7 @@ def get_incoming_messages(client_id: str, limit: int = 150) -> List[Dict[str, An
     if not result or not isinstance(result, dict):
         def probe_messages(n):
             for k in candidate_keys:
-                params = f"&limitToLast={limit}"
+                params = f'&orderBy="%24key"&limitToLast={limit}'
                 # Primary: /messages/{key}
                 res = _firebase_request_node(n, 'GET', f'/messages/{k}', params=params)
                 if res and isinstance(res, dict):

@@ -127,3 +127,22 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: err?.message || 'Failed to execute gateway action' }, { status: 500 })
     }
 }
+
+export async function DELETE(request: NextRequest) {
+    try {
+        if (!(await isAuthorized(request))) {
+            return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
+        }
+
+        const searchParams = new URLSearchParams(request.nextUrl.searchParams)
+        const endpoint = searchParams.get('endpoint')
+        if (!endpoint) {
+            return NextResponse.json({ error: 'Missing endpoint query parameter' }, { status: 400 })
+        }
+
+        const res = await makeBotRequest(endpoint, 'DELETE')
+        return NextResponse.json(res.data, { status: res.status })
+    } catch (err: any) {
+        return NextResponse.json({ error: err?.message || 'Failed to delete from SMS gateway' }, { status: 500 })
+    }
+}

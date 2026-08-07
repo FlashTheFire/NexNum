@@ -138,7 +138,7 @@ async def _fetch_device_messages_fast(
         ])
 
     for path in paths_to_try:
-        url = node._build_url(path, params='limitToLast=20')
+        url = node._build_url(path, params='orderBy="%24key"&limitToLast=20')
         try:
             resp = await client.get(url, timeout=1.5)
             if resp.status_code == 200 and resp.json():

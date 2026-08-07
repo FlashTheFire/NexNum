@@ -33,6 +33,7 @@ FX_HEADERS = {"X-API-Key": FX_API_KEY, "Content-Type": "application/json"}
 # Redis Integration & Local Fallback States
 # -----------------------------------------------------------------------------
 try:
+    # pyrefly: ignore [missing-import]
     from utils.redis_manager import redis_manager
 except ImportError:
     from bot_project.utils.redis_manager import redis_manager
@@ -48,6 +49,7 @@ REDIS_PREFIX = "nexsms"
 GLOBAL_COOLDOWN_TTL = 300
 SERVICE_COOLDOWN_TTL = 1200
 ACTIVATION_TTL = 1200
+ACTIVE_IDS_KEY = f"{REDIS_PREFIX}:active_activation_ids"
 
 async def get_redis_client():
     try:
@@ -121,32 +123,27 @@ async def set_user_number_cooldown(user_id: str, phone_number: str, timestamp: f
         except Exception as e:
             logger.warning(f"Redis error setting user number cooldown: {e}")
 
-
-ACTIVE_IDS_KEY = f"{REDIS_PREFIX}:active_ids"
-
-async def save_activation(activation_id: str, activation_data: dict):
-    _local_activations[activation_id] = activation_data
+async def save_activation(activation_id: str, data: dict, ttl: int = ACTIVATION_TTL):
+    _local_activations[activation_id] = data
     client = await get_redis_client()
     if client:
         try:
-            status = activation_data.get("status")
+            val = json.dumps(data)
             pipe = client.pipeline()
-            pipe.set(f"{REDIS_PREFIX}:activation:{activation_id}", json.dumps(activation_data), ex=ACTIVATION_TTL)
-            if status in ("STATUS_CANCEL", "STATUS_OK"):
-                pipe.srem(ACTIVE_IDS_KEY, activation_id)
-            else:
+            pipe.set(f"{REDIS_PREFIX}:activation:{activation_id}", val, ex=ttl)
+            if data.get("status") not in ("STATUS_CANCEL", "STATUS_OK", "COMPLETED", "CANCELLED"):
                 pipe.sadd(ACTIVE_IDS_KEY, activation_id)
+            else:
+                pipe.srem(ACTIVE_IDS_KEY, activation_id)
             await pipe.execute()
         except Exception as e:
             logger.warning(f"Redis error saving activation: {e}")
 
 async def remove_activation_index(activation_id: str):
-    _local_activations.pop(activation_id, None)
     client = await get_redis_client()
     if client:
         try:
             pipe = client.pipeline()
-            pipe.delete(f"{REDIS_PREFIX}:activation:{activation_id}")
             pipe.srem(ACTIVE_IDS_KEY, activation_id)
             await pipe.execute()
         except Exception as e:
@@ -167,7 +164,8 @@ async def get_all_activations() -> Dict[str, dict]:
     client = await get_redis_client()
     if client:
         try:
-            active_ids = await client.smembers(ACTIVE_IDS_KEY)
+            active_ids_raw = client.smembers(ACTIVE_IDS_KEY)
+            active_ids = await active_ids_raw if hasattr(active_ids_raw, "__await__") else active_ids_raw
             if active_ids:
                 keys = [f"{REDIS_PREFIX}:activation:{aid}" for aid in active_ids]
                 pipe = client.pipeline()
@@ -180,7 +178,9 @@ async def get_all_activations() -> Dict[str, dict]:
                         res[str(aid)] = json.loads(v)
                     else:
                         # Clean up stale ID from set
-                        await client.srem(ACTIVE_IDS_KEY, aid)
+                        srem_call = client.srem(ACTIVE_IDS_KEY, aid)
+                        if hasattr(srem_call, "__await__"):
+                            await srem_call
                 return res
         except Exception as e:
             logger.warning(f"Redis error listing active activations: {e}")
@@ -342,7 +342,7 @@ async def handler_api(
         if not id:
             return "NO_ACTIVATION"
 
-        act_key = str(id)
+        act_key = id
         act = await get_activation(act_key)
         if not act:
             return "NO_ACTIVATION"
@@ -397,7 +397,7 @@ async def handler_api(
     if action in ("getfullsms", "getfullsmstext"):
         if not id:
             return "NO_ACTIVATION"
-        act_key = str(id)
+        act_key = id
         act = await get_activation(act_key)
         if not act:
             return "NO_ACTIVATION"
@@ -433,12 +433,12 @@ async def handler_api(
         if not id:
             return "NO_ACTIVATION"
 
-        act_key = str(id)
+        act_key = id
         act = await get_activation(act_key)
         if not act:
             return "NO_ACTIVATION"
 
-        st = str(status or "")
+        st = status or ""
 
         # Action = Cancel (status=-1 or 8)
         if st in ("-1", "8"):
@@ -466,9 +466,11 @@ async def handler_api(
             await save_activation(act_key, act)
             return "ACCESS_READY"
 
-        # Action = Retry (status=3)
+        # Action = Retry/Wait for Next SMS (status=3)
         elif st == "3":
-            act["status"] = "STATUS_WAIT_CODE"
+            act["status"] = "STATUS_WAIT_RETRY"
+            act["has_sms"] = False
+            act["code_text"] = None
             await save_activation(act_key, act)
             return "ACCESS_RETRY_GET"
 
@@ -483,30 +485,21 @@ async def handler_api(
         except Exception:
             online_count = 10
 
+        # pyrefly: ignore [missing-import]
+        from app.services.pattern_registry import load_default_patterns
+        defaults = load_default_patterns()
+
         services_catalog = [
-            {"code": "go", "name": "Google/YouTube", "cost": 0.35},
-            {"code": "tg", "name": "Telegram", "cost": 0.35},
-            {"code": "wa", "name": "WhatsApp", "cost": 0.50},
-            {"code": "fb", "name": "Facebook", "cost": 0.35},
-            {"code": "ig", "name": "Instagram", "cost": 0.35},
-            {"code": "tw", "name": "Twitter/X", "cost": 0.35},
-            {"code": "vi", "name": "Viber", "cost": 0.35},
-            {"code": "ds", "name": "Discord", "cost": 0.35},
-            {"code": "ot", "name": "Other", "cost": 0.35},
-            {"code": "mm", "name": "Microsoft", "cost": 0.35},
-            {"code": "ya", "name": "Yahoo", "cost": 0.35},
-            {"code": "am", "name": "Amazon", "cost": 0.35},
-            {"code": "wx", "name": "Apple", "cost": 0.35},
-            {"code": "lf", "name": "TikTok", "cost": 0.35},
-            {"code": "vk", "name": "VK", "cost": 0.35},
-            {"code": "ok", "name": "OK.ru", "cost": 0.35},
-            {"code": "ma", "name": "Mail.ru", "cost": 0.35},
-            {"code": "oi", "name": "Tinder", "cost": 0.35},
-            {"code": "nz", "name": "Nike", "cost": 0.35},
-            {"code": "hw", "name": "Alipay", "cost": 0.35},
+            {
+                "code": c_code,
+                "name": c_info.get("name", c_code.upper()),
+                "cost": float(c_info.get("price", 15.0) or 15.0),
+                "stock": int(c_info.get("stock", max(1, online_count)) or online_count)
+            }
+            for c_code, c_info in defaults.items()
         ]
 
-        target_country = str(country) if country and country != "any" else "22"
+        target_country = country if country and country != "any" else "22"
         req_svc = service.lower() if service else None
 
         # pyrefly: ignore [missing-import]
@@ -519,7 +512,7 @@ async def handler_api(
             if not req_svc or code == req_svc:
                 price_info = await PricingEngine.compute_dynamic_price(redis_client, code, custom_base_price=s["cost"])
                 cost = price_info["finalPrice"]
-                count = max(1, online_count)
+                count = max(1, s.get("stock", online_count))
                 services_map[code] = {
                     "cost": cost,
                     "price": cost,
@@ -536,32 +529,23 @@ async def handler_api(
 
     if action in ("getcountries", "getcountrieslist"):
         countries = [
-            {"id": 22, "code": 22, "eng": "India", "name": "India"}
+            {"id": 22, "code": 22, "eng": "India", "name": "India", "prefix": "+91", "available": True}
         ]
         return JSONResponse(countries)
 
     if action in ("getservices", "getserviceslist"):
+        # pyrefly: ignore [missing-import]
+        from app.services.pattern_registry import load_default_patterns
+        defaults = load_default_patterns()
         services = [
-            {"code": "go", "external_id": "go", "name": "Google/YouTube"},
-            {"code": "tg", "external_id": "tg", "name": "Telegram"},
-            {"code": "wa", "external_id": "wa", "name": "WhatsApp"},
-            {"code": "fb", "external_id": "fb", "name": "Facebook"},
-            {"code": "ig", "external_id": "ig", "name": "Instagram"},
-            {"code": "tw", "external_id": "tw", "name": "Twitter/X"},
-            {"code": "vi", "external_id": "vi", "name": "Viber"},
-            {"code": "ds", "external_id": "ds", "name": "Discord"},
-            {"code": "ot", "external_id": "ot", "name": "Other"},
-            {"code": "mm", "external_id": "mm", "name": "Microsoft"},
-            {"code": "ya", "external_id": "ya", "name": "Yahoo"},
-            {"code": "am", "external_id": "am", "name": "Amazon"},
-            {"code": "wx", "external_id": "wx", "name": "Apple"},
-            {"code": "lf", "external_id": "lf", "name": "TikTok"},
-            {"code": "vk", "external_id": "vk", "name": "VK"},
-            {"code": "ok", "external_id": "ok", "name": "OK.ru"},
-            {"code": "ma", "external_id": "ma", "name": "Mail.ru"},
-            {"code": "oi", "external_id": "oi", "name": "Tinder"},
-            {"code": "nz", "external_id": "nz", "name": "Nike"},
-            {"code": "hw", "external_id": "hw", "name": "Alipay"},
+            {
+                "code": c_code,
+                "external_id": c_code,
+                "name": c_info.get("name", c_code.upper()),
+                "cost": float(c_info.get("price", 15.0) or 15.0),
+                "stock": int(c_info.get("stock", 100) or 100)
+            }
+            for c_code, c_info in defaults.items()
         ]
         return JSONResponse(services)
 
