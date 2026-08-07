@@ -195,11 +195,6 @@ CACHE_KEY = os.getenv("CACHE_KEY", "cache-data:")
 USER_IMAGE_HASH = os.getenv("USER_IMAGE_HASH", "image_data:user-profile")
 IMGBB_API_KEY = os.getenv("IMGBB_API_KEY")
 
-# Cloudinary configuration
-CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME")
-CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY")
-CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET")
-
 # Validate critical configurations
 def validate_config():
     if not BOT_TOKEN or len(BOT_TOKEN) < 20:
@@ -214,20 +209,8 @@ def validate_config():
         print("Error: Cache durations cannot be negative")
         sys.exit(1)
 
-    # Warn about missing upload credentials (image features will be degraded)
-    missing_upload = []
+    # Warn if ImgBB API Key is missing for purchase card uploads
     if not IMGBB_API_KEY:
-        missing_upload.append("IMGBB_API_KEY")
-    if not CLOUDINARY_CLOUD_NAME:
-        missing_upload.append("CLOUDINARY_CLOUD_NAME")
-    if not CLOUDINARY_API_KEY:
-        missing_upload.append("CLOUDINARY_API_KEY")
-    if not CLOUDINARY_API_SECRET:
-        missing_upload.append("CLOUDINARY_API_SECRET")
-    if missing_upload:
-        print(
-            f"Warning: Missing upload credential(s): {', '.join(missing_upload)}. "
-            "Image upload features will be unavailable."
-        )
+        print("Warning: Missing IMGBB_API_KEY. Dynamic order preview card uploads will be unavailable.")
 
 validate_config()

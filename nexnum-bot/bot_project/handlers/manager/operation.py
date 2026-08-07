@@ -67,7 +67,6 @@ from utils.config import (
     INLINE_CACHE_PREFIX, CACHE_DURATION,
     CACHE_RESULTS_PER_PAGE, CACHE_EXPIRY,
     APP_COUNT, BOT_TOKEN, CHANNEL_ID,
-    CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET,
     COMMISSION
 )
 from utils.functions import small_caps, decode_barcode_id, encode_order_id, AdvancedLogger, convert_usd_to_rub, convert_rub_to_usd
@@ -87,12 +86,6 @@ DEPOSIT_INFO_PREFIX = "deposit_data:"
 user_key_profile = "user_data:{user_id}:profile:main"
 
 ORDER_PREFIX = "987654321"
-# Configure Cloudinary
-cloudinary.config(
-    cloud_name=CLOUDINARY_CLOUD_NAME,
-    api_key=CLOUDINARY_API_KEY,
-    api_secret=CLOUDINARY_API_SECRET
-)
 
 # Module-level logger for utility functions that do not carry self.logger
 logger = logging.getLogger(__name__)
@@ -1948,13 +1941,7 @@ class CountryFlagUpdater:
         self.redis_client = redis_client
 
     def convert_svg_to_png_upload(self, svg_url: str) -> str:
-        if not os.getenv("CLOUDINARY_API_KEY"):
-            return svg_url
-        try:
-            result = cloudinary.uploader.upload(svg_url, resource_type="image", overwrite=True)
-            return cloudinary.CloudinaryImage(result["public_id"]).build_url(format="png")
-        except Exception as e:
-            return svg_url
+        return svg_url
 
     def emoji_to_country_code(self, flag_emoji: str) -> str:
         return ''.join(chr(ord(c) - 127397) for c in flag_emoji).lower()
