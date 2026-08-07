@@ -11,6 +11,7 @@ import logging
 from typing import Optional
 from fastapi import Request, HTTPException, status
 
+# pyrefly: ignore [missing-import]
 from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)

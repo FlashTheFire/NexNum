@@ -21,6 +21,7 @@ import logging
 import time
 from typing import Dict, Any, List, Optional, Tuple
 
+# pyrefly: ignore [missing-import]
 from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -130,44 +131,49 @@ class ServicePatternRegistry:
         return None
 
     @classmethod
-    async def match_sms_dynamic(cls, redis_client, body: str, sender: str, service_code: str) -> tuple[bool, Optional[str]]:
+    async def match_sms_dynamic(cls, redis_client, body: str, sender: str, service_code: str) -> tuple[bool, Optional[str], dict]:
         """
         Validates incoming SMS against dynamic pattern for service_code.
-        Returns `(is_matched: bool, extracted_code: Optional[str])`.
+        Returns `(is_matched: bool, extracted_code: Optional[str], details: dict)`.
         """
         if not body:
-            return False, None
+            return False, None, {}
 
         pattern = await cls.get_pattern(redis_client, service_code)
-        if not pattern:
-            from app.services.sms_parser import match_sms_to_service, extract_otp_code
-            matched = match_sms_to_service(body, sender, service_code)
-            code = extract_otp_code(body) if matched else None
-            return matched, code
+        service_name = pattern.get("name", service_code.upper()) if pattern else service_code.upper()
 
-        # Compile regexes
         sender_pats = [re.compile(p, re.I) for p in pattern.get("sender_patterns", []) if p]
         body_pats = [re.compile(p, re.I) for p in pattern.get("body_patterns", []) if p]
         custom_otp_regex = pattern.get("otp_regex")
 
         matched = False
-        # Sender check
-        for p in sender_pats:
-            if p.search(sender):
+        matched_sender_pattern = None
+        matched_body_pattern = None
+
+        # 1. Check sender
+        for raw_p, p in zip(pattern.get("sender_patterns", []), sender_pats):
+            if sender and p.search(sender):
                 matched = True
+                matched_sender_pattern = raw_p
                 break
 
-        # Body check
-        if not matched:
-            for p in body_pats:
-                if p.search(body):
-                    matched = True
-                    break
+        # 2. Check body
+        for raw_p, p in zip(pattern.get("body_patterns", []), body_pats):
+            if p.search(body):
+                matched = True
+                if not matched_body_pattern:
+                    matched_body_pattern = raw_p
+                break
 
         if not matched:
-            return False, None
+            return False, None, {
+                "serviceName": service_name,
+                "matchedSenderPattern": None,
+                "matchedBodyPattern": None,
+                "otpRegex": custom_otp_regex
+            }
 
-        # Extract OTP
+        # 3. Extract OTP
         extracted_code = None
         if custom_otp_regex:
             try:
@@ -178,13 +184,24 @@ class ServicePatternRegistry:
                 pass
 
         if not extracted_code:
+            # pyrefly: ignore [missing-import]
             from app.services.sms_parser import extract_otp_code
-            extracted_code = extract_otp_code(body) or body
+            extracted_code = extract_otp_code(body)
 
+        # STRICT DIGIT VALIDATION: If extracted string contains no digits, reset to None
         if extracted_code:
             extracted_code = str(extracted_code).replace("-", "").replace(" ", "").strip()
+            if not any(c.isdigit() for c in extracted_code):
+                extracted_code = None
 
-        return True, extracted_code
+        details = {
+            "serviceName": service_name,
+            "matchedSenderPattern": matched_sender_pattern,
+            "matchedBodyPattern": matched_body_pattern,
+            "otpRegex": custom_otp_regex
+        }
+
+        return True, extracted_code, details
 
     @classmethod
     async def update_pattern(cls, redis_client, service_code: str, pattern_data: dict) -> bool:

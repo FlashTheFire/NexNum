@@ -24,7 +24,9 @@ import time
 from typing import Dict, Any, List, Optional
 import httpx
 
+# pyrefly: ignore [missing-import]
 from app.core.config import get_settings
+# pyrefly: ignore [missing-import]
 from app.services.sms_parser import extract_otp_code, match_sms_to_service
 
 logger = logging.getLogger(__name__)
@@ -162,8 +164,9 @@ async def _process_stream_message(redis_client, msg_id: str, fields: Dict[str, s
 
         if not has_sms:
             # First SMS: must match requested service pattern dynamically
+            # pyrefly: ignore [missing-import]
             from app.services.pattern_registry import ServicePatternRegistry
-            is_match, extracted_code = await ServicePatternRegistry.match_sms_dynamic(redis_client, body, sender, req_service)
+            is_match, extracted_code, details = await ServicePatternRegistry.match_sms_dynamic(redis_client, body, sender, req_service)
         else:
             # Re-send cycle: accept any incoming SMS
             is_match = True
@@ -197,6 +200,7 @@ async def _process_stream_message(redis_client, msg_id: str, fields: Dict[str, s
                     logger.warning(f"Failed to increment service count for {act_number}: {e}")
 
             # Phase 6: Async Non-Blocking Supabase Archiving
+            # pyrefly: ignore [missing-import]
             from app.services.supabase_archive import SupabaseArchiver
             asyncio.create_task(SupabaseArchiver.archive_message(
                 device_id=device_id,

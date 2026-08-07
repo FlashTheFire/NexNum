@@ -11,6 +11,7 @@ if str(_bot_dir) not in sys.path:
 
 import httpx
 from main import fastapi_app
+# pyrefly: ignore [missing-import]
 from app.core.config import get_settings
 
 settings = get_settings()

@@ -1,7 +1,9 @@
 # app/services/sms.py
 import logging
 import time
+# pyrefly: ignore [missing-import]
 from app.crud import firebase_crud as crud
+# pyrefly: ignore [missing-import]
 from app.services.sms_parser import parse_sms, extract_highest_frequency_number_and_carrier
 
 logger = logging.getLogger(__name__)

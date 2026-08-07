@@ -12,6 +12,7 @@ _bot_dir = Path(__file__).resolve().parent.parent
 if str(_bot_dir) not in sys.path:
     sys.path.insert(0, str(_bot_dir))
 
+# pyrefly: ignore [missing-import]
 from app.services.pattern_registry import ServicePatternRegistry, load_default_patterns
 
 

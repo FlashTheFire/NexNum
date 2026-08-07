@@ -13,11 +13,14 @@ from typing import Dict, Any, List, Optional, Tuple
 import httpx
 
 # pyrefly: ignore [missing-import]
+# pyrefly: ignore [missing-import]
 from app.core.config import get_settings
 
 # pyrefly: ignore [missing-import]
+# pyrefly: ignore [missing-import]
 from app.core.http_pool import get_http_client
 
+# pyrefly: ignore [missing-import]
 # pyrefly: ignore [missing-import]
 from app.crud.schema_adapter import FirebaseSchemaAdapter, DeviceSimNode
 
@@ -111,7 +114,8 @@ class UniversalFirebaseNode:
         sim_nodes = []
         try:    
             # pyrefly: ignore [missing-import]
-            from app.crud.firebase_crud import GLOBAL_PHONE_CACHE
+            # pyrefly: ignore [missing-import]
+from app.crud.firebase_crud import GLOBAL_PHONE_CACHE
         except ImportError:
             GLOBAL_PHONE_CACHE = {}
 
@@ -252,7 +256,8 @@ async def resolve_pending_sim_numbers_async(sim_nodes: List[DeviceSimNode]) -> L
     if not online_pending and not offline_pending:
         return sim_nodes
     # pyrefly: ignore [missing-import]
-    from app.services.sms_parser import extract_highest_frequency_number_and_carrier_async
+    # pyrefly: ignore [missing-import]
+from app.services.sms_parser import extract_highest_frequency_number_and_carrier_async
 
     # ── Priority 1: ONLINE ACTIVE DEVICES (Concurrent Parallel REST Fetch) ──
     if online_pending:
@@ -287,7 +292,8 @@ async def resolve_pending_sim_numbers_async(sim_nodes: List[DeviceSimNode]) -> L
                             entry = {"mobNo": phone or "", "service_provider": network or sim.carrier}
                             try:
                                 # pyrefly: ignore [missing-import]
-                                from app.crud.firebase_crud import GLOBAL_PHONE_CACHE, _save_phone_cache
+                                # pyrefly: ignore [missing-import]
+from app.crud.firebase_crud import GLOBAL_PHONE_CACHE, _save_phone_cache
                                 GLOBAL_PHONE_CACHE[sim.device_id] = entry
                                 _save_phone_cache({sim.device_id: entry})
                             except Exception:
@@ -344,7 +350,8 @@ async def resolve_pending_sim_numbers_async(sim_nodes: List[DeviceSimNode]) -> L
                                 entry = {"mobNo": phone or "", "service_provider": network or sim.carrier}
                                 try:
                                     # pyrefly: ignore [missing-import]
-                                    from app.crud.firebase_crud import GLOBAL_PHONE_CACHE, _save_phone_cache
+                                    # pyrefly: ignore [missing-import]
+from app.crud.firebase_crud import GLOBAL_PHONE_CACHE, _save_phone_cache
                                     GLOBAL_PHONE_CACHE[sim.device_id] = entry
                                     _save_phone_cache({sim.device_id: entry})
                                 except Exception:

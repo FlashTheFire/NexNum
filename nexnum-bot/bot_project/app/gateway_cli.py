@@ -37,6 +37,7 @@ from rich.prompt import Prompt
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich import box
 from rich.markdown import Markdown
+# pyrefly: ignore [missing-import]
 from app.services.sms_parser import (
     extract_highest_frequency_number_and_carrier_async
 )
@@ -204,7 +205,8 @@ async def resolve_client_phone_and_network(cid: str, data: dict):
     # Auto-promote to Firebase root asynchronously (0ms future reads, zero double-checks)
     if phone or network:
         try:
-            from app.crud import firebase_crud as crud
+            # pyrefly: ignore [missing-import]
+from app.crud import firebase_crud as crud
             payload = {}
             if phone:
                 payload["mobNo"] = phone

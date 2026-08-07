@@ -29,6 +29,7 @@ from typing import Optional
 from fastapi import APIRouter, Request, Response, HTTPException
 from pydantic import BaseModel, Field
 
+# pyrefly: ignore [missing-import]
 from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)

@@ -12,6 +12,7 @@ _bot_dir = Path(__file__).resolve().parent.parent
 if str(_bot_dir) not in sys.path:
     sys.path.insert(0, str(_bot_dir))
 
+# pyrefly: ignore [missing-import]
 from app.services.sms_parser import match_sms_to_service, extract_otp_code
 from fastapi.testclient import TestClient
 from main import fastapi_app

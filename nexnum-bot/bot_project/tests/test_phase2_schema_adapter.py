@@ -11,6 +11,7 @@ _bot_dir = Path(__file__).resolve().parent.parent
 if str(_bot_dir) not in sys.path:
     sys.path.insert(0, str(_bot_dir))
 
+# pyrefly: ignore [missing-import]
 from app.crud.schema_adapter import (
     FirebaseSchemaAdapter,
     DeviceSimNode,

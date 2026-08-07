@@ -19,11 +19,16 @@ _bot_dir = Path(__file__).resolve().parent
 if str(_bot_dir) not in sys.path:
     sys.path.insert(0, str(_bot_dir))
 
+# pyrefly: ignore [missing-import]
 from app.core.config import get_settings
 from utils.redis_manager import redis_manager
+# pyrefly: ignore [missing-import]
 from app.inbound.router import ensure_consumer_group
+# pyrefly: ignore [missing-import]
 from app.workers.activation_worker import start_activation_workers, stop_activation_workers
+# pyrefly: ignore [missing-import]
 from app.workers.prescorer_worker import start_prescorer_worker, stop_prescorer_worker
+# pyrefly: ignore [missing-import]
 from app.services.firebase_stream import firebase_stream_manager
 
 logging.basicConfig(

@@ -12,7 +12,9 @@ BOT_PROJECT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if BOT_PROJECT_DIR not in sys.path:
     sys.path.insert(0, BOT_PROJECT_DIR)
 
+# pyrefly: ignore [missing-import]
 from app.services.firebase_stream import FirebaseStreamManager
+# pyrefly: ignore [missing-import]
 from app.gateway.router import save_activation, get_activation
 
 async def run_tests():

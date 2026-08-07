@@ -20,6 +20,7 @@ import logging
 from typing import Dict, Any, Optional
 import httpx
 
+# pyrefly: ignore [missing-import]
 from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)

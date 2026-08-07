@@ -8,7 +8,9 @@ import time
 from typing import Dict, Any, List, Optional
 import httpx
 
+# pyrefly: ignore [missing-import]
 from app.core.config import get_settings
+# pyrefly: ignore [missing-import]
 from app.gateway.router import get_all_activations, save_activation
 
 logger = logging.getLogger(__name__)

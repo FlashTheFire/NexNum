@@ -16,8 +16,11 @@ import logging
 import time
 from typing import Dict, Any, List, Optional
 
+# pyrefly: ignore [missing-import]
 from app.crud.firebase_crud import get_all_sim_nodes, get_incoming_messages
+# pyrefly: ignore [missing-import]
 from app.services.sms_parser import match_sms_to_service, SERVICE_PATTERNS
+# pyrefly: ignore [missing-import]
 from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)

@@ -1,6 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
+# pyrefly: ignore [missing-import]
 from app.models.schemas import Client, ClientDetail
+# pyrefly: ignore [missing-import]
 from app.crud import firebase_crud as crud
+# pyrefly: ignore [missing-import]
 from app.core.security import verify_api_key
 from typing import List, Dict, Any
 import logging

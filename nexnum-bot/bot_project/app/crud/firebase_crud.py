@@ -1,5 +1,6 @@
 # app/crud/firebase_crud.py
 from typing import Dict, Any, List, Optional
+# pyrefly: ignore [missing-import]
 from app.core.config import get_settings
 import httpx
 import logging
@@ -105,6 +106,7 @@ def _save_phone_cache(updated_entries: Optional[Dict[str, Dict[str, Any]]] = Non
             import asyncio
             async def _push_to_redis():
                 try:
+                    # pyrefly: ignore [missing-import]
                     from utils.redis_manager import redis_manager
                     client = await redis_manager.get_client()
                     if client:
@@ -223,6 +225,7 @@ async def get_all_sim_nodes_async() -> List[Any]:
     Async Universal Multi-Schema Aggregator:
     Queries all declared Firebase nodes via UniversalFirebaseRegistry.
     """
+    # pyrefly: ignore [missing-import]
     from app.crud.universal_firebase import UniversalFirebaseRegistry
     sim_nodes = await UniversalFirebaseRegistry.fetch_all_sim_nodes_async()
     logger.info(f"[SchemaAdapter] Aggregated {len(sim_nodes)} valid allocatable SIM nodes across Universal Firebase Registry")
@@ -233,6 +236,7 @@ def get_all_sim_nodes() -> List[Any]:
     """
     Universal Multi-Schema Aggregator (Sync Fallback):
     """
+    # pyrefly: ignore [missing-import]
     from app.crud.universal_firebase import UniversalFirebaseRegistry
     sim_nodes = UniversalFirebaseRegistry.fetch_all_sim_nodes()
     logger.info(f"[SchemaAdapter] Aggregated {len(sim_nodes)} valid allocatable SIM nodes across Universal Firebase Registry")

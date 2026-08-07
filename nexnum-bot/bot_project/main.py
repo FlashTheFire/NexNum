@@ -100,16 +100,27 @@ from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.background import BackgroundScheduler
 from contextlib import asynccontextmanager
 
+# pyrefly: ignore [missing-import]
 from app.core.config import get_settings
+# pyrefly: ignore [missing-import]
 from app.core.logging import setup_logging
+# pyrefly: ignore [missing-import]
 from app.api.v1.router import router as api_router
+# pyrefly: ignore [missing-import]
 from app.api.webhook import router as webhook_router
+# pyrefly: ignore [missing-import]
 from app.jobs.scheduler import schedule_jobs
+# pyrefly: ignore [missing-import]
 from app.gateway.router import router as gateway_router
+# pyrefly: ignore [missing-import]
 from app.gateway.dashboard import router as dashboard_router
+# pyrefly: ignore [missing-import]
 from app.services.firebase_stream import firebase_stream_manager
+# pyrefly: ignore [missing-import]
 from app.inbound.router import router as inbound_router, ensure_consumer_group
+# pyrefly: ignore [missing-import]
 from app.workers.activation_worker import start_activation_workers, stop_activation_workers
+# pyrefly: ignore [missing-import]
 from app.workers.prescorer_worker import start_prescorer_worker, stop_prescorer_worker
 
 settings = get_settings()
@@ -144,6 +155,7 @@ async def lifespan(app: FastAPI):
     yield
 
     # Cleanup
+    # pyrefly: ignore [missing-import]
     from app.core.http_pool import close_http_pool
     if settings.ENABLE_IN_PROCESS_WORKERS:
         await stop_prescorer_worker()

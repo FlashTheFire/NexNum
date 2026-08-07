@@ -5,6 +5,10 @@ import logging
 from typing import Optional
 import httpx
 
+# Silence verbose httpx & httpcore HTTP GET/PATCH request logs (log only WARNING/ERROR)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+
 logger = logging.getLogger(__name__)
 
 _async_client: Optional[httpx.AsyncClient] = None

@@ -753,12 +753,29 @@ export default function GatewayAdminPage() {
                             >
                                 <option value="tg">Telegram (tg)</option>
                                 <option value="wa">WhatsApp (wa)</option>
-                                <option value="go">Google (go)</option>
+                                <option value="go">Google / YouTube (go)</option>
                                 <option value="ig">Instagram (ig)</option>
                                 <option value="fb">Facebook (fb)</option>
-                                <option value="tw">Twitter (tw)</option>
+                                <option value="tw">Twitter / X (tw)</option>
+                                <option value="oi">Tinder (oi)</option>
                                 <option value="ub">Uber (ub)</option>
-                                <option value="ot">Other / Universal (ot)</option>
+                                <option value="am">Amazon (am)</option>
+                                <option value="mm">Microsoft / Outlook (mm)</option>
+                                <option value="wx">Apple / iCloud (wx)</option>
+                                <option value="lf">TikTok (lf)</option>
+                                <option value="fk">Flipkart (fk)</option>
+                                <option value="sw">Swiggy (sw)</option>
+                                <option value="zo">Zomato (zo)</option>
+                                <option value="me">Meesho (me)</option>
+                                <option value="pm">Paytm (pm)</option>
+                                <option value="pp">PhonePe (pp)</option>
+                                <option value="d1">Dream11 (d1)</option>
+                                <option value="tc">Truecaller (tc)</option>
+                                <option value="ds">Discord (ds)</option>
+                                <option value="vi">Viber (vi)</option>
+                                <option value="sn">Snapchat (sn)</option>
+                                <option value="ya">Yahoo (ya)</option>
+                                <option value="ot">Other / Universal Fallback (ot)</option>
                             </select>
                         </div>
 
@@ -800,8 +817,8 @@ export default function GatewayAdminPage() {
                             <div className="flex items-center justify-between border-b-2 border-zinc-800 pb-3 mb-4">
                                 <span className="text-xs font-black uppercase tracking-wider text-zinc-400">Live Execution Result</span>
                                 {testResult && (
-                                    <span className="text-[10px] font-mono text-zinc-500">
-                                        Latency: {testResult.executionTimeMs}ms
+                                    <span className="text-[10px] font-mono text-zinc-400 bg-zinc-900 px-2 py-0.5 rounded border border-zinc-800 font-bold">
+                                        Latency: {testResult.executionTimeMs} ms
                                     </span>
                                 )}
                             </div>
@@ -824,7 +841,7 @@ export default function GatewayAdminPage() {
                                     </div>
 
                                     {/* Extracted OTP Callout Box */}
-                                    {testResult.extractedCode && (
+                                    {testResult.extractedCode ? (
                                         <div className="rounded-xl border-2 border-black bg-[hsl(var(--neon-lime))] p-4 shadow-[3px_3px_0px_0px_#000] text-black">
                                             <div className="text-[10px] font-black uppercase tracking-wider opacity-80 mb-1">
                                                 EXTRACTED VERIFICATION CODE
@@ -842,13 +859,39 @@ export default function GatewayAdminPage() {
                                                 </button>
                                             </div>
                                         </div>
-                                    )}
+                                    ) : testResult.isMatched ? (
+                                        <div className="rounded-xl border-2 border-amber-400 bg-amber-950/40 p-3 text-amber-300 text-xs font-bold flex items-center gap-2">
+                                            <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
+                                            <span>Service pattern matched, but no verification code digits were present in the SMS text.</span>
+                                        </div>
+                                    ) : null}
 
-                                    {/* Payload Detail Breakdown */}
-                                    <div className="rounded-lg border-2 border-zinc-800 bg-zinc-900 p-3 font-mono text-xs space-y-1 text-zinc-300">
-                                        <div><span className="text-zinc-500">Service:</span> {testResult.serviceCode}</div>
-                                        <div><span className="text-zinc-500">Sender:</span> {testResult.sender || '—'}</div>
-                                        <div><span className="text-zinc-500">Execution Time:</span> {testResult.executionTimeMs} ms</div>
+                                    {/* Payload & Regex Pattern Breakdown Grid */}
+                                    <div className="rounded-lg border-2 border-zinc-800 bg-zinc-900 p-4 font-mono text-xs space-y-2 text-zinc-300">
+                                        <div className="flex items-center justify-between border-b border-zinc-800 pb-1.5">
+                                            <span className="text-zinc-500 font-bold uppercase text-[10px]">Service:</span>
+                                            <span className="text-white font-bold">{testResult.serviceName || testResult.serviceCode?.toUpperCase()} ({testResult.serviceCode})</span>
+                                        </div>
+                                        <div className="flex items-center justify-between border-b border-zinc-800 pb-1.5">
+                                            <span className="text-zinc-500 font-bold uppercase text-[10px]">Sender Tested:</span>
+                                            <span className="text-white font-bold">{testResult.sender || '—'}</span>
+                                        </div>
+                                        <div className="flex items-center justify-between border-b border-zinc-800 pb-1.5">
+                                            <span className="text-zinc-500 font-bold uppercase text-[10px]">Matched Sender Pattern:</span>
+                                            <span className="text-emerald-400 font-bold">{testResult.matchedSenderPattern || '—'}</span>
+                                        </div>
+                                        <div className="flex items-center justify-between border-b border-zinc-800 pb-1.5">
+                                            <span className="text-zinc-500 font-bold uppercase text-[10px]">Matched Body Pattern:</span>
+                                            <span className="text-emerald-400 font-bold">{testResult.matchedBodyPattern || '—'}</span>
+                                        </div>
+                                        <div className="flex items-center justify-between border-b border-zinc-800 pb-1.5">
+                                            <span className="text-zinc-500 font-bold uppercase text-[10px]">OTP Regex Rule:</span>
+                                            <span className="text-cyan-400 font-bold">{testResult.otpRegex || '\\b(\\d{4,8})\\b'}</span>
+                                        </div>
+                                        <div className="flex items-center justify-between pt-1">
+                                            <span className="text-zinc-500 font-bold uppercase text-[10px]">Execution Latency:</span>
+                                            <span className="text-amber-400 font-bold">{testResult.executionTimeMs} ms</span>
+                                        </div>
                                     </div>
                                 </div>
                             ) : (

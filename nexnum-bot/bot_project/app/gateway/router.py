@@ -12,7 +12,9 @@ from typing import Dict, Optional
 from fastapi import APIRouter, Query
 from fastapi.responses import PlainTextResponse, JSONResponse
 
+# pyrefly: ignore [missing-import]
 from app.core.config import get_settings
+# pyrefly: ignore [missing-import]
 from app.services.sms_parser import extract_otp_code
 
 settings = get_settings()
@@ -187,6 +189,7 @@ async def get_all_activations() -> Dict[str, dict]:
 # -----------------------------------------------------------------------------
 # HTTP helpers with redirect following
 # -----------------------------------------------------------------------------
+# pyrefly: ignore [missing-import]
 from app.crud import firebase_crud as crud
 
 async def fx_get_clients():
@@ -266,6 +269,7 @@ async def handler_api(
         now = time.time()
 
         # Phase 4: Deterministic Multi-Factor Device SIM Selection via DeviceScorer
+        # pyrefly: ignore [missing-import]
         from app.gateway.scorer import DeviceScorer
 
         redis_client = await get_redis_client()
@@ -295,6 +299,7 @@ async def handler_api(
         clean_digits = phone_number.replace("+", "")
         
         # Calculate professional dynamic pricing with peak-time surge
+        # pyrefly: ignore [missing-import]
         from app.services.pricing_engine import PricingEngine
         pricing_data = await PricingEngine.compute_dynamic_price(redis_client, req_service)
         svc_cost = pricing_data["finalPrice"]
@@ -504,6 +509,7 @@ async def handler_api(
         target_country = str(country) if country and country != "any" else "22"
         req_svc = service.lower() if service else None
 
+        # pyrefly: ignore [missing-import]
         from app.services.pricing_engine import PricingEngine
         redis_client = await get_redis_client()
 

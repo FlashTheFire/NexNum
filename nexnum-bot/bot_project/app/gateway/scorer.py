@@ -29,6 +29,7 @@ import logging
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
 
+# pyrefly: ignore [missing-import]
 from app.crud.schema_adapter import DeviceSimNode
 
 logger = logging.getLogger(__name__)

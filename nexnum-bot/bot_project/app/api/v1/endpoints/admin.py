@@ -8,6 +8,7 @@ and dynamic pattern matching sandbox.
 from __future__ import annotations
 
 import time
+import math
 import json
 import logging
 from typing import Dict, Any, List, Optional
@@ -15,12 +16,19 @@ from fastapi import APIRouter, Request, HTTPException, Query, Body, Depends
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 
+# pyrefly: ignore [missing-import]
+# pyrefly: ignore [missing-import]
 from app.core.config import get_settings
+# pyrefly: ignore [missing-import]
 from app.crud.firebase_crud import get_all_sim_nodes
+# pyrefly: ignore [missing-import]
 from app.services.pattern_registry import ServicePatternRegistry, load_default_patterns
+# pyrefly: ignore [missing-import]
 from app.services.sms_parser import extract_otp_code, match_sms_to_service
+# pyrefly: ignore [missing-import]
 from app.middleware.auth import verify_api_key
 
+# pyrefly: ignore [missing-import]
 from app.crud.firebase_crud import get_all_sim_nodes_async
 
 logger = logging.getLogger(__name__)
@@ -346,17 +354,21 @@ async def test_pattern_match(payload: TestMatchPayload):
         from bot_project.utils.redis_manager import redis_manager
     redis_client = await redis_manager.get_client()
 
-    matched, code = await ServicePatternRegistry.match_sms_dynamic(
+    matched, code, details = await ServicePatternRegistry.match_sms_dynamic(
         redis_client, payload.body, payload.sender, payload.serviceCode
     )
     exec_time_ms = round((time.time() - start_time) * 1000, 2)
 
     return {
         "serviceCode": payload.serviceCode,
+        "serviceName": details.get("serviceName", payload.serviceCode.upper()),
         "sender": payload.sender,
         "body": payload.body,
         "isMatched": matched,
         "extractedCode": code,
+        "matchedSenderPattern": details.get("matchedSenderPattern"),
+        "matchedBodyPattern": details.get("matchedBodyPattern"),
+        "otpRegex": details.get("otpRegex"),
         "executionTimeMs": exec_time_ms,
         "timestamp": int(time.time())
     }

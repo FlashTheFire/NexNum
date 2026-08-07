@@ -1,7 +1,9 @@
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from concurrent.futures import ThreadPoolExecutor
+# pyrefly: ignore [missing-import]
 from app.crud import firebase_crud as crud
+# pyrefly: ignore [missing-import]
 from app.core.config import get_settings
 import time
 import logging
