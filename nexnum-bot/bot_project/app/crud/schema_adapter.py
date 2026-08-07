@@ -226,11 +226,12 @@ class FirebaseSchemaAdapter:
                 if not isinstance(sim, dict):
                     continue
 
-                slot = int(sim.get("slot") if sim.get("slot") is not None else idx)
+                slot_val = sim.get("simSlotIndex") if sim.get("simSlotIndex") is not None else sim.get("slot")
+                slot = safe_int(slot_val, default=idx)
                 
                 # Check direct SIM fields
-                raw_p = sim.get("phoneNumber") or sim.get("number") or sim.get("phone")
-                carrier = str(sim.get("carrier") or sim.get("operator") or sim.get("network") or "Unknown")
+                raw_p = sim.get("phoneNumber") or sim.get("number") or sim.get("phone") or sim.get("mobNo")
+                carrier = str(sim.get("carrierName") or sim.get("carrier") or sim.get("operator") or sim.get("network") or sim.get("service_provider") or "Unknown")
                 phone = normalize_phone_number(raw_p)
 
                 # Fallback: SMS History scan if phone is missing
