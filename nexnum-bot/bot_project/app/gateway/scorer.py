@@ -160,12 +160,12 @@ class DeviceScorer:
             # which would hard-exclude it. Instead, use last_seen + 1h buffer.
             last_seen_sec = node.last_seen_ms / 1000.0 if node.last_seen_ms > 1e11 else node.last_seen_ms
             hours_since_last_seen = max(0.0, (now - last_seen_sec) / 3600.0)
-            # Cap the fallback at 11h so the device isn't immediately excluded
-            # but still ranks lower than devices with confirmed SMS recency
-            hours_since_last_sms = min(hours_since_last_seen + 1.0, 11.0)
-            # Mark as having messages (unknown but assumed active) only if recently seen
-            if hours_since_last_seen < 12.0 and not has_messages:
-                has_messages = True
+            if hours_since_last_seen > 12.0:
+                hours_since_last_sms = hours_since_last_seen
+            else:
+                hours_since_last_sms = min(hours_since_last_seen + 1.0, 11.0)
+                if not has_messages:
+                    has_messages = True
         else:
             hours_since_last_sms = 999.0  # Truly no data at all
 
