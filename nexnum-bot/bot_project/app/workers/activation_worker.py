@@ -79,19 +79,22 @@ async def _worker_loop(worker_id: str):
     except ImportError:
         from bot_project.utils.redis_manager import redis_manager
 
+    # Ensure consumer group exists once before entering loop
+    try:
+        redis_client = await redis_manager.get_client()
+        if redis_client:
+            # pyrefly: ignore [missing-import]
+            from app.inbound.router import ensure_consumer_group
+            await ensure_consumer_group(redis_client)
+    except Exception:
+        pass
+
     while _running:
         try:
             redis_client = await redis_manager.get_client()
             if redis_client is None:
                 await asyncio.sleep(2.0)
                 continue
-
-            try:
-                # pyrefly: ignore [missing-import]
-                from app.inbound.router import ensure_consumer_group
-                await ensure_consumer_group(redis_client)
-            except Exception:
-                pass
 
             # Read up to 10 messages with 1s block timeout
             entries = await redis_client.xreadgroup(
