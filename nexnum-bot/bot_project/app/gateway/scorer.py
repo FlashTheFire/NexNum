@@ -68,6 +68,18 @@ class DeviceScorer:
         """
         phone = node.phone_number or ""
         req_service = (service or "ot").lower()
+
+        # Hard Exclude: Phone number is pending or unknown
+        if not phone or phone.strip().lower() in ("pending", "unknown", ""):
+            return ScoredSimCandidate(
+                node=node,
+                score=-9999,
+                service_sms_count=0,
+                mins_since_seen=999,
+                has_messages=False,
+                last_sms_hours=999
+            )
+
         score = 0
 
         has_messages = False
@@ -120,7 +132,14 @@ class DeviceScorer:
                         parsed = json.loads(msgs_raw)
                         if isinstance(parsed, list) and len(parsed) > 0:
                             has_messages = True
-                            last_sms_timestamp_ms = float(parsed[0].get("timestamp") or 0.0)
+                            first_msg = parsed[0]
+                            ts_val = first_msg.get("timestamp")
+                            if isinstance(ts_val, (int, float)) and ts_val > 0:
+                                last_sms_timestamp_ms = float(ts_val)
+                            else:
+                                # pyrefly: ignore [missing-import]
+                                from app.crud.firebase_crud import parse_any_datetime_to_epoch_ms
+                                last_sms_timestamp_ms = float(parse_any_datetime_to_epoch_ms(first_msg))
                     except Exception:
                         pass
 
