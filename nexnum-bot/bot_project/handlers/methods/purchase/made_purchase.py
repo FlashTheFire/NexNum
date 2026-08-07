@@ -1017,15 +1017,21 @@ class UserPurchaseManagement:
         Launch _background_check_loop only if there's not already a loop running for that key.
         """
         try:
-            if not self.redis_client:
+            # pyrefly: ignore [missing-import]
+            from utils.redis_manager import redis_manager
+            client = await redis_manager.get_client()
+            if not client:
                 return
             # 1) Enable keyspace notifications for sorted-set events
-            await self.redis_client.config_set('notify-keyspace-events', 'Kz')
+            try:
+                await client.config_set('notify-keyspace-events', 'Kz')
+            except Exception:
+                pass
 
             # 2) Bootstrap existing schedules *once* at startup
             cursor = '0'
             while True:
-                cursor, keys = await self.redis_client.scan(
+                cursor, keys = await client.scan(
                     cursor=cursor,
                     match='schedule:quote:*',
                     count=100
@@ -1035,11 +1041,11 @@ class UserPurchaseManagement:
                     if key not in self._running_schedules:
                         logger.debug(f"Bootstrapping existing schedule: {key}")
                         self._start_schedule_loop(key)
-                if cursor == '0':
+                if str(cursor) == '0':
                     break
 
             # 3) Subscribe to keyspace pattern for real-time adds
-            pubsub = self.redis_client.pubsub()
+            pubsub = client.pubsub()
             await pubsub.psubscribe('__keyspace@0__:schedule:quote:*')
             logger.info("Listening for schedule events...")
 
@@ -1391,7 +1397,9 @@ async def register_handlers(bot: AsyncTeleBot) -> None:
                 reply_markup=markup,
                 parse_mode="HTML"
             )
-            await redis_manager.redis_client.set(f"schedule:callback_data:{callback_id}", json.dumps(full_data), ex=86400)
+            r = await redis_manager.get_client()
+            if r:
+                await r.set(f"schedule:callback_data:{callback_id}", json.dumps(full_data), ex=86400)
         except Exception as e:
             logger.error(f"Error editing message: {e}")
         full_data['callback_id'] = callback_id        
@@ -1400,13 +1408,15 @@ async def register_handlers(bot: AsyncTeleBot) -> None:
     @bot.callback_query_handler(func=lambda c: c.data.startswith("notify_off:"))
     async def handle_notify_off(call: CallbackQuery):
         callback_id = call.data.split(":", 1)[1]
-        raw_data = await redis_manager.redis_client.get(f"schedule:callback_data:{callback_id}")
+        r = await redis_manager.get_client()
+        raw_data = await r.get(f"schedule:callback_data:{callback_id}") if r else None
         if not raw_data:
             await bot.answer_callback_query(call.id, "⛔ Expired data.")
             return
         full_data = json.loads(raw_data)
         redis_key = f"quote:{full_data['country_id']}:{full_data['server_id']}:{full_data['app_id']}"
-        await redis_manager.redis_client.zrem(f"schedule:{redis_key}", callback_id)
+        if r:
+            await r.zrem(f"schedule:{redis_key}", callback_id)
         await bot.answer_callback_query(call.id, "🔕 𝗡ᴏᴛɪғɪᴄᴀᴛɪᴏɴꜱ Dɪsᴀʙʟᴇᴅ – Aʟᴇʀᴛs Sɪʟᴇɴᴄᴇᴅ. Yᴏᴜ'ʀᴇ Oғғ ᴛʜᴇ Gʀɪᴅ...")
         try:
             markup = InlineKeyboardMarkup(
