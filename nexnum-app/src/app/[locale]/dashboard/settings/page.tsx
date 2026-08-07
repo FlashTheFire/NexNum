@@ -51,10 +51,10 @@ export default function SettingsPage() {
     const [isLoading, setIsLoading] = useState(false)
     const [showDemoNotification, setShowDemoNotification] = useState(true)
 
-    // Form States
     const [name, setName] = useState(user?.name || "")
     const [email, setEmail] = useState(user?.email || "")
     const [preferredCurrency, setPreferredCurrency] = useState(user?.preferredCurrency && user.preferredCurrency !== 'POINTS' ? user.preferredCurrency : "USD")
+    const [twoFactorEnabled, setTwoFactorEnabled] = useState(Boolean((user as any)?.twoFactorEnabled))
 
     const handleSave = async () => {
         setIsLoading(true)
@@ -238,8 +238,8 @@ export default function SettingsPage() {
                                     </CardHeader>
                                     <CardContent className="p-6">
                                         <TwoFactorSetup
-                                            enabled={(user as any)?.twoFactorEnabled || twoFactor}
-                                            onStatusChange={setTwoFactor}
+                                            enabled={twoFactorEnabled}
+                                            onStatusChange={setTwoFactorEnabled}
                                         />
                                     </CardContent>
                                 </Card>
