@@ -98,7 +98,7 @@ async def _fetch_device_messages_fast(
     using lightweight query params (orderBy="$key"&limitToLast=50).
     Completes in ~50-100ms with tiny payload size.
     """
-    url = node._build_url(f"/messages/{device_id}", params='orderBy="$key"&limitToLast=50')
+    url = node._build_url(f"/messages/{device_id}")
     try:
         resp = await client.get(url, timeout=10.0)
         if resp.status_code == 200 and resp.json():
