@@ -17,7 +17,6 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 # pyrefly: ignore [missing-import]
-# pyrefly: ignore [missing-import]
 from app.core.config import get_settings
 # pyrefly: ignore [missing-import]
 from app.crud.firebase_crud import get_all_sim_nodes

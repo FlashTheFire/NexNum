@@ -205,7 +205,7 @@ async def resolve_client_phone_and_network(cid: str, data: dict):
     # Auto-promote to Firebase root asynchronously (0ms future reads, zero double-checks)
     if phone or network:
         try:
-            # pyrefly: ignore [missing-import]
+# pyrefly: ignore [missing-import]
 from app.crud import firebase_crud as crud
             payload = {}
             if phone:
