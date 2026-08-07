@@ -457,9 +457,18 @@ async def main():
             else:
                 logger = await get_async_logger()
                 await logger.info("Launching bot in Polling Mode...")
-                await bot.bot.delete_webhook()
-                bot_task = asyncio.create_task(bot.bot.polling(non_stop=True, timeout=60))
-                await asyncio.gather(bot_task, fastapi_task)
+                try:
+                    await asyncio.wait_for(bot.bot.delete_webhook(), timeout=2.5)
+                except Exception as exc:
+                    await logger.warning(f"Telegram delete_webhook notice: {exc}")
+
+                try:
+                    bot_task = asyncio.create_task(bot.bot.polling(non_stop=True, timeout=60))
+                except Exception as exc:
+                    await logger.warning(f"Telegram bot polling start warning: {exc}")
+
+                # Ensure FastAPI App & Gateway stays alive indefinitely
+                await fastapi_task
 
         except Exception as e:
             logger = await get_async_logger()

@@ -48,32 +48,26 @@ class UniversalFirebaseNode:
     async def fetch_raw_data_async(self) -> Dict[str, Any]:
         """
         Asynchronously fetches raw device dictionary from Firebase.
-        Uses scoped AsyncClient per request to prevent cross-loop contamination.
+        Queries /gateways and /clients concurrently in parallel with a fast 2.5s timeout.
         """
         combined = {}
         try:
-            async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
-                # 1. Fetch /gateways if schema is 'gateways' or 'auto'
+            async with httpx.AsyncClient(timeout=2.5, follow_redirects=True) as client:
+                tasks = []
                 if self.schema_type in ("gateways", "auto"):
-                    try:
-                        resp = await client.get(self._build_url("/gateways"))
-                        if resp.status_code == 200 and resp.json():
-                            data = resp.json()
-                            if isinstance(data, dict):
-                                combined.update(data)
-                    except Exception as e:
-                        logger.debug(f"UniversalFirebase [{self.node_id}] /gateways notice: {e}")
-
-                # 2. Fetch /clients if schema is 'clients' or 'auto'
+                    tasks.append(("gateways", client.get(self._build_url("/gateways"))))
                 if self.schema_type in ("clients", "auto"):
-                    try:
-                        resp = await client.get(self._build_url("/clients"))
-                        if resp.status_code == 200 and resp.json():
-                            data = resp.json()
-                            if isinstance(data, dict):
-                                combined.update(data)
-                    except Exception as e:
-                        logger.debug(f"UniversalFirebase [{self.node_id}] /clients notice: {e}")
+                    tasks.append(("clients", client.get(self._build_url("/clients"))))
+
+                if not tasks:
+                    return combined
+
+                res_list = await asyncio.gather(*[t[1] for t in tasks], return_exceptions=True)
+                for res in res_list:
+                    if isinstance(res, httpx.Response) and res.status_code == 200 and res.json():
+                        data = res.json()
+                        if isinstance(data, dict):
+                            combined.update(data)
         except Exception as ex:
             logger.debug(f"UniversalFirebase [{self.node_id}] fetch notice: {ex}")
 

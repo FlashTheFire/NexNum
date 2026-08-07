@@ -29,9 +29,11 @@ function formatDetailedRelativeTime(timestampMs: number | string | null | undefi
     const ts = typeof timestampMs === "string" ? parseFloat(timestampMs) : timestampMs
     if (isNaN(ts) || ts <= 0) return "No messages"
 
+    // Guard against year 1970 IDs (before year 2000: 946684800000 ms)
+    const ms = ts < 10000000000 ? (ts < 946684800 ? 0 : ts * 1000) : ts
+    if (ms <= 0 || ms < 946684800000) return "No messages"
+
     const now = Date.now()
-    // Handle seconds vs milliseconds
-    const ms = ts < 10000000000 ? ts * 1000 : ts
     const diff = Math.max(0, now - ms)
     const seconds = Math.floor(diff / 1000)
 
@@ -115,6 +117,7 @@ interface DeviceSmsMessage {
     sender: string
     message: string
     timestamp: number
+    dateTime?: string
     otp?: string | null
     service?: string
 }
@@ -134,12 +137,18 @@ type DeviceSortField = 'phoneNumber' | 'deviceId' | 'simSlot' | 'carrier' | 'sch
 type SortOrder = 'asc' | 'desc'
 
 export default function GatewayAdminPage() {
-    const [activeTab, setActiveTab] = useState<'devices' | 'activations' | 'sandbox'>('devices')
+    const [activeTab, setActiveTab] = useState<'devices' | 'activations' | 'sandbox' | 'scorer'>('devices')
     const [stats, setStats] = useState<GatewayStats | null>(null)
     const [devices, setDevices] = useState<DeviceNode[]>([])
     const [activations, setActivations] = useState<ActivationItem[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [searchQuery, setSearchQuery] = useState("")
+
+    // Scorer Leaderboard State
+    const [scorerService, setScorerService] = useState('tg')
+    const [scorerData, setScorerData] = useState<any>(null)
+    const [isScorerLoading, setIsScorerLoading] = useState(false)
+    const [scorerAutoRefresh, setScorerAutoRefresh] = useState(true)
 
     // Pagination & Sorting State for Device SIM Fleet
     const [devicePage, setDevicePage] = useState(1)
@@ -171,6 +180,15 @@ export default function GatewayAdminPage() {
     const [testBody, setTestBody] = useState("HTTPS:SWIGGY.COM/LOGIN/83G348 is your verification code for Swiggy.")
     const [testResult, setTestResult] = useState<any>(null)
     const [isTesting, setIsTesting] = useState(false)
+    // Search Input Debouncing (300ms)
+    const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("")
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearchQuery(searchQuery)
+        }, 300)
+        return () => clearTimeout(timer)
+    }, [searchQuery])
 
     // Fetch Stats
     const fetchStats = useCallback(async () => {
@@ -185,11 +203,28 @@ export default function GatewayAdminPage() {
         }
     }, [])
 
+    // Fetch Scorer Leaderboard
+    const fetchScorerLeaderboard = useCallback(async () => {
+        try {
+            setIsScorerLoading(true)
+            const endpoint = `/api/v1/admin/scorer/leaderboard?service=${scorerService}&limit=50`
+            const res = await fetch(`/api/admin/gateway?endpoint=${encodeURIComponent(endpoint)}`)
+            if (res.ok) {
+                const data = await res.json()
+                setScorerData(data)
+            }
+        } catch {
+            // silent fail for scorer refresh
+        } finally {
+            setIsScorerLoading(false)
+        }
+    }, [scorerService])
+
     // Fetch Devices with Server-Side Pagination & Sorting
     const fetchDevices = useCallback(async () => {
         try {
             setIsLoading(true)
-            const endpoint = `/api/v1/admin/devices?page=${devicePage}&limit=${deviceLimit}&sort_by=${deviceSortBy}&sort_order=${deviceSortOrder}&search=${encodeURIComponent(searchQuery)}`
+            const endpoint = `/api/v1/admin/devices?page=${devicePage}&limit=${deviceLimit}&sort_by=${deviceSortBy}&sort_order=${deviceSortOrder}&search=${encodeURIComponent(debouncedSearchQuery)}`
             const res = await fetch(`/api/admin/gateway?endpoint=${encodeURIComponent(endpoint)}`)
             if (res.ok) {
                 const data = await res.json()
@@ -202,12 +237,12 @@ export default function GatewayAdminPage() {
         } finally {
             setIsLoading(false)
         }
-    }, [devicePage, deviceLimit, deviceSortBy, deviceSortOrder, searchQuery])
+    }, [devicePage, deviceLimit, deviceSortBy, deviceSortOrder, debouncedSearchQuery])
 
     // Fetch Activations with Server-Side Pagination & Sorting
     const fetchActivations = useCallback(async () => {
         try {
-            const endpoint = `/api/v1/admin/activations?page=${actPage}&limit=${actLimit}&sort_by=${actSortBy}&sort_order=${actSortOrder}&search=${encodeURIComponent(searchQuery)}`
+            const endpoint = `/api/v1/admin/activations?page=${actPage}&limit=${actLimit}&sort_by=${actSortBy}&sort_order=${actSortOrder}&search=${encodeURIComponent(debouncedSearchQuery)}`
             const res = await fetch(`/api/admin/gateway?endpoint=${encodeURIComponent(endpoint)}`)
             if (res.ok) {
                 const data = await res.json()
@@ -218,7 +253,7 @@ export default function GatewayAdminPage() {
         } catch {
             // silent fail for activations refresh
         }
-    }, [actPage, actLimit, actSortBy, actSortOrder, searchQuery])
+    }, [actPage, actLimit, actSortBy, actSortOrder, debouncedSearchQuery])
 
     // Main Gateway Data Fetcher
     const fetchAllData = useCallback(async () => {
@@ -230,6 +265,17 @@ export default function GatewayAdminPage() {
         const interval = setInterval(fetchAllData, 12000)
         return () => clearInterval(interval)
     }, [fetchAllData])
+
+    // Scorer Leaderboard auto-refresh
+    useEffect(() => {
+        if (activeTab === 'scorer') {
+            fetchScorerLeaderboard()
+            if (scorerAutoRefresh) {
+                const interval = setInterval(fetchScorerLeaderboard, 6000)
+                return () => clearInterval(interval)
+            }
+        }
+    }, [activeTab, scorerService, scorerAutoRefresh, fetchScorerLeaderboard])
 
     // Handle Header Column Click Sorting for Devices
     const handleDeviceHeaderSort = (field: DeviceSortField) => {
@@ -282,7 +328,8 @@ export default function GatewayAdminPage() {
         setMsgPage(1)
         setMsgSearchQuery("")
         try {
-            const res = await fetch(`/api/admin/gateway?endpoint=${encodeURIComponent(`/api/v1/admin/devices/${device.deviceId}/messages?limit=150`)}`)
+            const targetKey = device.firebaseNodeId || device.deviceId
+            const res = await fetch(`/api/admin/gateway?endpoint=${encodeURIComponent(`/api/v1/admin/devices/${targetKey}/messages?limit=150`)}`)
             if (res.ok) {
                 const data = await res.json()
                 setDeviceMessages(data.messages || [])
@@ -490,6 +537,19 @@ export default function GatewayAdminPage() {
                         )}
                     >
                         Pattern Sandbox
+                    </button>
+
+                    <button
+                        onClick={() => setActiveTab('scorer')}
+                        className={cn(
+                            "px-4 py-2 rounded-lg border-2 font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1.5",
+                            activeTab === 'scorer'
+                                ? "border-black bg-[hsl(var(--neon-lime))] text-black shadow-[3px_3px_0px_0px_#000]"
+                                : "border-zinc-800 bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:text-white"
+                        )}
+                    >
+                        <Zap className="w-3.5 h-3.5" />
+                        Scorer Leaderboard ({scorerData?.totalNodes || deviceTotal})
                     </button>
                 </div>
 
@@ -1056,7 +1116,329 @@ export default function GatewayAdminPage() {
                 </div>
             )}
 
-            {/* ── 5. DEVICE SMS INSPECTOR MODAL (LAST 150 SMS) ── */}
+            {/* ── 5. TAB CONTENT: SCORER LEADERBOARD & QUEUE ── */}
+            {activeTab === 'scorer' && (
+                <div className="space-y-6">
+                    {/* Header Controls & Service Selector */}
+                    <div className="rounded-xl border-2 border-zinc-800 bg-[#0d0e12] p-4 sm:p-5 shadow-[4px_4px_0px_0px_#000] flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                        <div className="space-y-1.5">
+                            <div className="flex items-center gap-2">
+                                <Zap className="w-5 h-5 text-[hsl(var(--neon-lime))] stroke-[2.5]" />
+                                <h3 className="text-base font-black uppercase tracking-wider text-white">
+                                    Live SIM Allocation Queue & Point Scorer
+                                </h3>
+                            </div>
+                            <p className="text-xs text-zinc-400 font-medium">
+                                Real-time deterministic leaderboard ranking. Numbers at <strong className="text-[hsl(var(--neon-lime))]">Rank #1</strong> are occupied first during purchases.
+                            </p>
+                        </div>
+
+                        {/* Controls */}
+                        <div className="flex flex-wrap items-center gap-2">
+                            {/* Service Pills */}
+                            <div className="flex flex-wrap items-center gap-1.5 bg-zinc-950 p-1 rounded-lg border border-zinc-800">
+                                {[
+                                    { code: 'tg', label: 'Telegram' },
+                                    { code: 'wa', label: 'WhatsApp' },
+                                    { code: 'go', label: 'Google' },
+                                    { code: 'ig', label: 'Instagram' },
+                                    { code: 'oa', label: 'OpenAI' },
+                                    { code: 'ot', label: 'Any / Other' },
+                                ].map((s) => (
+                                    <button
+                                        key={s.code}
+                                        onClick={() => setScorerService(s.code)}
+                                        className={cn(
+                                            "px-2.5 py-1 rounded text-xs font-black uppercase tracking-wider transition-all",
+                                            scorerService === s.code
+                                                ? "bg-[hsl(var(--neon-lime))] text-black shadow-[1px_1px_0px_0px_#000]"
+                                                : "text-zinc-400 hover:text-white hover:bg-zinc-800"
+                                        )}
+                                    >
+                                        {s.label}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Auto-Refresh Toggle */}
+                            <button
+                                onClick={() => setScorerAutoRefresh(prev => !prev)}
+                                className={cn(
+                                    "px-3 py-1.5 rounded-lg border text-xs font-bold flex items-center gap-1.5 transition-all shadow-[1px_1px_0px_0px_#000]",
+                                    scorerAutoRefresh
+                                        ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
+                                        : "border-zinc-800 bg-zinc-900 text-zinc-400"
+                                )}
+                            >
+                                <span className={cn("w-2 h-2 rounded-full", scorerAutoRefresh ? "bg-emerald-400 animate-pulse" : "bg-zinc-600")} />
+                                Auto-Refresh {scorerAutoRefresh ? "ON (6s)" : "OFF"}
+                            </button>
+
+                            {/* Manual Refresh Button */}
+                            <button
+                                onClick={fetchScorerLeaderboard}
+                                disabled={isScorerLoading}
+                                className="p-2 rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-300 hover:text-white hover:bg-zinc-800 transition-colors shadow-[1px_1px_0px_0px_#000]"
+                                title="Refresh Leaderboard"
+                            >
+                                <RefreshCw className={cn("w-4 h-4", isScorerLoading && "animate-spin text-[hsl(var(--neon-lime))]")} />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Top Pick Feature Banner */}
+                    {scorerData?.topPick && (
+                        <div className="rounded-xl border-2 border-black bg-[hsl(var(--neon-lime))] p-5 shadow-[4px_4px_0px_0px_#000] text-black">
+                            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                                <div className="space-y-1">
+                                    <div className="flex items-center gap-2">
+                                        <span className="px-2.5 py-0.5 rounded bg-black text-white text-[10px] font-black uppercase tracking-wider">
+                                            Rank #1 Top Pick
+                                        </span>
+                                        <span className="text-xs font-black uppercase tracking-wider opacity-90">
+                                            Next Allocated SIM for {scorerData.serviceName}
+                                        </span>
+                                    </div>
+                                    <div className="text-2xl sm:text-3xl font-black font-mono tracking-tight flex items-center gap-3">
+                                        <span>{scorerData.topPick.phoneNumber}</span>
+                                        <span className="text-sm px-2.5 py-0.5 rounded border border-black bg-black/10 font-sans font-bold">
+                                            Slot {scorerData.topPick.simSlot} • {scorerData.topPick.carrier}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <div className="text-right">
+                                        <div className="text-[10px] font-black uppercase tracking-wider opacity-80">Total Point Score</div>
+                                        <div className="text-3xl font-black font-mono">+{scorerData.topPick.score} PTS</div>
+                                    </div>
+
+                                    <button
+                                        onClick={() => {
+                                            const dev = devices.find(d => d.deviceId === scorerData.topPick.deviceId) || {
+                                                deviceId: scorerData.topPick.deviceId,
+                                                simSlot: scorerData.topPick.simSlot,
+                                                phoneNumber: scorerData.topPick.phoneNumber,
+                                                carrier: scorerData.topPick.carrier,
+                                                schemaType: scorerData.topPick.schemaType,
+                                                isOnline: scorerData.topPick.isOnline,
+                                                battery: scorerData.topPick.battery,
+                                                lastSeenMs: scorerData.topPick.lastSeenMs,
+                                                firebaseNodeId: scorerData.topPick.firebaseNodeId,
+                                                isBanned: false
+                                            }
+                                            setSelectedDevice(dev)
+                                        }}
+                                        className="px-4 py-2 rounded-lg border-2 border-black bg-black text-white font-black text-xs uppercase tracking-wider hover:bg-zinc-900 shadow-[2px_2px_0px_0px_#000] active:translate-x-[1px] active:translate-y-[1px] transition-all"
+                                    >
+                                        Inspect SMS Stream
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Point Scoring Formula Quick Guide Strip */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div className="rounded-lg border border-zinc-800 bg-[#0d0e12] p-3 shadow-[2px_2px_0px_0px_#000]">
+                            <div className="text-[10px] font-black uppercase tracking-wider text-zinc-400">Fresh Number Bonus</div>
+                            <div className="text-sm font-black text-emerald-400 mt-0.5">+100 PTS</div>
+                            <div className="text-[10px] text-zinc-500 mt-0.5">0 prior SMS for service (-25/SMS reuse)</div>
+                        </div>
+
+                        <div className="rounded-lg border border-zinc-800 bg-[#0d0e12] p-3 shadow-[2px_2px_0px_0px_#000]">
+                            <div className="text-[10px] font-black uppercase tracking-wider text-zinc-400">12h Activity Recency</div>
+                            <div className="text-sm font-black text-cyan-400 mt-0.5">+60 / +40 / +20 / +10 PTS</div>
+                            <div className="text-[10px] text-zinc-500 mt-0.5">&lt;1h (+60), &lt;3h (+40), &lt;6h (+20), &lt;12h (+10)</div>
+                        </div>
+
+                        <div className="rounded-lg border border-zinc-800 bg-[#0d0e12] p-3 shadow-[2px_2px_0px_0px_#000]">
+                            <div className="text-[10px] font-black uppercase tracking-wider text-zinc-400">Online Bonus</div>
+                            <div className="text-sm font-black text-[hsl(var(--neon-lime))] mt-0.5">+30 PTS</div>
+                            <div className="text-[10px] text-zinc-500 mt-0.5">Live heartbeat connection bonus</div>
+                        </div>
+
+                        <div className="rounded-lg border border-zinc-800 bg-[#0d0e12] p-3 shadow-[2px_2px_0px_0px_#000]">
+                            <div className="text-[10px] font-black uppercase tracking-wider text-zinc-400">Battery Health</div>
+                            <div className="text-sm font-black text-amber-400 mt-0.5">+10 / -20 PTS</div>
+                            <div className="text-[10px] text-zinc-500 mt-0.5">&ge;70% power (+10), &lt;15% power (-20)</div>
+                        </div>
+                    </div>
+
+                    {/* Leaderboard Table Card */}
+                    <div className="rounded-xl border-2 border-zinc-800 bg-[#0d0e12] p-4 shadow-[4px_4px_0px_0px_#000] overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="border-b-2 border-zinc-800 text-[11px] font-black uppercase text-zinc-400 tracking-wider">
+                                        <th className="pb-3 pr-4">Rank / Order</th>
+                                        <th className="pb-3 px-4">Phone Number</th>
+                                        <th className="pb-3 px-4">SIM Slot</th>
+                                        <th className="pb-3 px-4">Carrier</th>
+                                        <th className="pb-3 px-4">Total Score</th>
+                                        <th className="pb-3 px-4">Freshness Points</th>
+                                        <th className="pb-3 px-4">12h Recency</th>
+                                        <th className="pb-3 px-4">Online Status</th>
+                                        <th className="pb-3 px-4">Battery</th>
+                                        <th className="pb-3 px-4 text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-zinc-800/60 text-xs font-medium">
+                                    {isScorerLoading && !scorerData ? (
+                                        <tr>
+                                            <td colSpan={10} className="py-12 text-center text-zinc-400 font-bold">
+                                                <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-[hsl(var(--neon-lime))]" />
+                                                Calculating multi-factor point scores across all SIM nodes...
+                                            </td>
+                                        </tr>
+                                    ) : !scorerData?.leaderboard?.length ? (
+                                        <tr>
+                                            <td colSpan={10} className="py-12 text-center text-zinc-500 font-bold uppercase tracking-wider">
+                                                No SIM candidates currently available for scoring.
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        scorerData.leaderboard.map((item: any) => (
+                                            <tr
+                                                key={`${item.deviceId}-${item.simSlot}`}
+                                                className={cn(
+                                                    "hover:bg-zinc-900/60 transition-colors",
+                                                    item.rank === 1 && "bg-[hsl(var(--neon-lime))]/5"
+                                                )}
+                                            >
+                                                {/* Rank Badge */}
+                                                <td className="py-3 pr-4 font-black">
+                                                    {item.rank === 1 ? (
+                                                        <span className="px-2.5 py-1 rounded border-2 border-black bg-[hsl(var(--neon-lime))] text-black font-black text-[10px] tracking-wider uppercase shadow-[2px_2px_0px_0px_#000]">
+                                                            #1 NEXT PICK
+                                                        </span>
+                                                    ) : (
+                                                        <span className="px-2 py-0.5 rounded border border-zinc-700 bg-zinc-800 text-zinc-300 font-mono text-xs font-bold">
+                                                            #{item.rank}
+                                                        </span>
+                                                    )}
+                                                </td>
+
+                                                {/* Phone Number */}
+                                                <td className="py-3 px-4 font-mono font-bold text-white flex items-center gap-2">
+                                                    <span className={cn("w-2 h-2 rounded-full", item.isOnline ? "bg-emerald-400" : "bg-zinc-600")} />
+                                                    <span>{item.phoneNumber || "Pending"}</span>
+                                                </td>
+
+                                                {/* SIM Slot */}
+                                                <td className="py-3 px-4 font-mono text-zinc-400">
+                                                    <span className="px-2 py-0.5 rounded border border-zinc-800 bg-zinc-900 text-zinc-300 text-[10px] font-bold">
+                                                        Slot {item.simSlot}
+                                                    </span>
+                                                </td>
+
+                                                {/* Carrier */}
+                                                <td className="py-3 px-4 font-bold text-zinc-300 uppercase">
+                                                    <span className="px-2 py-0.5 rounded border border-zinc-800 bg-zinc-900 text-[10px]">
+                                                        {item.carrier}
+                                                    </span>
+                                                </td>
+
+                                                {/* Total Score Badge */}
+                                                <td className="py-3 px-4">
+                                                    <span className={cn(
+                                                        "px-2.5 py-1 rounded font-black font-mono text-xs tracking-wider",
+                                                        item.isCooldown
+                                                            ? "border border-rose-500/40 bg-rose-500/10 text-rose-400"
+                                                            : item.score >= 150
+                                                                ? "border border-emerald-500/40 bg-emerald-500/15 text-emerald-400"
+                                                                : item.score >= 100
+                                                                    ? "border border-cyan-500/40 bg-cyan-500/15 text-cyan-400"
+                                                                    : "border border-zinc-700 bg-zinc-800 text-zinc-300"
+                                                    )}>
+                                                        {item.isCooldown ? "COOLDOWN (-9999)" : `+${item.score} PTS`}
+                                                    </span>
+                                                </td>
+
+                                                {/* Freshness Points */}
+                                                <td className="py-3 px-4 font-mono text-xs">
+                                                    {item.serviceSmsCount === 0 ? (
+                                                        <span className="text-emerald-400 font-bold">
+                                                            Fresh (+100)
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-amber-400 font-bold">
+                                                            {item.serviceSmsCount}x SMS (-{item.serviceSmsCount * 25})
+                                                        </span>
+                                                    )}
+                                                </td>
+
+                                                {/* 12h Recency / Last SMS (Main Page Ago Timings) */}
+                                                <td className="py-3 px-4 font-mono text-xs text-zinc-300">
+                                                    <span className={cn(
+                                                        "px-2 py-0.5 rounded text-[10px] font-bold inline-flex items-center gap-1.5",
+                                                        item.isCooldown || (item.lastSmsHours && item.lastSmsHours > 12.0)
+                                                            ? "text-rose-400 bg-rose-950/40 border border-rose-800"
+                                                            : "text-emerald-400 bg-emerald-950/40 border border-emerald-800"
+                                                    )}>
+                                                        <Clock className="w-3 h-3 text-zinc-400" />
+                                                        {formatDetailedRelativeTime(item.lastSmsMs)}
+                                                    </span>
+                                                </td>
+
+                                                {/* Online Status */}
+                                                <td className="py-3 px-4">
+                                                    {item.isOnline ? (
+                                                        <span className="px-2 py-0.5 rounded border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 font-bold uppercase text-[10px] inline-flex items-center gap-1">
+                                                            <Wifi className="w-2.5 h-2.5 stroke-[2.5]" />
+                                                            +30
+                                                        </span>
+                                                    ) : (
+                                                        <span className="px-2 py-0.5 rounded border border-zinc-800 bg-zinc-900 text-zinc-500 font-bold uppercase text-[10px]">
+                                                            +0 (Off)
+                                                        </span>
+                                                    )}
+                                                </td>
+
+                                                {/* Battery */}
+                                                <td className="py-3 px-4 font-mono text-zinc-300 text-xs">
+                                                    <span className={cn(
+                                                        "font-bold",
+                                                        item.battery >= 70 ? "text-emerald-400" : (item.battery < 20 ? "text-rose-400" : "text-zinc-300")
+                                                    )}>
+                                                        {item.battery}% ({item.breakdown?.batteryBonus >= 0 ? `+${item.breakdown?.batteryBonus}` : item.breakdown?.batteryBonus})
+                                                    </span>
+                                                </td>
+
+                                                {/* Inspect Action */}
+                                                <td className="py-3 px-4 text-right">
+                                                    <button
+                                                        onClick={() => {
+                                                            const dev = devices.find(d => d.deviceId === item.deviceId) || {
+                                                                deviceId: item.deviceId,
+                                                                simSlot: item.simSlot,
+                                                                phoneNumber: item.phoneNumber,
+                                                                carrier: item.carrier,
+                                                                schemaType: item.schemaType,
+                                                                isOnline: item.isOnline,
+                                                                battery: item.battery,
+                                                                lastSeenMs: item.lastSeenMs,
+                                                                firebaseNodeId: item.firebaseNodeId,
+                                                                isBanned: false
+                                                            }
+                                                            setSelectedDevice(dev)
+                                                        }}
+                                                        className="px-2.5 py-1 rounded border border-zinc-700 bg-zinc-900 text-[11px] font-bold text-zinc-300 hover:text-white hover:border-[hsl(var(--neon-lime))] transition-colors shadow-[1px_1px_0px_0px_#000]"
+                                                    >
+                                                        Inspect SMS
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── 6. DEVICE SMS INSPECTOR MODAL (LAST 150 SMS) ── */}
             <AnimatePresence>
                 {selectedDevice && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 md:p-10 bg-black/80 backdrop-blur-md">
@@ -1128,7 +1510,7 @@ export default function GatewayAdminPage() {
                                         </span>
                                     </div>
                                     <p className="text-xs text-zinc-400 font-medium">
-                                        Device ID: <span className="font-mono text-zinc-300 font-bold">{selectedDevice.deviceId}</span> • Node: <span className="font-mono text-zinc-300">{selectedDevice.firebaseNodeId}</span> • Last Activity: <span className="text-[hsl(var(--neon-lime))] font-bold">{formatDetailedRelativeTime(selectedDevice.lastSeenMs)}</span>
+                                        Device ID: <span className="font-mono text-zinc-300 font-bold">{selectedDevice.deviceId}</span> • Node: <span className="font-mono text-zinc-300">{selectedDevice.firebaseNodeId}</span> • Last Activity: <span className="text-[hsl(var(--neon-lime))] font-bold">{formatDetailedRelativeTime(deviceMessages.length > 0 && deviceMessages[0].timestamp > 0 ? deviceMessages[0].timestamp : selectedDevice.lastSeenMs)}</span>
                                     </p>
                                 </div>
 
@@ -1210,13 +1592,19 @@ export default function GatewayAdminPage() {
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-[11px] font-mono text-zinc-400 flex items-center gap-1">
                                                         <Clock className="w-3 h-3 text-zinc-500" />
-                                                        {formatDetailedRelativeTime(msg.timestamp)}
+                                                        {msg.timestamp > 946684800000 
+                                                            ? formatDetailedRelativeTime(msg.timestamp) 
+                                                            : (msg.dateTime || "Recent")}
                                                     </span>
-                                                    {msg.timestamp > 0 && (
-                                                        <span className="text-[10px] text-zinc-600 font-mono hidden md:inline">
-                                                            ({new Date(msg.timestamp < 10000000000 ? msg.timestamp * 1000 : msg.timestamp).toLocaleString()})
+                                                    {msg.dateTime ? (
+                                                        <span className="text-[10px] text-zinc-500 font-mono hidden md:inline">
+                                                            ({msg.dateTime})
                                                         </span>
-                                                    )}
+                                                    ) : msg.timestamp > 946684800000 ? (
+                                                        <span className="text-[10px] text-zinc-600 font-mono hidden md:inline">
+                                                            ({new Date(msg.timestamp).toLocaleString()})
+                                                        </span>
+                                                    ) : null}
                                                 </div>
                                             </div>
 

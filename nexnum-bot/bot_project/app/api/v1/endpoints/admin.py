@@ -11,6 +11,7 @@ import time
 import math
 import json
 import logging
+import asyncio
 from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, Request, HTTPException, Query, Body, Depends
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -582,6 +583,7 @@ async def get_scorer_leaderboard(
     Returns real-time point score leaderboard across all SIM nodes for a requested service.
     Rank #1 is the exact next number that will be occupied/allocated!
     """
+    import asyncio
     try:
         from utils.redis_manager import redis_manager
     except ImportError:
@@ -615,12 +617,12 @@ async def get_scorer_leaderboard(
     # pyrefly: ignore [missing-import]
     from app.gateway.scorer import DeviceScorer
 
-    sim_nodes = await get_all_sim_nodes_async()
-    now = time.time()
+    # Sort nodes to prioritize online and recently seen SIMs first
+    sim_nodes_sorted = sorted(sim_nodes, key=lambda n: (getattr(n, 'is_online', False), getattr(n, 'last_seen_ms', 0)), reverse=True)
+    candidates_to_score = sim_nodes_sorted[:250] if len(sim_nodes_sorted) > 250 else sim_nodes_sorted
 
-    scored_items = []
-    for node in sim_nodes:
-        candidate = await DeviceScorer.score_sim_node(
+    scored_candidates = await asyncio.gather(*[
+        DeviceScorer.score_sim_node(
             redis_client=redis_client,
             node=node,
             service=req_svc,
@@ -628,6 +630,11 @@ async def get_scorer_leaderboard(
             now=now,
             effective_cooldown_sec=1200.0
         )
+        for node in candidates_to_score
+    ])
+
+    scored_items = []
+    for node, candidate in zip(candidates_to_score, scored_candidates):
 
         last_seen_sec = node.last_seen_ms / 1000 if node.last_seen_ms > 1e11 else node.last_seen_ms
         mins_since_seen = max(0.0, (now - last_seen_sec) / 60.0)

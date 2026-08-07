@@ -160,7 +160,7 @@ export default function WalletPage() {
         return `${currencySym}${minDepositInPreferred < 1 ? minDepositInPreferred.toFixed(2) : minDepositInPreferred}`
     }, [preferredCurrency, currencySym, minDepositInPreferred])
 
-    // Dynamic Presets based on active currency starting from minimum deposit
+    // Dynamic Presets based on active currency with clean round figures
     const dynamicPresets = useMemo(() => {
         if (preferredCurrency === 'INR') {
             return [
@@ -172,7 +172,7 @@ export default function WalletPage() {
         }
         if (preferredCurrency === 'USD') {
             return [
-                { value: minDepositInPreferred, label: `$${minDepositInPreferred.toFixed(2)}` },
+                { value: 0.15, label: '$0.15' },
                 { value: 1, label: '$1' },
                 { value: 5, label: '$5' },
                 { value: 10, label: '$10' }
@@ -180,7 +180,7 @@ export default function WalletPage() {
         }
         if (preferredCurrency === 'EUR') {
             return [
-                { value: minDepositInPreferred, label: `€${minDepositInPreferred.toFixed(2)}` },
+                { value: 0.10, label: '€0.10' },
                 { value: 1, label: '€1' },
                 { value: 5, label: '€5' },
                 { value: 10, label: '€10' }
@@ -188,7 +188,7 @@ export default function WalletPage() {
         }
         if (preferredCurrency === 'GBP') {
             return [
-                { value: minDepositInPreferred, label: `£${minDepositInPreferred.toFixed(2)}` },
+                { value: 0.10, label: '£0.10' },
                 { value: 1, label: '£1' },
                 { value: 5, label: '£5' },
                 { value: 10, label: '£10' }
@@ -196,7 +196,7 @@ export default function WalletPage() {
         }
         if (preferredCurrency === 'RUB') {
             return [
-                { value: Math.round(minDepositInPreferred), label: `₽${Math.round(minDepositInPreferred)}` },
+                { value: 10, label: '₽10' },
                 { value: 100, label: '₽100' },
                 { value: 500, label: '₽500' },
                 { value: 1000, label: '₽1,000' }

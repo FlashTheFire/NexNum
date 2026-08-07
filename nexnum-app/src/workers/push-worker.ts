@@ -6,16 +6,25 @@ import { logger } from '@/lib/core/logger'
 import { redis, REDIS_KEYS, TTL } from '@/lib/core/redis'
 
 // Initialize VAPID
-if (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
-    try {
-        webpush.setVapidDetails(
-            process.env.VAPID_SUBJECT || 'mailto:harshtakur001@gmail.com',
-            process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
-            process.env.VAPID_PRIVATE_KEY
-        )
-    } catch (e: any) {
-        logger.warn('[PUSH] Failed to set VAPID details', { error: e.message })
-    }
+const DEFAULT_VAPID_PUBLIC = 'BKDTwwPMGV8U4YRM9_yGBIsx4ttRq_r9Ay04keQ2wZV90ctLbpAp-ePaieQbPH9hNSnFsuve7x76hIsNzajG6AY'
+const DEFAULT_VAPID_PRIVATE = 'vDue-BgiLu_4Ao5bxNVnP7b4XwgCzPksU_U6p38B4rQ'
+
+const vapidPublic = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY.length >= 80 
+    ? process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY 
+    : DEFAULT_VAPID_PUBLIC
+
+const vapidPrivate = process.env.VAPID_PRIVATE_KEY && process.env.VAPID_PRIVATE_KEY.length >= 35 
+    ? process.env.VAPID_PRIVATE_KEY 
+    : DEFAULT_VAPID_PRIVATE
+
+try {
+    webpush.setVapidDetails(
+        process.env.VAPID_SUBJECT || 'mailto:harshtakur001@gmail.com',
+        vapidPublic,
+        vapidPrivate
+    )
+} catch (e: any) {
+    logger.warn('[PUSH] Failed to set VAPID details', { error: e.message })
 }
 
 // interface NotificationJob {

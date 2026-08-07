@@ -5,6 +5,7 @@ from app.core.config import get_settings
 import httpx
 import logging
 from concurrent.futures import ThreadPoolExecutor
+import time
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -239,17 +240,26 @@ def _save_phone_cache(updated_entries: Optional[Dict[str, Dict[str, Any]]] = Non
         except Exception:
             pass
 
-# Initial load on import
-_load_phone_cache()
+# In-memory TTL caches for multi-node Firebase aggregation
+_CLIENTS_CACHE: Dict[str, Any] = {}
+_CLIENTS_CACHE_TIME: float = 0.0
+_SIM_NODES_CACHE: List[Any] = []
+_SIM_NODES_CACHE_TIME: float = 0.0
+_CACHE_TTL_SECONDS: float = 15.0
 
 
-def get_all_clients() -> Dict[str, Any]:
+def get_all_clients(force_refresh: bool = False) -> Dict[str, Any]:
     """
-    Fetch clients from all configured Firebase RTDB nodes concurrently.
+    Fetch clients from all configured Firebase RTDB nodes concurrently with 15s TTL caching.
     Merges all client dictionaries into a single master map {clientId: clientData}
     and registers client-to-node routing mappings.
     Applies persistent GLOBAL_PHONE_CACHE for instant 0ms number & network resolution.
     """
+    global _CLIENTS_CACHE, _CLIENTS_CACHE_TIME
+    now = time.time()
+    if not force_refresh and _CLIENTS_CACHE and (now - _CLIENTS_CACHE_TIME < _CACHE_TTL_SECONDS):
+        return _CLIENTS_CACHE
+
     cache_updated = False
     updated_entries: Dict[str, Dict[str, Any]] = {}
     aggregated_clients: Dict[str, Any] = {}
@@ -330,28 +340,44 @@ def get_all_clients() -> Dict[str, Any]:
     if cache_updated:
         _save_phone_cache(updated_entries)
 
+    _CLIENTS_CACHE = aggregated_clients
+    _CLIENTS_CACHE_TIME = now
     return aggregated_clients
 
 
-async def get_all_sim_nodes_async() -> List[Any]:
+async def get_all_sim_nodes_async(force_refresh: bool = False) -> List[Any]:
     """
-    Async Universal Multi-Schema Aggregator:
+    Async Universal Multi-Schema Aggregator with 15s TTL Caching:
     Queries all declared Firebase nodes via UniversalFirebaseRegistry.
     """
+    global _SIM_NODES_CACHE, _SIM_NODES_CACHE_TIME
+    now = time.time()
+    if not force_refresh and _SIM_NODES_CACHE and (now - _SIM_NODES_CACHE_TIME < _CACHE_TTL_SECONDS):
+        return _SIM_NODES_CACHE
+
     # pyrefly: ignore [missing-import]
     from app.crud.universal_firebase import UniversalFirebaseRegistry
     sim_nodes = await UniversalFirebaseRegistry.fetch_all_sim_nodes_async()
+    _SIM_NODES_CACHE = sim_nodes
+    _SIM_NODES_CACHE_TIME = now
     logger.info(f"[SchemaAdapter] Aggregated {len(sim_nodes)} valid allocatable SIM nodes across Universal Firebase Registry")
     return sim_nodes
 
 
-def get_all_sim_nodes() -> List[Any]:
+def get_all_sim_nodes(force_refresh: bool = False) -> List[Any]:
     """
-    Universal Multi-Schema Aggregator (Sync Fallback):
+    Universal Multi-Schema Aggregator with 15s TTL Caching (Sync Fallback):
     """
+    global _SIM_NODES_CACHE, _SIM_NODES_CACHE_TIME
+    now = time.time()
+    if not force_refresh and _SIM_NODES_CACHE and (now - _SIM_NODES_CACHE_TIME < _CACHE_TTL_SECONDS):
+        return _SIM_NODES_CACHE
+
     # pyrefly: ignore [missing-import]
     from app.crud.universal_firebase import UniversalFirebaseRegistry
     sim_nodes = UniversalFirebaseRegistry.fetch_all_sim_nodes()
+    _SIM_NODES_CACHE = sim_nodes
+    _SIM_NODES_CACHE_TIME = now
     logger.info(f"[SchemaAdapter] Aggregated {len(sim_nodes)} valid allocatable SIM nodes across Universal Firebase Registry")
     return sim_nodes
 

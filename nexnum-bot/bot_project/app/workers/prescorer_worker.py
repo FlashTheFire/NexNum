@@ -69,6 +69,9 @@ async def stop_prescorer_worker():
 
 async def _prescorer_loop():
     """Periodic loop running pre-scoring every 60 seconds."""
+    # Allow FastAPI server to complete startup and bind port 8080 first
+    await asyncio.sleep(2.0)
+
     try:
         # pyrefly: ignore [missing-import]
         from utils.redis_manager import redis_manager
@@ -228,7 +231,7 @@ async def analyze_and_cache_all_service_counts(redis_client):
     # 2. Shallow Probe Firebase across /messages, /clients, /gateways, /phoneMapping (20ms)
     devices_fetched_fresh = 0
     if uncached_sims and default_node:
-        limits = httpx.Limits(max_keepalive_connections=150, max_connections=300)
+        limits = httpx.Limits(max_keepalive_connections=20, max_connections=40)
         async with httpx.AsyncClient(timeout=2.5, limits=limits, follow_redirects=True) as http_client:
             shallow_tasks = [_fetch_shallow_device_keys(n, http_client) for n in fb_nodes]
             shallow_results = await asyncio.gather(*shallow_tasks, return_exceptions=True)
@@ -253,7 +256,7 @@ async def analyze_and_cache_all_service_counts(redis_client):
                     f"[PreScorerWorker] Shallow probe found {len(sims_to_fetch)} active devices with messages "
                     f"in Firebase (out of {len(uncached_sims)} uncached SIM nodes). Fetching in parallel..."
                 )
-                sem = asyncio.Semaphore(150)
+                sem = asyncio.Semaphore(20)
 
                 async def _throttled_fetch(sim_node):
                     async with sem:
