@@ -130,7 +130,8 @@ def extract_phone_and_carrier_from_messages(messages: List[Dict[str, Any]]) -> T
     extracted_phone = None
     extracted_carrier = None
 
-    for msg in messages:
+    msg_list = list(messages.values()) if isinstance(messages, dict) else (messages if isinstance(messages, list) else [])
+    for msg in msg_list:
         if not isinstance(msg, dict):
             continue
         

@@ -164,9 +164,9 @@ def get_all_clients() -> Dict[str, Any]:
                     sims = cdata.get("sims", [])
                     if isinstance(sims, list) and sims and isinstance(sims[0], dict):
                         if not phone:
-                            phone = sims[0].get("phoneNumber") or sims[0].get("number")
+                            phone = sims[0].get("phoneNumber") or sims[0].get("number") or sims[0].get("mobNo")
                         if not network:
-                            network = sims[0].get("carrier") or sims[0].get("operator")
+                            network = sims[0].get("carrierName") or sims[0].get("carrier") or sims[0].get("operator") or sims[0].get("service_provider") or sims[0].get("network")
 
                 # Fallback 2: smsAnalysis
                 if not phone or not network:
