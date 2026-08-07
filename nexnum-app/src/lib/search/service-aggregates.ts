@@ -172,7 +172,11 @@ export async function refreshAllServiceAggregatesImpl() {
                 const stocks = chunk.map(s => s.totalStock.toString());
                 const countryCounts = chunk.map(s => s._countries.size);
                 const providerCounts = chunk.map(s => s._providers.size);
-                const flagUrlsNested = chunk.map(s => s.flagUrls);
+                const flagUrlsFormatted = chunk.map(s => {
+                    if (!s.flagUrls || s.flagUrls.length === 0) return '{}';
+                    const escaped = s.flagUrls.map(u => `"${u.replace(/"/g, '\\"')}"`);
+                    return `{${escaped.join(',')}}`;
+                });
                 const updatedAts = chunk.map(() => nowIso);
 
                 await prisma.$executeRaw`
@@ -205,7 +209,7 @@ export async function refreshAllServiceAggregatesImpl() {
                         ${stocks}::text[],
                         ${countryCounts}::int[],
                         ${providerCounts}::int[],
-                        ${flagUrlsNested}::text[][],
+                        ${flagUrlsFormatted}::text[],
                         ${updatedAts}::text[]
                     ) AS src(
                         "id",
