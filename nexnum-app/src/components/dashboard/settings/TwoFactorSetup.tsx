@@ -69,7 +69,7 @@ export function TwoFactorSetup({ enabled = false, onStatusChange }: TwoFactorSet
             if (res.ok) {
                 setBackupCodes(data.data.backupCodes)
                 setStep('backup')
-                onStatusChange(true)
+                onStatusChange?.(true)
                 toast.success('2FA Enabled Successfully')
             } else {
                 toast.error(data.error || 'Invalid code')
@@ -93,7 +93,7 @@ export function TwoFactorSetup({ enabled = false, onStatusChange }: TwoFactorSet
                 body: JSON.stringify({ password: disablePassword, token: disableCode })
             })
             if (res.ok) {
-                onStatusChange(false)
+                onStatusChange?.(false)
                 setIsOpen(false)
                 toast.success('2FA Disabled')
             } else {
