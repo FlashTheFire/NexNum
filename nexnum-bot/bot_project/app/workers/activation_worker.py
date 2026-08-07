@@ -74,6 +74,7 @@ async def stop_activation_workers():
 async def _worker_loop(worker_id: str):
     """Loop consuming messages from stream:inbound:sms using XREADGROUP."""
     try:
+        # pyrefly: ignore [missing-import]
         from utils.redis_manager import redis_manager
     except ImportError:
         from bot_project.utils.redis_manager import redis_manager

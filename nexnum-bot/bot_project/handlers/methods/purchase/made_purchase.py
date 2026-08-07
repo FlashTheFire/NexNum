@@ -43,14 +43,23 @@ from pilmoji import Pilmoji
 from urllib.parse import quote
 
 # Local imports
+# pyrefly: ignore [missing-import]
 from utils.redis_keys import RedisKeys 
-from utils.functions import convert_rub_to_usd, get_api_info, AfterMin, small_caps, convert_rub_to_usd
+# pyrefly: ignore [missing-import]
+from utils.functions import convert_rub_to_usd, get_api_info, AfterMin, small_caps
+# pyrefly: ignore [missing-import]
 from handlers.manager.operation import FinancialManagement, UserManagement, OrderManagement
+# pyrefly: ignore [missing-import]
 from utils.cache_manager import cache_manager, CachePrefix
+# pyrefly: ignore [missing-import]
 from utils.api_client import api_client
+# pyrefly: ignore [missing-import]
 from handlers.security import RateLimiter, InputValidator, TransactionGuard
+# pyrefly: ignore [missing-import]
 from utils.redis_manager import RedisManager, redis_manager
-from utils.config import BASE_TIMEOUT, ADMIN_ID, IMGBB_API_KEY
+# pyrefly: ignore [missing-import]
+from utils.config import BASE_TIMEOUT, ADMIN_ID, IMGBB_API_KEY, COMMISSION, APP_IMAGE_LIST, CHANNEL_ID
+# pyrefly: ignore [missing-import]
 from handlers.main.top_services import top_service_manager, TopServiceManager
 from functools import partial
 
@@ -65,7 +74,7 @@ class UserPurchaseManagement:
         self.order_manager: Optional[OrderManagement] = None
         self.user_manager: Optional[UserManagement] = None
         self.aggregator: Optional[FinancialManagement] = None
-        self.redis_client: Optional[RedisManager] = None
+        self.redis_client: Optional[Any] = None
         self.rate_limiter: Optional[RateLimiter] = None
         self.top_service_manager: Optional[TopServiceManager] = None
         self.input_validator: Optional[InputValidator] = None
@@ -85,10 +94,10 @@ class UserPurchaseManagement:
 
             self.order_manager = order_mgr
             self.user_manager = user_mgr
-            self.aggregator = bot.aggregator
+            self.aggregator = getattr(bot, "aggregator", None)  # pyrefly: ignore [attribute-error]
             self.bot = bot
-            self.input_validator = bot.input_validator
-            self.transaction_guard = bot.transaction_guard
+            self.input_validator = getattr(bot, "input_validator", None)  # pyrefly: ignore [attribute-error]
+            self.transaction_guard = getattr(bot, "transaction_guard", None)  # pyrefly: ignore [attribute-error]
             self.top_service_manager = top_service_manager
             redis_client = await redis_manager.get_client()
             self.rate_limiter = RateLimiter(

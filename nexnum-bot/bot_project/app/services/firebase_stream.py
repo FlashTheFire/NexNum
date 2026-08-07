@@ -206,10 +206,10 @@ class FirebaseStreamManager:
         # Push to inbound stream
         stream_name = settings.REDIS_STREAM_INBOUND
         entry: dict[str, str] = {
-            "deviceId": str(client_id),
+            "deviceId": client_id,
             "timestamp": str(int(msg_ts)),
             "sender": str(full_msg.get("sender") or ""),
-            "body": str(msg_text),
+            "body": msg_text,
             "isOtp": "0",
             "otpCode": "",
             "simSlot": "0",
@@ -217,7 +217,7 @@ class FirebaseStreamManager:
             "source": f"firebase_sse:{node_id}",
         }
         try:
-            msg_id = await redis_client.xadd(stream_name, entry, maxlen=10000, approximate=True)
+            msg_id = await redis_client.xadd(stream_name, entry, maxlen=10000, approximate=True)  # pyrefly: ignore [arg-type]
             logger.debug(f"[SSE→Stream] Pushed {client_id} message to stream: {msg_id}")
         except Exception as e:
             logger.warning(f"[SSE→Stream] Failed to push to stream: {e}")
