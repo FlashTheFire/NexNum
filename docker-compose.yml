@@ -30,6 +30,7 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       MEILISEARCH_HOST: http://meilisearch:7700
       SOCKET_HOST: nexnum-socket
+      NEXNUM_BOT_URL: http://nexnum-bot:8080
       NEXT_PUBLIC_SOCKET_URL: ${NEXT_PUBLIC_SOCKET_URL}
     logging:
       driver: json-file

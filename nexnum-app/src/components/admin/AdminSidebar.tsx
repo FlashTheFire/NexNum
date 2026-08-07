@@ -15,12 +15,14 @@ import {
     Activity,
     PanelLeftClose,
     PanelLeft,
-    Shield
+    Shield,
+    Smartphone
 } from "lucide-react"
 import { useSidebar } from "./SidebarContext"
 
 const menuItems = [
     { icon: LayoutDashboard, label: "overview", href: "/admin" },
+    { icon: Smartphone, label: "gateway", href: "/admin/gateway" },
     { icon: Users, label: "users", href: "/admin/users" },
     { icon: Server, label: "providers", href: "/admin/providers" },
     { icon: ShoppingBag, label: "inventory", href: "/admin/inventory" },

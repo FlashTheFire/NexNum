@@ -5,7 +5,7 @@ import { motion } from "framer-motion"
 import { useTranslations } from "next-intl"
 import {
     BarChart3, Activity, Monitor, Users, Wallet, Package,
-    Settings, ArrowRight, TrendingUp, Clock
+    Settings, ArrowRight, TrendingUp, Clock, Smartphone
 } from "lucide-react"
 import Link from "next/link"
 import { api } from "@/lib/api/api-client"
@@ -45,6 +45,14 @@ interface CommandCenterData {
 // ============================================================================
 
 const navCards = [
+    {
+        id: 'gateway',
+        title: 'Hardware Gateway',
+        description: 'Android multi-SIM fleet & real-time stream status',
+        icon: Smartphone,
+        href: '/en/admin/gateway',
+        color: 'emerald'
+    },
     {
         id: 'monitoring',
         title: 'System Monitoring',
