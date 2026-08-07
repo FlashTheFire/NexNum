@@ -42,15 +42,45 @@ export async function GET(request: Request) {
             prisma.walletTransaction.count({ where }),
         ])
 
+        const currencyService = getCurrencyService()
+
+        // Map transactions with pre-computed currencyPrices
+        const formattedTransactions = await Promise.all(
+            transactions.map(async (tx) => {
+                const points = Number(tx.amount) || 0
+                const metadata = (tx.metadata as any) || {}
+
+                // Compute base currencyPrices from points (USD = points / 100)
+                const currencyPrices = await currencyService.pointsToAllFiat(points)
+
+                // If transaction is a deposit with explicit fiat metadata, override exact fiat values
+                if (metadata.depositFiatAmount && metadata.depositFiatCurrency) {
+                    const fiatVal = parseFloat(metadata.depositFiatAmount)
+                    if (!isNaN(fiatVal) && fiatVal > 0) {
+                        currencyPrices[metadata.depositFiatCurrency] = fiatVal
+                    }
+                }
+
+                // Status derivation
+                const rawStatus = metadata.status || (tx.type === 'deposit' ? 'pending' : 'completed')
+                const status = rawStatus === 'completed' || rawStatus === 'success' ? 'completed' : rawStatus
+
+                return {
+                    id: tx.id,
+                    amount: points,
+                    type: tx.type,
+                    status,
+                    description: tx.description,
+                    createdAt: tx.createdAt,
+                    currencyPrices,
+                    metadata,
+                }
+            })
+        )
+
         return NextResponse.json({
             success: true,
-            transactions: transactions.map(tx => ({
-                id: tx.id,
-                amount: Number(tx.amount),
-                type: tx.type,
-                description: tx.description,
-                createdAt: tx.createdAt,
-            })),
+            transactions: formattedTransactions,
             pagination: {
                 page,
                 limit,

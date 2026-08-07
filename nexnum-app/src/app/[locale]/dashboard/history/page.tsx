@@ -155,10 +155,10 @@ interface TransactionCardProps {
 }
 
 const TransactionCard = ({ tx, index }: TransactionCardProps) => {
-    const isCredit = tx.type === 'topup' || tx.type === 'refund'
+    const isCredit = tx.type === 'topup' || tx.type === 'refund' || tx.type === 'deposit' || tx.type === 'manual_credit' || tx.type === 'referral_bonus'
     const iconBgColor = isCredit ? 'bg-emerald-500/10' : 'bg-rose-500/10'
     const iconColor = isCredit ? 'text-emerald-400' : 'text-rose-400'
-    const amountColor = isCredit ? 'text-emerald-400' : 'text-white'
+    const amountColor = isCredit ? 'text-emerald-400' : 'text-rose-400'
 
     const Icon = isCredit ? ArrowDownRight : ArrowUpRight
 
@@ -207,11 +207,9 @@ const TransactionCard = ({ tx, index }: TransactionCardProps) => {
                             <Badge
                                 className={cn(
                                     "text-[10px] uppercase tracking-wider px-2.5 py-0.5 rounded-full font-semibold",
-                                    tx.type === 'topup'
+                                    isCredit
                                         ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                                        : tx.type === 'purchase'
-                                            ? "bg-rose-500/10 text-rose-400 border border-rose-500/20"
-                                            : "bg-blue-500/10 text-blue-400 border border-blue-500/20"
+                                        : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
                                 )}
                             >
                                 {tx.type}
@@ -219,7 +217,7 @@ const TransactionCard = ({ tx, index }: TransactionCardProps) => {
                         </div>
                         <div className="col-span-3 text-right">
                             <span className={cn("font-bold font-mono text-lg block", amountColor)}>
-                                {isCredit ? "+" : "-"}<PriceDisplay currencyPrices={tx.currencyPrices || { USD: Math.abs(tx.amount) }} />
+                                {isCredit ? "+" : "-"}<PriceDisplay currencyPrices={tx.currencyPrices || { USD: Math.abs(tx.amount) / 100 }} />
                             </span>
                             <span className={cn(
                                 "text-[10px] uppercase font-bold tracking-wider flex items-center justify-end gap-1 mt-0.5",
@@ -250,7 +248,7 @@ const TransactionCard = ({ tx, index }: TransactionCardProps) => {
                     </div>
                     <div className="text-right">
                         <p className={cn("font-bold font-mono text-sm", amountColor)}>
-                            {isCredit ? "+" : "-"}<PriceDisplay currencyPrices={tx.currencyPrices || { USD: Math.abs(tx.amount) }} />
+                            {isCredit ? "+" : "-"}<PriceDisplay currencyPrices={tx.currencyPrices || { USD: Math.abs(tx.amount) / 100 }} />
                         </p>
                         <p className={cn(
                             "text-[10px] font-medium uppercase tracking-wide",
