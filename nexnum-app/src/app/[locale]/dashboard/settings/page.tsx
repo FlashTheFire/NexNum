@@ -238,7 +238,7 @@ export default function SettingsPage() {
                                     </CardHeader>
                                     <CardContent className="p-6">
                                         <TwoFactorSetup
-                                            enabled={user?.twoFactorEnabled || twoFactor}
+                                            enabled={(user as any)?.twoFactorEnabled || twoFactor}
                                             onStatusChange={setTwoFactor}
                                         />
                                     </CardContent>
