@@ -963,7 +963,7 @@ model CouponRedemption {
 
 model VerificationAttempt {
   id          String   @id @default(uuid())
-  token       String
+  token       String   @map("token_hash")
   ipAddress   String
   success     Boolean
   attemptedAt DateTime @default(now())
