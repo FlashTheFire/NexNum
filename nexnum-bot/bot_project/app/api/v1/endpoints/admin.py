@@ -135,10 +135,24 @@ async def get_devices_list(
         try:
             pipe = redis_client.pipeline()
             for n in sim_nodes:
+                clean_phone = n.phone_number.replace("+", "").strip() if n.phone_number else ""
                 pipe.exists(f"{REDIS_PREFIX}:device_messages:{n.device_id}")
+                pipe.exists(f"{REDIS_PREFIX}:device_messages:{n.phone_number}")
+                pipe.exists(f"{REDIS_PREFIX}:device_messages:{clean_phone}")
+                pipe.exists(f"{REDIS_PREFIX}:device_no_messages:{n.device_id}")
             msg_results = await pipe.execute()
-            for n, has_msg in zip(sim_nodes, msg_results):
-                if has_msg:
+
+            idx = 0
+            for n in sim_nodes:
+                ex_dev = bool(msg_results[idx])
+                ex_phone = bool(msg_results[idx + 1])
+                ex_cphone = bool(msg_results[idx + 2])
+                ex_nomsg = bool(msg_results[idx + 3])
+                idx += 4
+
+                if ex_dev or ex_phone or ex_cphone:
+                    has_messages_set.add(n.device_id)
+                elif not ex_nomsg and n.phone_number and n.phone_number not in ("Pending", "Unknown", ""):
                     has_messages_set.add(n.device_id)
         except Exception:
             pass
@@ -326,10 +340,15 @@ async def get_device_messages(
     formatted_messages.sort(key=lambda m: m["timestamp"], reverse=True)
     res_list = formatted_messages[:limit]
 
-    # 3. Save to Redis Cache (300s TTL)
+    # 3. Save to Redis Cache (600s TTL) and sync across identifiers
     if redis_client and res_list:
         try:
-            await redis_client.set(cache_key, json.dumps(res_list), ex=300)
+            msg_json = json.dumps(res_list)
+            pipe = redis_client.pipeline()
+            pipe.delete(f"{REDIS_PREFIX}:device_no_messages:{device_id}")
+            pipe.set(cache_key, msg_json, ex=600)
+            pipe.set(f"{REDIS_PREFIX}:device_messages:{device_id}", msg_json, ex=600)
+            await pipe.execute()
         except Exception:
             pass
 
