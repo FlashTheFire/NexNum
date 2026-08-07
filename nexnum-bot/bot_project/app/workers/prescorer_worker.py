@@ -125,8 +125,8 @@ async def _fetch_device_messages_fast(
                     })
                 formatted_list.sort(key=lambda m: m["timestamp"], reverse=True)
                 return device_id, formatted_list
-    except Exception as e:
-        logger.debug(f"[PreScorerWorker] Fast fetch notice for device '{device_id}': {e}")
+    except Exception:
+        pass
 
     return device_id, []
 
