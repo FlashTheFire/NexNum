@@ -81,7 +81,7 @@ export async function seedSystemSettings() {
             // Transaction Limits
             depositMinAmount: 10,
             depositMaxAmount: 50000,
-            depositTimeoutMins: 30,
+            depositTimeoutMins: 15,
             maxPendingDeposits: 3,
 
             // Deposit Bonus

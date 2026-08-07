@@ -200,6 +200,7 @@ export default function WalletPage() {
             const result = await api.request<any>('/api/wallet/deposit')
             if (result.success && result.data?.deposits && result.data.deposits.length > 0) {
                 const pending = result.data.deposits[0]
+                const depId = pending.depositId || pending.orderId || `dep_${Date.now()}`
                 const upiRaw = `upi://pay?pa=paytmqr281005050101nbxw0hx35cpo@paytm&pn=Nex+Num+Name&am=${pending.amount || 10}&cu=INR&tr=${depId}&tn=Adding+Fund`
                 const defaultQr = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(upiRaw)}`
 
@@ -791,11 +792,17 @@ export default function WalletPage() {
                                                                 <span className="text-2xl font-bold text-white font-mono tabular-nums">
                                                                     ₹{activeDeposit?.amount?.toLocaleString('en-IN') ?? calculatedInrAmount}
                                                                 </span>
-                                                                {preferredCurrency !== 'INR' && (
-                                                                    <span className="text-xs text-muted-foreground font-mono font-normal">
-                                                                        (≈ {currencySym}{((activeDeposit?.amount ?? calculatedInrAmount) / 88.5).toFixed(2)} {preferredCurrency})
-                                                                    </span>
-                                                                )}
+                                                                {preferredCurrency !== 'INR' && (() => {
+                                                                    const inrAmount = activeDeposit?.amount ?? calculatedInrAmount
+                                                                    const inrRate = currencies['INR']?.rate || 88.5
+                                                                    const prefRate = currencies[preferredCurrency]?.rate || 1
+                                                                    const converted = (inrAmount / inrRate) * prefRate
+                                                                    return (
+                                                                        <span className="text-xs text-muted-foreground font-mono font-normal">
+                                                                            (≈ {currencySym}{converted.toFixed(2)} {preferredCurrency})
+                                                                        </span>
+                                                                    )
+                                                                })()}
                                                             </div>
                                                         )}
                                                     </div>
@@ -839,7 +846,7 @@ export default function WalletPage() {
                                                         href="https://t.me/NexNum"
                                                         target="_blank"
                                                         rel="noopener noreferrer"
-                                                        className="w-full h-14 rounded-xl text-sm font-semibold border border-white/10 bg-card/40 hover:bg-white/5 text-white transition-all flex items-center justify-center gap-2 no-underline cursor-pointer"
+                                                        className="w-full h-14 text-base md:text-lg font-semibold border border-white/10 bg-card/40 hover:bg-white/5 text-white transition-all duration-300 rounded-xl shadow-lg flex items-center justify-center gap-2 no-underline cursor-pointer"
                                                     >
                                                         <MessageSquare className="w-4 h-4 text-sky-400" />
                                                         Help &amp; Support
@@ -849,7 +856,7 @@ export default function WalletPage() {
                                                         type="button"
                                                         onClick={handleCancelDeposit}
                                                         disabled={isCancelling}
-                                                        className="w-full h-14 rounded-xl text-sm font-semibold border border-white/10 bg-card/40 hover:bg-white/5 text-rose-400 hover:text-rose-300 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        className="w-full h-14 text-base md:text-lg font-semibold border border-white/10 bg-card/40 hover:bg-white/5 text-rose-400 hover:text-rose-300 transition-all duration-300 rounded-xl shadow-lg flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                                     >
                                                         {isCancelling ? (
                                                             <><Loader2 className="w-4 h-4 animate-spin text-rose-400" /> Cancelling...</>
