@@ -32,22 +32,22 @@ class TestPhase5PatternRegistry(unittest.TestCase):
     def test_02_dynamic_sms_matching(self):
         """Test match_sms_dynamic() for Telegram, WhatsApp, Google, Swiggy, Amazon."""
         # Telegram
-        m1, code1 = asyncio.run(ServicePatternRegistry.match_sms_dynamic(None, "Telegram login code: 54321", "Telegram", "tg"))
+        m1, code1, _d1 = asyncio.run(ServicePatternRegistry.match_sms_dynamic(None, "Telegram login code: 54321", "Telegram", "tg"))
         self.assertTrue(m1)
         self.assertEqual(code1, "54321")
 
         # WhatsApp
-        m2, code2 = asyncio.run(ServicePatternRegistry.match_sms_dynamic(None, "Your WhatsApp code: 123-456", "WhatsApp", "wa"))
+        m2, code2, _d2 = asyncio.run(ServicePatternRegistry.match_sms_dynamic(None, "Your WhatsApp code: 123-456", "WhatsApp", "wa"))
         self.assertTrue(m2)
         self.assertEqual(code2, "123456")
 
         # Google
-        m3, code3 = asyncio.run(ServicePatternRegistry.match_sms_dynamic(None, "G-987654 is your Google verification code", "Google", "go"))
+        m3, code3, _d3 = asyncio.run(ServicePatternRegistry.match_sms_dynamic(None, "G-987654 is your Google verification code", "Google", "go"))
         self.assertTrue(m3)
         self.assertEqual(code3, "987654")
 
         # Amazon
-        m4, code4 = asyncio.run(ServicePatternRegistry.match_sms_dynamic(None, "Use code 456789 for Amazon login", "AD-AMAZON-T", "am"))
+        m4, code4, _d4 = asyncio.run(ServicePatternRegistry.match_sms_dynamic(None, "Use code 456789 for Amazon login", "AD-AMAZON-T", "am"))
         self.assertTrue(m4)
         self.assertEqual(code4, "456789")
 

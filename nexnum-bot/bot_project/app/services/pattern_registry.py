@@ -134,74 +134,98 @@ class ServicePatternRegistry:
     async def match_sms_dynamic(cls, redis_client, body: str, sender: str, service_code: str) -> tuple[bool, Optional[str], dict]:
         """
         Validates incoming SMS against dynamic pattern for service_code.
+        If service_code is 'auto', 'all', 'any', or empty, auto-detects across ALL JSON service patterns!
         Returns `(is_matched: bool, extracted_code: Optional[str], details: dict)`.
         """
         if not body:
             return False, None, {}
 
-        pattern = await cls.get_pattern(redis_client, service_code)
-        service_name = pattern.get("name", service_code.upper()) if pattern else service_code.upper()
+        req_code = (service_code or "auto").lower()
 
-        sender_pats = [re.compile(p, re.I) for p in pattern.get("sender_patterns", []) if p]
-        body_pats = [re.compile(p, re.I) for p in pattern.get("body_patterns", []) if p]
-        custom_otp_regex = pattern.get("otp_regex")
+        # Build list of (code, pattern) to check
+        if req_code not in ("auto", "all", "any"):
+            patterns_to_check = [(req_code, await cls.get_pattern(redis_client, req_code))]
+        else:
+            defaults = load_default_patterns()
+            patterns_to_check = []
+            # Check specific services first
+            for c in defaults:
+                if c != "ot":
+                    patterns_to_check.append((c, await cls.get_pattern(redis_client, c)))
+            # Check 'ot' (Other / Fallback) last
+            if "ot" in defaults:
+                patterns_to_check.append(("ot", await cls.get_pattern(redis_client, "ot")))
 
-        matched = False
-        matched_sender_pattern = None
-        matched_body_pattern = None
+        EXCLUDED_WORDS = {"login", "verify", "auth", "index", "home", "html", "php", "telegram", "whatsapp", "swiggy", "google", "amazon", "facebook", "instagram", "twitter"}
 
-        # 1. Check sender
-        for raw_p, p in zip(pattern.get("sender_patterns", []), sender_pats):
-            if sender and p.search(sender):
-                matched = True
-                matched_sender_pattern = raw_p
-                break
+        for code, pattern in patterns_to_check:
+            if not pattern:
+                continue
 
-        # 2. Check body
-        for raw_p, p in zip(pattern.get("body_patterns", []), body_pats):
-            if p.search(body):
-                matched = True
-                if not matched_body_pattern:
-                    matched_body_pattern = raw_p
-                break
+            service_name = pattern.get("name", code.upper())
+            sender_pats = [re.compile(p, re.I) for p in pattern.get("sender_patterns", []) if p]
+            body_pats = [re.compile(p, re.I) for p in pattern.get("body_patterns", []) if p]
+            custom_otp_regex = pattern.get("otp_regex")
 
-        if not matched:
-            return False, None, {
-                "serviceName": service_name,
-                "matchedSenderPattern": None,
-                "matchedBodyPattern": None,
-                "otpRegex": custom_otp_regex
-            }
+            matched = False
+            matched_sender_pattern = None
+            matched_body_pattern = None
 
-        # 3. Extract OTP
-        extracted_code = None
-        if custom_otp_regex:
-            try:
-                m = re.search(custom_otp_regex, body, re.I)
-                if m:
-                    extracted_code = m.group(1) if m.groups() else m.group(0)
-            except Exception:
-                pass
+            # 1. Check sender
+            for raw_p, p in zip(pattern.get("sender_patterns", []), sender_pats):
+                if sender and p.search(sender):
+                    matched = True
+                    matched_sender_pattern = raw_p
+                    break
 
-        if not extracted_code:
-            # pyrefly: ignore [missing-import]
-            from app.services.sms_parser import extract_otp_code
-            extracted_code = extract_otp_code(body)
+            # 2. Check body
+            for raw_p, p in zip(pattern.get("body_patterns", []), body_pats):
+                if p.search(body):
+                    matched = True
+                    if not matched_body_pattern:
+                        matched_body_pattern = raw_p
+                    break
 
-        # STRICT DIGIT VALIDATION: If extracted string contains no digits, reset to None
-        if extracted_code:
-            extracted_code = str(extracted_code).replace("-", "").replace(" ", "").strip()
-            if not any(c.isdigit() for c in extracted_code):
+            if matched:
+                # 3. Extract OTP
                 extracted_code = None
+                if custom_otp_regex:
+                    try:
+                        m = re.search(custom_otp_regex, body, re.I)
+                        if m:
+                            extracted_code = m.group(1) if m.groups() else m.group(0)
+                    except Exception:
+                        pass
 
-        details = {
-            "serviceName": service_name,
-            "matchedSenderPattern": matched_sender_pattern,
-            "matchedBodyPattern": matched_body_pattern,
-            "otpRegex": custom_otp_regex
+                if not extracted_code:
+                    # pyrefly: ignore [missing-import]
+                    from app.services.sms_parser import extract_otp_code
+                    extracted_code = extract_otp_code(body)
+
+                if extracted_code:
+                    extracted_code = str(extracted_code).replace("-", "").replace(" ", "").strip()
+                    if not any(c.isalnum() for c in extracted_code) or extracted_code.lower() in EXCLUDED_WORDS:
+                        extracted_code = None
+
+                details = {
+                    "matchedServiceCode": code,
+                    "serviceName": service_name,
+                    "matchedSenderPattern": matched_sender_pattern,
+                    "matchedBodyPattern": matched_body_pattern,
+                    "otpRegex": custom_otp_regex
+                }
+                return True, extracted_code, details
+
+        # Unmatched
+        defaults = load_default_patterns()
+        fallback_pattern = defaults.get("ot", {})
+        return False, None, {
+            "matchedServiceCode": "ot",
+            "serviceName": fallback_pattern.get("name", "Other / Universal Fallback"),
+            "matchedSenderPattern": None,
+            "matchedBodyPattern": None,
+            "otpRegex": fallback_pattern.get("otp_regex")
         }
-
-        return True, extracted_code, details
 
     @classmethod
     async def update_pattern(cls, redis_client, service_code: str, pattern_data: dict) -> bool:

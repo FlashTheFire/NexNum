@@ -27,7 +27,7 @@ import httpx
 # pyrefly: ignore [missing-import]
 from app.core.config import get_settings
 # pyrefly: ignore [missing-import]
-from app.services.sms_parser import extract_otp_code, match_sms_to_service
+from app.services.sms_parser import extract_otp_code
 
 logger = logging.getLogger(__name__)
 settings = get_settings()

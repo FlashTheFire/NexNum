@@ -85,9 +85,9 @@ export default function GatewayAdminPage() {
     const [actSortOrder, setActSortOrder] = useState<SortOrder>('desc')
 
     // Live Pattern Sandbox State
-    const [testService, setTestService] = useState("tg")
+    const [testService, setTestService] = useState("auto")
     const [testSender, setTestSender] = useState("Telegram")
-    const [testBody, setTestBody] = useState("Your Telegram login code is: 84920")
+    const [testBody, setTestBody] = useState("HTTPS:SWIGGY.COM/LOGIN/83G348 is your verification code for Swiggy.")
     const [testResult, setTestResult] = useState<any>(null)
     const [isTesting, setIsTesting] = useState(false)
 
@@ -751,6 +751,7 @@ export default function GatewayAdminPage() {
                                 onChange={(e) => setTestService(e.target.value)}
                                 className="w-full px-3 py-2 rounded-lg border-2 border-zinc-800 bg-zinc-900 text-white font-bold text-xs focus:outline-none focus:border-[hsl(var(--neon-lime))]"
                             >
+                                <option value="auto">✨ Auto-Detect All Services (auto)</option>
                                 <option value="tg">Telegram (tg)</option>
                                 <option value="wa">WhatsApp (wa)</option>
                                 <option value="go">Google / YouTube (go)</option>
@@ -870,7 +871,7 @@ export default function GatewayAdminPage() {
                                     <div className="rounded-lg border-2 border-zinc-800 bg-zinc-900 p-4 font-mono text-xs space-y-2 text-zinc-300">
                                         <div className="flex items-center justify-between border-b border-zinc-800 pb-1.5">
                                             <span className="text-zinc-500 font-bold uppercase text-[10px]">Service:</span>
-                                            <span className="text-white font-bold">{testResult.serviceName || testResult.serviceCode?.toUpperCase()} ({testResult.serviceCode})</span>
+                                            <span className="text-white font-bold">{testResult.serviceName || (testResult.matchedServiceCode || testResult.serviceCode)?.toUpperCase()} ({testResult.matchedServiceCode || testResult.serviceCode})</span>
                                         </div>
                                         <div className="flex items-center justify-between border-b border-zinc-800 pb-1.5">
                                             <span className="text-zinc-500 font-bold uppercase text-[10px]">Sender Tested:</span>

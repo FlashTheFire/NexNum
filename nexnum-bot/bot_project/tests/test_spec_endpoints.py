@@ -45,7 +45,7 @@ async def test_spec_endpoints():
 
         # 5. getFullSms (with active activation and SMS text)
         # pyrefly: ignore [missing-import]
-from app.gateway.router import save_activation
+        from app.gateway.router import save_activation
         import time
 
         act_id = "test_full_sms_99"

@@ -13,7 +13,8 @@ if str(_bot_dir) not in sys.path:
     sys.path.insert(0, str(_bot_dir))
 
 # pyrefly: ignore [missing-import]
-from app.services.sms_parser import match_sms_to_service, extract_otp_code
+from app.services.sms_parser import extract_otp_code
+from app.services.pattern_registry import ServicePatternRegistry
 from fastapi.testclient import TestClient
 from main import fastapi_app
 
@@ -22,14 +23,19 @@ class TestPhase3WorkersMatcher(unittest.TestCase):
 
     def test_01_service_sms_pattern_matching(self):
         """Test matching SMS text and sender ID against requested service codes."""
+        loop = asyncio.get_event_loop()
         # Telegram match
-        self.assertTrue(match_sms_to_service("Telegram login code: 54321", "Telegram", "tg"))
+        matched_tg, _, _ = loop.run_until_complete(ServicePatternRegistry.match_sms_dynamic(None, "Telegram login code: 54321", "Telegram", "tg"))
+        self.assertTrue(matched_tg)
         # WhatsApp match
-        self.assertTrue(match_sms_to_service("Your WhatsApp code: 123-456", "WhatsApp", "wa"))
+        matched_wa, _, _ = loop.run_until_complete(ServicePatternRegistry.match_sms_dynamic(None, "Your WhatsApp code: 123-456", "WhatsApp", "wa"))
+        self.assertTrue(matched_wa)
         # Google match
-        self.assertTrue(match_sms_to_service("G-987654 is your Google verification code", "Google", "go"))
+        matched_go, _, _ = loop.run_until_complete(ServicePatternRegistry.match_sms_dynamic(None, "G-987654 is your Google verification code", "Google", "go"))
+        self.assertTrue(matched_go)
         # Wrong service mismatch
-        self.assertFalse(match_sms_to_service("Your Swiggy order code is 112233", "Swiggy", "tg"))
+        matched_sw_tg, _, _ = loop.run_until_complete(ServicePatternRegistry.match_sms_dynamic(None, "Your Swiggy order code is 112233", "Swiggy", "tg"))
+        self.assertFalse(matched_sw_tg)
         print("  [Phase 3] Service SMS pattern matching verified for Telegram, WhatsApp, Google!")
 
     def test_02_otp_code_extraction(self):

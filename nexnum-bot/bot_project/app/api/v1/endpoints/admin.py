@@ -24,7 +24,7 @@ from app.crud.firebase_crud import get_all_sim_nodes
 # pyrefly: ignore [missing-import]
 from app.services.pattern_registry import ServicePatternRegistry, load_default_patterns
 # pyrefly: ignore [missing-import]
-from app.services.sms_parser import extract_otp_code, match_sms_to_service
+from app.services.sms_parser import extract_otp_code
 # pyrefly: ignore [missing-import]
 from app.middleware.auth import verify_api_key
 
@@ -361,6 +361,7 @@ async def test_pattern_match(payload: TestMatchPayload):
 
     return {
         "serviceCode": payload.serviceCode,
+        "matchedServiceCode": details.get("matchedServiceCode", payload.serviceCode),
         "serviceName": details.get("serviceName", payload.serviceCode.upper()),
         "sender": payload.sender,
         "body": payload.body,

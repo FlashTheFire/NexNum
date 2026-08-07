@@ -19,7 +19,7 @@ from typing import Dict, Any, List, Optional
 # pyrefly: ignore [missing-import]
 from app.crud.firebase_crud import get_all_sim_nodes, get_incoming_messages
 # pyrefly: ignore [missing-import]
-from app.services.sms_parser import match_sms_to_service, SERVICE_PATTERNS
+from app.services.pattern_registry import ServicePatternRegistry, load_default_patterns
 # pyrefly: ignore [missing-import]
 from app.core.config import get_settings
 
@@ -101,7 +101,6 @@ async def analyze_and_cache_all_service_counts(redis_client):
 
         # Count service matches
         counts: Dict[str, int] = {}
-        supported_services = list(SERVICE_PATTERNS.keys()) + ["ot"]
 
         for msg in messages:
             if not isinstance(msg, dict):
@@ -109,9 +108,10 @@ async def analyze_and_cache_all_service_counts(redis_client):
             body = str(msg.get("message") or msg.get("body") or "")
             sender = str(msg.get("sender") or msg.get("from") or "")
 
-            for svc in supported_services:
-                if match_sms_to_service(body, sender, svc):
-                    counts[svc] = counts.get(svc, 0) + 1
+            matched, _code, details = await ServicePatternRegistry.match_sms_dynamic(redis_client, body, sender, service_code="auto")
+            if matched:
+                svc = details.get("matchedServiceCode") or "ot"
+                counts[svc] = counts.get(svc, 0) + 1
 
         if counts:
             key = f"{REDIS_PREFIX}:service_counts:{phone}"
