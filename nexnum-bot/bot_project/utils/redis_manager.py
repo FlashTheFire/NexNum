@@ -3,7 +3,7 @@ import os
 import asyncio
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict
 from dotenv import load_dotenv
 
 _bot_project_dir = Path(__file__).resolve().parent
@@ -17,20 +17,17 @@ from .config import REDIS_HOST, REDIS_PORT, REDIS_PASSWORD, REDIS_DB, ENABLE_RED
 
 load_dotenv()
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('application.log'),
-        logging.StreamHandler()
-    ]
-)
 logger = logging.getLogger('redis_manager')
 
 class RedisManager:
+    """
+    Loop-safe, thread-safe Redis connection manager.
+    Maintains a separate Redis client and ConnectionPool per asyncio event loop
+    to prevent 'Future/Lock attached to a different loop' errors.
+    """
     def __init__(self):
-        self.redis_client = None
-        self.connection_lock = asyncio.Lock()
+        self._clients: Dict[asyncio.AbstractEventLoop, redis.Redis] = {}
+        self._locks: Dict[asyncio.AbstractEventLoop, asyncio.Lock] = {}
 
         # Configurable timeouts & retries
         self.MAX_RETRIES = 3              # Max attempts when connecting
@@ -41,17 +38,29 @@ class RedisManager:
         self.POOL_SIZE = 20
         self.HEALTH_CHECK_INTERVAL = 15
 
+    def _get_loop_lock(self, loop: asyncio.AbstractEventLoop) -> asyncio.Lock:
+        if loop not in self._locks or self._locks[loop]._loop is not loop:
+            self._locks[loop] = asyncio.Lock()
+        return self._locks[loop]
+
     async def connect(self) -> bool:
-        """Establish connection pool and do an initial ping (with timeout)."""
+        """Establish connection pool for current running asyncio event loop."""
         if not ENABLE_REDIS:
             logger.info("Redis is disabled via ENABLE_REDIS=False configuration.")
             return False
 
-        if self.redis_client:
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            logger.error("redis_manager.connect() called outside of a running asyncio event loop.")
+            return False
+
+        if loop in self._clients and self._clients[loop] is not None:
             return True
 
-        async with self.connection_lock:
-            if self.redis_client:
+        lock = self._get_loop_lock(loop)
+        async with lock:
+            if loop in self._clients and self._clients[loop] is not None:
                 return True
 
             try:
@@ -67,7 +76,7 @@ class RedisManager:
                     socket_keepalive=True,
                     health_check_interval=self.HEALTH_CHECK_INTERVAL
                 )
-                self.redis_client = redis.Redis(
+                client = redis.Redis(
                     connection_pool=pool,
                     retry_on_timeout=True,
                     socket_timeout=self.SOCKET_TIMEOUT,
@@ -75,7 +84,8 @@ class RedisManager:
                     decode_responses=True
                 )
 
-                await asyncio.wait_for(self.redis_client.ping(), timeout=self.SOCKET_CONNECT_TIMEOUT)
+                await asyncio.wait_for(client.ping(), timeout=self.SOCKET_CONNECT_TIMEOUT)
+                self._clients[loop] = client
                 logger.info("Successfully connected to Redis")
                 return True
 
@@ -84,20 +94,26 @@ class RedisManager:
             except Exception as e:
                 logger.warning(f"Failed to connect to Redis: {e}")
 
-            self.redis_client = None
+            self._clients[loop] = None
             return False
 
     async def ensure_connection(self) -> bool:
-        """Make sure we have a live connection; retry with exponential backoff."""
+        """Make sure current loop has a live connection; retry with exponential backoff."""
         if not ENABLE_REDIS:
             return False
 
-        if self.redis_client:
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return False
+
+        client = self._clients.get(loop)
+        if client is not None:
             try:
-                await self.redis_client.ping()
+                await client.ping()
                 return True
             except Exception:
-                self.redis_client = None
+                self._clients[loop] = None
 
         for attempt in range(1, self.MAX_RETRIES + 1):
             if await self.connect():
@@ -110,15 +126,35 @@ class RedisManager:
         return False
 
     async def get_client(self) -> Optional[redis.Redis]:
-        """Return a connected client, or None if connection failed or Redis is disabled."""
+        """Return a connected client for the CURRENT asyncio event loop, or None."""
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return None
+
         if not await self.ensure_connection():
             return None
-        return self.redis_client
+        return self._clients.get(loop)
+
+    @property
+    def redis_client(self) -> Optional[redis.Redis]:
+        """Backward compatibility property — gets client for current running loop synchronously if available."""
+        try:
+            loop = asyncio.get_running_loop()
+            return self._clients.get(loop)
+        except RuntimeError:
+            return None
 
     async def close(self):
-        if self.redis_client:
-            await self.redis_client.close()
-            self.redis_client = None
-            logger.info("Redis connection closed.")
+        """Close clients across all registered loops."""
+        for loop, client in list(self._clients.items()):
+            if client is not None:
+                try:
+                    await client.close()
+                except Exception:
+                    pass
+        self._clients.clear()
+        self._locks.clear()
+        logger.info("Redis connection closed.")
 
 redis_manager = RedisManager()

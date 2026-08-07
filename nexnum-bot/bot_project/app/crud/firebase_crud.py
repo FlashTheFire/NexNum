@@ -18,7 +18,7 @@ CLIENT_NODE_MAP: Dict[str, Dict[str, str]] = {}
 # ThreadPoolExecutor for concurrent parallel database requests
 _CRUD_EXECUTOR = ThreadPoolExecutor(max_workers=16)
 
-def _firebase_request_node(node: Dict[str, str], method: str, path: str, json_data: dict = None, params: str = "") -> Any:
+def _firebase_request_node(node: Dict[str, str], method: str, path: str, json_data: dict = {}, params: str = "") -> Any:
     """Execute HTTP REST request to a specific Firebase node."""
     url = f"{node['url']}{path}.json?auth={node['auth']}{params}"
     try:
@@ -42,6 +42,95 @@ def _firebase_request_node(node: Dict[str, str], method: str, path: str, json_da
         logger.error(f"Firebase [{node['id']}] API Error on {method} {path}: {exc}")
         return None
 
+import re
+from datetime import datetime
+
+def parse_any_datetime_to_epoch_ms(val: Any) -> float:
+    """
+    Parses any datetime representation (numeric epoch, ISO string, '06-12-2025 | 06:55 PM', 
+    '02-08-2026 | 06:48 PM', '06-Aug-2026 20:21', etc.) into Unix epoch milliseconds.
+    """
+    if val is None or val == "" or val == 0:
+        return 0.0
+
+    # If a dict is passed (e.g. the full message or status object)
+    if isinstance(val, dict):
+        # 1. Check numeric timestamp/time/createdAt
+        raw_ts = val.get("timestamp") or val.get("time") or val.get("createdAt")
+        parsed_num = parse_any_datetime_to_epoch_ms(raw_ts)
+        if parsed_num > 946684800000:  # After year 2000
+            return parsed_num
+
+        # 2. Check dateTime / date_time / date
+        raw_dt = val.get("dateTime") or val.get("datetime") or val.get("date_time") or val.get("date")
+        if raw_dt:
+            parsed_dt = parse_any_datetime_to_epoch_ms(raw_dt)
+            if parsed_dt > 0:
+                return parsed_dt
+
+        return 0.0
+
+    # 1. Numeric epoch (ms or sec)
+    if isinstance(val, (int, float)):
+        num = float(val)
+        if num <= 0:
+            return 0.0
+        # If it's in seconds (e.g. 1.7e9), convert to ms
+        if num < 1e11:
+            return num * 1000.0
+        return num
+
+    # 2. String representation
+    s = str(val).strip()
+    if not s:
+        return 0.0
+
+    # Numeric string (e.g. "1786114347895" or "1786114347")
+    if s.replace(".", "", 1).isdigit():
+        try:
+            num = float(s)
+            if num <= 0:
+                return 0.0
+            if num < 1e11:
+                return num * 1000.0
+            return num
+        except Exception:
+            pass
+
+    # Clean separators (e.g. "06-12-2025 | 06:55 PM" -> "06-12-2025 06:55 PM")
+    cleaned = s.replace("|", " ").replace("/", "-").strip()
+    cleaned = re.sub(r"\s+", " ", cleaned)
+
+    # Candidate date parsing formats
+    date_formats = [
+        "%d-%m-%Y %I:%M %p",       # "06-12-2025 06:55 PM" or "02-08-2026 06:48 PM"
+        "%d-%m-%Y %H:%M:%S",       # "06-12-2025 18:55:00"
+        "%d-%m-%Y %H:%M",          # "06-12-2025 18:55"
+        "%m-%d-%Y %I:%M %p",       # "12-06-2025 06:55 PM"
+        "%m-%d-%Y %H:%M:%S",
+        "%m-%d-%Y %H:%M",
+        "%Y-%m-%d %H:%M:%S",       # "2026-08-02 18:48:00"
+        "%Y-%m-%d %I:%M %p",       # "2026-08-02 06:48 PM"
+        "%Y-%m-%d %H:%M",
+        "%d-%b-%Y %H:%M",          # "06-Aug-2026 20:21"
+        "%d-%b-%y %H:%M",          # "06-Aug-26 20:21"
+        "%d-%b-%Y %I:%M %p",
+        "%d-%b-%y %I:%M %p",
+        "%d-%B-%Y %H:%M",
+        "%Y-%m-%dT%H:%M:%S.%fZ",   # ISO format
+        "%Y-%m-%dT%H:%M:%SZ",
+        "%Y-%m-%dT%H:%M:%S",
+    ]
+
+    for fmt in date_formats:
+        try:
+            dt = datetime.strptime(cleaned, fmt)
+            return dt.timestamp() * 1000.0
+        except Exception:
+            continue
+
+    return 0.0
+
 def _find_client_node(client_id: str) -> Optional[Dict[str, str]]:
     """Locate owning node for a client_id across all configured Firebase instances."""
     if client_id in CLIENT_NODE_MAP:
@@ -50,6 +139,10 @@ def _find_client_node(client_id: str) -> Optional[Dict[str, str]]:
     def probe(node):
         res = _firebase_request_node(node, 'GET', f'/clients/{client_id}')
         if res:
+            return node
+        # Also check /messages/{client_id}
+        res_msgs = _firebase_request_node(node, 'GET', f'/messages/{client_id}', params="&shallow=true")
+        if res_msgs:
             return node
         return None
 
@@ -85,6 +178,9 @@ def _load_phone_cache() -> Dict[str, Dict[str, Any]]:
         logger.warning(f"[PhoneCache] Failed to load JSON phone cache: {e}")
     return GLOBAL_PHONE_CACHE
 
+import threading
+_PHONE_CACHE_LOCK = threading.Lock()
+
 def _save_phone_cache(updated_entries: Optional[Dict[str, Dict[str, Any]]] = None) -> None:
     """
     Saves in-memory phone cache to local JSON file AND syncs to Redis Hash nexsms:phone_cache.
@@ -95,13 +191,17 @@ def _save_phone_cache(updated_entries: Optional[Dict[str, Dict[str, Any]]] = Non
         dir_path = os.path.dirname(CACHE_FILE_PATH)
         os.makedirs(dir_path, exist_ok=True)
         temp_path = f"{CACHE_FILE_PATH}.tmp"
+        
+        with _PHONE_CACHE_LOCK:
+            cache_snapshot = dict(GLOBAL_PHONE_CACHE)
+            
         with open(temp_path, "w", encoding="utf-8") as f:
-            json.dump(GLOBAL_PHONE_CACHE, f, indent=2)
+            json.dump(cache_snapshot, f, indent=2)
         try:
             os.replace(temp_path, CACHE_FILE_PATH)
         except Exception:
             with open(CACHE_FILE_PATH, "w", encoding="utf-8") as f:
-                json.dump(GLOBAL_PHONE_CACHE, f, indent=2)
+                json.dump(cache_snapshot, f, indent=2)
             if os.path.exists(temp_path):
                 os.remove(temp_path)
     except Exception as e:
@@ -287,33 +387,118 @@ def clear_webhook_event(client_id: str) -> None:
         _firebase_request_node(node, 'DELETE', f'/clients/{client_id}/webhookEvent')
 
 def get_incoming_messages(client_id: str, limit: int = 150) -> List[Dict[str, Any]]:
-    """Get last 'limit' incoming messages for a client from its owning Firebase node."""
-    node = _find_client_node(client_id)
-    if not node:
+    """
+    Get last 'limit' incoming messages for a device/client across all configured Firebase RTDB nodes.
+    Applies multi-identifier key resolution (deviceId, firebaseNodeId, phoneNumber) and deep datetime parsing.
+    """
+    if not client_id:
         return []
-    params = f"&orderBy=%22%24key%22&limitToLast={limit}"
-    result = _firebase_request_node(node, 'GET', f'/messages/{client_id}', params=params) or {}
-    
-    messages = []
-    if isinstance(result, dict):
-        for key, val in result.items():
-            if isinstance(val, dict):
-                try:
-                    val['id'] = int(key)
-                except ValueError:
-                    val['id'] = key
-                messages.append(val)
-    # Sort by id descending
-    messages.sort(key=lambda x: str(x.get('id', '')), reverse=True)
-    return messages
 
-def get_client_messages(client_id: str, limit: int = 150) -> Any:
-    """Fetch client messages map/list from owning node."""
-    node = _find_client_node(client_id)
-    if not node:
-        return {}
-    params = f"&orderBy=%22%24key%22&limitToLast={limit}"
-    return _firebase_request_node(node, 'GET', f'/messages/{client_id}', params=params) or {}
+    # 1. Resolve candidate RTDB keys for this client_id
+    candidate_keys = [client_id]
+    
+    # Check if client_id maps to any known SIM node in memory
+    try:
+        sim_nodes = get_all_sim_nodes()
+        for sn in sim_nodes:
+            if client_id in (sn.device_id, sn.firebase_node_id, sn.phone_number, getattr(sn, 'clean_digits', '')):
+                for k in (sn.firebase_node_id, sn.device_id, sn.phone_number):
+                    if k and k not in candidate_keys:
+                        candidate_keys.append(k)
+    except Exception as e:
+        logger.debug(f"[get_incoming_messages] Candidate key mapping notice: {e}")
+
+    result = None
+
+    # 2. Try mapped keys first against owning node in CLIENT_NODE_MAP or direct node lookup
+    for key in candidate_keys:
+        node = _find_client_node(key)
+        if node:
+            params = f"&orderBy=%22%24key%22&limitToLast={limit}"
+            # Check /messages/{key}
+            res = _firebase_request_node(node, 'GET', f'/messages/{key}', params=params)
+            if res and isinstance(res, dict):
+                result = res
+                break
+            # Check /clients/{key}/messages
+            res_c = _firebase_request_node(node, 'GET', f'/clients/{key}/messages', params=params)
+            if res_c and isinstance(res_c, dict):
+                result = res_c
+                break
+            # Check /gateways/{key}/messages
+            res_g = _firebase_request_node(node, 'GET', f'/gateways/{key}/messages', params=params)
+            if res_g and isinstance(res_g, dict):
+                result = res_g
+                break
+            # Check root /gateways/{key} or /clients/{key} for 'messages' attribute
+            res_root = _firebase_request_node(node, 'GET', f'/gateways/{key}')
+            if res_root and isinstance(res_root, dict) and isinstance(res_root.get("messages"), dict):
+                result = res_root["messages"]
+                break
+
+    # 3. If still empty, probe all configured Firebase nodes concurrently across candidate keys
+    if not result or not isinstance(result, dict):
+        def probe_messages(n):
+            for k in candidate_keys:
+                params = f"&limitToLast={limit}"
+                res = _firebase_request_node(n, 'GET', f'/messages/{k}', params=params)
+                if res and isinstance(res, dict):
+                    return n, k, res
+                res_c = _firebase_request_node(n, 'GET', f'/clients/{k}/messages', params=params)
+                if res_c and isinstance(res_c, dict):
+                    return n, k, res_c
+                res_g = _firebase_request_node(n, 'GET', f'/gateways/{k}/messages', params=params)
+                if res_g and isinstance(res_g, dict):
+                    return n, k, res_g
+            return n, None, None
+
+        futures = [_CRUD_EXECUTOR.submit(probe_messages, n) for n in FIREBASE_NODES]
+        for fut in futures:
+            found_n, found_k, found_res = fut.result()
+            if found_res and isinstance(found_res, dict):
+                result = found_res
+                CLIENT_NODE_MAP[client_id] = found_n
+                if found_k:
+                    CLIENT_NODE_MAP[found_k] = found_n
+                break
+
+    if not isinstance(result, dict):
+        return []
+
+    messages = []
+    for key, val in result.items():
+        if isinstance(val, dict):
+            msg_dict = dict(val)
+            msg_dict['id'] = str(msg_dict.get('id') or key)
+            
+            # Parse timestamp safely to Unix epoch milliseconds
+            epoch_ms = parse_any_datetime_to_epoch_ms(msg_dict)
+            msg_dict['timestamp'] = epoch_ms
+            
+            # Ensure dateTime string is populated
+            if not msg_dict.get('dateTime'):
+                if msg_dict.get('datetime'):
+                    msg_dict['dateTime'] = msg_dict['datetime']
+                elif msg_dict.get('date_time'):
+                    msg_dict['dateTime'] = msg_dict['date_time']
+                elif msg_dict.get('date') and msg_dict.get('time'):
+                    msg_dict['dateTime'] = f"{msg_dict['date']} | {msg_dict['time']}"
+
+            messages.append(msg_dict)
+
+    messages.sort(
+        key=lambda x: (x.get('timestamp') or 0.0, safe_float(x.get('id')) if str(x.get('id', '')).isdigit() else str(x.get('id', ''))),
+        reverse=True
+    )
+    return messages[:limit]
+
+def safe_float(val: Any, default: float = 0.0) -> float:
+    try:
+        if val is None:
+            return default
+        return float(val)
+    except (ValueError, TypeError):
+        return default
 
 def get_client_id_by_phone(phone: str) -> Optional[str]:
     """Lookup clientId by phone number across all Firebase nodes concurrently."""
