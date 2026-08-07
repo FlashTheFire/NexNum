@@ -594,22 +594,23 @@ async def get_scorer_leaderboard(
             freshness_label = "USED"
             freshness_pts = -(candidate.service_sms_count * 25)
 
-        # ── Recency Breakdown ───────────────────────────────────────────────
-        if hours_since_seen <= 1.0:
+        # ── 12-Hour SMS Recency Breakdown ──────────────────────────────────
+        hrs_sms = candidate.last_sms_hours
+        if hrs_sms <= 1.0:
             recency_pts = 60
             recency_label = "< 1h"
-        elif hours_since_seen <= 3.0:
+        elif hrs_sms <= 3.0:
             recency_pts = 40
             recency_label = "< 3h"
-        elif hours_since_seen <= 6.0:
+        elif hrs_sms <= 6.0:
             recency_pts = 20
             recency_label = "< 6h"
-        elif hours_since_seen <= 12.0:
+        elif hrs_sms <= 12.0:
             recency_pts = 10
             recency_label = "< 12h"
         else:
-            recency_pts = 2
-            recency_label = "> 12h"
+            recency_pts = -9999
+            recency_label = "> 12h (EXCLUDED)"
 
         online_pts = 30 if node.is_online else 0
         batt_pts = 10 if node.battery >= 70 else (-20 if node.battery < 15 else 0)
