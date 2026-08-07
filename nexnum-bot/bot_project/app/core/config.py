@@ -82,6 +82,8 @@ class Settings(BaseSettings):
                         if isinstance(n, dict) and n.get("url"):
                             url = n["url"].rstrip("/")
                             auth = n.get("auth", "")
+                            if auth and (auth.startswith("http://") or auth.startswith("https://") or auth == url):
+                                auth = ""
                             stype = n.get("schema_type", n.get("type", "auto")).lower()
                             if stype not in ("gateways", "clients", "auto"):
                                 stype = "auto"

@@ -21,6 +21,8 @@ from app.services.pattern_registry import ServicePatternRegistry, load_default_p
 from app.services.sms_parser import extract_otp_code, match_sms_to_service
 from app.middleware.auth import verify_api_key
 
+from app.crud.firebase_crud import get_all_sim_nodes_async
+
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
@@ -54,7 +56,7 @@ async def get_system_stats():
         from bot_project.utils.redis_manager import redis_manager
 
     redis_client = await redis_manager.get_client()
-    sim_nodes = get_all_sim_nodes()
+    sim_nodes = await get_all_sim_nodes_async()
 
     online_count = sum(1 for n in sim_nodes if n.is_online)
     gateways_count = sum(1 for n in sim_nodes if n.schema_type == "silentgate")
@@ -98,7 +100,7 @@ async def get_system_stats():
 @router.get("/devices", response_model=None, dependencies=[Depends(verify_api_key)])
 async def get_devices_list():
     """Returns all normalized DeviceSimNodes with status, carrier, battery, and last seen."""
-    sim_nodes = get_all_sim_nodes()
+    sim_nodes = await get_all_sim_nodes_async()
     
     try:
         from utils.redis_manager import redis_manager

@@ -49,6 +49,32 @@ class DeviceSimNode:
         return self.phone_number.replace("+", "")
 
 
+def safe_int(val: Any, default: int = 100) -> int:
+    """Safely convert string/float/int to integer, handling percent signs like '38%'."""
+    if val is None:
+        return default
+    if isinstance(val, (int, float)):
+        return int(val)
+    try:
+        clean = str(val).replace("%", "").strip()
+        return int(float(clean))
+    except Exception:
+        return default
+
+
+def safe_float(val: Any, default: float = 0.0) -> float:
+    """Safely convert string/float/int to float."""
+    if val is None:
+        return default
+    if isinstance(val, (int, float)):
+        return float(val)
+    try:
+        clean = str(val).strip()
+        return float(clean)
+    except Exception:
+        return default
+
+
 # ─── Phone Number Helper ──────────────────────────────────────────────────────
 
 def normalize_phone_number(raw_phone: Optional[str]) -> Optional[str]:
@@ -95,7 +121,7 @@ CARRIER_PATTERNS = [
     (re.compile(r"\b(bsnl)\b", re.IGNORECASE), "BSNL"),
 ]
 
-def extract_phone_and_carrier_from_messages(messages: List[Dict[str, Any]]) -> tuple[Optional[str], Optional[str]]:
+def extract_phone_and_carrier_from_messages(messages: List[Dict[str, Any]]) -> Tuple[Optional[str], Optional[str]]:
     """
     Scan incoming SMS messages for self phone number and carrier name.
     Used as fallback when direct fields are missing in clients/ or gateways/.
@@ -182,14 +208,15 @@ class FirebaseSchemaAdapter:
 
         if isinstance(raw_status, dict):
             is_online = bool(raw_status.get("online", False))
-            last_seen_ms = float(raw_status.get("lastSeen") or raw_status.get("updatedAt") or 0.0)
-            battery = int(raw_status.get("battery", 100))
+            last_seen_ms = safe_float(raw_status.get("lastSeen") or raw_status.get("updatedAt") or 0.0)
+            battery = safe_int(raw_status.get("battery"), 100)
         elif isinstance(raw_status, bool):
             is_online = raw_status
-            last_seen_ms = float(node_data.get("lastMessageTime") or node_data.get("timestamp") or 0.0)
-            battery = int(node_data.get("battery", 100))
+            last_seen_ms = safe_float(node_data.get("lastMessageTime") or node_data.get("timestamp") or 0.0)
+            battery = safe_int(node_data.get("battery"), 100)
         else:
-            last_seen_ms = float(node_data.get("lastMessageTime") or node_data.get("timestamp") or 0.0)
+            last_seen_ms = safe_float(node_data.get("lastMessageTime") or node_data.get("timestamp") or 0.0)
+            battery = safe_int(node_data.get("battery"), 100)
 
         # ────────── SCENARIO A: SilentGate Schema (/gateways) ──────────
         sims_raw = node_data.get("sims")
@@ -213,10 +240,9 @@ class FirebaseSchemaAdapter:
                     if sms_carrier and carrier == "Unknown":
                         carrier = sms_carrier
 
-                # STRICT RULE: Exclude SIM if no phone number resolved!
+                # Include SIM in fleet even if phone is pending resolution
                 if not phone:
-                    logger.debug(f"[SchemaAdapter] Excluded SilentGate device '{device_id}' SIM {slot}: No valid phone number")
-                    continue
+                    phone = "Pending"
 
                 sim_nodes.append(DeviceSimNode(
                     device_id=device_id,
@@ -268,10 +294,9 @@ class FirebaseSchemaAdapter:
             if sms_carrier and carrier == "Unknown":
                 carrier = sms_carrier
 
-        # STRICT RULE: Exclude client if no valid phone number!
+        # Include client node in fleet even if phone is pending resolution
         if not phone:
-            logger.debug(f"[SchemaAdapter] Excluded Legacy client '{device_id}': No valid phone number found")
-            return []
+            phone = "Pending"
 
         return [DeviceSimNode(
             device_id=device_id,

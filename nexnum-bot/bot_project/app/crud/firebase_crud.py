@@ -218,11 +218,20 @@ def get_all_clients() -> Dict[str, Any]:
     return aggregated_clients
 
 
+async def get_all_sim_nodes_async() -> List[Any]:
+    """
+    Async Universal Multi-Schema Aggregator:
+    Queries all declared Firebase nodes via UniversalFirebaseRegistry.
+    """
+    from app.crud.universal_firebase import UniversalFirebaseRegistry
+    sim_nodes = await UniversalFirebaseRegistry.fetch_all_sim_nodes_async()
+    logger.info(f"[SchemaAdapter] Aggregated {len(sim_nodes)} valid allocatable SIM nodes across Universal Firebase Registry")
+    return sim_nodes
+
+
 def get_all_sim_nodes() -> List[Any]:
     """
-    Universal Multi-Schema Aggregator:
-    Queries all declared Firebase nodes via UniversalFirebaseRegistry, running whichever
-    schema each node is declared to use ('gateways', 'clients', or 'auto').
+    Universal Multi-Schema Aggregator (Sync Fallback):
     """
     from app.crud.universal_firebase import UniversalFirebaseRegistry
     sim_nodes = UniversalFirebaseRegistry.fetch_all_sim_nodes()

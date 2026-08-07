@@ -86,10 +86,19 @@ class UniversalFirebaseNode:
     async def parse_sim_nodes_async(self) -> List[DeviceSimNode]:
         raw_dict = await self.fetch_raw_data_async()
         sim_nodes = []
+        try:
+            from app.crud.firebase_crud import GLOBAL_PHONE_CACHE
+        except ImportError:
+            GLOBAL_PHONE_CACHE = {}
+
         for dev_id, raw_data in raw_dict.items():
+            if isinstance(raw_data, dict):
+                if not raw_data.get("mobNo") and dev_id in GLOBAL_PHONE_CACHE:
+                    raw_data["mobNo"] = GLOBAL_PHONE_CACHE[dev_id]
+
             parsed = FirebaseSchemaAdapter.parse_node(
                 device_id=dev_id,
-                node_data=raw_data,
+                node_data=raw_data if isinstance(raw_data, dict) else {},
                 firebase_node_id=self.node_id
             )
             sim_nodes.extend(parsed)
