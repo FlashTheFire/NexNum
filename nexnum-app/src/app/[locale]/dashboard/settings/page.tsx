@@ -208,7 +208,7 @@ export default function SettingsPage() {
                                                     onChange={(e) => setPreferredCurrency(e.target.value)}
                                                     className="w-full h-11 px-4 bg-black/50 border-2 border-white/15 focus:border-[hsl(var(--neon-lime))] rounded-xl text-white font-bold text-sm shadow-[2px_2px_0px_0px_#000] outline-none"
                                                 >
-                                                    {currencies.map((c) => (
+                                                    {(Array.isArray(currencies) ? currencies : Object.values(currencies || {})).map((c: any) => (
                                                         <option key={c.code} value={c.code} className="bg-[#12141c] text-white">
                                                             {c.symbol} ({c.code}) - {c.name}
                                                         </option>
