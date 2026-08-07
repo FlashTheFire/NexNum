@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma, ensureWallet } from '@/lib/core/db'
 import { getCurrentUser } from '@/lib/auth/jwt'
+import { currencyService } from '@/lib/currency/currency-service'
 
 export async function GET(request: Request) {
     try {
@@ -17,7 +18,7 @@ export async function GET(request: Request) {
         const { searchParams } = new URL(request.url)
         const page = parseInt(searchParams.get('page') || '1')
         const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100)
-        const type = searchParams.get('type') // topup, purchase, refund
+        const type = searchParams.get('type') // topup, deposit, purchase, refund
 
         // Ensure wallet exists
         const walletId = await ensureWallet(user.userId)
@@ -41,8 +42,6 @@ export async function GET(request: Request) {
             }),
             prisma.walletTransaction.count({ where }),
         ])
-
-        const currencyService = getCurrencyService()
 
         // Map transactions with pre-computed currencyPrices
         const formattedTransactions = await Promise.all(
