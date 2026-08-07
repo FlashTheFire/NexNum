@@ -23,8 +23,13 @@ sys.path.insert(0, os.path.join(BASE_DIR, "nexnum-bot"))
 
 # pyrefly: ignore [missing-import]
 from app.services.pattern_registry import ServicePatternRegistry, load_default_patterns
+# pyrefly: ignore [missing-import]
 from app.services.pricing_engine import PricingEngine
+# pyrefly: ignore [missing-import]
+from app.services.stock_scaler import StockScaler
+# pyrefly: ignore [missing-import]
 from app.services.sms_parser import extract_otp_code
+# pyrefly: ignore [missing-import]
 from app.crud.firebase_crud import get_incoming_messages, parse_any_datetime_to_epoch_ms, _save_phone_cache, GLOBAL_PHONE_CACHE
 
 
@@ -258,6 +263,46 @@ def test_phone_cache_atomic_save_and_load():
     
     assert "device_test_101" in GLOBAL_PHONE_CACHE
     assert GLOBAL_PHONE_CACHE["device_test_101"]["mobNo"] == "+919876543210"
+
+
+def test_stock_scaler_smart_psychological_scaling():
+    """Test 7: Verify Smart Psychological Stock Scaling in Real SIM Fleet."""
+    # 1. Hard Floor: 0 real SIMs must ALWAYS return 0 display stock (never phantom stock)
+    assert StockScaler.compute_display_stock(0, multiplier=2.0) == 0
+    assert StockScaler.compute_display_stock(-5, multiplier=2.0) == 0
+
+    # 2. Small fleet: 10 real numbers -> 2x = 20 display numbers
+    assert StockScaler.compute_display_stock(10, multiplier=2.0) == 20
+
+    # 3. Large fleet: 1k (1,000) real numbers -> 2x = 2,000 display numbers
+    assert StockScaler.compute_display_stock(1000, multiplier=2.0) == 2000
+
+    # 4. Configurable base boost: 50 real + 10 boost @ 2.0x = 110
+    assert StockScaler.compute_display_stock(50, multiplier=2.0, base_boost=10) == 110
+
+    # 5. Cap limit: 30,000 scaled with 25,000 cap = 25,000
+    assert StockScaler.compute_display_stock(15000, multiplier=2.0, max_cap=25000) == 25000
+
+    # 6. Full Service Fleet Computation
+    fleet = StockScaler.compute_fleet_service_stock(
+        service_code="tg",
+        real_online_sims=15,
+        pattern_data={"stock": 15, "stock_multiplier": 2.0}
+    )
+    assert fleet["service"] == "tg"
+    assert fleet["real_stock"] == 15
+    assert fleet["display_stock"] == 30
+    assert fleet["is_out_of_stock"] is False
+
+    # Out of stock fleet
+    zero_fleet = StockScaler.compute_fleet_service_stock(
+        service_code="wa",
+        real_online_sims=0,
+        pattern_data={"stock": 0, "stock_multiplier": 2.0}
+    )
+    assert zero_fleet["real_stock"] == 0
+    assert zero_fleet["display_stock"] == 0
+    assert zero_fleet["is_out_of_stock"] is True
 
 
 if __name__ == "__main__":

@@ -487,6 +487,8 @@ async def handler_api(
 
         # pyrefly: ignore [missing-import]
         from app.services.pattern_registry import load_default_patterns
+        # pyrefly: ignore [missing-import]
+        from app.services.stock_scaler import StockScaler
         defaults = load_default_patterns()
 
         services_catalog = [
@@ -494,7 +496,8 @@ async def handler_api(
                 "code": c_code,
                 "name": c_info.get("name", c_code.upper()),
                 "cost": float(c_info.get("price", 15.0) or 15.0),
-                "stock": int(c_info.get("stock", max(1, online_count)) or online_count)
+                "stock": int(c_info.get("stock", max(1, online_count)) or online_count),
+                "pattern_info": c_info
             }
             for c_code, c_info in defaults.items()
         ]
@@ -512,13 +515,22 @@ async def handler_api(
             if not req_svc or code == req_svc:
                 price_info = await PricingEngine.compute_dynamic_price(redis_client, code, custom_base_price=s["cost"])
                 cost = price_info["finalPrice"]
-                count = max(1, s.get("stock", online_count))
+                
+                fleet_stock = StockScaler.compute_fleet_service_stock(
+                    service_code=code,
+                    real_online_sims=online_count,
+                    pattern_data=s.get("pattern_info")
+                )
+                display_stock = fleet_stock["display_stock"]
+                real_stock = fleet_stock["real_stock"]
+
                 services_map[code] = {
                     "cost": cost,
                     "price": cost,
                     "amount": cost,
-                    "count": count,
-                    "stock": count,
+                    "count": display_stock,
+                    "stock": display_stock,
+                    "real_stock": real_stock,
                     "operator": "any",
                     "surge": price_info["isSurge"],
                     "surgeReason": price_info["surgeReason"]
@@ -536,17 +548,24 @@ async def handler_api(
     if action in ("getservices", "getserviceslist"):
         # pyrefly: ignore [missing-import]
         from app.services.pattern_registry import load_default_patterns
+        # pyrefly: ignore [missing-import]
+        from app.services.stock_scaler import StockScaler
         defaults = load_default_patterns()
-        services = [
-            {
+        services = []
+        for c_code, c_info in defaults.items():
+            fleet_stock = StockScaler.compute_fleet_service_stock(
+                service_code=c_code,
+                real_online_sims=10,
+                pattern_data=c_info
+            )
+            services.append({
                 "code": c_code,
                 "external_id": c_code,
                 "name": c_info.get("name", c_code.upper()),
                 "cost": float(c_info.get("price", 15.0) or 15.0),
-                "stock": int(c_info.get("stock", 100) or 100)
-            }
-            for c_code, c_info in defaults.items()
-        ]
+                "stock": fleet_stock["display_stock"],
+                "real_stock": fleet_stock["real_stock"]
+            })
         return JSONResponse(services)
 
     if action == "getactiveactivations":

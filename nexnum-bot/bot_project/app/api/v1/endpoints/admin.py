@@ -48,7 +48,10 @@ REDIS_PREFIX = "nexsms"
 class PatternUpdatePayload(BaseModel):
     name: str = Field(..., description="Human readable service name")
     price: Optional[float] = Field(default=15.0, description="Service base price in INR/USD")
-    stock: Optional[int] = Field(default=100, description="Service stock / available SIMs")
+    stock: Optional[int] = Field(default=100, description="Service real stock / available SIMs")
+    stock_multiplier: Optional[float] = Field(default=2.0, description="Psychological stock scaling multiplier (e.g. 2.0x)")
+    base_stock_boost: Optional[int] = Field(default=0, description="Additive base boost when real stock > 0")
+    max_stock_cap: Optional[int] = Field(default=50000, description="Upper display stock cap")
     senders: List[str] = Field(default=[], description="List of sender string hints")
     sender_patterns: List[str] = Field(default=[], description="List of sender regex patterns")
     body_patterns: List[str] = Field(default=[], description="List of body regex patterns")
@@ -547,9 +550,25 @@ async def get_active_activations(
 
 @router.get("/patterns", response_model=None, dependencies=[Depends(verify_api_key)])
 async def get_all_patterns():
-    """Returns all default and live pattern definitions for services."""
+    """Returns all default and live pattern definitions with real and psychological display stock."""
+    # pyrefly: ignore [missing-import]
+    from app.services.stock_scaler import StockScaler
     defaults = load_default_patterns()
-    return {"count": len(defaults), "patterns": defaults}
+    enriched = {}
+    for code, info in defaults.items():
+        fleet = StockScaler.compute_fleet_service_stock(
+            service_code=code,
+            real_online_sims=10,
+            pattern_data=info
+        )
+        enriched[code] = {
+            **info,
+            "real_stock": fleet["real_stock"],
+            "display_stock": fleet["display_stock"],
+            "stock_multiplier": fleet["multiplier"],
+            "is_out_of_stock": fleet["is_out_of_stock"]
+        }
+    return {"count": len(enriched), "patterns": enriched}
 
 
 @router.post("/patterns/{service_code}", response_model=None, dependencies=[Depends(verify_api_key)])

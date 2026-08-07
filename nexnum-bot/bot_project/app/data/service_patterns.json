@@ -21,7 +21,10 @@
       "(?i)web login code",
       "(?i)do not give this code to anyone"
     ],
-    "otp_regex": "(?:https?://[^\\s/]+|HTTPS?:[^\\s/]+)?/(?:login|verify|auth|v|code)/([A-Za-z0-9]{4,10})\\b|(?i:code|otp|verification|passcode|secret|pin|login|auth|password|key|id|web|\\s)+(?:is|:|-|=)\\s*(?!(?:code|login|otp|verification|is|your|for|this|web|telegram)\\b)([A-Za-z0-9]{4,10})\\b|\\b([A-Za-z0-9]{4,10})\\s+(?:is\\s+your\\s+code|is\\s+your\\s+otp|is\\s+your\\s+verification\\s+code|is\\s+your\\s+login\\s+code)|\\b(\\d{5})\\b"
+    "otp_regex": "(?:https?://[^\\s/]+|HTTPS?:[^\\s/]+)?/(?:login|verify|auth|v|code)/([A-Za-z0-9]{4,10})\\b|(?i:code|otp|verification|passcode|secret|pin|login|auth|password|key|id|web|\\s)+(?:is|:|-|=)\\s*(?!(?:code|login|otp|verification|is|your|for|this|web|telegram)\\b)([A-Za-z0-9]{4,10})\\b|\\b([A-Za-z0-9]{4,10})\\s+(?:is\\s+your\\s+code|is\\s+your\\s+otp|is\\s+your\\s+verification\\s+code|is\\s+your\\s+login\\s+code)|\\b(\\d{5})\\b",
+    "stock_multiplier": 2.0,
+    "base_stock_boost": 0,
+    "max_stock_cap": 25000
   },
   "wa": {
     "name": "WhatsApp",
@@ -39,7 +42,10 @@
       "(?i)your whatsapp code",
       "(?i)v\\.whatsapp\\.com"
     ],
-    "otp_regex": "(?:https?://[^\\s/]+|HTTPS?:[^\\s/]+)?/(?:login|verify|auth|v|code)/([A-Za-z0-9]{4,10})\\b|\\b([0-9]{3}[-\\s]?[0-9]{3})\\b|\\b([A-Za-z0-9]{4,10})\\b"
+    "otp_regex": "(?:https?://[^\\s/]+|HTTPS?:[^\\s/]+)?/(?:login|verify|auth|v|code)/([A-Za-z0-9]{4,10})\\b|\\b([0-9]{3}[-\\s]?[0-9]{3})\\b|\\b([A-Za-z0-9]{4,10})\\b",
+    "stock_multiplier": 2.0,
+    "base_stock_boost": 0,
+    "max_stock_cap": 25000
   },
   "go": {
     "name": "Google / YouTube",
@@ -59,7 +65,10 @@
       "(?i)g-\\d{6}",
       "(?i)use this code to verify"
     ],
-    "otp_regex": "(?:g-)?\\b([A-Za-z0-9]{6})\\b"
+    "otp_regex": "(?:g-)?\\b([A-Za-z0-9]{6})\\b",
+    "stock_multiplier": 2.0,
+    "base_stock_boost": 0,
+    "max_stock_cap": 25000
   },
   "ig": {
     "name": "Instagram",
@@ -78,7 +87,10 @@
       "(?i)ig code",
       "(?i)your instagram code"
     ],
-    "otp_regex": "(?:https?://[^\\s/]+|HTTPS?:[^\\s/]+)?/(?:login|verify|auth|v|code)/([A-Za-z0-9]{4,10})\\b|\\b([A-Za-z0-9]{6,8})\\b"
+    "otp_regex": "(?:https?://[^\\s/]+|HTTPS?:[^\\s/]+)?/(?:login|verify|auth|v|code)/([A-Za-z0-9]{4,10})\\b|\\b([A-Za-z0-9]{6,8})\\b",
+    "stock_multiplier": 2.0,
+    "base_stock_boost": 0,
+    "max_stock_cap": 25000
   },
   "fb": {
     "name": "Facebook",
@@ -97,7 +109,10 @@
       "(?i)fb-\\d{6}",
       "(?i)your facebook code"
     ],
-    "otp_regex": "(?:fb-)?\\b([A-Za-z0-9]{6,8})\\b"
+    "otp_regex": "(?:fb-)?\\b([A-Za-z0-9]{6,8})\\b",
+    "stock_multiplier": 2.0,
+    "base_stock_boost": 0,
+    "max_stock_cap": 25000
   },
   "tw": {
     "name": "Twitter / X",
@@ -115,7 +130,10 @@
       "(?i)twitter",
       "(?i)x\\.com"
     ],
-    "otp_regex": "(?:https?://[^\\s/]+|HTTPS?:[^\\s/]+)?/(?:login|verify|auth|v|code)/([A-Za-z0-9]{4,10})\\b|\\b([A-Za-z0-9]{6,10})\\b"
+    "otp_regex": "(?:https?://[^\\s/]+|HTTPS?:[^\\s/]+)?/(?:login|verify|auth|v|code)/([A-Za-z0-9]{4,10})\\b|\\b([A-Za-z0-9]{6,10})\\b",
+    "stock_multiplier": 2.0,
+    "base_stock_boost": 0,
+    "max_stock_cap": 25000
   },
   "oi": {
     "name": "Tinder",
@@ -131,7 +149,10 @@
       "(?i)tinder",
       "(?i)your tinder code"
     ],
-    "otp_regex": "(?:https?://[^\\s/]+|HTTPS?:[^\\s/]+)?/(?:login|verify|auth|v|code)/([A-Za-z0-9]{4,10})\\b|\\b([A-Za-z0-9]{6})\\b"
+    "otp_regex": "(?:https?://[^\\s/]+|HTTPS?:[^\\s/]+)?/(?:login|verify|auth|v|code)/([A-Za-z0-9]{4,10})\\b|\\b([A-Za-z0-9]{6})\\b",
+    "stock_multiplier": 2.0,
+    "base_stock_boost": 0,
+    "max_stock_cap": 25000
   },
   "ub": {
     "name": "Uber",
@@ -148,7 +169,10 @@
       "(?i)uber",
       "(?i)uber code"
     ],
-    "otp_regex": "(?:https?://[^\\s/]+|HTTPS?:[^\\s/]+)?/(?:login|verify|auth|v|code)/([A-Za-z0-9]{4,10})\\b|\\b([A-Za-z0-9]{4,6})\\b"
+    "otp_regex": "(?:https?://[^\\s/]+|HTTPS?:[^\\s/]+)?/(?:login|verify|auth|v|code)/([A-Za-z0-9]{4,10})\\b|\\b([A-Za-z0-9]{4,6})\\b",
+    "stock_multiplier": 2.0,
+    "base_stock_boost": 0,
+    "max_stock_cap": 25000
   },
   "am": {
     "name": "Amazon",
@@ -165,7 +189,10 @@
       "(?i)amazon",
       "(?i)otp for amazon"
     ],
-    "otp_regex": "(?:https?://[^\\s/]+|HTTPS?:[^\\s/]+)?/(?:login|verify|auth|v|code)/([A-Za-z0-9]{4,10})\\b|\\b([A-Za-z0-9]{6})\\b"
+    "otp_regex": "(?:https?://[^\\s/]+|HTTPS?:[^\\s/]+)?/(?:login|verify|auth|v|code)/([A-Za-z0-9]{4,10})\\b|\\b([A-Za-z0-9]{6})\\b",
+    "stock_multiplier": 2.0,
+    "base_stock_boost": 0,
+    "max_stock_cap": 25000
   },
   "mm": {
     "name": "Microsoft / Outlook",
@@ -184,7 +211,10 @@
       "(?i)outlook",
       "(?i)msft"
     ],
-    "otp_regex": "\\b([A-Za-z0-9]{6,7})\\b"
+    "otp_regex": "\\b([A-Za-z0-9]{6,7})\\b",
+    "stock_multiplier": 2.0,
+    "base_stock_boost": 0,
+    "max_stock_cap": 25000
   },
   "wx": {
     "name": "Apple / iCloud",
@@ -200,7 +230,10 @@
       "(?i)apple",
       "(?i)apple id"
     ],
-    "otp_regex": "\\b([A-Za-z0-9]{6})\\b"
+    "otp_regex": "\\b([A-Za-z0-9]{6})\\b",
+    "stock_multiplier": 2.0,
+    "base_stock_boost": 0,
+    "max_stock_cap": 25000
   },
   "lf": {
     "name": "TikTok",
@@ -215,7 +248,10 @@
     "body_patterns": [
       "(?i)tiktok"
     ],
-    "otp_regex": "(?:https?://[^\\s/]+|HTTPS?:[^\\s/]+)?/(?:login|verify|auth|v|code)/([A-Za-z0-9]{4,10})\\b|\\b([A-Za-z0-9]{6})\\b"
+    "otp_regex": "(?:https?://[^\\s/]+|HTTPS?:[^\\s/]+)?/(?:login|verify|auth|v|code)/([A-Za-z0-9]{4,10})\\b|\\b([A-Za-z0-9]{6})\\b",
+    "stock_multiplier": 2.0,
+    "base_stock_boost": 0,
+    "max_stock_cap": 25000
   },
   "fk": {
     "name": "Flipkart",
@@ -233,7 +269,10 @@
       "(?i)flipkart",
       "(?i)otp for flipkart"
     ],
-    "otp_regex": "\\[#\\]\\s*([A-Za-z0-9]{4,10})\\b|\\b([A-Za-z0-9]{6})\\b"
+    "otp_regex": "\\[#\\]\\s*([A-Za-z0-9]{4,10})\\b|\\b([A-Za-z0-9]{6})\\b",
+    "stock_multiplier": 2.0,
+    "base_stock_boost": 0,
+    "max_stock_cap": 25000
   },
   "sw": {
     "name": "Swiggy",
@@ -250,7 +289,10 @@
       "(?i)swiggy",
       "(?i)swiggy\\.com"
     ],
-    "otp_regex": "(?:https?://[^\\s/]+|HTTPS?:[^\\s/]+)?/(?:login|verify|auth|v|code)/([A-Za-z0-9]{4,10})\\b|\\b([A-Za-z0-9]{4,8})\\b"
+    "otp_regex": "(?:https?://[^\\s/]+|HTTPS?:[^\\s/]+)?/(?:login|verify|auth|v|code)/([A-Za-z0-9]{4,10})\\b|\\b([A-Za-z0-9]{4,8})\\b",
+    "stock_multiplier": 2.0,
+    "base_stock_boost": 0,
+    "max_stock_cap": 25000
   },
   "zo": {
     "name": "Zomato",
@@ -266,7 +308,10 @@
     "body_patterns": [
       "(?i)zomato"
     ],
-    "otp_regex": "(?:https?://[^\\s/]+|HTTPS?:[^\\s/]+)?/(?:login|verify|auth|v|code)/([A-Za-z0-9]{4,10})\\b|\\b([A-Za-z0-9]{6})\\b"
+    "otp_regex": "(?:https?://[^\\s/]+|HTTPS?:[^\\s/]+)?/(?:login|verify|auth|v|code)/([A-Za-z0-9]{4,10})\\b|\\b([A-Za-z0-9]{6})\\b",
+    "stock_multiplier": 2.0,
+    "base_stock_boost": 0,
+    "max_stock_cap": 25000
   },
   "me": {
     "name": "Meesho",
@@ -282,7 +327,10 @@
     "body_patterns": [
       "(?i)meesho"
     ],
-    "otp_regex": "\\b([A-Za-z0-9]{6})\\b"
+    "otp_regex": "\\b([A-Za-z0-9]{6})\\b",
+    "stock_multiplier": 2.0,
+    "base_stock_boost": 0,
+    "max_stock_cap": 25000
   },
   "pm": {
     "name": "Paytm",
@@ -298,7 +346,10 @@
     "body_patterns": [
       "(?i)paytm"
     ],
-    "otp_regex": "\\b([A-Za-z0-9]{6})\\b"
+    "otp_regex": "\\b([A-Za-z0-9]{6})\\b",
+    "stock_multiplier": 2.0,
+    "base_stock_boost": 0,
+    "max_stock_cap": 25000
   },
   "pp": {
     "name": "PhonePe",
@@ -314,7 +365,10 @@
     "body_patterns": [
       "(?i)phonepe"
     ],
-    "otp_regex": "\\b([A-Za-z0-9]{5,6})\\b"
+    "otp_regex": "\\b([A-Za-z0-9]{5,6})\\b",
+    "stock_multiplier": 2.0,
+    "base_stock_boost": 0,
+    "max_stock_cap": 25000
   },
   "d1": {
     "name": "Dream11",
@@ -330,7 +384,10 @@
     "body_patterns": [
       "(?i)dream11"
     ],
-    "otp_regex": "\\b([A-Za-z0-9]{6})\\b"
+    "otp_regex": "\\b([A-Za-z0-9]{6})\\b",
+    "stock_multiplier": 2.0,
+    "base_stock_boost": 0,
+    "max_stock_cap": 25000
   },
   "tc": {
     "name": "Truecaller",
@@ -346,7 +403,10 @@
     "body_patterns": [
       "(?i)truecaller"
     ],
-    "otp_regex": "\\b([A-Za-z0-9]{6})\\b"
+    "otp_regex": "\\b([A-Za-z0-9]{6})\\b",
+    "stock_multiplier": 2.0,
+    "base_stock_boost": 0,
+    "max_stock_cap": 25000
   },
   "ds": {
     "name": "Discord",
@@ -361,7 +421,10 @@
     "body_patterns": [
       "(?i)discord"
     ],
-    "otp_regex": "\\b([A-Za-z0-9]{6})\\b"
+    "otp_regex": "\\b([A-Za-z0-9]{6})\\b",
+    "stock_multiplier": 2.0,
+    "base_stock_boost": 0,
+    "max_stock_cap": 25000
   },
   "vi": {
     "name": "Viber",
@@ -376,7 +439,10 @@
     "body_patterns": [
       "(?i)viber"
     ],
-    "otp_regex": "\\b([A-Za-z0-9]{6})\\b"
+    "otp_regex": "\\b([A-Za-z0-9]{6})\\b",
+    "stock_multiplier": 2.0,
+    "base_stock_boost": 0,
+    "max_stock_cap": 25000
   },
   "sn": {
     "name": "Snapchat",
@@ -392,7 +458,10 @@
     "body_patterns": [
       "(?i)snapchat"
     ],
-    "otp_regex": "\\b([A-Za-z0-9]{6})\\b"
+    "otp_regex": "\\b([A-Za-z0-9]{6})\\b",
+    "stock_multiplier": 2.0,
+    "base_stock_boost": 0,
+    "max_stock_cap": 25000
   },
   "ya": {
     "name": "Yahoo",
@@ -407,7 +476,10 @@
     "body_patterns": [
       "(?i)yahoo"
     ],
-    "otp_regex": "\\b([A-Za-z0-9]{6})\\b"
+    "otp_regex": "\\b([A-Za-z0-9]{6})\\b",
+    "stock_multiplier": 2.0,
+    "base_stock_boost": 0,
+    "max_stock_cap": 25000
   },
   "vk": {
     "name": "VKontakte",
@@ -425,7 +497,10 @@
       "(?i)vk\\.com",
       "(?i)vk code"
     ],
-    "otp_regex": "\\b([A-Za-z0-9]{5,6})\\b"
+    "otp_regex": "\\b([A-Za-z0-9]{5,6})\\b",
+    "stock_multiplier": 2.0,
+    "base_stock_boost": 0,
+    "max_stock_cap": 25000
   },
   "ok": {
     "name": "OK.ru",
@@ -442,7 +517,10 @@
     "body_patterns": [
       "(?i)ok\\.ru"
     ],
-    "otp_regex": "\\b([A-Za-z0-9]{6})\\b"
+    "otp_regex": "\\b([A-Za-z0-9]{6})\\b",
+    "stock_multiplier": 2.0,
+    "base_stock_boost": 0,
+    "max_stock_cap": 25000
   },
   "ma": {
     "name": "Mail.ru",
@@ -457,7 +535,10 @@
     "body_patterns": [
       "(?i)mail\\.ru"
     ],
-    "otp_regex": "\\b([A-Za-z0-9]{6})\\b"
+    "otp_regex": "\\b([A-Za-z0-9]{6})\\b",
+    "stock_multiplier": 2.0,
+    "base_stock_boost": 0,
+    "max_stock_cap": 25000
   },
   "nz": {
     "name": "Nike",
@@ -473,7 +554,10 @@
       "(?i)nike",
       "(?i)nike code"
     ],
-    "otp_regex": "\\b([A-Za-z0-9]{6})\\b"
+    "otp_regex": "\\b([A-Za-z0-9]{6})\\b",
+    "stock_multiplier": 2.0,
+    "base_stock_boost": 0,
+    "max_stock_cap": 25000
   },
   "hw": {
     "name": "Alipay",
@@ -488,7 +572,10 @@
     "body_patterns": [
       "(?i)alipay"
     ],
-    "otp_regex": "\\b([A-Za-z0-9]{6})\\b"
+    "otp_regex": "\\b([A-Za-z0-9]{6})\\b",
+    "stock_multiplier": 2.0,
+    "base_stock_boost": 0,
+    "max_stock_cap": 25000
   },
   "ot": {
     "name": "Other / Universal Fallback",
@@ -503,6 +590,9 @@
     "body_patterns": [
       "(?i)(?:otp|code|verification|passcode|secret|pin|login|auth|password)"
     ],
-    "otp_regex": "(?:https?://[^\\s/]+|HTTPS?:[^\\s/]+)?/(?:login|verify|auth|v|code|claim|confirm|s)/([A-Za-z0-9]{4,10})\\b|(?i:code|otp|verification|passcode|secret|pin|login|auth|password|key|id|web|\\s)+(?:is|:|-|=)\\s*(?!(?:code|login|otp|verification|is|your|for|this|web)\\b)([A-Za-z0-9]{4,10})\\b|\\b([A-Za-z0-9]{4,10})\\s+(?:is\\s+your\\s+code|is\\s+your\\s+otp|is\\s+your\\s+verification\\s+code|is\\s+your\\s+login\\s+code)|\\b([0-9]{3}[-\\s]?[0-9]{3})\\b|\\b(\\d{4,8})\\b"
+    "otp_regex": "(?:https?://[^\\s/]+|HTTPS?:[^\\s/]+)?/(?:login|verify|auth|v|code|claim|confirm|s)/([A-Za-z0-9]{4,10})\\b|(?i:code|otp|verification|passcode|secret|pin|login|auth|password|key|id|web|\\s)+(?:is|:|-|=)\\s*(?!(?:code|login|otp|verification|is|your|for|this|web)\\b)([A-Za-z0-9]{4,10})\\b|\\b([A-Za-z0-9]{4,10})\\s+(?:is\\s+your\\s+code|is\\s+your\\s+otp|is\\s+your\\s+verification\\s+code|is\\s+your\\s+login\\s+code)|\\b([0-9]{3}[-\\s]?[0-9]{3})\\b|\\b(\\d{4,8})\\b",
+    "stock_multiplier": 2.0,
+    "base_stock_boost": 0,
+    "max_stock_cap": 25000
   }
 }
