@@ -414,10 +414,11 @@ export class UPIProvider {
                 expiresAt: expiresAt.toISOString()
             })
 
+            const qrCodeUrl = await this.resolveQRCodeUrl(orderId, config)
             return {
                 orderId,
                 paymentUrl,
-                qrCodeUrl: this.buildQRCodeUrl(orderId, config),
+                qrCodeUrl,
                 amount,
                 expiresAt,
                 expiresIn: config.depositTimeoutMins * 60,
