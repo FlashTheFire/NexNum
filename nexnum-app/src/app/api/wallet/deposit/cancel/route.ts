@@ -38,7 +38,7 @@ export const POST = apiHandler(async (_request, { body, user }) => {
             message: "Deposit cancelled successfully. You can now start a new deposit.",
         })
     } catch (err: any) {
-        // Already cancelled — idempotent success
+        // Already cancelled -- idempotent success
         if (err.message?.includes("status 'cancelled'")) {
             return ResponseFactory.success({
                 depositId,
