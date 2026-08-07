@@ -89,7 +89,7 @@ class UniversalFirebaseNode:
         for dev_id, raw_data in raw_dict.items():
             parsed = FirebaseSchemaAdapter.parse_node(
                 device_id=dev_id,
-                raw_node=raw_data,
+                node_data=raw_data,
                 firebase_node_id=self.node_id
             )
             sim_nodes.extend(parsed)

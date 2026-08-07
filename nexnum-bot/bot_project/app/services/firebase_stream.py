@@ -53,7 +53,9 @@ class FirebaseStreamManager:
         node_url = node.get("url", "").rstrip("/")
         auth_token = node.get("auth", "")
         
-        stream_url = f"{node_url}/messages.json"
+        stype = node.get("schema_type", "auto").lower()
+        stream_path = "/gateways.json" if stype == "gateways" else "/clients.json"
+        stream_url = f"{node_url}{stream_path}"
         if auth_token:
             stream_url += f"?auth={auth_token}"
 
