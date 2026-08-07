@@ -708,7 +708,9 @@ export default function WalletPage() {
                                                     Continue to Select Payment Method
                                                 </Button>
                                             </motion.div>
-                                                              {/* STEP 2: Select Payment Method Screen */}
+                                        )}
+
+                                        {/* STEP 2: Select Payment Method Screen */}
                                         {inlineStep === 'select_method' && (
                                             <motion.div
                                                 key="step_select_method"
