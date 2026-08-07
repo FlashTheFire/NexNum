@@ -74,7 +74,7 @@ async def get_system_stats():
 
     if redis_client:
         try:
-            active_activations = await redis_client.scard(f"{REDIS_PREFIX}:active_ids")
+            active_activations = await redis_client.scard(f"{REDIS_PREFIX}:active_ids")  # type: ignore[misc]
             
             stream_info = await redis_client.xinfo_stream(settings.REDIS_STREAM_INBOUND)
             stream_length = stream_info.get("length", 0)
@@ -172,10 +172,10 @@ async def get_devices_list(
         s_lower = search.strip().lower()
         all_devices = [
             d for d in all_devices
-            if s_lower in d["deviceId"].lower()
-            or s_lower in d["phoneNumber"].lower()
-            or s_lower in d["carrier"].lower()
-            or s_lower in d["schemaType"].lower()
+            if s_lower in str(d["deviceId"]).lower()
+            or s_lower in str(d["phoneNumber"]).lower()
+            or s_lower in str(d["carrier"]).lower()
+            or s_lower in str(d["schemaType"]).lower()
         ]
 
     # ── Professional Tier-Based Sort ────────────────────────────────────────
@@ -290,7 +290,7 @@ async def get_device_messages(
 
     # 2. Fast Multi-Path Query
     try:
-        from app.crud import firebase_crud as crud
+        from app.crud import firebase_crud as crud  # pyrefly: ignore [missing-import]
         raw_msgs = crud.get_incoming_messages(device_id, limit=limit)
     except Exception as e:
         logger.error(f"Failed to fetch incoming messages for {device_id}: {e}")
@@ -306,7 +306,10 @@ async def get_device_messages(
         otp = extract_otp_code(body_text)
 
         # Parse timestamp safely to epoch milliseconds
-        ts_val = crud.parse_any_datetime_to_epoch_ms(msg)
+        try:
+            ts_val = crud.parse_any_datetime_to_epoch_ms(msg)  # type: ignore[possibly-unbound]
+        except Exception:
+            ts_val = 0
         date_time_str = str(msg.get("dateTime") or msg.get("datetime") or msg.get("date_time") or "")
 
         formatted_messages.append({
@@ -388,7 +391,7 @@ async def get_active_activations(
         return {"total": 0, "page": page, "limit": limit, "totalPages": 1, "count": 0, "activations": []}
 
     try:
-        active_ids = await redis_client.smembers(f"{REDIS_PREFIX}:active_ids")
+        active_ids = await redis_client.smembers(f"{REDIS_PREFIX}:active_ids")  # type: ignore[misc]
         if not active_ids:
             return {"total": 0, "page": page, "limit": limit, "totalPages": 1, "count": 0, "activations": []}
 
@@ -410,7 +413,7 @@ async def get_active_activations(
                 except Exception:
                     pass
             else:
-                await redis_client.srem(f"{REDIS_PREFIX}:active_ids", aid)
+                await redis_client.srem(f"{REDIS_PREFIX}:active_ids", aid)  # type: ignore[misc]
 
         # Search filter
         if search:
@@ -474,7 +477,7 @@ async def update_pattern(service_code: str, payload: PatternUpdatePayload):
         from bot_project.utils.redis_manager import redis_manager
     redis_client = await redis_manager.get_client()
 
-    pattern_data = payload.dict()
+    pattern_data = payload.model_dump()
     success = await ServicePatternRegistry.update_pattern(redis_client, service_code, pattern_data)
     if success:
         return {"status": "success", "serviceCode": service_code, "pattern": pattern_data}

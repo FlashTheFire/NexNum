@@ -27,6 +27,7 @@ async def _get_redis():
     if _redis_client_cache is not None:
         return _redis_client_cache
     try:
+        # pyrefly: ignore [missing-import]
         from utils.redis_manager import redis_manager
     except ImportError:
         from bot_project.utils.redis_manager import redis_manager
@@ -204,11 +205,11 @@ class FirebaseStreamManager:
 
         # Push to inbound stream
         stream_name = settings.REDIS_STREAM_INBOUND
-        entry = {
-            "deviceId": client_id,
+        entry: dict[str, str] = {
+            "deviceId": str(client_id),
             "timestamp": str(int(msg_ts)),
-            "sender": full_msg.get("sender", ""),
-            "body": msg_text,
+            "sender": str(full_msg.get("sender") or ""),
+            "body": str(msg_text),
             "isOtp": "0",
             "otpCode": "",
             "simSlot": "0",

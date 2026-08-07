@@ -15,7 +15,7 @@ import uuid
 import json
 import time
 import hashlib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import secrets
 
 from telebot.async_telebot import AsyncTeleBot
@@ -32,16 +32,24 @@ from telebot.types import (
 
 
 import logging
+# pyrefly: ignore [missing-import]
 from utils.media_manager import prepare_input_media, edit_or_cached_media
-
 # Local imports – ensure these modules are available in your project.
+# pyrefly: ignore [missing-import]
 from utils.redis_keys import RedisKeys
+# pyrefly: ignore [missing-import]
 from redis import WatchError
+# pyrefly: ignore [missing-import]
 from utils.functions import AfterMin, format_currency, qr_code, encode_order_id, decode_barcode_id
+# pyrefly: ignore [missing-import]
 from handlers.manager.operation import UserManagement, OrderManagement, DepositManagement
+# pyrefly: ignore [missing-import]
 from handlers.security import RateLimiter, TransactionGuard
+# pyrefly: ignore [missing-import]
 from utils.config import DEPOSIT_TIMEOUT, INR_RATE, PAYMENT_GATEWAY_API, PAYMENT_GATEWAY_API_KEY, DEPOSIT_PAGE, LOADING_GIF, MIN_DEPOSIT
+# pyrefly: ignore [missing-import]
 from utils.redis_manager import redis_manager, RedisManager
+# pyrefly: ignore [missing-import]
 from utils.cache_manager import cache_manager, CachePrefix
 from redis.asyncio.client import Redis
 import string
@@ -71,18 +79,21 @@ def authorize_admin(user_id: int) -> bool:
     return str(user_id) in ADMIN_USER_IDS
 
 async def expire_old_codes():
-    cursor = b"0"
+    cursor = "0"
     while True:
         try:
             r = await redis_manager.get_client()
+            if not r:
+                break
             cursor, keys = await r.scan(cursor=cursor, match=f"{REDEEM_CODE_PREFIX}*", count=100)
             for key in keys:
-                ttl = await redis_manager.redis_client.ttl(key)
+                ttl = await r.ttl(key)
                 if ttl == -1:
-                    await redis_manager.redis_client.expire(key, CODE_TTL)
-            if cursor == b"0": break
+                    await r.expire(key, CODE_TTL)
+            if str(cursor) == "0":
+                break
         except Exception as e:
-            print(f"Error expiring old codes: {e}")
+            logger.warning(f"Error expiring old codes: {e}")
             break
 
 
@@ -114,10 +125,10 @@ class ShowDepositManager:
         self.input_validator: Optional[Any] = None
         self.transaction_guard: Optional[TransactionGuard] = None
         self.rate_limiter: Optional[RateLimiter] = None
-        self.redis_client: Optional[RedisManager] = None
+        self.redis_client: Optional[RedisManager] = None  # pyrefly: ignore [invalid-annotation]
         self._initialized = False
 
-    async def init_managers(self, deposit_mgr: DepositManagement, user_mgr: UserManagement, bot: AsyncTeleBot) -> bool:
+    async def init_managers(self, deposit_mgr: Optional[DepositManagement], user_mgr: UserManagement, bot: AsyncTeleBot) -> bool:
         """
         Initialize required components for deposit handling asynchronously.
         """
@@ -187,7 +198,7 @@ class ShowDepositManager:
             )
         except Exception as e:
             logging.error(f"QR deposit handler error: {e}", exc_info=True)
-            await self.bot.answer_callback_query(
+            await self.bot.answer_callback_query(  # pyrefly: ignore [attribute-error]
                 call.id, "🚫 Failed to process QR deposit", show_alert=True
             )
 
@@ -195,10 +206,10 @@ class ShowDepositManager:
         """
         Build the deposit data structure from the provided input asynchronously.
         """
-        utc_now = str(datetime.utcnow())
+        utc_now = str(datetime.now(timezone.utc))
 
         return {
-            "deposit_id": str(deposit_id),
+            "deposit_id": deposit_id,
             "message_id": str(data['message_id'].message_id) if hasattr(data['message_id'], 'message_id') else str(data['message_id']),
             "user_id": str(data['user_id']),
             "server_id": str(data['server_id']),
@@ -380,7 +391,7 @@ class ShowDepositManager:
                 "<b>#Rᴇᴅᴇᴇᴍ_Cᴏᴅᴇ ❯</b>\n"
                 f"<b>🔑 Cᴏᴅᴇ »</b> <code>{code}</code> | <b>💰 Aᴍᴏᴜɴᴛ »</b> {amount}💎\n"
                 f"<b>🎯 Scope »</b> <code>{scope}</code> | <b>♾ Max »</b> <code>{max_uses}</code>\n"
-                f"<b>⏰ Expires »</b> {datetime.utcnow()+timedelta(seconds=CODE_TTL):%Y-%m-%d %H:%M UTC}"
+                f"<b>⏰ Expires »</b> {datetime.now(timezone.utc)+timedelta(seconds=CODE_TTL):%Y-%m-%d %H:%M UTC}"
             )
             await self.bot.send_message(
                 message.chat.id,
@@ -431,7 +442,7 @@ class ShowDepositManager:
                     "deposit_amount": float(meta["amount"]),
                     "payment_method":"REDEEMCODE",
                     "user_id": str(uid),
-                    "deposit_id": str(deposit_id),
+                    "deposit_id": deposit_id,
                     "deposit_status":"COMPLETED",
                     "deposit_history": json.dumps([
                         {"timestamp": str(time.time()), "action": "DEPOSIT_CREATED"},
@@ -467,7 +478,7 @@ class ShowDepositManager:
             f"<b>Redeemed:</b> {redeemed}/{maxu}\n"
             f"<b>Total:</b> ₹{total:.2f}\n\n"
             "<b>》Last 5 Users:</b>\n" + "\n".join(
-                f"• <code>{json.loads(x)['uid']}</code> @ {datetime.utcfromtimestamp(json.loads(x)['ts']):%H:%M}" for x in last5
+                f"• <code>{json.loads(x)['uid']}</code> @ {datetime.fromtimestamp(json.loads(x)['ts'], tz=timezone.utc):%H:%M}" for x in last5
             )
         )
         await self.bot.edit_message_text(
@@ -493,7 +504,7 @@ class ShowDepositManager:
         writer.writerow(['Usᴇʀ Iᴅ','Timestamp'])
         for x in logs:
             d = json.loads(x)
-            writer.writerow([d['uid'], datetime.utcfromtimestamp(d['ts'])])
+            writer.writerow([d['uid'], datetime.fromtimestamp(d['ts'], tz=timezone.utc)])
         buf.seek(0)
         await self.bot.send_document(
             call.message.chat.id,
@@ -510,7 +521,8 @@ async def init_managers(order_manager: OrderManagement, user_manager: UserManage
     """
     Initialize the deposit management system asynchronously.
     """
-    return await deposit_manager.init_managers(bot.deposit_manager, user_manager, bot)
+    deposit_mgr = getattr(bot, "deposit_manager", None)  # pyrefly: ignore [attribute-error]
+    return await deposit_manager.init_managers(deposit_mgr, user_manager, bot)
 
 
 async def register_handlers(bot: AsyncTeleBot) -> None:
