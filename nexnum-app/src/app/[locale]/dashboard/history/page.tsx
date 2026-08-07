@@ -155,7 +155,7 @@ interface TransactionCardProps {
 }
 
 const TransactionCard = ({ tx, index }: TransactionCardProps) => {
-    const isCredit = tx.type === 'topup' || tx.type === 'refund' || tx.type === 'deposit' || tx.type === 'manual_credit' || tx.type === 'referral_bonus'
+    const isCredit = (['topup', 'refund', 'deposit', 'manual_credit', 'referral_bonus'] as string[]).includes(tx.type)
     const iconBgColor = isCredit ? 'bg-emerald-500/10' : 'bg-rose-500/10'
     const iconColor = isCredit ? 'text-emerald-400' : 'text-rose-400'
     const amountColor = isCredit ? 'text-emerald-400' : 'text-rose-400'

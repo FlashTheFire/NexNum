@@ -17,7 +17,7 @@ function dedupe<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
 
 export interface Transaction {
     id: string
-    type: 'purchase' | 'topup' | 'refund' | 'manual_credit' | 'manual_debit' | 'referral_bonus'
+    type: 'purchase' | 'topup' | 'deposit' | 'refund' | 'manual_credit' | 'manual_debit' | 'referral_bonus'
     amount: number
     currencyPrices?: Record<string, number> // NEW: Multi-currency prices for Zero-Math
     date: string
