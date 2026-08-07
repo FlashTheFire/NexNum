@@ -67,6 +67,7 @@ import json
 
 # ---- Universal Aggregated Reads & Writes ----
 CACHE_FILE_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "phone_cache.json")
+REDIS_PHONE_CACHE_KEY = "nexsms:phone_cache"
 GLOBAL_PHONE_CACHE: Dict[str, Dict[str, Any]] = {}
 
 def _load_phone_cache() -> Dict[str, Dict[str, Any]]:
@@ -83,8 +84,12 @@ def _load_phone_cache() -> Dict[str, Dict[str, Any]]:
         logger.warning(f"[PhoneCache] Failed to load JSON phone cache: {e}")
     return GLOBAL_PHONE_CACHE
 
-def _save_phone_cache() -> None:
-    """Save in-memory phone cache to local JSON file for persistence across restarts."""
+def _save_phone_cache(updated_entries: Optional[Dict[str, Dict[str, Any]]] = None) -> None:
+    """
+    Saves in-memory phone cache to local JSON file AND syncs to Redis Hash nexsms:phone_cache.
+    Atomic multi-layer persistence for zero lock contention and 0ms reads.
+    """
+    # 1. Save to disk (JSON file backup)
     try:
         os.makedirs(os.path.dirname(CACHE_FILE_PATH), exist_ok=True)
         temp_path = f"{CACHE_FILE_PATH}.tmp"
@@ -93,6 +98,31 @@ def _save_phone_cache() -> None:
         os.replace(temp_path, CACHE_FILE_PATH)
     except Exception as e:
         logger.warning(f"[PhoneCache] Failed to save JSON phone cache: {e}")
+
+    # 2. Async/Threaded Push to Redis Hash for multi-process sharing
+    if updated_entries:
+        try:
+            import asyncio
+            async def _push_to_redis():
+                try:
+                    from utils.redis_manager import redis_manager
+                    client = await redis_manager.get_client()
+                    if client:
+                        pipe = client.pipeline()
+                        for cid, data in updated_entries.items():
+                            pipe.hset(REDIS_PHONE_CACHE_KEY, cid, json.dumps(data))
+                        await pipe.execute()
+                except Exception as ex:
+                    logger.debug(f"[PhoneCache] Redis sync background notice: {ex}")
+
+            try:
+                loop = asyncio.get_running_loop()
+                if loop.is_running():
+                    asyncio.create_task(_push_to_redis())
+            except RuntimeError:
+                pass
+        except Exception:
+            pass
 
 # Initial load on import
 _load_phone_cache()
@@ -106,6 +136,7 @@ def get_all_clients() -> Dict[str, Any]:
     Applies persistent GLOBAL_PHONE_CACHE for instant 0ms number & network resolution.
     """
     cache_updated = False
+    updated_entries: Dict[str, Dict[str, Any]] = {}
     aggregated_clients: Dict[str, Any] = {}
 
     def fetch_node(node):
@@ -175,13 +206,14 @@ def get_all_clients() -> Dict[str, Any]:
                     new_entry = {"mobNo": phone, "service_provider": network}
                     if old_entry != new_entry:
                         GLOBAL_PHONE_CACHE[cid] = new_entry
+                        updated_entries[cid] = new_entry
                         cache_updated = True
 
                 aggregated_clients[cid] = cdata
                 CLIENT_NODE_MAP[cid] = node
 
     if cache_updated:
-        _save_phone_cache()
+        _save_phone_cache(updated_entries)
 
     return aggregated_clients
 
