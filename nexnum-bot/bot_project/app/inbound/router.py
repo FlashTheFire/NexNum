@@ -183,6 +183,7 @@ async def inbound_sms_webhook(request: Request, payload: InboundSmsPayload):
     
     # 2. Get Redis client
     try:
+        # pyrefly: ignore [missing-import]
         from utils.redis_manager import redis_manager
     except ImportError:
         from bot_project.utils.redis_manager import redis_manager
@@ -223,6 +224,7 @@ async def inbound_sms_webhook(request: Request, payload: InboundSmsPayload):
 async def inbound_health():
     """Check inbound subsystem health: Redis connectivity + stream info."""
     try:
+        # pyrefly: ignore [missing-import]
         from utils.redis_manager import redis_manager
     except ImportError:
         from bot_project.utils.redis_manager import redis_manager

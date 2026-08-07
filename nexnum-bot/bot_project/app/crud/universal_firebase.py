@@ -48,50 +48,34 @@ class UniversalFirebaseNode:
     async def fetch_raw_data_async(self) -> Dict[str, Any]:
         """
         Asynchronously fetches raw device dictionary from Firebase.
-        Uses shared AsyncClient connection pool.
+        Uses scoped AsyncClient per request to prevent cross-loop contamination.
         """
         combined = {}
-        client = await get_http_client()
-
-        # 1. Fetch /gateways if schema is 'gateways' or 'auto'
-        if self.schema_type in ("gateways", "auto"):
-            try:
-                resp = await client.get(self._build_url("/gateways"))
-                if resp.status_code == 200 and resp.json():
-                    data = resp.json()
-                    if isinstance(data, dict):
-                        combined.update(data)
-            except Exception as e:
-                logger.warning(f"UniversalFirebase [{self.node_id}] /gateways error: {e}")
-                try:
-                    async with httpx.AsyncClient(timeout=10.0) as fresh:
-                        resp = await fresh.get(self._build_url("/gateways"))
+        try:
+            async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+                # 1. Fetch /gateways if schema is 'gateways' or 'auto'
+                if self.schema_type in ("gateways", "auto"):
+                    try:
+                        resp = await client.get(self._build_url("/gateways"))
                         if resp.status_code == 200 and resp.json():
                             data = resp.json()
                             if isinstance(data, dict):
                                 combined.update(data)
-                except Exception:
-                    pass
+                    except Exception as e:
+                        logger.debug(f"UniversalFirebase [{self.node_id}] /gateways notice: {e}")
 
-        # 2. Fetch /clients if schema is 'clients' or 'auto'
-        if self.schema_type in ("clients", "auto"):
-            try:
-                resp = await client.get(self._build_url("/clients"))
-                if resp.status_code == 200 and resp.json():
-                    data = resp.json()
-                    if isinstance(data, dict):
-                        combined.update(data)
-            except Exception as e:
-                logger.warning(f"UniversalFirebase [{self.node_id}] /clients error: {e}")
-                try:
-                    async with httpx.AsyncClient(timeout=10.0) as fresh:
-                        resp = await fresh.get(self._build_url("/clients"))
+                # 2. Fetch /clients if schema is 'clients' or 'auto'
+                if self.schema_type in ("clients", "auto"):
+                    try:
+                        resp = await client.get(self._build_url("/clients"))
                         if resp.status_code == 200 and resp.json():
                             data = resp.json()
                             if isinstance(data, dict):
                                 combined.update(data)
-                except Exception:
-                    pass
+                    except Exception as e:
+                        logger.debug(f"UniversalFirebase [{self.node_id}] /clients notice: {e}")
+        except Exception as ex:
+            logger.debug(f"UniversalFirebase [{self.node_id}] fetch notice: {ex}")
 
         return combined
 
@@ -303,7 +287,7 @@ async def resolve_pending_sim_numbers_async(sim_nodes: List[DeviceSimNode]) -> L
 
                             if patch_data:
                                 try:
-                                    asyncio.create_task(client.patch(patch_url, json=patch_data))
+                                    await client.patch(patch_url, json=patch_data)
                                 except Exception:
                                     pass
             except Exception as e:
@@ -314,54 +298,54 @@ async def resolve_pending_sim_numbers_async(sim_nodes: List[DeviceSimNode]) -> L
     # ── Priority 2: OFFLINE DEVICES (Queued Asynchronously in Background) ──
     if offline_pending:
         async def _resolve_offline_background():
-            client = await get_http_client()
-            for sim in offline_pending:
-                try:
-                    node_cfg = next((n for n in settings.get_firebase_nodes() if n.get("id") == sim.firebase_node_id), None)
-                    if not node_cfg:
-                        node_cfg = settings.get_firebase_nodes()[0] if settings.get_firebase_nodes() else {}
+            async with httpx.AsyncClient(timeout=10.0) as b_client:
+                for sim in offline_pending:
+                    try:
+                        node_cfg = next((n for n in settings.get_firebase_nodes() if n.get("id") == sim.firebase_node_id), None)
+                        if not node_cfg:
+                            node_cfg = settings.get_firebase_nodes()[0] if settings.get_firebase_nodes() else {}
 
-                    base_url = node_cfg.get("url", "").rstrip("/")
-                    auth = node_cfg.get("auth", "")
-                    auth_param = f"?auth={auth}" if auth and not auth.startswith("http") else ""
-                    sep = "&" if auth_param else "?"
+                        base_url = node_cfg.get("url", "").rstrip("/")
+                        auth = node_cfg.get("auth", "")
+                        auth_param = f"?auth={auth}" if auth and not auth.startswith("http") else ""
+                        sep = "&" if auth_param else "?"
 
-                    msg_url = f"{base_url}/messages/{sim.device_id}.json{auth_param}{sep}orderBy=\"%24key\"&limitToLast=100"
+                        msg_url = f"{base_url}/messages/{sim.device_id}.json{auth_param}{sep}orderBy=\"%24key\"&limitToLast=100"
 
-                    resp = await client.get(msg_url)
-                    if resp.status_code == 200 and resp.json():
-                        raw_msgs = resp.json()
-                        msg_list = list(raw_msgs.values()) if isinstance(raw_msgs, dict) else (raw_msgs if isinstance(raw_msgs, list) else [])
+                        resp = await b_client.get(msg_url)
+                        if resp.status_code == 200 and resp.json():
+                            raw_msgs = resp.json()
+                            msg_list = list(raw_msgs.values()) if isinstance(raw_msgs, dict) else (raw_msgs if isinstance(raw_msgs, list) else [])
 
-                        if msg_list:
-                            phone, network = await extract_highest_frequency_number_and_carrier_async(msg_list)
-                            if phone:
-                                sim.phone_number = phone
-                            if network and (sim.carrier == "Unknown" or not sim.carrier):
-                                sim.carrier = network
-
-                            if phone or network:
-                                entry = {"mobNo": phone or "", "service_provider": network or sim.carrier}
-                                try:
-                                    # pyrefly: ignore [missing-import]
-                                    from app.crud.firebase_crud import GLOBAL_PHONE_CACHE, _save_phone_cache
-                                    GLOBAL_PHONE_CACHE[sim.device_id] = entry
-                                    _save_phone_cache({sim.device_id: entry})
-                                except Exception:
-                                    pass
-
-                                patch_url = f"{base_url}/clients/{sim.device_id}.json{auth_param}"
-                                patch_data = {}
+                            if msg_list:
+                                phone, network = await extract_highest_frequency_number_and_carrier_async(msg_list)
                                 if phone:
-                                    patch_data["mobNo"] = phone
-                                    patch_data["phoneNumber"] = phone
-                                if network:
-                                    patch_data["service_provider"] = network
+                                    sim.phone_number = phone
+                                if network and (sim.carrier == "Unknown" or not sim.carrier):
+                                    sim.carrier = network
 
-                                if patch_data:
-                                    await client.patch(patch_url, json=patch_data)
-                except Exception:
-                    pass
+                                if phone or network:
+                                    entry = {"mobNo": phone or "", "service_provider": network or sim.carrier}
+                                    try:
+                                        # pyrefly: ignore [missing-import]
+                                        from app.crud.firebase_crud import GLOBAL_PHONE_CACHE, _save_phone_cache
+                                        GLOBAL_PHONE_CACHE[sim.device_id] = entry
+                                        _save_phone_cache({sim.device_id: entry})
+                                    except Exception:
+                                        pass
+
+                                    patch_url = f"{base_url}/clients/{sim.device_id}.json{auth_param}"
+                                    patch_data = {}
+                                    if phone:
+                                        patch_data["mobNo"] = phone
+                                        patch_data["phoneNumber"] = phone
+                                    if network:
+                                        patch_data["service_provider"] = network
+
+                                    if patch_data:
+                                        await b_client.patch(patch_url, json=patch_data)
+                    except Exception:
+                        pass
 
         try:
             loop = asyncio.get_running_loop()

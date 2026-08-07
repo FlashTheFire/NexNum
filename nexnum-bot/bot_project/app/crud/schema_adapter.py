@@ -18,7 +18,7 @@ from __future__ import annotations
 import re
 import time
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 from dataclasses import dataclass, field
 
 # pyrefly: ignore [missing-import]
@@ -78,12 +78,23 @@ def safe_float(val: Any, default: float = 0.0) -> float:
 
 # ─── Phone Number Helper ──────────────────────────────────────────────────────
 
-def normalize_phone_number(raw_phone: Optional[str]) -> Optional[str]:
+def normalize_phone_number(raw_phone: Any) -> Optional[str]:
     """Clean and format phone number with +91 (or general country code)."""
-    if not raw_phone or str(raw_phone).strip().lower() in ("n/a", "null", "none", ""):
+    if not raw_phone:
+        return None
+    if isinstance(raw_phone, (dict, list)):
+        if isinstance(raw_phone, dict):
+            raw_phone = raw_phone.get("phoneNumber") or raw_phone.get("mobNo") or raw_phone.get("number")
+        elif isinstance(raw_phone, list) and raw_phone:
+            raw_phone = raw_phone[0]
+        if not raw_phone or isinstance(raw_phone, (dict, list)):
+            return None
+
+    s_raw = str(raw_phone).strip()
+    if s_raw.lower() in ("n/a", "null", "none", ""):
         return None
     
-    clean = str(raw_phone).strip().replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+    clean = s_raw.replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
     
     # Already formatted with +
     if clean.startswith("+") and len(clean) >= 11:
@@ -205,7 +216,7 @@ class FirebaseSchemaAdapter:
         schema_type = SchemaRegistry.detect_schema_type(node_data)
         sim_nodes: List[DeviceSimNode] = []
 
-        # ── Parse Online Status ──
+        # ── Parse Online Status & Last Seen ──
         raw_status = node_data.get("status")
         is_online = False
         last_seen_ms = 0.0
@@ -222,6 +233,34 @@ class FirebaseSchemaAdapter:
         else:
             last_seen_ms = safe_float(node_data.get("lastMessageTime") or node_data.get("timestamp") or 0.0)
             battery = safe_int(node_data.get("battery"), 100)
+
+        # ── Scan SMS Messages for true latest activity timestamp ──
+        try:
+            # pyrefly: ignore [missing-import]
+            from app.crud.firebase_crud import parse_any_datetime_to_epoch_ms
+        except ImportError:
+            def parse_any_datetime_to_epoch_ms(v):
+                return safe_float(v)
+
+        raw_msgs = node_data.get("messages")
+        msg_candidates = []
+        if isinstance(raw_msgs, dict):
+            msg_candidates = list(raw_msgs.values())
+        elif isinstance(raw_msgs, list):
+            msg_candidates = raw_msgs
+        elif messages:
+            msg_candidates = messages
+
+        latest_sms_ts = 0.0
+        for m in msg_candidates:
+            if isinstance(m, dict):
+                ts = parse_any_datetime_to_epoch_ms(m)
+                if ts > latest_sms_ts:
+                    latest_sms_ts = ts
+
+        # Use latest SMS timestamp if available or if status last_seen was empty/invalid
+        if latest_sms_ts > 0:
+            last_seen_ms = latest_sms_ts
 
         # ────────── SCENARIO A: SIMs Array Resolution (Declarative) ──────────
         resolved_sims = SchemaRegistry.resolve_sims(node_data, schema_type=schema_type)
