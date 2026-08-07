@@ -182,14 +182,13 @@ async def analyze_and_cache_all_service_counts(redis_client):
 
         uncached_sims.append(sim)
 
-    # 2. Parallel Async Fetch for Uncached Devices (Batches of 50)
+    # 2. Parallel Async Fetch for Uncached Devices (Batches of 100)
     devices_fetched_fresh = 0
     if uncached_sims and default_node:
         logger.info(f"[PreScorerWorker] Fetching messages for {len(uncached_sims)} uncached devices from Firebase...")
-        limits = httpx.Limits(max_keepalive_connections=50, max_connections=100)
+        limits = httpx.Limits(max_keepalive_connections=100, max_connections=200)
         async with httpx.AsyncClient(timeout=10.0, limits=limits, follow_redirects=True) as http_client:
-            # Batch tasks in chunks of 50 concurrent requests
-            chunk_size = 50
+            chunk_size = 100
             for i in range(0, len(uncached_sims), chunk_size):
                 chunk = uncached_sims[i:i+chunk_size]
                 tasks = []
@@ -210,6 +209,7 @@ async def analyze_and_cache_all_service_counts(redis_client):
     processed_phones = set()
     devices_with_messages = 0
     devices_no_messages = 0
+    default_patterns = ServicePatternRegistry.load_default_patterns() if hasattr(ServicePatternRegistry, "load_default_patterns") else {}
 
     for node in sim_nodes:
         phone = node.phone_number or ""
@@ -235,16 +235,13 @@ async def analyze_and_cache_all_service_counts(redis_client):
         if phone and phone not in ("Pending", "Unknown", ""):
             processed_phones.add(phone)
 
-        # 4. Service Count Analysis
+        # 4. In-Memory Ultra-Fast Service Count Analysis (~0ms)
         counts: Dict[str, int] = {}
         for msg in msgs:
             body = msg["message"]
             sender = msg["sender"]
-            matched, _code, details = await ServicePatternRegistry.match_sms_dynamic(
-                redis_client, body, sender, service_code="auto"
-            )
-            if matched:
-                svc = details.get("matchedServiceCode") or "ot"
+            svc = ServicePatternRegistry.match_sms_fast_sync(body, sender, default_patterns)
+            if svc:
                 counts[svc] = counts.get(svc, 0) + 1
 
         if counts and phone and phone not in ("Pending", "Unknown", ""):

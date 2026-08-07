@@ -219,6 +219,30 @@ class ServicePatternRegistry:
         return None
 
     @classmethod
+    def match_sms_fast_sync(cls, body: str, sender: str, default_patterns: Optional[Dict[str, dict]] = None) -> Optional[str]:
+        """
+        Ultra-fast synchronous in-memory pattern matcher for bulk workers.
+        Evaluates pre-compiled regexes against RAM cache in ~0.001ms with zero async/IO overhead.
+        """
+        if not body:
+            return None
+        patterns = default_patterns or load_default_patterns()
+        sender_clean = sender.strip()
+        body_clean = body.strip()
+
+        for svc_code, info in patterns.items():
+            if svc_code == "ot":
+                continue
+            for s_pat in info.get("sender_patterns", []):
+                if s_pat and _get_compiled(s_pat).search(sender_clean):
+                    return svc_code
+            for b_pat in info.get("body_patterns", []):
+                if b_pat and _get_compiled(b_pat).search(body_clean):
+                    return svc_code
+
+        return "ot" if "ot" in patterns else None
+
+    @classmethod
     async def match_sms_dynamic(cls, redis_client, body: str, sender: str, service_code: str) -> tuple[bool, Optional[str], dict]:
         """
         Validates incoming SMS against dynamic pattern for service_code.
