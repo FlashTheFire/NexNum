@@ -113,13 +113,22 @@ async def get_devices_list(
     search: str = Query(default="", description="Search query string for device ID, phone number, or carrier")
 ):
     """Returns normalized DeviceSimNodes with server-side sorting, search filtering, and pagination."""
-    sim_nodes = await get_all_sim_nodes_async()
-    
     try:
         from utils.redis_manager import redis_manager
     except ImportError:
         from bot_project.utils.redis_manager import redis_manager
     redis_client = await redis_manager.get_client()
+
+    cache_key = f"{REDIS_PREFIX}:cache:admin_devices:{page}:{limit}:{sort_by}:{sort_order}:{search.strip().lower()}"
+    if redis_client:
+        try:
+            cached_res = await redis_client.get(cache_key)
+            if cached_res:
+                return json.loads(cached_res)
+        except Exception:
+            pass
+
+    sim_nodes = await get_all_sim_nodes_async()
 
     banned_set = set()
     if redis_client:
@@ -254,7 +263,7 @@ async def get_devices_list(
     end_idx = start_idx + limit
     paginated_devices = all_devices[start_idx:end_idx]
 
-    return {
+    res_dict = {
         "total": total,
         "page": page,
         "limit": limit,
@@ -262,6 +271,13 @@ async def get_devices_list(
         "count": len(paginated_devices),
         "devices": paginated_devices
     }
+    if redis_client:
+        try:
+            await redis_client.set(cache_key, json.dumps(res_dict), ex=4)
+        except Exception:
+            pass
+
+    return res_dict
 
 
 @router.get("/devices/{device_id}/messages", response_model=None, dependencies=[Depends(verify_api_key)])
@@ -272,6 +288,7 @@ async def get_device_messages(
     """
     Fetch last 150 incoming SMS messages for a specific device / SIM from Firebase RTDB.
     Uses Redis 0ms caching layer with fallback to parallel multi-identifier key lookup.
+    Bypasses device_no_messages negative cache for explicit user requests.
     """
     try:
         from utils.redis_manager import redis_manager
@@ -285,13 +302,20 @@ async def get_device_messages(
 
     cache_key = f"nexsms:device_messages:{device_id}"
 
+    # 0. Clear negative cache — user explicitly requested messages, don't trust stale "no messages" flag
+    if redis_client:
+        try:
+            await redis_client.delete(f"{REDIS_PREFIX}:device_no_messages:{device_id}")
+        except Exception:
+            pass
+
     # 1. Check Redis Cache for 0ms Instant Response
     if redis_client:
         try:
             cached_data = await redis_client.get(cache_key)
             if cached_data:
                 parsed = json.loads(cached_data)
-                if isinstance(parsed, list):
+                if isinstance(parsed, list) and len(parsed) > 0:
                     return {
                         "deviceId": device_id,
                         "count": len(parsed[:limit]),
@@ -302,13 +326,24 @@ async def get_device_messages(
         except Exception:
             pass
 
-    # 2. Fast Multi-Path Query
+    # 2. Fast Multi-Path Query (also tries phone number variants from GLOBAL_PHONE_CACHE)
     try:
         from app.crud import firebase_crud as crud  # pyrefly: ignore [missing-import]
         raw_msgs = crud.get_incoming_messages(device_id, limit=limit)
     except Exception as e:
         logger.error(f"Failed to fetch incoming messages for {device_id}: {e}")
         raw_msgs = []
+
+    # 2b. If empty, try alternate keys from phone cache
+    if not raw_msgs:
+        try:
+            from app.crud.firebase_crud import GLOBAL_PHONE_CACHE  # pyrefly: ignore [missing-import]
+            if device_id in GLOBAL_PHONE_CACHE:
+                alt_phone = GLOBAL_PHONE_CACHE[device_id].get("mobNo", "")
+                if alt_phone:
+                    raw_msgs = crud.get_incoming_messages(alt_phone, limit=limit)
+        except Exception:
+            pass
 
     formatted_messages = []
     for msg in raw_msgs:
@@ -561,6 +596,28 @@ async def get_scorer_leaderboard(
     now = time.time()
     req_svc = (service or "tg").lower()
 
+    try:
+        from utils.redis_manager import redis_manager
+    except ImportError:
+        from bot_project.utils.redis_manager import redis_manager
+
+    redis_client = await redis_manager.get_client()
+
+    cache_key = f"{REDIS_PREFIX}:cache:scorer_leaderboard:{req_svc}:{user_id}:{limit}"
+    if redis_client:
+        try:
+            cached_res = await redis_client.get(cache_key)
+            if cached_res:
+                return json.loads(cached_res)
+        except Exception:
+            pass
+
+    # pyrefly: ignore [missing-import]
+    from app.gateway.scorer import DeviceScorer
+
+    sim_nodes = await get_all_sim_nodes_async()
+    now = time.time()
+
     scored_items = []
     for node in sim_nodes:
         candidate = await DeviceScorer.score_sim_node(
@@ -575,27 +632,23 @@ async def get_scorer_leaderboard(
         last_seen_sec = node.last_seen_ms / 1000 if node.last_seen_ms > 1e11 else node.last_seen_ms
         mins_since_seen = max(0.0, (now - last_seen_sec) / 60.0)
         hours_since_seen = mins_since_seen / 60.0
-        # DeviceScorer already checked Redis for has_messages inside its pipeline
         has_messages = candidate.has_messages
 
+        hrs_sms = candidate.last_sms_hours
+        last_sms_ms = int((now - (hrs_sms * 3600.0)) * 1000) if hrs_sms < 900 else 0
+
         # ── Freshness Breakdown (Data-Poor vs Genuinely Fresh) ─────────────
-        # A device with NO messages at all is NOT fresh — it's data-poor (unknown quality).
-        # A device WITH messages but 0 for THIS specific service IS genuinely fresh.
         if not has_messages:
-            # Data-poor: we have no evidence this SIM can receive any SMS at all
             freshness_label = "NO_DATA"
             freshness_pts = -50
         elif candidate.service_sms_count == 0:
-            # Genuinely fresh: has message history, just never used for this service
             freshness_label = "FRESH"
             freshness_pts = 100
         else:
-            # Used: penalize by service SMS count
             freshness_label = "USED"
             freshness_pts = -(candidate.service_sms_count * 25)
 
         # ── 12-Hour SMS Recency Breakdown ──────────────────────────────────
-        hrs_sms = candidate.last_sms_hours
         if hrs_sms <= 1.0:
             recency_pts = 60
             recency_label = "< 1h"
@@ -631,6 +684,8 @@ async def get_scorer_leaderboard(
             "isOnline": node.is_online,
             "battery": node.battery,
             "lastSeenMs": node.last_seen_ms,
+            "lastSmsMs": last_sms_ms,
+            "lastSmsHours": round(hrs_sms, 2),
             "schemaType": node.schema_type,
             "firebaseNodeId": node.firebase_node_id,
             "hasMessages": has_messages,
@@ -666,7 +721,7 @@ async def get_scorer_leaderboard(
 
     top_results = scored_items[:limit]
 
-    return {
+    res_dict = {
         "service": req_svc,
         "serviceName": req_svc.upper(),
         "totalNodes": len(sim_nodes),
@@ -675,3 +730,11 @@ async def get_scorer_leaderboard(
         "leaderboard": top_results,
         "timestamp": int(now)
     }
+
+    if redis_client:
+        try:
+            await redis_client.set(cache_key, json.dumps(res_dict), ex=3)
+        except Exception:
+            pass
+
+    return res_dict
