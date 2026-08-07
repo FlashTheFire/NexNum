@@ -11,6 +11,7 @@ from decimal import Decimal
 from typing import Optional, Dict, Any, List, Tuple
 from psycopg_pool import AsyncConnectionPool
 from psycopg.rows import dict_row
+from psycopg.sql import SQL
 
 # Ensure bot_project root is on sys.path for type checkers and runtime
 _utils_dir = Path(__file__).resolve().parent
@@ -257,7 +258,7 @@ class DatabaseAdapter:
 
     async def update_user(self, telegram_id: str, name: Optional[str] = None, is_banned: Optional[bool] = None) -> bool:
         """Update user profile details in PostgreSQL."""
-        tg_id_str = str(telegram_id)
+        tg_id_str = telegram_id
         pool = await self._ensure_pool()
         try:
             async with pool.connection() as conn:
@@ -440,7 +441,7 @@ class DatabaseAdapter:
 
     async def get_financial_summary(self, telegram_id: str) -> Dict[str, Any]:
         """Retrieve user financial metrics (balance, total deposits, total spent, order counts) with sub-millisecond Redis caching."""
-        tg_id_str = str(telegram_id)
+        tg_id_str = telegram_id
         redis_key = f"user_fin_summary:{tg_id_str}"
 
         # 1. Fast Path: Check Redis Cache (< 2ms)
@@ -518,7 +519,7 @@ class DatabaseAdapter:
         Consumes a short-lived link token (e.g. link_ABC123) and associates the Telegram ID 
         with the logged-in Web App user in PostgreSQL/Supabase.
         """
-        tg_id_str = str(telegram_id)
+        tg_id_str = telegram_id
         pool = await self._ensure_pool()
 
         async with pool.connection() as conn:
@@ -566,7 +567,7 @@ class DatabaseAdapter:
                     "SELECT us.selected_country_id, us.selected_service_code, us.menu_state, us.temp_data, us.last_activity, us.forum_id, us.forum_message_id, us.forum_archived "
                     "FROM user_sessions us JOIN users u ON us.user_id = u.id "
                     "WHERE u.telegram_id = %s OR us.user_id = %s",
-                    (str(telegram_id), str(telegram_id))
+                    (telegram_id, telegram_id)
                 )
                 row = await cur.fetchone()
                 if row:
@@ -591,7 +592,7 @@ class DatabaseAdapter:
     async def save_user_session(self, telegram_id: str, session_data: Dict[str, Any]) -> bool:
         """Persist session data into user_sessions table."""
         pool = await self._ensure_pool()
-        user_info = await self.get_or_create_user(str(telegram_id))
+        user_info = await self.get_or_create_user(telegram_id)
         user_uuid = user_info["id"]
         try:
             async with pool.connection() as conn:
@@ -632,7 +633,7 @@ class DatabaseAdapter:
     async def get_referral_info(self, telegram_id: str) -> Optional[Dict[str, Any]]:
         """Fetch referral chain info for a user."""
         pool = await self._ensure_pool()
-        user_info = await self.get_or_create_user(str(telegram_id))
+        user_info = await self.get_or_create_user(telegram_id)
         user_uuid = user_info["id"]
         async with pool.connection() as conn:
             async with conn.cursor(row_factory=dict_row) as cur:
@@ -654,11 +655,11 @@ class DatabaseAdapter:
     async def save_referral_info(self, telegram_id: str, referrer_id: Optional[str], code: str) -> bool:
         """Persist referral mapping."""
         pool = await self._ensure_pool()
-        user_info = await self.get_or_create_user(str(telegram_id))
+        user_info = await self.get_or_create_user(telegram_id)
         user_uuid = user_info["id"]
         ref_uuid = None
         if referrer_id:
-            ref_info = await self.get_or_create_user(str(referrer_id))
+            ref_info = await self.get_or_create_user(referrer_id)
             ref_uuid = ref_info["id"]
         try:
             async with pool.connection() as conn:
@@ -683,7 +684,7 @@ class DatabaseAdapter:
                     "SELECT COUNT(*) as total FROM user_referrals ur "
                     "JOIN users u_ref ON ur.referrer_id = u_ref.id "
                     "WHERE u_ref.telegram_id = %s OR ur.referrer_id = %s",
-                    (str(telegram_id), str(telegram_id)),
+                    (telegram_id, telegram_id),
                 )
                 cnt_row = await cur.fetchone()
                 total = int(cnt_row["total"]) if cnt_row else 0
@@ -694,7 +695,7 @@ class DatabaseAdapter:
                     "JOIN users u_ref ON ur.referrer_id = u_ref.id "
                     "WHERE u_ref.telegram_id = %s OR ur.referrer_id = %s "
                     "ORDER BY ur.created_at DESC LIMIT %s OFFSET %s",
-                    (str(telegram_id), str(telegram_id), limit, offset),
+                    (telegram_id, telegram_id, limit, offset),
                 )
                 rows = await cur.fetchall()
                 results = [
@@ -720,14 +721,14 @@ class DatabaseAdapter:
     ) -> str:
         """Create a pending deposit request and return its UUID."""
         pool = await self._ensure_pool()
-        user_info = await self.get_or_create_user(str(telegram_id))
+        user_info = await self.get_or_create_user(telegram_id)
         user_uuid = user_info["id"]
 
         use_id = None
         if deposit_id:
             try:
-                uuid.UUID(str(deposit_id))
-                use_id = str(deposit_id)
+                uuid.UUID(deposit_id)
+                use_id = deposit_id
             except ValueError:
                 use_id = str(uuid.uuid4())
                 if not idempotency_key:
@@ -773,10 +774,10 @@ class DatabaseAdapter:
                     if metadata is not None:
                         updates.append("metadata = %s")
                         params.append(json.dumps(metadata))
-                    params.append(str(deposit_id))
-                    params.append(str(deposit_id))
+                    params.append(deposit_id)
+                    params.append(deposit_id)
                     sql = f"UPDATE deposit_requests SET {', '.join(updates)} WHERE id::text = %s OR idempotency_key = %s"
-                    await cur.execute(sql, tuple(params))  # type: ignore[arg-type]
+                    await cur.execute(SQL(sql), tuple(params))
                     await conn.commit()
                     return True
         except Exception as exc:
@@ -791,7 +792,7 @@ class DatabaseAdapter:
                 async with conn.cursor() as cur:
                     await cur.execute(
                         "DELETE FROM deposit_requests WHERE (id::text = %s OR idempotency_key = %s) AND status = 'PENDING'",
-                        (str(deposit_id), f"dep:{deposit_id}")
+                        (deposit_id, f"dep:{deposit_id}")
                     )
                     await conn.commit()
                     return True
@@ -804,7 +805,7 @@ class DatabaseAdapter:
         pool = await self._ensure_pool()
         async with pool.connection() as conn:
             async with conn.cursor(row_factory=dict_row) as cur:
-                dep_str = str(deposit_id)
+                dep_str = deposit_id
                 await cur.execute(
                     "SELECT dr.*, u.telegram_id FROM deposit_requests dr "
                     "LEFT JOIN users u ON dr.user_id = u.id WHERE dr.id::text = %s OR dr.idempotency_key = %s OR dr.idempotency_key = %s",
@@ -828,7 +829,7 @@ class DatabaseAdapter:
         """Query deposit requests from PostgreSQL with filtering."""
         user_info = None
         if telegram_id:
-            user_info = await self.get_or_create_user(str(telegram_id))
+            user_info = await self.get_or_create_user(telegram_id)
         pool = await self._ensure_pool()
         async with pool.connection() as conn:
             async with conn.cursor(row_factory=dict_row) as cur:
@@ -836,7 +837,7 @@ class DatabaseAdapter:
                 params: list[Any] = []
                 if telegram_id and user_info:
                     where_clauses.append("(dr.user_id = %s OR dr.user_id = %s)")
-                    params.extend([user_info["id"], str(telegram_id)])
+                    params.extend([user_info["id"], telegram_id])
                 if status:
                     if isinstance(status, list):
                         where_clauses.append("dr.status = ANY(%s)")
@@ -857,10 +858,12 @@ class DatabaseAdapter:
 
                 where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
 
-                await cur.execute(  # type: ignore[arg-type]
-                    f"SELECT dr.*, u.telegram_id FROM deposit_requests dr "
-                    f"LEFT JOIN users u ON dr.user_id = u.id {where_sql} "
-                    f"ORDER BY dr.created_at DESC LIMIT %s OFFSET %s",
+                await cur.execute(
+                    SQL(
+                        "SELECT dr.*, u.telegram_id FROM deposit_requests dr "
+                        f"LEFT JOIN users u ON dr.user_id = u.id {where_sql} "
+                        "ORDER BY dr.created_at DESC LIMIT %s OFFSET %s"
+                    ),
                     tuple(params + [limit, offset])
                 )
                 rows = await cur.fetchall()
@@ -869,7 +872,7 @@ class DatabaseAdapter:
                 wt_results = []
                 should_fetch_wt = status is None or (isinstance(status, list) and ("COMPLETED" in status or "completed" in status)) or (isinstance(status, str) and status.upper() == "COMPLETED")
                 if telegram_id and user_info and should_fetch_wt:
-                    wt_params = [user_info["id"], str(telegram_id)]
+                    wt_params = [user_info["id"], telegram_id]
                     wt_time_sql = ""
                     if recorded_at and isinstance(recorded_at, (tuple, list)) and len(recorded_at) == 2:
                         try:
@@ -879,13 +882,15 @@ class DatabaseAdapter:
                             wt_params.extend([st, et])
                         except Exception:
                             pass
-                    await cur.execute(  # type: ignore[arg-type]
-                        f"SELECT wt.id, w.user_id, wt.amount, wt.created_at, wt.idempotency_key, u.telegram_id "
-                        f"FROM wallet_transactions wt "
-                        f"JOIN wallets w ON wt.wallet_id = w.id "
-                        f"LEFT JOIN users u ON w.user_id = u.id "
-                        f"WHERE (w.user_id = %s OR w.user_id = %s) AND LOWER(wt.type) = 'credit'{wt_time_sql} "
-                        f"ORDER BY wt.created_at DESC LIMIT %s",
+                    await cur.execute(
+                        SQL(
+                            "SELECT wt.id, w.user_id, wt.amount, wt.created_at, wt.idempotency_key, u.telegram_id "
+                            "FROM wallet_transactions wt "
+                            "JOIN wallets w ON wt.wallet_id = w.id "
+                            "LEFT JOIN users u ON w.user_id = u.id "
+                            f"WHERE (w.user_id = %s OR w.user_id = %s) AND LOWER(wt.type) = 'credit'{wt_time_sql} "
+                            "ORDER BY wt.created_at DESC LIMIT %s"
+                        ),
                         tuple(wt_params + [limit])
                     )
                     wt_rows = await cur.fetchall()
@@ -949,7 +954,7 @@ class DatabaseAdapter:
     ) -> str:
         """Create a purchase order with tracking fields and return its ID."""
         pool = await self._ensure_pool()
-        user_info = await self.get_or_create_user(str(telegram_id))
+        user_info = await self.get_or_create_user(telegram_id)
         user_uuid = user_info["id"]
         async with pool.connection() as conn:
             async with conn.cursor(row_factory=dict_row) as cur:
@@ -1005,10 +1010,10 @@ class DatabaseAdapter:
                         sets.append("raw_response = %s")
                         vals.append(json.dumps(raw_response))
                     sets.append("updated_at = NOW()")
-                    vals.append(str(order_id))
+                    vals.append(order_id)
                     sql = f"UPDATE purchase_orders SET {', '.join(sets)} WHERE id = %s OR activation_id = %s RETURNING id"
-                    vals.append(str(order_id))
-                    await cur.execute(sql, tuple(vals))  # type: ignore[arg-type]
+                    vals.append(order_id)
+                    await cur.execute(SQL(sql), tuple(vals))
                     await conn.commit()
                     return True
         except Exception as exc:
@@ -1023,7 +1028,7 @@ class DatabaseAdapter:
                 await cur.execute(
                     "SELECT po.*, u.telegram_id FROM purchase_orders po "
                     "LEFT JOIN users u ON po.user_id = u.id WHERE po.id = %s OR po.activation_id = %s",
-                    (str(order_id), str(order_id)),
+                    (order_id, order_id),
                 )
                 row = await cur.fetchone()
                 if not row:
@@ -1088,7 +1093,7 @@ class DatabaseAdapter:
         """Query purchase orders from PostgreSQL with filtering."""
         user_info = None
         if telegram_id:
-            user_info = await self.get_or_create_user(str(telegram_id))
+            user_info = await self.get_or_create_user(telegram_id)
         pool = await self._ensure_pool()
         async with pool.connection() as conn:
             async with conn.cursor(row_factory=dict_row) as cur:
@@ -1096,7 +1101,7 @@ class DatabaseAdapter:
                 params: list[Any] = []
                 if telegram_id and user_info:
                     where_clauses.append("(po.user_id = %s OR po.user_id = %s)")
-                    params.extend([user_info["id"], str(telegram_id)])
+                    params.extend([user_info["id"], telegram_id])
                 if status:
                     if isinstance(status, list):
                         where_clauses.append("po.status = ANY(%s)")
@@ -1115,15 +1120,17 @@ class DatabaseAdapter:
 
                 where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
 
-                await cur.execute(f"SELECT COUNT(*) as total FROM purchase_orders po {where_sql}", tuple(params))  # type: ignore[arg-type]
+                await cur.execute(SQL(f"SELECT COUNT(*) as total FROM purchase_orders po {where_sql}"), tuple(params))
                 total_row = await cur.fetchone()
                 total = total_row["total"] if total_row else 0
 
                 query_params = list(params) + [limit, offset]
-                await cur.execute(  # type: ignore[arg-type]
-                    f"SELECT po.*, u.telegram_id FROM purchase_orders po "
-                    f"LEFT JOIN users u ON po.user_id = u.id {where_sql} "
-                    f"ORDER BY po.created_at DESC LIMIT %s OFFSET %s",
+                await cur.execute(
+                    SQL(
+                        "SELECT po.*, u.telegram_id FROM purchase_orders po "
+                        f"LEFT JOIN users u ON po.user_id = u.id {where_sql} "
+                        "ORDER BY po.created_at DESC LIMIT %s OFFSET %s"
+                    ),
                     tuple(query_params)
                 )
                 rows = await cur.fetchall()
@@ -1226,7 +1233,7 @@ class DatabaseAdapter:
         subject: Optional[str] = None,
     ) -> Optional[str]:
         """Create a new support ticket in PostgreSQL."""
-        user_info = await self.get_or_create_user(str(telegram_id))
+        user_info = await self.get_or_create_user(telegram_id)
         ticket_id = str(uuid.uuid4())
         pool = await self._ensure_pool()
         try:
@@ -1252,7 +1259,7 @@ class DatabaseAdapter:
                 await cur.execute(
                     "SELECT st.*, u.telegram_id FROM support_tickets st "
                     "LEFT JOIN users u ON st.user_id = u.id WHERE st.id::text = %s",
-                    (str(ticket_id),),
+                    (ticket_id,),
                 )
                 row = await cur.fetchone()
                 if not row:
@@ -1277,7 +1284,7 @@ class DatabaseAdapter:
                 async with conn.cursor() as cur:
                     await cur.execute(
                         "UPDATE support_tickets SET status = %s, updated_at = NOW() WHERE id::text = %s",
-                        (status, str(ticket_id)),
+                        (status, ticket_id),
                     )
                     await conn.commit()
                     return True
@@ -1295,7 +1302,7 @@ class DatabaseAdapter:
                 where_clauses = []
                 params: list[Any] = []
                 if telegram_id:
-                    user_info = await self.get_or_create_user(str(telegram_id))
+                    user_info = await self.get_or_create_user(telegram_id)
                     where_clauses.append("st.user_id = %s")
                     params.append(user_info["id"])
                 if status:
@@ -1304,15 +1311,17 @@ class DatabaseAdapter:
 
                 where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
 
-                await cur.execute(f"SELECT COUNT(*) as total FROM support_tickets st {where_sql}", tuple(params))  # type: ignore[arg-type]
+                await cur.execute(SQL(f"SELECT COUNT(*) as total FROM support_tickets st {where_sql}"), tuple(params))
                 total_row = await cur.fetchone()
                 total = total_row["total"] if total_row else 0
 
                 query_params = list(params) + [limit, offset]
-                await cur.execute(  # type: ignore[arg-type]
-                    f"SELECT st.*, u.telegram_id FROM support_tickets st "
-                    f"LEFT JOIN users u ON st.user_id = u.id {where_sql} "
-                    f"ORDER BY st.created_at DESC LIMIT %s OFFSET %s",
+                await cur.execute(
+                    SQL(
+                        "SELECT st.*, u.telegram_id FROM support_tickets st "
+                        f"LEFT JOIN users u ON st.user_id = u.id {where_sql} "
+                        "ORDER BY st.created_at DESC LIMIT %s OFFSET %s"
+                    ),
                     tuple(query_params),
                 )
                 rows = await cur.fetchall()
@@ -1344,7 +1353,7 @@ class DatabaseAdapter:
                     "INSERT INTO account_link_tokens (token, user_id, expires_at) "
                     "VALUES (%s, %s, NOW() + INTERVAL '1 second' * %s) "
                     "ON CONFLICT (token) DO UPDATE SET user_id = EXCLUDED.user_id, expires_at = EXCLUDED.expires_at",
-                    (token, str(user_id), ttl_seconds),
+                    (token, user_id, ttl_seconds),
                 )
                 await conn.commit()
         return token
@@ -1356,13 +1365,13 @@ class DatabaseAdapter:
             async with conn.cursor(row_factory=dict_row) as cur:
                 await cur.execute(
                     "SELECT user_id FROM account_link_tokens WHERE token = %s AND expires_at > NOW()",
-                    (str(token),),
+                    (token,),
                 )
                 row = await cur.fetchone()
                 if not row:
                     return None
                 user_id = str(row["user_id"])
-                await cur.execute("DELETE FROM account_link_tokens WHERE token = %s", (str(token),))
+                await cur.execute("DELETE FROM account_link_tokens WHERE token = %s", (token,))
                 await conn.commit()
                 return user_id
 
@@ -1380,8 +1389,8 @@ class DatabaseAdapter:
         Rejects relinking if the existing Telegram-linked user is another Web App account.
         Migrates wallet transactions and user_referrals conflict-safely.
         """
-        target_web_id = str(web_user_id)
-        tg_id_str = str(telegram_id)
+        target_web_id = web_user_id
+        tg_id_str = telegram_id
         pool = await self._ensure_pool()
 
         async with pool.connection() as conn:

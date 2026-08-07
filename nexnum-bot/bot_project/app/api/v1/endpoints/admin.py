@@ -20,16 +20,21 @@ from pydantic import BaseModel, Field
 # pyrefly: ignore [missing-import]
 from app.core.config import get_settings
 # pyrefly: ignore [missing-import]
-from app.crud.firebase_crud import get_all_sim_nodes
+from app.crud import firebase_crud as crud
+# pyrefly: ignore [missing-import]
+from app.crud.firebase_crud import (
+    get_all_sim_nodes,
+    get_all_sim_nodes_async,
+    get_incoming_messages,
+    GLOBAL_PHONE_CACHE,
+    parse_any_datetime_to_epoch_ms,
+)
 # pyrefly: ignore [missing-import]
 from app.services.pattern_registry import ServicePatternRegistry, load_default_patterns
 # pyrefly: ignore [missing-import]
 from app.services.sms_parser import extract_otp_code
 # pyrefly: ignore [missing-import]
 from app.middleware.auth import verify_api_key
-
-# pyrefly: ignore [missing-import]
-from app.crud.firebase_crud import get_all_sim_nodes_async
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -59,6 +64,7 @@ class TestMatchPayload(BaseModel):
 async def get_system_stats():
     """Returns overview metrics: active activations, allocatable SIMs, Redis status."""
     try:
+        # pyrefly: ignore [missing-import]
         from utils.redis_manager import redis_manager
     except ImportError:
         from bot_project.utils.redis_manager import redis_manager
@@ -115,6 +121,7 @@ async def get_devices_list(
 ):
     """Returns normalized DeviceSimNodes with server-side sorting, search filtering, and pagination."""
     try:
+        # pyrefly: ignore [missing-import]
         from utils.redis_manager import redis_manager
     except ImportError:
         from bot_project.utils.redis_manager import redis_manager
@@ -292,6 +299,7 @@ async def get_device_messages(
     Bypasses device_no_messages negative cache for explicit user requests.
     """
     try:
+        # pyrefly: ignore [missing-import]
         from utils.redis_manager import redis_manager
         redis_client = await redis_manager.get_client()
     except Exception:
@@ -329,8 +337,7 @@ async def get_device_messages(
 
     # 2. Fast Multi-Path Query (also tries phone number variants from GLOBAL_PHONE_CACHE)
     try:
-        from app.crud import firebase_crud as crud  # pyrefly: ignore [missing-import]
-        raw_msgs = crud.get_incoming_messages(device_id, limit=limit)
+        raw_msgs = get_incoming_messages(device_id, limit=limit)
     except Exception as e:
         logger.error(f"Failed to fetch incoming messages for {device_id}: {e}")
         raw_msgs = []
@@ -338,11 +345,10 @@ async def get_device_messages(
     # 2b. If empty, try alternate keys from phone cache
     if not raw_msgs:
         try:
-            from app.crud.firebase_crud import GLOBAL_PHONE_CACHE  # pyrefly: ignore [missing-import]
             if device_id in GLOBAL_PHONE_CACHE:
                 alt_phone = GLOBAL_PHONE_CACHE[device_id].get("mobNo", "")
                 if alt_phone:
-                    raw_msgs = crud.get_incoming_messages(alt_phone, limit=limit)
+                    raw_msgs = get_incoming_messages(alt_phone, limit=limit)
         except Exception:
             pass
 
@@ -357,7 +363,7 @@ async def get_device_messages(
 
         # Parse timestamp safely to epoch milliseconds
         try:
-            ts_val = crud.parse_any_datetime_to_epoch_ms(msg)  # type: ignore[possibly-unbound]
+            ts_val = parse_any_datetime_to_epoch_ms(msg)
         except Exception:
             ts_val = 0
         date_time_str = str(msg.get("dateTime") or msg.get("datetime") or msg.get("date_time") or "")
@@ -401,6 +407,7 @@ async def get_device_messages(
 async def ban_device(device_id: str):
     """Ban a device from number allocation."""
     try:
+        # pyrefly: ignore [missing-import]
         from utils.redis_manager import redis_manager
     except ImportError:
         from bot_project.utils.redis_manager import redis_manager
@@ -415,6 +422,7 @@ async def ban_device(device_id: str):
 async def unban_device(device_id: str):
     """Unban a device."""
     try:
+        # pyrefly: ignore [missing-import]
         from utils.redis_manager import redis_manager
     except ImportError:
         from bot_project.utils.redis_manager import redis_manager
@@ -437,6 +445,7 @@ async def get_active_activations(
 ):
     """Returns all active activations stored in Redis with sorting and pagination."""
     try:
+        # pyrefly: ignore [missing-import]
         from utils.redis_manager import redis_manager
     except ImportError:
         from bot_project.utils.redis_manager import redis_manager
@@ -527,6 +536,7 @@ async def get_all_patterns():
 async def update_pattern(service_code: str, payload: PatternUpdatePayload):
     """Updates pattern definition for a service live in Supabase and invalidates Redis cache."""
     try:
+        # pyrefly: ignore [missing-import]
         from utils.redis_manager import redis_manager
     except ImportError:
         from bot_project.utils.redis_manager import redis_manager
@@ -545,6 +555,7 @@ async def test_pattern_match(payload: TestMatchPayload):
     """Real-World Live Pattern Sandbox: Tests SMS body & sender against live regex registry."""
     start_time = time.time()
     try:
+        # pyrefly: ignore [missing-import]
         from utils.redis_manager import redis_manager
     except ImportError:
         from bot_project.utils.redis_manager import redis_manager
@@ -585,6 +596,7 @@ async def get_scorer_leaderboard(
     """
     import asyncio
     try:
+        # pyrefly: ignore [missing-import]
         from utils.redis_manager import redis_manager
     except ImportError:
         from bot_project.utils.redis_manager import redis_manager
@@ -599,6 +611,7 @@ async def get_scorer_leaderboard(
     req_svc = (service or "tg").lower()
 
     try:
+        # pyrefly: ignore [missing-import]
         from utils.redis_manager import redis_manager
     except ImportError:
         from bot_project.utils.redis_manager import redis_manager

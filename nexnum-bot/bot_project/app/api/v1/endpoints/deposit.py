@@ -56,6 +56,7 @@ async def create_deposit(req: DepositCreateRequest):
             deposit_id=deposit_id
         )
 
+        # pyrefly: ignore [missing-import]
         from utils.functions import generate_simple_upi_qr
         dep_id_str = str(created_id or deposit_id)
         qr_code_url = generate_simple_upi_qr(dep_id_str, req.amount)
@@ -63,7 +64,7 @@ async def create_deposit(req: DepositCreateRequest):
 
         deposit_data = {
             "deposit_id": dep_id_str,
-            "user_id": str(req.user_id),
+            "user_id": req.user_id,
             "amount": req.amount,
             "gateway": req.gateway,
             "status": "PENDING",
@@ -106,6 +107,7 @@ async def get_deposit_status(deposit_id: str):
     """
     try:
         db = db_adapter
+        # pyrefly: ignore [missing-import]
         from utils.functions import QR_BASE_URL
         dep = await db.get_deposit_request(deposit_id)
         if not dep:
@@ -226,19 +228,13 @@ async def cancel_deposit(req: DepositCancelRequest):
 
         # 3. Update status in PostgreSQL
         try:
-            await db.execute(
-                """UPDATE deposit_requests
-                   SET status = 'CANCELLED', updated_at = NOW()
-                   WHERE deposit_id = $1 OR id::text = $1""",
-                deposit_id
-            )
-        except Exception:
-            # Fallback: try update_deposit_status if execute is not available
-            if hasattr(db, 'update_deposit_status'):
-                await db.update_deposit_status(deposit_id=deposit_id, status="CANCELLED")
+            await db.update_deposit_status(deposit_id=deposit_id, status="CANCELLED")
+        except Exception as db_err:
+            logger.error(f"Failed to update deposit status to CANCELLED in DB: {db_err}")
 
         # 4. Remove from Redis so tracker stops
         try:
+            # pyrefly: ignore [missing-import]
             from utils.redis_manager import redis_manager
             client = await redis_manager.get_client()
             if client:
