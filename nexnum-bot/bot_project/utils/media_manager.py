@@ -5,7 +5,9 @@ from typing import Union, Optional, Any
 from telebot.async_telebot import AsyncTeleBot
 from telebot.types import Message, InputFile
 
+# pyrefly: ignore [missing-import]
 from utils.redis_manager import redis_manager
+# pyrefly: ignore [missing-import]
 from utils.db import db_adapter
 
 logger = logging.getLogger("media_manager")
@@ -21,10 +23,10 @@ def _get_source_signature(file_source: str) -> str:
             size = os.path.getsize(file_source)
             raw = f"{os.path.abspath(file_source)}:{mtime}:{size}"
         else:
-            raw = str(file_source)
+            raw = file_source
         return hashlib.md5(raw.encode('utf-8')).hexdigest()
     except Exception:
-        return hashlib.md5(str(file_source).encode('utf-8')).hexdigest()
+        return hashlib.md5(file_source.encode('utf-8')).hexdigest()
 
 def prepare_input_media(media_source: Any, caption: Optional[str] = None, parse_mode: str = "HTML", media_type: str = "photo") -> Any:
     """
@@ -186,7 +188,7 @@ async def edit_or_cached_media(
     parse_mode: str = "HTML",
     reply_markup: Optional[Any] = None,
     media_type: str = "photo"
-) -> Optional[Message]:
+) -> Union[Message, bool, None]:
     """
     Edits message media using sub-millisecond cached file_id string, automatically uploading
     and caching local file paths or URLs if cache misses or source file changes.

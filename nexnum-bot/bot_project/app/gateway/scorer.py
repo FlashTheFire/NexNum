@@ -59,7 +59,8 @@ class DeviceScorer:
         user_id: str,
         now: float,
         effective_cooldown_sec: float = 1200.0,
-        service_sms_count_override: Optional[int] = None
+        service_sms_count_override: Optional[int] = None,
+        prefetched_data: Optional[dict] = None
     ) -> ScoredSimCandidate:
         """
         Calculates deterministic integer score for a DeviceSimNode candidate.
@@ -88,6 +89,41 @@ class DeviceScorer:
         if service_sms_count_override is not None:
             service_sms_count = service_sms_count_override
             has_messages = True
+        elif prefetched_data is not None:
+            svc_cooldown_val = prefetched_data.get("svc_cooldown")
+            user_cooldown_val = prefetched_data.get("user_cooldown")
+            svc_count_val = prefetched_data.get("svc_count")
+            dev_msgs_val = prefetched_data.get("dev_msgs")
+            phone_msgs_val = prefetched_data.get("phone_msgs")
+
+            if svc_cooldown_val is not None:
+                last_svc_time = float(svc_cooldown_val)
+                if (now - last_svc_time) < effective_cooldown_sec:
+                    return ScoredSimCandidate(node=node, score=-9999, service_sms_count=0, mins_since_seen=999, has_messages=has_messages, last_sms_hours=999)
+
+            if user_cooldown_val is not None:
+                last_user_time = float(user_cooldown_val)
+                if (now - last_user_time) < 1800.0:
+                    return ScoredSimCandidate(node=node, score=-9999, service_sms_count=0, mins_since_seen=999, has_messages=has_messages, last_sms_hours=999)
+
+            service_sms_count = int(svc_count_val) if svc_count_val else 0
+
+            msgs_raw = dev_msgs_val or phone_msgs_val
+            if msgs_raw:
+                try:
+                    parsed = json.loads(msgs_raw)
+                    if isinstance(parsed, list) and len(parsed) > 0:
+                        has_messages = True
+                        first_msg = parsed[0]
+                        ts_val = first_msg.get("timestamp")
+                        if isinstance(ts_val, (int, float)) and ts_val > 0:
+                            last_sms_timestamp_ms = float(ts_val)
+                        else:
+                            # pyrefly: ignore [missing-import]
+                            from app.crud.firebase_crud import parse_any_datetime_to_epoch_ms
+                            last_sms_timestamp_ms = float(parse_any_datetime_to_epoch_ms(first_msg))
+                except Exception:
+                    pass
         elif redis_client:
             try:
                 pipe = redis_client.pipeline()
@@ -172,7 +208,8 @@ class DeviceScorer:
         mins_since_sms = hours_since_last_sms * 60.0
 
         # ─── HARD EXCLUSION: Allocation requires SMS received within last 12 hours ───
-        if hours_since_last_sms > 12.0:
+        # Note: Devices with NO messages at all (brand new) bypass this hard exclusion
+        if hours_since_last_sms > 12.0 and has_messages:
             return ScoredSimCandidate(
                 node=node,
                 score=-9999,
@@ -247,11 +284,52 @@ class DeviceScorer:
         else:
             effective_cooldown_sec = 1200.0
 
+        req_service = (service or "ot").lower()
+        prefetched_map: Dict[str, dict] = {}
+        if redis_client:
+            try:
+                pipe = redis_client.pipeline()
+                for node in sim_nodes:
+                    phone = node.phone_number or ""
+                    pipe.get(f"{REDIS_PREFIX}:cooldown:service:{phone}:{req_service}")
+                    if user_id:
+                        pipe.get(f"{REDIS_PREFIX}:cooldown:user:{user_id}:{phone}")
+                    pipe.hget(f"{REDIS_PREFIX}:service_counts:{phone}", req_service)
+                    pipe.get(f"{REDIS_PREFIX}:device_messages:{node.device_id}")
+                    pipe.get(f"{REDIS_PREFIX}:device_messages:{phone}")
+
+                results = await pipe.execute()
+                step = 5 if user_id else 4
+                for i, node in enumerate(sim_nodes):
+                    offset = i * step
+                    svc_cooldown = results[offset]
+                    idx = offset + 1
+                    user_cooldown = results[idx] if user_id else None
+                    if user_id:
+                        idx += 1
+                    svc_count = results[idx]
+                    idx += 1
+                    dev_msgs = results[idx]
+                    idx += 1
+                    phone_msgs = results[idx]
+
+                    prefetched_map[node.device_id] = {
+                        "svc_cooldown": svc_cooldown,
+                        "user_cooldown": user_cooldown,
+                        "svc_count": svc_count,
+                        "dev_msgs": dev_msgs,
+                        "phone_msgs": phone_msgs
+                    }
+            except Exception as e:
+                logger.warning(f"Batch Redis pipeline error in DeviceScorer: {e}")
+
         # Score all candidates concurrently
         scored_candidates: List[ScoredSimCandidate] = []
         for node in sim_nodes:
             candidate = await cls.score_sim_node(
-                redis_client, node, service, user_id, now, effective_cooldown_sec=effective_cooldown_sec
+                redis_client, node, service, user_id, now,
+                effective_cooldown_sec=effective_cooldown_sec,
+                prefetched_data=prefetched_map.get(node.device_id)
             )
             if candidate.score > -9999:
                 scored_candidates.append(candidate)
@@ -260,7 +338,9 @@ class DeviceScorer:
         if not scored_candidates and effective_cooldown_sec > 120.0:
             for node in sim_nodes:
                 candidate = await cls.score_sim_node(
-                    redis_client, node, service, user_id, now, effective_cooldown_sec=120.0
+                    redis_client, node, service, user_id, now,
+                    effective_cooldown_sec=120.0,
+                    prefetched_data=prefetched_map.get(node.device_id)
                 )
                 if candidate.score > -9999:
                     scored_candidates.append(candidate)

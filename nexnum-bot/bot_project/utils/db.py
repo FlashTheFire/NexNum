@@ -777,7 +777,7 @@ class DatabaseAdapter:
                     params.append(deposit_id)
                     params.append(deposit_id)
                     sql = f"UPDATE deposit_requests SET {', '.join(updates)} WHERE id::text = %s OR idempotency_key = %s"
-                    await cur.execute(SQL(sql), tuple(params))
+                    await cur.execute(sql, tuple(params))
                     await conn.commit()
                     return True
         except Exception as exc:
@@ -859,11 +859,9 @@ class DatabaseAdapter:
                 where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
 
                 await cur.execute(
-                    SQL(
-                        "SELECT dr.*, u.telegram_id FROM deposit_requests dr "
-                        f"LEFT JOIN users u ON dr.user_id = u.id {where_sql} "
-                        "ORDER BY dr.created_at DESC LIMIT %s OFFSET %s"
-                    ),
+                    "SELECT dr.*, u.telegram_id FROM deposit_requests dr "
+                    f"LEFT JOIN users u ON dr.user_id = u.id {where_sql} "
+                    "ORDER BY dr.created_at DESC LIMIT %s OFFSET %s",
                     tuple(params + [limit, offset])
                 )
                 rows = await cur.fetchall()
@@ -883,14 +881,12 @@ class DatabaseAdapter:
                         except Exception:
                             pass
                     await cur.execute(
-                        SQL(
-                            "SELECT wt.id, w.user_id, wt.amount, wt.created_at, wt.idempotency_key, u.telegram_id "
-                            "FROM wallet_transactions wt "
-                            "JOIN wallets w ON wt.wallet_id = w.id "
-                            "LEFT JOIN users u ON w.user_id = u.id "
-                            f"WHERE (w.user_id = %s OR w.user_id = %s) AND LOWER(wt.type) = 'credit'{wt_time_sql} "
-                            "ORDER BY wt.created_at DESC LIMIT %s"
-                        ),
+                        "SELECT wt.id, w.user_id, wt.amount, wt.created_at, wt.idempotency_key, u.telegram_id "
+                        "FROM wallet_transactions wt "
+                        "JOIN wallets w ON wt.wallet_id = w.id "
+                        "LEFT JOIN users u ON w.user_id = u.id "
+                        f"WHERE (w.user_id = %s OR w.user_id = %s) AND LOWER(wt.type) = 'credit'{wt_time_sql} "
+                        "ORDER BY wt.created_at DESC LIMIT %s",
                         tuple(wt_params + [limit])
                     )
                     wt_rows = await cur.fetchall()
@@ -1013,7 +1009,7 @@ class DatabaseAdapter:
                     vals.append(order_id)
                     sql = f"UPDATE purchase_orders SET {', '.join(sets)} WHERE id = %s OR activation_id = %s RETURNING id"
                     vals.append(order_id)
-                    await cur.execute(SQL(sql), tuple(vals))
+                    await cur.execute(sql, tuple(vals))
                     await conn.commit()
                     return True
         except Exception as exc:
@@ -1120,17 +1116,15 @@ class DatabaseAdapter:
 
                 where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
 
-                await cur.execute(SQL(f"SELECT COUNT(*) as total FROM purchase_orders po {where_sql}"), tuple(params))
+                await cur.execute(f"SELECT COUNT(*) as total FROM purchase_orders po {where_sql}", tuple(params))
                 total_row = await cur.fetchone()
                 total = total_row["total"] if total_row else 0
 
                 query_params = list(params) + [limit, offset]
                 await cur.execute(
-                    SQL(
-                        "SELECT po.*, u.telegram_id FROM purchase_orders po "
-                        f"LEFT JOIN users u ON po.user_id = u.id {where_sql} "
-                        "ORDER BY po.created_at DESC LIMIT %s OFFSET %s"
-                    ),
+                    "SELECT po.*, u.telegram_id FROM purchase_orders po "
+                    f"LEFT JOIN users u ON po.user_id = u.id {where_sql} "
+                    "ORDER BY po.created_at DESC LIMIT %s OFFSET %s",
                     tuple(query_params)
                 )
                 rows = await cur.fetchall()
@@ -1311,17 +1305,15 @@ class DatabaseAdapter:
 
                 where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
 
-                await cur.execute(SQL(f"SELECT COUNT(*) as total FROM support_tickets st {where_sql}"), tuple(params))
+                await cur.execute(f"SELECT COUNT(*) as total FROM support_tickets st {where_sql}", tuple(params))
                 total_row = await cur.fetchone()
                 total = total_row["total"] if total_row else 0
 
                 query_params = list(params) + [limit, offset]
                 await cur.execute(
-                    SQL(
-                        "SELECT st.*, u.telegram_id FROM support_tickets st "
-                        f"LEFT JOIN users u ON st.user_id = u.id {where_sql} "
-                        "ORDER BY st.created_at DESC LIMIT %s OFFSET %s"
-                    ),
+                    "SELECT st.*, u.telegram_id FROM support_tickets st "
+                    f"LEFT JOIN users u ON st.user_id = u.id {where_sql} "
+                    "ORDER BY st.created_at DESC LIMIT %s OFFSET %s",
                     tuple(query_params),
                 )
                 rows = await cur.fetchall()

@@ -35,7 +35,7 @@ class RedisManager:
         self.MAX_BACKOFF = 5              # Cap exponential back-off
         self.SOCKET_TIMEOUT = 5           # Per-operation timeout
         self.SOCKET_CONNECT_TIMEOUT = 5   # TCP connect timeout
-        self.POOL_SIZE = 20
+        self.POOL_SIZE = 200
         self.HEALTH_CHECK_INTERVAL = 15
 
     def _purge_closed_loops(self):
