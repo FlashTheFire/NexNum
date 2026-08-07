@@ -254,6 +254,13 @@ CREATE TABLE IF NOT EXISTS "purchase_orders" (
     "updated_at"      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='purchase_orders' AND column_name='expiresAt') THEN
+        ALTER TABLE "purchase_orders" RENAME COLUMN "expiresAt" TO "expires_at";
+    END IF;
+END $$;
+ALTER TABLE "purchase_orders" ADD COLUMN IF NOT EXISTS "expires_at" TIMESTAMPTZ;
+
 CREATE INDEX IF NOT EXISTS "purchase_orders_status_expires_at_idx" ON "purchase_orders" ("status", "expires_at");
 CREATE INDEX IF NOT EXISTS "purchase_orders_user_id_idx" ON "purchase_orders" ("user_id");
 
@@ -333,6 +340,17 @@ CREATE TABLE IF NOT EXISTS "account_link_tokens" (
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='account_link_tokens' AND column_name='expiresAt') THEN
+        ALTER TABLE "account_link_tokens" RENAME COLUMN "expiresAt" TO "expires_at";
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='account_link_tokens' AND column_name='token') THEN
+        ALTER TABLE "account_link_tokens" RENAME COLUMN "token" TO "token_hash";
+    END IF;
+END $$;
+ALTER TABLE "account_link_tokens" ADD COLUMN IF NOT EXISTS "expires_at" TIMESTAMPTZ;
+ALTER TABLE "account_link_tokens" ADD COLUMN IF NOT EXISTS "token_hash" TEXT;
+
 CREATE INDEX IF NOT EXISTS "account_link_tokens_expires_at_idx" ON "account_link_tokens" ("expires_at");
 
 
@@ -370,6 +388,13 @@ CREATE TABLE IF NOT EXISTS "numbers" (
     "updated_at"            TIMESTAMPTZ DEFAULT NOW()
 );
 
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='numbers' AND column_name='expiresAt') THEN
+        ALTER TABLE "numbers" RENAME COLUMN "expiresAt" TO "expires_at";
+    END IF;
+END $$;
+ALTER TABLE "numbers" ADD COLUMN IF NOT EXISTS "expires_at" TIMESTAMPTZ;
+
 CREATE INDEX IF NOT EXISTS "numbers_owner_id_idx" ON "numbers" ("owner_id");
 CREATE INDEX IF NOT EXISTS "numbers_status_idx" ON "numbers" ("status");
 CREATE INDEX IF NOT EXISTS "numbers_status_created_at_idx" ON "numbers" ("status", "created_at");
@@ -395,9 +420,17 @@ CREATE TABLE IF NOT EXISTS "sms_messages" (
     "confidence"     NUMERIC(3, 2)
 );
 
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='sms_messages' AND column_name='expiresAt') THEN
+        ALTER TABLE "sms_messages" RENAME COLUMN "expiresAt" TO "expires_at";
+    END IF;
+END $$;
+ALTER TABLE "sms_messages" ADD COLUMN IF NOT EXISTS "expires_at" TIMESTAMPTZ;
+
 CREATE INDEX IF NOT EXISTS "sms_messages_number_id_idx" ON "sms_messages" ("number_id");
-CREATE INDEX IF NOT EXISTS "sms_messages_provider_idx" ON "sms_messages" ("provider");
+CREATE INDEX IF NOT EXISTS "sms_messages_code_idx" ON "sms_messages" ("code");
 CREATE INDEX IF NOT EXISTS "sms_messages_expires_at_idx" ON "sms_messages" ("expires_at");
+CREATE INDEX IF NOT EXISTS "sms_messages_provider_idx" ON "sms_messages" ("provider");
 
 
 -- ---------------------------------------------------------------------------
@@ -677,6 +710,13 @@ CREATE TABLE IF NOT EXISTS "offer_reservations" (
     "confirmed_at"            TIMESTAMPTZ
 );
 
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='offer_reservations' AND column_name='expiresAt') THEN
+        ALTER TABLE "offer_reservations" RENAME COLUMN "expiresAt" TO "expires_at";
+    END IF;
+END $$;
+ALTER TABLE "offer_reservations" ADD COLUMN IF NOT EXISTS "expires_at" TIMESTAMPTZ;
+
 CREATE INDEX IF NOT EXISTS "offer_reservations_status_expires_at_idx" ON "offer_reservations" ("status", "expires_at");
 
 CREATE TABLE IF NOT EXISTS "service_aggregates" (
@@ -715,6 +755,13 @@ CREATE TABLE IF NOT EXISTS "activations" (
     "created_at"             TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "updated_at"             TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='activations' AND column_name='expiresAt') THEN
+        ALTER TABLE "activations" RENAME COLUMN "expiresAt" TO "expires_at";
+    END IF;
+END $$;
+ALTER TABLE "activations" ADD COLUMN IF NOT EXISTS "expires_at" TIMESTAMPTZ;
 
 CREATE INDEX IF NOT EXISTS "activations_user_id_state_idx" ON "activations" ("user_id", "state");
 CREATE INDEX IF NOT EXISTS "activations_state_expires_at_idx" ON "activations" ("state", "expires_at");
@@ -906,6 +953,17 @@ CREATE TABLE IF NOT EXISTS "password_resets" (
     "ip_address" TEXT
 );
 
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='password_resets' AND column_name='expiresAt') THEN
+        ALTER TABLE "password_resets" RENAME COLUMN "expiresAt" TO "expires_at";
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='password_resets' AND column_name='token') THEN
+        ALTER TABLE "password_resets" RENAME COLUMN "token" TO "token_hash";
+    END IF;
+END $$;
+ALTER TABLE "password_resets" ADD COLUMN IF NOT EXISTS "expires_at" TIMESTAMPTZ;
+ALTER TABLE "password_resets" ADD COLUMN IF NOT EXISTS "token_hash" TEXT;
+
 CREATE INDEX IF NOT EXISTS "password_resets_user_id_idx" ON "password_resets" ("user_id");
 CREATE INDEX IF NOT EXISTS "password_resets_expires_at_idx" ON "password_resets" ("expires_at");
 
@@ -917,6 +975,17 @@ CREATE TABLE IF NOT EXISTS "email_verification_tokens" (
     "used_at"    TIMESTAMPTZ,
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='email_verification_tokens' AND column_name='expiresAt') THEN
+        ALTER TABLE "email_verification_tokens" RENAME COLUMN "expiresAt" TO "expires_at";
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='email_verification_tokens' AND column_name='token') THEN
+        ALTER TABLE "email_verification_tokens" RENAME COLUMN "token" TO "token_hash";
+    END IF;
+END $$;
+ALTER TABLE "email_verification_tokens" ADD COLUMN IF NOT EXISTS "expires_at" TIMESTAMPTZ;
+ALTER TABLE "email_verification_tokens" ADD COLUMN IF NOT EXISTS "token_hash" TEXT;
 
 CREATE INDEX IF NOT EXISTS "email_verification_tokens_user_id_idx" ON "email_verification_tokens" ("user_id");
 CREATE INDEX IF NOT EXISTS "email_verification_tokens_expires_at_idx" ON "email_verification_tokens" ("expires_at");
@@ -985,6 +1054,13 @@ CREATE TABLE IF NOT EXISTS "verification_attempts" (
     "attemptedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "userId"      TEXT REFERENCES "users"("id") ON DELETE SET NULL
 );
+
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='verification_attempts' AND column_name='token') THEN
+        ALTER TABLE "verification_attempts" RENAME COLUMN "token" TO "token_hash";
+    END IF;
+END $$;
+ALTER TABLE "verification_attempts" ADD COLUMN IF NOT EXISTS "token_hash" TEXT;
 
 CREATE INDEX IF NOT EXISTS "verification_attempts_ip_attempted_idx" ON "verification_attempts" ("ipAddress", "attemptedAt");
 
