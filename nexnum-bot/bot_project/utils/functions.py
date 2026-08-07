@@ -228,10 +228,6 @@ def convert_usd_to_rub(amount_usd, exchange_rate=100, sms_tax=1, tax_rate=COMMIS
 
 def convert_rub_to_usd(amount_rub, exchange_rate=100, sms_tax=1, tax_rate=COMMISSION):
     """Converts RUB to USD, applying the given exchange rate and tax rate."""
-    try:
-        from ..handlers.manager.operation import SMS_ACTIVATE_TAX
-    except ImportError:
-        SMS_ACTIVATE_TAX = 1.0
     return round(float(amount_rub) / float(exchange_rate) / float(tax_rate), 8)
 
 

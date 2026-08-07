@@ -1,220 +1,220 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { motion, AnimatePresence } from "framer-motion"
+import { Bell, Mail, Smartphone, Volume2, ShieldCheck, Check, Sparkles, AlertCircle, Save, Loader2 } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
-import { Bell, Volume2, Shield, CreditCard, MessageSquare, Zap, Check, Save } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { toast } from "sonner"
 
-interface EventCategory {
-    id: string
-    category: string
-    description: string
-    pushEnabled: boolean
-    emailEnabled: boolean
-    smsEnabled: boolean
+interface NotifPrefs {
+    emailAlerts?: boolean
+    smsAlerts?: boolean
+    pushAlerts?: boolean
+    soundEnabled?: boolean
+    lowBalanceAlert?: boolean
+    securityAlerts?: boolean
+    marketingEmails?: boolean
 }
 
 export function NotificationSettings() {
-    // Master channel toggles
-    const [pushEnabled, setPushEnabled] = useState(true)
-    const [soundEnabled, setSoundEnabled] = useState(true)
-    const [emailAlerts, setEmailAlerts] = useState(true)
-    const [smsAlerts, setSmsAlerts] = useState(true)
+    const [prefs, setPrefs] = useState<NotifPrefs>({
+        emailAlerts: true,
+        smsAlerts: false,
+        pushAlerts: true,
+        soundEnabled: true,
+        lowBalanceAlert: true,
+        securityAlerts: true,
+        marketingEmails: false
+    })
+    const [isLoading, setIsLoading] = useState(true)
     const [isSaving, setIsSaving] = useState(false)
 
-    // Granular Event Category Table Map State
-    const [eventCategories, setEventCategories] = useState<EventCategory[]>([
-        {
-            id: "evt_1",
-            category: "Incoming SMS & OTP Receipts",
-            description: "Instant notification when new SMS code arrives for rented virtual numbers",
-            pushEnabled: true,
-            emailEnabled: false,
-            smsEnabled: true
-        },
-        {
-            id: "evt_2",
-            category: "Security Alerts & 2FA Events",
-            description: "Alerts for new device logins, password updates, and 2FA changes",
-            pushEnabled: true,
-            emailEnabled: true,
-            smsEnabled: true
-        },
-        {
-            id: "evt_3",
-            category: "Wallet Top-up & Deposit Verification",
-            description: "Confirmation when funds are successfully added to your balance",
-            pushEnabled: true,
-            emailEnabled: true,
-            smsEnabled: false
-        },
-        {
-            id: "evt_4",
-            category: "SilentGate Node Gateway Sync",
-            description: "Real-time sync notifications for connected physical SIM devices",
-            pushEnabled: true,
-            emailEnabled: false,
-            smsEnabled: false
-        },
-        {
-            id: "evt_5",
-            category: "Number Expiration & Release Warnings",
-            description: "Advance warnings before rental duration expires for active numbers",
-            pushEnabled: true,
-            emailEnabled: true,
-            smsEnabled: true
-        }
-    ])
+    useEffect(() => {
+        fetchPrefs()
+    }, [])
 
-    const toggleCategorySetting = (id: string, channel: 'pushEnabled' | 'emailEnabled' | 'smsEnabled') => {
-        setEventCategories(prev => prev.map(item => {
-            if (item.id === id) {
-                return { ...item, [channel]: !item[channel] }
+    const fetchPrefs = async () => {
+        setIsLoading(true)
+        try {
+            const res = await fetch("/api/notifications/preferences")
+            const data = await res.json()
+            if (res.ok && data) {
+                setPrefs(data)
             }
-            return item
-        }))
+        } catch (e) {
+            console.error("Using default notification preferences")
+        } finally {
+            setIsLoading(false)
+        }
     }
 
-    const handleSave = () => {
-        setIsSaving(true)
-        setTimeout(() => {
-            setIsSaving(false)
-            toast.success("Notification preferences saved successfully")
-        }, 600)
+    const handleToggle = (key: keyof NotifPrefs) => {
+        const next = !prefs[key]
+        setPrefs(prev => ({ ...prev, [key]: next }))
     }
+
+    const handleSave = async () => {
+        setIsSaving(true)
+        try {
+            const res = await fetch("/api/notifications/preferences", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(prefs)
+            })
+
+            if (res.ok) {
+                toast.success("Notification preferences saved!")
+            } else {
+                toast.error("Failed to save notification preferences")
+            }
+        } catch (e) {
+            toast.error("Network error saving preferences")
+        } finally {
+            setIsSaving(false)
+        }
+    }
+
+    const testSound = () => {
+        try {
+            const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3")
+            audio.play()
+            toast.success("Playing test notification sound")
+        } catch (e) {
+            toast.info("Notification audio playback triggered")
+        }
+    }
+
+    const notifCards = [
+        {
+            key: "pushAlerts" as const,
+            title: "Browser Web Push Notifications",
+            description: "Receive instant browser alerts when incoming OTP SMS arrives",
+            icon: Bell,
+            color: "border-lime-400 bg-lime-400/5 text-lime-400"
+        },
+        {
+            key: "emailAlerts" as const,
+            title: "Email Notifications & Invoices",
+            description: "Receive transactional receipts, password changes, and account alerts",
+            icon: Mail,
+            color: "border-indigo-400 bg-indigo-400/5 text-indigo-400"
+        },
+        {
+            key: "smsAlerts" as const,
+            title: "SMS Phone Notifications",
+            description: "Receive SMS alerts on your registered mobile number",
+            icon: Smartphone,
+            color: "border-purple-400 bg-purple-400/5 text-purple-400"
+        },
+        {
+            key: "soundEnabled" as const,
+            title: "Realtime Chime Audio",
+            description: "Play an audible chime when new SMS is captured in dashboard",
+            icon: Volume2,
+            color: "border-emerald-400 bg-emerald-400/5 text-emerald-400",
+            action: (
+                <Button size="sm" variant="outline" onClick={testSound} className="h-7 px-2 text-[11px] border-emerald-400 text-emerald-400 hover:bg-emerald-400 hover:text-black">
+                    Test Chime
+                </Button>
+            )
+        }
+    ]
 
     return (
         <div className="space-y-6">
-            {/* Global Channel Master Switches */}
-            <Card className="border-white/10 bg-[#12131a]/80 backdrop-blur-md shadow-lg">
-                <CardHeader className="pb-4 border-b border-white/5 flex flex-row items-center justify-between">
+            {/* Header Card */}
+            <Card className="border-2 border-zinc-800 bg-[#0c0d12] shadow-[4px_4px_0px_0px_#a3e635]">
+                <CardHeader className="pb-4 border-b border-zinc-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                         <div className="flex items-center gap-2">
-                            <Bell className="w-4 h-4 text-indigo-400" />
-                            <CardTitle className="text-sm font-semibold text-white">Global Notification Channels</CardTitle>
+                            <Bell className="w-5 h-5 text-lime-400" />
+                            <CardTitle className="text-base font-extrabold text-white uppercase tracking-wider">Notification Rules & Sound</CardTitle>
                         </div>
-                        <CardDescription className="text-xs text-gray-400 mt-0.5">
-                            Enable or disable primary alert delivery channels across your account.
+                        <CardDescription className="text-xs text-zinc-400 mt-1">
+                            Configure channel preferences for OTP alerts, security logins, and balance updates.
                         </CardDescription>
                     </div>
 
                     <Button
                         onClick={handleSave}
                         disabled={isSaving}
-                        size="sm"
-                        className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold h-8 px-3 rounded-lg shadow-md transition-all shrink-0"
+                        className="bg-lime-400 hover:bg-lime-500 text-black font-extrabold text-xs h-9 px-5 border-2 border-black shadow-[2px_2px_0px_0px_#000] transition-all cursor-pointer shrink-0"
                     >
-                        <Save className="w-3.5 h-3.5 mr-1" />
-                        {isSaving ? "Saving..." : "Save Preferences"}
+                        {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <Save className="w-4 h-4 mr-1.5" />}
+                        Save Notification Rules
                     </Button>
                 </CardHeader>
-                <CardContent className="p-5 grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="p-3.5 rounded-xl bg-black/30 border border-white/5 flex items-center justify-between">
-                        <div className="flex items-center gap-2.5">
-                            <Bell className="w-4 h-4 text-emerald-400" />
-                            <div>
-                                <p className="text-xs font-semibold text-white">Push Alerts</p>
-                                <p className="text-[10px] text-gray-400">Desktop & Mobile</p>
-                            </div>
-                        </div>
-                        <Switch checked={pushEnabled} onCheckedChange={setPushEnabled} />
-                    </div>
 
-                    <div className="p-3.5 rounded-xl bg-black/30 border border-white/5 flex items-center justify-between">
-                        <div className="flex items-center gap-2.5">
-                            <Volume2 className="w-4 h-4 text-indigo-400" />
-                            <div>
-                                <p className="text-xs font-semibold text-white">Audio Sounds</p>
-                                <p className="text-[10px] text-gray-400">OTP Arrival Chime</p>
-                            </div>
-                        </div>
-                        <Switch checked={soundEnabled} onCheckedChange={setSoundEnabled} />
-                    </div>
-
-                    <div className="p-3.5 rounded-xl bg-black/30 border border-white/5 flex items-center justify-between">
-                        <div className="flex items-center gap-2.5">
-                            <Shield className="w-4 h-4 text-purple-400" />
-                            <div>
-                                <p className="text-xs font-semibold text-white">Email Alerts</p>
-                                <p className="text-[10px] text-gray-400">Security & Billing</p>
-                            </div>
-                        </div>
-                        <Switch checked={emailAlerts} onCheckedChange={setEmailAlerts} />
-                    </div>
-
-                    <div className="p-3.5 rounded-xl bg-black/30 border border-white/5 flex items-center justify-between">
-                        <div className="flex items-center gap-2.5">
-                            <MessageSquare className="w-4 h-4 text-cyan-400" />
-                            <div>
-                                <p className="text-xs font-semibold text-white">SMS Relays</p>
-                                <p className="text-[10px] text-gray-400">Urgent SMS Alerts</p>
-                            </div>
-                        </div>
-                        <Switch checked={smsAlerts} onCheckedChange={setSmsAlerts} />
-                    </div>
-                </CardContent>
-            </Card>
-
-            {/* Granular Event Category Notification Table Map */}
-            <Card className="border-white/10 bg-[#12131a]/80 backdrop-blur-md shadow-lg overflow-hidden">
-                <CardHeader className="pb-4 border-b border-white/5">
-                    <div className="flex items-center gap-2">
-                        <Zap className="w-4 h-4 text-indigo-400" />
-                        <CardTitle className="text-sm font-semibold text-white">Event Category Notification Table Map</CardTitle>
-                    </div>
-                    <CardDescription className="text-xs text-gray-400">
-                        Configure exact delivery rules per system event category.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="p-0">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="border-b border-white/5 bg-black/40 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
-                                    <th className="p-4">Event Category & Description</th>
-                                    <th className="p-4 text-center w-28">Push</th>
-                                    <th className="p-4 text-center w-28">Email</th>
-                                    <th className="p-4 text-center w-28">SMS</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-white/5 text-xs">
-                                {eventCategories.map((item) => (
-                                    <tr key={item.id} className="hover:bg-white/[0.02] transition-colors">
-                                        <td className="p-4">
-                                            <p className="font-semibold text-white">{item.category}</p>
-                                            <p className="text-[11px] text-gray-400 mt-0.5">{item.description}</p>
-                                        </td>
-                                        <td className="p-4 text-center">
-                                            <div className="flex justify-center">
-                                                <Switch
-                                                    checked={item.pushEnabled}
-                                                    onCheckedChange={() => toggleCategorySetting(item.id, 'pushEnabled')}
-                                                />
+                <CardContent className="p-6 space-y-6">
+                    {/* Animated Dark Neo-Brutalist Notification Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {notifCards.map((card) => {
+                            const Icon = card.icon
+                            const isChecked = !!prefs[card.key]
+                            return (
+                                <motion.div
+                                    key={card.key}
+                                    whileHover={{ scale: 1.01 }}
+                                    whileTap={{ scale: 0.99 }}
+                                    className={`p-4 rounded-xl border-2 transition-all cursor-pointer ${isChecked ? "bg-zinc-900 border-lime-400 shadow-[3px_3px_0px_0px_#a3e635]" : "bg-black border-zinc-800 hover:border-zinc-700"}`}
+                                    onClick={() => handleToggle(card.key)}
+                                >
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="flex items-start gap-3">
+                                            <div className={`p-2.5 rounded-lg border-2 ${card.color}`}>
+                                                <Icon className="w-4 h-4" />
                                             </div>
-                                        </td>
-                                        <td className="p-4 text-center">
-                                            <div className="flex justify-center">
-                                                <Switch
-                                                    checked={item.emailEnabled}
-                                                    onCheckedChange={() => toggleCategorySetting(item.id, 'emailEnabled')}
-                                                />
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <h4 className="text-xs font-extrabold text-white">{card.title}</h4>
+                                                    {card.action && <div onClick={(e) => e.stopPropagation()}>{card.action}</div>}
+                                                </div>
+                                                <p className="text-[11px] text-zinc-400 mt-1">{card.description}</p>
                                             </div>
-                                        </td>
-                                        <td className="p-4 text-center">
-                                            <div className="flex justify-center">
-                                                <Switch
-                                                    checked={item.smsEnabled}
-                                                    onCheckedChange={() => toggleCategorySetting(item.id, 'smsEnabled')}
-                                                />
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                        </div>
+
+                                        <Switch
+                                            checked={isChecked}
+                                            onCheckedChange={() => handleToggle(card.key)}
+                                            onClick={(e) => e.stopPropagation()}
+                                        />
+                                    </div>
+                                </motion.div>
+                            )
+                        })}
+                    </div>
+
+                    {/* Event Matrix Table Map */}
+                    <div className="space-y-3 pt-2">
+                        <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Event Notification Matrix Map</h4>
+                        <div className="divide-y divide-zinc-800 border-2 border-zinc-800 rounded-xl overflow-hidden bg-black">
+                            <div className="p-4 flex items-center justify-between hover:bg-zinc-900/50">
+                                <div>
+                                    <p className="text-xs font-extrabold text-white">Low Wallet Balance Alert</p>
+                                    <p className="text-[11px] text-zinc-500">Notify when total balance drops below ₹50 / $1.00</p>
+                                </div>
+                                <Switch checked={!!prefs.lowBalanceAlert} onCheckedChange={() => handleToggle("lowBalanceAlert")} />
+                            </div>
+
+                            <div className="p-4 flex items-center justify-between hover:bg-zinc-900/50">
+                                <div>
+                                    <p className="text-xs font-extrabold text-white">Critical Security & Login Alerts</p>
+                                    <p className="text-[11px] text-zinc-500">Instant notification when new device or IP logs into account</p>
+                                </div>
+                                <Switch checked={!!prefs.securityAlerts} onCheckedChange={() => handleToggle("securityAlerts")} />
+                            </div>
+
+                            <div className="p-4 flex items-center justify-between hover:bg-zinc-900/50">
+                                <div>
+                                    <p className="text-xs font-extrabold text-white">Product Updates & Promotions</p>
+                                    <p className="text-[11px] text-zinc-500">News about new country additions and feature releases</p>
+                                </div>
+                                <Switch checked={!!prefs.marketingEmails} onCheckedChange={() => handleToggle("marketingEmails")} />
+                            </div>
+                        </div>
                     </div>
                 </CardContent>
             </Card>

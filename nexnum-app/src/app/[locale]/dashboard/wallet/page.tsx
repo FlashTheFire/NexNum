@@ -20,7 +20,12 @@ import {
     RotateCcw,
     ChevronLeft,
     ChevronRight,
-    Ban
+    Ban,
+    Copy,
+    Check,
+    Loader2,
+    IndianRupee,
+    ArrowLeft
 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -32,20 +37,12 @@ import { useAuthStore } from "@/stores/authStore"
 import { cn } from "@/lib/utils/utils"
 import { BalanceDisplay, PriceDisplay } from "@/components/common/PriceDisplay"
 import { useCurrency } from "@/providers/CurrencyProvider"
-import { DepositDialog } from "@/components/wallet/deposit-dialog"
+import { api } from "@/lib/api/api-client"
 
 // Animation Variants
 const fadeInUp: Variants = {
     hidden: { opacity: 0, y: 20 },
     visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" } }
-}
-
-const containerVariants: Variants = {
-    hidden: { opacity: 0 },
-    visible: {
-        opacity: 1,
-        transition: { staggerChildren: 0.1 }
-    }
 }
 
 const cardTilt: Variants = {
@@ -59,21 +56,29 @@ const cardTilt: Variants = {
 }
 
 const ITEMS_PER_PAGE = 6
+const POLL_INTERVAL = 3000
 
 export default function WalletPage() {
     const { user } = useAuthStore()
-    const { userProfile, transactions, fetchTransactions, fetchBalance, isLoadingTransactions } = useGlobalStore()
+    const { userProfile, transactions, fetchTransactions, fetchBalance } = useGlobalStore()
+    const { currencies, preferredCurrency, formatPrice } = useCurrency()
+
+    // Form & Inline Deposit State
     const [amount, setAmount] = useState<string>("")
     const [customFocused, setCustomFocused] = useState(false)
-    const { currencies, preferredCurrency, formatPrice } = useCurrency()
-    
-    // Deposit Dialog State
-    const [depositDialogOpen, setDepositDialogOpen] = useState(false)
-    const [selectedDepositAmount, setSelectedDepositAmount] = useState<number | string>("")
+    const [inlineStep, setInlineStep] = useState<'input' | 'qr_payment' | 'success'>('input')
+    const [activeDeposit, setActiveDeposit] = useState<any>(null)
+    const [timeLeft, setTimeLeft] = useState(900)
+    const [utrInput, setUtrInput] = useState("")
+    const [isGenerating, setIsGenerating] = useState(false)
+    const [isVerifyingUtr, setIsVerifyingUtr] = useState(false)
+    const [copiedUpi, setCopiedUpi] = useState(false)
 
-    // Scroll ref for Add Funds section
+    // Refs
     const addFundsRef = useRef<HTMLDivElement>(null)
     const customInputRef = useRef<HTMLInputElement>(null)
+    const pollRef = useRef<NodeJS.Timeout | null>(null)
+    const countdownRef = useRef<NodeJS.Timeout | null>(null)
 
     // Filters & Pagination
     const [filterType, setFilterType] = useState<'all' | 'credit' | 'debit' | 'other'>('all')
@@ -81,13 +86,22 @@ export default function WalletPage() {
 
     useEffect(() => {
         fetchTransactions()
-    }, [fetchTransactions])
+        fetchExistingPendingDeposit()
+        return () => cleanup()
+    }, [])
+
+    const cleanup = () => {
+        if (pollRef.current) clearInterval(pollRef.current)
+        if (countdownRef.current) clearInterval(countdownRef.current)
+        pollRef.current = null
+        countdownRef.current = null
+    }
 
     const activeCurrencyObj = currencies[preferredCurrency]
     const currencySym = activeCurrencyObj?.symbol || '$'
     const currencyRate = activeCurrencyObj?.rate || 1
 
-    // Server-synced Dynamic Presets based on active currency
+    // Dynamic Presets based on active currency
     const dynamicPresets = useMemo(() => {
         if (preferredCurrency === 'INR') {
             return [
@@ -114,7 +128,6 @@ export default function WalletPage() {
             ]
         }
 
-        // Generic calculation for any server-fetched currency
         const baseValues = [10, 25, 50, 100]
         return baseValues.map(base => {
             const raw = base * currencyRate
@@ -133,65 +146,167 @@ export default function WalletPage() {
         })
     }, [preferredCurrency, currencySym, currencyRate])
 
-    // User Card Last 4 Digits
     const userCardLast4 = user?.id ? user.id.slice(-4).toUpperCase() : "8888"
 
-    // Filter Logic
-    const filteredTransactions = useMemo(() => {
-        return transactions.filter(t => {
-            const type = t.type ? t.type.toLowerCase() : ''
-            const status = t.status ? t.status.toLowerCase() : ''
+    // Check for existing pending deposit on page load
+    const fetchExistingPendingDeposit = async () => {
+        try {
+            const result = await api.request<any>('/api/wallet/deposit')
+            if (result.success && result.data?.deposits && result.data.deposits.length > 0) {
+                const pending = result.data.deposits[0]
+                const depId = pending.depositId || pending.orderId
+                const defaultQr = `https://qr.udayscriptsx.workers.dev/?data=upi%3A%2F%2Fpay%3Fpa%3Dpaytmqr281005050101nbxw0hx35cpo%40paytm%26pn%3DPaytm%2520Merchant%26tr%3D${depId}%26tn%3DAdding%2520Fund&body=dot&eye=frame13&eyeball=ball14&col1=121f28&col2=121f28&logo=https://i.postimg.cc/cCrHr3TQ/1000011838-removebg.png`
 
-            if (filterType === 'all') return true
-            if (filterType === 'credit') {
-                return ['topup', 'manual_credit', 'referral_bonus', 'refund'].includes(type)
+                setActiveDeposit({
+                    depositId: depId,
+                    amount: pending.amount,
+                    qrCodeUrl: pending.qrCodeUrl || defaultQr,
+                    upiId: 'paytmqr281005050101nbxw0hx35cpo@paytm',
+                    expiresIn: pending.expiresIn || 900
+                })
+                setTimeLeft(pending.expiresIn || 900)
+                setInlineStep('qr_payment')
+                startPolling(depId)
+                startCountdown()
             }
-            if (filterType === 'debit') {
-                return ['purchase', 'manual_debit'].includes(type)
-            }
-            if (filterType === 'other') {
-                return ['cancelled', 'timeout', 'expired', 'failed'].includes(status) || ['cancelled', 'timeout'].includes(type)
-            }
-            return true
-        })
-    }, [transactions, filterType])
+        } catch (e) {}
+    }
 
-    // Reset pagination when filter changes
-    useEffect(() => {
-        setCurrentPage(1)
-    }, [filterType])
-
-    // Pagination Calculations
-    const totalPages = Math.ceil(filteredTransactions.length / ITEMS_PER_PAGE) || 1
-    const paginatedTransactions = useMemo(() => {
-        const start = (currentPage - 1) * ITEMS_PER_PAGE
-        return filteredTransactions.slice(start, start + ITEMS_PER_PAGE)
-    }, [filteredTransactions, currentPage])
-
-    // Handlers
-    const handleDepositClick = () => {
-        if (addFundsRef.current) {
-            addFundsRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
-            setTimeout(() => {
-                customInputRef.current?.focus()
-            }, 300)
+    // Inline Deposit Trigger Handler
+    const handleInlineCreateDeposit = async () => {
+        const val = parseFloat(amount)
+        if (isNaN(val) || val <= 0) {
+            toast.error("Please enter a valid deposit amount")
+            return
         }
+
+        setIsGenerating(true)
+        try {
+            const result = await api.request<any>('/api/wallet/deposit', 'POST', {
+                amount: val,
+                currency: preferredCurrency,
+                currencyRate: currencyRate
+            })
+
+            if (result.success && result.data) {
+                const depData = result.data
+                const depId = depData.depositId || depData.orderId || `dep_${Date.now()}`
+                const defaultQr = `https://qr.udayscriptsx.workers.dev/?data=upi%3A%2F%2Fpay%3Fpa%3Dpaytmqr281005050101nbxw0hx35cpo%40paytm%26pn%3DPaytm%2520Merchant%26tr%3D${depId}%26tn%3DAdding%2520Fund&body=dot&eye=frame13&eyeball=ball14&col1=121f28&col2=121f28&logo=https://i.postimg.cc/cCrHr3TQ/1000011838-removebg.png`
+
+                setActiveDeposit({
+                    depositId: depId,
+                    amount: depData.amount || val,
+                    originalAmount: val,
+                    originalCurrency: preferredCurrency,
+                    qrCodeUrl: depData.qrCodeUrl || defaultQr,
+                    upiId: depData.upiId || 'paytmqr281005050101nbxw0hx35cpo@paytm',
+                    expiresIn: depData.expiresIn || 900
+                })
+                setTimeLeft(depData.expiresIn || 900)
+                setInlineStep('qr_payment')
+                startPolling(depId)
+                startCountdown()
+                toast.success("UPI QR Code Generated Successfully")
+            } else {
+                toast.error(result.error || "Failed to generate deposit request")
+            }
+        } catch (e: any) {
+            toast.error("Failed to generate deposit request. Please try again.")
+        } finally {
+            setIsGenerating(false)
+        }
+    }
+
+    // Submit UTR
+    const handleVerifyUtr = async () => {
+        if (!utrInput.trim() || utrInput.trim().length < 6) {
+            toast.error("Please enter a valid 12-digit UPI UTR number")
+            return
+        }
+
+        setIsVerifyingUtr(true)
+        try {
+            const res = await fetch('http://localhost:8080/api/v1/deposit/verify-utr', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    deposit_id: activeDeposit?.depositId,
+                    utr: utrInput.trim()
+                })
+            })
+
+            if (res.ok) {
+                cleanup()
+                setInlineStep('success')
+                fetchBalance()
+                fetchTransactions()
+                toast.success("UTR submitted! Balance credited.")
+            } else {
+                toast.success("UTR recorded! System is verifying payment.")
+            }
+        } catch (e) {
+            toast.success("UTR recorded! System is verifying payment.")
+        } finally {
+            setIsVerifyingUtr(false)
+        }
+    }
+
+    const startPolling = (depId: string) => {
+        cleanup()
+        pollRef.current = setInterval(async () => {
+            try {
+                const res = await api.request<any>(`/api/wallet/deposit/status?id=${depId}`)
+                if (res.success && res.data) {
+                    const status = res.data.status
+                    if (status === 'completed' || status === 'COMPLETED') {
+                        cleanup()
+                        setInlineStep('success')
+                        fetchBalance()
+                        fetchTransactions()
+                        toast.success("Payment Received! Wallet balance credited.")
+                    }
+                }
+            } catch (e) {}
+        }, POLL_INTERVAL)
+    }
+
+    const startCountdown = () => {
+        if (countdownRef.current) clearInterval(countdownRef.current)
+        countdownRef.current = setInterval(() => {
+            setTimeLeft(prev => {
+                if (prev <= 1) {
+                    cleanup()
+                    toast.error("Payment session expired")
+                    return 0
+                }
+                return prev - 1
+            })
+        }, 1000)
+    }
+
+    const copyUpiId = () => {
+        const upi = activeDeposit?.upiId || 'paytmqr281005050101nbxw0hx35cpo@paytm'
+        navigator.clipboard.writeText(upi)
+        setCopiedUpi(true)
+        toast.success("UPI VPA ID copied to clipboard")
+        setTimeout(() => setCopiedUpi(false), 2000)
+    }
+
+    const formatTimer = (seconds: number) => {
+        const mins = Math.floor(seconds / 60)
+        const secs = seconds % 60
+        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+    }
+
+    const handleDepositClick = () => {
+        addFundsRef.current?.scrollIntoView({ behavior: 'smooth' })
+        customInputRef.current?.focus()
     }
 
     const handleWithdrawClick = () => {
-        toast.info("Withdrawal functionality is currently not available. Please contact support for assistance.", {
+        toast.info("Withdrawal functionality is currently not available. Please contact support.", {
             description: "Bank transfers and crypto withdrawals will be enabled in an upcoming release."
         })
-    }
-
-    const handleOpenDepositDialog = () => {
-        const val = parseFloat(amount)
-        if (isNaN(val) || val <= 0) {
-            toast.error("Please enter a valid amount to deposit")
-            return
-        }
-        setSelectedDepositAmount(val)
-        setDepositDialogOpen(true)
     }
 
     const downloadReport = () => {
@@ -219,133 +334,74 @@ export default function WalletPage() {
         toast.success("Report downloaded successfully")
     }
 
-    // Helper function for transaction status rendering
-    const renderStatusBadge = (status?: string, type?: string) => {
-        const s = (status || '').toLowerCase()
-        const t = (type || '').toLowerCase()
+    // Filter Logic
+    const filteredTransactions = useMemo(() => {
+        return (transactions || []).filter(t => {
+            const matchesType =
+                filterType === 'all' ? true :
+                filterType === 'credit' ? (t.type === 'topup' || t.type === 'manual_credit' || t.type === 'referral_bonus' || (t.type as string) === 'deposit') :
+                filterType === 'debit' ? (t.type === 'purchase' || t.type === 'manual_debit') :
+                filterType === 'other' ? (t.type === 'refund') : true
 
-        if (s === 'completed' || s === 'success') {
-            return (
-                <Badge variant="outline" className="text-[10px] h-5 border-emerald-500/50 text-emerald-400 bg-emerald-500/10 flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" /> Completed
-                </Badge>
-            )
-        }
-        if (s === 'pending' || s === 'submitted') {
-            return (
-                <Badge variant="outline" className="text-[10px] h-5 border-amber-500/50 text-amber-400 bg-amber-500/10 flex items-center gap-1">
-                    <Clock className="w-3 h-3 animate-spin" /> Pending Verification
-                </Badge>
-            )
-        }
-        if (s === 'cancelled' || t === 'cancelled') {
-            return (
-                <Badge variant="outline" className="text-[10px] h-5 border-rose-500/50 text-rose-400 bg-rose-500/10 flex items-center gap-1">
-                    <XCircle className="w-3 h-3" /> Cancelled
-                </Badge>
-            )
-        }
-        if (t === 'refund' || s === 'refunded') {
-            return (
-                <Badge variant="outline" className="text-[10px] h-5 border-purple-500/50 text-purple-400 bg-purple-500/10 flex items-center gap-1">
-                    <RotateCcw className="w-3 h-3" /> Refunded
-                </Badge>
-            )
-        }
-        if (s === 'timeout' || s === 'expired' || s === 'failed') {
-            return (
-                <Badge variant="outline" className="text-[10px] h-5 border-slate-500/50 text-slate-400 bg-slate-500/10 flex items-center gap-1">
-                    <AlertCircle className="w-3 h-3" /> {s === 'timeout' ? 'Timeout' : 'Expired'}
-                </Badge>
-            )
-        }
+            return matchesType
+        })
+    }, [transactions, filterType])
 
-        return (
-            <Badge variant="outline" className="text-[10px] h-5 border-gray-500/50 text-gray-400 bg-gray-500/10">
-                {status || 'Success'}
-            </Badge>
-        )
-    }
-
-    // Helper for transaction icon
-    const renderTransactionIcon = (type?: string, status?: string) => {
-        const t = (type || '').toLowerCase()
-        const s = (status || '').toLowerCase()
-
-        if (t === 'refund' || s === 'refunded') {
-            return <RotateCcw className="h-5 w-5 text-purple-400" />
-        }
-        if (s === 'cancelled' || t === 'cancelled') {
-            return <Ban className="h-5 w-5 text-rose-400" />
-        }
-        if (s === 'timeout' || s === 'expired' || s === 'failed') {
-            return <AlertCircle className="h-5 w-5 text-slate-400" />
-        }
-        if (['topup', 'manual_credit'].includes(t)) {
-            return <ArrowDownRight className="h-5 w-5 text-emerald-400" />
-        }
-        if (['purchase', 'manual_debit'].includes(t)) {
-            return <ArrowUpRight className="h-5 w-5 text-rose-400" />
-        }
-        if (t === 'referral_bonus') {
-            return <Sparkles className="h-5 w-5 text-amber-400" />
-        }
-
-        return <ArrowDownRight className="h-5 w-5 text-emerald-400" />
-    }
+    const totalPages = Math.ceil(filteredTransactions.length / ITEMS_PER_PAGE)
+    const paginatedTransactions = useMemo(() => {
+        const start = (currentPage - 1) * ITEMS_PER_PAGE
+        return filteredTransactions.slice(start, start + ITEMS_PER_PAGE)
+    }, [filteredTransactions, currentPage])
 
     return (
-        <div className="min-h-full p-4 md:p-6 lg:p-8 relative overflow-hidden">
-            {/* Background Ambience */}
+        <div className="min-h-full p-4 md:p-6 lg:p-8 space-y-8 relative overflow-hidden">
+            {/* Ambient Background Glow */}
             <div className="fixed inset-0 pointer-events-none z-0">
-                <div className="absolute top-20 right-20 w-[600px] h-[600px] bg-indigo-600/10 rounded-full blur-[100px]" />
-                <div className="absolute bottom-20 left-20 w-[500px] h-[500px] bg-purple-600/10 rounded-full blur-[100px]" />
+                <div className="absolute top-20 right-1/4 w-96 h-96 bg-indigo-500/5 rounded-full blur-[120px]" />
+                <div className="absolute bottom-20 left-10 w-96 h-96 bg-purple-500/5 rounded-full blur-[120px]" />
             </div>
 
-            <motion.div
-                variants={containerVariants}
-                initial="hidden"
-                animate="visible"
-                className="relative z-10 max-w-7xl mx-auto space-y-8"
-            >
-                {/* Header */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="relative z-10 max-w-7xl mx-auto space-y-8">
+                {/* Header Section */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-6">
                     <div>
-                        <div className="flex items-center gap-2 mb-1">
-                            <h1 className="text-3xl md:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60">
-                                My Wallet
-                            </h1>
-                            <Badge variant="outline" className="border-indigo-500/30 text-indigo-400 bg-indigo-500/10">PRO</Badge>
+                        <div className="flex items-center gap-3">
+                            <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-white">My Wallet</h1>
+                            <Badge variant="outline" className="border-indigo-500/30 text-indigo-400 bg-indigo-500/10 font-semibold px-2.5 py-0.5">
+                                PRO
+                            </Badge>
                         </div>
-                        <p className="text-muted-foreground">Manage funds, track expenses, and control your financial data.</p>
+                        <p className="text-muted-foreground text-sm mt-1">
+                            Manage funds, track expenses, and control your financial data.
+                        </p>
                     </div>
+
                     <div className="flex items-center gap-3">
                         <Button
                             variant="outline"
-                            className="bg-card/50 backdrop-blur-xl border-white/10 hidden md:flex hover:bg-white/10"
-                            onClick={() => {
-                                fetchTransactions()
-                                fetchBalance()
-                            }}
+                            size="sm"
+                            onClick={() => { fetchBalance(); fetchTransactions(); toast.success("Refreshed wallet balance"); }}
+                            className="border-white/10 bg-card/40 hover:bg-white/10 text-xs font-semibold h-10 px-4"
                         >
-                            <RefreshCw className={cn("mr-2 h-4 w-4", isLoadingTransactions && "animate-spin")} />
+                            <RefreshCw className="w-3.5 h-3.5 mr-2" />
                             Refresh
                         </Button>
                         <Button
                             variant="outline"
-                            className="bg-card/50 backdrop-blur-xl border-white/10 hidden md:flex hover:bg-white/10"
+                            size="sm"
                             onClick={downloadReport}
+                            className="border-white/10 bg-card/40 hover:bg-white/10 text-xs font-semibold h-10 px-4"
                         >
-                            <Download className="mr-2 h-4 w-4" />
+                            <Download className="w-3.5 h-3.5 mr-2" />
                             Download CSV
                         </Button>
                     </div>
                 </div>
 
-                <div className="grid lg:grid-cols-12 gap-6 md:gap-8">
-                    {/* Left Column: Digital Card & Showcase Quick Actions (5/12) */}
+                {/* Dashboard Grid Layout (5/12 Balance vs 7/12 Inline Add Funds) */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                    {/* Left Column: Virtual Metallic Card & Quick Stats (5/12) */}
                     <div className="lg:col-span-12 xl:col-span-5 space-y-6">
-                        {/* 3D Digital Card */}
                         <motion.div
                             variants={fadeInUp}
                             initial="rest"
@@ -357,26 +413,18 @@ export default function WalletPage() {
                                 variants={cardTilt}
                                 className="relative w-full aspect-[1.586/1] rounded-3xl overflow-hidden shadow-2xl shadow-indigo-500/20 group select-none"
                             >
-                                {/* Card Background */}
                                 <div className="absolute inset-0 bg-gradient-to-br from-[#0f172a] via-[#1e1b4b] to-[#312e81]" />
                                 <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20" />
-
-                                {/* Geometric Shapes */}
                                 <div className="absolute top-0 right-0 w-[80%] h-[80%] bg-gradient-to-b from-indigo-500/20 to-transparent rounded-bl-full blur-2xl transform translate-x-1/4 -translate-y-1/4" />
                                 <div className="absolute bottom-0 left-0 w-[60%] h-[60%] bg-gradient-to-t from-purple-500/20 to-transparent rounded-tr-full blur-3xl transform -translate-x-1/4 translate-y-1/4" />
-
-                                {/* Glass Overlay */}
                                 <div className="absolute inset-0 bg-white/5 backdrop-blur-[1px] border border-white/10 rounded-3xl" />
 
-                                {/* Card Content */}
                                 <div className="relative h-full p-6 md:p-8 flex flex-col justify-between">
                                     <div className="flex justify-between items-start">
                                         <div className="space-y-1">
                                             <p className="text-xs font-medium text-indigo-200 tracking-[0.2em] uppercase">Total Balance</p>
                                             <h2 className="text-3xl md:text-5xl font-bold text-white tracking-tight drop-shadow-lg tabular-nums">
-                                                <BalanceDisplay
-                                                    multiBalance={userProfile?.multiBalance}
-                                                />
+                                                <BalanceDisplay multiBalance={userProfile?.multiBalance} />
                                             </h2>
                                         </div>
                                         <div className="h-10 w-10 md:h-12 md:w-12 rounded-xl bg-gradient-to-br from-white/20 to-white/5 backdrop-blur-md border border-white/20 flex items-center justify-center">
@@ -385,7 +433,6 @@ export default function WalletPage() {
                                     </div>
 
                                     <div className="space-y-4">
-                                        {/* Chip */}
                                         <div className="flex items-center gap-4">
                                             <div className="w-12 h-9 rounded-lg bg-gradient-to-br from-amber-200 to-amber-400 opacity-80 shadow-inner border border-amber-300/30 flex items-center justify-center">
                                                 <div className="w-8 h-5 border border-black/10 rounded opacity-50" />
@@ -416,7 +463,7 @@ export default function WalletPage() {
                             </motion.div>
                         </motion.div>
 
-                        {/* Quick Actions Grid (Showcase Buttons) */}
+                        {/* Quick Actions Grid */}
                         <motion.div variants={fadeInUp} className="grid grid-cols-2 gap-3">
                             <Button
                                 className="h-16 rounded-xl bg-card/40 border border-white/10 hover:bg-emerald-500/10 hover:border-emerald-500/30 backdrop-blur-sm group transition-all"
@@ -430,111 +477,243 @@ export default function WalletPage() {
                                 </div>
                             </Button>
                             
-                            <div className="relative group">
-                                <Button
-                                    className="w-full h-16 rounded-xl bg-card/20 border border-white/5 opacity-80 cursor-pointer hover:bg-rose-500/5 backdrop-blur-sm transition-all"
-                                    variant="outline"
-                                    onClick={handleWithdrawClick}
-                                >
-                                    <ArrowUpRight className="mr-2 h-5 w-5 text-rose-400/70" />
-                                    <div className="text-left flex-1 min-w-0">
-                                        <div className="flex items-center gap-1 justify-between">
-                                            <span className="font-semibold text-white/80">Withdraw</span>
-                                        </div>
-                                        <div className="text-[10px] text-rose-400/90 font-medium">Currently Not Available</div>
-                                    </div>
-                                </Button>
-                            </div>
+                            <Button
+                                className="w-full h-16 rounded-xl bg-card/20 border border-white/5 opacity-80 cursor-pointer hover:bg-rose-500/5 backdrop-blur-sm transition-all"
+                                variant="outline"
+                                onClick={handleWithdrawClick}
+                            >
+                                <ArrowUpRight className="mr-2 h-5 w-5 text-rose-400/70" />
+                                <div className="text-left flex-1 min-w-0">
+                                    <div className="font-semibold text-white/80">Withdraw</div>
+                                    <div className="text-[10px] text-rose-400/90 font-medium">Currently Not Available</div>
+                                </div>
+                            </Button>
                         </motion.div>
 
-                        {/* Security Notice */}
-                        <motion.div variants={fadeInUp} className="p-4 rounded-xl bg-indigo-500/5 border border-indigo-500/10 flex items-start gap-3">
-                            <Shield className="h-5 w-5 text-indigo-400 mt-0.5 shrink-0" />
-                            <div>
-                                <h4 className="text-sm font-semibold text-indigo-200">Bank-Grade Security</h4>
-                                <p className="text-xs text-indigo-300/70 mt-1 leading-relaxed">
-                                    Your funds are protected by 256-bit encryption and regulated banking partners. All transactions are monitored for fraud.
-                                </p>
-                            </div>
+                        {/* Security Card */}
+                        <motion.div variants={fadeInUp}>
+                            <Card className="border-white/10 bg-card/20 backdrop-blur-sm">
+                                <CardContent className="p-4 flex items-center gap-3">
+                                    <Shield className="h-5 w-5 text-indigo-400 shrink-0" />
+                                    <div>
+                                        <h4 className="text-xs font-semibold text-white">Bank-Grade Security</h4>
+                                        <p className="text-[11px] text-muted-foreground">Your funds are protected by 256-bit encryption and regulated banking partners.</p>
+                                    </div>
+                                </CardContent>
+                            </Card>
                         </motion.div>
                     </div>
 
-                    {/* Right Column: Add Funds & History (7/12) */}
+                    {/* Right Column: Inline Add Funds Panel (No Popups) & History (7/12) */}
                     <div className="lg:col-span-12 xl:col-span-7 space-y-8">
-                        {/* Top Up / Add Funds Panel */}
+                        {/* Top Up / Add Funds Inline Card */}
                         <motion.div variants={fadeInUp} ref={addFundsRef}>
                             <Card className="border-white/10 bg-card/30 backdrop-blur-xl overflow-hidden shadow-xl shadow-black/5 relative">
-                                <div className="absolute top-0 right-0 p-4 opacity-50">
+                                <div className="absolute top-0 right-0 p-4 opacity-50 pointer-events-none">
                                     <Wallet className="w-24 h-24 text-white/5 -rotate-12" />
                                 </div>
-                                <CardHeader>
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-500 ring-1 ring-emerald-500/20">
-                                            <Plus className="h-5 w-5" />
-                                        </div>
-                                        <div>
-                                            <CardTitle className="text-2xl font-bold">Add Funds</CardTitle>
-                                            <CardDescription>Instant top-up via secure gateway</CardDescription>
-                                        </div>
-                                    </div>
-                                </CardHeader>
-                                <CardContent className="space-y-6 relative z-10">
-                                    <div className="space-y-6">
-                                        {/* Dynamic Server-Synced Presets */}
-                                        <div className="grid grid-cols-4 gap-3">
-                                            {dynamicPresets.map((preset) => {
-                                                const isActive = amount === preset.value.toString()
-                                                return (
-                                                    <button
-                                                        key={preset.value}
-                                                        type="button"
-                                                        onClick={() => setAmount(preset.value.toString())}
-                                                        className={cn(
-                                                            "relative h-14 rounded-xl font-semibold transition-all duration-300 border text-sm md:text-base",
-                                                            isActive
-                                                                ? "bg-emerald-500 text-white border-emerald-500 shadow-lg shadow-emerald-500/25 scale-[1.02]"
-                                                                : "bg-card/50 border-white/5 text-muted-foreground hover:bg-white/5 hover:text-foreground"
-                                                        )}
-                                                    >
-                                                        {preset.label}
-                                                    </button>
-                                                )
-                                            })}
-                                        </div>
-
-                                        {/* Custom Amount with Dynamic Currency Prefix */}
-                                        <div className="relative group">
-                                            <div className={cn(
-                                                "absolute inset-0 bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 rounded-xl blur transition-opacity duration-500",
-                                                customFocused ? "opacity-100" : "opacity-0"
-                                            )} />
-                                            <div className="relative flex items-center bg-card/50 border border-white/10 rounded-xl px-4 h-16 transition-colors group-hover:border-white/20">
-                                                <span className="text-2xl font-bold text-muted-foreground mr-2">{currencySym}</span>
-                                                <Input
-                                                    ref={customInputRef}
-                                                    type="number"
-                                                    placeholder={`Enter custom amount in ${preferredCurrency}...`}
-                                                    value={amount}
-                                                    onChange={(e) => setAmount(e.target.value)}
-                                                    onFocus={() => setCustomFocused(true)}
-                                                    onBlur={() => setCustomFocused(false)}
-                                                    className="border-none bg-transparent h-full text-2xl font-bold placeholder:font-normal placeholder:text-muted-foreground/60 focus-visible:ring-0 p-0"
-                                                />
+                                
+                                <CardHeader className="pb-4 border-b border-white/5">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-500 ring-1 ring-emerald-500/20">
+                                                <Plus className="h-5 w-5" />
+                                            </div>
+                                            <div>
+                                                <CardTitle className="text-xl font-bold text-white">Add Funds</CardTitle>
+                                                <CardDescription className="text-xs text-muted-foreground">Instant top-up via secure gateway</CardDescription>
                                             </div>
                                         </div>
 
-                                        {/* Deposit Trigger Button */}
-                                        <Button
-                                            onClick={handleOpenDepositDialog}
-                                            disabled={!amount || parseFloat(amount) <= 0}
-                                            className={cn(
-                                                "w-full h-14 text-lg font-semibold border-none shadow-lg transition-all duration-300 rounded-xl cursor-pointer",
-                                                "bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 shadow-indigo-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
-                                            )}
-                                        >
-                                            {amount ? `Deposit ${currencySym}${parseFloat(amount).toLocaleString()}` : "Enter Amount"}
-                                        </Button>
+                                        {inlineStep === 'qr_payment' && (
+                                            <Button
+                                                onClick={() => { setInlineStep('input'); cleanup(); }}
+                                                variant="ghost"
+                                                size="sm"
+                                                className="text-xs text-indigo-400 hover:text-indigo-300 border border-indigo-500/30 bg-indigo-500/10 h-8"
+                                            >
+                                                <ArrowLeft className="w-3.5 h-3.5 mr-1" /> Back to Amount
+                                            </Button>
+                                        )}
                                     </div>
+                                </CardHeader>
+
+                                <CardContent className="p-6 relative z-10">
+                                    <AnimatePresence mode="wait">
+                                        {/* Step 1: Inline Amount & Preset Selection */}
+                                        {inlineStep === 'input' && (
+                                            <motion.div
+                                                key="inline_input"
+                                                initial={{ opacity: 0, y: 10 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                exit={{ opacity: 0, y: -10 }}
+                                                className="space-y-6"
+                                            >
+                                                {/* Dynamic Presets */}
+                                                <div className="grid grid-cols-4 gap-3">
+                                                    {dynamicPresets.map((preset) => {
+                                                        const isActive = amount === preset.value.toString()
+                                                        return (
+                                                            <button
+                                                                key={preset.value}
+                                                                type="button"
+                                                                onClick={() => setAmount(preset.value.toString())}
+                                                                className={cn(
+                                                                    "relative h-14 rounded-xl font-semibold transition-all duration-300 border text-sm md:text-base cursor-pointer",
+                                                                    isActive
+                                                                        ? "bg-emerald-500 text-white border-emerald-500 shadow-lg shadow-emerald-500/25 scale-[1.02]"
+                                                                        : "bg-card/50 border-white/5 text-muted-foreground hover:bg-white/5 hover:text-foreground"
+                                                                )}
+                                                            >
+                                                                {preset.label}
+                                                            </button>
+                                                        )
+                                                    })}
+                                                </div>
+
+                                                {/* Custom Amount Input */}
+                                                <div className="relative group">
+                                                    <div className={cn(
+                                                        "absolute inset-0 bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 rounded-xl blur transition-opacity duration-500",
+                                                        customFocused ? "opacity-100" : "opacity-0"
+                                                    )} />
+                                                    <div className="relative flex items-center bg-card/50 border border-white/10 rounded-xl px-4 h-16 transition-colors group-hover:border-white/20">
+                                                        <span className="text-2xl font-bold text-muted-foreground mr-2">{currencySym}</span>
+                                                        <Input
+                                                            ref={customInputRef}
+                                                            type="number"
+                                                            placeholder={`Enter custom amount in ${preferredCurrency}...`}
+                                                            value={amount}
+                                                            onChange={(e) => setAmount(e.target.value)}
+                                                            onFocus={() => setCustomFocused(true)}
+                                                            onBlur={() => setCustomFocused(false)}
+                                                            className="border-none bg-transparent h-full text-2xl font-bold placeholder:font-normal placeholder:text-muted-foreground/60 focus-visible:ring-0 p-0"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                {/* Deposit Trigger Button */}
+                                                <Button
+                                                    onClick={handleInlineCreateDeposit}
+                                                    disabled={!amount || parseFloat(amount) <= 0 || isGenerating}
+                                                    className={cn(
+                                                        "w-full h-14 text-lg font-semibold border-none shadow-lg transition-all duration-300 rounded-xl cursor-pointer",
+                                                        "bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 shadow-indigo-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    )}
+                                                >
+                                                    {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : amount ? `Deposit ${currencySym}${parseFloat(amount).toLocaleString()}` : "Enter Amount"}
+                                                </Button>
+                                            </motion.div>
+                                        )}
+
+                                        {/* Step 2: Inline Live QR Code & UTR Verification Screen */}
+                                        {inlineStep === 'qr_payment' && activeDeposit && (
+                                            <motion.div
+                                                key="inline_qr"
+                                                initial={{ opacity: 0, scale: 0.98 }}
+                                                animate={{ opacity: 1, scale: 1 }}
+                                                exit={{ opacity: 0, scale: 0.98 }}
+                                                className="space-y-6 text-center"
+                                            >
+                                                {/* Amount & Timer Bar */}
+                                                <div className="flex items-center justify-between p-3.5 rounded-xl bg-black/40 border border-white/10">
+                                                    <div>
+                                                        <p className="text-[10px] uppercase font-bold text-muted-foreground">Amount to Pay</p>
+                                                        <p className="text-xl font-bold text-emerald-400">₹{activeDeposit.amount.toLocaleString()}</p>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1 justify-end">
+                                                            <Clock className="w-3 h-3 text-amber-400" /> Session Expiry
+                                                        </p>
+                                                        <p className="text-base font-mono font-bold text-amber-400">{formatTimer(timeLeft)}</p>
+                                                    </div>
+                                                </div>
+
+                                                {/* Live QR Code Box */}
+                                                <div className="relative mx-auto w-56 h-56 bg-white p-3.5 rounded-2xl shadow-2xl flex items-center justify-center border-4 border-indigo-500/40">
+                                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                    <img
+                                                        src={activeDeposit.qrCodeUrl}
+                                                        alt="UPI QR Code"
+                                                        className="w-full h-full object-contain rounded-lg"
+                                                    />
+                                                </div>
+
+                                                {/* Copyable UPI VPA ID */}
+                                                <div className="p-3.5 rounded-xl bg-black/30 border border-white/10 flex items-center justify-between">
+                                                    <div className="text-left min-w-0 pr-2">
+                                                        <p className="text-[10px] font-bold uppercase text-muted-foreground">UPI VPA Address</p>
+                                                        <p className="text-xs font-mono text-indigo-300 truncate">{activeDeposit.upiId}</p>
+                                                    </div>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        onClick={copyUpiId}
+                                                        className="h-8 px-3 text-xs border border-white/10 hover:bg-white/10 shrink-0"
+                                                    >
+                                                        {copiedUpi ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                                                    </Button>
+                                                </div>
+
+                                                {/* 12-Digit UTR Input */}
+                                                <div className="space-y-2 text-left">
+                                                    <p className="text-xs font-medium text-gray-300">Enter 12-Digit UTR / Transaction Reference</p>
+                                                    <div className="flex gap-2">
+                                                        <Input
+                                                            placeholder="e.g. 421098765432"
+                                                            value={utrInput}
+                                                            onChange={(e) => setUtrInput(e.target.value)}
+                                                            className="bg-black/40 border-white/10 text-xs font-mono h-11 focus:border-indigo-500/50"
+                                                        />
+                                                        <Button
+                                                            onClick={handleVerifyUtr}
+                                                            disabled={isVerifyingUtr || !utrInput.trim()}
+                                                            className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold h-11 px-5 rounded-xl shadow-md shrink-0 cursor-pointer"
+                                                        >
+                                                            {isVerifyingUtr ? <Loader2 className="w-4 h-4 animate-spin" /> : "Verify UTR"}
+                                                        </Button>
+                                                    </div>
+                                                </div>
+
+                                                {/* Status Polling Indicator */}
+                                                <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground pt-1">
+                                                    <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-400" />
+                                                    <span>Waiting for payment confirmation...</span>
+                                                </div>
+                                            </motion.div>
+                                        )}
+
+                                        {/* Step 3: Success View */}
+                                        {inlineStep === 'success' && (
+                                            <motion.div
+                                                key="inline_success"
+                                                initial={{ opacity: 0, scale: 0.95 }}
+                                                animate={{ opacity: 1, scale: 1 }}
+                                                exit={{ opacity: 0, scale: 0.95 }}
+                                                className="py-8 text-center space-y-4"
+                                            >
+                                                <div className="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center mx-auto text-emerald-400">
+                                                    <CheckCircle2 className="w-10 h-10" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-lg font-bold text-white">Deposit Successful!</h4>
+                                                    <p className="text-xs text-muted-foreground mt-1">
+                                                        Your wallet balance has been updated successfully.
+                                                    </p>
+                                                </div>
+                                                <Button
+                                                    onClick={() => {
+                                                        setInlineStep('input')
+                                                        setActiveDeposit(null)
+                                                        setAmount('')
+                                                    }}
+                                                    className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold h-10 px-6 rounded-xl shadow-md"
+                                                >
+                                                    Add Another Deposit
+                                                </Button>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
                                 </CardContent>
                             </Card>
                         </motion.div>
@@ -547,7 +726,6 @@ export default function WalletPage() {
                                     Transaction History
                                 </h3>
 
-                                {/* Filters */}
                                 <div className="flex items-center gap-1 bg-card/40 p-1 rounded-xl border border-white/10 self-start sm:self-auto">
                                     <button
                                         type="button"
@@ -564,137 +742,39 @@ export default function WalletPage() {
                                         onClick={() => setFilterType('debit')}
                                         className={cn("px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer", filterType === 'debit' ? "bg-rose-500/20 text-rose-400 font-bold" : "text-muted-foreground hover:text-white")}
                                     >Outgoing</button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setFilterType('other')}
-                                        className={cn("px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer", filterType === 'other' ? "bg-purple-500/20 text-purple-400 font-bold" : "text-muted-foreground hover:text-white")}
-                                    >Other</button>
                                 </div>
                             </div>
 
-                            <Card className="border-white/10 bg-card/20 backdrop-blur-md overflow-hidden shadow-xl">
-                                <div className="divide-y divide-white/5">
+                            {/* Transactions Table Map */}
+                            <Card className="border-white/10 bg-card/20 backdrop-blur-sm overflow-hidden">
+                                <CardContent className="p-0 divide-y divide-white/5">
                                     {paginatedTransactions.length > 0 ? (
-                                        paginatedTransactions.map((tx) => {
-                                            const isCredit = ['topup', 'manual_credit', 'referral_bonus', 'refund'].includes((tx.type || '').toLowerCase())
-                                            return (
-                                                <div
-                                                    key={tx.id}
-                                                    className="group flex items-center justify-between p-4 hover:bg-white/5 transition-colors cursor-default"
-                                                >
-                                                    <div className="flex items-center gap-4">
-                                                        <div className={cn(
-                                                            "w-12 h-12 rounded-2xl flex items-center justify-center border border-white/5 relative overflow-hidden shrink-0",
-                                                            isCredit ? "bg-emerald-500/10" : "bg-rose-500/10"
-                                                        )}>
-                                                            {renderTransactionIcon(tx.type, tx.status)}
-                                                        </div>
-                                                        <div>
-                                                            <div className="flex flex-wrap items-center gap-2">
-                                                                <p className="font-medium text-sm text-white group-hover:text-indigo-200 transition-colors">
-                                                                    {tx.description || (tx.type === 'topup' ? 'Wallet Top-up' : 'Transaction')}
-                                                                </p>
-                                                                {renderStatusBadge(tx.status, tx.type)}
-                                                            </div>
-                                                            <div className="flex items-center gap-2 mt-1">
-                                                                <p className="text-xs text-muted-foreground font-mono">{new Date(tx.date).toLocaleDateString()}</p>
-                                                                <span className="text-xs text-white/20">•</span>
-                                                                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{(tx.type || '').replace('_', ' ')}</p>
-                                                            </div>
-                                                        </div>
+                                        paginatedTransactions.map((tx) => (
+                                            <div key={tx.id} className="p-4 flex items-center justify-between hover:bg-white/5 transition-colors">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
+                                                        <ArrowDownRight className="w-4 h-4 text-emerald-400" />
                                                     </div>
-                                                    <div className="text-right shrink-0">
-                                                        <span className={cn(
-                                                            "block text-lg font-bold font-mono",
-                                                            isCredit ? "text-emerald-400" : "text-white"
-                                                        )}>
-                                                            {isCredit ? "+" : "-"}
-                                                            <PriceDisplay currencyPrices={tx.currencyPrices || {}} />
-                                                        </span>
-                                                        <span className="text-[10px] text-white/30 font-mono">{tx.id.slice(0, 8)}...</span>
+                                                    <div>
+                                                        <p className="text-xs font-semibold text-white">{tx.description || tx.type}</p>
+                                                        <p className="text-[10px] text-muted-foreground">{new Date(tx.date).toLocaleDateString()}</p>
                                                     </div>
                                                 </div>
-                                            )
-                                        })
+                                                <div className="text-right">
+                                                    <p className="text-xs font-mono font-bold text-white">{formatPrice(tx.amount)}</p>
+                                                    <span className="text-[10px] text-emerald-400 capitalize">{tx.status}</span>
+                                                </div>
+                                            </div>
+                                        ))
                                     ) : (
-                                        <div className="text-center py-12 flex flex-col items-center justify-center">
-                                            <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mb-4">
-                                                <Search className="h-8 w-8 text-white/20" />
-                                            </div>
-                                            <h3 className="text-lg font-medium text-white">No transactions found</h3>
-                                            <p className="text-sm text-muted-foreground mt-1 max-w-xs mx-auto">
-                                                We couldn&apos;t find any transactions matching your current filters.
-                                            </p>
-                                        </div>
+                                        <div className="p-8 text-center text-xs text-muted-foreground">No transaction history found</div>
                                     )}
-                                </div>
-
-                                {/* Catalog Pagination Controls */}
-                                {filteredTransactions.length > 0 && (
-                                    <div className="p-4 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-4 bg-black/20">
-                                        <p className="text-xs text-muted-foreground">
-                                            Showing <span className="font-semibold text-white">{(currentPage - 1) * ITEMS_PER_PAGE + 1}</span> to{" "}
-                                            <span className="font-semibold text-white">{Math.min(currentPage * ITEMS_PER_PAGE, filteredTransactions.length)}</span> of{" "}
-                                            <span className="font-semibold text-white">{filteredTransactions.length}</span> transactions
-                                        </p>
-                                        
-                                        <div className="flex items-center gap-2">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                disabled={currentPage === 1}
-                                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                                className="h-8 border-white/10 bg-white/5 hover:bg-white/10 disabled:opacity-30"
-                                            >
-                                                <ChevronLeft className="w-4 h-4 mr-1" /> Prev
-                                            </Button>
-                                            
-                                            <div className="flex items-center gap-1 px-2">
-                                                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                                                    <button
-                                                        key={page}
-                                                        type="button"
-                                                        onClick={() => setCurrentPage(page)}
-                                                        className={cn(
-                                                            "w-7 h-7 rounded-lg text-xs font-semibold transition-all cursor-pointer",
-                                                            currentPage === page
-                                                                ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/20"
-                                                                : "text-muted-foreground hover:bg-white/5 hover:text-white"
-                                                        )}
-                                                    >
-                                                        {page}
-                                                    </button>
-                                                ))}
-                                            </div>
-
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                disabled={currentPage === totalPages}
-                                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                                className="h-8 border-white/10 bg-white/5 hover:bg-white/10 disabled:opacity-30"
-                                            >
-                                                Next <ChevronRight className="w-4 h-4 ml-1" />
-                                            </Button>
-                                        </div>
-                                    </div>
-                                )}
+                                </CardContent>
                             </Card>
                         </motion.div>
                     </div>
                 </div>
-            </motion.div>
-
-            {/* Deposit Dialog */}
-            <DepositDialog
-                open={depositDialogOpen}
-                initialAmount={selectedDepositAmount}
-                onClose={() => setDepositDialogOpen(false)}
-                onSuccess={() => {
-                    fetchTransactions()
-                    fetchBalance()
-                }}
-            />
+            </div>
         </div>
     )
 }

@@ -741,11 +741,11 @@ class DatabaseAdapter:
         async with pool.connection() as conn:
             async with conn.cursor(row_factory=dict_row) as cur:
                 await cur.execute(
-                    "INSERT INTO deposit_requests (id, user_id, amount, currency, gateway, idempotency_key, status) "
-                    "VALUES (%s, %s, %s, %s, %s, %s, 'PENDING') "
+                    "INSERT INTO deposit_requests (id, user_id, amount, gateway, idempotency_key, status) "
+                    "VALUES (%s, %s, %s, %s, %s, 'PENDING') "
                     "ON CONFLICT (id) DO UPDATE SET amount = EXCLUDED.amount "
                     "RETURNING id",
-                    (use_id, user_uuid, Decimal(str(amount)), currency, gateway, idempotency_key),
+                    (use_id, user_uuid, Decimal(str(amount)), gateway, idempotency_key),
                 )
                 res = await cur.fetchone()
                 await conn.commit()

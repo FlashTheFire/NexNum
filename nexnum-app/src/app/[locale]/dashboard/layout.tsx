@@ -171,7 +171,7 @@ export default function DashboardLayout({
                                                     )}
                                                 >
                                                     {isActive && (
-                                                        <div className="absolute left-0 top-2 bottom-2 w-1 bg-[hsl(var(--neon-lime))] rounded-r-full shadow-[0_0_10px_hsl(var(--neon-lime)/0.6)]" />
+                                                        <div className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 bg-[hsl(var(--neon-lime))] rounded-r-full shadow-[0_0_10px_hsl(var(--neon-lime)/0.6)]" />
                                                     )}
                                                     <item.icon className={cn(
                                                         "h-5 w-5 transition-colors shrink-0",

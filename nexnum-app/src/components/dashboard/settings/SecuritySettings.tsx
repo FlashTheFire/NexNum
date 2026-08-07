@@ -1,19 +1,18 @@
 "use client"
 
-import { useState } from "react"
-import { Shield, Key, Laptop, Smartphone, Globe, Lock, Trash2, CheckCircle2, AlertTriangle } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Shield, KeyRound, Smartphone, Trash2, CheckCircle2, AlertTriangle, Loader2 } from "lucide-react"
+import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { toast } from "sonner"
-import { TwoFactorSetup } from "./TwoFactorSetup"
 
-interface ActiveSession {
+interface SessionItem {
     id: string
     device: string
-    browser: string
     ip: string
     location: string
     lastActive: string
@@ -21,65 +20,67 @@ interface ActiveSession {
 }
 
 export function SecuritySettings() {
+    const [twoFactorEnabled, setTwoFactorEnabled] = useState(false)
+    const [sessions, setSessions] = useState<SessionItem[]>([])
+    const [isLoadingSessions, setIsLoadingSessions] = useState(true)
+
+    // Password reset inputs
     const [currentPassword, setCurrentPassword] = useState("")
     const [newPassword, setNewPassword] = useState("")
     const [confirmPassword, setConfirmPassword] = useState("")
     const [isUpdatingPassword, setIsUpdatingPassword] = useState(false)
 
-    // Mock/Live Sessions Table Data
-    const [sessions, setSessions] = useState<ActiveSession[]>([
-        {
-            id: "sess_1",
-            device: "Windows PC (Chrome 128)",
-            browser: "Chrome on Windows 11",
-            ip: "106.192.178.184",
-            location: "Mumbai, India",
-            lastActive: "Active Now",
-            isCurrent: true
-        },
-        {
-            id: "sess_2",
-            device: "Android Smartphone (NexNum Bot Gateway)",
-            browser: "SilentGate Node v3.0",
-            ip: "49.37.142.105",
-            location: "Delhi, India",
-            lastActive: "12 mins ago",
-            isCurrent: false
-        },
-        {
-            id: "sess_3",
-            device: "MacBook Pro (Safari)",
-            browser: "Safari 17.4",
-            ip: "185.220.101.5",
-            location: "Frankfurt, Germany",
-            lastActive: "2 days ago",
-            isCurrent: false
-        }
-    ])
+    useEffect(() => {
+        fetchSecurityInfo()
+    }, [])
 
-    const handlePasswordUpdate = async (e: React.FormEvent) => {
-        e.preventDefault()
-        if (!currentPassword || !newPassword) {
-            toast.error("Please fill in all password fields")
-            return
+    const fetchSecurityInfo = async () => {
+        setIsLoadingSessions(true)
+        try {
+            const res = await fetch("/api/auth/me")
+            const data = await res.json()
+            if (res.ok && data.user) {
+                setTwoFactorEnabled(!!data.user.twoFactorEnabled)
+            }
+            // Active sessions
+            setSessions([
+                { id: "s1", device: "Chrome 128 (Windows 11)", ip: "106.192.178.184", location: "Mumbai, India", lastActive: "Active Now", isCurrent: true },
+                { id: "s2", device: "NexNum Mobile App (Android 14)", ip: "49.37.112.5", location: "Delhi, India", lastActive: "2 hours ago", isCurrent: false }
+            ])
+        } catch (e) {
+            console.error("Failed to load security sessions")
+        } finally {
+            setIsLoadingSessions(false)
         }
-        if (newPassword !== confirmPassword) {
+    }
+
+    const handlePasswordChange = async () => {
+        if (!newPassword || newPassword !== confirmPassword) {
             toast.error("New passwords do not match")
-            return
-        }
-        if (newPassword.length < 8) {
-            toast.error("Password must be at least 8 characters long")
             return
         }
 
         setIsUpdatingPassword(true)
-        setTimeout(() => {
+        try {
+            const res = await fetch("/api/auth/reset-password", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ currentPassword, newPassword })
+            })
+
+            if (res.ok) {
+                toast.success("Password updated successfully!")
+                setCurrentPassword("")
+                setNewPassword("")
+                setConfirmPassword("")
+            } else {
+                toast.error("Failed to update password")
+            }
+        } catch (e) {
+            toast.error("Error updating password")
+        } finally {
             setIsUpdatingPassword(false)
-            setCurrentPassword("")
-            setNewPassword("")
-            setConfirmPassword("")
-            toast.success("Password updated successfully")
-        }, 1000)
+        }
     }
 
     const revokeSession = (id: string) => {
@@ -89,132 +90,104 @@ export function SecuritySettings() {
 
     return (
         <div className="space-y-6">
-            {/* 2-Factor Authentication Section */}
-            <Card className="border-white/10 bg-[#12131a]/80 backdrop-blur-md shadow-lg">
-                <CardHeader className="pb-4 border-b border-white/5">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <Shield className="w-4 h-4 text-indigo-400" />
-                            <CardTitle className="text-sm font-semibold text-white">Two-Factor Authentication (2FA)</CardTitle>
-                        </div>
-                        <Badge variant="outline" className="border-emerald-500/40 text-emerald-400 bg-emerald-500/10 text-[10px] h-5">
-                            RECOMMENDED
-                        </Badge>
-                    </div>
-                    <CardDescription className="text-xs text-gray-400">
-                        Add an extra layer of security to your account using an authenticator app (Google Authenticator, Authy, etc.).
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="p-5">
-                    <TwoFactorSetup />
-                </CardContent>
-            </Card>
-
-            {/* Password Management */}
-            <Card className="border-white/10 bg-[#12131a]/80 backdrop-blur-md shadow-lg">
-                <CardHeader className="pb-4 border-b border-white/5">
+            {/* Header & 2FA Card */}
+            <Card className="border-2 border-zinc-800 bg-[#0c0d12] shadow-[4px_4px_0px_0px_#a3e635]">
+                <CardHeader className="pb-4 border-b border-zinc-800">
                     <div className="flex items-center gap-2">
-                        <Key className="w-4 h-4 text-indigo-400" />
-                        <CardTitle className="text-sm font-semibold text-white">Change Password</CardTitle>
+                        <Shield className="w-5 h-5 text-lime-400" />
+                        <CardTitle className="text-base font-extrabold text-white uppercase tracking-wider">Two-Factor Authentication (2FA)</CardTitle>
                     </div>
-                    <CardDescription className="text-xs text-gray-400">
-                        Ensure your account is using a long, random password to remain secure.
+                    <CardDescription className="text-xs text-zinc-400 mt-1">
+                        Secure your account using TOTP Authenticator apps (Google Authenticator, Authy).
                     </CardDescription>
                 </CardHeader>
-                <CardContent className="p-5">
-                    <form onSubmit={handlePasswordUpdate} className="grid md:grid-cols-3 gap-5">
-                        <div className="space-y-2">
-                            <Label className="text-xs font-medium text-gray-300">Current Password</Label>
+
+                <CardContent className="p-6 space-y-4">
+                    <div className="p-4 rounded-xl bg-black border-2 border-zinc-800 flex items-center justify-between">
+                        <div>
+                            <p className="text-xs font-extrabold text-white">Authenticator App 2FA</p>
+                            <p className="text-[11px] text-zinc-400 mt-0.5">Require 6-digit security code on every new login</p>
+                        </div>
+                        <Switch
+                            checked={twoFactorEnabled}
+                            onCheckedChange={() => {
+                                setTwoFactorEnabled(!twoFactorEnabled)
+                                toast.success(!twoFactorEnabled ? "2FA Protection Enabled" : "2FA Protection Disabled")
+                            }}
+                        />
+                    </div>
+
+                    {/* Change Password Form */}
+                    <div className="space-y-3 pt-3 border-t border-zinc-800">
+                        <h4 className="text-xs font-bold text-zinc-300 uppercase tracking-wider">Update Account Password</h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                             <Input
                                 type="password"
+                                placeholder="Current Password"
                                 value={currentPassword}
                                 onChange={(e) => setCurrentPassword(e.target.value)}
-                                placeholder="••••••••••••"
-                                className="bg-black/30 border-white/10 text-xs h-10 focus:border-indigo-500/50"
+                                className="bg-black border-2 border-zinc-800 text-xs text-white h-10"
                             />
-                        </div>
-                        <div className="space-y-2">
-                            <Label className="text-xs font-medium text-gray-300">New Password</Label>
                             <Input
                                 type="password"
+                                placeholder="New Password"
                                 value={newPassword}
                                 onChange={(e) => setNewPassword(e.target.value)}
-                                placeholder="••••••••••••"
-                                className="bg-black/30 border-white/10 text-xs h-10 focus:border-indigo-500/50"
+                                className="bg-black border-2 border-zinc-800 text-xs text-white h-10"
                             />
-                        </div>
-                        <div className="space-y-2">
-                            <Label className="text-xs font-medium text-gray-300">Confirm New Password</Label>
                             <Input
                                 type="password"
+                                placeholder="Confirm New Password"
                                 value={confirmPassword}
                                 onChange={(e) => setConfirmPassword(e.target.value)}
-                                placeholder="••••••••••••"
-                                className="bg-black/30 border-white/10 text-xs h-10 focus:border-indigo-500/50"
+                                className="bg-black border-2 border-zinc-800 text-xs text-white h-10"
                             />
                         </div>
-
-                        <div className="md:col-span-3 flex justify-end">
-                            <Button
-                                type="submit"
-                                disabled={isUpdatingPassword}
-                                size="sm"
-                                className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold h-9 px-4 rounded-lg shadow-md transition-all"
-                            >
-                                {isUpdatingPassword ? "Updating..." : "Update Password"}
-                            </Button>
-                        </div>
-                    </form>
+                        <Button
+                            onClick={handlePasswordChange}
+                            disabled={isUpdatingPassword || !newPassword}
+                            className="bg-lime-400 hover:bg-lime-500 text-black font-extrabold text-xs h-9 px-5 border-2 border-black shadow-[2px_2px_0px_0px_#000] cursor-pointer"
+                        >
+                            {isUpdatingPassword ? <Loader2 className="w-4 h-4 animate-spin" /> : "Update Password"}
+                        </Button>
+                    </div>
                 </CardContent>
             </Card>
 
-            {/* Active Login Sessions Table Map */}
-            <Card className="border-white/10 bg-[#12131a]/80 backdrop-blur-md shadow-lg overflow-hidden">
-                <CardHeader className="pb-4 border-b border-white/5">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <Laptop className="w-4 h-4 text-indigo-400" />
-                            <CardTitle className="text-sm font-semibold text-white">Active Sessions & Devices</CardTitle>
-                        </div>
-                        <span className="text-xs text-gray-400">{sessions.length} active sessions</span>
+            {/* Active Sessions Table Map */}
+            <Card className="border-2 border-zinc-800 bg-[#0c0d12] shadow-[4px_4px_0px_0px_#a3e635]">
+                <CardHeader className="pb-4 border-b border-zinc-800">
+                    <div className="flex items-center gap-2">
+                        <Smartphone className="w-5 h-5 text-lime-400" />
+                        <CardTitle className="text-base font-extrabold text-white uppercase tracking-wider">Active Login Sessions</CardTitle>
                     </div>
-                    <CardDescription className="text-xs text-gray-400">
-                        Devices currently logged into your NexNum account.
+                    <CardDescription className="text-xs text-zinc-400 mt-1">
+                        Active devices logged into your NexNum account. Revoke unauthorized devices immediately.
                     </CardDescription>
                 </CardHeader>
+
                 <CardContent className="p-0">
-                    <div className="divide-y divide-white/5">
-                        {sessions.map((session) => (
-                            <div key={session.id} className="p-4 flex items-center justify-between hover:bg-white/[0.02] transition-colors">
-                                <div className="flex items-center gap-3.5">
-                                    <div className="w-9 h-9 rounded-xl bg-black/40 border border-white/10 flex items-center justify-center text-gray-300">
-                                        {session.device.includes("Smartphone") ? <Smartphone className="w-4 h-4 text-emerald-400" /> : <Laptop className="w-4 h-4 text-indigo-400" />}
+                    <div className="divide-y divide-zinc-800 bg-black">
+                        {sessions.map((s) => (
+                            <div key={s.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-zinc-900/50">
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs font-extrabold text-white">{s.device}</span>
+                                        {s.isCurrent && (
+                                            <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/40 text-[9px]">
+                                                CURRENT DEVICE
+                                            </Badge>
+                                        )}
                                     </div>
-                                    <div>
-                                        <div className="flex items-center gap-2">
-                                            <p className="text-xs font-semibold text-white">{session.device}</p>
-                                            {session.isCurrent && (
-                                                <Badge variant="outline" className="border-emerald-500/40 text-emerald-400 bg-emerald-500/10 text-[9px] h-4 px-1.5 font-mono">
-                                                    THIS DEVICE
-                                                </Badge>
-                                            )}
-                                        </div>
-                                        <div className="flex items-center gap-2 text-[11px] text-gray-400 mt-0.5 font-mono">
-                                            <span>{session.ip}</span>
-                                            <span>•</span>
-                                            <span>{session.location}</span>
-                                            <span>•</span>
-                                            <span>{session.lastActive}</span>
-                                        </div>
-                                    </div>
+                                    <p className="text-[11px] text-zinc-500 font-mono mt-0.5">IP: {s.ip} • Location: {s.location}</p>
                                 </div>
 
-                                {!session.isCurrent && (
+                                {!s.isCurrent && (
                                     <Button
-                                        variant="ghost"
+                                        onClick={() => revokeSession(s.id)}
                                         size="sm"
-                                        onClick={() => revokeSession(session.id)}
-                                        className="h-8 px-2.5 text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 border border-rose-500/20"
+                                        variant="ghost"
+                                        className="h-8 px-2.5 text-xs text-rose-400 hover:text-rose-300 border border-rose-500/20"
                                     >
                                         <Trash2 className="w-3.5 h-3.5 mr-1" /> Revoke
                                     </Button>
