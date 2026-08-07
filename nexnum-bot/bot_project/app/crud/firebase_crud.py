@@ -62,9 +62,41 @@ def _find_client_node(client_id: str) -> Optional[Dict[str, str]]:
     # Default to first node if unmapped
     return FIREBASE_NODES[0] if FIREBASE_NODES else None
 
-# ---- Universal Aggregated Reads & Writes ----
+import os
+import json
 
+# ---- Universal Aggregated Reads & Writes ----
+CACHE_FILE_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "phone_cache.json")
 GLOBAL_PHONE_CACHE: Dict[str, Dict[str, Any]] = {}
+
+def _load_phone_cache() -> Dict[str, Dict[str, Any]]:
+    """Load persistent phone cache from local JSON file."""
+    global GLOBAL_PHONE_CACHE
+    if GLOBAL_PHONE_CACHE:
+        return GLOBAL_PHONE_CACHE
+    try:
+        if os.path.exists(CACHE_FILE_PATH):
+            with open(CACHE_FILE_PATH, "r", encoding="utf-8") as f:
+                GLOBAL_PHONE_CACHE = json.load(f)
+                logger.info(f"[PhoneCache] Loaded {len(GLOBAL_PHONE_CACHE)} cached device phone numbers from JSON file.")
+    except Exception as e:
+        logger.warning(f"[PhoneCache] Failed to load JSON phone cache: {e}")
+    return GLOBAL_PHONE_CACHE
+
+def _save_phone_cache() -> None:
+    """Save in-memory phone cache to local JSON file for persistence across restarts."""
+    try:
+        os.makedirs(os.path.dirname(CACHE_FILE_PATH), exist_ok=True)
+        temp_path = f"{CACHE_FILE_PATH}.tmp"
+        with open(temp_path, "w", encoding="utf-8") as f:
+            json.dump(GLOBAL_PHONE_CACHE, f, indent=2)
+        os.replace(temp_path, CACHE_FILE_PATH)
+    except Exception as e:
+        logger.warning(f"[PhoneCache] Failed to save JSON phone cache: {e}")
+
+# Initial load on import
+_load_phone_cache()
+
 
 def get_all_clients() -> Dict[str, Any]:
     """
@@ -73,6 +105,7 @@ def get_all_clients() -> Dict[str, Any]:
     and registers client-to-node routing mappings.
     Applies persistent GLOBAL_PHONE_CACHE for instant 0ms number & network resolution.
     """
+    cache_updated = False
     aggregated_clients: Dict[str, Any] = {}
 
     def fetch_node(node):
@@ -138,10 +171,17 @@ def get_all_clients() -> Dict[str, Any]:
                     cdata["operator"] = network
 
                 if phone or network:
-                    GLOBAL_PHONE_CACHE[cid] = {"mobNo": phone, "service_provider": network}
+                    old_entry = GLOBAL_PHONE_CACHE.get(cid)
+                    new_entry = {"mobNo": phone, "service_provider": network}
+                    if old_entry != new_entry:
+                        GLOBAL_PHONE_CACHE[cid] = new_entry
+                        cache_updated = True
 
                 aggregated_clients[cid] = cdata
                 CLIENT_NODE_MAP[cid] = node
+
+    if cache_updated:
+        _save_phone_cache()
 
     return aggregated_clients
 
