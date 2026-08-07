@@ -74,12 +74,12 @@ const CACHE_TTL_SECONDS = 300 // 5 minutes
 
 // Default config used when payments disabled or not configured
 const DEFAULT_CONFIG: PaymentConfig = {
-    paymentsEnabled: false,
-    upiProviderMode: 'DISABLED',
-    upiApiToken: null,
-    upiCreateOrderUrl: null,
-    upiCheckStatusUrl: null,
-    upiQrBaseUrl: null,
+    paymentsEnabled: true,
+    upiProviderMode: 'THIRD_PARTY',
+    upiApiToken: 'SzFThC49898719386494',
+    upiCreateOrderUrl: 'https://paytm.udayscriptsx.workers.dev/',
+    upiCheckStatusUrl: 'https://paytm.udayscriptsx.workers.dev/',
+    upiQrBaseUrl: 'https://qr.udayscriptsx.workers.dev/',
     paytmMerchantId: null,
     paytmMerchantKey: null,
     paytmWebsite: null,

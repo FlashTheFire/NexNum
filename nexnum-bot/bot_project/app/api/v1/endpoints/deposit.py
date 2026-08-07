@@ -52,13 +52,20 @@ async def create_deposit(req: DepositCreateRequest):
             deposit_id=deposit_id
         )
 
+        from utils.functions import QR_BASE_URL
+        dep_id_str = str(created_id or deposit_id)
+        qr_code_url = QR_BASE_URL.format(order_id=dep_id_str)
+        upi_id = "paytmqr281005050101nbxw0hx35cpo@paytm"
+
         deposit_data = {
-            "deposit_id": str(created_id or deposit_id),
+            "deposit_id": dep_id_str,
             "user_id": str(req.user_id),
             "amount": req.amount,
             "gateway": req.gateway,
             "status": "PENDING",
             "idempotency_key": idemp_key,
+            "qr_code_url": qr_code_url,
+            "upi_id": upi_id,
             "created_at": time.time()
         }
 
@@ -79,6 +86,8 @@ async def create_deposit(req: DepositCreateRequest):
             "deposit_id": deposit_data["deposit_id"],
             "amount": req.amount,
             "gateway": req.gateway,
+            "qr_code_url": qr_code_url,
+            "upi_id": upi_id,
             "expires_in": 900,
             "data": deposit_data
         }
@@ -93,12 +102,20 @@ async def get_deposit_status(deposit_id: str):
     """
     try:
         db = db_adapter
+        from utils.functions import QR_BASE_URL
         dep = await db.get_deposit_request(deposit_id)
         if not dep:
             raise HTTPException(status_code=404, detail="Deposit request not found")
+
+        dep_dict = dict(dep) if isinstance(dep, dict) else dep.__dict__ if hasattr(dep, '__dict__') else {}
+        dep_dict["qr_code_url"] = QR_BASE_URL.format(order_id=deposit_id)
+        dep_dict["upi_id"] = "paytmqr281005050101nbxw0hx35cpo@paytm"
+
         return {
             "status": "success",
-            "deposit": dep
+            "deposit": dep_dict,
+            "qr_code_url": dep_dict["qr_code_url"],
+            "upi_id": dep_dict["upi_id"]
         }
     except HTTPException:
         raise
