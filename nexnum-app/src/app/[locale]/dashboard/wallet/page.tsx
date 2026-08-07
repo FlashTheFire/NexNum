@@ -713,67 +713,89 @@ export default function WalletPage() {
                                                 exit={{ opacity: 0, y: -10 }}
                                                 className="space-y-4"
                                             >
-                                                <div className="grid grid-cols-1 gap-3">
-                                                    {/* UPI Method Selection Option */}
+                                                <div className="grid grid-cols-1 gap-3.5">
+                                                    {/* UPI / BHIM Method Selection Option */}
                                                     <button
                                                         type="button"
                                                         onClick={handleSelectUpiPayment}
                                                         disabled={isGenerating}
-                                                        className="w-full p-4 rounded-2xl bg-black/40 border-2 border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all text-left flex items-center justify-between group cursor-pointer"
+                                                        className="group relative w-full p-4 md:p-5 rounded-2xl bg-gradient-to-r from-card/60 via-card/40 to-card/60 border border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/[0.03] transition-all duration-300 text-left flex items-center justify-between shadow-lg shadow-black/20 hover:shadow-emerald-500/10 cursor-pointer overflow-hidden"
                                                     >
-                                                        <div className="flex items-center gap-4">
-                                                            <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 group-hover:scale-105 transition-transform">
-                                                                <IndianRupee className="w-6 h-6" />
+                                                        <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl group-hover:bg-emerald-500/15 transition-all duration-500 pointer-events-none" />
+
+                                                        <div className="flex items-center gap-4 relative z-10">
+                                                            <div className="w-12 h-12 md:w-14 md:h-14 rounded-xl bg-emerald-500/10 border border-emerald-500/30 ring-1 ring-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:scale-105 group-hover:bg-emerald-500/20 transition-all shrink-0">
+                                                                <IndianRupee className="w-6 h-6 md:w-7 md:h-7" />
                                                             </div>
-                                                            <div>
-                                                                <div className="flex items-center gap-2">
-                                                                    <span className="text-sm font-bold text-white">UPI / Paytm</span>
-                                                                    <Badge className="bg-emerald-500/20 text-emerald-400 text-[10px] border-emerald-500/40">
-                                                                        Local Currency (INR)
+                                                            <div className="space-y-1">
+                                                                <div className="flex items-center gap-2.5 flex-wrap">
+                                                                    <span className="text-base md:text-lg font-bold text-white tracking-tight group-hover:text-emerald-400 transition-colors">
+                                                                        UPI / BHIM
+                                                                    </span>
+                                                                    <Badge className="bg-emerald-500/15 text-emerald-400 text-[10px] font-mono font-semibold uppercase tracking-wider border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                                                                        Instant Auto-Credit
                                                                     </Badge>
                                                                 </div>
-                                                                <p className="text-xs text-muted-foreground mt-0.5">
-                                                                    Instant QR Code top-up via Paytm, PhonePe & Google Pay
+                                                                <p className="text-xs text-muted-foreground leading-relaxed">
+                                                                    Instant QR Code top-up via BHIM, PhonePe, Paytm &amp; Google Pay
                                                                 </p>
                                                             </div>
                                                         </div>
-                                                        {isGenerating ? (
-                                                            <Loader2 className="w-5 h-5 text-emerald-400 animate-spin" />
-                                                        ) : (
-                                                            <ArrowDownRight className="w-5 h-5 text-zinc-500 group-hover:text-emerald-400 group-hover:translate-x-0.5 transition-all" />
-                                                        )}
+
+                                                        <div className="relative z-10 ml-3 shrink-0">
+                                                            {isGenerating ? (
+                                                                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
+                                                                    <Loader2 className="w-5 h-5 text-emerald-400 animate-spin" />
+                                                                </div>
+                                                            ) : (
+                                                                <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 group-hover:bg-emerald-500/20 group-hover:border-emerald-500/40 flex items-center justify-center text-zinc-400 group-hover:text-emerald-400 transition-all duration-300">
+                                                                    <ArrowUpRight className="w-5 h-5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </button>
 
                                                     {/* Crypto USDT Selection Option */}
                                                     <button
                                                         type="button"
                                                         onClick={handleSelectCryptoPayment}
-                                                        className="w-full p-4 rounded-2xl bg-black/40 border-2 border-white/10 hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-all text-left flex items-center justify-between group cursor-pointer"
+                                                        className="group relative w-full p-4 md:p-5 rounded-2xl bg-gradient-to-r from-card/60 via-card/40 to-card/60 border border-white/10 hover:border-indigo-500/50 hover:bg-indigo-500/[0.03] transition-all duration-300 text-left flex items-center justify-between shadow-lg shadow-black/20 hover:shadow-indigo-500/10 cursor-pointer overflow-hidden"
                                                     >
-                                                        <div className="flex items-center gap-4">
-                                                            <div className="w-12 h-12 rounded-xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400 group-hover:scale-105 transition-transform">
-                                                                <Coins className="w-6 h-6" />
+                                                        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full blur-2xl group-hover:bg-indigo-500/15 transition-all duration-500 pointer-events-none" />
+
+                                                        <div className="flex items-center gap-4 relative z-10">
+                                                            <div className="w-12 h-12 md:w-14 md:h-14 rounded-xl bg-indigo-500/10 border border-indigo-500/30 ring-1 ring-indigo-500/20 flex items-center justify-center text-indigo-400 group-hover:scale-105 group-hover:bg-indigo-500/20 transition-all shrink-0">
+                                                                <Coins className="w-6 h-6 md:w-7 md:h-7" />
                                                             </div>
-                                                            <div>
-                                                                <div className="flex items-center gap-2">
-                                                                    <span className="text-sm font-bold text-white">Crypto</span>
-                                                                    <Badge className="bg-indigo-500/20 text-indigo-400 text-[10px] border-indigo-500/40">
-                                                                        USDT (Global)
+                                                            <div className="space-y-1">
+                                                                <div className="flex items-center gap-2.5 flex-wrap">
+                                                                    <span className="text-base md:text-lg font-bold text-white tracking-tight group-hover:text-indigo-400 transition-colors">
+                                                                        Crypto USDT
+                                                                    </span>
+                                                                    <Badge className="bg-indigo-500/15 text-indigo-400 text-[10px] font-mono font-semibold uppercase tracking-wider border border-indigo-500/30 px-2 py-0.5 rounded-full">
+                                                                        TRC20 / BEP20
                                                                     </Badge>
                                                                 </div>
-                                                                <p className="text-xs text-muted-foreground mt-0.5">
-                                                                    Instant USDT TRC20 / BEP20 network deposit
+                                                                <p className="text-xs text-muted-foreground leading-relaxed">
+                                                                    Instant USDT TRC20 &amp; BEP20 network deposit
                                                                 </p>
                                                             </div>
                                                         </div>
-                                                        <ArrowDownRight className="w-5 h-5 text-zinc-500 group-hover:text-indigo-400 group-hover:translate-x-0.5 transition-all" />
+
+                                                        <div className="relative z-10 ml-3 shrink-0">
+                                                            <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 group-hover:bg-indigo-500/20 group-hover:border-indigo-500/40 flex items-center justify-center text-zinc-400 group-hover:text-indigo-400 transition-all duration-300">
+                                                                <ArrowUpRight className="w-5 h-5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                                                            </div>
+                                                        </div>
                                                     </button>
                                                 </div>
 
                                                 {/* Security Footer Note */}
-                                                <div className="pt-2 flex items-center justify-center gap-2 text-center text-xs text-muted-foreground">
-                                                    <Lock className="w-3.5 h-3.5 text-emerald-400" />
-                                                    <span>All payments are secure and encrypted</span>
+                                                <div className="pt-2 flex items-center justify-center">
+                                                    <div className="px-4 py-2 rounded-full bg-card/30 border border-white/5 backdrop-blur-md flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                                                        <Lock className="w-3.5 h-3.5 text-emerald-400" />
+                                                        <span>Bank-Grade Encrypted Security &amp; Anti-Bot Protection</span>
+                                                    </div>
                                                 </div>
                                             </motion.div>
                                         )}
