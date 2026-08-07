@@ -4,6 +4,8 @@
 
 BEGIN;
 
+ALTER TABLE users ADD COLUMN IF NOT EXISTS account_origin VARCHAR(50) DEFAULT 'web';
+
 -- ---------------------------------------------------------------------------
 -- 1. USER SESSIONS
 -- ---------------------------------------------------------------------------
@@ -62,119 +64,139 @@ CREATE TABLE IF NOT EXISTS user_referrals (
 );
 
 ALTER TABLE user_referrals ADD COLUMN IF NOT EXISTS telegram_id VARCHAR(255);
-ALTER TABLE user_referrals ADD COLUMN IF NOT EXISTS referrer_id VARCHAR(255);
-ALTER TABLE user_referrals ADD COLUMN IF NOT EXISTS referral_code VARCHAR(50);
 ALTER TABLE user_referrals ADD COLUMN IF NOT EXISTS total_earnings NUMERIC(12,2) DEFAULT 0.0;
 ALTER TABLE user_referrals ADD COLUMN IF NOT EXISTS total_referred_count INTEGER DEFAULT 0;
-ALTER TABLE user_referrals ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
 ALTER TABLE user_referrals ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 
-CREATE INDEX IF NOT EXISTS idx_user_referrals_referrer_id
+CREATE INDEX IF NOT EXISTS idx_user_referrals_referrer
     ON user_referrals (referrer_id);
+
+CREATE INDEX IF NOT EXISTS idx_user_referrals_code
+    ON user_referrals (referral_code);
 
 -- ---------------------------------------------------------------------------
 -- 3. DEPOSIT REQUESTS
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS deposit_requests (
-    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id        VARCHAR(255) NOT NULL,
-    gateway        VARCHAR(50)  NOT NULL,
-    amount         NUMERIC(12,2) NOT NULL,
-    currency       VARCHAR(10)  DEFAULT 'INR',
-    status         VARCHAR(50)  DEFAULT 'PENDING',
-    payment_url    TEXT,
-    tx_hash        VARCHAR(255),
-    gateway_id     VARCHAR(255),
-    qr_code        TEXT,
-    meta_data      JSONB        DEFAULT '{}'::jsonb,
-    created_at     TIMESTAMPTZ  DEFAULT NOW(),
-    updated_at     TIMESTAMPTZ  DEFAULT NOW()
+    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id          VARCHAR(255) NOT NULL,
+    amount           NUMERIC(15,2) NOT NULL,
+    currency         VARCHAR(10) NOT NULL DEFAULT 'USD',
+    gateway          VARCHAR(50) DEFAULT 'upi',
+    payment_gateway  VARCHAR(50),
+    code             VARCHAR(100),
+    transaction_code VARCHAR(100),
+    status           VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    idempotency_key  VARCHAR(255) UNIQUE,
+    metadata         JSONB DEFAULT '{}'::jsonb,
+    completed_at     TIMESTAMPTZ,
+    created_at       TIMESTAMPTZ DEFAULT NOW(),
+    updated_at       TIMESTAMPTZ DEFAULT NOW()
 );
 
-ALTER TABLE deposit_requests ADD COLUMN IF NOT EXISTS payment_url TEXT;
-ALTER TABLE deposit_requests ADD COLUMN IF NOT EXISTS tx_hash VARCHAR(255);
-ALTER TABLE deposit_requests ADD COLUMN IF NOT EXISTS gateway_id VARCHAR(255);
-ALTER TABLE deposit_requests ADD COLUMN IF NOT EXISTS qr_code TEXT;
-ALTER TABLE deposit_requests ADD COLUMN IF NOT EXISTS meta_data JSONB DEFAULT '{}'::jsonb;
-ALTER TABLE deposit_requests ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE deposit_requests ADD COLUMN IF NOT EXISTS currency VARCHAR(10) DEFAULT 'USD';
+ALTER TABLE deposit_requests ADD COLUMN IF NOT EXISTS gateway VARCHAR(50) DEFAULT 'upi';
+ALTER TABLE deposit_requests ADD COLUMN IF NOT EXISTS payment_gateway VARCHAR(50);
+ALTER TABLE deposit_requests ADD COLUMN IF NOT EXISTS code VARCHAR(100);
+ALTER TABLE deposit_requests ADD COLUMN IF NOT EXISTS transaction_code VARCHAR(100);
+ALTER TABLE deposit_requests ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'PENDING';
+ALTER TABLE deposit_requests ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(255);
+ALTER TABLE deposit_requests ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE deposit_requests ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ;
 
-CREATE INDEX IF NOT EXISTS idx_deposit_requests_user_id
-    ON deposit_requests (user_id);
+CREATE INDEX IF NOT EXISTS idx_deposit_requests_user
+    ON deposit_requests (user_id, created_at DESC);
+
 CREATE INDEX IF NOT EXISTS idx_deposit_requests_status
-    ON deposit_requests (status);
+    ON deposit_requests (status, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_deposit_requests_idempotency
+    ON deposit_requests (idempotency_key)
+    WHERE idempotency_key IS NOT NULL;
 
 -- ---------------------------------------------------------------------------
--- 4. SUPPORT TICKETS
+-- 4. PURCHASE ORDERS EXTENSION
 -- ---------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS support_tickets (
-    ticket_id   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id     VARCHAR(255) NOT NULL,
-    subject     VARCHAR(255),
-    category    VARCHAR(50)  DEFAULT 'general',
-    status      VARCHAR(50)  DEFAULT 'OPEN',
-    priority    VARCHAR(50)  DEFAULT 'medium',
-    messages    JSONB        DEFAULT '[]'::jsonb,
-    created_at  TIMESTAMPTZ  DEFAULT NOW(),
-    updated_at  TIMESTAMPTZ  DEFAULT NOW(),
-    closed_at   TIMESTAMPTZ
-);
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS phone_number VARCHAR(20);
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS sms_code VARCHAR(50);
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS raw_response JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ;
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS retry_count INTEGER DEFAULT 0;
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS provider_name VARCHAR(100);
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS service_type VARCHAR(50);
 
-ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS category VARCHAR(50) DEFAULT 'general';
-ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS priority VARCHAR(50) DEFAULT 'medium';
-ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS closed_at TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS idx_purchase_orders_user
+    ON purchase_orders (user_id, created_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_support_tickets_user_id
-    ON support_tickets (user_id);
-CREATE INDEX IF NOT EXISTS idx_support_tickets_status
-    ON support_tickets (status);
+CREATE INDEX IF NOT EXISTS idx_purchase_orders_status
+    ON purchase_orders (status, created_at DESC);
 
 -- ---------------------------------------------------------------------------
--- 5. BOT CONFIG / SYSTEM PARAMS
+-- 5. OPERATION LOCKS
 -- ---------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS bot_config (
-    key        VARCHAR(100) PRIMARY KEY,
-    value      JSONB        NOT NULL,
-    updated_at TIMESTAMPTZ  DEFAULT NOW()
-);
-
--- ---------------------------------------------------------------------------
--- 6. ACCOUNT LINK TOKENS
--- ---------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS account_link_tokens (
-    token       VARCHAR(64) PRIMARY KEY,
-    telegram_id VARCHAR(255) NOT NULL,
-    created_at  TIMESTAMPTZ DEFAULT NOW(),
+CREATE TABLE IF NOT EXISTS operation_locks (
+    lock_key    VARCHAR(255) PRIMARY KEY,
+    owner_id    VARCHAR(255) NOT NULL,
+    acquired_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     expires_at  TIMESTAMPTZ NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_account_link_tokens_expires_at
+CREATE INDEX IF NOT EXISTS idx_operation_locks_expires
+    ON operation_locks (expires_at);
+
+-- ---------------------------------------------------------------------------
+-- 6. SUPPORT TICKETS
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS support_tickets (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id     VARCHAR(255) NOT NULL,
+    ticket_type VARCHAR(50) DEFAULT 'general',
+    subject     TEXT,
+    message     TEXT NOT NULL,
+    status      VARCHAR(20) NOT NULL DEFAULT 'OPEN',
+    created_at  TIMESTAMPTZ DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_support_tickets_user
+    ON support_tickets (user_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_support_tickets_status
+    ON support_tickets (status, created_at DESC);
+
+-- ---------------------------------------------------------------------------
+-- 7. ACCOUNT LINK TOKENS
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS account_link_tokens (
+    token       VARCHAR(64) PRIMARY KEY,
+    user_id     VARCHAR(255) NOT NULL,
+    expires_at  TIMESTAMPTZ NOT NULL,
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_account_link_tokens_expires
     ON account_link_tokens (expires_at);
 
 -- ---------------------------------------------------------------------------
--- 7. BROADCAST HISTORY
+-- 8. FINANCIAL SUMMARY VIEW
 -- ---------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS broadcast_history (
-    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    admin_id     VARCHAR(255) NOT NULL,
-    message_text TEXT NOT NULL,
-    sent_count   INTEGER DEFAULT 0,
-    fail_count   INTEGER DEFAULT 0,
-    created_at   TIMESTAMPTZ DEFAULT NOW()
-);
-
--- ---------------------------------------------------------------------------
--- 8. UNIFIED USER DASHBOARD VIEW
--- ---------------------------------------------------------------------------
-CREATE OR REPLACE VIEW v_user_financial_summary AS
-SELECT 
-    u.id AS user_id,
+CREATE OR REPLACE VIEW vw_financial_summary AS
+SELECT
+    u.id                      AS user_id,
     u.telegram_id,
-    u.created_at AS user_joined_at,
-    COALESCE(w.balance, 0.0) AS wallet_balance,
-    COALESCE(COUNT(DISTINCT po.id), 0) AS total_orders_placed,
-    COALESCE(SUM(CASE WHEN po.status = 'COMPLETED' THEN po.amount ELSE 0 END), 0.0) AS total_spent,
-    COALESCE(COUNT(DISTINCT dr.id), 0) AS total_deposits_count,
-    COALESCE(SUM(CASE WHEN dr.status = 'COMPLETED' THEN dr.amount ELSE 0 END), 0.0) AS total_deposited
+    u.created_at              AS user_created_at,
+    w.balance,
+    w.updated_at              AS wallet_updated_at,
+    COUNT(DISTINCT po.id)     AS total_orders,
+    COUNT(DISTINCT po.id) FILTER (WHERE po.status = 'COMPLETED')  AS completed_orders,
+    COUNT(DISTINCT po.id) FILTER (WHERE po.status = 'PENDING')    AS pending_orders,
+    COUNT(DISTINCT po.id) FILTER (WHERE po.status = 'CANCELLED')  AS cancelled_orders,
+    COALESCE(SUM(po.amount) FILTER (WHERE po.status = 'COMPLETED'), 0) AS total_spent,
+    COALESCE(SUM(po.amount) FILTER (WHERE po.status = 'PENDING'), 0)   AS pending_spent,
+    COUNT(DISTINCT dr.id)     AS total_deposits,
+    COUNT(DISTINCT dr.id) FILTER (WHERE dr.status = 'COMPLETED')  AS completed_deposits,
+    COALESCE(SUM(dr.amount) FILTER (WHERE dr.status = 'COMPLETED'), 0) AS total_deposited
 FROM users u
 LEFT JOIN wallets w ON w.user_id = u.id
 LEFT JOIN purchase_orders po ON po.user_id = u.id
