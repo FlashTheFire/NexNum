@@ -39,7 +39,7 @@ class RedisManager:
         self.HEALTH_CHECK_INTERVAL = 15
 
     def _get_loop_lock(self, loop: asyncio.AbstractEventLoop) -> asyncio.Lock:
-        if loop not in self._locks or self._locks[loop]._loop is not loop:
+        if loop not in self._locks:
             self._locks[loop] = asyncio.Lock()
         return self._locks[loop]
 

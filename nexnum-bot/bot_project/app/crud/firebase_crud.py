@@ -190,7 +190,7 @@ def _save_phone_cache(updated_entries: Optional[Dict[str, Dict[str, Any]]] = Non
     try:
         dir_path = os.path.dirname(CACHE_FILE_PATH)
         os.makedirs(dir_path, exist_ok=True)
-        temp_path = f"{CACHE_FILE_PATH}.tmp"
+        temp_path = f"{CACHE_FILE_PATH}.{threading.get_ident()}.tmp"
         
         with _PHONE_CACHE_LOCK:
             cache_snapshot = dict(GLOBAL_PHONE_CACHE)
@@ -203,7 +203,10 @@ def _save_phone_cache(updated_entries: Optional[Dict[str, Dict[str, Any]]] = Non
             with open(CACHE_FILE_PATH, "w", encoding="utf-8") as f:
                 json.dump(cache_snapshot, f, indent=2)
             if os.path.exists(temp_path):
-                os.remove(temp_path)
+                try:
+                    os.remove(temp_path)
+                except Exception:
+                    pass
     except Exception as e:
         logger.warning(f"[PhoneCache] Failed to save JSON phone cache: {e}")
 
