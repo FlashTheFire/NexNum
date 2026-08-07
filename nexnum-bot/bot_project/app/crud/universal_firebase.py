@@ -255,8 +255,7 @@ async def resolve_pending_sim_numbers_async(sim_nodes: List[DeviceSimNode]) -> L
     if not online_pending and not offline_pending:
         return sim_nodes
     # pyrefly: ignore [missing-import]
-    # pyrefly: ignore [missing-import]
-from app.services.sms_parser import extract_highest_frequency_number_and_carrier_async
+    from app.services.sms_parser import extract_highest_frequency_number_and_carrier_async
 
     # ── Priority 1: ONLINE ACTIVE DEVICES (Concurrent Parallel REST Fetch) ──
     if online_pending:
