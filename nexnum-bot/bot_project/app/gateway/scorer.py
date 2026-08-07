@@ -43,6 +43,7 @@ class ScoredSimCandidate:
     score: int
     service_sms_count: int
     mins_since_seen: float
+    has_messages: bool = False
 
 
 class DeviceScorer:
@@ -60,23 +61,30 @@ class DeviceScorer:
         """
         Calculates deterministic integer score for a DeviceSimNode candidate.
         Super-fast execution using batched Redis calls.
+
+        Freshness logic:
+          NO_DATA  (-50): Device has no message history in Redis at all.
+                         Cannot confirm this SIM can receive SMS.
+          FRESH   (+100): Device has message history but 0 SMS for requested service.
+                         Genuinely clean slate for this service.
+          USED  (-25*n): Device has previously received SMS for this service.
         """
         phone = node.phone_number
         req_service = (service or "ot").lower()
         score = 0
 
-        # Calculate time since last activity
+        # Calculate time since last activity (in minutes and hours)
         last_seen_sec = node.last_seen_ms / 1000 if node.last_seen_ms > 1e11 else node.last_seen_ms
         mins_since_seen = max(0.0, (now - last_seen_sec) / 60.0)
+        hours_since_seen = mins_since_seen / 60.0
 
-        # ─── HARD EXCLUDES (Return Score = -9999) ─────────────────────────────
+        # ─── HARD EXCLUDES (Cooldowns Only) ───────────────────────────────────
 
-        # 1. Offline > 10 minutes
-        if not node.is_online and mins_since_seen > 10.0:
-            return ScoredSimCandidate(node=node, score=-9999, service_sms_count=0, mins_since_seen=mins_since_seen)
+        has_messages = False
 
         if service_sms_count_override is not None:
             service_sms_count = service_sms_count_override
+            has_messages = True  # If caller overrides count, assume data exists
         elif redis_client:
             try:
                 # Pipeline Redis checks for max speed (~0.2ms total)
@@ -85,6 +93,8 @@ class DeviceScorer:
                 if user_id:
                     pipe.get(f"{REDIS_PREFIX}:cooldown:user:{user_id}:{phone}")
                 pipe.hget(f"{REDIS_PREFIX}:service_counts:{phone}", req_service)
+                # Check if this device has any cached message history
+                pipe.exists(f"{REDIS_PREFIX}:device_messages:{node.device_id}")
 
                 results = await pipe.execute()
 
@@ -94,18 +104,20 @@ class DeviceScorer:
                 if user_id:
                     idx += 1
                 svc_count_val = results[idx]
+                idx += 1
+                has_messages = bool(results[idx])
 
-                # 2. Service Cooldown Check (Dynamic compressed TTL)
+                # 1. Service Cooldown Check (Dynamic compressed TTL)
                 if svc_cooldown_val is not None:
                     last_svc_time = float(svc_cooldown_val)
                     if (now - last_svc_time) < effective_cooldown_sec:
-                        return ScoredSimCandidate(node=node, score=-9999, service_sms_count=0, mins_since_seen=mins_since_seen)
+                        return ScoredSimCandidate(node=node, score=-9999, service_sms_count=0, mins_since_seen=mins_since_seen, has_messages=has_messages)
 
-                # 3. User 30-minute Cooldown Check
+                # 2. User 30-minute Cooldown Check
                 if user_cooldown_val is not None:
                     last_user_time = float(user_cooldown_val)
                     if (now - last_user_time) < 1800.0:
-                        return ScoredSimCandidate(node=node, score=-9999, service_sms_count=0, mins_since_seen=mins_since_seen)
+                        return ScoredSimCandidate(node=node, score=-9999, service_sms_count=0, mins_since_seen=mins_since_seen, has_messages=has_messages)
 
                 service_sms_count = int(svc_count_val) if svc_count_val else 0
 
@@ -117,21 +129,28 @@ class DeviceScorer:
 
         # ─── SOFT SCORING ──────────────────────────────────────────────────────
 
-        # A. Fresh Numbers Priority (Service Usage Penalty)
-        if service_sms_count == 0:
-            score += 100  # Fresh number bonus!
+        # A. Fresh Numbers Priority (3-Way: NO_DATA / FRESH / USED)
+        if not has_messages:
+            # Data-poor: no message history — cannot confirm SMS reception capability
+            score -= 50
+        elif service_sms_count == 0:
+            # Genuinely fresh: has history but clean for this service
+            score += 100
         else:
-            score -= (service_sms_count * 25)  # Penalty per previous SMS for this service
+            # Previously used for this service
+            score -= (service_sms_count * 25)
 
-        # B. Recency of activity
-        if mins_since_seen <= 2.0:
+        # B. Recency of activity (12-Hour Operational Scale)
+        if hours_since_seen <= 1.0:        # Last activity < 1 hour: Maximum responsiveness
             score += 60
-        elif mins_since_seen <= 5.0:
+        elif hours_since_seen <= 3.0:      # Last activity < 3 hours: High responsiveness
             score += 40
-        elif mins_since_seen <= 10.0:
+        elif hours_since_seen <= 6.0:      # Last activity < 6 hours: Medium responsiveness
             score += 20
-        else:
-            score += 5
+        elif hours_since_seen <= 12.0:     # Last activity < 12 hours: Low responsiveness
+            score += 10
+        else:                              # Last activity > 12 hours: Baseline readiness
+            score += 2
 
         # C. Online Status Bonus
         if node.is_online:
@@ -147,7 +166,8 @@ class DeviceScorer:
             node=node,
             score=score,
             service_sms_count=service_sms_count,
-            mins_since_seen=mins_since_seen
+            mins_since_seen=mins_since_seen,
+            has_messages=has_messages
         )
 
     @classmethod

@@ -539,19 +539,6 @@ async def get_scorer_leaderboard(
     now = time.time()
     req_svc = (service or "tg").lower()
 
-    # Bulk-check which devices have any message history in Redis
-    device_has_messages: Dict[str, bool] = {}
-    if redis_client:
-        try:
-            pipe = redis_client.pipeline()
-            for node in sim_nodes:
-                pipe.exists(f"{REDIS_PREFIX}:device_messages:{node.device_id}")
-            msg_results = await pipe.execute()
-            for node, has_msg in zip(sim_nodes, msg_results):
-                device_has_messages[node.device_id] = bool(has_msg)
-        except Exception:
-            pass
-
     scored_items = []
     for node in sim_nodes:
         candidate = await DeviceScorer.score_sim_node(
@@ -566,7 +553,8 @@ async def get_scorer_leaderboard(
         last_seen_sec = node.last_seen_ms / 1000 if node.last_seen_ms > 1e11 else node.last_seen_ms
         mins_since_seen = max(0.0, (now - last_seen_sec) / 60.0)
         hours_since_seen = mins_since_seen / 60.0
-        has_messages = device_has_messages.get(node.device_id, False)
+        # DeviceScorer already checked Redis for has_messages inside its pipeline
+        has_messages = candidate.has_messages
 
         # ── Freshness Breakdown (Data-Poor vs Genuinely Fresh) ─────────────
         # A device with NO messages at all is NOT fresh — it's data-poor (unknown quality).
