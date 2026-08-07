@@ -66,7 +66,7 @@ interface DepositMetadata {
 // Redis keys for deposit tracking
 const DEPOSIT_KEY = (id: string) => `deposit:${id}`
 const USER_PENDING_DEPOSITS = (userId: string) => `deposits:pending:${userId}`
-const DEPOSIT_EXPIRY_SECONDS = 35 * 60 // 35 minutes (buffer over 30 min timeout)
+const DEPOSIT_EXPIRY_SECONDS = 15 * 60 // 15 minutes (aligned with nexnum-bot)
 
 // ============================================================================
 // Deposit Service

@@ -269,14 +269,19 @@ export default function WalletPage() {
         }
 
         // Block if there's already an active deposit — user must cancel first
-        if (activeDeposit) {
+        if (activeDeposit && activeDeposit.status === 'pending') {
             setInlineStep('qr_payment')
             toast.info('You have an active deposit. Cancel it first to generate a new one.')
             return
         }
 
+        // INSTANT TRANSITION: Switch to QR step immediately with loading skeleton
         setSelectedGateway('UPI')
+        setInlineStep('qr_payment')
         setIsGenerating(true)
+        setTimeLeft(900)
+        setResolvedQrImage(null)
+
         try {
             const result = await api.request<any>('/api/wallet/deposit', 'POST', {
                 amount: val,
@@ -297,18 +302,19 @@ export default function WalletPage() {
                     originalCurrency: preferredCurrency,
                     qrCodeUrl: depData.qrCodeUrl || defaultQr,
                     upiId: depData.upiId || 'paytmqr281005050101nbxw0hx35cpo@paytm',
-                    expiresIn: depData.expiresIn || 900
+                    expiresIn: depData.expiresIn || 900,
+                    status: 'pending'
                 })
                 setTimeLeft(depData.expiresIn || 900)
-                setInlineStep('qr_payment')
                 startPolling(depId)
                 startCountdown()
-                toast.success("UPI QR Code Generated Successfully")
             } else {
                 toast.error(result.error || "Failed to generate deposit request")
+                setInlineStep('select_method')
             }
         } catch (e: any) {
             toast.error("Failed to generate deposit request. Please try again.")
+            setInlineStep('select_method')
         } finally {
             setIsGenerating(false)
         }
@@ -702,214 +708,161 @@ export default function WalletPage() {
                                                     Continue to Select Payment Method
                                                 </Button>
                                             </motion.div>
-                                        )}
-
-                                        {/* STEP 2: Select Payment Method Screen */}
+                                                              {/* STEP 2: Select Payment Method Screen */}
                                         {inlineStep === 'select_method' && (
                                             <motion.div
                                                 key="step_select_method"
                                                 initial={{ opacity: 0, y: 10 }}
                                                 animate={{ opacity: 1, y: 0 }}
                                                 exit={{ opacity: 0, y: -10 }}
-                                                className="space-y-4"
+                                                className="space-y-3"
                                             >
-                                                <div className="grid grid-cols-1 gap-3.5">
-                                                    {/* UPI / BHIM Method Selection Option */}
+                                                <div className="grid grid-cols-1 gap-3">
+                                                    {/* UPI / BHIM Option */}
                                                     <button
                                                         type="button"
                                                         onClick={handleSelectUpiPayment}
-                                                        disabled={isGenerating}
-                                                        className="group relative w-full p-4 md:p-5 rounded-2xl bg-gradient-to-r from-card/60 via-card/40 to-card/60 border border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/[0.03] transition-all duration-300 text-left flex items-center justify-between shadow-lg shadow-black/20 hover:shadow-emerald-500/10 cursor-pointer overflow-hidden"
+                                                        className="w-full p-4 rounded-xl bg-card/40 border border-white/10 hover:border-emerald-500/40 hover:bg-emerald-500/5 transition-all text-left flex items-center justify-between group cursor-pointer"
                                                     >
-                                                        <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl group-hover:bg-emerald-500/15 transition-all duration-500 pointer-events-none" />
-
-                                                        <div className="flex items-center gap-4 relative z-10">
-                                                            <div className="w-12 h-12 md:w-14 md:h-14 rounded-xl bg-emerald-500/10 border border-emerald-500/30 ring-1 ring-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:scale-105 group-hover:bg-emerald-500/20 transition-all shrink-0">
-                                                                <IndianRupee className="w-6 h-6 md:w-7 md:h-7" />
+                                                        <div className="flex items-center gap-3.5">
+                                                            <div className="w-11 h-11 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:scale-105 transition-transform shrink-0">
+                                                                <IndianRupee className="w-5 h-5" />
                                                             </div>
-                                                            <div className="space-y-1">
-                                                                <div className="flex items-center gap-2.5 flex-wrap">
-                                                                    <span className="text-base md:text-lg font-bold text-white tracking-tight group-hover:text-emerald-400 transition-colors">
-                                                                        UPI / BHIM
-                                                                    </span>
-                                                                    <Badge className="bg-emerald-500/15 text-emerald-400 text-[10px] font-mono font-semibold uppercase tracking-wider border border-emerald-500/30 px-2 py-0.5 rounded-full">
-                                                                        Instant Auto-Credit
-                                                                    </Badge>
-                                                                </div>
-                                                                <p className="text-xs text-muted-foreground leading-relaxed">
+                                                            <div>
+                                                                <span className="text-sm font-semibold text-white group-hover:text-emerald-400 transition-colors">
+                                                                    UPI / BHIM
+                                                                </span>
+                                                                <p className="text-xs text-muted-foreground mt-0.5">
                                                                     Instant QR Code top-up via BHIM, PhonePe, Paytm &amp; Google Pay
                                                                 </p>
                                                             </div>
                                                         </div>
 
-                                                        <div className="relative z-10 ml-3 shrink-0">
-                                                            {isGenerating ? (
-                                                                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
-                                                                    <Loader2 className="w-5 h-5 text-emerald-400 animate-spin" />
-                                                                </div>
-                                                            ) : (
-                                                                <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 group-hover:bg-emerald-500/20 group-hover:border-emerald-500/40 flex items-center justify-center text-zinc-400 group-hover:text-emerald-400 transition-all duration-300">
-                                                                    <ArrowUpRight className="w-5 h-5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-                                                                </div>
-                                                            )}
-                                                        </div>
+                                                        <ArrowUpRight className="w-4 h-4 text-muted-foreground group-hover:text-emerald-400 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all shrink-0 ml-2" />
                                                     </button>
 
-                                                    {/* Crypto USDT Selection Option */}
+                                                    {/* Crypto USDT Option */}
                                                     <button
                                                         type="button"
                                                         onClick={handleSelectCryptoPayment}
-                                                        className="group relative w-full p-4 md:p-5 rounded-2xl bg-gradient-to-r from-card/60 via-card/40 to-card/60 border border-white/10 hover:border-indigo-500/50 hover:bg-indigo-500/[0.03] transition-all duration-300 text-left flex items-center justify-between shadow-lg shadow-black/20 hover:shadow-indigo-500/10 cursor-pointer overflow-hidden"
+                                                        className="w-full p-4 rounded-xl bg-card/40 border border-white/10 hover:border-indigo-500/40 hover:bg-indigo-500/5 transition-all text-left flex items-center justify-between group cursor-pointer"
                                                     >
-                                                        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full blur-2xl group-hover:bg-indigo-500/15 transition-all duration-500 pointer-events-none" />
-
-                                                        <div className="flex items-center gap-4 relative z-10">
-                                                            <div className="w-12 h-12 md:w-14 md:h-14 rounded-xl bg-indigo-500/10 border border-indigo-500/30 ring-1 ring-indigo-500/20 flex items-center justify-center text-indigo-400 group-hover:scale-105 group-hover:bg-indigo-500/20 transition-all shrink-0">
-                                                                <Coins className="w-6 h-6 md:w-7 md:h-7" />
+                                                        <div className="flex items-center gap-3.5">
+                                                            <div className="w-11 h-11 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 group-hover:scale-105 transition-transform shrink-0">
+                                                                <Coins className="w-5 h-5" />
                                                             </div>
-                                                            <div className="space-y-1">
-                                                                <div className="flex items-center gap-2.5 flex-wrap">
-                                                                    <span className="text-base md:text-lg font-bold text-white tracking-tight group-hover:text-indigo-400 transition-colors">
-                                                                        Crypto USDT
-                                                                    </span>
-                                                                    <Badge className="bg-indigo-500/15 text-indigo-400 text-[10px] font-mono font-semibold uppercase tracking-wider border border-indigo-500/30 px-2 py-0.5 rounded-full">
-                                                                        TRC20 / BEP20
-                                                                    </Badge>
-                                                                </div>
-                                                                <p className="text-xs text-muted-foreground leading-relaxed">
+                                                            <div>
+                                                                <span className="text-sm font-semibold text-white group-hover:text-indigo-400 transition-colors">
+                                                                    Crypto USDT
+                                                                </span>
+                                                                <p className="text-xs text-muted-foreground mt-0.5">
                                                                     Instant USDT TRC20 &amp; BEP20 network deposit
                                                                 </p>
                                                             </div>
                                                         </div>
 
-                                                        <div className="relative z-10 ml-3 shrink-0">
-                                                            <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 group-hover:bg-indigo-500/20 group-hover:border-indigo-500/40 flex items-center justify-center text-zinc-400 group-hover:text-indigo-400 transition-all duration-300">
-                                                                <ArrowUpRight className="w-5 h-5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-                                                            </div>
-                                                        </div>
+                                                        <ArrowUpRight className="w-4 h-4 text-muted-foreground group-hover:text-indigo-400 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all shrink-0 ml-2" />
                                                     </button>
-                                                </div>
-
-                                                {/* Security Footer Note */}
-                                                <div className="pt-2 flex items-center justify-center">
-                                                    <div className="px-4 py-2 rounded-full bg-card/30 border border-white/5 backdrop-blur-md flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                                                        <Lock className="w-3.5 h-3.5 text-emerald-400" />
-                                                        <span>Bank-Grade Encrypted Security &amp; Anti-Bot Protection</span>
-                                                    </div>
                                                 </div>
                                             </motion.div>
                                         )}
 
                                         {/* STEP 3A: Live UPI QR Payment Screen */}
-                                        {inlineStep === 'qr_payment' && activeDeposit && (
+                                        {inlineStep === 'qr_payment' && (
                                             <motion.div
                                                 key="step_qr_payment"
-                                                initial={{ opacity: 0, scale: 0.98 }}
-                                                animate={{ opacity: 1, scale: 1 }}
-                                                exit={{ opacity: 0, scale: 0.98 }}
+                                                initial={{ opacity: 0, y: 10 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                exit={{ opacity: 0, y: -10 }}
                                                 className="space-y-4"
                                             >
-                                                {/* Amount + Timer Banner */}
+                                                {/* Amount + Expiry Summary Row */}
                                                 <div className="grid grid-cols-2 gap-3">
-                                                    <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-                                                        <p className="text-[10px] uppercase font-bold text-emerald-400/70 tracking-widest mb-1">Amount to Pay</p>
-                                                        <p className="text-xl font-bold text-emerald-400 tabular-nums">
-                                                            ₹{activeDeposit.amount?.toLocaleString('en-IN') ?? '—'}
-                                                        </p>
-                                                        {preferredCurrency !== 'INR' && (
-                                                            <p className="text-[10px] text-muted-foreground mt-0.5 font-mono">
-                                                                ≈ {currencySym}{parseFloat(amount).toFixed(2)} {preferredCurrency}
-                                                            </p>
+                                                    <div className="p-3.5 rounded-xl bg-card/40 border border-white/10">
+                                                        <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider mb-1">Amount to Pay</p>
+                                                        {isGenerating && !activeDeposit ? (
+                                                            <div className="h-7 w-24 bg-white/10 rounded animate-pulse" />
+                                                        ) : (
+                                                            <>
+                                                                <p className="text-xl font-bold text-emerald-400 tabular-nums">
+                                                                    ₹{activeDeposit?.amount?.toLocaleString('en-IN') ?? calculatedInrAmount}
+                                                                </p>
+                                                                {preferredCurrency !== 'INR' && (
+                                                                    <p className="text-[10px] text-muted-foreground mt-0.5 font-mono">
+                                                                        ≈ {currencySym}{parseFloat(amount).toFixed(2)} {preferredCurrency}
+                                                                    </p>
+                                                                )}
+                                                            </>
                                                         )}
                                                     </div>
-                                                    <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20">
-                                                        <p className="text-[10px] uppercase font-bold text-amber-400/70 tracking-widest mb-1 flex items-center gap-1">
-                                                            <Clock className="w-3 h-3" /> Session Expiry
+
+                                                    <div className="p-3.5 rounded-xl bg-card/40 border border-white/10">
+                                                        <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider mb-1 flex items-center gap-1">
+                                                            <Clock className="w-3 h-3 text-amber-400" /> Session Expiry
                                                         </p>
                                                         <p className={`text-xl font-mono font-bold tabular-nums ${timeLeft < 120 ? 'text-rose-400 animate-pulse' : 'text-amber-400'}`}>
                                                             {formatTimer(timeLeft)}
                                                         </p>
                                                         <p className="text-[10px] text-muted-foreground mt-0.5">
-                                                            {timeLeft < 60 ? 'Expiring soon!' : 'Complete payment before expiry'}
+                                                            Complete payment before expiry
                                                         </p>
                                                     </div>
                                                 </div>
 
-                                                {/* QR Code Container — premium glassmorphic */}
-                                                <div className="relative flex flex-col items-center">
-                                                    {/* Outer glow ring */}
-                                                    <div className="absolute inset-0 rounded-3xl bg-emerald-500/10 blur-xl pointer-events-none" />
-
-                                                    <div className="relative w-full max-w-[260px] mx-auto">
-                                                        {/* QR Card */}
-                                                        <div className="relative bg-white rounded-2xl p-4 shadow-2xl shadow-emerald-500/20 border-2 border-emerald-500/40 overflow-hidden">
-                                                            {/* Scan-line animation overlay */}
-                                                            <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-2xl">
-                                                                <motion.div
-                                                                    animate={{ y: ['-100%', '200%'] }}
-                                                                    transition={{ duration: 2.5, repeat: Infinity, ease: 'linear', repeatDelay: 1 }}
-                                                                    className="absolute left-0 right-0 h-8 bg-gradient-to-b from-transparent via-emerald-400/25 to-transparent"
-                                                                />
+                                                {/* QR Code Container — minimal & clean */}
+                                                <div className="flex flex-col items-center">
+                                                    <div className="relative w-full max-w-[240px] aspect-square mx-auto bg-white rounded-2xl p-4 border border-white/10 shadow-xl flex items-center justify-center overflow-hidden">
+                                                        {isGenerating || !resolvedQrImage ? (
+                                                            <div className="w-full h-full flex flex-col items-center justify-center gap-3">
+                                                                <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
+                                                                <p className="text-xs text-gray-500 font-medium">Generating UPI QR Code...</p>
                                                             </div>
-
-                                                            {/* QR Image or Skeleton */}
-                                                            {resolvedQrImage ? (
-                                                                /* eslint-disable-next-line @next/next/no-img-element */
-                                                                <img
-                                                                    src={resolvedQrImage}
-                                                                    alt="UPI QR Code — Scan with Paytm / PhonePe / GPay"
-                                                                    className="w-full h-full object-contain"
-                                                                    style={{ minHeight: 200 }}
-                                                                />
-                                                            ) : (
-                                                                <div className="w-full flex flex-col items-center justify-center gap-3 py-10">
-                                                                    <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
-                                                                    <p className="text-xs text-gray-400 font-medium">Generating QR code...</p>
-                                                                </div>
-                                                            )}
-                                                        </div>
-
-                                                        {/* Corner accent marks */}
-                                                        <div className="absolute -top-1 -left-1 w-5 h-5 border-t-2 border-l-2 border-emerald-400 rounded-tl-md" />
-                                                        <div className="absolute -top-1 -right-1 w-5 h-5 border-t-2 border-r-2 border-emerald-400 rounded-tr-md" />
-                                                        <div className="absolute -bottom-1 -left-1 w-5 h-5 border-b-2 border-l-2 border-emerald-400 rounded-bl-md" />
-                                                        <div className="absolute -bottom-1 -right-1 w-5 h-5 border-b-2 border-r-2 border-emerald-400 rounded-br-md" />
+                                                        ) : (
+                                                            /* eslint-disable-next-line @next/next/no-img-element */
+                                                            <img
+                                                                src={resolvedQrImage}
+                                                                alt="UPI QR Code — Scan with BHIM / PhonePe / Paytm / GPay"
+                                                                className="w-full h-full object-contain"
+                                                            />
+                                                        )}
                                                     </div>
 
                                                     <p className="mt-3 text-[11px] text-muted-foreground text-center">
-                                                        Scan with <span className="text-white font-semibold">Paytm</span> · <span className="text-white font-semibold">PhonePe</span> · <span className="text-white font-semibold">GPay</span>
+                                                        Scan with <span className="text-white font-medium">BHIM</span> · <span className="text-white font-medium">PhonePe</span> · <span className="text-white font-medium">Paytm</span> · <span className="text-white font-medium">GPay</span>
                                                     </p>
                                                 </div>
 
-                                                {/* Auto-detection status bar */}
-                                                <div className="flex items-center justify-center gap-2.5 p-3 rounded-xl bg-emerald-500/8 border border-emerald-500/15">
-                                                    <div className="relative flex h-2.5 w-2.5 shrink-0">
+                                                {/* Auto-detection Status Bar */}
+                                                <div className="p-3 rounded-xl bg-card/30 border border-white/10 flex items-center justify-center gap-2.5">
+                                                    <div className="relative flex h-2 w-2 shrink-0">
                                                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                                                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+                                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
                                                     </div>
                                                     <p className="text-xs text-emerald-400 font-medium">
                                                         Auto-detecting payment — no action needed after scanning
                                                     </p>
                                                 </div>
 
-                                                {/* Cancel Deposit — prominent, safe destructive styling */}
-                                                <div className="pt-1 border-t border-white/5">
-                                                    <button
-                                                        type="button"
-                                                        onClick={handleCancelDeposit}
-                                                        disabled={isCancelling}
-                                                        className="w-full h-11 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer flex items-center justify-center gap-2 border border-rose-500/30 bg-rose-500/8 text-rose-400 hover:bg-rose-500/15 hover:border-rose-500/50 hover:text-rose-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                                                    >
-                                                        {isCancelling ? (
-                                                            <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Cancelling...</>
-                                                        ) : (
-                                                            <><ArrowLeft className="w-3.5 h-3.5" /> Cancel & Generate New Deposit</>
-                                                        )}
-                                                    </button>
-                                                    <p className="text-center text-[10px] text-muted-foreground mt-1.5">
-                                                        Only one active deposit allowed at a time
-                                                    </p>
-                                                </div>
+                                                {/* Cancel Action Button */}
+                                                {activeDeposit && (
+                                                    <div className="pt-1 border-t border-white/5">
+                                                        <button
+                                                            type="button"
+                                                            onClick={handleCancelDeposit}
+                                                            disabled={isCancelling}
+                                                            className="w-full h-10 rounded-xl text-xs font-medium transition-all duration-200 cursor-pointer flex items-center justify-center gap-2 border border-rose-500/20 bg-rose-500/5 text-rose-400 hover:bg-rose-500/10 hover:border-rose-500/40 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        >
+                                                            {isCancelling ? (
+                                                                <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Cancelling Deposit...</>
+                                                            ) : (
+                                                                <><ArrowLeft className="w-3.5 h-3.5" /> Cancel &amp; Generate New Deposit</>
+                                                            )}
+                                                        </button>
+                                                        <p className="text-center text-[10px] text-muted-foreground mt-1">
+                                                            Only one active deposit allowed at a time
+                                                        </p>
+                                                    </div>
+                                                )}
                                             </motion.div>
                                         )}
 

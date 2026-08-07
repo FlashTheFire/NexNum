@@ -89,7 +89,7 @@ const DEFAULT_CONFIG: PaymentConfig = {
     paytmEnvironment: 'STAGING',
     depositMinAmount: 10,
     depositMaxAmount: 50000,
-    depositTimeoutMins: 30,
+    depositTimeoutMins: 15,
     maxPendingDeposits: 3,
     depositBonusPercent: 0,
     pointsRate: 100,
