@@ -1,12 +1,8 @@
 # app/api/v1/endpoints/admin.py
 """
-Phase 7 — Gateway Admin REST API & Management Endpoints
-
-Exposes comprehensive administrative capabilities:
-  - System Stats & Metrics
-  - Device & SIM Slot Management (Ban/Unban, Online/Offline status)
-  - Live Activations Monitor & Inspection
-  - Dynamic Service Pattern Registry Management & Testing Sandbox
+Admin Command Center Gateway API Endpoints
+Provides real-time metrics, device SIM inventory control, live activations monitoring,
+and dynamic pattern matching sandbox.
 """
 
 from __future__ import annotations
@@ -23,13 +19,12 @@ from app.core.config import get_settings
 from app.crud.firebase_crud import get_all_sim_nodes
 from app.services.pattern_registry import ServicePatternRegistry, load_default_patterns
 from app.services.sms_parser import extract_otp_code, match_sms_to_service
+from app.middleware.auth import verify_api_key
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-from app.middleware.auth import verify_api_key
-
-router = APIRouter(tags=["Admin Panel"], dependencies=[Depends(verify_api_key)])
+router = APIRouter(tags=["Admin Panel"])
 REDIS_PREFIX = "nexsms"
 
 
@@ -50,7 +45,7 @@ class TestMatchPayload(BaseModel):
 
 # ─── 1. System Metrics & Stats ───────────────────────────────────────────────
 
-@router.get("/stats")
+@router.get("/stats", response_model=None, dependencies=[Depends(verify_api_key)])
 async def get_system_stats():
     """Returns overview metrics: active activations, allocatable SIMs, Redis status."""
     try:
@@ -100,7 +95,7 @@ async def get_system_stats():
 
 # ─── 2. Device & SIM Management ───────────────────────────────────────────────
 
-@router.get("/devices")
+@router.get("/devices", response_model=None, dependencies=[Depends(verify_api_key)])
 async def get_devices_list():
     """Returns all normalized DeviceSimNodes with status, carrier, battery, and last seen."""
     sim_nodes = get_all_sim_nodes()
@@ -137,7 +132,7 @@ async def get_devices_list():
     return {"count": len(result), "devices": result}
 
 
-@router.post("/devices/{device_id}/ban")
+@router.post("/devices/{device_id}/ban", response_model=None, dependencies=[Depends(verify_api_key)])
 async def ban_device(device_id: str):
     """Ban a device from number allocation."""
     try:
@@ -151,7 +146,7 @@ async def ban_device(device_id: str):
     return {"status": "banned", "deviceId": device_id}
 
 
-@router.post("/devices/{device_id}/unban")
+@router.post("/devices/{device_id}/unban", response_model=None, dependencies=[Depends(verify_api_key)])
 async def unban_device(device_id: str):
     """Unban a device."""
     try:
@@ -167,7 +162,7 @@ async def unban_device(device_id: str):
 
 # ─── 3. Activations Monitor ───────────────────────────────────────────────────
 
-@router.get("/activations")
+@router.get("/activations", response_model=None, dependencies=[Depends(verify_api_key)])
 async def get_active_activations():
     """Returns all active activations stored in Redis."""
     try:
@@ -212,33 +207,35 @@ async def get_active_activations():
         return {"activations": []}
 
 
-# ─── 4. Dynamic Service Pattern Registry ──────────────────────────────────────
+# ─── 4. Dynamic Patterns Sandbox & Management ────────────────────────────────
 
-@router.get("/patterns")
+@router.get("/patterns", response_model=None, dependencies=[Depends(verify_api_key)])
 async def get_all_patterns():
-    """Returns all registered service patterns."""
+    """Returns all default and live pattern definitions for services."""
     defaults = load_default_patterns()
-    return {"patterns": defaults}
+    return {"count": len(defaults), "patterns": defaults}
 
 
-@router.put("/patterns/{service_code}")
-async def update_service_pattern(service_code: str, payload: PatternUpdatePayload):
-    """Create or update a service pattern in Supabase with instant Redis cache invalidation."""
+@router.post("/patterns/{service_code}", response_model=None, dependencies=[Depends(verify_api_key)])
+async def update_pattern(service_code: str, payload: PatternUpdatePayload):
+    """Updates pattern definition for a service live in Supabase and invalidates Redis cache."""
     try:
         from utils.redis_manager import redis_manager
     except ImportError:
         from bot_project.utils.redis_manager import redis_manager
     redis_client = await redis_manager.get_client()
 
-    success = await ServicePatternRegistry.update_pattern(redis_client, service_code, payload.dict())
+    pattern_data = payload.dict()
+    success = await ServicePatternRegistry.update_pattern(redis_client, service_code, pattern_data)
     if success:
-        return {"status": "success", "serviceCode": service_code, "pattern": payload.dict()}
-    raise HTTPException(status_code=500, detail="Failed to update pattern in Supabase")
+        return {"status": "success", "serviceCode": service_code, "pattern": pattern_data}
+    else:
+        raise HTTPException(status_code=500, detail="Failed to update pattern in database.")
 
 
-@router.post("/test-match")
+@router.post("/test-match", response_model=None, dependencies=[Depends(verify_api_key)])
 async def test_pattern_match(payload: TestMatchPayload):
-    """Test a sample SMS body & sender against a service pattern in real-time."""
+    """Sandbox endpoint: Test SMS body & sender ID against dynamic patterns."""
     try:
         from utils.redis_manager import redis_manager
     except ImportError:
@@ -246,15 +243,13 @@ async def test_pattern_match(payload: TestMatchPayload):
     redis_client = await redis_manager.get_client()
 
     matched, code = await ServicePatternRegistry.match_sms_dynamic(
-        redis_client,
-        payload.body,
-        payload.sender,
-        payload.serviceCode
+        redis_client, payload.body, payload.sender, payload.serviceCode
     )
+
     return {
         "serviceCode": payload.serviceCode,
-        "isMatched": matched,
-        "extractedCode": code,
         "sender": payload.sender,
-        "body": payload.body
+        "body": payload.body,
+        "isMatched": matched,
+        "extractedCode": code
     }

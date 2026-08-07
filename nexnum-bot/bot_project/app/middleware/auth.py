@@ -9,16 +9,16 @@ from __future__ import annotations
 import os
 import logging
 from typing import Optional
-from fastapi import Request, HTTPException, Security, status
-from fastapi.security.api_key import APIKeyHeader, APIKeyQuery
+from fastapi import HTTPException, Security, status
+from fastapi.security import APIKeyHeader, APIKeyQuery
 
 from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-API_KEY_HEADER = APIKeyHeader(name="X-API-Key", auto_error=False)
-API_KEY_QUERY = APIKeyQuery(name="api_key", auto_error=False)
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+api_key_query = APIKeyQuery(name="api_key", auto_error=False)
 
 
 def get_expected_api_keys() -> set[str]:
@@ -36,7 +36,6 @@ def get_expected_api_keys() -> set[str]:
     if env_admin_key:
         keys.add(env_admin_key)
 
-    # Fallback to configured key if no env provided
     if not keys and configured_key:
         keys.add(configured_key)
 
@@ -44,27 +43,19 @@ def get_expected_api_keys() -> set[str]:
 
 
 async def verify_api_key(
-    header_key: Optional[str] = Security(API_KEY_HEADER),
-    query_key: Optional[str] = Security(API_KEY_QUERY),
-    request: Optional[Request] = None
-) -> str:
+    header_key: Optional[str] = Security(api_key_header),
+    query_key: Optional[str] = Security(api_key_query)
+) -> None:
     """
-    FastAPI Security Dependency that validates API key.
-    Raises 401 UNAUTHORIZED if key is missing or invalid.
+    FastAPI Security Dependency validating API Key from X-API-Key header or api_key query param.
+    Compatible with router and endpoint level dependencies.
     """
     provided_key = header_key or query_key
-
-    # Check query param directly from request if Security hasn't captured it
-    if not provided_key and request:
-        provided_key = request.query_params.get("api_key") or request.query_params.get("apiKey")
-
     valid_keys = get_expected_api_keys()
 
     if not provided_key or provided_key not in valid_keys:
-        logger.warning(f"[Auth] Unauthorized access attempt to {request.url.path if request else 'endpoint'}")
+        logger.warning("[Auth] Unauthorized access attempt with invalid/missing API key")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or missing API key (X-API-Key header or api_key parameter required)"
+            detail="Invalid or missing API key (X-API-Key header or api_key query parameter required)"
         )
-
-    return provided_key
