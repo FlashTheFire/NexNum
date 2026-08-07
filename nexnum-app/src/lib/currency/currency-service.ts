@@ -352,13 +352,19 @@ export class CurrencyService {
     /**
      * Convert INR deposit amount to Points.
      * Used by: DepositService.confirmDeposit
-     * Formula: floor(INR / inrToUsdRate × pointsRate)
+     * Formula: floor(INR * (1 - taxPercent/100) * (1 - markupPercent/100) / inrToUsdRate × pointsRate)
      * Always floors to avoid over-crediting.
      */
     async inrToPoints(inrAmount: number): Promise<number> {
         const { inrToUsdRate, pointsRate } = await this.getConfig()
+        const taxPercent = PricingConfig.depositTaxPercent || 0
+        const markupPercent = PricingConfig.depositMarkupPercent || 0
 
-        return new Decimal(inrAmount)
+        const netInr = new Decimal(inrAmount)
+            .times(new Decimal(1).minus(new Decimal(taxPercent).dividedBy(100)))
+            .times(new Decimal(1).minus(new Decimal(markupPercent).dividedBy(100)))
+
+        return netInr
             .dividedBy(inrToUsdRate)
             .times(pointsRate)
             .floor()

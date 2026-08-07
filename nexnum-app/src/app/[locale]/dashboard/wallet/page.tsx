@@ -142,44 +142,76 @@ export default function WalletPage() {
     const currencySym = activeCurrencyObj?.symbol || '$'
     const currencyRate = activeCurrencyObj?.rate || 1
 
-    // Dynamic Presets based on active currency
+    // 10 INR equivalent minimum deposit across all currencies
+    const minDepositInPreferred = useMemo(() => {
+        if (preferredCurrency === 'INR') return 10
+        const inrRate = currencies['INR']?.rate || 88.5
+        const targetRate = activeCurrencyObj?.rate || 1
+        const valInTarget = (10 / inrRate) * targetRate
+        return Math.max(0.01, Math.round(valInTarget * 100) / 100)
+    }, [preferredCurrency, currencies, activeCurrencyObj])
+
+    const minDepositFormatted = useMemo(() => {
+        if (preferredCurrency === 'INR') return '₹10'
+        if (preferredCurrency === 'USD') return `$${minDepositInPreferred.toFixed(2)}`
+        if (preferredCurrency === 'EUR') return `€${minDepositInPreferred.toFixed(2)}`
+        if (preferredCurrency === 'GBP') return `£${minDepositInPreferred.toFixed(2)}`
+        if (preferredCurrency === 'RUB') return `₽${Math.round(minDepositInPreferred)}`
+        return `${currencySym}${minDepositInPreferred < 1 ? minDepositInPreferred.toFixed(2) : minDepositInPreferred}`
+    }, [preferredCurrency, currencySym, minDepositInPreferred])
+
+    // Dynamic Presets based on active currency starting from minimum deposit
     const dynamicPresets = useMemo(() => {
         if (preferredCurrency === 'INR') {
             return [
+                { value: 10, label: '₹10' },
                 { value: 100, label: '₹100' },
                 { value: 500, label: '₹500' },
-                { value: 1000, label: '₹1,000' },
-                { value: 2500, label: '₹2,500' }
+                { value: 1000, label: '₹1,000' }
             ]
         }
-        if (preferredCurrency === 'USD' || preferredCurrency === 'EUR' || preferredCurrency === 'GBP') {
+        if (preferredCurrency === 'USD') {
             return [
-                { value: 10, label: `${currencySym}10` },
-                { value: 25, label: `${currencySym}25` },
-                { value: 50, label: `${currencySym}50` },
-                { value: 100, label: `${currencySym}100` }
+                { value: minDepositInPreferred, label: `$${minDepositInPreferred.toFixed(2)}` },
+                { value: 1, label: '$1' },
+                { value: 5, label: '$5' },
+                { value: 10, label: '$10' }
+            ]
+        }
+        if (preferredCurrency === 'EUR') {
+            return [
+                { value: minDepositInPreferred, label: `€${minDepositInPreferred.toFixed(2)}` },
+                { value: 1, label: '€1' },
+                { value: 5, label: '€5' },
+                { value: 10, label: '€10' }
+            ]
+        }
+        if (preferredCurrency === 'GBP') {
+            return [
+                { value: minDepositInPreferred, label: `£${minDepositInPreferred.toFixed(2)}` },
+                { value: 1, label: '£1' },
+                { value: 5, label: '£5' },
+                { value: 10, label: '£10' }
             ]
         }
         if (preferredCurrency === 'RUB') {
             return [
+                { value: Math.round(minDepositInPreferred), label: `₽${Math.round(minDepositInPreferred)}` },
+                { value: 100, label: '₽100' },
                 { value: 500, label: '₽500' },
-                { value: 1000, label: '₽1,000' },
-                { value: 2500, label: '₽2,500' },
-                { value: 5000, label: '₽5,000' }
+                { value: 1000, label: '₽1,000' }
             ]
         }
 
-        const baseValues = [10, 25, 50, 100]
+        const baseValues = [minDepositInPreferred, 1, 5, 10]
         return baseValues.map(base => {
-            const raw = base * currencyRate
-            let rounded = Math.round(raw)
-            const val = Math.max(1, rounded)
+            const val = typeof base === 'number' ? base : parseFloat(base)
             return {
                 value: val,
-                label: `${currencySym}${val.toLocaleString()}`
+                label: `${currencySym}${val < 1 ? val.toFixed(2) : val}`
             }
         })
-    }, [preferredCurrency, currencySym, currencyRate])
+    }, [preferredCurrency, currencySym, minDepositInPreferred])
 
     const userCardLast4 = user?.id ? user.id.slice(-4).toUpperCase() : "8888"
 
@@ -231,8 +263,8 @@ export default function WalletPage() {
     // Handle Amount Continue -> Select Method
     const handleContinueToMethod = () => {
         const val = parseFloat(amount)
-        if (isNaN(val) || val < 1) {
-            toast.error("Minimum deposit amount is $1.00")
+        if (isNaN(val) || val < minDepositInPreferred) {
+            toast.error(`Minimum deposit amount is ${minDepositFormatted}`)
             return
         }
         setInlineStep('select_method')
@@ -266,8 +298,8 @@ export default function WalletPage() {
     // Create UPI Order & Transition to QR Payment
     const handleSelectUpiPayment = async () => {
         const val = parseFloat(amount)
-        if (isNaN(val) || val <= 0) {
-            toast.error("Please enter a valid deposit amount")
+        if (isNaN(val) || val < minDepositInPreferred) {
+            toast.error(`Minimum deposit amount is ${minDepositFormatted}`)
             return
         }
 
@@ -679,23 +711,33 @@ export default function WalletPage() {
                                                 </div>
 
                                                 {/* Custom Amount Input */}
-                                                <div className="relative group">
-                                                    <div className={cn(
-                                                        "absolute inset-0 bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 rounded-xl blur transition-opacity duration-500",
-                                                        customFocused ? "opacity-100" : "opacity-0"
-                                                    )} />
-                                                    <div className="relative flex items-center bg-card/50 border border-white/10 rounded-xl px-4 h-16 transition-colors group-hover:border-white/20">
-                                                        <span className="text-2xl font-bold text-muted-foreground mr-2">{currencySym}</span>
-                                                        <Input
-                                                            ref={customInputRef}
-                                                            type="number"
-                                                            placeholder={`10`}
-                                                            value={amount}
-                                                            onChange={(e) => setAmount(e.target.value)}
-                                                            onFocus={() => setCustomFocused(true)}
-                                                            onBlur={() => setCustomFocused(false)}
-                                                            className="border-none bg-transparent h-full text-2xl font-bold placeholder:font-normal placeholder:text-muted-foreground/60 focus-visible:ring-0 p-0"
-                                                        />
+                                                <div className="space-y-2">
+                                                    <div className="relative group">
+                                                        <div className={cn(
+                                                            "absolute inset-0 bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 rounded-xl blur transition-opacity duration-500",
+                                                            customFocused ? "opacity-100" : "opacity-0"
+                                                        )} />
+                                                        <div className="relative flex items-center bg-card/50 border border-white/10 rounded-xl px-4 h-16 transition-colors group-hover:border-white/20">
+                                                            <span className="text-2xl font-bold text-muted-foreground mr-2">{currencySym}</span>
+                                                            <Input
+                                                                ref={customInputRef}
+                                                                type="number"
+                                                                placeholder={minDepositInPreferred < 1 ? minDepositInPreferred.toFixed(2) : minDepositInPreferred.toString()}
+                                                                value={amount}
+                                                                onChange={(e) => setAmount(e.target.value)}
+                                                                onFocus={() => setCustomFocused(true)}
+                                                                onBlur={() => setCustomFocused(false)}
+                                                                className="border-none bg-transparent h-full text-2xl font-bold placeholder:font-normal placeholder:text-muted-foreground/60 focus-visible:ring-0 p-0"
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Helper text showing minimum deposit in user currency */}
+                                                    <div className="flex items-center justify-between text-xs px-1 text-muted-foreground font-medium">
+                                                        <span>Min deposit: <strong className="text-white font-mono">{minDepositFormatted}</strong></span>
+                                                        {preferredCurrency !== 'INR' && (
+                                                            <span>≈ ₹{calculatedInrAmount.toLocaleString()} INR</span>
+                                                        )}
                                                     </div>
                                                 </div>
 
