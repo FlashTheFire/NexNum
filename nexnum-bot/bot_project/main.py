@@ -260,7 +260,7 @@ class TelegramBot:
             return False
 
     async def initialize_bot(self) -> bool:
-        """Initialize the Telegram bot and its components."""
+        """Initialize the Telegram bot and its components with global error boundary."""
         try:
             self.bot = AsyncTeleBot(BOT_TOKEN)
             self.bot.input_validator = InputValidator()
@@ -269,6 +269,14 @@ class TelegramBot:
             self.bot.order_manager = self.order_manager
             self.bot.deposit_manager = self.deposit_manager
             self.bot.aggregator = financial_mgr
+
+            # Attach exception handler to Telebot
+            from handlers.error_boundary import logger as boundary_logger
+            def bot_exception_handler(exception):
+                boundary_logger.error(f"[TELEBOT_LISTENER_ERROR] Uncaught exception in telebot listener: {exception}", exc_info=True)
+                return True # Exception handled, keep polling
+
+            self.bot.exception_handler = bot_exception_handler
 
             # Initialize trackers
             await self._initialize_trackers()

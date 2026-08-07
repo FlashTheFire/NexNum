@@ -6,11 +6,14 @@ Unifies multiple Firebase database instances running different schemas:
 - 'clients': Legacy client schema (/clients/{client_id})
 - 'auto': Probes both endpoints dynamically
 """
+
+import asyncio
 import logging
 from typing import Dict, Any, List, Optional, Tuple
 import httpx
 
 from app.core.config import get_settings
+from app.core.http_pool import get_http_client
 from app.crud.schema_adapter import FirebaseSchemaAdapter, DeviceSimNode
 
 logger = logging.getLogger(__name__)
@@ -20,6 +23,7 @@ settings = get_settings()
 class UniversalFirebaseNode:
     """
     Encapsulates a single Firebase database node and its declared schema type.
+    Uses shared AsyncClient HTTP connection pool.
     """
     def __init__(self, node_id: str, url: str, auth: str = "", schema_type: str = "auto"):
         self.node_id = node_id
@@ -36,39 +40,51 @@ class UniversalFirebaseNode:
             url += f"&{params}" if "?" in url else f"?{params}"
         return url
 
-    def fetch_raw_data(self) -> Dict[str, Any]:
+    async def fetch_raw_data_async(self) -> Dict[str, Any]:
         """
-        Fetches raw device dictionary from Firebase based on the node's schema_type.
-        Returns normalized dictionary of {device_id: raw_data}.
+        Asynchronously fetches raw device dictionary from Firebase.
+        Uses shared AsyncClient connection pool.
         """
         combined = {}
-        with httpx.Client(timeout=10.0) as client:
-            # 1. Fetch /gateways if schema is 'gateways' or 'auto'
-            if self.schema_type in ("gateways", "auto"):
-                try:
-                    resp = client.get(self._build_url("/gateways"))
-                    if resp.status_code == 200 and resp.json():
-                        data = resp.json()
-                        if isinstance(data, dict):
-                            combined.update(data)
-                except Exception as e:
-                    logger.warning(f"UniversalFirebase [{self.node_id}] /gateways error: {e}")
+        client = await get_http_client()
 
-            # 2. Fetch /clients if schema is 'clients' or 'auto'
-            if self.schema_type in ("clients", "auto"):
-                try:
-                    resp = client.get(self._build_url("/clients"))
-                    if resp.status_code == 200 and resp.json():
-                        data = resp.json()
-                        if isinstance(data, dict):
-                            combined.update(data)
-                except Exception as e:
-                    logger.warning(f"UniversalFirebase [{self.node_id}] /clients error: {e}")
+        # 1. Fetch /gateways if schema is 'gateways' or 'auto'
+        if self.schema_type in ("gateways", "auto"):
+            try:
+                resp = await client.get(self._build_url("/gateways"))
+                if resp.status_code == 200 and resp.json():
+                    data = resp.json()
+                    if isinstance(data, dict):
+                        combined.update(data)
+            except Exception as e:
+                logger.warning(f"UniversalFirebase [{self.node_id}] /gateways error: {e}")
+
+        # 2. Fetch /clients if schema is 'clients' or 'auto'
+        if self.schema_type in ("clients", "auto"):
+            try:
+                resp = await client.get(self._build_url("/clients"))
+                if resp.status_code == 200 and resp.json():
+                    data = resp.json()
+                    if isinstance(data, dict):
+                        combined.update(data)
+            except Exception as e:
+                logger.warning(f"UniversalFirebase [{self.node_id}] /clients error: {e}")
 
         return combined
 
-    def parse_sim_nodes(self) -> List[DeviceSimNode]:
-        raw_dict = self.fetch_raw_data()
+    def fetch_raw_data(self) -> Dict[str, Any]:
+        """Synchronous wrapper for legacy callers."""
+        try:
+            loop = asyncio.get_running_loop()
+            if loop.is_running():
+                # Run in executor to avoid event loop blocking
+                return asyncio.run_coroutine_threadsafe(self.fetch_raw_data_async(), loop).result()
+        except RuntimeError:
+            pass
+        return asyncio.run(self.fetch_raw_data_async())
+
+    async def parse_sim_nodes_async(self) -> List[DeviceSimNode]:
+        raw_dict = await self.fetch_raw_data_async()
         sim_nodes = []
         for dev_id, raw_data in raw_dict.items():
             parsed = FirebaseSchemaAdapter.parse_node(
@@ -79,30 +95,50 @@ class UniversalFirebaseNode:
             sim_nodes.extend(parsed)
         return sim_nodes
 
-    def send_command(self, device_id: str, command_payload: dict) -> bool:
-        """
-        Sends command payload to the correct location depending on node schema.
-        """
-        with httpx.Client(timeout=10.0) as client:
-            if self.schema_type in ("gateways", "auto"):
-                url = self._build_url(f"/gateways/{device_id}/commands")
-                try:
-                    resp = client.post(url, json=command_payload)
-                    if resp.status_code == 200:
-                        return True
-                except Exception:
-                    pass
+    def parse_sim_nodes(self) -> List[DeviceSimNode]:
+        """Synchronous wrapper for legacy callers."""
+        try:
+            loop = asyncio.get_running_loop()
+            if loop.is_running():
+                return asyncio.run_coroutine_threadsafe(self.parse_sim_nodes_async(), loop).result()
+        except RuntimeError:
+            pass
+        return asyncio.run(self.parse_sim_nodes_async())
 
-            if self.schema_type in ("clients", "auto"):
-                url = self._build_url(f"/clients/{device_id}/command")
-                try:
-                    resp = client.put(url, json=command_payload)
-                    if resp.status_code == 200:
-                        return True
-                except Exception:
-                    pass
+    async def send_command_async(self, device_id: str, command_payload: dict) -> bool:
+        """
+        Asynchronously sends command payload to Firebase using shared AsyncClient.
+        """
+        client = await get_http_client()
+        if self.schema_type in ("gateways", "auto"):
+            url = self._build_url(f"/gateways/{device_id}/commands")
+            try:
+                resp = await client.post(url, json=command_payload)
+                if resp.status_code == 200:
+                    return True
+            except Exception as e:
+                logger.warning(f"UniversalFirebase [{self.node_id}] send_command gateway error: {e}")
+
+        if self.schema_type in ("clients", "auto"):
+            url = self._build_url(f"/clients/{device_id}/command")
+            try:
+                resp = await client.put(url, json=command_payload)
+                if resp.status_code == 200:
+                    return True
+            except Exception as e:
+                logger.warning(f"UniversalFirebase [{self.node_id}] send_command client error: {e}")
 
         return False
+
+    def send_command(self, device_id: str, command_payload: dict) -> bool:
+        """Synchronous wrapper for legacy callers."""
+        try:
+            loop = asyncio.get_running_loop()
+            if loop.is_running():
+                return asyncio.run_coroutine_threadsafe(self.send_command_async(device_id, command_payload), loop).result()
+        except RuntimeError:
+            pass
+        return asyncio.run(self.send_command_async(device_id, command_payload))
 
 
 class UniversalFirebaseRegistry:
@@ -133,23 +169,37 @@ class UniversalFirebaseRegistry:
         return cls._nodes
 
     @classmethod
-    def fetch_all_sim_nodes(cls) -> List[DeviceSimNode]:
+    async def fetch_all_sim_nodes_async(cls) -> List[DeviceSimNode]:
         """
-        Queries all declared Firebase nodes concurrently and aggregates allocatable DeviceSimNodes.
+        Asynchronously queries all declared Firebase nodes using asyncio gather.
         """
-        from concurrent.futures import ThreadPoolExecutor
         nodes = cls.get_nodes()
         if not nodes:
             return []
 
+        tasks = [node.parse_sim_nodes_async() for node in nodes]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
         all_sims: List[DeviceSimNode] = []
-        with ThreadPoolExecutor(max_workers=max(4, len(nodes) * 2)) as executor:
-            futures = [executor.submit(node.parse_sim_nodes) for node in nodes]
-            for fut in futures:
-                try:
-                    res = fut.result()
-                    all_sims.extend(res)
-                except Exception as e:
-                    logger.error(f"[UniversalFirebaseRegistry] Node execution error: {e}")
+        for res in results:
+            if isinstance(res, list):
+                all_sims.extend(res)
+            elif isinstance(res, Exception):
+                logger.error(f"[UniversalFirebaseRegistry] Async node execution error: {res}")
 
         return all_sims
+
+    @classmethod
+    def fetch_all_sim_nodes(cls) -> List[DeviceSimNode]:
+        """
+        Queries all declared Firebase nodes concurrently.
+        """
+        try:
+            loop = asyncio.get_running_loop()
+            if loop.is_running():
+                # In running loop: execute async version natively via run_coroutine_threadsafe or gather
+                fut = asyncio.run_coroutine_threadsafe(cls.fetch_all_sim_nodes_async(), loop)
+                return fut.result()
+        except RuntimeError:
+            pass
+        return asyncio.run(cls.fetch_all_sim_nodes_async())
