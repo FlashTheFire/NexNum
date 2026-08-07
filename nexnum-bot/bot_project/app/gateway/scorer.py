@@ -186,6 +186,17 @@ class DeviceScorer:
             if candidate.score > -9999:
                 scored_candidates.append(candidate)
 
+        # Fallback Pass (Ultra-Low Stock Shield):
+        # If no candidates passed under current cooldown, re-score with ultra-compressed 120s cooldown
+        if not scored_candidates and effective_cooldown_sec > 120.0:
+            logger.info(f"[LowStockShield] Stock exhaustion imminent for service '{service}'. Engaging Tier-2 Cooldown Compression (120s).")
+            for node in sim_nodes:
+                candidate = await cls.score_sim_node(
+                    redis_client, node, service, user_id, now, effective_cooldown_sec=120.0
+                )
+                if candidate.score > -9999:
+                    scored_candidates.append(candidate)
+
         if not scored_candidates:
             return None
 

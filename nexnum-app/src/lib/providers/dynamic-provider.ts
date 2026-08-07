@@ -367,7 +367,9 @@ export class DynamicProvider implements SmsProvider {
                     callerSignal.addEventListener('abort', () => fetchController.abort(callerSignal.reason), { once: true })
                 }
             }
-            const fetchTimeoutId = setTimeout(() => fetchController.abort(new Error('Request timeout after 30s')), 30000)
+            // Fail fast for getNumber (15s limit) to avoid exceeding Prisma 30s transaction timeout boundary
+            const maxTimeoutMs = endpointKey === 'getNumber' ? 15000 : 30000
+            const fetchTimeoutId = setTimeout(() => fetchController.abort(new Error(`Request timeout after ${maxTimeoutMs / 1000}s`)), maxTimeoutMs)
 
             try {
                 response = await breaker.fire(async () => {
